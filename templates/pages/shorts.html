@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div class="flex items-center gap-3">
+        <span class="text-3xl">📱</span>
+        <div>
+            <h1>쇼츠 생성</h1>
+            <p>롱폼 대본에서 쇼츠용 하이라이트를 추출합니다</p>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-6">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">⚙️ 쇼츠 설정</h3>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">쇼츠 개수</label>
+            <select id="shortsCount" class="input-field">
+                <option value="1">1개</option>
+                <option value="3" selected>3개</option>
+                <option value="5">5개</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">길이</label>
+            <select id="shortsLength" class="input-field">
+                <option value="30">30초</option>
+                <option value="45">45초</option>
+                <option value="60" selected>60초 (권장)</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">스타일</label>
+            <select id="shortsStyle" class="input-field">
+                <option value="hook">후킹형 (충격적 시작)</option>
+                <option value="tip">팁형 (유용한 정보)</option>
+                <option value="story">스토리형 (미니 스토리)</option>
+                <option value="question">질문형 (궁금증 유발)</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<button onclick="generateShorts()" id="generateBtn" class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg mb-6">
+    <span>📱</span>
+    <span>쇼츠 대본 생성</span>
+</button>
+
+<div id="resultSection" class="hidden">
+    <div id="shortsList" class="space-y-6"></div>
+</div>
+
+<!-- 쇼츠 팁 -->
+<div class="card bg-blue-50 dark:bg-blue-900/30 mt-6">
+    <h4 class="font-bold text-blue-800 dark:text-blue-300 mb-3">💡 바이럴 쇼츠 공식</h4>
+    <ul class="text-blue-700 dark:text-blue-400 text-sm space-y-2">
+        <li>• 첫 1초: 강렬한 후킹 (질문, 충격, 호기심)</li>
+        <li>• 세로 영상 (9:16) 필수</li>
+        <li>• 자막 필수 (85%가 무음으로 시청)</li>
+        <li>• 마지막에 CTA (팔로우, 좋아요 요청)</li>
+        <li>• 루프 가능한 구조면 더 좋음</li>
+    </ul>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let shortsData = [];
+
+    async function generateShorts() {
+        const scriptData = Utils.storage.get('fullScript');
+        if (!scriptData?.script) {
+            Utils.showToast('먼저 대본을 생성해주세요', 'warning');
+            return;
+        }
+
+        const count = document.getElementById('shortsCount').value;
+        const length = document.getElementById('shortsLength').value;
+        const style = document.getElementById('shortsStyle').value;
+
+        const btn = document.getElementById('generateBtn');
+        Utils.setLoading(btn, true, '생성 중...');
+
+        const prompt = `유튜브 쇼츠 전문가로서 다음 롱폼 대본에서 쇼츠용 하이라이트를 추출해주세요.
+
+[원본 대본]
+${scriptData.script.substring(0, 3000)}
+
+[설정]
+- 쇼츠 개수: ${count}개
+- 길이: ${length}초
+- 스타일: ${style}
+
+JSON 형식으로 반환:
+{
+    "shorts": [
+        {
+            "title": "쇼츠 제목",
+            "hook": "첫 1초에 말할 후킹 멘트",
+            "script": "전체 쇼츠 대본 (${length}초 분량)",
+            "hashtags": "#해시태그1 #해시태그2 #해시태그3"
+        }
+    ]
+}
+
+각 쇼츠는 독립적으로 이해 가능해야 합니다. JSON만 반환하세요.`;
+
+        try {
+            const result = await API.gemini.generate(prompt, { temperature: 0.8 });
+
+            if (result.status === 'ok') {
+                const jsonMatch = result.text.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    const data = JSON.parse(jsonMatch[0]);
+                    shortsData = data.shorts;
+                    renderShorts();
+                    document.getElementById('resultSection').classList.remove('hidden');
+                }
+            }
+        } catch (error) {
+            Utils.showToast('생성 중 오류가 발생했습니다', 'error');
+        } finally {
+            Utils.setLoading(btn, false);
+        }
+    }
+
+    function renderShorts() {
+        document.getElementById('shortsList').innerHTML = shortsData.map((short, i) => `
+            <div class="card overflow-hidden">
+                <div class="bg-gradient-to-r from-red-500 to-orange-500 p-4 text-white -m-6 mb-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center font-bold">${i + 1}</span>
+                            <span class="font-bold">쇼츠 #${i + 1}</span>
+                        </div>
+                        <button onclick="copyShorts(${i})" class="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition">
+                            📋 전체 복사
+                        </button>
+                    </div>
+                    <p class="mt-2 text-white/90">${short.title}</p>
+                </div>
+
+                <div class="space-y-4 mt-6">
+                    <div>
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="px-2 py-1 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded text-xs font-bold">후킹</span>
+                            <span class="text-sm text-gray-500">첫 1초</span>
+                        </div>
+                        <p class="font-medium bg-yellow-50 dark:bg-yellow-900/30 p-3 rounded-lg">"${short.hook}"</p>
+                    </div>
+
+                    <div>
+                        <p class="text-sm text-gray-500 mb-2">전체 대본:</p>
+                        <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg text-sm whitespace-pre-wrap">${short.script}</div>
+                    </div>
+
+                    <div class="text-blue-500">${short.hashtags}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function copyShorts(index) {
+        const short = shortsData[index];
+        const text = `제목: ${short.title}\n\n${short.script}\n\n${short.hashtags}`;
+        Utils.copyToClipboard(text);
+        Utils.showToast('쇼츠 대본이 복사되었습니다', 'success');
+    }
+</script>
+{% endblock %}

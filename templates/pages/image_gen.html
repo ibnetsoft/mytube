@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div class="flex items-center gap-3">
+        <span class="text-3xl">🖼️</span>
+        <div>
+            <h1>이미지 생성</h1>
+            <p>대본 기반 AI 이미지 프롬프트를 생성합니다</p>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-6">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">⚙️ 이미지 설정</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">스타일</label>
+            <select id="imageStyle" class="input-field">
+                <option value="realistic">사실적인 (Realistic)</option>
+                <option value="anime">애니메이션</option>
+                <option value="cinematic">시네마틱</option>
+                <option value="minimal">미니멀</option>
+                <option value="3d">3D 렌더</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">이미지 개수</label>
+            <select id="imageCount" class="input-field">
+                <option value="3">3개</option>
+                <option value="5" selected>5개</option>
+                <option value="10">10개</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<button onclick="generatePrompts()" id="generateBtn" class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg mb-6">
+    <span>🖼️</span>
+    <span>이미지 프롬프트 생성</span>
+</button>
+
+<div id="resultSection" class="hidden">
+    <div class="card">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-gray-800 dark:text-white">🎨 생성된 프롬프트</h3>
+            <button onclick="copyAllPrompts()" class="btn-secondary text-sm">📋 전체 복사</button>
+        </div>
+        <div id="promptsList" class="space-y-4"></div>
+
+        <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <h4 class="font-medium text-gray-800 dark:text-white mb-3">🔗 이미지 생성 서비스</h4>
+            <div class="flex flex-wrap gap-2">
+                <a href="https://midjourney.com" target="_blank" class="btn-secondary text-sm">Midjourney</a>
+                <a href="https://labs.openai.com" target="_blank" class="btn-secondary text-sm">DALL-E</a>
+                <a href="https://leonardo.ai" target="_blank" class="btn-secondary text-sm">Leonardo AI</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let prompts = [];
+
+    async function generatePrompts() {
+        const scriptData = Utils.storage.get('fullScript');
+        if (!scriptData?.script) {
+            Utils.showToast('먼저 대본을 생성해주세요', 'warning');
+            return;
+        }
+
+        const style = document.getElementById('imageStyle').value;
+        const count = document.getElementById('imageCount').value;
+
+        const btn = document.getElementById('generateBtn');
+        Utils.setLoading(btn, true, '생성 중...');
+
+        try {
+            const result = await API.image.generatePrompts(scriptData.script, style, parseInt(count));
+
+            if (result.prompts) {
+                prompts = result.prompts;
+                renderPrompts();
+                document.getElementById('resultSection').classList.remove('hidden');
+
+                Utils.storage.set('imagePrompts', prompts);
+            }
+        } catch (error) {
+            Utils.showToast('생성 중 오류가 발생했습니다', 'error');
+        } finally {
+            Utils.setLoading(btn, false);
+        }
+    }
+
+    function renderPrompts() {
+        const container = document.getElementById('promptsList');
+        container.innerHTML = prompts.map((p, i) => `
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-medium text-gray-800 dark:text-white">장면 ${i + 1}: ${p.scene}</span>
+                    <button onclick="copyPrompt(${i})" class="btn-secondary text-xs">복사</button>
+                </div>
+                <code class="block bg-gray-900 text-green-400 p-3 rounded text-sm overflow-x-auto">
+                    ${p.prompt} ${p.style_tags || ''}
+                </code>
+            </div>
+        `).join('');
+    }
+
+    function copyPrompt(index) {
+        const p = prompts[index];
+        Utils.copyToClipboard(`${p.prompt} ${p.style_tags || ''}`);
+        Utils.showToast('복사되었습니다', 'success');
+    }
+
+    function copyAllPrompts() {
+        const text = prompts.map((p, i) => `[장면 ${i + 1}] ${p.scene}\n${p.prompt} ${p.style_tags || ''}`).join('\n\n');
+        Utils.copyToClipboard(text);
+        Utils.showToast('전체 복사되었습니다', 'success');
+    }
+</script>
+{% endblock %}

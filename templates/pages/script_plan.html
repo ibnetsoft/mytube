@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div class="flex items-center gap-3">
+        <span class="text-3xl">📋</span>
+        <div>
+            <h1>대본 기획</h1>
+            <p>분석 데이터를 기반으로 대본 구조를 설계합니다</p>
+        </div>
+    </div>
+</div>
+
+<!-- 분석 데이터 표시 -->
+<div id="analysisInfo" class="card mb-6 hidden">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">📊 분석 데이터 기반</h3>
+    <div id="analysisContent"></div>
+</div>
+
+<!-- 대본 설정 -->
+<div class="card mb-6">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">⚙️ 대본 설정</h3>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">영상 주제</label>
+            <input type="text" id="topicInput" class="input-field" placeholder="예: 초보자를 위한 파이썬 강의">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">영상 길이</label>
+            <select id="durationSelect" class="input-field">
+                <option value="short">짧은 영상 (5-10분)</option>
+                <option value="medium" selected>중간 영상 (10-20분)</option>
+                <option value="long">긴 영상 (20분 이상)</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">톤앤매너</label>
+            <select id="toneSelect" class="input-field">
+                <option value="friendly">친근한</option>
+                <option value="professional">전문적인</option>
+                <option value="humorous">유머러스한</option>
+                <option value="educational">교육적인</option>
+            </select>
+        </div>
+    </div>
+    <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">추가 요청사항</label>
+        <textarea id="additionalNotes" class="input-field" rows="3" placeholder="특별히 포함하고 싶은 내용이나 스타일을 적어주세요"></textarea>
+    </div>
+</div>
+
+<!-- 생성 버튼 -->
+<button onclick="generateStructure()" id="generateBtn" class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg mb-6">
+    <span>🤖</span>
+    <span>대본 구조 생성하기</span>
+</button>
+
+<!-- 결과 영역 -->
+<div id="resultSection" class="hidden">
+    <div class="card">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-gray-800 dark:text-white">📝 생성된 대본 구조</h3>
+            <div class="flex gap-2">
+                <button onclick="copyStructure()" class="btn-secondary text-sm">📋 복사</button>
+                <button onclick="regenerate()" class="btn-secondary text-sm">🔄 다시 생성</button>
+            </div>
+        </div>
+        <div id="structureContent" class="prose dark:prose-invert max-w-none"></div>
+
+        <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <button onclick="goToScriptGen()" class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg">
+                <span>✍️</span>
+                <span>전체 대본 생성하기</span>
+                <span>→</span>
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentStructure = '';
+
+    // 페이지 로드 시 분석 데이터 확인
+    document.addEventListener('DOMContentLoaded', () => {
+        const analysisData = Utils.storage.get('analysisData');
+        if (analysisData && analysisData.video) {
+            document.getElementById('analysisInfo').classList.remove('hidden');
+            document.getElementById('topicInput').value = analysisData.video.snippet.title;
+            document.getElementById('analysisContent').innerHTML = `
+                <div class="flex gap-4 items-center">
+                    <img src="${analysisData.video.snippet.thumbnails.default.url}" class="w-24 rounded">
+                    <div>
+                        <p class="font-medium text-gray-800 dark:text-white">${analysisData.video.snippet.title}</p>
+                        <p class="text-sm text-gray-500">${analysisData.video.snippet.channelTitle}</p>
+                    </div>
+                </div>
+            `;
+        }
+    });
+
+    async function generateStructure() {
+        const topic = document.getElementById('topicInput').value.trim();
+        if (!topic) {
+            Utils.showToast('영상 주제를 입력하세요', 'warning');
+            return;
+        }
+
+        const duration = document.getElementById('durationSelect').value;
+        const tone = document.getElementById('toneSelect').value;
+        const notes = document.getElementById('additionalNotes').value;
+
+        const btn = document.getElementById('generateBtn');
+        Utils.setLoading(btn, true, '생성 중...');
+
+        const prompt = `당신은 유튜브 대본 작가입니다.
+다음 정보를 바탕으로 영상 대본 구조를 만들어주세요.
+
+[영상 주제]
+${topic}
+
+[영상 길이]
+${duration === 'short' ? '5-10분' : duration === 'medium' ? '10-20분' : '20분 이상'}
+
+[톤앤매너]
+${tone}
+
+[추가 요청]
+${notes || '없음'}
+
+다음 형식으로 작성해주세요:
+
+## 📌 영상 컨셉
+(영상의 핵심 컨셉 1-2문장)
+
+## 🎯 타겟 시청자
+(누구를 위한 영상인지)
+
+## 📋 대본 구조
+
+### 1. 인트로 (0:00-0:30)
+- 후킹 포인트:
+- 영상 소개:
+
+### 2. 본론 1 (0:30-3:00)
+- 주제:
+- 핵심 포인트:
+
+### 3. 본론 2 (3:00-6:00)
+- 주제:
+- 핵심 포인트:
+
+(필요에 따라 본론 추가)
+
+### N. 마무리 (끝)
+- 요약:
+- CTA (Call to Action):
+
+## 💡 핵심 키워드
+(SEO용 키워드 5개)`;
+
+        try {
+            const result = await API.gemini.generate(prompt, { temperature: 0.7 });
+
+            if (result.status === 'ok') {
+                currentStructure = result.text;
+                document.getElementById('structureContent').innerHTML = marked.parse(result.text);
+                document.getElementById('resultSection').classList.remove('hidden');
+
+                Utils.storage.set('scriptStructure', {
+                    topic,
+                    structure: result.text,
+                    timestamp: Date.now()
+                });
+            } else {
+                Utils.showToast('생성 실패: ' + (result.error?.message || '알 수 없는 오류'), 'error');
+            }
+        } catch (error) {
+            console.error('생성 오류:', error);
+            Utils.showToast('생성 중 오류가 발생했습니다', 'error');
+        } finally {
+            Utils.setLoading(btn, false);
+        }
+    }
+
+    function copyStructure() {
+        Utils.copyToClipboard(currentStructure);
+        Utils.showToast('복사되었습니다', 'success');
+    }
+
+    function regenerate() {
+        generateStructure();
+    }
+
+    function goToScriptGen() {
+        window.location.href = '/script-gen';
+    }
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+{% endblock %}

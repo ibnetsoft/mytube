@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div class="flex items-center gap-3">
+        <span class="text-3xl">🎬</span>
+        <div>
+            <h1>영상 렌더링</h1>
+            <p>이미지와 음성을 합성하여 영상을 생성합니다</p>
+        </div>
+    </div>
+</div>
+
+<!-- 프로젝트 요약 -->
+<div class="card mb-6">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">📋 프로젝트 요약</h3>
+    <div id="projectSummary" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 text-center">
+            <div class="text-2xl mb-1">📝</div>
+            <div id="scriptStatus" class="text-sm text-gray-600 dark:text-gray-400">대본 없음</div>
+        </div>
+        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 text-center">
+            <div class="text-2xl mb-1">🖼️</div>
+            <div id="imageStatus" class="text-sm text-gray-600 dark:text-gray-400">이미지 없음</div>
+        </div>
+        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 text-center">
+            <div class="text-2xl mb-1">🔊</div>
+            <div id="audioStatus" class="text-sm text-gray-600 dark:text-gray-400">음성 없음</div>
+        </div>
+        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 text-center">
+            <div class="text-2xl mb-1">🎬</div>
+            <div id="videoStatus" class="text-sm text-gray-600 dark:text-gray-400">준비 중</div>
+        </div>
+    </div>
+</div>
+
+<!-- 영상 생성 (Python 백엔드) -->
+<div class="card mb-6">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">🎬 자동 영상 생성</h3>
+    <p class="text-gray-600 dark:text-gray-400 mb-4">
+        이미지와 음성 파일을 업로드하면 슬라이드쇼 영상을 자동으로 생성합니다.
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">이미지당 표시 시간</label>
+            <select id="imageDuration" class="input-field">
+                <option value="3">3초</option>
+                <option value="5" selected>5초</option>
+                <option value="7">7초</option>
+                <option value="10">10초</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">해상도 (숏폼 9:16)</label>
+            <select id="resolution" class="input-field">
+                <option value="720p">720p (720x1280)</option>
+                <option value="1080p" selected>1080p (1080x1920)</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="alert alert-info mb-4">
+        <strong>참고:</strong> 현재 버전은 로컬에서 MoviePy를 사용하여 영상을 생성합니다.
+        이미지 파일들을 준비한 후 아래 버튼을 클릭하세요.
+    </div>
+
+    <button onclick="createVideo()" id="renderBtn" class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg">
+        <span>🎬</span>
+        <span>영상 생성하기</span>
+    </button>
+</div>
+
+<!-- 외부 도구 안내 -->
+<div class="card mb-6">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">🛠️ 추천 편집 도구</h3>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <h4 class="font-medium text-gray-700 dark:text-gray-300 mb-2">무료 도구</h4>
+            <div class="space-y-2">
+                <a href="https://www.capcut.com" target="_blank" class="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-700 rounded hover:bg-gray-100 dark:hover:bg-gray-600 transition">
+                    <span>🎬</span> CapCut (무료, 초보자 추천)
+                </a>
+                <a href="https://www.davinciresolve.com" target="_blank" class="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-700 rounded hover:bg-gray-100 dark:hover:bg-gray-600 transition">
+                    <span>🎬</span> DaVinci Resolve (무료, 전문가급)
+                </a>
+            </div>
+        </div>
+        <div>
+            <h4 class="font-medium text-gray-700 dark:text-gray-300 mb-2">AI 영상 생성</h4>
+            <div class="space-y-2">
+                <a href="https://www.synthesia.io" target="_blank" class="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-700 rounded hover:bg-gray-100 dark:hover:bg-gray-600 transition">
+                    <span>🤖</span> Synthesia (AI 아바타)
+                </a>
+                <a href="https://www.heygen.com" target="_blank" class="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-700 rounded hover:bg-gray-100 dark:hover:bg-gray-600 transition">
+                    <span>🤖</span> HeyGen (AI 아바타)
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 다운로드 섹션 -->
+<div class="card">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">💾 프로젝트 파일 다운로드</h3>
+    <div class="flex flex-wrap gap-3">
+        <button onclick="downloadScript()" class="btn-secondary">📝 대본 다운로드</button>
+        <button onclick="downloadPrompts()" class="btn-secondary">🖼️ 이미지 프롬프트 다운로드</button>
+        <button onclick="downloadAll()" class="btn-primary">📦 전체 다운로드</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        updateProjectStatus();
+    });
+
+    function updateProjectStatus() {
+        const script = Utils.storage.get('fullScript');
+        const images = Utils.storage.get('imagePrompts');
+        const audio = Utils.storage.get('ttsAudio');
+
+        if (script) {
+            document.getElementById('scriptStatus').innerHTML = '<span class="text-green-600">✅ 준비됨</span>';
+        }
+        if (images?.length > 0) {
+            document.getElementById('imageStatus').innerHTML = `<span class="text-green-600">✅ ${images.length}개</span>`;
+        }
+        if (audio) {
+            document.getElementById('audioStatus').innerHTML = '<span class="text-green-600">✅ 준비됨</span>';
+        }
+    }
+
+    async function createVideo() {
+        Utils.showToast('이 기능은 이미지 파일 업로드가 필요합니다. 곧 업데이트됩니다.', 'info');
+    }
+
+    function downloadScript() {
+        const script = Utils.storage.get('fullScript');
+        if (script?.script) {
+            Utils.downloadFile(script.script, `${script.topic || '대본'}.txt`);
+        } else {
+            Utils.showToast('대본이 없습니다', 'warning');
+        }
+    }
+
+    function downloadPrompts() {
+        const prompts = Utils.storage.get('imagePrompts');
+        if (prompts?.length > 0) {
+            const text = prompts.map((p, i) => `[장면 ${i+1}] ${p.scene}\n${p.prompt} ${p.style_tags || ''}`).join('\n\n');
+            Utils.downloadFile(text, '이미지_프롬프트.txt');
+        } else {
+            Utils.showToast('이미지 프롬프트가 없습니다', 'warning');
+        }
+    }
+
+    function downloadAll() {
+        const script = Utils.storage.get('fullScript');
+        const structure = Utils.storage.get('scriptStructure');
+        const prompts = Utils.storage.get('imagePrompts');
+
+        let content = '=== wingsAIStudio 프로젝트 ===\n\n';
+
+        if (structure) {
+            content += '## 대본 구조\n' + structure.structure + '\n\n';
+        }
+        if (script) {
+            content += '## 대본\n' + script.script + '\n\n';
+        }
+        if (prompts) {
+            content += '## 이미지 프롬프트\n';
+            prompts.forEach((p, i) => {
+                content += `[장면 ${i+1}] ${p.scene}\n${p.prompt} ${p.style_tags || ''}\n\n`;
+            });
+        }
+
+        Utils.downloadFile(content, '프로젝트_전체.txt');
+    }
+</script>
+{% endblock %}

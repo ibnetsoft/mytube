@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div class="flex items-center gap-3">
+        <span class="text-3xl">✍️</span>
+        <div>
+            <h1>대본 생성</h1>
+            <p>AI가 완성된 대본을 작성합니다</p>
+        </div>
+    </div>
+</div>
+
+<!-- 구조 정보 -->
+<div id="structureInfo" class="card mb-6 hidden">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-2">📋 대본 구조 기반</h3>
+    <p id="structureTopic" class="text-gray-600 dark:text-gray-400"></p>
+</div>
+
+<!-- 대본 옵션 -->
+<div class="card mb-6">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">⚙️ 대본 옵션</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">대본 스타일</label>
+            <select id="scriptStyle" class="input-field">
+                <option value="narration">나레이션형 (설명 위주)</option>
+                <option value="conversational">대화형 (친근한 말투)</option>
+                <option value="storytelling">스토리텔링형 (이야기 전개)</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">포함 요소</label>
+            <div class="flex gap-4">
+                <label class="flex items-center gap-2">
+                    <input type="checkbox" id="includeHooks" checked class="rounded">
+                    <span class="text-sm text-gray-700 dark:text-gray-300">후킹 멘트</span>
+                </label>
+                <label class="flex items-center gap-2">
+                    <input type="checkbox" id="includeCTA" checked class="rounded">
+                    <span class="text-sm text-gray-700 dark:text-gray-300">CTA</span>
+                </label>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 생성 버튼 -->
+<button onclick="generateScript()" id="generateBtn" class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg mb-6">
+    <span>✍️</span>
+    <span>전체 대본 생성하기</span>
+</button>
+
+<!-- 결과 영역 -->
+<div id="resultSection" class="hidden">
+    <div class="card">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-gray-800 dark:text-white">📝 생성된 대본</h3>
+            <div class="flex gap-2">
+                <button onclick="copyScript()" class="btn-secondary text-sm">📋 복사</button>
+                <button onclick="downloadScript()" class="btn-secondary text-sm">💾 다운로드</button>
+            </div>
+        </div>
+
+        <div class="mb-4 flex gap-4 text-sm text-gray-500">
+            <span id="charCount">0자</span>
+            <span id="readTime">예상 읽기 시간: 0분</span>
+        </div>
+
+        <textarea id="scriptContent" class="input-field font-mono" rows="20"></textarea>
+
+        <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700 flex gap-4">
+            <button onclick="goToImageGen()" class="flex-1 btn-primary py-4 flex items-center justify-center gap-3">
+                <span>🖼️</span>
+                <span>이미지 프롬프트 생성</span>
+                <span>→</span>
+            </button>
+            <button onclick="goToTTS()" class="flex-1 btn-secondary py-4 flex items-center justify-center gap-3">
+                <span>🔊</span>
+                <span>TTS 생성</span>
+                <span>→</span>
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentScript = '';
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const structureData = Utils.storage.get('scriptStructure');
+        if (structureData) {
+            document.getElementById('structureInfo').classList.remove('hidden');
+            document.getElementById('structureTopic').textContent = structureData.topic;
+        }
+    });
+
+    async function generateScript() {
+        const structureData = Utils.storage.get('scriptStructure');
+        const style = document.getElementById('scriptStyle').value;
+        const includeHooks = document.getElementById('includeHooks').checked;
+        const includeCTA = document.getElementById('includeCTA').checked;
+
+        const btn = document.getElementById('generateBtn');
+        Utils.setLoading(btn, true, '대본 생성 중...');
+
+        const prompt = `당신은 유튜브 대본 작가입니다.
+다음 구조를 바탕으로 완성된 대본을 작성해주세요.
+
+[대본 구조]
+${structureData?.structure || '일반적인 유튜브 영상 대본'}
+
+[스타일]
+${style === 'narration' ? '나레이션형 - 설명 위주로 작성' : style === 'conversational' ? '대화형 - 시청자에게 말하듯이 친근하게' : '스토리텔링형 - 이야기를 전개하듯이'}
+
+[요구사항]
+- ${includeHooks ? '각 섹션 시작에 후킹 멘트 포함' : '후킹 멘트 최소화'}
+- ${includeCTA ? '적절한 위치에 구독/좋아요 CTA 포함' : 'CTA 최소화'}
+- 자연스러운 말투로 작성
+- [장면 설명]이나 (효과음) 같은 연출 지시 포함
+- 실제로 읽을 수 있는 대본 형태로 작성
+
+대본만 작성하세요.`;
+
+        try {
+            const result = await API.gemini.generate(prompt, { temperature: 0.8, maxTokens: 8192 });
+
+            if (result.status === 'ok') {
+                currentScript = result.text;
+                document.getElementById('scriptContent').value = result.text;
+                document.getElementById('resultSection').classList.remove('hidden');
+                updateStats();
+
+                Utils.storage.set('fullScript', {
+                    topic: structureData?.topic || '영상',
+                    script: result.text,
+                    timestamp: Date.now()
+                });
+            } else {
+                Utils.showToast('생성 실패', 'error');
+            }
+        } catch (error) {
+            console.error('생성 오류:', error);
+            Utils.showToast('생성 중 오류가 발생했습니다', 'error');
+        } finally {
+            Utils.setLoading(btn, false);
+        }
+    }
+
+    function updateStats() {
+        const text = document.getElementById('scriptContent').value;
+        const charCount = text.length;
+        const readTime = Math.ceil(charCount / 300); // 분당 300자 기준
+
+        document.getElementById('charCount').textContent = `${charCount.toLocaleString()}자`;
+        document.getElementById('readTime').textContent = `예상 읽기 시간: ${readTime}분`;
+    }
+
+    document.getElementById('scriptContent')?.addEventListener('input', updateStats);
+
+    function copyScript() {
+        const text = document.getElementById('scriptContent').value;
+        Utils.copyToClipboard(text);
+        Utils.showToast('복사되었습니다', 'success');
+    }
+
+    function downloadScript() {
+        const text = document.getElementById('scriptContent').value;
+        const topic = Utils.storage.get('scriptStructure')?.topic || '대본';
+        Utils.downloadFile(text, `${topic}_대본.txt`);
+    }
+
+    function goToImageGen() {
+        window.location.href = '/image-gen';
+    }
+
+    function goToTTS() {
+        window.location.href = '/tts';
+    }
+</script>
+{% endblock %}

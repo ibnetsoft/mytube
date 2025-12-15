@@ -1,0 +1,315 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div class="flex items-center gap-3">
+        <span class="text-3xl">⚙️</span>
+        <div>
+            <h1>설정</h1>
+            <p>API 키 및 앱 설정을 관리합니다</p>
+        </div>
+    </div>
+</div>
+
+<!-- API 키 입력 폼 -->
+<div class="card mb-6">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">🔑 API 키 설정</h3>
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        API 키를 입력하고 저장하면 즉시 적용됩니다. 서버 재시작 없이 바로 사용할 수 있습니다.
+    </p>
+
+    <div class="space-y-4">
+        <!-- YouTube API Key -->
+        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+            <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2">
+                    <span>📺</span>
+                    <label class="font-medium text-gray-800 dark:text-white">YouTube Data API</label>
+                </div>
+                <span id="youtubeStatus" class="text-sm text-gray-500">확인 중...</span>
+            </div>
+            <div class="flex gap-2">
+                <input type="password" id="youtubeApiKey"
+                    class="flex-1 input-field text-sm"
+                    placeholder="YouTube API 키 입력...">
+                <button onclick="toggleKeyVisibility('youtubeApiKey')" class="btn-secondary px-3">
+                    <span id="youtubeApiKey-eye">👁️</span>
+                </button>
+            </div>
+            <p id="youtubeKeyMasked" class="text-xs text-gray-500 mt-1"></p>
+        </div>
+
+        <!-- Gemini API Key -->
+        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+            <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2">
+                    <span>🤖</span>
+                    <label class="font-medium text-gray-800 dark:text-white">Gemini API</label>
+                </div>
+                <span id="geminiStatus" class="text-sm text-gray-500">확인 중...</span>
+            </div>
+            <div class="flex gap-2">
+                <input type="password" id="geminiApiKey"
+                    class="flex-1 input-field text-sm"
+                    placeholder="Gemini API 키 입력...">
+                <button onclick="toggleKeyVisibility('geminiApiKey')" class="btn-secondary px-3">
+                    <span id="geminiApiKey-eye">👁️</span>
+                </button>
+            </div>
+            <p id="geminiKeyMasked" class="text-xs text-gray-500 mt-1"></p>
+        </div>
+
+        <!-- ElevenLabs API Key -->
+        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+            <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2">
+                    <span>🔊</span>
+                    <label class="font-medium text-gray-800 dark:text-white">ElevenLabs TTS (선택)</label>
+                </div>
+                <span id="elevenlabsStatus" class="text-sm text-gray-500">확인 중...</span>
+            </div>
+            <div class="flex gap-2">
+                <input type="password" id="elevenlabsApiKey"
+                    class="flex-1 input-field text-sm"
+                    placeholder="ElevenLabs API 키 입력...">
+                <button onclick="toggleKeyVisibility('elevenlabsApiKey')" class="btn-secondary px-3">
+                    <span id="elevenlabsApiKey-eye">👁️</span>
+                </button>
+            </div>
+            <p id="elevenlabsKeyMasked" class="text-xs text-gray-500 mt-1"></p>
+        </div>
+    </div>
+
+    <!-- 저장 버튼 -->
+    <div class="mt-6 flex gap-3">
+        <button onclick="saveApiKeys()" class="btn-primary px-6">
+            💾 API 키 저장
+        </button>
+        <button onclick="loadApiKeys()" class="btn-secondary">
+            🔄 새로고침
+        </button>
+    </div>
+</div>
+
+<!-- API 연결 상태 -->
+<div class="card mb-6">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">📡 API 연결 상태</h3>
+    <div id="apiStatusList" class="space-y-3">
+        <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+            <div class="flex items-center gap-3">
+                <span>📺</span>
+                <span>YouTube Data API</span>
+            </div>
+            <span id="youtubeConnectionStatus" class="text-gray-500">확인 중...</span>
+        </div>
+        <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+            <div class="flex items-center gap-3">
+                <span>🤖</span>
+                <span>Gemini API</span>
+            </div>
+            <span id="geminiConnectionStatus" class="text-gray-500">확인 중...</span>
+        </div>
+        <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+            <div class="flex items-center gap-3">
+                <span>🔊</span>
+                <span>ElevenLabs TTS</span>
+            </div>
+            <span id="elevenlabsConnectionStatus" class="text-gray-500">확인 중...</span>
+        </div>
+    </div>
+</div>
+
+<!-- API 키 발급 링크 -->
+<div class="card mb-6">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">🔗 API 키 발급</h3>
+    <div class="space-y-3">
+        <a href="https://console.cloud.google.com/apis/credentials" target="_blank"
+            class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition">
+            <div class="flex items-center gap-3">
+                <span>📺</span>
+                <span>YouTube Data API 키 발급</span>
+            </div>
+            <span class="text-blue-500">→</span>
+        </a>
+        <a href="https://aistudio.google.com/apikey" target="_blank"
+            class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition">
+            <div class="flex items-center gap-3">
+                <span>🤖</span>
+                <span>Gemini API 키 발급</span>
+            </div>
+            <span class="text-blue-500">→</span>
+        </a>
+        <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank"
+            class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition">
+            <div class="flex items-center gap-3">
+                <span>🔊</span>
+                <span>ElevenLabs API 키 발급</span>
+            </div>
+            <span class="text-blue-500">→</span>
+        </a>
+    </div>
+</div>
+
+<!-- 데이터 관리 -->
+<div class="card">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">🗂️ 로컬 데이터 관리</h3>
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        브라우저에 저장된 프로젝트 데이터를 관리합니다.
+    </p>
+    <div class="flex gap-3">
+        <button onclick="exportData()" class="btn-secondary">📤 데이터 내보내기</button>
+        <button onclick="clearData()" class="btn-secondary text-red-600">🗑️ 모든 데이터 삭제</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // 키 보기/숨기기 토글
+    function toggleKeyVisibility(inputId) {
+        const input = document.getElementById(inputId);
+        const eyeIcon = document.getElementById(inputId + '-eye');
+
+        if (input.type === 'password') {
+            input.type = 'text';
+            eyeIcon.textContent = '🙈';
+        } else {
+            input.type = 'password';
+            eyeIcon.textContent = '👁️';
+        }
+    }
+
+    // API 키 상태 로드
+    async function loadApiKeys() {
+        try {
+            const keys = await API.apiKeys.get();
+
+            // YouTube
+            if (keys.youtube) {
+                document.getElementById('youtubeStatus').innerHTML = keys.youtube.set
+                    ? '<span class="text-green-600">✅ 설정됨</span>'
+                    : '<span class="text-red-600">❌ 미설정</span>';
+                document.getElementById('youtubeKeyMasked').textContent = keys.youtube.masked
+                    ? `현재 키: ${keys.youtube.masked}`
+                    : '';
+            }
+
+            // Gemini
+            if (keys.gemini) {
+                document.getElementById('geminiStatus').innerHTML = keys.gemini.set
+                    ? '<span class="text-green-600">✅ 설정됨</span>'
+                    : '<span class="text-red-600">❌ 미설정</span>';
+                document.getElementById('geminiKeyMasked').textContent = keys.gemini.masked
+                    ? `현재 키: ${keys.gemini.masked}`
+                    : '';
+            }
+
+            // ElevenLabs
+            if (keys.elevenlabs) {
+                document.getElementById('elevenlabsStatus').innerHTML = keys.elevenlabs.set
+                    ? '<span class="text-green-600">✅ 설정됨</span>'
+                    : '<span class="text-yellow-600">⚠️ 미설정</span>';
+                document.getElementById('elevenlabsKeyMasked').textContent = keys.elevenlabs.masked
+                    ? `현재 키: ${keys.elevenlabs.masked}`
+                    : '';
+            }
+
+        } catch (e) {
+            console.error('API 키 로드 오류:', e);
+        }
+    }
+
+    // API 키 저장
+    async function saveApiKeys() {
+        const keys = {};
+
+        const youtube = document.getElementById('youtubeApiKey').value.trim();
+        const gemini = document.getElementById('geminiApiKey').value.trim();
+        const elevenlabs = document.getElementById('elevenlabsApiKey').value.trim();
+
+        if (youtube) keys.youtube = youtube;
+        if (gemini) keys.gemini = gemini;
+        if (elevenlabs) keys.elevenlabs = elevenlabs;
+
+        if (Object.keys(keys).length === 0) {
+            Utils.showToast('저장할 API 키를 입력해주세요', 'warning');
+            return;
+        }
+
+        try {
+            const result = await API.apiKeys.save(keys);
+
+            if (result.status === 'ok') {
+                Utils.showToast(result.message, 'success');
+
+                // 입력 필드 초기화
+                document.getElementById('youtubeApiKey').value = '';
+                document.getElementById('geminiApiKey').value = '';
+                document.getElementById('elevenlabsApiKey').value = '';
+
+                // 상태 새로고침
+                await loadApiKeys();
+                await checkApiConnection();
+            } else {
+                Utils.showToast('저장 실패', 'error');
+            }
+        } catch (e) {
+            console.error('API 키 저장 오류:', e);
+            Utils.showToast('저장 중 오류가 발생했습니다', 'error');
+        }
+    }
+
+    // API 연결 상태 확인
+    async function checkApiConnection() {
+        try {
+            const health = await API.health();
+
+            document.getElementById('youtubeConnectionStatus').innerHTML = health.apis?.youtube
+                ? '<span class="text-green-600">✅ 연결됨</span>'
+                : '<span class="text-red-600">❌ 미연결</span>';
+
+            document.getElementById('geminiConnectionStatus').innerHTML = health.apis?.gemini
+                ? '<span class="text-green-600">✅ 연결됨</span>'
+                : '<span class="text-red-600">❌ 미연결</span>';
+
+            document.getElementById('elevenlabsConnectionStatus').innerHTML = health.apis?.elevenlabs
+                ? '<span class="text-green-600">✅ 연결됨</span>'
+                : '<span class="text-yellow-600">⚠️ 미설정 (선택)</span>';
+
+        } catch (e) {
+            console.error('연결 상태 확인 오류:', e);
+        }
+    }
+
+    function exportData() {
+        const data = {
+            analysisData: Utils.storage.get('analysisData'),
+            scriptStructure: Utils.storage.get('scriptStructure'),
+            fullScript: Utils.storage.get('fullScript'),
+            imagePrompts: Utils.storage.get('imagePrompts'),
+            exportedAt: new Date().toISOString()
+        };
+
+        Utils.downloadFile(JSON.stringify(data, null, 2), 'wingsaistudio_backup.json', 'application/json');
+        Utils.showToast('데이터를 내보냈습니다', 'success');
+    }
+
+    function clearData() {
+        if (!confirm('모든 로컬 데이터를 삭제하시겠습니까?\n(API 키는 삭제되지 않습니다)')) return;
+
+        Utils.storage.remove('analysisData');
+        Utils.storage.remove('scriptStructure');
+        Utils.storage.remove('fullScript');
+        Utils.storage.remove('imagePrompts');
+        Utils.storage.remove('ttsAudio');
+
+        Utils.showToast('모든 데이터가 삭제되었습니다', 'success');
+    }
+
+    // 초기화
+    document.addEventListener('DOMContentLoaded', () => {
+        loadApiKeys();
+        checkApiConnection();
+    });
+</script>
+{% endblock %}

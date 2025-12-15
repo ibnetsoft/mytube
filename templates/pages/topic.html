@@ -1,0 +1,447 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- 페이지 헤더 -->
+<div class="page-header">
+    <div class="flex items-center gap-3">
+        <span class="text-3xl">🔍</span>
+        <div>
+            <h1>주제 찾기</h1>
+            <p>유튜브에서 인기 있는 주제를 검색하고 분석하세요</p>
+        </div>
+    </div>
+    <!-- 틈새 주제 -->
+    <div class="flex flex-wrap gap-1 mt-3 text-xs">
+        <button onclick="setSearchTopic('삼국지')" class="topic-btn">📖 삼국지</button>
+        <button onclick="setSearchTopic('옛날이야기')" class="topic-btn">📖 옛날이야기</button>
+        <button onclick="setSearchTopic('과학')" class="topic-btn">🔬 과학</button>
+        <button onclick="setSearchTopic('역사')" class="topic-btn">📜 역사</button>
+        <button onclick="setSearchTopic('호러')" class="topic-btn">👻 호러</button>
+        <button onclick="setSearchTopic('사회트렌드')" class="topic-btn">📊 사회트렌드</button>
+        <button onclick="setSearchTopic('북한')" class="topic-btn">🇰🇵 북한</button>
+        <button onclick="setSearchTopic('우주')" class="topic-btn">🚀 우주</button>
+        <button onclick="setSearchTopic('자기계발')" class="topic-btn">💪 자기계발</button>
+        <button onclick="setSearchTopic('재테크')" class="topic-btn">💰 재테크</button>
+        <button onclick="setSearchTopic('심리학')" class="topic-btn">🧠 심리학</button>
+        <button onclick="setSearchTopic('미스터리')" class="topic-btn">🔍 미스터리</button>
+        <button onclick="setSearchTopic('건강')" class="topic-btn">🏥 건강</button>
+        <button onclick="setSearchTopic('동물')" class="topic-btn">🦁 동물</button>
+        <button onclick="setSearchTopic('세계여행')" class="topic-btn">✈️ 세계여행</button>
+        <button onclick="setSearchTopic('철학')" class="topic-btn">💭 철학</button>
+        <button onclick="setSearchTopic('게임')" class="topic-btn">🎮 게임</button>
+        <button onclick="setSearchTopic('영화')" class="topic-btn">🎬 영화</button>
+        <button onclick="setSearchTopic('음식')" class="topic-btn">🍜 음식</button>
+        <button onclick="setSearchTopic('운동')" class="topic-btn">🏋️ 운동</button>
+        <button onclick="setSearchTopic('연애')" class="topic-btn">💕 연애</button>
+        <button onclick="setSearchTopic('육아')" class="topic-btn">👶 육아</button>
+        <button onclick="setSearchTopic('IT테크')" class="topic-btn">💻 IT테크</button>
+        <button onclick="setSearchTopic('AI')" class="topic-btn">🤖 AI</button>
+        <button onclick="setSearchTopic('부동산')" class="topic-btn">🏠 부동산</button>
+        <button onclick="setSearchTopic('창업')" class="topic-btn">🏢 창업</button>
+        <button onclick="setSearchTopic('범죄실화')" class="topic-btn">🚔 범죄실화</button>
+        <button onclick="setSearchTopic('밀리터리')" class="topic-btn">🎖️ 밀리터리</button>
+        <button onclick="setSearchTopic('종교')" class="topic-btn">🙏 종교</button>
+        <button onclick="setSearchTopic('음악')" class="topic-btn">🎵 음악</button>
+        <button onclick="setSearchTopic('미술')" class="topic-btn">🎨 미술</button>
+        <button onclick="setSearchTopic('패션')" class="topic-btn">👗 패션</button>
+        <button onclick="setSearchTopic('자동차')" class="topic-btn">🚗 자동차</button>
+        <button onclick="setSearchTopic('스포츠')" class="topic-btn">⚽ 스포츠</button>
+        <button onclick="setSearchTopic('요리')" class="topic-btn">👨‍🍳 요리</button>
+        <button onclick="setSearchTopic('인테리어')" class="topic-btn">🛋️ 인테리어</button>
+        <button onclick="setSearchTopic('환경')" class="topic-btn">🌍 환경</button>
+        <button onclick="setSearchTopic('법률')" class="topic-btn">⚖️ 법률</button>
+        <button onclick="setSearchTopic('언어')" class="topic-btn">🗣️ 언어</button>
+        <button onclick="setSearchTopic('웹툰')" class="topic-btn">📚 웹툰</button>
+    </div>
+</div>
+
+<!-- 검색 섹션 -->
+<div class="card mb-6">
+    <div class="flex gap-4 mb-4">
+        <input type="text" id="searchInput" placeholder="검색어를 입력하세요 (예: 요리, 여행, 테크)"
+            class="input-field flex-1" onkeypress="if(event.key==='Enter') searchVideos()">
+        <select id="searchOrder" class="input-field w-40">
+            <option value="relevance">관련성</option>
+            <option value="viewCount">조회수</option>
+            <option value="date">최신순</option>
+            <option value="rating">평점</option>
+        </select>
+        <select id="searchPeriod" class="input-field w-40">
+            <option value="">전체 기간</option>
+            <option value="week">최근 1주</option>
+            <option value="month">최근 1달</option>
+            <option value="year">최근 1년</option>
+        </select>
+        <button onclick="searchVideos()" class="btn-primary flex items-center gap-2">
+            <span>🔍</span>
+            <span>검색</span>
+        </button>
+    </div>
+
+    <!-- 추천 주제 -->
+    <div class="flex flex-wrap gap-2">
+        <span class="text-sm text-gray-500 mr-2">추천 주제:</span>
+        <button onclick="setSearchTopic('일상 브이로그')" class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">일상 브이로그</button>
+        <button onclick="setSearchTopic('먹방')" class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">먹방</button>
+        <button onclick="setSearchTopic('IT 테크')" class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">IT 테크</button>
+        <button onclick="setSearchTopic('재테크')" class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">재테크</button>
+        <button onclick="setSearchTopic('운동 헬스')" class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">운동 헬스</button>
+        <button onclick="setSearchTopic('게임')" class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">게임</button>
+        <button onclick="setSearchTopic('자기계발')" class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">자기계발</button>
+    </div>
+</div>
+
+<!-- 로딩 표시 -->
+<div id="loadingSection" class="hidden">
+    <div class="card text-center py-12">
+        <div class="loader mx-auto mb-4"></div>
+        <p class="text-gray-500">검색 중...</p>
+    </div>
+</div>
+
+<!-- 검색 결과 -->
+<div id="resultsSection" class="hidden">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-bold text-gray-800 dark:text-white">
+            검색 결과 <span id="resultCount" class="text-gray-500 font-normal"></span>
+        </h2>
+        <div class="flex gap-2">
+            <button onclick="sortVideos('viral')" class="btn-secondary text-sm">🔥 바이럴순</button>
+            <button onclick="sortVideos('views')" class="btn-secondary text-sm">👁️ 조회수순</button>
+        </div>
+    </div>
+
+    <div id="videoGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- 비디오 카드들이 여기에 렌더링됨 -->
+    </div>
+</div>
+
+<!-- 빈 상태 -->
+<div id="emptySection" class="card text-center py-12">
+    <div class="text-5xl mb-4">🎬</div>
+    <h3 class="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">영상을 검색해보세요</h3>
+    <p class="text-gray-500">인기 있는 주제를 찾아 콘텐츠 아이디어를 얻으세요</p>
+</div>
+
+<!-- 분석 모달 -->
+<div id="analysisModal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <div class="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <h3 class="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                <span>🤖</span>
+                <span>AI 댓글 분석</span>
+            </h3>
+            <button onclick="closeModal()" class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition">
+                <span class="text-2xl">&times;</span>
+            </button>
+        </div>
+        <div id="modalContent" class="p-6 overflow-y-auto max-h-[70vh]">
+            <!-- 분석 결과가 여기에 렌더링됨 -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentVideos = [];
+    let currentVideoForAnalysis = null;
+
+    // 주제 설정
+    function setSearchTopic(topic) {
+        document.getElementById('searchInput').value = topic;
+        searchVideos();
+    }
+
+    // 기간 필터 계산
+    function getPublishedAfter(filter) {
+        const now = new Date();
+        switch(filter) {
+            case 'week': return new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+            case 'month': return new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
+            case 'year': return new Date(now - 365 * 24 * 60 * 60 * 1000).toISOString();
+            default: return null;
+        }
+    }
+
+    // 검색 실행
+    async function searchVideos() {
+        const query = document.getElementById('searchInput').value.trim();
+        if (!query) {
+            Utils.showToast('검색어를 입력하세요', 'warning');
+            return;
+        }
+
+        const order = document.getElementById('searchOrder').value;
+        const period = document.getElementById('searchPeriod').value;
+
+        document.getElementById('emptySection').classList.add('hidden');
+        document.getElementById('resultsSection').classList.add('hidden');
+        document.getElementById('loadingSection').classList.remove('hidden');
+
+        try {
+            // 1. 검색
+            const searchResult = await API.youtube.search(query, {
+                maxResults: 12,
+                order: order,
+                publishedAfter: getPublishedAfter(period)
+            });
+
+            if (!searchResult.items || searchResult.items.length === 0) {
+                document.getElementById('loadingSection').classList.add('hidden');
+                document.getElementById('emptySection').classList.remove('hidden');
+                Utils.showToast('검색 결과가 없습니다', 'info');
+                return;
+            }
+
+            // 2. 상세 정보 가져오기
+            const videoIds = searchResult.items.map(item => item.id.videoId).join(',');
+            const detailResult = await fetch(`/api/youtube/videos/${videoIds}`);
+            const detailData = await detailResult.json();
+
+            // 3. 데이터 병합 및 바이럴 스코어 계산
+            currentVideos = detailData.items.map(video => ({
+                ...video,
+                viralScore: Utils.calculateViralScore(video)
+            }));
+
+            // 4. 렌더링
+            renderVideos();
+
+            document.getElementById('loadingSection').classList.add('hidden');
+            document.getElementById('resultsSection').classList.remove('hidden');
+            document.getElementById('resultCount').textContent = `(${currentVideos.length}개)`;
+
+        } catch (error) {
+            console.error('검색 오류:', error);
+            document.getElementById('loadingSection').classList.add('hidden');
+            Utils.showToast('검색 중 오류가 발생했습니다', 'error');
+        }
+    }
+
+    // 비디오 렌더링
+    function renderVideos() {
+        const grid = document.getElementById('videoGrid');
+        grid.innerHTML = currentVideos.map(video => {
+            const score = video.viralScore;
+            const scoreClass = score >= 70 ? 'high' : score >= 40 ? 'medium' : 'low';
+
+            return `
+                <div class="video-card">
+                    <div class="video-thumbnail">
+                        <img src="${video.snippet.thumbnails.high?.url || video.snippet.thumbnails.default.url}"
+                            alt="${video.snippet.title}">
+                        <span class="viral-score ${scoreClass}">${score}점</span>
+                    </div>
+                    <div class="p-4">
+                        <h3 class="font-semibold text-gray-800 dark:text-white mb-2 line-clamp-2">
+                            ${video.snippet.title}
+                        </h3>
+                        <p class="text-sm text-gray-500 mb-3">${video.snippet.channelTitle}</p>
+                        <div class="flex items-center gap-4 text-sm text-gray-500 mb-4">
+                            <span>👁️ ${Utils.formatNumber(video.statistics.viewCount)}</span>
+                            <span>👍 ${Utils.formatNumber(video.statistics.likeCount)}</span>
+                            <span>💬 ${Utils.formatNumber(video.statistics.commentCount)}</span>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="analyzeVideo('${video.id}')"
+                                class="flex-1 btn-primary text-sm py-2">
+                                🤖 분석
+                            </button>
+                            <a href="https://youtube.com/watch?v=${video.id}" target="_blank"
+                                class="btn-secondary text-sm py-2 px-3">
+                                ▶️
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // 정렬
+    function sortVideos(type) {
+        if (type === 'viral') {
+            currentVideos.sort((a, b) => b.viralScore - a.viralScore);
+        } else if (type === 'views') {
+            currentVideos.sort((a, b) => parseInt(b.statistics.viewCount) - parseInt(a.statistics.viewCount));
+        }
+        renderVideos();
+    }
+
+    // 분석 실행
+    async function analyzeVideo(videoId) {
+        const video = currentVideos.find(v => v.id === videoId);
+        if (!video) return;
+
+        currentVideoForAnalysis = video;
+
+        const modalContent = document.getElementById('modalContent');
+        modalContent.innerHTML = `
+            <div class="text-center py-8">
+                <div class="loader mx-auto mb-4"></div>
+                <p class="text-gray-500">댓글을 분석하고 있습니다...</p>
+                <p class="text-sm text-gray-400 mt-2">${video.snippet.title}</p>
+            </div>
+        `;
+        document.getElementById('analysisModal').classList.remove('hidden');
+        document.getElementById('analysisModal').classList.add('flex');
+
+        try {
+            const result = await API.gemini.analyzeComments(videoId, video.snippet.title);
+
+            if (result.status === 'ok' && result.analysis) {
+                currentAnalysisResult = result.analysis;
+                renderAnalysisResult(result.analysis, result.comment_count);
+            } else {
+                modalContent.innerHTML = `
+                    <div class="text-center py-8">
+                        <div class="text-4xl mb-4">❌</div>
+                        <p class="text-red-500">${result.error || '분석에 실패했습니다'}</p>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('분석 오류:', error);
+            modalContent.innerHTML = `
+                <div class="text-center py-8">
+                    <div class="text-4xl mb-4">❌</div>
+                    <p class="text-red-500">분석 중 오류가 발생했습니다</p>
+                </div>
+            `;
+        }
+    }
+
+    // 분석 결과 렌더링
+    function renderAnalysisResult(analysis, commentCount) {
+        const modalContent = document.getElementById('modalContent');
+        const video = currentVideoForAnalysis;
+
+        modalContent.innerHTML = `
+            <!-- 영상 정보 -->
+            <div class="flex gap-4 mb-6">
+                <img src="${video.snippet.thumbnails.medium.url}" class="w-32 rounded-lg">
+                <div>
+                    <h4 class="font-bold text-gray-800 dark:text-white">${video.snippet.title}</h4>
+                    <p class="text-sm text-gray-500">${video.snippet.channelTitle}</p>
+                    <p class="text-sm text-gray-400 mt-1">분석된 댓글: ${commentCount}개</p>
+                </div>
+            </div>
+
+            <!-- 감정 분석 -->
+            <div class="mb-6">
+                <h5 class="font-bold text-gray-800 dark:text-white mb-3">📊 감정 분석</h5>
+                <div class="flex gap-4">
+                    <div class="flex-1 bg-green-100 dark:bg-green-900/30 rounded-lg p-3 text-center">
+                        <div class="text-2xl font-bold text-green-600">${analysis.sentiment?.positive || 0}%</div>
+                        <div class="text-sm text-green-700 dark:text-green-400">긍정</div>
+                    </div>
+                    <div class="flex-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-3 text-center">
+                        <div class="text-2xl font-bold text-gray-600 dark:text-gray-300">${analysis.sentiment?.neutral || 0}%</div>
+                        <div class="text-sm text-gray-500">중립</div>
+                    </div>
+                    <div class="flex-1 bg-red-100 dark:bg-red-900/30 rounded-lg p-3 text-center">
+                        <div class="text-2xl font-bold text-red-600">${analysis.sentiment?.negative || 0}%</div>
+                        <div class="text-sm text-red-700 dark:text-red-400">부정</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 주요 토픽 -->
+            <div class="mb-6">
+                <h5 class="font-bold text-gray-800 dark:text-white mb-3">🏷️ 주요 토픽</h5>
+                <div class="flex flex-wrap gap-2">
+                    ${(analysis.main_topics || []).map(topic => `
+                        <span class="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-sm">${topic}</span>
+                    `).join('')}
+                </div>
+            </div>
+
+            <!-- 시청자 니즈 -->
+            <div class="mb-6">
+                <h5 class="font-bold text-gray-800 dark:text-white mb-3">💡 시청자 니즈</h5>
+                <ul class="space-y-2">
+                    ${(analysis.viewer_needs || []).map(need => `
+                        <li class="flex items-start gap-2 text-gray-700 dark:text-gray-300">
+                            <span class="text-yellow-500">✦</span>
+                            <span>${need}</span>
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+
+            <!-- 콘텐츠 제안 -->
+            <div class="mb-6">
+                <h5 class="font-bold text-gray-800 dark:text-white mb-3">🎯 콘텐츠 제안</h5>
+                <ul class="space-y-2">
+                    ${(analysis.content_suggestions || []).map(suggestion => `
+                        <li class="flex items-start gap-2 text-gray-700 dark:text-gray-300">
+                            <span class="text-green-500">→</span>
+                            <span>${suggestion}</span>
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+
+            <!-- 요약 -->
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-6">
+                <h5 class="font-bold text-gray-800 dark:text-white mb-2">📝 요약</h5>
+                <p class="text-gray-700 dark:text-gray-300">${analysis.summary || ''}</p>
+            </div>
+
+            <!-- 액션 버튼 -->
+            <button onclick="goToScriptPlan()" class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg">
+                <span>🚀</span>
+                <span>이 분석 기반으로 대본 만들기</span>
+                <span>→</span>
+            </button>
+        `;
+    }
+
+    // 대본 기획으로 이동 (프로젝트 저장)
+    async function goToScriptPlan() {
+        if (!currentVideoForAnalysis || !currentAnalysisResult) {
+            Utils.showToast('분석 결과가 없습니다', 'warning');
+            return;
+        }
+
+        let projectId = getCurrentProject();
+
+        // 프로젝트가 없으면 자동 생성
+        if (!projectId) {
+            const title = currentVideoForAnalysis.snippet.title.substring(0, 30);
+            const result = await API.project.create(`${title}...`, currentVideoForAnalysis.snippet.title);
+            if (result.project_id) {
+                projectId = result.project_id;
+                setCurrentProject(projectId);
+                loadProjects(); // 사이드바 갱신
+            } else {
+                Utils.showToast('프로젝트 생성 실패', 'error');
+                return;
+            }
+        }
+
+        // 분석 결과를 DB에 저장
+        try {
+            await API.project.saveAnalysis(projectId, currentVideoForAnalysis, currentAnalysisResult);
+            Utils.showToast('분석 결과가 저장되었습니다', 'success');
+            window.location.href = '/script-plan';
+        } catch (e) {
+            Utils.showToast('저장 중 오류가 발생했습니다', 'error');
+        }
+    }
+
+    let currentAnalysisResult = null;
+
+    // 모달 닫기
+    function closeModal() {
+        document.getElementById('analysisModal').classList.add('hidden');
+        document.getElementById('analysisModal').classList.remove('flex');
+    }
+
+    // ESC 키로 모달 닫기
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeModal();
+    });
+</script>
+{% endblock %}

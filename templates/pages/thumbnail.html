@@ -1,0 +1,396 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div class="flex items-center gap-3">
+        <span class="text-3xl">🎨</span>
+        <div>
+            <h1>썸네일 생성</h1>
+            <p>AI로 클릭률 높은 썸네일을 직접 생성합니다</p>
+        </div>
+    </div>
+</div>
+
+<!-- 1단계: 아이디어 생성 -->
+<div class="card mb-6">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">1️⃣ 썸네일 아이디어 생성</h3>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">영상 주제</label>
+            <input type="text" id="videoTitle" class="input-field" placeholder="예: 삼국지 최강의 무장 TOP 5">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">스타일</label>
+            <select id="thumbnailStyle" class="input-field">
+                <option value="face">얼굴 강조형</option>
+                <option value="text">텍스트 중심형</option>
+                <option value="contrast">비포/애프터형</option>
+                <option value="mystery">미스터리형</option>
+                <option value="minimal">미니멀형</option>
+                <option value="dramatic">드라마틱형</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">색상 톤</label>
+            <select id="colorTone" class="input-field">
+                <option value="vibrant">비비드 (채도 높음)</option>
+                <option value="warm">따뜻한 톤</option>
+                <option value="cool">차가운 톤</option>
+                <option value="dark">다크 모드</option>
+                <option value="neon">네온</option>
+            </select>
+        </div>
+    </div>
+    <button onclick="generateIdeas()" id="ideaBtn" class="btn-primary">
+        💡 아이디어 생성
+    </button>
+</div>
+
+<!-- 2단계: 아이디어 선택 및 이미지 생성 -->
+<div id="ideasSection" class="card mb-6 hidden">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">2️⃣ 아이디어 선택 & 이미지 생성</h3>
+    <div id="ideasList" class="space-y-4 mb-4"></div>
+</div>
+
+<!-- 3단계: 텍스트 추가 -->
+<div id="textSection" class="card mb-6 hidden">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">3️⃣ 썸네일 텍스트 설정</h3>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">텍스트 후보 (클릭해서 선택)</label>
+                <div id="textCandidates" class="flex flex-wrap gap-2 mb-3"></div>
+                <input type="text" id="thumbnailText" class="input-field" placeholder="직접 입력 또는 위에서 선택">
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">텍스트 위치</label>
+                    <select id="textPosition" class="input-field">
+                        <option value="top">상단</option>
+                        <option value="center" selected>중앙</option>
+                        <option value="bottom">하단</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">폰트 크기</label>
+                    <select id="fontSize" class="input-field">
+                        <option value="48">작게 (48px)</option>
+                        <option value="72" selected>보통 (72px)</option>
+                        <option value="96">크게 (96px)</option>
+                        <option value="120">아주 크게 (120px)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">텍스트 색상</label>
+                <div class="flex gap-2">
+                    <button onclick="setTextColor('#FFFFFF')" class="w-10 h-10 bg-white border-2 border-gray-300 rounded-lg"></button>
+                    <button onclick="setTextColor('#FFFF00')" class="w-10 h-10 bg-yellow-400 rounded-lg"></button>
+                    <button onclick="setTextColor('#FF0000')" class="w-10 h-10 bg-red-500 rounded-lg"></button>
+                    <button onclick="setTextColor('#00FF00')" class="w-10 h-10 bg-green-500 rounded-lg"></button>
+                    <button onclick="setTextColor('#00FFFF')" class="w-10 h-10 bg-cyan-400 rounded-lg"></button>
+                    <button onclick="setTextColor('#FF00FF')" class="w-10 h-10 bg-pink-500 rounded-lg"></button>
+                    <input type="color" id="customColor" value="#FFFFFF" onchange="setTextColor(this.value)" class="w-10 h-10 rounded-lg cursor-pointer">
+                </div>
+                <p id="selectedColor" class="text-sm text-gray-500 mt-1">선택: #FFFFFF</p>
+            </div>
+
+            <button onclick="generateFinalThumbnail()" id="generateBtn" class="w-full btn-primary py-3">
+                🎨 썸네일 생성 (Gemini Imagen 3)
+            </button>
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">선택된 배경 이미지</label>
+            <div id="selectedImagePreview" class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 flex items-center justify-center h-48">
+                <span class="text-gray-500">아이디어를 선택하세요</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 4단계: 결과 -->
+<div id="resultSection" class="card hidden">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">4️⃣ 생성된 썸네일</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+            <img id="resultImage" src="" alt="Generated Thumbnail" class="w-full rounded-lg shadow-lg">
+        </div>
+        <div class="space-y-4">
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                <h4 class="font-medium text-gray-800 dark:text-white mb-2">📐 이미지 정보</h4>
+                <p class="text-sm text-gray-600 dark:text-gray-400">크기: 1280 x 720 (16:9)</p>
+                <p class="text-sm text-gray-600 dark:text-gray-400">형식: PNG</p>
+            </div>
+            <div class="flex gap-2">
+                <a id="downloadLink" href="" download="thumbnail.png" class="flex-1 btn-primary text-center">
+                    📥 다운로드
+                </a>
+                <button onclick="regenerate()" class="btn-secondary">
+                    🔄 다시 생성
+                </button>
+            </div>
+            <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                <h4 class="font-medium text-blue-800 dark:text-blue-300 mb-2">💡 팁</h4>
+                <ul class="text-sm text-blue-700 dark:text-blue-400 space-y-1">
+                    <li>• 텍스트는 3-5단어가 최적</li>
+                    <li>• 대비가 강한 색상 사용</li>
+                    <li>• 얼굴이 있으면 클릭률 UP</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- 생성 이력 -->
+    <div class="mt-6">
+        <h4 class="font-medium text-gray-800 dark:text-white mb-3">📜 생성 이력</h4>
+        <div id="historyList" class="grid grid-cols-4 md:grid-cols-6 gap-2"></div>
+    </div>
+</div>
+
+<!-- 디자인 도구 링크 -->
+<div class="card mt-6">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">🛠️ 추가 편집 도구</h3>
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">더 세밀한 편집이 필요하면 아래 도구를 사용하세요</p>
+    <div class="flex flex-wrap gap-2">
+        <a href="https://www.canva.com" target="_blank" class="btn-secondary">Canva</a>
+        <a href="https://www.figma.com" target="_blank" class="btn-secondary">Figma</a>
+        <a href="https://www.photopea.com" target="_blank" class="btn-secondary">Photopea (무료)</a>
+        <a href="https://pixlr.com/kr/x/" target="_blank" class="btn-secondary">Pixlr</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let thumbnailData = null;
+    let selectedPrompt = null;
+    let selectedTextColor = '#FFFFFF';
+    let generatedHistory = [];
+
+    // 프로젝트 데이터 로드
+    document.addEventListener('DOMContentLoaded', async () => {
+        const projectId = getCurrentProject();
+        if (projectId) {
+            try {
+                // 분석 데이터에서 제목 가져오기
+                const analysis = await API.project.getAnalysis(projectId);
+                if (analysis?.video_title) {
+                    document.getElementById('videoTitle').value = analysis.video_title;
+                }
+
+                // 기존 저장된 썸네일 URL 로드
+                const settings = await API.project.getSettings(projectId);
+                if (settings?.thumbnail_url) {
+                    // 결과 섹션 표시
+                    document.getElementById('resultImage').src = settings.thumbnail_url;
+                    document.getElementById('downloadLink').href = settings.thumbnail_url;
+                    document.getElementById('resultSection').classList.remove('hidden');
+                    generatedHistory.unshift(settings.thumbnail_url);
+                    updateHistory();
+                }
+            } catch (e) {
+                console.log('프로젝트 데이터 로드 실패');
+            }
+        }
+    });
+
+    // 1. 아이디어 생성
+    async function generateIdeas() {
+        const title = document.getElementById('videoTitle').value.trim() || '영상';
+        const style = document.getElementById('thumbnailStyle').value;
+        const color = document.getElementById('colorTone').value;
+
+        const btn = document.getElementById('ideaBtn');
+        Utils.setLoading(btn, true, '생성 중...');
+
+        const prompt = `유튜브 썸네일 디자인 전문가로서 다음 정보를 바탕으로 클릭률 높은 썸네일 아이디어를 생성해주세요.
+
+[영상 주제]
+${title}
+
+[스타일]
+${style}
+
+[색상 톤]
+${color}
+
+JSON 형식으로 반환:
+{
+    "ideas": [
+        {
+            "concept": "컨셉 설명 (1-2문장)",
+            "layout": "레이아웃 설명",
+            "prompt_en": "Imagen 3용 영어 프롬프트. 반드시 상세하게 작성. 예: A dramatic cinematic scene of ancient Chinese warrior general in golden armor, dark stormy background, epic lighting, professional photography, 8k quality"
+        }
+    ],
+    "texts": ["썸네일 텍스트 후보 1 (3-5단어)", "후보 2", "후보 3", "후보 4", "후보 5"]
+}
+
+ideas는 3개 생성하세요. prompt_en은 Imagen 3에서 좋은 결과가 나오도록 상세하게 작성하세요. JSON만 반환하세요.`;
+
+        try {
+            const result = await API.gemini.generate(prompt, { temperature: 0.8 });
+
+            if (result.status === 'ok') {
+                const jsonMatch = result.text.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    thumbnailData = JSON.parse(jsonMatch[0]);
+                    renderIdeas();
+                    document.getElementById('ideasSection').classList.remove('hidden');
+                }
+            } else {
+                Utils.showToast('아이디어 생성 실패', 'error');
+            }
+        } catch (error) {
+            Utils.showToast('오류가 발생했습니다', 'error');
+            console.error(error);
+        } finally {
+            Utils.setLoading(btn, false);
+        }
+    }
+
+    // 아이디어 렌더링
+    function renderIdeas() {
+        const container = document.getElementById('ideasList');
+        container.innerHTML = thumbnailData.ideas.map((idea, i) => `
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-primary transition" onclick="selectIdea(${i})">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-medium text-gray-800 dark:text-white">아이디어 ${i + 1}</span>
+                    <button onclick="event.stopPropagation(); selectIdea(${i})" class="btn-primary text-xs">선택</button>
+                </div>
+                <p class="text-gray-600 dark:text-gray-400 mb-2">${idea.concept}</p>
+                <p class="text-sm text-gray-500">레이아웃: ${idea.layout}</p>
+                <details class="mt-2">
+                    <summary class="text-xs text-blue-500 cursor-pointer">프롬프트 보기</summary>
+                    <code class="block bg-gray-900 text-green-400 p-2 rounded text-xs mt-2 overflow-x-auto">${idea.prompt_en}</code>
+                </details>
+            </div>
+        `).join('');
+    }
+
+    // 아이디어 선택
+    function selectIdea(index) {
+        selectedPrompt = thumbnailData.ideas[index].prompt_en;
+
+        // 텍스트 섹션 표시
+        document.getElementById('textSection').classList.remove('hidden');
+
+        // 텍스트 후보 표시
+        const textContainer = document.getElementById('textCandidates');
+        textContainer.innerHTML = thumbnailData.texts.map(text => `
+            <button onclick="selectText('${text.replace(/'/g, "\\'")}')" class="px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 rounded-lg hover:bg-yellow-200 transition text-sm">
+                ${text}
+            </button>
+        `).join('');
+
+        // 선택된 이미지 미리보기
+        document.getElementById('selectedImagePreview').innerHTML = `
+            <div class="text-center">
+                <div class="text-4xl mb-2">🖼️</div>
+                <p class="text-sm text-gray-600 dark:text-gray-400">아이디어 ${index + 1} 선택됨</p>
+                <p class="text-xs text-gray-500 mt-1">${thumbnailData.ideas[index].concept}</p>
+            </div>
+        `;
+
+        Utils.showToast(`아이디어 ${index + 1} 선택됨`, 'success');
+
+        // 스크롤
+        document.getElementById('textSection').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // 텍스트 선택
+    function selectText(text) {
+        document.getElementById('thumbnailText').value = text;
+    }
+
+    // 텍스트 색상 설정
+    function setTextColor(color) {
+        selectedTextColor = color;
+        document.getElementById('selectedColor').textContent = `선택: ${color}`;
+        document.getElementById('customColor').value = color;
+    }
+
+    // 최종 썸네일 생성
+    async function generateFinalThumbnail() {
+        if (!selectedPrompt) {
+            Utils.showToast('먼저 아이디어를 선택하세요', 'warning');
+            return;
+        }
+
+        const text = document.getElementById('thumbnailText').value.trim();
+        const position = document.getElementById('textPosition').value;
+        const fontSize = parseInt(document.getElementById('fontSize').value);
+
+        const btn = document.getElementById('generateBtn');
+        Utils.setLoading(btn, true, '이미지 생성 중... (30초 소요)');
+
+        try {
+            let result;
+
+            if (text) {
+                // 텍스트 포함 썸네일 생성
+                result = await API.image.generateThumbnail(selectedPrompt, text, {
+                    textPosition: position,
+                    textColor: selectedTextColor,
+                    fontSize: fontSize
+                });
+            } else {
+                // 이미지만 생성
+                result = await API.image.generate(selectedPrompt, '16:9');
+            }
+
+            if (result.status === 'ok') {
+                // 결과 표시
+                document.getElementById('resultImage').src = result.url;
+                document.getElementById('downloadLink').href = result.url;
+                document.getElementById('resultSection').classList.remove('hidden');
+
+                // 이력 추가
+                generatedHistory.unshift(result.url);
+                updateHistory();
+
+                Utils.showToast('썸네일 생성 완료!', 'success');
+
+                // 프로젝트에 저장
+                const projectId = getCurrentProject();
+                if (projectId) {
+                    // 썸네일 아이디어/텍스트 저장
+                    await API.project.saveThumbnails(projectId, thumbnailData.ideas, thumbnailData.texts);
+                    // 생성된 썸네일 URL 저장 (프로젝트 설정에)
+                    await API.project.updateSetting(projectId, 'thumbnail_url', result.url);
+                    console.log('썸네일 URL 저장됨:', result.url);
+                }
+
+                // 스크롤
+                document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth' });
+            } else {
+                Utils.showToast(result.error || '이미지 생성 실패', 'error');
+            }
+        } catch (error) {
+            Utils.showToast('오류가 발생했습니다: ' + error.message, 'error');
+            console.error(error);
+        } finally {
+            Utils.setLoading(btn, false);
+        }
+    }
+
+    // 이력 업데이트
+    function updateHistory() {
+        const container = document.getElementById('historyList');
+        container.innerHTML = generatedHistory.slice(0, 12).map((url, i) => `
+            <a href="${url}" download="thumbnail_${i}.png" class="block">
+                <img src="${url}" alt="History ${i}" class="w-full h-16 object-cover rounded-lg hover:ring-2 hover:ring-primary transition">
+            </a>
+        `).join('');
+    }
+
+    // 다시 생성
+    function regenerate() {
+        generateFinalThumbnail();
+    }
+</script>
+{% endblock %}

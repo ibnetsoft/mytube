@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div class="flex items-center gap-3">
+        <span class="text-3xl">📝</span>
+        <div>
+            <h1>제목/설명 생성</h1>
+            <p>SEO 최적화된 제목과 설명을 생성합니다</p>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-6">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">⚙️ 생성 옵션</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">제목 스타일</label>
+            <select id="titleStyle" class="input-field">
+                <option value="curiosity">호기심 유발형</option>
+                <option value="benefit">혜택 강조형</option>
+                <option value="number">숫자 포함형</option>
+                <option value="question">질문형</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">타겟 키워드</label>
+            <input type="text" id="targetKeyword" class="input-field" placeholder="선택사항">
+        </div>
+    </div>
+</div>
+
+<button onclick="generateMeta()" id="generateBtn" class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg mb-6">
+    <span>📝</span>
+    <span>제목/설명 생성</span>
+</button>
+
+<div id="resultSection" class="hidden space-y-6">
+    <!-- 제목 -->
+    <div class="card">
+        <h3 class="font-bold text-gray-800 dark:text-white mb-4">🏷️ 추천 제목</h3>
+        <div id="titlesList" class="space-y-2"></div>
+    </div>
+
+    <!-- 설명 -->
+    <div class="card">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-gray-800 dark:text-white">📄 영상 설명</h3>
+            <button onclick="copyDescription()" class="btn-secondary text-sm">📋 복사</button>
+        </div>
+        <textarea id="descriptionText" class="input-field" rows="8"></textarea>
+    </div>
+
+    <!-- 태그 -->
+    <div class="card">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-gray-800 dark:text-white">#️⃣ 태그</h3>
+            <button onclick="copyTags()" class="btn-secondary text-sm">📋 복사</button>
+        </div>
+        <div id="tagsList" class="flex flex-wrap gap-2"></div>
+    </div>
+
+    <!-- 해시태그 -->
+    <div class="card">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-gray-800 dark:text-white"># 해시태그</h3>
+            <button onclick="copyHashtags()" class="btn-secondary text-sm">📋 복사</button>
+        </div>
+        <p id="hashtagsText" class="text-blue-500"></p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let metaData = null;
+
+    async function generateMeta() {
+        const scriptData = Utils.storage.get('fullScript');
+        const style = document.getElementById('titleStyle').value;
+        const keyword = document.getElementById('targetKeyword').value;
+
+        const btn = document.getElementById('generateBtn');
+        Utils.setLoading(btn, true, '생성 중...');
+
+        const prompt = `유튜브 SEO 전문가로서 다음 대본에 맞는 메타데이터를 생성해주세요.
+
+[대본 요약]
+${scriptData?.script?.substring(0, 1000) || '일반 유튜브 영상'}
+
+[제목 스타일]
+${style}
+
+[타겟 키워드]
+${keyword || '없음'}
+
+JSON 형식으로 반환:
+{
+    "titles": ["제목1 (50자 이내)", "제목2", "제목3", "제목4", "제목5"],
+    "description": "영상 설명 (타임스탬프 포함, 500자 내외)",
+    "tags": ["태그1", "태그2", ...],
+    "hashtags": ["#해시태그1", "#해시태그2", ...]
+}
+
+JSON만 반환하세요.`;
+
+        try {
+            const result = await API.gemini.generate(prompt, { temperature: 0.7 });
+
+            if (result.status === 'ok') {
+                const jsonMatch = result.text.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    metaData = JSON.parse(jsonMatch[0]);
+                    renderResults();
+                    document.getElementById('resultSection').classList.remove('hidden');
+                }
+            }
+        } catch (error) {
+            Utils.showToast('생성 중 오류가 발생했습니다', 'error');
+        } finally {
+            Utils.setLoading(btn, false);
+        }
+    }
+
+    function renderResults() {
+        // 제목
+        document.getElementById('titlesList').innerHTML = metaData.titles.map((title, i) => `
+            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <span class="text-gray-800 dark:text-white">${title}</span>
+                <button onclick="copyTitle(${i})" class="btn-secondary text-xs">복사</button>
+            </div>
+        `).join('');
+
+        // 설명
+        document.getElementById('descriptionText').value = metaData.description;
+
+        // 태그
+        document.getElementById('tagsList').innerHTML = metaData.tags.map(tag => `
+            <span class="px-3 py-1 bg-gray-200 dark:bg-gray-600 rounded-full text-sm">${tag}</span>
+        `).join('');
+
+        // 해시태그
+        document.getElementById('hashtagsText').textContent = metaData.hashtags.join(' ');
+    }
+
+    function copyTitle(index) {
+        Utils.copyToClipboard(metaData.titles[index]);
+        Utils.showToast('제목이 복사되었습니다', 'success');
+    }
+
+    function copyDescription() {
+        Utils.copyToClipboard(document.getElementById('descriptionText').value);
+        Utils.showToast('설명이 복사되었습니다', 'success');
+    }
+
+    function copyTags() {
+        Utils.copyToClipboard(metaData.tags.join(', '));
+        Utils.showToast('태그가 복사되었습니다', 'success');
+    }
+
+    function copyHashtags() {
+        Utils.copyToClipboard(metaData.hashtags.join(' '));
+        Utils.showToast('해시태그가 복사되었습니다', 'success');
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div class="flex items-center gap-3">
+        <span class="text-3xl">🔊</span>
+        <div>
+            <h1>TTS 생성</h1>
+            <p>대본을 음성으로 변환합니다</p>
+        </div>
+    </div>
+</div>
+
+<!-- API 상태 -->
+<div id="apiStatus" class="card mb-6">
+    <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <span class="text-xl">🔑</span>
+            <div>
+                <span class="font-medium text-gray-800 dark:text-white">TTS API 상태</span>
+                <p id="apiStatusText" class="text-sm text-gray-500">확인 중...</p>
+            </div>
+        </div>
+        <a href="/settings" class="btn-secondary text-sm">⚙️ 설정</a>
+    </div>
+</div>
+
+<!-- TTS 설정 -->
+<div class="card mb-6">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">⚙️ 음성 설정</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">음성 선택</label>
+            <select id="voiceSelect" class="input-field">
+                <option value="">로딩 중...</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">서비스</label>
+            <select id="providerSelect" class="input-field">
+                <option value="elevenlabs">ElevenLabs</option>
+                <option value="browser">브라우저 TTS (무료)</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<!-- 텍스트 입력 -->
+<div class="card mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="font-bold text-gray-800 dark:text-white">📝 텍스트</h3>
+        <button onclick="loadScript()" class="btn-secondary text-sm">🔄 대본 불러오기</button>
+    </div>
+    <textarea id="ttsText" class="input-field font-mono" rows="10" placeholder="음성으로 변환할 텍스트를 입력하세요..."></textarea>
+    <div class="mt-2 text-sm text-gray-500">
+        <span id="charCount">0</span>자 | 예상 시간: <span id="estTime">0:00</span>
+    </div>
+</div>
+
+<!-- 생성 버튼 -->
+<button onclick="generateTTS()" id="generateBtn" class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg mb-6">
+    <span>🔊</span>
+    <span>음성 생성하기</span>
+</button>
+
+<!-- 결과 -->
+<div id="resultSection" class="hidden">
+    <div class="card">
+        <h3 class="font-bold text-gray-800 dark:text-white mb-4">🎵 생성된 음성</h3>
+        <audio id="audioPlayer" controls class="w-full mb-4"></audio>
+        <a id="downloadLink" href="#" download class="btn-secondary inline-flex items-center gap-2">
+            💾 다운로드
+        </a>
+    </div>
+</div>
+
+<!-- 브라우저 TTS (무료) -->
+<div id="browserTTS" class="card hidden">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">🔊 브라우저 TTS</h3>
+    <div class="flex gap-2 mb-4">
+        <button onclick="playBrowserTTS()" class="btn-primary">▶️ 재생</button>
+        <button onclick="pauseBrowserTTS()" class="btn-secondary">⏸️ 일시정지</button>
+        <button onclick="stopBrowserTTS()" class="btn-secondary">⏹️ 정지</button>
+    </div>
+    <p class="text-sm text-gray-500">브라우저 TTS는 파일 저장이 불가능합니다. 고품질 음성은 ElevenLabs API를 사용하세요.</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let speechSynth = window.speechSynthesis;
+    let utterance = null;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        await checkAPIStatus();
+        await loadVoices();
+        loadScript();
+
+        document.getElementById('ttsText').addEventListener('input', updateStats);
+        document.getElementById('providerSelect').addEventListener('change', handleProviderChange);
+    });
+
+    async function checkAPIStatus() {
+        const health = await API.health();
+        const statusText = document.getElementById('apiStatusText');
+
+        if (health.apis?.elevenlabs) {
+            statusText.innerHTML = '<span class="text-green-600">✅ ElevenLabs 연결됨</span>';
+        } else {
+            statusText.innerHTML = '<span class="text-yellow-600">⚠️ API 미설정 - 브라우저 TTS 사용</span>';
+            document.getElementById('providerSelect').value = 'browser';
+            handleProviderChange();
+        }
+    }
+
+    async function loadVoices() {
+        const select = document.getElementById('voiceSelect');
+
+        // ElevenLabs 음성
+        try {
+            const result = await API.tts.getVoices();
+            if (result.voices?.length > 0) {
+                select.innerHTML = result.voices.map(v =>
+                    `<option value="${v.voice_id}">${v.name}</option>`
+                ).join('');
+            } else {
+                select.innerHTML = '<option value="">음성 없음</option>';
+            }
+        } catch {
+            select.innerHTML = '<option value="">음성 로딩 실패</option>';
+        }
+    }
+
+    function loadScript() {
+        const scriptData = Utils.storage.get('fullScript');
+        if (scriptData?.script) {
+            // 대본 정리 (연출 지시 제거)
+            let text = scriptData.script;
+            text = text.replace(/\[.*?\]/g, '');
+            text = text.replace(/\(.*?\)/g, '');
+            text = text.replace(/#{1,6}\s*/g, '');
+            text = text.trim();
+
+            document.getElementById('ttsText').value = text;
+            updateStats();
+        }
+    }
+
+    function updateStats() {
+        const text = document.getElementById('ttsText').value;
+        const charCount = text.length;
+        const seconds = Math.ceil(charCount / 5); // 초당 5자 기준
+
+        document.getElementById('charCount').textContent = charCount.toLocaleString();
+        document.getElementById('estTime').textContent = Utils.formatDuration(seconds);
+    }
+
+    function handleProviderChange() {
+        const provider = document.getElementById('providerSelect').value;
+        if (provider === 'browser') {
+            document.getElementById('browserTTS').classList.remove('hidden');
+        } else {
+            document.getElementById('browserTTS').classList.add('hidden');
+        }
+    }
+
+    async function generateTTS() {
+        const text = document.getElementById('ttsText').value.trim();
+        if (!text) {
+            Utils.showToast('텍스트를 입력하세요', 'warning');
+            return;
+        }
+
+        const provider = document.getElementById('providerSelect').value;
+
+        if (provider === 'browser') {
+            playBrowserTTS();
+            return;
+        }
+
+        const voiceId = document.getElementById('voiceSelect').value;
+        const btn = document.getElementById('generateBtn');
+        Utils.setLoading(btn, true, '음성 생성 중...');
+
+        try {
+            const result = await API.tts.generate(text, { voiceId, provider });
+
+            if (result.status === 'ok') {
+                document.getElementById('audioPlayer').src = result.url;
+                document.getElementById('downloadLink').href = result.url;
+                document.getElementById('resultSection').classList.remove('hidden');
+                Utils.showToast('음성이 생성되었습니다', 'success');
+
+                Utils.storage.set('ttsAudio', { url: result.url, timestamp: Date.now() });
+            } else {
+                Utils.showToast(result.error || '생성 실패', 'error');
+            }
+        } catch (error) {
+            Utils.showToast('생성 중 오류가 발생했습니다', 'error');
+        } finally {
+            Utils.setLoading(btn, false);
+        }
+    }
+
+    // 브라우저 TTS
+    function playBrowserTTS() {
+        const text = document.getElementById('ttsText').value;
+        if (!text) return;
+
+        if (utterance) speechSynth.cancel();
+
+        utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'ko-KR';
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+
+        const voices = speechSynth.getVoices();
+        const koreanVoice = voices.find(v => v.lang.includes('ko'));
+        if (koreanVoice) utterance.voice = koreanVoice;
+
+        speechSynth.speak(utterance);
+    }
+
+    function pauseBrowserTTS() {
+        speechSynth.pause();
+    }
+
+    function stopBrowserTTS() {
+        speechSynth.cancel();
+    }
+</script>
+{% endblock %}

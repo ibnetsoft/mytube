@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - wingsAIStudio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#EF4444',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 min-h-screen">
+    <div class="flex">
+        <!-- 사이드바 -->
+        <aside class="w-64 bg-white dark:bg-gray-800 min-h-screen fixed left-0 top-0 shadow-lg z-40">
+            <!-- 로고 -->
+            <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+                <a href="/" class="flex items-center gap-2">
+                    <span class="text-2xl">🎬</span>
+                    <span class="text-xl font-bold text-gray-800 dark:text-white">wingsAIStudio</span>
+                </a>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">AI 영상 제작 플랫폼</p>
+            </div>
+
+            <!-- 프로젝트 선택 -->
+            <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-medium text-gray-500 dark:text-gray-400">현재 프로젝트</span>
+                    <button onclick="openProjectModal()" class="text-xs text-blue-500 hover:text-blue-600">+ 새 프로젝트</button>
+                </div>
+                <select id="projectSelect" onchange="onProjectChange(this.value)"
+                    class="w-full text-sm p-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-800 dark:text-white">
+                    <option value="">프로젝트 선택...</option>
+                </select>
+                <div id="currentProjectInfo" class="mt-2 text-xs text-gray-500 hidden">
+                    <span id="projectStatus"></span>
+                </div>
+            </div>
+
+            <!-- 네비게이션 -->
+            <nav class="p-4">
+                <ul class="space-y-1">
+                    <li>
+                        <a href="/" class="sidebar-item {% if page == 'topic' %}active{% endif %}">
+                            <span class="sidebar-icon">🔍</span>
+                            <span>주제 찾기</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/script-plan" class="sidebar-item {% if page == 'script-plan' %}active{% endif %}">
+                            <span class="sidebar-icon">📋</span>
+                            <span>대본 기획</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/script-gen" class="sidebar-item {% if page == 'script-gen' %}active{% endif %}">
+                            <span class="sidebar-icon">✍️</span>
+                            <span>대본 생성</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/image-gen" class="sidebar-item {% if page == 'image-gen' %}active{% endif %}">
+                            <span class="sidebar-icon">🖼️</span>
+                            <span>이미지 생성</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/tts" class="sidebar-item {% if page == 'tts' %}active{% endif %}">
+                            <span class="sidebar-icon">🔊</span>
+                            <span>TTS 생성</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/render" class="sidebar-item {% if page == 'render' %}active{% endif %}">
+                            <span class="sidebar-icon">🎬</span>
+                            <span>영상 렌더링</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/title-desc" class="sidebar-item {% if page == 'title-desc' %}active{% endif %}">
+                            <span class="sidebar-icon">📝</span>
+                            <span>제목/설명 생성</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/thumbnail" class="sidebar-item {% if page == 'thumbnail' %}active{% endif %}">
+                            <span class="sidebar-icon">🎨</span>
+                            <span>썸네일 생성</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/shorts" class="sidebar-item {% if page == 'shorts' %}active{% endif %}">
+                            <span class="sidebar-icon">📱</span>
+                            <span>쇼츠 생성</span>
+                        </a>
+                    </li>
+                    <li class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <a href="/settings" class="sidebar-item {% if page == 'settings' %}active{% endif %}">
+                            <span class="sidebar-icon">⚙️</span>
+                            <span>설정</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <!-- API 상태 -->
+            <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700">
+                <div id="apiStatus" class="text-xs text-gray-500 dark:text-gray-400">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span id="statusDot" class="w-2 h-2 rounded-full bg-gray-400"></span>
+                        <span>API 상태 확인 중...</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 메인 컨텐츠 -->
+        <main class="flex-1 ml-64 p-6">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- 프로젝트 생성 모달 -->
+    <div id="projectModal" class="modal-overlay hidden">
+        <div class="modal-content max-w-md">
+            <div class="p-6 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-white">새 프로젝트 만들기</h3>
+            </div>
+            <div class="p-6">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">프로젝트 이름</label>
+                    <input type="text" id="newProjectName" class="input-field" placeholder="예: 삼국지 영상 시리즈">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">주제 (선택)</label>
+                    <input type="text" id="newProjectTopic" class="input-field" placeholder="예: 삼국지 인물 분석">
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="createNewProject()" class="flex-1 btn-primary">생성</button>
+                    <button onclick="closeProjectModal()" class="btn-secondary">취소</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 공통 스크립트 -->
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/utils.js"></script>
+    {% block scripts %}{% endblock %}
+
+    <script>
+        // 프로젝트 상태 한글
+        const statusLabels = {
+            'draft': '시작',
+            'analyzed': '분석 완료',
+            'planned': '기획 완료',
+            'scripted': '대본 완료',
+            'tts_done': 'TTS 완료',
+            'rendered': '렌더링 완료',
+            'completed': '완료'
+        };
+
+        // 프로젝트 목록 로드
+        async function loadProjects() {
+            try {
+                const data = await API.project.list();
+                const select = document.getElementById('projectSelect');
+                const currentId = getCurrentProject();
+
+                select.innerHTML = '<option value="">프로젝트 선택...</option>';
+
+                data.projects.forEach(p => {
+                    const option = document.createElement('option');
+                    option.value = p.id;
+                    option.textContent = `${p.name} (${statusLabels[p.status] || p.status})`;
+                    if (p.id == currentId) option.selected = true;
+                    select.appendChild(option);
+                });
+
+                // 현재 프로젝트 정보 표시
+                if (currentId) {
+                    const project = data.projects.find(p => p.id == currentId);
+                    if (project) {
+                        updateProjectInfo(project);
+                    }
+                }
+            } catch (e) {
+                console.error('프로젝트 로드 오류:', e);
+            }
+        }
+
+        // 프로젝트 정보 업데이트
+        function updateProjectInfo(project) {
+            const infoDiv = document.getElementById('currentProjectInfo');
+            const statusSpan = document.getElementById('projectStatus');
+
+            if (project) {
+                infoDiv.classList.remove('hidden');
+                statusSpan.textContent = `상태: ${statusLabels[project.status] || project.status}`;
+            } else {
+                infoDiv.classList.add('hidden');
+            }
+        }
+
+        // 프로젝트 변경
+        async function onProjectChange(projectId) {
+            if (projectId) {
+                setCurrentProject(projectId);
+                const project = await API.project.get(projectId);
+                updateProjectInfo(project);
+                Utils.showToast(`프로젝트 "${project.name}" 선택됨`, 'success');
+            } else {
+                setCurrentProject(null);
+                document.getElementById('currentProjectInfo').classList.add('hidden');
+            }
+        }
+
+        // 프로젝트 모달 열기/닫기
+        function openProjectModal() {
+            document.getElementById('projectModal').classList.remove('hidden');
+            document.getElementById('projectModal').classList.add('flex');
+            document.getElementById('newProjectName').focus();
+        }
+
+        function closeProjectModal() {
+            document.getElementById('projectModal').classList.add('hidden');
+            document.getElementById('projectModal').classList.remove('flex');
+            document.getElementById('newProjectName').value = '';
+            document.getElementById('newProjectTopic').value = '';
+        }
+
+        // 새 프로젝트 생성
+        async function createNewProject() {
+            const name = document.getElementById('newProjectName').value.trim();
+            const topic = document.getElementById('newProjectTopic').value.trim();
+
+            if (!name) {
+                Utils.showToast('프로젝트 이름을 입력하세요', 'warning');
+                return;
+            }
+
+            try {
+                const result = await API.project.create(name, topic || null);
+                if (result.project_id) {
+                    setCurrentProject(result.project_id);
+                    closeProjectModal();
+                    await loadProjects();
+                    Utils.showToast('프로젝트가 생성되었습니다', 'success');
+                }
+            } catch (e) {
+                Utils.showToast('프로젝트 생성 실패', 'error');
+            }
+        }
+
+        // API 상태 확인
+        async function checkApiStatus() {
+            try {
+                const response = await fetch('/api/health');
+                const data = await response.json();
+                const statusDot = document.getElementById('statusDot');
+                const apiStatus = document.getElementById('apiStatus');
+
+                if (data.status === 'ok') {
+                    const activeApis = Object.entries(data.apis)
+                        .filter(([k, v]) => v)
+                        .map(([k]) => k);
+
+                    statusDot.className = 'w-2 h-2 rounded-full bg-green-500';
+                    apiStatus.innerHTML = `
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                            <span class="text-green-600 dark:text-green-400">연결됨</span>
+                        </div>
+                        <div class="text-gray-400">${activeApis.join(', ')}</div>
+                    `;
+                }
+            } catch (e) {
+                document.getElementById('statusDot').className = 'w-2 h-2 rounded-full bg-red-500';
+            }
+        }
+
+        // ESC 키로 모달 닫기
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeProjectModal();
+        });
+
+        // 초기화
+        loadProjects();
+        checkApiStatus();
+    </script>
+</body>
+</html>
