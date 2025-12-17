@@ -44,6 +44,9 @@ def init_db():
             script TEXT,
             hashtags TEXT,
             voice_tone TEXT DEFAULT 'neutral',
+            voice_name TEXT DEFAULT 'Puck',
+            voice_language TEXT DEFAULT 'ko-KR',
+            voice_style_prompt TEXT,
             video_command TEXT,
             video_path TEXT,
             is_uploaded INTEGER DEFAULT 0,
@@ -177,10 +180,27 @@ def migrate_db():
     # project_settings에 thumbnail_url 컬럼 추가 (없으면)
     try:
         cursor.execute("ALTER TABLE project_settings ADD COLUMN thumbnail_url TEXT")
-        conn.commit()
-        print("[DB] thumbnail_url column added")
     except sqlite3.OperationalError:
-        pass  # 이미 존재하면 무시
+        pass
+
+    # Voice Settings 컬럼 추가
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN voice_name TEXT DEFAULT 'Puck'")
+    except sqlite3.OperationalError:
+        pass
+        
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN voice_language TEXT DEFAULT 'ko-KR'")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN voice_style_prompt TEXT")
+    except sqlite3.OperationalError:
+        pass
+        
+    conn.commit()
+    print("[DB] Migration completed")
 
     conn.close()
 
@@ -197,14 +217,34 @@ def create_project(name: str, topic: str = None) -> int:
     project_id = cursor.lastrowid
 
     # 기본 설정 생성
+    from services.settings_service import settings_service
+    defaults = settings_service.get_gemini_tts_settings()
+    
     cursor.execute(
-        "INSERT INTO project_settings (project_id, title) VALUES (?, ?)",
-        (project_id, name)
+        """INSERT INTO project_settings 
+           (project_id, title, voice_name, voice_language, voice_style_prompt) 
+           VALUES (?, ?, ?, ?, ?)""",
+        (project_id, name, defaults.get("voice_name", "Puck"), 
+         defaults.get("language_code", "ko-KR"), defaults.get("style_prompt", ""))
     )
 
     conn.commit()
     conn.close()
     return project_id
+
+def get_recent_projects(limit: int = 5) -> List[Dict]:
+    """최근 프로젝트 목록 조회 (중복 방지용)"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT name, topic FROM projects 
+        WHERE status != 'draft' 
+        ORDER BY created_at DESC 
+        LIMIT ?
+    """, (limit,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
 
 def get_project(project_id: int) -> Optional[Dict]:
     """프로젝트 조회"""
@@ -519,8 +559,8 @@ def save_project_settings(project_id: int, settings: Dict):
         fields = []
         values = []
         for key in ['title', 'thumbnail_text', 'thumbnail_url', 'duration_seconds', 'aspect_ratio',
-                    'script', 'hashtags', 'voice_tone', 'video_command',
-                    'video_path', 'is_uploaded']:
+                    'script', 'hashtags', 'voice_tone', 'voice_name', 'voice_language', 'voice_style_prompt', 
+                    'video_command', 'video_path', 'is_uploaded']:
             if key in settings:
                 fields.append(f"{key} = ?")
                 values.append(settings[key])
@@ -537,8 +577,9 @@ def save_project_settings(project_id: int, settings: Dict):
         cursor.execute("""
             INSERT INTO project_settings
             (project_id, title, thumbnail_text, thumbnail_url, duration_seconds, aspect_ratio,
-             script, hashtags, voice_tone, video_command, video_path, is_uploaded)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             script, hashtags, voice_tone, voice_name, voice_language, voice_style_prompt,
+             video_command, video_path, is_uploaded)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             project_id,
             settings.get('title'),
@@ -549,6 +590,9 @@ def save_project_settings(project_id: int, settings: Dict):
             settings.get('script'),
             settings.get('hashtags'),
             settings.get('voice_tone', 'neutral'),
+            settings.get('voice_name', 'Puck'),
+            settings.get('voice_language', 'ko-KR'),
+            settings.get('voice_style_prompt'),
             settings.get('video_command'),
             settings.get('video_path'),
             settings.get('is_uploaded', 0)
@@ -572,8 +616,8 @@ def update_project_setting(project_id: int, key: str, value: Any):
     cursor = conn.cursor()
 
     allowed_keys = ['title', 'thumbnail_text', 'thumbnail_url', 'duration_seconds', 'aspect_ratio',
-                    'script', 'hashtags', 'voice_tone', 'video_command',
-                    'video_path', 'is_uploaded']
+                    'script', 'hashtags', 'voice_tone', 'voice_name', 'voice_language', 'voice_style_prompt',
+                    'video_command', 'video_path', 'is_uploaded']
 
     if key not in allowed_keys:
         conn.close()

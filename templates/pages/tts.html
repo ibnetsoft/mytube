@@ -58,7 +58,8 @@
 </div>
 
 <!-- 생성 버튼 -->
-<button onclick="generateTTS()" id="generateBtn" class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg mb-6">
+<button onclick="generateTTS()" id="generateBtn"
+    class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg mb-6">
     <span>🔊</span>
     <span>음성 생성하기</span>
 </button>
@@ -96,8 +97,22 @@
         await loadVoices();
         loadScript();
 
-        document.getElementById('ttsText').addEventListener('input', updateStats);
         document.getElementById('providerSelect').addEventListener('change', handleProviderChange);
+    });
+
+    // 상태 복구 이벤트 수신
+    window.addEventListener('projectStateRestored', (e) => {
+        const data = e.detail;
+        if (data.script && data.script.full_script) {
+            Utils.storage.set('fullScript', { script: data.script.full_script }); // 간단히 저장 (포맷 주의)
+            loadScript();
+        }
+        if (data.tts && data.tts.url) {
+            Utils.storage.set('ttsAudio', data.tts);
+            document.getElementById('audioPlayer').src = data.tts.url;
+            document.getElementById('downloadLink').href = data.tts.url;
+            document.getElementById('resultSection').classList.remove('hidden');
+        }
     });
 
     async function checkAPIStatus() {
@@ -183,7 +198,12 @@
         Utils.setLoading(btn, true, '음성 생성 중...');
 
         try {
-            const result = await API.tts.generate(text, { voiceId, provider });
+            const projectId = getCurrentProject();
+            const result = await API.tts.generate(text, {
+                voiceId,
+                provider,
+                projectId: projectId ? parseInt(projectId) : null
+            });
 
             if (result.status === 'ok') {
                 document.getElementById('audioPlayer').src = result.url;

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -19,6 +20,7 @@
         }
     </script>
 </head>
+
 <body class="bg-gray-100 dark:bg-gray-900 min-h-screen">
     <div class="flex">
         <!-- 사이드바 -->
@@ -32,11 +34,58 @@
                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">AI 영상 제작 플랫폼</p>
             </div>
 
+            <!-- Project Progress Header (Global) -->
+            <div id="projectProgressHeader"
+                class="hidden p-4 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold text-blue-600 dark:text-blue-400">진행 중: <span
+                            id="currentProjectNameDisplay">프로젝트 로딩...</span></span>
+                    <button onclick="closeProjectContext()" class="text-xs text-gray-400 hover:text-gray-600">✕
+                        닫기</button>
+                </div>
+                <div class="flex justify-between items-center text-xs">
+                    <a href="/script-plan"
+                        class="progress-step opacity-50 hover:opacity-100 flex flex-col items-center gap-1"
+                        data-step="plan">
+                        <span class="w-2 h-2 rounded-full bg-gray-400"></span>
+                        <span>기획</span>
+                    </a>
+                    <div class="h-[1px] w-4 bg-gray-300"></div>
+                    <a href="/script-gen"
+                        class="progress-step opacity-50 hover:opacity-100 flex flex-col items-center gap-1"
+                        data-step="script">
+                        <span class="w-2 h-2 rounded-full bg-gray-400"></span>
+                        <span>대본</span>
+                    </a>
+                    <div class="h-[1px] w-4 bg-gray-300"></div>
+                    <a href="/image-gen"
+                        class="progress-step opacity-50 hover:opacity-100 flex flex-col items-center gap-1"
+                        data-step="image">
+                        <span class="w-2 h-2 rounded-full bg-gray-400"></span>
+                        <span>이미지</span>
+                    </a>
+                    <div class="h-[1px] w-4 bg-gray-300"></div>
+                    <a href="/tts" class="progress-step opacity-50 hover:opacity-100 flex flex-col items-center gap-1"
+                        data-step="tts">
+                        <span class="w-2 h-2 rounded-full bg-gray-400"></span>
+                        <span>TTS</span>
+                    </a>
+                    <div class="h-[1px] w-4 bg-gray-300"></div>
+                    <a href="/render"
+                        class="progress-step opacity-50 hover:opacity-100 flex flex-col items-center gap-1"
+                        data-step="render">
+                        <span class="w-2 h-2 rounded-full bg-gray-400"></span>
+                        <span>렌더링</span>
+                    </a>
+                </div>
+            </div>
+
             <!-- 프로젝트 선택 -->
             <div class="p-4 border-b border-gray-200 dark:border-gray-700">
                 <div class="flex items-center justify-between mb-2">
                     <span class="text-xs font-medium text-gray-500 dark:text-gray-400">현재 프로젝트</span>
-                    <button onclick="openProjectModal()" class="text-xs text-blue-500 hover:text-blue-600">+ 새 프로젝트</button>
+                    <button onclick="openProjectModal()" class="text-xs text-blue-500 hover:text-blue-600">+ 새
+                        프로젝트</button>
                 </div>
                 <select id="projectSelect" onchange="onProjectChange(this.value)"
                     class="w-full text-sm p-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-800 dark:text-white">
@@ -50,6 +99,12 @@
             <!-- 네비게이션 -->
             <nav class="p-4">
                 <ul class="space-y-1">
+                    <li>
+                        <a href="/projects" class="sidebar-item {% if page == 'projects' %}active{% endif %}">
+                            <span class="sidebar-icon">📂</span>
+                            <span>내 프로젝트</span>
+                        </a>
+                    </li>
                     <li>
                         <a href="/" class="sidebar-item {% if page == 'topic' %}active{% endif %}">
                             <span class="sidebar-icon">🔍</span>
@@ -299,4 +354,5 @@
         checkApiStatus();
     </script>
 </body>
+
 </html>

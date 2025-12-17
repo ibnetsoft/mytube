@@ -50,9 +50,22 @@ const API = {
             return response.json();
         },
 
-        async analyzeComments(videoId, videoTitle) {
-            const response = await fetch(`/api/gemini/analyze-comments?video_id=${videoId}&video_title=${encodeURIComponent(videoTitle)}`, {
-                method: 'POST'
+        async analyzeComments(video) {
+            const response = await fetch('/api/gemini/analyze-comments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    video_id: video.id,
+                    title: video.snippet.title,
+                    channel_title: video.snippet.channelTitle,
+                    description: video.snippet.description || "",
+                    tags: video.snippet.tags || [],
+                    view_count: parseInt(video.statistics.viewCount) || 0,
+                    like_count: parseInt(video.statistics.likeCount) || 0,
+                    comment_count: parseInt(video.statistics.commentCount) || 0,
+                    published_at: video.snippet.publishedAt,
+                    thumbnail_url: video.snippet.thumbnails.high?.url || video.snippet.thumbnails.default.url
+                })
             });
             return response.json();
         }
@@ -67,7 +80,8 @@ const API = {
                 body: JSON.stringify({
                     text,
                     voice_id: options.voiceId || null,
-                    provider: options.provider || 'elevenlabs'
+                    provider: options.provider || 'elevenlabs',
+                    project_id: options.projectId || null
                 })
             });
             return response.json();
@@ -80,6 +94,7 @@ const API = {
     },
 
     // 이미지 API
+    // 이미지 API
     image: {
         async generatePrompts(script, style = 'realistic', count = 5) {
             const response = await fetch(`/api/image/generate-prompts?script=${encodeURIComponent(script)}&style=${style}&count=${count}`, {
@@ -88,14 +103,15 @@ const API = {
             return response.json();
         },
 
-        // Gemini Imagen 3로 이미지 생성 (숏폼 9:16)
-        async generate(prompt, aspectRatio = '9:16') {
+        async generate(prompt, projectId, sceneNumber, style = 'realistic') {
             const response = await fetch('/api/image/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     prompt,
-                    aspect_ratio: aspectRatio
+                    project_id: projectId,
+                    scene_number: sceneNumber,
+                    style
                 })
             });
             return response.json();
@@ -161,6 +177,16 @@ const API = {
         // 프로젝트 전체 데이터 조회
         async getFull(projectId) {
             const response = await fetch(`/api/projects/${projectId}/full`);
+            return response.json();
+        },
+
+        // 프로젝트 영상 렌더링
+        async render(projectId, useSubtitles = true) {
+            const response = await fetch(`/api/projects/${projectId}/render`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ project_id: projectId, use_subtitles: useSubtitles })
+            });
             return response.json();
         },
 
@@ -341,14 +367,14 @@ const API = {
 // 현재 프로젝트 ID 관리
 window.currentProjectId = localStorage.getItem('currentProjectId') || null;
 
-window.setCurrentProject = function(projectId) {
+window.setCurrentProject = function (projectId) {
     window.currentProjectId = projectId;
     localStorage.setItem('currentProjectId', projectId);
     // 프로젝트 변경 이벤트 발생
     window.dispatchEvent(new CustomEvent('projectChanged', { detail: { projectId } }));
 };
 
-window.getCurrentProject = function() {
+window.getCurrentProject = function () {
     return window.currentProjectId;
 };
 

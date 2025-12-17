@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div class="flex items-center gap-3">
+        <span class="text-3xl">📂</span>
+        <div>
+            <h1>내 프로젝트</h1>
+            <p>진행 중인 모든 영상 프로젝트를 관리하세요</p>
+        </div>
+    </div>
+    <button onclick="openProjectModal()" class="btn-primary flex items-center gap-2">
+        <span>+</span>
+        <span>새 프로젝트</span>
+    </button>
+</div>
+
+<!-- 프로젝트 목록 -->
+<div id="loadingSection" class="hidden">
+    <div class="card text-center py-12">
+        <div class="loader mx-auto mb-4"></div>
+        <p class="text-gray-500">프로젝트를 불러오는 중...</p>
+    </div>
+</div>
+
+<div id="projectGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <!-- 프로젝트 카드가 여기에 렌더링됨 -->
+</div>
+
+<!-- 빈 상태 -->
+<div id="emptySection" class="card text-center py-12 hidden">
+    <div class="text-5xl mb-4">📁</div>
+    <h3 class="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">프로젝트가 없습니다</h3>
+    <p class="text-gray-500 mb-6">첫 번째 프로젝트를 시작해보세요!</p>
+    <button onclick="openProjectModal()" class="btn-primary">
+        + 새 프로젝트 만들기
+    </button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadProjectList() {
+        document.getElementById('loadingSection').classList.remove('hidden');
+        document.getElementById('projectGrid').innerHTML = '';
+        document.getElementById('emptySection').classList.add('hidden');
+
+        try {
+            const data = await API.project.list();
+
+            if (!data.projects || data.projects.length === 0) {
+                document.getElementById('loadingSection').classList.add('hidden');
+                document.getElementById('emptySection').classList.remove('hidden');
+                return;
+            }
+
+            renderProjects(data.projects);
+            document.getElementById('loadingSection').classList.add('hidden');
+        } catch (e) {
+            console.error('프로젝트 로드 실패:', e);
+            document.getElementById('loadingSection').classList.add('hidden');
+            Utils.showToast('목록을 불러오지 못했습니다', 'error');
+        }
+    }
+
+    function renderProjects(projects) {
+        const grid = document.getElementById('projectGrid');
+
+        grid.innerHTML = projects.map(p => `
+            <div class="card hover:shadow-lg transition cursor-pointer group" onclick="selectAndGo('${p.id}')">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="flex items-center gap-2">
+                         <span class="text-2xl">${p.status === 'completed' ? '✅' : '📝'}</span>
+                         <div>
+                            <h3 class="font-bold text-lg text-gray-800 dark:text-white group-hover:text-blue-500 transition">${p.name}</h3>
+                            <p class="text-xs text-gray-400">${new Date(p.updated_at).toLocaleString()}</p>
+                         </div>
+                    </div>
+                </div>
+                
+                <div class="space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                    <div class="flex justify-between">
+                        <span>주제</span>
+                        <span>${p.topic || '-'}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>상태</span>
+                        <span class="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-xs">
+                            ${statusLabels[p.status] || p.status}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-2">
+                    <button onclick="event.stopPropagation(); deleteProject('${p.id}')" class="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 p-2 rounded-lg transition">
+                        🗑️
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function selectAndGo(projectId) {
+        // 프로젝트 선택 후 대본 기획 페이지로 이동 (가장 일반적인 다음 단계)
+        setCurrentProject(projectId);
+        window.location.href = '/script-plan'; // Or topic, but usually script-plan is central
+    }
+
+    async function deleteProject(projectId) {
+        if (!confirm('정말 이 프로젝트를 삭제하시겠습니까? 복구할 수 없습니다.')) return;
+
+        try {
+            await API.project.delete(projectId);
+            Utils.showToast('삭제되었습니다', 'success');
+            loadProjectList();
+            // 사이드바 목록도 갱신
+            if (window.loadProjects) window.loadProjects();
+        } catch (e) {
+            Utils.showToast('삭제 실패', 'error');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadProjectList);
+</script>
+{% endblock %}

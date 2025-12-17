@@ -1,0 +1,25 @@
+
+# ===========================================
+# 프로젝트 전체 데이터 조회 (통합)
+# ===========================================
+def get_full_project_data(project_id):
+    """프로젝트 관련 모든 데이터를 조회하여 반환"""
+    project = get_project(project_id)
+    if not project:
+        return None
+    
+    analysis = get_analysis(project_id)
+    structure = get_script_structure(project_id)
+    script = get_script(project_id)
+    image_prompts = get_image_prompts(project_id)
+    tts = get_tts(project_id)
+    # settings = get_project_settings(project_id) # settings 테이블이 있다면 추가
+
+    return {
+        "project": dict(project) if project else None,
+        "analysis": dict(analysis) if analysis else None,
+        "structure": dict(structure) if structure else None,
+        "script": dict(script) if script else None,
+        "image_prompts": [dict(p) for p in image_prompts] if image_prompts else [],
+        "tts": dict(tts) if tts else None
+    }

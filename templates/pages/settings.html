@@ -29,8 +29,7 @@
                 <span id="youtubeStatus" class="text-sm text-gray-500">확인 중...</span>
             </div>
             <div class="flex gap-2">
-                <input type="password" id="youtubeApiKey"
-                    class="flex-1 input-field text-sm"
+                <input type="password" id="youtubeApiKey" class="flex-1 input-field text-sm"
                     placeholder="YouTube API 키 입력...">
                 <button onclick="toggleKeyVisibility('youtubeApiKey')" class="btn-secondary px-3">
                     <span id="youtubeApiKey-eye">👁️</span>
@@ -49,8 +48,7 @@
                 <span id="geminiStatus" class="text-sm text-gray-500">확인 중...</span>
             </div>
             <div class="flex gap-2">
-                <input type="password" id="geminiApiKey"
-                    class="flex-1 input-field text-sm"
+                <input type="password" id="geminiApiKey" class="flex-1 input-field text-sm"
                     placeholder="Gemini API 키 입력...">
                 <button onclick="toggleKeyVisibility('geminiApiKey')" class="btn-secondary px-3">
                     <span id="geminiApiKey-eye">👁️</span>
@@ -69,8 +67,7 @@
                 <span id="elevenlabsStatus" class="text-sm text-gray-500">확인 중...</span>
             </div>
             <div class="flex gap-2">
-                <input type="password" id="elevenlabsApiKey"
-                    class="flex-1 input-field text-sm"
+                <input type="password" id="elevenlabsApiKey" class="flex-1 input-field text-sm"
                     placeholder="ElevenLabs API 키 입력...">
                 <button onclick="toggleKeyVisibility('elevenlabsApiKey')" class="btn-secondary px-3">
                     <span id="elevenlabsApiKey-eye">👁️</span>
@@ -80,15 +77,53 @@
         </div>
     </div>
 
-    <!-- 저장 버튼 -->
-    <div class="mt-6 flex gap-3">
-        <button onclick="saveApiKeys()" class="btn-primary px-6">
-            💾 API 키 저장
-        </button>
-        <button onclick="loadApiKeys()" class="btn-secondary">
-            🔄 새로고침
-        </button>
+</div>
+
+<!-- Gemini Voice Settings -->
+<div class="card mb-6">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">🗣️ Gemini 음성 설정 (기본값)</h3>
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        새 프로젝트 생성 시 적용될 기본 음성 설정입니다.
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <!-- 음성 선택 -->
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">음성 (Voice)</label>
+            <select id="geminiVoice" class="input-field w-full">
+                <!-- Loaded via JS -->
+            </select>
+        </div>
+
+        <!-- 언어 선택 -->
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">언어 (Language)</label>
+            <select id="geminiLanguage" class="input-field w-full">
+                <!-- Loaded via JS -->
+            </select>
+        </div>
     </div>
+
+    <!-- 스타일 프롬프트 -->
+    <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            음성 스타일 프롬프트 (Style Prompt)
+            <span class="text-xs text-gray-500 font-normal ml-2">예: "차분하고 전문적인 톤으로", "활기차고 빠르게"</span>
+        </label>
+        <textarea id="geminiStylePrompt" rows="3" class="input-field w-full"
+            placeholder="Gemini에게 음성 스타일에 대해 지시할 내용을 입력하세요..."></textarea>
+    </div>
+</div>
+
+<!-- 저장 버튼 -->
+<div class="mt-6 flex gap-3">
+    <button onclick="saveAllSettings()" class="btn-primary px-6">
+        💾 전체 설정 저장
+    </button>
+    <button onclick="loadAllSettings()" class="btn-secondary">
+        🔄 새로고침
+    </button>
+</div>
 </div>
 
 <!-- API 연결 상태 -->
@@ -165,6 +200,79 @@
 
 {% block scripts %}
 <script>
+    // Gemini Constants
+    const GEMINI_VOICES = [
+        "Puck", "Charon", "Kore", "Fenrir", "Aoede", "Zephyr", "Orpheus", "Cupid",
+        "Autonoe", "Callirrhoe", "Laomedeia", "Leda", "Despina", "Sulafat",
+        "Algenib", "Alnilam", "Achernar", "Achird", "Enceladus", "Vega",
+        "Ursa", "Pegasus", "Nova", "Eclipse", "Lyra", "Orbit", "Dipper",
+        "Capella", "Orion"
+    ];
+
+    const GEMINI_LANGUAGES = [
+        "ko-KR", "en-US", "ja-JP", "es-US", "fr-FR", "de-DE", "hi-IN", "id-ID",
+        "it-IT", "pt-BR", "ru-RU", "nl-NL", "pl-PL", "th-TH", "tr-TR", "vi-VN",
+        "ro-RO", "uk-UA", "bn-BD", "en-IN", "mr-IN", "ta-IN", "te-IN", "ar-EG"
+    ];
+
+    // Populate Select Options
+    function populateOptions() {
+        const voiceSelect = document.getElementById('geminiVoice');
+        const langSelect = document.getElementById('geminiLanguage');
+
+        voiceSelect.innerHTML = GEMINI_VOICES.map(v => `<option value="${v}">${v}</option>`).join('');
+        langSelect.innerHTML = GEMINI_LANGUAGES.map(l => `<option value="${l}">${l}</option>`).join('');
+    }
+
+    // Load All Settings
+    async function loadAllSettings() {
+        await loadApiKeys();
+
+        try {
+            const res = await fetch('/api/settings');
+            const data = await res.json();
+
+            if (data.gemini_tts) {
+                document.getElementById('geminiVoice').value = data.gemini_tts.voice_name || 'Puck';
+                document.getElementById('geminiLanguage').value = data.gemini_tts.language_code || 'ko-KR';
+                document.getElementById('geminiStylePrompt').value = data.gemini_tts.style_prompt || '';
+            }
+        } catch (e) {
+            console.error('설정 로드 실패:', e);
+        }
+    }
+
+    // Save All
+    async function saveAllSettings() {
+        // Save Keys first
+        await saveApiKeys(); // This saves API keys to .env (via existing logic)
+
+        // Save Global Settings
+        const settings = {
+            gemini_tts: {
+                voice_name: document.getElementById('geminiVoice').value,
+                language_code: document.getElementById('geminiLanguage').value,
+                style_prompt: document.getElementById('geminiStylePrompt').value
+            }
+        };
+
+        try {
+            const res = await fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settings)
+            });
+
+            if (res.ok) {
+                Utils.showToast('설정이 저장되었습니다', 'success');
+            } else {
+                Utils.showToast('설정 저장 실패', 'error');
+            }
+        } catch (e) {
+            console.error('설정 저장 오류:', e);
+        }
+    }
+
     // 키 보기/숨기기 토글
     function toggleKeyVisibility(inputId) {
         const input = document.getElementById(inputId);
@@ -219,7 +327,7 @@
         }
     }
 
-    // API 키 저장
+    // API 키 저장 (Existing, modified to communicate saving)
     async function saveApiKeys() {
         const keys = {};
 
@@ -231,31 +339,17 @@
         if (gemini) keys.gemini = gemini;
         if (elevenlabs) keys.elevenlabs = elevenlabs;
 
-        if (Object.keys(keys).length === 0) {
-            Utils.showToast('저장할 API 키를 입력해주세요', 'warning');
-            return;
-        }
-
-        try {
-            const result = await API.apiKeys.save(keys);
-
-            if (result.status === 'ok') {
-                Utils.showToast(result.message, 'success');
-
-                // 입력 필드 초기화
+        if (Object.keys(keys).length > 0) {
+            try {
+                await API.apiKeys.save(keys);
                 document.getElementById('youtubeApiKey').value = '';
                 document.getElementById('geminiApiKey').value = '';
                 document.getElementById('elevenlabsApiKey').value = '';
-
-                // 상태 새로고침
                 await loadApiKeys();
                 await checkApiConnection();
-            } else {
-                Utils.showToast('저장 실패', 'error');
+            } catch (e) {
+                console.error('API 키 저장 오류:', e);
             }
-        } catch (e) {
-            console.error('API 키 저장 오류:', e);
-            Utils.showToast('저장 중 오류가 발생했습니다', 'error');
         }
     }
 
@@ -308,7 +402,8 @@
 
     // 초기화
     document.addEventListener('DOMContentLoaded', () => {
-        loadApiKeys();
+        populateOptions();
+        loadAllSettings();
         checkApiConnection();
     });
 </script>

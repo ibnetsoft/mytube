@@ -2,20 +2,25 @@
 wingsAIStudio - FastAPI 메인 서버
 YouTube 영상 자동화 제작 플랫폼 (Python 기반)
 """
-from fastapi import FastAPI, Request, Form, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Body, Request, Form
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, List
-import httpx
-import json
+from typing import List, Optional, Dict, Any
+import uvicorn
 import os
+import httpx
+import asyncio
+import json
 import re
+import datetime
+from pathlib import Path
 
 from config import config
 import database as db
+from services.gemini_service import gemini_service
 
 # FastAPI 앱 생성
 app = FastAPI(
@@ -60,8 +65,11 @@ class GeminiRequest(BaseModel):
 
 class TTSRequest(BaseModel):
     text: str
+    provider: str = "gtts"  # elevenlabs, google_cloud, gtts, gemini
     voice_id: Optional[str] = None
-    provider: str = "gtts"  # elevenlabs, gtts, google_cloud, typecast
+    language: str = "ko-KR"
+    style_prompt: Optional[str] = None
+    project_id: Optional[int] = None
 
 class VideoRequest(BaseModel):
     script: str
@@ -135,6 +143,15 @@ async def page_home(request: Request):
         "request": request,
         "page": "topic",
         "title": "주제 찾기"
+    })
+
+@app.get("/projects", response_class=HTMLResponse)
+async def page_projects(request: Request):
+    """내 프로젝트 페이지"""
+    return templates.TemplateResponse("pages/projects.html", {
+        "request": request,
+        "page": "projects",
+        "title": "내 프로젝트"
     })
 
 @app.get("/script-plan", response_class=HTMLResponse)
@@ -433,6 +450,14 @@ async def save_shorts(project_id: int, req: ShortsSave):
     db.save_shorts(project_id, req.shorts_data)
     return {"status": "ok"}
 
+@app.get("/api/projects/{project_id}/full")
+async def get_project_full(project_id: int):
+    """프로젝트 전체 데이터 조회 (상태 복구용)"""
+    data = db.get_project_full_data(project_id)
+    if not data:
+        raise HTTPException(404, "프로젝트를 찾을 수 없습니다.")
+    return data
+
 @app.get("/api/projects/{project_id}/shorts")
 async def get_shorts(project_id: int):
     """쇼츠 조회"""
@@ -537,13 +562,8 @@ async def youtube_search(req: SearchRequest):
         "q": req.query,
         "type": "video",
         "maxResults": req.max_results,
-        "order": req.order,
         "key": config.YOUTUBE_API_KEY
     }
-    
-    # 영상 길이 필터 (any가 아닐 때만 적용)
-    if req.video_duration and req.video_duration != "any":
-        params["videoDuration"] = req.video_duration
 
     if req.published_after:
         params["publishedAfter"] = req.published_after
@@ -613,6 +633,46 @@ async def youtube_channel(channel_id: str):
 # API: Gemini
 # ===========================================
 
+class ScriptStructureRequest(BaseModel):
+    topic: str
+    duration: str
+    tone: str
+    notes: Optional[str] = None
+
+@app.post("/api/gemini/generate-structure")
+async def gemini_generate_structure(req: ScriptStructureRequest):
+    """대본 구조 생성 (중복 방지 적용)"""
+    """대본 구조 생성 (중복 방지 적용)"""
+    try:
+        # 1. 최근 프로젝트 조회
+        recent_projects = db.get_recent_projects(limit=5)
+        recent_titles = [p['name'] for p in recent_projects]
+
+        # 2. 분석 데이터 구성 (단순화)
+        # Gemini가 숫자를 시간으로 인식하도록 단위 추가
+        duration_str = f"{req.duration}초" if req.duration.isdigit() else req.duration
+
+        analysis_data = {
+            "topic": req.topic,
+            "duration_category": duration_str,
+            "tone": req.tone,
+            "user_notes": req.notes
+        }
+
+        # 3. Gemini 호출
+        result = await gemini_service.generate_script_structure(analysis_data, recent_titles)
+        
+        if "error" in result:
+            return {"status": "error", "error": result["error"]}
+            
+        return {"status": "ok", "structure": result}
+
+    except Exception as e:
+        import traceback
+        error_msg = f"Server Error: {str(e)}\n{traceback.format_exc()}"
+        print(error_msg)
+        return {"status": "error", "error": f"서버 내부 오류: {str(e)}"}
+
 @app.post("/api/gemini/generate")
 async def gemini_generate(req: GeminiRequest):
     """Gemini 텍스트 생성"""
@@ -637,44 +697,72 @@ async def gemini_generate(req: GeminiRequest):
             return {"status": "error", "error": result}
 
 
-@app.post("/api/gemini/analyze-comments")
-async def gemini_analyze_comments(video_id: str, video_title: str):
-    """댓글 AI 분석"""
-    # 댓글 가져오기
-    comments_data = await youtube_comments(video_id, 100)
+class AnalysisRequest(BaseModel):
+    video_id: str
+    title: str
+    channel_title: str
+    description: str = ""
+    tags: List[str] = []
+    view_count: int = 0
+    like_count: int = 0
+    comment_count: int = 0
+    published_at: str = ""
+    thumbnail_url: str = ""
 
+@app.post("/api/gemini/analyze-comments")
+async def gemini_analyze_comments(req: AnalysisRequest):
+    """비디오 종합 분석 (댓글 + 메타데이터)"""
+    # 1. 댓글 가져오기
+    comments_data = await youtube_comments(req.video_id, 50) # 상위 50개만
+    
     comments = []
     if "items" in comments_data:
         for item in comments_data["items"]:
-            text = item["snippet"]["topLevelComment"]["snippet"]["textDisplay"]
-            comments.append(text)
+            snippet = item["snippet"].get("topLevelComment", {}).get("snippet", {})
+            text = snippet.get("textDisplay", "")
+            if text:
+                comments.append(text)
 
-    if not comments:
-        return {"status": "error", "error": "댓글이 없습니다"}
+    # 댓글이 없어도 메타데이터 분석은 가능하도록 진행 (단, 경고 포함)
+    comments_text = chr(10).join(comments[:30]) if comments else "댓글 없음 (비활성화되었거나 데이터 부족)"
 
-    # Gemini로 분석
-    prompt = f"""당신은 유튜브 콘텐츠 분석 전문가입니다.
-아래 영상의 댓글들을 분석해주세요.
+    # 2. Gemini로 종합 분석
+    prompt = f"""당신은 100만 유튜버 컨설턴트입니다.
+다음 유튜브 영상의 데이터를 분석하여 '성공 요인'과 '벤치마킹 포인트'를 도출해주세요.
 
-[영상 제목]
-{video_title}
+[영상 정보]
+- 제목: {req.title}
+- 채널: {req.channel_title}
+- 조회수: {req.view_count:,}회
+- 좋아요: {req.like_count:,}개
+- 게시일: {req.published_at[:10]}
+- 태그: {', '.join(req.tags[:10])}
+- 설명(요약): {req.description[:200]}...
 
-[댓글 목록]
-{chr(10).join(comments[:50])}
+[시청자 반응(댓글)]
+{comments_text}
 
-다음 JSON 형식으로 반환해주세요:
+다음 내용을 포함하여 JSON으로 분석해주세요:
+1. sentiment: 긍정/부정/중립 비율
+2. success_factors: 이 영상이 조회수가 잘 나온 이유 (제목 어그로, 썸네일, 소재 선정 등 다각도 분석)
+3. main_topics: 영상 및 댓글에서 다루는 주요 주제
+4. viewer_needs: 댓글에서 파악되는 시청자들의 니즈나 불만
+5. content_suggestions: 이 영상을 벤치마킹하여 만들 수 있는 콘텐츠 아이디어
+6. summary: 종합 요약
+
+JSON 포맷:
 {{
-    "sentiment": {{"positive": 비율, "negative": 비율, "neutral": 비율}},
-    "main_topics": ["주요 토픽 1", "주요 토픽 2"],
-    "viewer_needs": ["시청자 니즈 1", "시청자 니즈 2"],
-    "content_suggestions": ["콘텐츠 제안 1", "콘텐츠 제안 2"],
-    "success_factors": ["성공 요인 1", "성공 요인 2"],
-    "summary": "전체 요약 (2-3문장)"
+    "sentiment": {{"positive": 70, "negative": 10, "neutral": 20}},
+    "success_factors": ["요인1", "요인2", "요인3"],
+    "main_topics": ["주제1", "주제2"],
+    "viewer_needs": ["니즈1", "니즈2"],
+    "content_suggestions": ["제안1", "제안2"],
+    "summary": "요약 텍스트"
 }}
 
 JSON만 반환하세요."""
 
-    result = await gemini_generate(GeminiRequest(prompt=prompt, temperature=0.3))
+    result = await gemini_generate(GeminiRequest(prompt=prompt, temperature=0.4))
 
     if result["status"] == "ok":
         # JSON 파싱
@@ -685,9 +773,8 @@ JSON만 반환하세요."""
                 return {"status": "ok", "analysis": analysis, "comment_count": len(comments)}
             except:
                 pass
-        return {"status": "ok", "raw": result["text"]}
-
-    return result
+    
+    return {"status": "error", "error": "분석 결과를 파싱할 수 없습니다"}
 
 
 # ===========================================
@@ -728,14 +815,40 @@ async def tts_generate(req: TTSRequest):
                 text=req.text,
                 filename=filename
             )
+
+        # 4. Gemini (New)
+        elif req.provider == "gemini":
+            output_path = await tts_service.generate_gemini(
+                text=req.text,
+                voice_name=req.voice_id or "Puck",
+                language_code=req.language or "ko-KR",
+                style_prompt=req.style_prompt,
+                filename=filename
+            )
             
         else:
             raise HTTPException(400, f"지원하지 않는 TTS 제공자: {req.provider}")
 
+        # DB 저장 (프로젝트와 연결)
+        if req.project_id:
+             try:
+                 # /output/filename.mp3 -> 절대 경로 변환 필요 없음 (save_tts에서 처리하거나, URL만 저장하거나)
+                 # db.save_tts(project_id, service, voice, audio_path)
+                 # audio_path는 절대 경로임.
+                 db.save_tts(
+                     project_id=req.project_id,
+                     service=req.provider,
+                     voice=req.voice_id or "default",
+                     audio_path=output_path
+                 )
+             except Exception as db_e:
+                 print(f"TTS DB 저장 실패: {db_e}")
+
         return {
             "status": "ok",
             "file": filename,
-            "url": f"/output/{filename}"
+            "url": f"/output/{filename}",
+            "full_path": output_path
         }
 
     except Exception as e:
@@ -746,6 +859,18 @@ async def tts_generate(req: TTSRequest):
 async def tts_voices():
     """사용 가능한 TTS 음성 목록"""
     voices = []
+
+    # Gemini
+    try:
+        gemini_voices = tts_service.get_gemini_voices()
+        for v in gemini_voices:
+            voices.append({
+                "id": v,
+                "name": f"Gemini - {v}",
+                "provider": "gemini"
+            })
+    except:
+        pass
 
     # ElevenLabs
     if config.ELEVENLABS_API_KEY:
@@ -945,6 +1070,77 @@ JSON만 반환하세요."""
     return result
 
 
+@app.post("/api/image/generate")
+async def generate_image(
+    prompt: str = Body(...),
+    project_id: int = Body(...),
+    scene_number: int = Body(1),
+    style: str = Body("realistic")
+):
+    """이미지를 생성하고 저장"""
+    try:
+        # 이미지 생성 (Gemini Imagen)
+        images_bytes = await gemini_service.generate_image(
+            prompt=prompt,
+            num_images=1,
+            aspect_ratio="16:9"
+        )
+
+        if not images_bytes:
+            return {"status": "error", "error": "이미지가 생성되지 않았습니다."}
+        
+        # 파일 저장 경로 설정
+        project_dir = STATIC_DIR / "images" / str(project_id)
+        project_dir.mkdir(parents=True, exist_ok=True)
+        
+        filename = f"scene_{scene_number}_{int(datetime.datetime.now().timestamp())}.png"
+        filepath = project_dir / filename
+        
+        # 파일 저장
+        with open(filepath, "wb") as f:
+            f.write(images_bytes[0])
+            
+        image_url = f"/static/images/{project_id}/{filename}"
+        
+        # DB 업데이트 (이미지 URL 저장)
+        # 기존 프롬프트 레코드가 있다면 업데이트, 없다면 새로 생성 (여기서는 간단히 프롬프트 테이블 업데이트 로직 생략하고 URL 반환에 집중)
+        # 실제로는 image_prompts 테이블의 image_url 컬럼을 업데이트해야 함.
+        # MVP: 클라이언트가 받아서 DB 업데이트 요청을 보낼 수도 있고, 서버에서 바로 처리할 수도 있음.
+        # 여기서는 서버에서 처리하는 것이 자동화에 유리함.
+        
+        try:
+            conn = db.get_db()
+            cursor = conn.cursor()
+            # 해당 프로젝트, 씬 번호에 맞는 레코드가 있는지 확인
+            cursor.execute(
+                "SELECT id FROM image_prompts WHERE project_id = ? AND scene_number = ?",
+                (project_id, scene_number)
+            )
+            row = cursor.fetchone()
+            
+            if row:
+                cursor.execute(
+                    "UPDATE image_prompts SET image_url = ?, prompt_en = ? WHERE id = ?",
+                    (image_url, prompt, row['id'])
+                )
+            else:
+                # 레코드가 없다면 새로 생성 (프롬프트 생성 단계를 건너뛰었을 경우 등)
+                cursor.execute(
+                    "INSERT INTO image_prompts (project_id, scene_number, prompt_en, image_url) VALUES (?, ?, ?, ?)",
+                    (project_id, scene_number, prompt, image_url)
+                )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"DB Update Error: {e}")
+
+        return {"status": "ok", "image_url": image_url}
+
+    except Exception as e:
+        print(f"Image Generation Error: {e}")
+        return {"status": "error", "error": str(e)}
+
+
 # ===========================================
 # API: 영상 생성
 # ===========================================
@@ -1028,9 +1224,21 @@ async def render_project_video(
     images = []
     for img in images_data:
         if img.get("image_url"):
-            # /output/filename.png -> filename.png
-            fname = img["image_url"].split("/")[-1]
-            fpath = os.path.join(config.OUTPUT_DIR, fname)
+            # URL: /static/images/1/filename.png
+            # Path: config.STATIC_DIR / images / 1 / filename.png
+            if img["image_url"].startswith("/static/"):
+                relative_path = img["image_url"].replace("/static/", "", 1)
+                # Windows 경로 구분자로 변경 (필요 시)
+                relative_path = relative_path.replace("/", os.sep)
+                fpath = os.path.join(config.STATIC_DIR, relative_path)
+            elif img["image_url"].startswith("/output/"):
+                 # 썸네일 등 output 폴더에 있는 경우
+                 relative_path = img["image_url"].replace("/output/", "", 1)
+                 fpath = os.path.join(config.OUTPUT_DIR, relative_path)
+            else:
+                 # 기타?
+                 continue
+
             if os.path.exists(fpath):
                 images.append(fpath)
     

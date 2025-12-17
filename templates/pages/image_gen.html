@@ -35,7 +35,8 @@
     </div>
 </div>
 
-<button onclick="generatePrompts()" id="generateBtn" class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg mb-6">
+<button onclick="generatePrompts()" id="generateBtn"
+    class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg mb-6">
     <span>🖼️</span>
     <span>이미지 프롬프트 생성</span>
 </button>
@@ -46,10 +47,18 @@
             <h3 class="font-bold text-gray-800 dark:text-white">🎨 생성된 프롬프트</h3>
             <button onclick="copyAllPrompts()" class="btn-secondary text-sm">📋 전체 복사</button>
         </div>
+
+        <!-- 자동 생성 버튼 추가 -->
+        <button onclick="generateAllImages()" id="autoGenBtn"
+            class="w-full btn-primary py-3 mb-6 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold rounded-lg shadow-md transition-all flex items-center justify-center gap-2">
+            <span>🚀</span>
+            <span>생성된 프롬프트로 이미지 만들기 (자동)</span>
+        </button>
+
         <div id="promptsList" class="space-y-4"></div>
 
         <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-            <h4 class="font-medium text-gray-800 dark:text-white mb-3">🔗 이미지 생성 서비스</h4>
+            <h4 class="font-medium text-gray-800 dark:text-white mb-3">🔗 외부 생성 서비스 (옵션)</h4>
             <div class="flex flex-wrap gap-2">
                 <a href="https://midjourney.com" target="_blank" class="btn-secondary text-sm">Midjourney</a>
                 <a href="https://labs.openai.com" target="_blank" class="btn-secondary text-sm">DALL-E</a>
@@ -97,7 +106,7 @@
     function renderPrompts() {
         const container = document.getElementById('promptsList');
         container.innerHTML = prompts.map((p, i) => `
-            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+            <div id="prompt-card-${i}" class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                 <div class="flex items-center justify-between mb-2">
                     <span class="font-medium text-gray-800 dark:text-white">장면 ${i + 1}: ${p.scene}</span>
                     <button onclick="copyPrompt(${i})" class="btn-secondary text-xs">복사</button>
@@ -120,5 +129,80 @@
         Utils.copyToClipboard(text);
         Utils.showToast('전체 복사되었습니다', 'success');
     }
+
+    async function generateAllImages() {
+        const projectId = getCurrentProject();
+        if (!projectId) {
+            Utils.showToast('프로젝트를 찾을 수 없습니다', 'error');
+            return;
+        }
+
+        if (prompts.length === 0) {
+            Utils.showToast('먼저 프롬프트를 생성해주세요', 'warning');
+            return;
+        }
+
+        const btn = document.getElementById('autoGenBtn');
+        Utils.setLoading(btn, true, '이미지 생성 중...');
+
+        try {
+            for (let i = 0; i < prompts.length; i++) {
+                const p = prompts[i];
+                const card = document.getElementById(`prompt-card-${i}`);
+                if (!card) continue;
+
+                // 상태 표시
+                const statusDiv = document.createElement('div');
+                statusDiv.className = 'mt-2 text-sm text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 p-2 rounded';
+                statusDiv.id = `status-${i}`;
+                statusDiv.textContent = '⏳ 이미지 생성 중... (10~20초 소요)';
+                card.appendChild(statusDiv);
+
+                // API 호출
+                const fullPrompt = `${p.prompt} ${p.style_tags || ''}`;
+                const result = await API.image.generate(fullPrompt, projectId, i + 1, document.getElementById('imageStyle').value);
+
+                if (result.status === 'ok') {
+                    // 이미지 표시
+                    const imgDiv = document.createElement('div');
+                    imgDiv.className = 'mt-4 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600';
+                    imgDiv.innerHTML = `<img src="${result.image_url}" class="w-full h-auto" alt="Scene ${i + 1}">`;
+                    card.appendChild(imgDiv);
+
+                    statusDiv.textContent = '✅ 생성 완료';
+                    statusDiv.className = 'mt-2 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 p-2 rounded';
+                } else {
+                    statusDiv.textContent = '❌ 생성 실패: ' + result.error;
+                    statusDiv.className = 'mt-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-2 rounded';
+                }
+            }
+            Utils.showToast('모든 이미지가 처리되었습니다', 'success');
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('이미지 생성 중 오류 발생', 'error');
+        } finally {
+            Utils.setLoading(btn, false);
+        }
+    }
+
+    // 프로젝트 상태 복구 이벤트 수신
+    window.addEventListener('projectStateRestored', (e) => {
+        const data = e.detail;
+        if (data && data.image_prompts && data.image_prompts.length > 0) {
+            prompts = data.image_prompts;
+            renderPrompts();
+            document.getElementById('resultSection').classList.remove('hidden');
+        }
+    });
+
+    // 초기 로드 시 로컬 스토리지 확인 (빠른 렌더링)
+    document.addEventListener('DOMContentLoaded', () => {
+        const savedPrompts = Utils.storage.get('imagePrompts');
+        if (savedPrompts && savedPrompts.length > 0) {
+            prompts = savedPrompts;
+            renderPrompts();
+            document.getElementById('resultSection').classList.remove('hidden');
+        }
+    });
 </script>
 {% endblock %}

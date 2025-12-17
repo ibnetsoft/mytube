@@ -8,6 +8,8 @@ import httpx
 from typing import Optional, List
 import base64
 import os
+import json
+import re
 
 from config import config
 
@@ -116,16 +118,29 @@ JSON만 반환하세요."""
             return json.loads(json_match.group())
         return {"error": "파싱 실패", "raw": text}
 
-    async def generate_script_structure(self, analysis_data: dict) -> dict:
+    async def generate_script_structure(self, analysis_data: dict, recent_titles: List[str] = None) -> dict:
         """분석 데이터를 기반으로 대본 구조 자동 생성"""
         
         analysis_json = json.dumps(analysis_data, ensure_ascii=False, indent=2)
         
+        history_instruction = ""
+        if recent_titles:
+            history_list = "\n".join([f"- {t}" for t in recent_titles])
+            history_instruction = f"""
+[중복 방지 주의사항]
+최근에 다음과 같은 주제의 영상들이 제작되었습니다:
+{history_list}
+
+**위 영상들과는 겹치지 않는 새로운 관점(Angle)이나 소재를 반드시 선택해주세요.**
+비슷한 주제라도 전혀 다른 접근 방식이나 에피소드를 다뤄야 합니다.
+"""
+
         prompt = f"""당신은 유튜브 콘텐츠 기획 전문가입니다.
 아래의 분석 데이터를 바탕으로 가장 효과적인 영상 대본 구조를 기획해주세요.
 
 [분석 데이터]
 {analysis_json}
+{history_instruction}
 
 다음 JSON 형식으로 기획안을 작성해주세요:
 {{

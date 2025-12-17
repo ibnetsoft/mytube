@@ -27,11 +27,28 @@
         </div>
         <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">영상 길이</label>
-            <select id="durationSelect" class="input-field">
-                <option value="short">짧은 영상 (5-10분)</option>
-                <option value="medium" selected>중간 영상 (10-20분)</option>
-                <option value="long">긴 영상 (20분 이상)</option>
-            </select>
+            <div class="flex flex-wrap gap-2">
+                <label class="flex items-center gap-1 cursor-pointer">
+                    <input type="radio" name="scriptDuration" value="20" class="form-radio text-blue-600">
+                    <span class="text-sm">20s</span>
+                </label>
+                <label class="flex items-center gap-1 cursor-pointer">
+                    <input type="radio" name="scriptDuration" value="30" class="form-radio text-blue-600" checked>
+                    <span class="text-sm">30s</span>
+                </label>
+                <label class="flex items-center gap-1 cursor-pointer">
+                    <input type="radio" name="scriptDuration" value="40" class="form-radio text-blue-600">
+                    <span class="text-sm">40s</span>
+                </label>
+                <label class="flex items-center gap-1 cursor-pointer">
+                    <input type="radio" name="scriptDuration" value="50" class="form-radio text-blue-600">
+                    <span class="text-sm">50s</span>
+                </label>
+                <label class="flex items-center gap-1 cursor-pointer">
+                    <input type="radio" name="scriptDuration" value="60" class="form-radio text-blue-600">
+                    <span class="text-sm">60s</span>
+                </label>
+            </div>
         </div>
         <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">톤앤매너</label>
@@ -45,12 +62,14 @@
     </div>
     <div>
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">추가 요청사항</label>
-        <textarea id="additionalNotes" class="input-field" rows="3" placeholder="특별히 포함하고 싶은 내용이나 스타일을 적어주세요"></textarea>
+        <textarea id="additionalNotes" class="input-field" rows="3"
+            placeholder="특별히 포함하고 싶은 내용이나 스타일을 적어주세요"></textarea>
     </div>
 </div>
 
 <!-- 생성 버튼 -->
-<button onclick="generateStructure()" id="generateBtn" class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg mb-6">
+<button onclick="generateStructure()" id="generateBtn"
+    class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg mb-6">
     <span>🤖</span>
     <span>대본 구조 생성하기</span>
 </button>
@@ -68,7 +87,8 @@
         <div id="structureContent" class="prose dark:prose-invert max-w-none"></div>
 
         <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-            <button onclick="goToScriptGen()" class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg">
+            <button onclick="goToScriptGen()"
+                class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg">
                 <span>✍️</span>
                 <span>전체 대본 생성하기</span>
                 <span>→</span>
@@ -83,22 +103,79 @@
     let currentStructure = '';
 
     // 페이지 로드 시 분석 데이터 확인
-    document.addEventListener('DOMContentLoaded', () => {
-        const analysisData = Utils.storage.get('analysisData');
-        if (analysisData && analysisData.video) {
+    // 페이지 로드 시 분석 데이터 확인
+    document.addEventListener('DOMContentLoaded', async () => {
+        // 프로젝트 변경 이벤트 리스너 -> data reloading
+        window.addEventListener('projectChanged', (e) => loadProjectData(e.detail.projectId));
+
+        // 초기 로드
+        const projectId = getCurrentProject();
+        if (projectId) {
+            await loadProjectData(projectId);
+        }
+    });
+
+    // 상태 복구 완료 시 UI 업데이트
+    window.addEventListener('projectStateRestored', (e) => {
+        const data = e.detail;
+        if (data.analysis && data.project) {
+            // 분석 데이터 렌더링
+            const analysis = data.analysis;
             document.getElementById('analysisInfo').classList.remove('hidden');
-            document.getElementById('topicInput').value = analysisData.video.snippet.title;
+            if (analysis.video_title) document.getElementById('topicInput').value = analysis.video_title;
             document.getElementById('analysisContent').innerHTML = `
                 <div class="flex gap-4 items-center">
-                    <img src="${analysisData.video.snippet.thumbnails.default.url}" class="w-24 rounded">
+                    <img src="${analysis.thumbnail_url}" class="w-24 rounded">
                     <div>
-                        <p class="font-medium text-gray-800 dark:text-white">${analysisData.video.snippet.title}</p>
-                        <p class="text-sm text-gray-500">${analysisData.video.snippet.channelTitle}</p>
+                        <p class="font-medium text-gray-800 dark:text-white">${analysis.video_title}</p>
+                        <p class="text-sm text-gray-500">${analysis.channel_title}</p>
                     </div>
                 </div>
             `;
         }
+
+        if (data.script_structure) {
+            currentStructure = data.script_structure;
+            renderStructure(data.script_structure);
+        }
     });
+
+    async function loadProjectData(projectId) {
+        if (!projectId) return;
+
+        try {
+            const data = await API.project.getAnalysis(projectId);
+            if (data && data.video_title) { // DB column mapping might be snake_case, need to check API return
+                // The API returns the row, so columns like video_title, channel_title, thumbnail_url
+                document.getElementById('analysisInfo').classList.remove('hidden');
+                document.getElementById('topicInput').value = data.video_title;
+                document.getElementById('analysisContent').innerHTML = `
+                    <div class="flex gap-4 items-center">
+                        <img src="${data.thumbnail_url}" class="w-24 rounded">
+                        <div>
+                            <p class="font-medium text-gray-800 dark:text-white">${data.video_title}</p>
+                            <p class="text-sm text-gray-500">${data.channel_title}</p>
+                        </div>
+                    </div>
+                `;
+                Utils.showToast('분석 데이터를 불러왔습니다', 'success');
+            }
+
+            // Load existing structure if any
+            try {
+                const structData = await API.project.getScriptStructure(projectId);
+                if (structData && structData.sections) {
+                    // Check if there is a saved structure
+                    // We might want to show it? For now let's just allow regenerating
+                    // Or maybe show saved structure?
+                    // Let's implement showing saved structure later or if user asks
+                }
+            } catch (e) { }
+
+        } catch (e) {
+            console.error('데이터 로드 실패:', e);
+        }
+    }
 
     async function generateStructure() {
         const topic = document.getElementById('topicInput').value.trim();
@@ -107,74 +184,62 @@
             return;
         }
 
-        const duration = document.getElementById('durationSelect').value;
+        const duration = document.querySelector('input[name="scriptDuration"]:checked').value;
         const tone = document.getElementById('toneSelect').value;
         const notes = document.getElementById('additionalNotes').value;
 
         const btn = document.getElementById('generateBtn');
         Utils.setLoading(btn, true, '생성 중...');
 
-        const prompt = `당신은 유튜브 대본 작가입니다.
-다음 정보를 바탕으로 영상 대본 구조를 만들어주세요.
-
-[영상 주제]
-${topic}
-
-[영상 길이]
-${duration === 'short' ? '5-10분' : duration === 'medium' ? '10-20분' : '20분 이상'}
-
-[톤앤매너]
-${tone}
-
-[추가 요청]
-${notes || '없음'}
-
-다음 형식으로 작성해주세요:
-
-## 📌 영상 컨셉
-(영상의 핵심 컨셉 1-2문장)
-
-## 🎯 타겟 시청자
-(누구를 위한 영상인지)
-
-## 📋 대본 구조
-
-### 1. 인트로 (0:00-0:30)
-- 후킹 포인트:
-- 영상 소개:
-
-### 2. 본론 1 (0:30-3:00)
-- 주제:
-- 핵심 포인트:
-
-### 3. 본론 2 (3:00-6:00)
-- 주제:
-- 핵심 포인트:
-
-(필요에 따라 본론 추가)
-
-### N. 마무리 (끝)
-- 요약:
-- CTA (Call to Action):
-
-## 💡 핵심 키워드
-(SEO용 키워드 5개)`;
-
         try {
-            const result = await API.gemini.generate(prompt, { temperature: 0.7 });
+            // 새 엔드포인트 호출 (중복 방지 적용됨)
+            const response = await fetch('/api/gemini/generate-structure', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    topic,
+                    duration,
+                    tone,
+                    notes: notes || ''
+                })
+            });
+
+            const text = await response.text();
+            console.log("Raw Response:", text);
+            let result;
+            try {
+                result = JSON.parse(text);
+            } catch (e) {
+                console.error("JSON Parse Error:", e);
+                Utils.showToast('서버 응답 오류 (JSON 파싱 실패): ' + text.substring(0, 50), 'error');
+                Utils.setLoading(btn, false);
+                return;
+            }
 
             if (result.status === 'ok') {
-                currentStructure = result.text;
-                document.getElementById('structureContent').innerHTML = marked.parse(result.text);
+                const structureData = result.structure;
+
+                currentStructure = structureData;
+                renderStructure(structureData);
                 document.getElementById('resultSection').classList.remove('hidden');
 
-                Utils.storage.set('scriptStructure', {
-                    topic,
-                    structure: result.text,
-                    timestamp: Date.now()
-                });
+                // DB 저장
+                const projectId = getCurrentProject();
+                if (projectId) {
+                    try {
+                        await API.project.saveScriptStructure(projectId, {
+                            hook: structureData.hook,
+                            sections: structureData.sections,
+                            cta: structureData.cta,
+                            style: structureData.style,
+                            duration: parseInt(structureData.estimated_duration) || 10
+                        });
+                        Utils.showToast('대본 구조가 저장되었습니다', 'success');
+                        API.project.update(projectId, { status: 'planned' });
+                    } catch (e) { console.error('DB 저장 실패:', e); }
+                }
             } else {
-                Utils.showToast('생성 실패: ' + (result.error?.message || '알 수 없는 오류'), 'error');
+                Utils.showToast('생성 실패: ' + (result.error || '알 수 없는 오류'), 'error');
             }
         } catch (error) {
             console.error('생성 오류:', error);
@@ -182,6 +247,61 @@ ${notes || '없음'}
         } finally {
             Utils.setLoading(btn, false);
         }
+    }
+
+    function renderStructure(data) {
+        const container = document.getElementById('structureContent');
+        if (!data) return;
+
+        let html = `<div class="space-y-6">`;
+
+        // 1. Hook
+        html += `
+            <div class="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-100 dark:border-red-900/50">
+                <h4 class="font-bold text-red-600 dark:text-red-400 mb-2">🪝 후킹 (Hook)</h4>
+                <p class="text-gray-800 dark:text-gray-200 text-lg font-medium">"${data.hook}"</p>
+            </div>
+        `;
+
+        // 2. Sections
+        if (data.sections && data.sections.length > 0) {
+            html += `<div class="space-y-4">`;
+            data.sections.forEach((section, index) => {
+                html += `
+                    <div class="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-1 rounded text-xs font-bold">Scene ${index + 1}</span>
+                            <h5 class="font-bold text-gray-800 dark:text-white">${section.title}</h5>
+                        </div>
+                        <ul class="list-disc list-inside space-y-1 ml-1">
+                            ${(section.key_points || []).map(point => `
+                                <li class="text-gray-700 dark:text-gray-300 text-sm">${point}</li>
+                            `).join('')}
+                        </ul>
+                    </div>
+                `;
+            });
+            html += `</div>`;
+        }
+
+        // 3. CTA
+        html += `
+            <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-900/50">
+                <h4 class="font-bold text-blue-600 dark:text-blue-400 mb-2">📢 CTA (행동 유도)</h4>
+                <p class="text-gray-800 dark:text-gray-200">"${data.cta}"</p>
+            </div>
+        `;
+
+        // 4. Info (Style, Duration)
+        html += `
+            <div class="flex gap-4 text-sm text-gray-500 dark:text-gray-400 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <span>🎨 스타일: ${data.style || '-'}</span>
+                <span>⏱️ 예상 길이: ${data.duration || 0}초</span>
+            </div>
+        `;
+
+        html += `</div>`;
+        container.innerHTML = html;
     }
 
     function copyStructure() {

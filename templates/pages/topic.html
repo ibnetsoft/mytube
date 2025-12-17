@@ -58,8 +58,8 @@
 <!-- 검색 섹션 -->
 <div class="card mb-6">
     <div class="flex gap-4 mb-4">
-        <input type="text" id="searchInput" placeholder="검색어를 입력하세요 (예: 요리, 여행, 테크)"
-            class="input-field flex-1" onkeypress="if(event.key==='Enter') searchVideos()">
+        <input type="text" id="searchInput" placeholder="검색어를 입력하세요 (예: 요리, 여행, 테크)" class="input-field flex-1"
+            onkeypress="if(event.key==='Enter') searchVideos()">
         <select id="searchOrder" class="input-field w-40">
             <option value="relevance">관련성</option>
             <option value="viewCount">조회수</option>
@@ -81,13 +81,23 @@
     <!-- 추천 주제 -->
     <div class="flex flex-wrap gap-2">
         <span class="text-sm text-gray-500 mr-2">추천 주제:</span>
-        <button onclick="setSearchTopic('일상 브이로그')" class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">일상 브이로그</button>
-        <button onclick="setSearchTopic('먹방')" class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">먹방</button>
-        <button onclick="setSearchTopic('IT 테크')" class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">IT 테크</button>
-        <button onclick="setSearchTopic('재테크')" class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">재테크</button>
-        <button onclick="setSearchTopic('운동 헬스')" class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">운동 헬스</button>
-        <button onclick="setSearchTopic('게임')" class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">게임</button>
-        <button onclick="setSearchTopic('자기계발')" class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">자기계발</button>
+        <button onclick="setSearchTopic('일상 브이로그')"
+            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">일상
+            브이로그</button>
+        <button onclick="setSearchTopic('먹방')"
+            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">먹방</button>
+        <button onclick="setSearchTopic('IT 테크')"
+            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">IT
+            테크</button>
+        <button onclick="setSearchTopic('재테크')"
+            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">재테크</button>
+        <button onclick="setSearchTopic('운동 헬스')"
+            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">운동
+            헬스</button>
+        <button onclick="setSearchTopic('게임')"
+            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">게임</button>
+        <button onclick="setSearchTopic('자기계발')"
+            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">자기계발</button>
     </div>
 </div>
 
@@ -156,7 +166,7 @@
     // 기간 필터 계산
     function getPublishedAfter(filter) {
         const now = new Date();
-        switch(filter) {
+        switch (filter) {
             case 'week': return new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
             case 'month': return new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
             case 'year': return new Date(now - 365 * 24 * 60 * 60 * 1000).toISOString();
@@ -288,7 +298,7 @@
         document.getElementById('analysisModal').classList.add('flex');
 
         try {
-            const result = await API.gemini.analyzeComments(videoId, video.snippet.title);
+            const result = await API.gemini.analyzeComments(video);
 
             if (result.status === 'ok' && result.analysis) {
                 currentAnalysisResult = result.analysis;
@@ -365,6 +375,19 @@
                         <li class="flex items-start gap-2 text-gray-700 dark:text-gray-300">
                             <span class="text-yellow-500">✦</span>
                             <span>${need}</span>
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+
+            <!-- 성공 요인 (New) -->
+            <div class="mb-6">
+                <h5 class="font-bold text-gray-800 dark:text-white mb-3">🏆 인기 비결 (Success Factors)</h5>
+                <ul class="space-y-2">
+                    ${(analysis.success_factors || []).map(factor => `
+                        <li class="flex items-start gap-2 text-gray-700 dark:text-gray-300">
+                            <span class="text-red-500">★</span>
+                            <span class="font-medium">${factor}</span>
                         </li>
                     `).join('')}
                 </ul>
