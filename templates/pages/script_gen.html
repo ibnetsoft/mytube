@@ -11,10 +11,20 @@
     </div>
 </div>
 
-<!-- 구조 정보 -->
-<div id="structureInfo" class="card mb-6 hidden">
+<!-- 분석 데이터 표시 -->
+<div id="analysisInfo" class="card mb-6 hidden">
     <h3 class="font-bold text-gray-800 dark:text-white mb-2">📋 대본 구조 기반</h3>
-    <p id="structureTopic" class="text-gray-600 dark:text-gray-400"></p>
+    <input type="text" id="structureTopic" class="input-field mt-1" placeholder="영상 주제 (수정 가능)">
+    <p class="text-xs text-gray-500 mt-1">💡 주제가 다르다면 직접 수정해주세요. AI는 이 주제와 아래 구조를 바탕으로 대본을 씁니다.</p>
+</div>
+
+<!-- 디버그/프리뷰: 실제로 로드된 구조 확인용 -->
+<div id="structurePreview" class="card mb-6 border-l-4 border-indigo-500 bg-indigo-50 dark:bg-indigo-900/10">
+    <h3 class="font-bold text-indigo-800 dark:text-indigo-300 mb-2">🔍 AI에게 전달될 구조 데이터 (확인용)</h3>
+    <div id="previewContent"
+        class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono max-h-40 overflow-y-auto p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+        (데이터 로딩 중...)
+    </div>
 </div>
 
 <!-- 대본 옵션 -->
@@ -45,12 +55,19 @@
     </div>
 </div>
 
-<!-- 생성 버튼 -->
-<button onclick="generateScript()" id="generateBtn"
-    class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg mb-6">
-    <span>✍️</span>
-    <span>전체 대본 생성하기</span>
-</button>
+<!-- 생성 버튼 그룹 -->
+<div class="flex gap-2 mb-6">
+    <button onclick="generateScript()" id="generateBtn"
+        class="flex-1 btn-primary py-4 flex items-center justify-center gap-3 text-lg">
+        <span>✍️</span>
+        <span>대본 생성 시작하기</span>
+    </button>
+    <button onclick="stopAndSave()" id="stopBtn"
+        class="hidden btn-secondary bg-red-100 text-red-600 hover:bg-red-200 py-4 px-6 flex items-center justify-center gap-2">
+        <span>⏹️</span>
+        <span>멈춤 & 저장 (즉시 완료)</span>
+    </button>
+</div>
 
 <!-- 결과 영역 -->
 <div id="resultSection" class="hidden">
@@ -58,6 +75,8 @@
         <div class="flex items-center justify-between mb-4">
             <h3 class="font-bold text-gray-800 dark:text-white">📝 생성된 대본</h3>
             <div class="flex gap-2">
+                <button onclick="translateScript()" id="translateBtn" class="btn-secondary text-sm hidden">🌐
+                    번역하기</button>
                 <button onclick="copyScript()" class="btn-secondary text-sm">📋 복사</button>
                 <button onclick="downloadScript()" class="btn-secondary text-sm">💾 다운로드</button>
             </div>
@@ -90,16 +109,124 @@
 <script>
     let currentScript = '';
 
-    document.addEventListener('DOMContentLoaded', () => {
-        const structureData = Utils.storage.get('scriptStructure');
+    // 페이지 로드 시 데이터 로딩
+    document.addEventListener('DOMContentLoaded', async () => {
+        const projectId = getCurrentProject();
+        console.log("Current Project ID:", projectId);
+
+        // 1. 프리뷰 초기화
+        const previewEl = document.getElementById('previewContent');
+        if (previewEl) previewEl.textContent = "데이터 로딩 중...";
+
+        // 2. 데이터 가져오기 (로컬 -> 서버)
+        let structureData = Utils.storage.get('scriptStructure');
+
+        // [중요] 프로젝트 ID 불일치 시 데이터를 폐기하고 서버에서 다시 가져옴
+        if (structureData && structureData.project_id && structureData.project_id != projectId) {
+            console.log("Mismatching validation: Storage ID", structureData.project_id, "Current ID", projectId);
+            structureData = null; // Force reload
+            Utils.storage.remove('scriptStructure');
+        }
+
+        if (!structureData && projectId) {
+            try {
+                // 서버에서 조회
+                const projectFull = await API.project.getFull(projectId);
+                console.log("Projects Full Data:", projectFull);
+
+                if (projectFull && projectFull.script_structure) {
+                    structureData = projectFull.script_structure;
+                    // topic이 필요하면 projectFull.project.topic 또는 script_structure 내부 확인
+                    if (!structureData.topic && projectFull.project) {
+                        structureData.topic = projectFull.project.topic || projectFull.project.name;
+                    }
+
+                    // project_id가 없으면 주입 (클라이언트 사이드 검증용)
+                    if (!structureData.project_id) {
+                        structureData.project_id = projectId;
+                    }
+
+                    Utils.storage.set('scriptStructure', structureData);
+                    Utils.showToast('기획 데이터를 server에서 불러왔습니다', 'success');
+                }
+            } catch (e) {
+                console.error("Failed to fetch project data:", e);
+                if (previewEl) previewEl.textContent = "❌ 서버 데이터 조회 실패";
+            }
+        }
+
+        // 3. UI 업데이트
         if (structureData) {
-            document.getElementById('structureInfo').classList.remove('hidden');
-            document.getElementById('structureTopic').textContent = structureData.topic;
+            const infoEl = document.getElementById('analysisInfo'); // Corrected ID from 'structureInfo' to 'analysisInfo'
+            if (infoEl) infoEl.classList.remove('hidden');
+
+            const topicEl = document.getElementById('structureTopic');
+            const topic = structureData.topic || structureData.hook || '주제 미상';
+            if (topicEl) topicEl.value = topic;
+
+            // 프리뷰 업데이트
+            if (previewEl) {
+                previewEl.textContent = JSON.stringify(structureData, null, 2);
+                previewEl.classList.remove('text-red-600');
+            }
+        } else {
+            if (previewEl) {
+                previewEl.textContent = "❌ 구조 데이터가 없습니다! 대본 기획 단계 완료 여부를 확인해주세요.";
+                previewEl.classList.add('text-red-600', 'font-bold');
+            }
         }
     });
 
     async function generateScript() {
-        const structureData = Utils.storage.get('scriptStructure');
+        const projectId = getCurrentProject();
+        // 1. 데이터 가져오기 (로컬 -> 서버)
+        let structureData = Utils.storage.get('scriptStructure');
+
+        // 데이터가 없거나, 프로젝트 ID가 다르면 새로고침 시도
+        if (!structureData || (structureData.project_id && structureData.project_id != projectId)) {
+            console.log("Refreshing data in generateScript due to mismatch or missing");
+            try {
+                const projectFull = await API.project.getFull(projectId);
+                if (projectFull && projectFull.script_structure) {
+                    structureData = projectFull.script_structure;
+                    if (!structureData.topic && projectFull.project) {
+                        structureData.topic = projectFull.project.topic || projectFull.project.name;
+                    }
+                    if (!structureData.project_id) structureData.project_id = projectId;
+                    Utils.storage.set('scriptStructure', structureData);
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        if (!structureData) {
+            Utils.showToast('대본 구조 데이터가 없습니다. 기획 단계부터 진행해주세요.', 'error');
+            return;
+        }
+
+        // UI 프리뷰 강제 업데이트 (싱크 맞추기)
+        const previewEl = document.getElementById('previewContent');
+        if (previewEl) previewEl.textContent = JSON.stringify(structureData, null, 2);
+
+        // 2. 구조 데이터를 문자열로 변환 (버그 수정)
+        let structureText = '';
+        if (typeof structureData === 'string') {
+            structureText = structureData;
+        } else if (typeof structureData === 'object') {
+            // "structure" 키가 있으면 사용, 없으면 전체 객체 변환
+            structureText = structureData.structure || JSON.stringify(structureData, null, 2);
+        }
+
+        // 주제정보 보강
+        const topic = document.getElementById('structureTopic').value || structureData.topic || structureData.hook || '유튜브 영상';
+
+        // 길이 정보 보강 (기본값 60초)
+        const duration = structureData.duration || 60;
+        // 한국어 말하기 속도: 초당 약 2.5~3음절 (여유있게 계산)
+        // 30초 -> 90~120자, 60초 -> 200~250자
+        // 너무 짧으면 AI가 내용을 못 채우므로 초당 4.5자 정도로 넉넉히 잡고 제한
+        const maxChars = duration * 5;
+        const targetLenMsg = `${duration}초 영상 (약 ${Math.round(duration * 2.5)} ~ ${maxChars}자 내외)`;
+
         const style = document.getElementById('scriptStyle').value;
         const includeHooks = document.getElementById('includeHooks').checked;
         const includeCTA = document.getElementById('includeCTA').checked;
@@ -107,46 +234,233 @@
         const btn = document.getElementById('generateBtn');
         Utils.setLoading(btn, true, '대본 생성 중...');
 
-        const prompt = `당신은 유튜브 대본 작가입니다.
-다음 구조를 바탕으로 완성된 대본을 작성해주세요.
+        // 언어 설정 조회
+        let targetLanguage = 'ko'; // 기본값
+        try {
+            const projectFull = await API.project.getFull(projectId);
+            if (projectFull && projectFull.settings && projectFull.settings.target_language) {
+                targetLanguage = projectFull.settings.target_language;
+            }
+        } catch (e) {
+            console.error("Failed to fetch project settings for language:", e);
+        }
 
-[대본 구조]
-${structureData?.structure || '일반적인 유튜브 영상 대본'}
+        // 언어 이름 매핑
+        const langMap = {
+            'ko': '한국어',
+            'en': 'English',
+            'ja': 'Japanese',
+            'es': 'Spanish'
+        };
+        const langName = langMap[targetLanguage] || targetLanguage;
 
-[스타일]
-${style === 'narration' ? '나레이션형 - 설명 위주로 작성' : style === 'conversational' ? '대화형 - 시청자에게 말하듯이 친근하게' : '스토리텔링형 - 이야기를 전개하듯이'}
+        // 섹션별 순차 생성 (긴 영상 대응)
+        let finalScript = "";
+        const sections = structureData.sections || [];
 
-[요구사항]
-- ${includeHooks ? '각 섹션 시작에 후킹 멘트 포함' : '후킹 멘트 최소화'}
-- ${includeCTA ? '적절한 위치에 구독/좋아요 CTA 포함' : 'CTA 최소화'}
-- 자연스러운 말투로 작성
-- [장면 설명]이나 (효과음) 같은 연출 지시 포함
-- 실제로 읽을 수 있는 대본 형태로 작성
+        // 전체 구조 텍스트 (문맥 유지용)
+        const fullStructureSummary = sections.map((s, i) => `${i + 1}. ${s.title}: ${s.key_points.join(', ')}`).join('\n');
 
-대본만 작성하세요.`;
+        // 스타일별 상세 지침 매핑
+        const styleInstructionMap = {
+            'narration': `
+                - **전문적이고 신뢰감 있는 톤**을 유지하되, 지루하지 않게 작성하세요.
+                - 복잡한 개념은 쉽고 명확한 비유를 들어 설명하세요.
+                - "자, 여기를 보시죠", "이것이 왜 중요할까요?" 같은 문구로 시청자의 주의를 환기하세요.
+                - 논리적인 흐름(A이므로 B이다)을 명확히 하세요.`,
+            'conversational': `
+                - **옆집 친구에게 말하듯 편안하고 친근한 반말**(~해, ~했어)을 사용하세요.
+                - 무거운 주제도 가볍고 위트 있게 풀어내세요.
+                - "있잖아, 그거 알아?", "진짜 대박이지 않아?" 같은 구어체 추임새를 적절히 섞으세요.
+                - 시청자의 공감을 이끌어내는 문장을 자주 사용하세요.`,
+            'storytelling': `
+                - **훌륭한 이야기꾼(Storyteller)**이 되어, 듣는 이가 다음 내용이 궁금해 미치도록 만드세요.
+                - **"도대체 왜 그랬을까요?", "하지만 여기서 반전이 일어납니다."**와 같은 **호기심 유발 질문(Curiosity Gap)**을 지속적으로 던지세요.
+                - 단순한 사실 나열을 멈추고, 눈앞에 그려지는 듯한 **생생하고 감각적인 묘사**를 사용하세요.
+                - 문장과 문장 사이를 매끄럽게 잇는 **연결 고리(Bridge)**를 사용하여 몰입감을 깨뜨리지 마세요.
+                - 긴장감을 조성했다가 해소하는 방식을 사용하여 드라마틱한 전개를 만드세요.`
+        };
+
+        const selectedStyleInstruction = styleInstructionMap[style] || styleInstructionMap['narration'];
+
+        // 섹션이 없으면 기존 방식(통생성)으로 처리
+        if (sections.length === 0) {
+            // Fallback: 섹션이 없을 경우 처리 로직이 필요하지만, 현재는 구조화된 데이터를 기본으로 가정합니다.
+            console.warn("No sections found in structure data.");
+        }
+
+        Utils.setLoading(btn, true, `대본 생성 중... (0 / ${sections.length})`);
+        document.getElementById('resultSection').classList.remove('hidden'); // 미리 보여줌
+
+        // [NEW] Stop Button Logic
+        document.getElementById('stopBtn').classList.remove('hidden');
 
         try {
-            const result = await API.gemini.generate(prompt, { temperature: 0.8, maxTokens: 8192 });
+            console.log(`Starting generation for ${sections.length} sections.`);
+            for (let i = 0; i < sections.length; i++) {
+                if (window.stopGeneration) {
+                    console.log("Generation stopped by user.");
+                    Utils.showToast('생성이 중단되었습니다. 현재까지의 내용을 저장합니다.', 'warning');
+                    break;
+                }
 
-            if (result.status === 'ok') {
-                currentScript = result.text;
-                document.getElementById('scriptContent').value = result.text;
-                document.getElementById('resultSection').classList.remove('hidden');
-                updateStats();
+                const section = sections[i];
+                console.log(`Processing section ${i + 1}/${sections.length}: ${section.title}`);
+                Utils.setLoading(btn, true, `대본 생성 중... (${i + 1}/${sections.length} - ${section.title})`);
 
-                Utils.storage.set('fullScript', {
-                    topic: structureData?.topic || '영상',
-                    script: result.text,
-                    timestamp: Date.now()
-                });
-            } else {
-                Utils.showToast('생성 실패', 'error');
+                // 섹션별 예상 길이 계산 (초 단위)
+                const sectionDuration = Math.floor(duration / sections.length);
+                const sectionTargetMsg = `${sectionDuration}초 분량(전체 ${duration}초 중 ${i + 1}번째 섹션)`;
+
+                const sectionPrompt = `당신은 ${duration}초 분량의 유튜브 장편 영상 대본 작가입니다.
+전체 기획된 대본 구조 중 ** "${section.title}" ** 파트를 작성해주세요.
+
+[전체 대본 구조]
+${fullStructureSummary}
+
+        [현재 작성할 파트]
+            - 섹션: ${section.title}
+        - 주요 내용: ${section.key_points.join(', ')}
+        - 목표 길이: ${sectionTargetMsg} (이 섹션만 충실하게 작성)
+
+        [작성 지침]
+        1. 앞뒤 문맥('이전 섹션 요약' 참고)을 고려하여 자연스럽게 이어지도록 쓰세요.
+        2. ** 스타일 지침(매우 중요):**
+            ${selectedStyleInstruction}
+
+        3. ** 분량을 충분히 뽑아주세요.** (너무 짧으면 안 됩니다)
+        4. 섹션 제목(예: [서론])은 출력하지 말고, 오직 대본 본문만 작성하세요.
+        5. ** 반드시 한국어로 작성하세요.** (1차 생성은 무조건 한국어)
+        6. **현재 섹션의 내용만 작성하고, 절대 다음 섹션(결론 등)이나 마무리 멘트를 미리 작성하지 마세요.**
+
+        [이전까지 내용 요약(문맥 참고용)]
+${finalScript.length > 500 ? finalScript.substring(finalScript.length - 500) : finalScript} ... (직전 내용)
+
+오직 대본 본문만 작성하세요.`;
+
+                try {
+                    // 60초 타임아웃 레이스
+                    const fetchPromise = API.gemini.generate(sectionPrompt, { temperature: 0.7, maxTokens: 4096 });
+                    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 90000));
+
+                    const result = await Promise.race([fetchPromise, timeoutPromise]);
+
+                    if (result.status === 'ok') {
+                        const sectionText = result.text.trim();
+                        // 중복 방지: 이미 내용이 포함된 경우 건너뛰기
+                        if (!finalScript.includes(sectionText.substring(0, 20))) {
+                            finalScript += `\n\n ** [${section.title}] **\n${sectionText} `;
+                        }
+
+                        // 중간 결과 표시
+                        const textArea = document.getElementById('scriptContent');
+                        if (textArea) textArea.value = finalScript;
+                        updateStats();
+                        console.log(`Section ${i + 1} complete.`);
+                    } else {
+                        console.error(`Section ${i + 1} failed`, result);
+                        finalScript += `\n\n[${section.title} 파트 생성 실패]\n`;
+                    }
+                } catch (innerErr) {
+                    console.error(`Error generating section ${i + 1}:`, innerErr);
+                    finalScript += `\n\n[${section.title} 파트 생성 중 오류 발생]\n`;
+                }
+
+                // API Rate Limit 방지용 대기 (마지막 섹션 제외)
+                if (i < sections.length - 1) {
+                    console.log(`Waiting before next section...`);
+                    await new Promise(r => setTimeout(r, 1000));
+                }
             }
+
+            console.log("All sections completed.");
+
+            // 최종 완료
+            currentScript = finalScript;
+            Utils.storage.set('fullScript', {
+                topic: structureData?.topic || '영상',
+                script: currentScript,
+                timestamp: Date.now()
+            });
+
+            // [FIX] DB에 대본 저장 (중요: 그래야 진행상태가 업데이트됨)
+            if (projectId) {
+                try {
+                    const charCount = currentScript.length;
+                    const readTime = Math.ceil(charCount / 300);
+                    await API.project.saveScript(projectId, currentScript, charCount, readTime);
+                    console.log("Script saved to DB successfully.");
+                } catch (dbErr) {
+                    console.error("Failed to save script to DB:", dbErr);
+                }
+            }
+
+            Utils.showToast('전체 대본 생성이 완료되었습니다', 'success');
+
+            // 번역 버튼 표시 여부 체크
+            checkTranslationAvailability(targetLanguage);
+
+            // [NEW] 대본 기반 제목 자동 생성 및 저장
+            if (!window.stopGeneration) {
+                await autoGenerateTitle(projectId, currentScript);
+            }
+
         } catch (error) {
             console.error('생성 오류:', error);
-            Utils.showToast('생성 중 오류가 발생했습니다', 'error');
+            Utils.showToast('생성 중 오류가 발생했습니다: ' + error.message, 'error');
         } finally {
+            console.log("Process finished, resetting button.");
             Utils.setLoading(btn, false);
+            document.getElementById('stopBtn').classList.add('hidden');
+            window.stopGeneration = false;
+        }
+    }
+
+    // 제목 자동 생성 및 저장 함수
+    async function autoGenerateTitle(projectId, script) {
+        try {
+            Utils.showToast('AI가 최적의 제목을 선정하고 있습니다...', 'info');
+
+            const prompt = `당신은 유튜브 썸네일/제목 어그로 장인입니다.
+다음 대본 내용을 바탕으로 클릭률(CTR)을 극대화할 수 있는 **가장 강력한 후킹성 제목 1개**를 작성해주세요.
+
+[대본 요약]
+${script.substring(0, 2000)}...
+
+[조건]
+1. 따옴표 없이 제목 텍스트만 출력하세요.
+2. 30자 이내로 짧고 강렬하게 작성하세요.
+3. 호기심을 자극하거나 이득을 강조하는 스타일이어야 합니다.
+4. 예시: "이것만 알면 인생이 바뀝니다", "99%가 모르는 충격적인 사실"
+5. **오직 제목 1줄만 반환하세요.**`;
+
+            const result = await API.gemini.generate(prompt, { temperature: 0.8 });
+
+            if (result.status === 'ok') {
+                let newTitle = result.text.trim().replace(/^["']|["']$/g, ''); // 따옴표 제거
+                console.log("Auto-generated Title:", newTitle);
+
+                // 프로젝트 정보 업데이트
+                await API.project.update(projectId, { video_title: newTitle });
+
+                Utils.showToast(`제목이 자동 설정되었습니다: ${newTitle}`, 'success');
+
+                // (선택) 상단 헤더 업데이트가 가능하다면 수행 (헤더에 제목 표시 기능이 있다면)
+                // const titleEl = document.getElementById('projectTitleDisplay');
+                // if(titleEl) titleEl.textContent = newTitle;
+            }
+        } catch (e) {
+            console.error("Auto title generation failed:", e);
+            // 제목 생성 실패는 크리티컬하지 않으므로 조용히 넘어감 (로그만 남김)
+        }
+    }
+
+    function stopAndSave() {
+        if (window.confirm('대본 생성을 강제로 중단하고 현재까지의 내용을 저장하시겠습니까?\n(마지막 섹션 생성 작업은 완료될 때까지 기다릴 수 있습니다.)')) {
+            window.stopGeneration = true;
+            const btn = document.getElementById('stopBtn');
+            btn.innerHTML = '🛑 중단 중...';
+            btn.disabled = true;
         }
     }
 
@@ -155,8 +469,8 @@ ${style === 'narration' ? '나레이션형 - 설명 위주로 작성' : style ==
         const charCount = text.length;
         const readTime = Math.ceil(charCount / 300); // 분당 300자 기준
 
-        document.getElementById('charCount').textContent = `${charCount.toLocaleString()}자`;
-        document.getElementById('readTime').textContent = `예상 읽기 시간: ${readTime}분`;
+        document.getElementById('charCount').textContent = `${charCount.toLocaleString()} 자`;
+        document.getElementById('readTime').textContent = `예상 읽기 시간: ${readTime} 분`;
     }
 
     document.getElementById('scriptContent')?.addEventListener('input', updateStats);
@@ -170,7 +484,7 @@ ${style === 'narration' ? '나레이션형 - 설명 위주로 작성' : style ==
     function downloadScript() {
         const text = document.getElementById('scriptContent').value;
         const topic = Utils.storage.get('scriptStructure')?.topic || '대본';
-        Utils.downloadFile(text, `${topic}_대본.txt`);
+        Utils.downloadFile(text, `${topic} _대본.txt`);
     }
 
     function goToImageGen() {
@@ -218,6 +532,78 @@ ${style === 'narration' ? '나레이션형 - 설명 위주로 작성' : style ==
             document.getElementById('resultSection').classList.remove('hidden');
             if (window.updateStats) updateStats();
         }
+    });
+    function checkTranslationAvailability(targetLang) {
+        if (targetLang && targetLang !== 'ko') {
+            const btn = document.getElementById('translateBtn');
+            btn.classList.remove('hidden');
+            btn.textContent = `🌐 ${targetLang === 'en' ? '영어' : targetLang === 'ja' ? '일본어' : '외국어'}로 번역하기`;
+            btn.dataset.lang = targetLang;
+        }
+    }
+
+    async function translateScript() {
+        const btn = document.getElementById('translateBtn');
+        const targetLang = btn.dataset.lang;
+        const script = document.getElementById('scriptContent').value;
+
+        if (!script) return;
+
+        if (!confirm('현재 대본을 번역하시겠습니까? (기존 내용은 덮어씌워집니다)')) return;
+
+        const originalText = btn.innerHTML;
+        Utils.setLoading(btn, true, '번역 중...');
+
+        try {
+            const response = await fetch('/api/gemini/translate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    text: script,
+                    target_language: targetLang
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'ok') {
+                const translated = result.translated_text;
+                document.getElementById('scriptContent').value = translated;
+                currentScript = translated;
+                updateStats(); // 글자수 업데이트
+
+                // 저장
+                const topic = document.getElementById('structureTopic').value || '영상';
+                Utils.storage.set('fullScript', {
+                    topic: topic,
+                    script: translated,
+                    timestamp: Date.now()
+                });
+
+                // DB 저장 (선택 사항, 유저가 원할 때 저장하게 놔둘 수도 있지만 일단 자동 저장이 없으므로)
+
+                Utils.showToast('번역이 완료되었습니다', 'success');
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('번역 실패: ' + e.message, 'error');
+        } finally {
+            Utils.setLoading(btn, false);
+            btn.innerHTML = originalText;
+        }
+    }
+
+    // 프로젝트 로드 시에도 언어 체크
+    window.addEventListener('projectChanged', async (e) => {
+        const projectId = e.detail.projectId;
+        try {
+            const projectFull = await API.project.getFull(projectId);
+            if (projectFull && projectFull.settings && projectFull.settings.target_language) {
+                checkTranslationAvailability(projectFull.settings.target_language);
+            }
+        } catch (e) { }
     });
 </script>
 {% endblock %}

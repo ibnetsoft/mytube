@@ -28,6 +28,7 @@
                 <option value="mystery">미스터리형</option>
                 <option value="minimal">미니멀형</option>
                 <option value="dramatic">드라마틱형</option>
+                <option value="japanese_viral">🇯🇵 일본 바이럴 스타일 (강조형)</option>
             </select>
         </div>
         <div>
@@ -87,13 +88,15 @@
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">텍스트 색상</label>
                 <div class="flex gap-2">
-                    <button onclick="setTextColor('#FFFFFF')" class="w-10 h-10 bg-white border-2 border-gray-300 rounded-lg"></button>
+                    <button onclick="setTextColor('#FFFFFF')"
+                        class="w-10 h-10 bg-white border-2 border-gray-300 rounded-lg"></button>
                     <button onclick="setTextColor('#FFFF00')" class="w-10 h-10 bg-yellow-400 rounded-lg"></button>
                     <button onclick="setTextColor('#FF0000')" class="w-10 h-10 bg-red-500 rounded-lg"></button>
                     <button onclick="setTextColor('#00FF00')" class="w-10 h-10 bg-green-500 rounded-lg"></button>
                     <button onclick="setTextColor('#00FFFF')" class="w-10 h-10 bg-cyan-400 rounded-lg"></button>
                     <button onclick="setTextColor('#FF00FF')" class="w-10 h-10 bg-pink-500 rounded-lg"></button>
-                    <input type="color" id="customColor" value="#FFFFFF" onchange="setTextColor(this.value)" class="w-10 h-10 rounded-lg cursor-pointer">
+                    <input type="color" id="customColor" value="#FFFFFF" onchange="setTextColor(this.value)"
+                        class="w-10 h-10 rounded-lg cursor-pointer">
                 </div>
                 <p id="selectedColor" class="text-sm text-gray-500 mt-1">선택: #FFFFFF</p>
             </div>
@@ -105,7 +108,8 @@
 
         <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">선택된 배경 이미지</label>
-            <div id="selectedImagePreview" class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 flex items-center justify-center h-48">
+            <div id="selectedImagePreview"
+                class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 flex items-center justify-center h-48">
                 <span class="text-gray-500">아이디어를 선택하세요</span>
             </div>
         </div>
@@ -170,12 +174,19 @@
     let selectedPrompt = null;
     let selectedTextColor = '#FFFFFF';
     let generatedHistory = [];
+    let targetLang = 'ko'; // 전역 변수로 선언
 
     // 프로젝트 데이터 로드
     document.addEventListener('DOMContentLoaded', async () => {
         const projectId = getCurrentProject();
         if (projectId) {
             try {
+                // 프로젝트 정보 가져오기 (언어 설정)
+                const project = await API.project.get(projectId);
+                if (project && project.target_language) {
+                    targetLang = project.target_language;
+                }
+
                 // 분석 데이터에서 제목 가져오기
                 const analysis = await API.project.getAnalysis(projectId);
                 if (analysis?.video_title) {
@@ -204,8 +215,14 @@
         const style = document.getElementById('thumbnailStyle').value;
         const color = document.getElementById('colorTone').value;
 
+        // targetLang은 전역 변수 사용 (DOMContentLoaded에서 설정됨)
+
         const btn = document.getElementById('ideaBtn');
         Utils.setLoading(btn, true, '생성 중...');
+
+        const langInstruction = targetLang === 'ja' ? '썸네일 텍스트 후보(texts)는 반드시 "일본어(Japanese)"로 작성하세요.' :
+            targetLang === 'en' ? '썸네일 텍스트 후보(texts)는 반드시 "영어(English)"로 작성하세요.' :
+                '썸네일 텍스트 후보(texts)는 "한국어"로 작성하세요.';
 
         const prompt = `유튜브 썸네일 디자인 전문가로서 다음 정보를 바탕으로 클릭률 높은 썸네일 아이디어를 생성해주세요.
 
@@ -214,9 +231,20 @@ ${title}
 
 [스타일]
 ${style}
+${style === 'japanese_viral' ? `
+**SPECIAL STYLE INSTRUCTION (Japanese Viral):**
+- Layout: Split screen or Text Overlay. Left 60% Text, Right 40% Image.
+- Typography: Extremely bold, heavy sans-serif fonts. Colors: White, Red, Yellow. High contrast strokes/outlines.
+- Imagery: Close-up, emotional face (elderly/shocked/crying/angry). Dark background.
+- Vibe: Viral, provocative, "Shocking Truth", "Reality", "Documentary".
+- Text Effects: Red/Yellow background highlights behind text.
+` : ''}
 
 [색상 톤]
 ${color}
+
+[언어 설정]
+${langInstruction}
 
 JSON 형식으로 반환:
 {
@@ -336,7 +364,8 @@ ideas는 3개 생성하세요. prompt_en은 Imagen 3에서 좋은 결과가 나�
                 result = await API.image.generateThumbnail(selectedPrompt, text, {
                     textPosition: position,
                     textColor: selectedTextColor,
-                    fontSize: fontSize
+                    fontSize: fontSize,
+                    language: targetLang // 언어 설정 전달
                 });
             } else {
                 // 이미지만 생성

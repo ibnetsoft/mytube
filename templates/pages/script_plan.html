@@ -27,28 +27,11 @@
         </div>
         <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">영상 길이</label>
-            <div class="flex flex-wrap gap-2">
-                <label class="flex items-center gap-1 cursor-pointer">
-                    <input type="radio" name="scriptDuration" value="20" class="form-radio text-blue-600">
-                    <span class="text-sm">20s</span>
-                </label>
-                <label class="flex items-center gap-1 cursor-pointer">
-                    <input type="radio" name="scriptDuration" value="30" class="form-radio text-blue-600" checked>
-                    <span class="text-sm">30s</span>
-                </label>
-                <label class="flex items-center gap-1 cursor-pointer">
-                    <input type="radio" name="scriptDuration" value="40" class="form-radio text-blue-600">
-                    <span class="text-sm">40s</span>
-                </label>
-                <label class="flex items-center gap-1 cursor-pointer">
-                    <input type="radio" name="scriptDuration" value="50" class="form-radio text-blue-600">
-                    <span class="text-sm">50s</span>
-                </label>
-                <label class="flex items-center gap-1 cursor-pointer">
-                    <input type="radio" name="scriptDuration" value="60" class="form-radio text-blue-600">
-                    <span class="text-sm">60s</span>
-                </label>
+            <div class="flex items-center gap-2">
+                <input type="number" id="durationInput" class="input-field w-32" value="60" min="1" step="1">
+                <span class="text-gray-700 dark:text-gray-300">분</span>
             </div>
+            <p class="text-xs text-gray-500 mt-1">기본값: 60분 (대본 길이 기준)</p>
         </div>
         <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">톤앤매너</label>
@@ -64,6 +47,50 @@
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">추가 요청사항</label>
         <textarea id="additionalNotes" class="input-field" rows="3"
             placeholder="특별히 포함하고 싶은 내용이나 스타일을 적어주세요"></textarea>
+    </div>
+</div>
+
+<!-- 스타일 설정 (일관성 유지) -->
+<div class="card mb-6 border-l-4 border-purple-500">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">🎨 스타일 설정 (일관성 유지)</h3>
+    <p class="text-xs text-gray-500 mb-4">영상 전체에 적용될 스타일을 지정하세요. 이미지, 자막 등이 이 설정을 따릅니다.</p>
+
+    <div class="space-y-4">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">이미지 스타일 프롬프트</label>
+            <input type="text" id="imageStyleInput" class="input-field"
+                placeholder="예: 3D Pixar style, cute character, bright lighting">
+            <p class="text-xs text-gray-400 mt-1">모든 이미지 생성 프롬프트에 자동으로 추가됩니다.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">자막 폰트</label>
+                <select id="subtitleFontSelect" class="input-field">
+                    <option value="Malgun-Gothic-Bold">맑은 고딕 (기본)</option>
+                    <option value="CookieRun Regular">쿠키런 (귀여움)</option>
+                    <option value="GmarketSansBold">G마켓 산스 (깔끔함)</option>
+                    <option value="NanumMyeongjo">나눔명조 (감성)</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">자막 색상</label>
+                <select id="subtitleColorSelect" class="input-field">
+                    <option value="white">흰색 (기본)</option>
+                    <option value="yellow">노랑 (강조)</option>
+                    <option value="#FFD700">골드</option>
+                    <option value="#00FF00">라임</option>
+                    <option value="#FF00FF">핑트</option>
+                    <option value="black">검정</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="flex justify-end">
+            <button onclick="saveStyleSettings()" class="btn-secondary text-sm px-4 py-2">
+                💾 스타일 저장
+            </button>
+        </div>
     </div>
 </div>
 
@@ -112,6 +139,17 @@
         const projectId = getCurrentProject();
         if (projectId) {
             await loadProjectData(projectId);
+        }
+
+        // 자동 생성 요청 확인
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('auto') === 'true') {
+            // 데이터 로드가 완료된 후 실행되어야 함 (위 await loadProjectData로 보장)
+            // 약간의 딜레이를 주어 UI가 안정된 후 실행
+            setTimeout(() => {
+                Utils.showToast('대본 구조를 자동으로 생성합니다...', 'info');
+                generateStructure();
+            }, 500);
         }
     });
 
@@ -165,17 +203,74 @@
             try {
                 const structData = await API.project.getScriptStructure(projectId);
                 if (structData && structData.sections) {
-                    // Check if there is a saved structure
-                    // We might want to show it? For now let's just allow regenerating
-                    // Or maybe show saved structure?
-                    // Let's implement showing saved structure later or if user asks
+                    // 저장된 구조가 있으면 렌더링
+                    console.log("Loaded saved structure:", structData);
+                    currentStructure = structData;
+                    renderStructure(structData);
+                    document.getElementById('resultSection').classList.remove('hidden');
+                    Utils.storage.set('scriptStructure', structData); // LocalStorage 동기화
                 }
-            } catch (e) { }
+            } catch (e) {
+                console.error("Failed to load script structure:", e);
+            }
+
+            // Load Style Settings & Language
+            try {
+                const fullData = await API.project.getFull(projectId);
+                if (fullData) {
+                    // [NEW] 타겟 언어 설정 로드
+                    if (fullData.project && fullData.project.target_language) {
+                        currentTargetLanguage = fullData.project.target_language;
+                        console.log("Target Language Loaded:", currentTargetLanguage);
+                    } else if (fullData.settings && fullData.settings.target_language) {
+                        currentTargetLanguage = fullData.settings.target_language;
+                    }
+
+                    if (fullData.settings) {
+                        const s = fullData.settings;
+                        if (s.image_style_prompt) document.getElementById('imageStyleInput').value = s.image_style_prompt;
+                        if (s.subtitle_font) document.getElementById('subtitleFontSelect').value = s.subtitle_font;
+                        if (s.subtitle_color) document.getElementById('subtitleColorSelect').value = s.subtitle_color;
+                    }
+                }
+            } catch (e) { console.error('스타일/언어 로드 실패:', e); }
 
         } catch (e) {
             console.error('데이터 로드 실패:', e);
         }
     }
+
+    async function saveStyleSettings() {
+        const projectId = getCurrentProject();
+        if (!projectId) return;
+
+        const imageStyle = document.getElementById('imageStyleInput').value;
+        const font = document.getElementById('subtitleFontSelect').value;
+        const color = document.getElementById('subtitleColorSelect').value;
+
+        const btn = document.querySelector('button[onclick="saveStyleSettings()"]');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '저장 중...';
+        btn.disabled = true;
+
+        try {
+            await API.project.update(projectId, {
+                image_style_prompt: imageStyle,
+                subtitle_font: font,
+                subtitle_color: color
+            });
+            Utils.showToast('스타일 설정이 저장되었습니다. 모든 단계에 적용됩니다.', 'success');
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('저장 실패', 'error');
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    }
+
+    // [NEW] 전역 변수로 타겟 언어 관리
+    let currentTargetLanguage = 'ko';
 
     async function generateStructure() {
         const topic = document.getElementById('topicInput').value.trim();
@@ -184,7 +279,10 @@
             return;
         }
 
-        const duration = document.querySelector('input[name="scriptDuration"]:checked').value;
+        // 분 단위 입력 -> 초 단위 변환 (AI 프롬프트가 초 단위 예상)
+        // 요청사항: 60분 기본.
+        const durationMin = parseInt(document.getElementById('durationInput').value) || 60;
+        const duration = durationMin * 60;
         const tone = document.getElementById('toneSelect').value;
         const notes = document.getElementById('additionalNotes').value;
 
@@ -193,6 +291,7 @@
 
         try {
             // 새 엔드포인트 호출 (중복 방지 적용됨)
+            // [MODIFIED] target_language 추가 전송
             const response = await fetch('/api/gemini/generate-structure', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -200,7 +299,8 @@
                     topic,
                     duration,
                     tone,
-                    notes: notes || ''
+                    notes: notes || '',
+                    target_language: currentTargetLanguage
                 })
             });
 
@@ -223,10 +323,20 @@
                 renderStructure(structureData);
                 document.getElementById('resultSection').classList.remove('hidden');
 
-                // DB 저장
+                // 로컬 스토리지 즉시 저장 (다음 단계 이동용)
+                // project_id 명시적 추가
                 const projectId = getCurrentProject();
+                if (projectId) structureData.project_id = projectId;
+
+                Utils.storage.set('scriptStructure', structureData);
+
+                // DB 저장
                 if (projectId) {
                     try {
+                        // 1. 프로젝트 주제 업데이트 (중요: 이 부분이 빠져서 토픽 불일치 발생)
+                        await API.project.update(projectId, { topic: topic });
+
+                        // 2. 구조 저장
                         await API.project.saveScriptStructure(projectId, {
                             hook: structureData.hook,
                             sections: structureData.sections,

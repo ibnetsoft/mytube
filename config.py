@@ -1,5 +1,5 @@
 """
-wingsAIStudio 설정 관리
+피카디리스튜디오 설정 관리
 """
 import os
 from dotenv import load_dotenv
@@ -11,11 +11,12 @@ class Config:
     # Google API
     YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-    GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
 
-    # TTS API
-    ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
-    TYPECAST_API_KEY = os.getenv("TYPECAST_API_KEY", "")
+    # TTS Keys
+    ELEVENLABS_API_KEY: str = os.getenv("ELEVENLABS_API_KEY", "")
+    TYPECAST_API_KEY: str = os.getenv("TYPECAST_API_KEY", "")
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "") # OpenAI TTS
+    GOOGLE_APPLICATION_CREDENTIALS: str = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
 
     # 서버 설정
     HOST = os.getenv("HOST", "127.0.0.1")
@@ -50,7 +51,7 @@ class Config:
     @classmethod
     def update_api_key(cls, key_name: str, value: str):
         """API 키 런타임 업데이트 및 .env 파일 저장"""
-        valid_keys = ['YOUTUBE_API_KEY', 'GEMINI_API_KEY', 'ELEVENLABS_API_KEY', 'TYPECAST_API_KEY', 'GOOGLE_APPLICATION_CREDENTIALS']
+        valid_keys = ['YOUTUBE_API_KEY', 'GEMINI_API_KEY', 'ELEVENLABS_API_KEY', 'TYPECAST_API_KEY', 'GOOGLE_APPLICATION_CREDENTIALS', 'OPENAI_API_KEY']
 
         if key_name not in valid_keys:
             return False
@@ -114,6 +115,10 @@ class Config:
             "google_cloud": {
                 "set": bool(cls.GOOGLE_APPLICATION_CREDENTIALS),
                 "masked": mask_key(cls.GOOGLE_APPLICATION_CREDENTIALS)
+            },
+            "openai": {
+                "set": bool(cls.OPENAI_API_KEY),
+                "masked": mask_key(cls.OPENAI_API_KEY)
             }
         }
 

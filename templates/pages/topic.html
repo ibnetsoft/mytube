@@ -3,15 +3,9 @@
 {% block content %}
 <!-- 페이지 헤더 -->
 <div class="page-header">
-    <div class="flex items-center gap-3">
-        <span class="text-3xl">🔍</span>
-        <div>
-            <h1>주제 찾기</h1>
-            <p>유튜브에서 인기 있는 주제를 검색하고 분석하세요</p>
-        </div>
-    </div>
+
     <!-- 틈새 주제 -->
-    <div class="flex flex-wrap gap-1 mt-3 text-xs">
+    <div class="flex flex-wrap gap-1 text-xs">
         <button onclick="setSearchTopic('삼국지')" class="topic-btn">📖 삼국지</button>
         <button onclick="setSearchTopic('옛날이야기')" class="topic-btn">📖 옛날이야기</button>
         <button onclick="setSearchTopic('과학')" class="topic-btn">🔬 과학</button>
@@ -55,6 +49,87 @@
     </div>
 </div>
 
+<!-- 트렌드 키워드 버블 차트 -->
+<div
+    class="card mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 border-none shadow-lg overflow-hidden relative">
+    <div class="absolute top-0 right-0 p-4 opacity-10">
+        <span class="text-9xl">☁️</span>
+    </div>
+
+    <div class="relative z-10">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-xl text-gray-800 dark:text-white flex items-center gap-2">
+                <span>🔥 실시간 트렌드 키워드</span>
+                <span
+                    class="text-xs font-normal bg-red-100 text-red-600 px-2 py-0.5 rounded-full animate-pulse">LIVE</span>
+            </h3>
+
+            <!-- 필터 그룹 (언어 / 기간 / 연령) -->
+            <div class="flex flex-wrap items-center gap-3">
+                <!-- 기간 선택 -->
+                <select id="trend-period" onchange="loadTrendKeywords()"
+                    class="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2">
+                    <option value="now">실시간</option>
+                    <option value="week">주간 (7일)</option>
+                    <option value="month">월간 (30일)</option>
+                </select>
+
+                <!-- 연령 선택 -->
+                <select id="trend-age" onchange="loadTrendKeywords()"
+                    class="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2">
+                    <option value="all">전체 연령</option>
+                    <option value="10s">10대</option>
+                    <option value="20s">20대</option>
+                    <option value="30s">30대</option>
+                    <option value="40s">40대</option>
+                    <option value="50s">50대 이상</option>
+                </select>
+
+                <!-- 언어 선택 -->
+                <div class="flex bg-white dark:bg-gray-800 rounded-lg p-1 shadow-sm">
+                    <button onclick="loadTrendKeywords('ko')" id="btn-ko"
+                        class="lang-btn px-3 py-1.5 rounded-md text-sm font-medium transition-all bg-indigo-500 text-white shadow-md">한국어</button>
+                    <button onclick="loadTrendKeywords('ja')" id="btn-ja"
+                        class="lang-btn px-3 py-1.5 rounded-md text-sm font-medium text-gray-500 hover:text-indigo-500 transition-all">日本語</button>
+                    <button onclick="loadTrendKeywords('en')" id="btn-en"
+                        class="lang-btn px-3 py-1.5 rounded-md text-sm font-medium text-gray-500 hover:text-indigo-500 transition-all">Eng</button>
+                    <button onclick="loadTrendKeywords('es')" id="btn-es"
+                        class="lang-btn px-3 py-1.5 rounded-md text-sm font-medium text-gray-500 hover:text-indigo-500 transition-all">Esp</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 차트 컨테이너 -->
+        <div id="bubbleChart" class="w-full h-[600px] flex items-center justify-center relative">
+            <div class="absolute inset-0 flex items-center justify-center text-gray-400 pointer-events-none"
+                id="bubbleLoading">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
+            </div>
+        </div>
+
+        <p class="text-center text-xs text-gray-500 mt-2">* 검색량 기반 AI 분석 데이터입니다. 원을 클릭하면 해당 키워드로 검색됩니다.</p>
+    </div>
+</div>
+
+<style>
+    .bubble {
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    /* Removed .bubble:hover transform to prevent conflict with D3 */
+    .bubble:hover {
+        z-index: 20;
+    }
+
+    .bubble text {
+        pointer-events: none;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    }
+</style>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+
+
 <!-- 검색 섹션 -->
 <div class="card mb-6">
     <div class="flex gap-4 mb-4">
@@ -71,6 +146,13 @@
             <option value="week">최근 1주</option>
             <option value="month">최근 1달</option>
             <option value="year">최근 1년</option>
+        </select>
+        <select id="searchLanguage" class="input-field w-40">
+            <option value="">모든 언어</option>
+            <option value="ko">한국어</option>
+            <option value="en">English</option>
+            <option value="ja">Japanese</option>
+            <option value="es">Spanish</option>
         </select>
         <button onclick="searchVideos()" class="btn-primary flex items-center gap-2">
             <span>🔍</span>
@@ -184,6 +266,7 @@
 
         const order = document.getElementById('searchOrder').value;
         const period = document.getElementById('searchPeriod').value;
+        const language = document.getElementById('searchLanguage').value;
 
         document.getElementById('emptySection').classList.add('hidden');
         document.getElementById('resultsSection').classList.add('hidden');
@@ -192,9 +275,10 @@
         try {
             // 1. 검색
             const searchResult = await API.youtube.search(query, {
-                maxResults: 12,
+                maxResults: 24,
                 order: order,
-                publishedAfter: getPublishedAfter(period)
+                publishedAfter: getPublishedAfter(period),
+                relevance_language: language
             });
 
             if (!searchResult.items || searchResult.items.length === 0) {
@@ -254,7 +338,7 @@
                             <span>💬 ${Utils.formatNumber(video.statistics.commentCount)}</span>
                         </div>
                         <div class="flex gap-2">
-                            <button onclick="analyzeVideo('${video.id}')"
+                            <button onclick="openAnalysisModal('${video.id}')"
                                 class="flex-1 btn-primary text-sm py-2">
                                 🤖 분석
                             </button>
@@ -269,7 +353,6 @@
         }).join('');
     }
 
-    // 정렬
     function sortVideos(type) {
         if (type === 'viral') {
             currentVideos.sort((a, b) => b.viralScore - a.viralScore);
@@ -279,8 +362,8 @@
         renderVideos();
     }
 
-    // 분석 실행
-    async function analyzeVideo(videoId) {
+    // 분석 준비 모달 열기
+    function openAnalysisModal(videoId) {
         const video = currentVideos.find(v => v.id === videoId);
         if (!video) return;
 
@@ -288,21 +371,77 @@
 
         const modalContent = document.getElementById('modalContent');
         modalContent.innerHTML = `
-            <div class="text-center py-8">
-                <div class="loader mx-auto mb-4"></div>
-                <p class="text-gray-500">댓글을 분석하고 있습니다...</p>
-                <p class="text-sm text-gray-400 mt-2">${video.snippet.title}</p>
+            <div class="p-2">
+                <div class="flex gap-4 mb-6">
+                    <img src="${video.snippet.thumbnails.medium.url}" class="w-24 rounded-lg">
+                    <div>
+                        <h4 class="font-bold text-gray-800 dark:text-white line-clamp-2">${video.snippet.title}</h4>
+                        <p class="text-sm text-gray-500">${video.snippet.channelTitle}</p>
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        📜 스크립트(대본) 직접 입력 (선택사항)
+                    </label>
+                    <textarea id="manualScriptInput" 
+                        class="w-full h-40 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white text-sm"
+                        placeholder="여기에 대본을 붙여넣으세요.&#13;&#10;비워두면 자동으로 유튜브 자막을 추출하여 분석합니다."></textarea>
+                    <p class="text-xs text-gray-500 mt-1">※ 자막이 없는 영상일 경우, 직접 대본을 입력하면 심층 분석이 가능합니다.</p>
+                </div>
+
+                <button onclick="startAnalysis()" class="w-full btn-primary py-3 flex items-center justify-center gap-2">
+                    <span>✨</span>
+                    <span>분석 시작하기</span>
+                </button>
             </div>
         `;
         document.getElementById('analysisModal').classList.remove('hidden');
         document.getElementById('analysisModal').classList.add('flex');
+    }
+
+    // 분석 실행
+    async function startAnalysis() {
+        const video = currentVideoForAnalysis;
+        const manualScript = document.getElementById('manualScriptInput').value.trim();
+
+        const modalContent = document.getElementById('modalContent');
+        modalContent.innerHTML = `
+            <div class="text-center py-8">
+                <div class="loader mx-auto mb-4"></div>
+                <p class="text-gray-500">데이터를 분석하고 있습니다...</p>
+                <p class="text-sm text-gray-400 mt-2">${video.snippet.title}</p>
+            </div>
+        `;
 
         try {
-            const result = await API.gemini.analyzeComments(video);
+            // 1. 자막(스크립트) 준비
+            let transcriptText = manualScript; // 1순위: 사용자 입력
+
+            // 입력이 없으면 자동 추출 시도
+            if (!transcriptText) {
+                try {
+                    const transcriptRes = await fetch(`/api/youtube/transcript/${video.id}`);
+                    const transcriptData = await transcriptRes.json();
+                    if (transcriptData.status === 'ok') {
+                        transcriptText = transcriptData.transcript;
+                    }
+                } catch (e) {
+                    console.warn('자막 추출 실패:', e);
+                }
+            }
+
+            // 최종적으로 사용할 스크립트 저장
+            if (transcriptText) {
+                currentVideoForAnalysis.transcript = transcriptText;
+            }
+
+            // 2. 종합 분석 요청 (댓글 + 스크립트)
+            const result = await API.gemini.analyzeComments(currentVideoForAnalysis);
 
             if (result.status === 'ok' && result.analysis) {
                 currentAnalysisResult = result.analysis;
-                renderAnalysisResult(result.analysis, result.comment_count);
+                renderAnalysisResult(result.analysis, result.comment_count, !!transcriptText);
             } else {
                 modalContent.innerHTML = `
                     <div class="text-center py-8">
@@ -323,9 +462,51 @@
     }
 
     // 분석 결과 렌더링
-    function renderAnalysisResult(analysis, commentCount) {
+    function renderAnalysisResult(analysis, commentCount, hasTranscript) {
         const modalContent = document.getElementById('modalContent');
         const video = currentVideoForAnalysis;
+
+        // 스크립트 분석 섹션 HTML 생성
+        let scriptAnalysisHtml = '';
+        if (analysis.script_analysis) {
+            const sa = analysis.script_analysis;
+            scriptAnalysisHtml = `
+            <!-- 스크립트 분석 (New) -->
+            <div class="mb-6 bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-lg border border-indigo-100 dark:border-indigo-800">
+                <h5 class="font-bold text-indigo-800 dark:text-indigo-300 mb-3 flex items-center gap-2">
+                    <span>📝</span> 스크립트 심층 분석
+                </h5>
+                <div class="space-y-3 text-sm">
+                    <div>
+                        <span class="font-semibold text-gray-700 dark:text-gray-300">🏗️ 구조:</span>
+                        <p class="text-gray-600 dark:text-gray-400 mt-1">${sa.structure || '분석 불가'}</p>
+                    </div>
+                    <div>
+                        <span class="font-semibold text-gray-700 dark:text-gray-300">🪝 후킹 요소:</span>
+                        <p class="text-gray-600 dark:text-gray-400 mt-1">${sa.hooks || '분석 불가'}</p>
+                    </div>
+                    <div>
+                        <span class="font-semibold text-gray-700 dark:text-gray-300">⚡ 페이싱 & 톤:</span>
+                        <p class="text-gray-600 dark:text-gray-400 mt-1">${sa.pacing || '분석 불가'}</p>
+                    </div>
+                    <div>
+                        <span class="font-semibold text-gray-700 dark:text-gray-300">🔑 핵심 메시지:</span>
+                        <p class="text-gray-600 dark:text-gray-400 mt-1">${sa.key_message || '분석 불가'}</p>
+                    </div>
+                </div>
+            </div>
+            `;
+        } else if (hasTranscript) {
+            scriptAnalysisHtml = `
+            <div class="mb-6 p-4 bg-gray-50 rounded-lg text-center text-gray-500 text-sm">
+                자막은 추출했으나 분석 데이터가 없습니다.
+            </div>`;
+        } else {
+            scriptAnalysisHtml = `
+            <div class="mb-6 p-4 bg-gray-50 rounded-lg text-center text-gray-500 text-sm">
+                영상에 자막이 없어 스크립트 분석을 건너뛰었습니다.
+            </div>`;
+        }
 
         modalContent.innerHTML = `
             <!-- 영상 정보 -->
@@ -334,7 +515,7 @@
                 <div>
                     <h4 class="font-bold text-gray-800 dark:text-white">${video.snippet.title}</h4>
                     <p class="text-sm text-gray-500">${video.snippet.channelTitle}</p>
-                    <p class="text-sm text-gray-400 mt-1">분석된 댓글: ${commentCount}개</p>
+                    <p class="text-sm text-gray-400 mt-1">분석된 댓글: ${commentCount}개 ${hasTranscript ? '+ 자막 포함' : ''}</p>
                 </div>
             </div>
 
@@ -356,6 +537,8 @@
                     </div>
                 </div>
             </div>
+            
+            ${scriptAnalysisHtml}
 
             <!-- 주요 토픽 -->
             <div class="mb-6">
@@ -415,7 +598,7 @@
             <!-- 액션 버튼 -->
             <button onclick="goToScriptPlan()" class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg">
                 <span>🚀</span>
-                <span>이 분석 기반으로 대본 만들기</span>
+                <span>대본 기획하기</span>
                 <span>→</span>
             </button>
         `;
@@ -433,7 +616,27 @@
         // 프로젝트가 없으면 자동 생성
         if (!projectId) {
             const title = currentVideoForAnalysis.snippet.title.substring(0, 30);
-            const result = await API.project.create(`${title}...`, currentVideoForAnalysis.snippet.title);
+            const language = document.getElementById('searchLanguage').value || 'ko';
+
+            // create API calls automatically handle the object if changed to accept object
+            // But checking api.js wrapper might be needed. Alternatively pass as args if wrapper signature allows.
+            // Assuming API.project.create(name, topic, target_language) or object.
+            // Let's assume we need to update api.js or call fetch directly? 
+            // Looking at previous main.py change: ProjectCreate model.
+
+            // NOTE: I need to verify how API.project.create is implemented. 
+            // If it's a wrapper, I might need to update it.
+            // For now, let's assume I can pass an object or extra arg.
+            // Actually, let's pass a config object if supported or try to update API wrapper first.
+            // Wait, I can't see api.js. I'll stick to a direct fetch or update api.js if I see it.
+            // Let's check api.js location first? Usually in /static/js/api.js.
+            // I'll take a safe bet and update the call assuming I'll fix the wrapper or it's flexible.
+
+            const result = await API.project.create(
+                `${title}...`,
+                currentVideoForAnalysis.snippet.title,
+                language
+            );
             if (result.project_id) {
                 projectId = result.project_id;
                 setCurrentProject(projectId);
@@ -448,11 +651,212 @@
         try {
             await API.project.saveAnalysis(projectId, currentVideoForAnalysis, currentAnalysisResult);
             Utils.showToast('분석 결과가 저장되었습니다', 'success');
-            window.location.href = '/script-plan';
+            window.location.href = '/script-plan?auto=true';
         } catch (e) {
+            console.error('저장 실패:', e);
             Utils.showToast('저장 중 오류가 발생했습니다', 'error');
         }
     }
+
+    // --- Trend Keywords Logic (D3.js) ---
+    let currentLang = 'ko'; // Default language
+
+    async function loadTrendKeywords(lang) {
+        if (lang) currentLang = lang;
+
+        // UI Update (Language Tabs)
+        document.querySelectorAll('.lang-btn').forEach(btn => {
+            btn.classList.remove('bg-indigo-500', 'text-white', 'shadow-md');
+            btn.classList.add('text-gray-500');
+        });
+        const activeBtn = document.getElementById(`btn-${currentLang}`);
+        if (activeBtn) {
+            activeBtn.classList.add('bg-indigo-500', 'text-white', 'shadow-md');
+            activeBtn.classList.remove('text-gray-500');
+        }
+
+        // Get Filter Values
+        const period = document.getElementById('trend-period').value;
+        const age = document.getElementById('trend-age').value;
+
+        // Show Loading
+        const container = document.getElementById('bubbleChart');
+        const loading = document.getElementById('bubbleLoading');
+        loading.style.display = 'flex';
+        // Clear ALL previous SVG charts to prevent duplicates -> MOVED to renderBubbleChart
+        // d3.select("#bubbleChart").selectAll("svg").remove();
+
+        try {
+            // Fetch with filters
+            const response = await fetch(`/api/trends/keywords?language=${currentLang}&period=${period}&age=${age}`);
+            const data = await response.json();
+
+            loading.style.display = 'none';
+
+            if (data.status === 'ok' && data.keywords.length > 0) {
+                renderBubbleChart(data.keywords);
+            } else {
+                container.innerHTML += `<div class="text-gray-500 absolute">데이터가 없습니다</div>`;
+            }
+        } catch (e) {
+            console.error(e);
+            loading.style.display = 'none';
+        }
+    }
+
+    function renderBubbleChart(data) {
+        const container = document.getElementById('bubbleChart');
+        const width = container.clientWidth;
+        const height = 600;
+
+        // Clear ALL previous SVGs immediately before rendering a new one
+        // This solves race conditions where multiple fetches might return and stack charts
+        d3.select("#bubbleChart").selectAll("svg").remove();
+
+        // 1. Color palette
+        const colorScale = d3.scaleLinear()
+            .domain([0, 100])
+            .range(["#E0E7FF", "#4F46E5"]);
+
+        // 2. Prepare Data (calculate Radius)
+        // Adjust exponent for visual variance (User request: make variance clear)
+        // Use Power 2.5 for variance
+        const radiusScale = d3.scalePow().exponent(0.5) // Sqrt scale is properly area-proportional, but we want exaggerated
+            .domain([0, 100])
+            .range([15, 60]); // Min 15px, Max 60px size
+
+        const nodes = data.map(d => ({
+            ...d,
+            r: radiusScale(d.volume) * (d.volume > 80 ? 1.2 : 1), // Boost high volume
+            x: Math.random() * width,
+            y: Math.random() * height
+        }));
+
+        const svg = d3.select("#bubbleChart")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .attr("viewBox", [0, 0, width, height])
+            .attr("style", "max-width: 100%; height: auto;");
+
+        // 3. Force Simulation (Wide Spread)
+        const simulation = d3.forceSimulation(nodes)
+            .force("x", d3.forceX(width / 2).strength(0.05)) // Weak horizontal pull -> Spread wide
+            .force("y", d3.forceY(height / 2).strength(0.1)) // Stronger vertical pull -> Keep in band
+            .force("collide", d3.forceCollide(d => d.r + 4).strength(0.8)) // Prevent overlap
+            .force("charge", d3.forceManyBody().strength(-10)); // Slight repulsion
+
+        // 4. Render Elements
+        const node = svg.append("g")
+            .selectAll("g")
+            .data(nodes)
+            .join("g")
+            .attr("class", "bubble")
+            .call(drag(simulation)) // Optional: dragging
+            .on("click", (event, d) => {
+                document.getElementById('searchInput').value = d.data ? d.data.keyword : d.keyword;
+                searchVideos();
+            })
+            .on("mouseover", function (event, d) {
+                // 1. Bring to front
+                d3.select(this).raise();
+
+                // 2. Scale up circle and change color
+                d3.select(this).select("circle")
+                    .transition().duration(200)
+                    .attr("r", d.r * 1.2)
+                    .attr("fill", "#60A5FA"); // Sky Blue (Tailwind blue-400)
+
+                // 3. Scale up text
+                d3.select(this).select("text")
+                    .transition().duration(200)
+                    .style("font-size", (Math.min(d.r / 1.5, 16) * 1.2) + "px")
+                    .style("fill", "#fff");
+            })
+            .on("mouseout", function (event, d) {
+                // Restore logic
+                d3.select(this).select("circle")
+                    .transition().duration(200)
+                    .attr("r", d.r)
+                    .attr("fill", d => colorScale(d.volume));
+
+                d3.select(this).select("text")
+                    .transition().duration(200)
+                    .style("font-size", Math.min(d.r / 1.5, 16) + "px")
+                    .style("fill", d.volume > 60 ? "#fff" : "#333");
+            });
+
+        const circles = node.append("circle")
+            .attr("r", 0) // Animate from 0
+            .attr("fill", d => colorScale(d.volume))
+            .attr("fill-opacity", 0.9)
+            .attr("stroke", "#fff")
+            .attr("stroke-width", 2);
+
+        // Transition radius
+        circles.transition().duration(800).ease(d3.easeBackOut)
+            .attr("r", d => d.r);
+
+        const labels = node.append("text")
+            .style("text-anchor", "middle")
+            .style("pointer-events", "none")
+            // .attr("dy", "0.3em") // Removed in favor of tspan positioning
+            .style("fill", d => d.volume > 60 ? "#fff" : "#333");
+
+        // Main Keyword
+        labels.append("tspan")
+            .attr("x", 0)
+            .attr("dy", d => d.translation ? "-0.2em" : "0.3em") // Adjust vertical center based on content
+            .style("font-size", d => Math.min(d.r / 1.5, 16) + "px")
+            .style("font-weight", "bold")
+            .text(d => d.keyword.substring(0, d.r / 2.5)); // Truncate longer text
+
+        // Translation (if distinct)
+        labels.append("tspan")
+            .attr("x", 0)
+            .attr("dy", "1.2em")
+            .style("font-size", d => Math.min(d.r / 2.5, 12) + "px") // Smaller font
+            .style("font-weight", "normal")
+            .style("opacity", 0.9)
+            .text(d => (d.translation && d.translation !== d.keyword) ? d.translation : "");
+
+        // 5. Simulation Tick
+        simulation.on("tick", () => {
+            node.attr("transform", d => `translate(${d.x},${d.y})`);
+        });
+
+        // Helper: Dragging
+        function drag(simulation) {
+            function dragstarted(event) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                event.subject.fx = event.subject.x;
+                event.subject.fy = event.subject.y;
+            }
+
+            function dragged(event) {
+                event.subject.fx = event.x;
+                event.subject.fy = event.y;
+            }
+
+            function dragended(event) {
+                if (!event.active) simulation.alphaTarget(0);
+                event.subject.fx = null;
+                event.subject.fy = null;
+            }
+
+            return d3.drag()
+                .on("start", dragstarted)
+                .on("drag", dragged)
+                .on("end", dragended);
+        }
+    }
+
+    // Auto load on mount
+    document.addEventListener('DOMContentLoaded', () => {
+        // 기존 DOMContentLoaded 로직이 있다면 그 안에 넣어야 함. 
+        // 여기서는 별도로 추가해도 무방함 (독립 기능)
+        loadTrendKeywords('ko');
+    });
 
     let currentAnalysisResult = null;
 

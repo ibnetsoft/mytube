@@ -7,6 +7,7 @@ TTS (Text-to-Speech) 서비스
 import httpx
 import os
 from typing import Optional
+from dotenv import load_dotenv
 
 from config import config
 
@@ -40,6 +41,17 @@ class TTSService:
                 self.google_client = None
         else:
             self.google_client = None
+            
+        # OpenAI Client 초기화
+        self.openai_client = None
+        if config.OPENAI_API_KEY:
+            try:
+                from openai import OpenAI
+                self.openai_client = OpenAI(api_key=config.OPENAI_API_KEY)
+            except ImportError:
+                print("OpenAI 라이브러리가 설치되지 않았습니다.")
+            except Exception as e:
+                print(f"OpenAI Client 초기화 실패: {e}")
 
     async def generate_elevenlabs(
         self,
@@ -48,13 +60,20 @@ class TTSService:
         filename: str = "tts_output.mp3"
     ) -> Optional[str]:
         """ElevenLabs TTS 생성"""
-        if not self.elevenlabs_key:
+        # [FIX] 텍스트 정제 (지문 제거)
+        text = self.clean_text(text)
+        
+        # [FIX] 런타임에 .env 변경사항 반영
+        load_dotenv(override=True)
+        api_key = os.getenv("ELEVENLABS_API_KEY")
+        
+        if not api_key:
             raise ValueError("ElevenLabs API 키가 설정되지 않았습니다")
 
         url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
 
         headers = {
-            "xi-api-key": self.elevenlabs_key,
+            "xi-api-key": api_key,
             "Content-Type": "application/json"
         }
 
@@ -101,14 +120,17 @@ class TTSService:
         text: str,
         voice_name: str = "ko-KR-Neural2-A",
         language_code: str = "ko-KR",
-        filename: str = "tts_output.mp3"
+        filename: str = "tts_output.mp3",
+        speaking_rate: float = 1.0
     ) -> Optional[str]:
         """Google Cloud TTS 생성"""
         if not self.google_client:
             raise ValueError("Google Cloud TTS 클라이언트가 초기화되지 않았습니다. GOOGLE_APPLICATION_CREDENTIALS 설정을 확인하세요.")
         
         try:
-            input_text = texttospeech.SynthesisInput(text=text)
+            # [FIX] 텍스트 정제
+            clean_text = self.clean_text(text)
+            input_text = texttospeech.SynthesisInput(text=clean_text)
             
             # 음성 설정
             voice = texttospeech.VoiceSelectionParams(
@@ -116,9 +138,13 @@ class TTSService:
                 name=voice_name
             )
             
-            # 오디오 설정
+            # 오디오 설정 (속도 조절 추가)
+            # speaking_rate: 0.25 ~ 4.0
+            rate = max(0.25, min(4.0, speaking_rate))
+            
             audio_config = texttospeech.AudioConfig(
-                audio_encoding=texttospeech.AudioEncoding.MP3
+                audio_encoding=texttospeech.AudioEncoding.MP3,
+                speaking_rate=rate
             )
             
             response = self.google_client.synthesize_speech(
@@ -132,17 +158,56 @@ class TTSService:
             return output_path
             
         except Exception as e:
+
             raise Exception(f"Google Cloud TTS 생성 실패: {str(e)}")
+
+    async def generate_openai(
+        self,
+        text: str,
+        voice: str = "alloy",
+        model: str = "tts-1",
+        filename: str = "tts_output.mp3",
+        speed: float = 1.0
+    ) -> Optional[str]:
+        """OpenAI TTS 생성"""
+        if not self.openai_client:
+            raise ValueError("OpenAI Client가 초기화되지 않았습니다. OPENAI_API_KEY 설정을 확인하세요.")
+
+        try:
+            # 속도 범위 제한 (0.25 - 4.0)
+            safe_speed = max(0.25, min(4.0, speed))
+
+            # [FIX] 텍스트 정제
+            clean_text = self.clean_text(text)
+
+            response = self.openai_client.audio.speech.create(
+                model=model,
+                voice=voice,
+                input=clean_text,
+                speed=safe_speed
+            )
+            
+            output_path = os.path.join(self.output_dir, filename)
+            response.stream_to_file(output_path)
+            
+            return output_path
+            
+        except Exception as e:
+            raise Exception(f"OpenAI TTS 생성 실패: {str(e)}")
 
     async def get_elevenlabs_voices(self) -> list:
         """ElevenLabs 사용 가능한 음성 목록"""
-        if not self.elevenlabs_key:
+        # [FIX] 런타임에 .env 변경사항 반영
+        load_dotenv(override=True)
+        api_key = os.getenv("ELEVENLABS_API_KEY")
+        
+        if not api_key:
             return []
 
         url = "https://api.elevenlabs.io/v1/voices"
 
         headers = {
-            "xi-api-key": self.elevenlabs_key
+            "xi-api-key": api_key
         }
 
         async with httpx.AsyncClient() as client:
@@ -159,6 +224,218 @@ class TTSService:
                     for v in data.get("voices", [])
                 ]
             return []
+
+    def clean_text(self, text: str) -> str:
+        """TTS를 위한 텍스트 정제 (괄호, 마크다운 제거)"""
+        import re
+        # 1. 마크다운 헤더/볼드 제거 (**, ## 등)
+        text = re.sub(r'[\*#\-]+', '', text)
+        
+        # 2. (지문), [지문], <지문> 제거
+        # 일반 괄호
+        text = re.sub(r'\([^)]*\)', '', text)
+        text = re.sub(r'\[[^\]]*\]', '', text)
+        text = re.sub(r'<[^>]*>', '', text)
+        # 전각 괄호 (일본어/한국어)
+        text = re.sub(r'（[^）]*）', '', text)
+        text = re.sub(r'［[^］]*］', '', text)
+        
+        # 3. 여러 공백 및 불필요한 기호 정리
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text
+
+    async def generate_edge_tts(
+        self,
+        text: str,
+        voice: str = "ko-KR-SunHiNeural",
+        rate: str = "+0%", # "+10%", "-10%"
+        filename: str = "tts_output.mp3"
+    ) -> Optional[str]:
+        """Edge TTS 생성 (무료, 고품질, 속도 조절 가능)"""
+        try:
+            import edge_tts
+        except ImportError:
+            print("Edge TTS 라이브러리가 없습니다.")
+            return None
+
+        output_path = os.path.join(self.output_dir, filename)
+        
+        # 텍스트 정제
+        clean_text = self.clean_text(text)
+        if not clean_text:
+            return None
+
+        communicate = edge_tts.Communicate(clean_text, voice, rate=rate)
+        
+        # VTT 생성을 위한 자막 데이터 수집
+        sub_events = []
+        
+        
+        unique_types = set()
+        with open(output_path, "wb") as file:
+            async for chunk in communicate.stream():
+                unique_types.add(chunk["type"])
+                if chunk["type"] == "audio":
+                    file.write(chunk["data"])
+                elif chunk["type"] == "WordBoundary" or chunk["type"] == "SentenceBoundary":
+                    sub_events.append(chunk)
+
+        # print(f"[DEBUG] Chunk types received: {unique_types}")
+        # print(f"[DEBUG] Collected {len(sub_events)} events.")
+        
+        # SentenceBoundary가 섞여있으면 SentenceBoundary만 사용하는 것이 깔끔함 (중복 방지)
+        sentence_events = [e for e in sub_events if e["type"] == "SentenceBoundary"]
+        if sentence_events:
+            sub_events = sentence_events
+        
+        # VTT 파일 저장 (같은 이름.vtt)
+        vtt_path = output_path.replace(".mp3", ".vtt")
+        self._save_vtt(sub_events, vtt_path)
+            
+        return output_path
+
+    def _save_vtt(self, events, path):
+        """WordBoundary 이벤트를 VTT 포맷으로 저장"""
+        def format_time(offset_100ns):
+            seconds = offset_100ns / 10_000_000
+            hours = int(seconds // 3600)
+            minutes = int((seconds % 3600) // 60)
+            sec = seconds % 60
+            return f"{hours:02d}:{minutes:02d}:{sec:06.3f}"
+
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("WEBVTT\n\n")
+            
+            # 문장 단위로 묶기 (간단히 단어 단위로 출력하고 프론트에서 합치거나, 여기서 합치거나)
+            # Edge TTS WordBoundary는 단어 단위임. 너무 많아질 수 있음.
+            # 일단 단어 단위로 생성하되, 겹치는 시간은 병합하는게 좋지만 시간이 없으므로
+            # 단어 단위로 Just 생성 -> 자막이 너무 빨라질 수 있음. 
+            # 하지만 편집을 위한 초안이므로 OK.
+            
+            # 개선: 인접한 단어들을 문장(50자 내외 또는 마침표)으로 묶는 로직
+            current_sentence = []
+            sentence_start = 0
+            current_length = 0
+            
+            for i, event in enumerate(events):
+                text = event["text"]
+                offset = event["offset"]
+                duration = event["duration"]
+                
+                if not current_sentence:
+                    sentence_start = offset
+                
+                current_sentence.append(text)
+                current_length += len(text)
+                
+                # 문장 종료 조건 (길이 or 마침표 or 마지막)
+                is_end_of_sentence = text.endswith(('.', '?', '!')) or current_length > 30 or i == len(events) - 1
+                
+                if is_end_of_sentence:
+                    start_time = format_time(sentence_start)
+                    # 종료 시간은 현재 단어의 끝 (offset + duration)
+                    end_time_val = offset + duration
+                    
+                    # 다음 단어의 시작 직전까지 늘려주는 보정 (부드러운 연결 위해)
+                    if i < len(events) - 1:
+                        next_offset = events[i+1]["offset"]
+                        if next_offset > end_time_val:
+                            # 공백(쉼)이 있으면 쉼. 너무 길면 유지.
+                            if next_offset - end_time_val < 5_000_000: # 0.5초 이내면 이음
+                                end_time_val = next_offset
+                    
+                    end_time = format_time(end_time_val)
+                    full_text = " ".join(current_sentence)
+                    
+                    f.write(f"{start_time} --> {end_time}\n")
+                    f.write(f"{full_text}\n\n")
+                    
+                    current_sentence = []
+                    current_length = 0
+
+
+    async def generate_gemini(
+        self,
+        text: str,
+        voice_name: str = "Puck",
+        language_code: str = "ko-KR",
+        style_prompt: Optional[str] = None,
+        filename: str = "tts_output.mp3",
+        speed: float = 1.0
+    ) -> Optional[str]:
+        """Gemini TTS 생성 (Experimental) -> Edge TTS fallback"""
+        # 현재 Gemini REST API의 Audio Output 모달리티가 불안정하므로
+        # Edge TTS로 우회하여 고품질/속도제어 지원
+        print(f"DEBUG: Gemini TTS falling back to Edge TTS due to API limitations.")
+        
+        # [Speed Logic]
+        # Edge TTS rate format: "+30%", "-10%"
+        # speed 1.0 -> +0%
+        # speed 1.5 -> +50%
+        # Limit speed to typical range 0.5 ~ 2.0
+        safe_speed = max(0.5, min(2.0, speed))
+        rate_val = int((safe_speed - 1.0) * 100)
+        rate_str = f"{rate_val:+d}%"
+
+        # Language Code based Voice Selection
+        lang = language_code.lower() if language_code else "ko"
+        
+        # [ROBUSTNESS]: 텍스트 내용 기반 언어 자동 감지
+        import re
+        
+        # 1. 일본어 자동 감지 (히라가나/가타카나)
+        if re.search(r'[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FBF]', text):
+            if re.search(r'[\u3040-\u309F\u30A0-\u30FF]', text):
+                lang = "ja"
+                print(f"DEBUG: Detected Japanese text. Forcing language to 'ja'.")
+        
+        # 2. 영어 자동 감지 (한글/일본어가 없고 영어가 있는 경우)
+        # ko 설정인데 한글/일본어 문자가 없고 알파벳이 있다면 영어로 판단
+        elif lang.startswith("ko") and re.search(r'[a-zA-Z]', text):
+            if not re.search(r'[가-힣\u3040-\u30ff]', text):
+                lang = "en"
+                print(f"DEBUG: Detected English-only text. Forcing language to 'en'.")
+        
+        if lang.startswith("ja"): # Japanese
+            # Gemini Voice Name Mapping for Japanese
+            # Puck/Charon/Fenrir (Male) -> KeitaNeural
+            # Kore/Aoede (Female) -> NanamiNeural
+            if voice_name in ["Puck", "Charon", "Fenrir"]:
+                target_voice = "ja-JP-KeitaNeural"
+            else:
+                target_voice = "ja-JP-NanamiNeural"
+                
+        elif lang.startswith("en"): # English
+            if voice_name in ["Puck", "Charon", "Fenrir"]:
+                target_voice = "en-US-GuyNeural"
+            else:
+                target_voice = "en-US-JennyNeural"
+                
+        else: # Korean (Default)
+            voice_map = {
+                "Puck": "ko-KR-InJoonNeural",
+                "Charon": "ko-KR-InJoonNeural",
+                "Kore": "ko-KR-SunHiNeural",
+                "Fenrir": "ko-KR-InJoonNeural",
+                "Aoede": "ko-KR-SunHiNeural"
+            }
+            target_voice = voice_map.get(voice_name, "ko-KR-SunHiNeural")
+        
+        return await self.generate_edge_tts(text, target_voice, rate_str, filename)
+
+        # 아래는 Gemini Audio Model이 정식 오픈되면 사용할 코드
+        """
+        import base64
+        import json
+        
+        # KEY 확인
+        api_key = config.GEMINI_API_KEY
+
+        if not api_key:
+             raise ValueError("GEMINI_API_KEY가 설정되지 않았습니다")
+
+        # ... (Original Gemini Implementation) ...
+        """
 
 
 # 싱글톤 인스턴스

@@ -48,7 +48,10 @@ def init_db():
             voice_language TEXT DEFAULT 'ko-KR',
             voice_style_prompt TEXT,
             video_command TEXT,
+            video_command TEXT,
             video_path TEXT,
+            subtitle_style_enum TEXT DEFAULT 'Basic_White',
+            subtitle_font_size INTEGER DEFAULT 10,
             is_uploaded INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -198,6 +201,38 @@ def migrate_db():
         cursor.execute("ALTER TABLE project_settings ADD COLUMN voice_style_prompt TEXT")
     except sqlite3.OperationalError:
         pass
+
+    # New Style Columns
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN image_style_prompt TEXT")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN subtitle_font TEXT DEFAULT 'Malgun Gothic'")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN subtitle_color TEXT DEFAULT 'white'")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN target_language TEXT DEFAULT 'ko'")
+    except sqlite3.OperationalError:
+        pass
+        
+    # Subtitle Style Column
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN subtitle_style_enum TEXT DEFAULT 'Basic_White'")
+    except sqlite3.OperationalError:
+        pass
+        
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN subtitle_font_size INTEGER DEFAULT 10")
+    except sqlite3.OperationalError:
+        pass
         
     conn.commit()
     print("[DB] Migration completed")
@@ -263,6 +298,64 @@ def get_all_projects() -> List[Dict]:
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+def get_projects_with_status() -> List[Dict]:
+    """프로젝트 목록과 각 단계별 진행 상태 조회"""
+    conn = get_db()
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    # 각 테이블의 존재 여부를 확인하여 진행 상태 파악
+    # LEFT JOIN을 사용하여 데이터가 없더라도 프로젝트는 조회되도록 함
+    query = """
+    SELECT 
+        p.id, p.name, p.topic, p.status as project_status, p.created_at, p.updated_at,
+        ps.title as video_title,
+        CASE WHEN s.id IS NOT NULL THEN 1 ELSE 0 END as has_script,
+        CASE WHEN ss.id IS NOT NULL THEN 1 ELSE 0 END as has_structure,
+        (SELECT COUNT(*) FROM image_prompts WHERE project_id = p.id AND image_url IS NOT NULL AND image_url != '') as image_count,
+        CASE WHEN t.id IS NOT NULL THEN 1 ELSE 0 END as has_tts,
+        ps.video_path,
+        ps.is_uploaded as is_uploaded,
+        (SELECT COUNT(*) FROM thumbnails WHERE project_id = p.id) as thumbnail_count,
+        m.description
+    FROM projects p
+    LEFT JOIN project_settings ps ON p.id = ps.project_id
+    LEFT JOIN scripts s ON p.id = s.project_id
+    LEFT JOIN script_structure ss ON p.id = ss.project_id
+    LEFT JOIN tts_audio t ON p.id = t.project_id
+    LEFT JOIN metadata m ON p.id = m.project_id
+    ORDER BY p.updated_at DESC
+    """
+    
+    cursor.execute(query)
+    rows = cursor.fetchall()
+    conn.close()
+    
+    results = []
+    for row in rows:
+        r = dict(row)
+        # 가공된 상태 정보 추가
+        results.append({
+            "id": r["id"],
+            "name": r["name"],
+            "topic": r["topic"],
+            "created_at": r["created_at"],
+            "updated_at": r["updated_at"],
+            "video_title": r["video_title"],
+            "status": r["project_status"], # String status
+            "progress": { # Detailed progress
+                "plan": bool(r["has_structure"]),     # 대본 기획
+                "script": bool(r["has_script"]),      # 대본 생성
+                "image": r["image_count"] > 0,        # 이미지 생성 (하나라도 있으면)
+                "tts": bool(r["has_tts"]),            # TTS
+                "video": bool(r["video_path"]),       # 영상 렌더링
+                "thumbnail": r["thumbnail_count"] > 0,# 썸네일
+                "upload": bool(r["is_uploaded"]),     # 업로드
+                "desc": bool(r["description"])        # 설명
+            }
+        })
+    return results
 
 def update_project(project_id: int, **kwargs):
     """프로젝트 업데이트"""
@@ -441,6 +534,35 @@ def get_image_prompts(project_id: int) -> List[Dict]:
     conn.close()
     return [dict(row) for row in rows]
 
+def update_image_prompt_url(project_id: int, scene_number: int, image_url: str):
+    """특정 장면의 이미지 URL 업데이트"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # 1. 해당 프로젝트/장면이 있는지 확인
+    cursor.execute(
+        "SELECT id FROM image_prompts WHERE project_id = ? AND scene_number = ?",
+        (project_id, scene_number)
+    )
+    exists = cursor.fetchone()
+    
+    if exists:
+        # 업데이트
+        cursor.execute("""
+            UPDATE image_prompts 
+            SET image_url = ?, created_at = CURRENT_TIMESTAMP
+            WHERE project_id = ? AND scene_number = ?
+        """, (image_url, project_id, scene_number))
+    else:
+        # 없으면 새로 생성 (프롬프트는 비워둠)
+        cursor.execute("""
+            INSERT INTO image_prompts (project_id, scene_number, image_url)
+            VALUES (?, ?, ?)
+        """, (project_id, scene_number, image_url))
+        
+    conn.commit()
+    conn.close()
+
 # ============ TTS ============
 
 def save_tts(project_id: int, voice_id: str, voice_name: str, audio_path: str, duration: float):
@@ -560,7 +682,9 @@ def save_project_settings(project_id: int, settings: Dict):
         values = []
         for key in ['title', 'thumbnail_text', 'thumbnail_url', 'duration_seconds', 'aspect_ratio',
                     'script', 'hashtags', 'voice_tone', 'voice_name', 'voice_language', 'voice_style_prompt', 
-                    'video_command', 'video_path', 'is_uploaded']:
+                    'video_command', 'video_path', 'is_uploaded',
+                    'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum',
+                    'subtitle_font_size']:
             if key in settings:
                 fields.append(f"{key} = ?")
                 values.append(settings[key])
@@ -578,8 +702,9 @@ def save_project_settings(project_id: int, settings: Dict):
             INSERT INTO project_settings
             (project_id, title, thumbnail_text, thumbnail_url, duration_seconds, aspect_ratio,
              script, hashtags, voice_tone, voice_name, voice_language, voice_style_prompt,
-             video_command, video_path, is_uploaded)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             video_command, video_path, is_uploaded,
+             image_style_prompt, subtitle_font, subtitle_color, target_language, subtitle_style_enum, subtitle_font_size)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             project_id,
             settings.get('title'),
@@ -595,7 +720,13 @@ def save_project_settings(project_id: int, settings: Dict):
             settings.get('voice_style_prompt'),
             settings.get('video_command'),
             settings.get('video_path'),
-            settings.get('is_uploaded', 0)
+            settings.get('is_uploaded', 0),
+            settings.get('image_style_prompt'),
+            settings.get('subtitle_font', 'Malgun Gothic'),
+            settings.get('subtitle_color', 'white'),
+            settings.get('target_language', 'ko'),
+            settings.get('subtitle_style_enum', 'Basic_White'),
+            settings.get('subtitle_font_size', 80)
         ))
 
     conn.commit()
@@ -617,7 +748,9 @@ def update_project_setting(project_id: int, key: str, value: Any):
 
     allowed_keys = ['title', 'thumbnail_text', 'thumbnail_url', 'duration_seconds', 'aspect_ratio',
                     'script', 'hashtags', 'voice_tone', 'voice_name', 'voice_language', 'voice_style_prompt',
-                    'video_command', 'video_path', 'is_uploaded']
+                    'video_command', 'video_path', 'is_uploaded',
+                    'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum',
+                    'subtitle_font_size']
 
     if key not in allowed_keys:
         conn.close()
@@ -628,6 +761,13 @@ def update_project_setting(project_id: int, key: str, value: Any):
         SET {key} = ?, updated_at = CURRENT_TIMESTAMP
         WHERE project_id = ?
     """, (value, project_id))
+    
+    if cursor.rowcount == 0:
+        # 행이 없으면 새로 생성 (upsert)
+        conn.close() # 기존 커서 닫고
+        # save_project_settings가 내부적으로 INSERT 수행
+        save_project_settings(project_id, {key: value})
+        return True
 
     conn.commit()
     conn.close()

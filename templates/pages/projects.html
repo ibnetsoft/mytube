@@ -23,11 +23,60 @@
     </div>
 </div>
 
-<div id="projectGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-    <!-- 프로젝트 카드가 여기에 렌더링됨 -->
+<div class="overflow-x-auto bg-white dark:bg-gray-800 rounded-lg shadow">
+    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+        <thead class="bg-gray-50 dark:bg-gray-700">
+            <tr>
+                <th scope="col"
+                    class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap sticky left-0 bg-gray-50 dark:bg-gray-700 z-10">
+                    프로젝트명</th>
+                <th scope="col"
+                    class="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                    시작일</th>
+                <th scope="col"
+                    class="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                    수정일</th>
+                <th scope="col"
+                    class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                    주제</th>
+                <th scope="col"
+                    class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap max-w-[150px]">
+                    영상 제목</th>
+                <th scope="col"
+                    class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap"
+                    title="대본 기획">기획</th>
+                <th scope="col"
+                    class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap"
+                    title="대본 생성">대본</th>
+                <th scope="col"
+                    class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap"
+                    title="이미지 생성">이미지</th>
+                <th scope="col"
+                    class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap"
+                    title="TTS 생성">TTS</th>
+                <th scope="col"
+                    class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap"
+                    title="영상 렌더링">영상</th>
+                <th scope="col"
+                    class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap"
+                    title="썸네일 생성">썸네일</th>
+                <th scope="col"
+                    class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap"
+                    title="설명/태그">설명</th>
+                <th scope="col"
+                    class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap"
+                    title="업로드 완료">업로드</th>
+                <th scope="col"
+                    class="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                    관리</th>
+            </tr>
+        </thead>
+        <tbody id="projectTableBody" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            <!-- Rows rendered here -->
+        </tbody>
+    </table>
 </div>
 
-<!-- 빈 상태 -->
 <div id="emptySection" class="card text-center py-12 hidden">
     <div class="text-5xl mb-4">📁</div>
     <h3 class="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">프로젝트가 없습니다</h3>
@@ -42,7 +91,7 @@
 <script>
     async function loadProjectList() {
         document.getElementById('loadingSection').classList.remove('hidden');
-        document.getElementById('projectGrid').innerHTML = '';
+        document.getElementById('projectTableBody').innerHTML = '';
         document.getElementById('emptySection').classList.add('hidden');
 
         try {
@@ -51,7 +100,11 @@
             if (!data.projects || data.projects.length === 0) {
                 document.getElementById('loadingSection').classList.add('hidden');
                 document.getElementById('emptySection').classList.remove('hidden');
+                // 테이블 헤더도 숨길지 말지 결정. 일단 둠.
+                document.querySelector('.overflow-x-auto').classList.add('hidden');
                 return;
+            } else {
+                document.querySelector('.overflow-x-auto').classList.remove('hidden');
             }
 
             renderProjects(data.projects);
@@ -64,46 +117,87 @@
     }
 
     function renderProjects(projects) {
-        const grid = document.getElementById('projectGrid');
+        const tbody = document.getElementById('projectTableBody');
 
-        grid.innerHTML = projects.map(p => `
-            <div class="card hover:shadow-lg transition cursor-pointer group" onclick="selectAndGo('${p.id}')">
-                <div class="flex justify-between items-start mb-4">
+        tbody.innerHTML = projects.map(p => {
+            const s = p.progress || {};
+            // 날짜 포맷 (YY.MM.DD)
+            const created = new Date(p.created_at).toLocaleDateString(undefined, { year: '2-digit', month: '2-digit', day: '2-digit' });
+            const updated = new Date(p.updated_at).toLocaleDateString(undefined, { year: '2-digit', month: '2-digit', day: '2-digit' });
+
+            // 상태 아이콘 헬퍼
+            const checkLink = (isDone, type, pid) => {
+                const color = isDone ? 'text-green-500 hover:text-green-600 scale-110' : 'text-gray-300 dark:text-gray-600 hover:text-gray-400';
+                const symbol = isDone ? '●' : '○';
+                const cursor = isDone ? 'cursor-pointer' : 'cursor-default';
+                const clickHandler = isDone ? `onclick="event.stopPropagation(); navigateToStep('${pid}', '${type}')"` : '';
+
+                return `<div class="flex items-center justify-center w-8 h-8 mx-auto rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition ${cursor}" ${clickHandler} title="${type} 페이지로 이동">
+                    <span class="${color} text-lg font-bold">${symbol}</span>
+                </div>`;
+            };
+
+            return `
+            <tr class="hover:bg-gray-50 dark:hover:bg-gray-750 transition cursor-pointer group" onclick="selectAndGo('${p.id}')" ondblclick="handleProjectDoubleClick('${p.id}')">
+                <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white sticky left-0 bg-white dark:bg-gray-800 group-hover:bg-gray-50 dark:group-hover:bg-gray-750 z-10 border-r dark:border-gray-700">
                     <div class="flex items-center gap-2">
-                         <span class="text-2xl">${p.status === 'completed' ? '✅' : '📝'}</span>
-                         <div>
-                            <h3 class="font-bold text-lg text-gray-800 dark:text-white group-hover:text-blue-500 transition">${p.name}</h3>
-                            <p class="text-xs text-gray-400">${new Date(p.updated_at).toLocaleString()}</p>
-                         </div>
+                        <span class="text-lg">📁</span>
+                        <span>${p.name}</span>
                     </div>
-                </div>
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap text-center text-sm text-gray-500 dark:text-gray-400">${created}</td>
+                <td class="px-3 py-3 whitespace-nowrap text-center text-sm text-gray-500 dark:text-gray-400">${updated}</td>
+                <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 max-w-[120px] truncate" title="${p.topic || ''}">${p.topic || '-'}</td>
+                <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 max-w-[150px] truncate" title="${p.video_title || ''}">${p.video_title || '-'}</td>
                 
-                <div class="space-y-2 text-sm text-gray-600 dark:text-gray-300">
-                    <div class="flex justify-between">
-                        <span>주제</span>
-                        <span>${p.topic || '-'}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>상태</span>
-                        <span class="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-xs">
-                            ${statusLabels[p.status] || p.status}
-                        </span>
-                    </div>
-                </div>
+                <!-- Steps -->
+                <td class="px-2 py-3 text-center whitespace-nowrap">${checkLink(s.plan, 'script-plan', p.id)}</td>
+                <td class="px-2 py-3 text-center whitespace-nowrap">${checkLink(s.script, 'script-gen', p.id)}</td>
+                <td class="px-2 py-3 text-center whitespace-nowrap">${checkLink(s.image, 'image-gen', p.id)}</td>
+                <td class="px-2 py-3 text-center whitespace-nowrap">${checkLink(s.tts, 'tts', p.id)}</td>
+                <td class="px-2 py-3 text-center whitespace-nowrap">${checkLink(s.video, 'render', p.id)}</td>
+                <td class="px-2 py-3 text-center whitespace-nowrap">${checkLink(s.thumbnail, 'thumbnail', p.id)}</td>
+                <td class="px-2 py-3 text-center whitespace-nowrap">${checkLink(s.desc, 'title-desc', p.id)}</td>
+                <td class="px-2 py-3 text-center whitespace-nowrap">${checkLink(s.upload, 'upload', p.id)}</td>
 
-                <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-2">
-                    <button onclick="event.stopPropagation(); deleteProject('${p.id}')" class="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 p-2 rounded-lg transition">
+                <td class="px-3 py-3 whitespace-nowrap text-center text-sm font-medium">
+                    <button onclick="event.stopPropagation(); deleteProject('${p.id}')" class="text-red-400 hover:text-red-900 transition p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/40">
                         🗑️
                     </button>
-                </div>
-            </div>
-        `).join('');
+                </td>
+            </tr>
+            `;
+        }).join('');
+    }
+
+    function navigateToStep(projectId, step) {
+        console.log(`Navigating to step ${step} for project ${projectId}`);
+        setCurrentProject(projectId);
+        window.location.href = '/' + step;
     }
 
     async function selectAndGo(projectId) {
-        // 프로젝트 선택 후 대본 기획 페이지로 이동 (가장 일반적인 다음 단계)
-        setCurrentProject(projectId);
-        window.location.href = '/script-plan'; // Or topic, but usually script-plan is central
+        // [FIX] Single Click: Just Highlight or do nothing? 
+        // User requested Double Click -> Select in Sidebar.
+        // We will keep single click as "noop" or simple highlight for now, 
+        // and let Double Click handle the selection.
+        console.log('Single click on project:', projectId);
+        // Optional: Add visual highlight logic here if needed
+    }
+
+    async function handleProjectDoubleClick(projectId) {
+        // 더블 클릭 시 사이드바의 프로젝트 선택박스 업데이트
+        console.log('Double click on project:', projectId);
+
+        // base.html의 onProjectChange 호출
+        if (typeof onProjectChange === 'function') {
+            await onProjectChange(projectId);
+        } else {
+            console.error('onProjectChange function not found');
+            // Fallback: Set localStorage and reload if needed, but base.html should be there
+            setCurrentProject(projectId);
+            window.location.reload();
+        }
     }
 
     async function deleteProject(projectId) {

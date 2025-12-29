@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" class="dark">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }} - wingsAIStudio</title>
+    <title>{{ title }} - 피카디리스튜디오</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="/static/css/style.css">
     <script>
@@ -18,6 +18,23 @@
                 }
             }
         }
+
+        // 초기 테마 설정 (기본값: Dark)
+        if (localStorage.theme === 'light') {
+            document.documentElement.classList.remove('dark');
+        } else {
+            document.documentElement.classList.add('dark');
+        }
+
+        function toggleTheme() {
+            if (document.documentElement.classList.contains('dark')) {
+                document.documentElement.classList.remove('dark');
+                localStorage.theme = 'light';
+            } else {
+                document.documentElement.classList.add('dark');
+                localStorage.theme = 'dark';
+            }
+        }
     </script>
 </head>
 
@@ -29,54 +46,95 @@
             <div class="p-4 border-b border-gray-200 dark:border-gray-700">
                 <a href="/" class="flex items-center gap-2">
                     <span class="text-2xl">🎬</span>
-                    <span class="text-xl font-bold text-gray-800 dark:text-white">wingsAIStudio</span>
+                    <span class="text-xl font-bold text-gray-800 dark:text-white">피카디리스튜디오</span>
                 </a>
                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">AI 영상 제작 플랫폼</p>
             </div>
 
             <!-- Project Progress Header (Global) -->
             <div id="projectProgressHeader"
-                class="hidden p-4 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800">
-                <div class="flex items-center justify-between mb-2">
-                    <span class="text-xs font-bold text-blue-600 dark:text-blue-400">진행 중: <span
-                            id="currentProjectNameDisplay">프로젝트 로딩...</span></span>
-                    <button onclick="closeProjectContext()" class="text-xs text-gray-400 hover:text-gray-600">✕
-                        닫기</button>
-                </div>
-                <div class="flex justify-between items-center text-xs">
-                    <a href="/script-plan"
-                        class="progress-step opacity-50 hover:opacity-100 flex flex-col items-center gap-1"
-                        data-step="plan">
-                        <span class="w-2 h-2 rounded-full bg-gray-400"></span>
-                        <span>기획</span>
-                    </a>
-                    <div class="h-[1px] w-4 bg-gray-300"></div>
-                    <a href="/script-gen"
-                        class="progress-step opacity-50 hover:opacity-100 flex flex-col items-center gap-1"
-                        data-step="script">
-                        <span class="w-2 h-2 rounded-full bg-gray-400"></span>
-                        <span>대본</span>
-                    </a>
-                    <div class="h-[1px] w-4 bg-gray-300"></div>
-                    <a href="/image-gen"
-                        class="progress-step opacity-50 hover:opacity-100 flex flex-col items-center gap-1"
-                        data-step="image">
-                        <span class="w-2 h-2 rounded-full bg-gray-400"></span>
-                        <span>이미지</span>
-                    </a>
-                    <div class="h-[1px] w-4 bg-gray-300"></div>
-                    <a href="/tts" class="progress-step opacity-50 hover:opacity-100 flex flex-col items-center gap-1"
-                        data-step="tts">
-                        <span class="w-2 h-2 rounded-full bg-gray-400"></span>
-                        <span>TTS</span>
-                    </a>
-                    <div class="h-[1px] w-4 bg-gray-300"></div>
-                    <a href="/render"
-                        class="progress-step opacity-50 hover:opacity-100 flex flex-col items-center gap-1"
-                        data-step="render">
-                        <span class="w-2 h-2 rounded-full bg-gray-400"></span>
-                        <span>렌더링</span>
-                    </a>
+                class="hidden relative bg-slate-50 dark:bg-[#0f172a] border-b border-gray-200 dark:border-gray-800">
+                <div class="px-4 py-3">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex flex-col">
+                            <span class="text-[10px] text-gray-400 font-medium">현재 작업 중</span>
+                            <span id="currentProjectNameDisplay"
+                                class="text-sm font-bold text-gray-800 dark:text-gray-100 truncate max-w-[150px]">프로젝트명</span>
+                        </div>
+                        <button onclick="closeProjectContext()"
+                            class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- Progress Steps -->
+                    <div class="flex justify-between items-center relative px-1">
+                        <!-- Connecting Line -->
+                        <div class="absolute top-[9px] left-0 right-0 h-[2px] bg-gray-200 dark:bg-gray-700 -z-0"></div>
+
+                        <!-- Steps -->
+                        <a href="/script-plan"
+                            class="step-item relative z-10 flex flex-col items-center group cursor-pointer"
+                            data-step="plan">
+                            <div
+                                class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-800 flex items-center justify-center transition-all duration-300">
+                                <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                            </div>
+                            <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">기획</span>
+                        </a>
+
+                        <a href="/script-gen"
+                            class="step-item relative z-10 flex flex-col items-center group cursor-pointer"
+                            data-step="script">
+                            <div
+                                class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-800 flex items-center justify-center transition-all duration-300">
+                                <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                            </div>
+                            <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">대본</span>
+                        </a>
+
+                        <a href="/image-gen"
+                            class="step-item relative z-10 flex flex-col items-center group cursor-pointer"
+                            data-step="image">
+                            <div
+                                class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-800 flex items-center justify-center transition-all duration-300">
+                                <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                            </div>
+                            <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">이미지</span>
+                        </a>
+
+                        <a href="/tts" class="step-item relative z-10 flex flex-col items-center group cursor-pointer"
+                            data-step="tts">
+                            <div
+                                class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-800 flex items-center justify-center transition-all duration-300">
+                                <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                            </div>
+                            <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">TTS</span>
+                        </a>
+
+                        <a href="/subtitle-gen"
+                            class="step-item relative z-10 flex flex-col items-center group cursor-pointer"
+                            data-step="subtitle">
+                            <div
+                                class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-800 flex items-center justify-center transition-all duration-300">
+                                <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                            </div>
+                            <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">자막</span>
+                        </a>
+
+                        <a href="/render"
+                            class="step-item relative z-10 flex flex-col items-center group cursor-pointer"
+                            data-step="render">
+                            <div
+                                class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-800 flex items-center justify-center transition-all duration-300">
+                                <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                            </div>
+                            <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">영상</span>
+                        </a>
+                    </div>
                 </div>
             </div>
 
@@ -107,6 +165,12 @@
                     </li>
                     <li>
                         <a href="/" class="sidebar-item {% if page == 'topic' %}active{% endif %}">
+                            <span class="sidebar-icon">☁️</span>
+                            <span>키워드</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/" class="sidebar-item {% if page == 'topic' %}active{% endif %}">
                             <span class="sidebar-icon">🔍</span>
                             <span>주제 찾기</span>
                         </a>
@@ -133,6 +197,12 @@
                         <a href="/tts" class="sidebar-item {% if page == 'tts' %}active{% endif %}">
                             <span class="sidebar-icon">🔊</span>
                             <span>TTS 생성</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/subtitle-gen" class="sidebar-item {% if page == 'subtitle-gen' %}active{% endif %}">
+                            <span class="sidebar-icon">📝</span>
+                            <span>자막 편집</span>
                         </a>
                     </li>
                     <li>
@@ -168,21 +238,30 @@
                 </ul>
             </nav>
 
-            <!-- API 상태 -->
-            <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700">
-                <div id="apiStatus" class="text-xs text-gray-500 dark:text-gray-400">
-                    <div class="flex items-center gap-2 mb-1">
-                        <span id="statusDot" class="w-2 h-2 rounded-full bg-gray-400"></span>
-                        <span>API 상태 확인 중...</span>
-                    </div>
-                </div>
+            <div class="px-4 pb-2">
+                <button onclick="toggleTheme()"
+                    class="w-full flex items-center justify-center gap-2 p-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-sm font-medium">
+                    <span class="dark:hidden">🌞 라이트 모드</span>
+                    <span class="hidden dark:inline">🌙 다크 모드</span>
+                </button>
             </div>
-        </aside>
+    </div>
 
-        <!-- 메인 컨텐츠 -->
-        <main class="flex-1 ml-64 p-6">
-            {% block content %}{% endblock %}
-        </main>
+    <!-- API 상태 -->
+    <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700">
+        <div id="apiStatus" class="text-xs text-gray-500 dark:text-gray-400">
+            <div class="flex items-center gap-2 mb-1">
+                <span id="statusDot" class="w-2 h-2 rounded-full bg-gray-400"></span>
+                <span>API 상태 확인 중...</span>
+            </div>
+        </div>
+    </div>
+    </aside>
+
+    <!-- 메인 컨텐츠 -->
+    <main class="flex-1 ml-64 p-6">
+        {% block content %}{% endblock %}
+    </main>
     </div>
 
     <!-- 프로젝트 생성 모달 -->
@@ -209,8 +288,8 @@
     </div>
 
     <!-- 공통 스크립트 -->
-    <script src="/static/js/api.js"></script>
-    <script src="/static/js/utils.js"></script>
+    <script src="/static/js/api.js?v=2"></script>
+    <script src="/static/js/utils.js?v=2"></script>
     {% block scripts %}{% endblock %}
 
     <script>
@@ -242,12 +321,10 @@
                     select.appendChild(option);
                 });
 
-                // 현재 프로젝트 정보 표시
+                // 현재 프로젝트 정보 표시 및 전체 상태 복구
                 if (currentId) {
-                    const project = data.projects.find(p => p.id == currentId);
-                    if (project) {
-                        updateProjectInfo(project);
-                    }
+                    // onProjectChange를 호출하여 헤더, 진행상태, 로컬 스토리지 데이터 등을 모두 복구
+                    onProjectChange(currentId);
                 }
             } catch (e) {
                 console.error('프로젝트 로드 오류:', e);
@@ -270,15 +347,103 @@
         // 프로젝트 변경
         async function onProjectChange(projectId) {
             if (projectId) {
+                // 1. UI 및 로컬 상태 기본 업데이트
                 setCurrentProject(projectId);
-                const project = await API.project.get(projectId);
-                updateProjectInfo(project);
-                Utils.showToast(`프로젝트 "${project.name}" 선택됨`, 'success');
+
+                // Select Box 업데이트 (프로그램적 호출 시 필요)
+                const selectElement = document.getElementById('projectSelect');
+                if (selectElement && selectElement.value != projectId) {
+                    selectElement.value = projectId;
+                }
+
+                // 2. 프로젝트 기본 정보 조회 및 표시
+                try {
+                    const project = await API.project.get(projectId);
+                    updateProjectInfo(project);
+
+                    // Header Display Update
+                    const headerDisplay = document.getElementById('currentProjectNameDisplay');
+                    if (headerDisplay) {
+                        const statusText = statusLabels[project.status] || project.status;
+                        headerDisplay.textContent = `${project.name} (${statusText})`;
+                        document.getElementById('projectProgressHeader').classList.remove('hidden');
+                    }
+
+                    Utils.showToast(`프로젝트 "${project.name}" 불러오는 중...`, 'info');
+
+                    // 3. ✨ 전체 데이터 동기화 (Context Switching 핵심) ✨
+                    const fullData = await API.project.getFull(projectId);
+
+                    // 로컬 스토리지에 각 단계 데이터 업데이트
+                    if (fullData) {
+                        // 대본 기획
+                        if (fullData.script_structure) Utils.storage.set('scriptStructure', fullData.script_structure);
+                        // 대본 
+                        if (fullData.script) Utils.storage.set('fullScript', fullData.script);
+                        // 이미지 프롬프트 (image_gen.html용)
+                        if (fullData.image_prompts) Utils.storage.set('imagePrompts', fullData.image_prompts);
+
+                        // 이벤트 발생 (현재 페이지가 리스닝 중이라면 즉시 반영)
+                        window.dispatchEvent(new CustomEvent('projectStateRestored', { detail: fullData }));
+
+                        // ✨ UI 진행 상태 업데이트 (Green Light)
+                        // 사용자 요청: 각 단계별 실제 데이터 존재 여부만 확인 (Strict Mode)
+                        const steps = {
+                            'plan': !!fullData.script_structure, // 기획 데이터가 있어야만 Green
+                            'script': !!fullData.script,         // 대본 데이터가 있어야만 Green
+                            'image': fullData.image_prompts?.length > 0,
+                            'tts': !!fullData.tts,
+                            'subtitle': !!fullData.tts, // 임시: TTS와 연동
+                            'render': project.status === 'rendered' || project.status === 'completed'
+                        };
+
+                        document.querySelectorAll('.step-item').forEach(el => {
+                            const stepName = el.dataset.step;
+                            const circle = el.querySelector('.step-circle');
+                            const indicator = el.querySelector('.step-circle div');
+                            const label = el.querySelector('span');
+
+                            // Reset
+                            circle.className = 'step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-800 flex items-center justify-center transition-all duration-300';
+                            indicator.className = 'w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors';
+                            label.classList.remove('text-green-500', 'font-bold');
+                            label.classList.add('text-gray-400');
+
+                            if (steps[stepName]) {
+                                // Completed Style
+                                circle.classList.remove('bg-gray-200', 'dark:bg-gray-700');
+                                circle.classList.add('bg-green-500', 'border-green-500', 'dark:bg-green-500', 'dark:border-green-500');
+
+                                indicator.className = 'w-2 h-1.5 text-white'; // Checkmark logic optional or just white dot
+                                indicator.innerHTML = `<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>`;
+                                indicator.classList.remove('rounded-full', 'bg-gray-400', 'w-1.5', 'h-1.5'); // Remove dot styles
+
+                                label.classList.remove('text-gray-400');
+                                label.classList.add('text-green-600', 'dark:text-green-400', 'font-bold');
+                            }
+                        });
+
+
+                        Utils.showToast(`"${project.name}" 데이터 로드 완료`, 'success');
+                    }
+
+                } catch (e) {
+                    console.error("프로젝트 로드 실패", e);
+                    Utils.showToast('프로젝트 정보를 불러오는데 실패했습니다.', 'error');
+                }
+
             } else {
                 setCurrentProject(null);
                 document.getElementById('currentProjectInfo').classList.add('hidden');
+                document.getElementById('projectProgressHeader').classList.add('hidden');
+
+                // 로컬 스토리지 데이터도 비우는 것이 좋음 (선택 해제 시)
+                Utils.storage.remove('scriptStructure');
+                Utils.storage.remove('fullScript');
+                Utils.storage.remove('imagePrompts');
             }
         }
+
 
         // 프로젝트 모달 열기/닫기
         function openProjectModal() {

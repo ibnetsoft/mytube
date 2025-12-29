@@ -14,25 +14,161 @@
 <div class="card mb-6">
     <h3 class="font-bold text-gray-800 dark:text-white mb-4">⚙️ 이미지 설정</h3>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">스타일</label>
-            <select id="imageStyle" class="input-field">
-                <option value="realistic">사실적인 (Realistic)</option>
-                <option value="anime">애니메이션</option>
-                <option value="cinematic">시네마틱</option>
-                <option value="minimal">미니멀</option>
-                <option value="3d">3D 렌더</option>
-            </select>
-        </div>
-        <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">이미지 개수</label>
-            <select id="imageCount" class="input-field">
-                <option value="3">3개</option>
-                <option value="5" selected>5개</option>
-                <option value="10">10개</option>
-            </select>
+        <div class="col-span-1 md:col-span-2">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">스타일 선택</label>
+            <input type="hidden" id="imageStyle" value="realistic">
+
+            <div class="grid grid-cols-3 md:grid-cols-6 gap-3">
+                <!-- Realistic -->
+                <div class="style-card relative cursor-pointer border-2 border-blue-600 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all"
+                    onclick="selectStyle('realistic', this)" data-value="realistic">
+                    <div class="aspect-square bg-gray-200 overflow-hidden">
+                        <img src="/static/img/styles/style_realistic.png"
+                            class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
+                            onerror="this.src='https://via.placeholder.com/150?text=Realistic'">
+                    </div>
+                    <div class="p-2 text-center bg-white dark:bg-gray-800">
+                        <span class="text-xs font-bold block">사실적인</span>
+                        <span class="text-[10px] text-gray-500">Realistic</span>
+                    </div>
+                    <div
+                        class="check-icon absolute top-2 right-2 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-sm">
+                        ✓</div>
+                </div>
+
+                <!-- Webtoon (New) -->
+                <div class="style-card relative cursor-pointer border-2 border-transparent hover:border-blue-300 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all"
+                    onclick="selectStyle('webtoon', this)" data-value="webtoon">
+                    <div class="aspect-square bg-gray-200 overflow-hidden">
+                        <img src="/static/img/styles/style_webtoon.png"
+                            class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
+                            onerror="this.src='https://via.placeholder.com/150?text=Webtoon'">
+                    </div>
+                    <div class="p-2 text-center bg-white dark:bg-gray-800">
+                        <span class="text-xs font-bold block">웹툰/다크</span>
+                        <span class="text-[10px] text-gray-500">Webtoon</span>
+                    </div>
+                    <div
+                        class="check-icon absolute top-2 right-2 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-sm opacity-0">
+                        ✓</div>
+                </div>
+
+                <!-- Anime -->
+                <div class="style-card relative cursor-pointer border-2 border-transparent hover:border-blue-300 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all"
+                    onclick="selectStyle('anime', this)" data-value="anime">
+                    <div class="aspect-square bg-gray-200 overflow-hidden">
+                        <img src="/static/img/styles/style_anime.png"
+                            class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
+                            onerror="this.src='https://via.placeholder.com/150?text=Anime'">
+                    </div>
+                    <div class="p-2 text-center bg-white dark:bg-gray-800">
+                        <span class="text-xs font-bold block">애니메이션</span>
+                        <span class="text-[10px] text-gray-500">Anime</span>
+                    </div>
+                    <div
+                        class="check-icon absolute top-2 right-2 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-sm opacity-0">
+                        ✓</div>
+                </div>
+
+                <!-- Cinematic -->
+                <div class="style-card relative cursor-pointer border-2 border-transparent hover:border-blue-300 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all"
+                    onclick="selectStyle('cinematic', this)" data-value="cinematic">
+                    <div class="aspect-square bg-gray-200 overflow-hidden">
+                        <img src="/static/img/styles/style_cinematic.png"
+                            class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
+                            onerror="this.src='https://via.placeholder.com/150?text=Cinematic'">
+                    </div>
+                    <div class="p-2 text-center bg-white dark:bg-gray-800">
+                        <span class="text-xs font-bold block">시네마틱</span>
+                        <span class="text-[10px] text-gray-500">Cinematic</span>
+                    </div>
+                    <div
+                        class="check-icon absolute top-2 right-2 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-sm opacity-0">
+                        ✓</div>
+                </div>
+
+                <!-- Minimal -->
+                <div class="style-card relative cursor-pointer border-2 border-transparent hover:border-blue-300 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all"
+                    onclick="selectStyle('minimal', this)" data-value="minimal">
+                    <div class="aspect-square bg-gray-200 overflow-hidden">
+                        <img src="/static/img/styles/style_minimal.png"
+                            class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
+                            onerror="this.src='https://via.placeholder.com/150?text=Minimal'">
+                    </div>
+                    <div class="p-2 text-center bg-white dark:bg-gray-800">
+                        <span class="text-xs font-bold block">미니멀</span>
+                        <span class="text-[10px] text-gray-500">Minimal</span>
+                    </div>
+                    <div
+                        class="check-icon absolute top-2 right-2 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-sm opacity-0">
+                        ✓</div>
+                </div>
+
+                <!-- 3D Render -->
+                <div class="style-card relative cursor-pointer border-2 border-transparent hover:border-blue-300 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all"
+                    onclick="selectStyle('3d', this)" data-value="3d">
+                    <div class="aspect-square bg-gray-200 overflow-hidden">
+                        <img src="/static/img/styles/style_3d.png"
+                            class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
+                            onerror="this.src='https://via.placeholder.com/150?text=3D'">
+                    </div>
+                    <div class="p-2 text-center bg-white dark:bg-gray-800">
+                        <span class="text-xs font-bold block">3D 렌더</span>
+                        <span class="text-[10px] text-gray-500">3D/Pixar</span>
+                    </div>
+                    <div
+                        class="check-icon absolute top-2 right-2 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-sm opacity-0">
+                        ✓</div>
+                </div>
+            </div>
         </div>
     </div>
+    <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">이미지 비율</label>
+        <div class="grid grid-cols-2 gap-2 mb-4">
+            <label class="cursor-pointer">
+                <input type="radio" name="aspectRatio" value="16:9" checked class="peer sr-only">
+                <div
+                    class="p-2 border rounded-md text-center peer-checked:bg-blue-600 peer-checked:text-white peer-checked:border-blue-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-all">
+                    <div class="font-bold text-sm">16:9</div>
+                    <div class="text-[10px]">와이드</div>
+                </div>
+            </label>
+            <label class="cursor-pointer">
+                <input type="radio" name="aspectRatio" value="1:1" class="peer sr-only">
+                <div
+                    class="p-2 border rounded-md text-center peer-checked:bg-blue-600 peer-checked:text-white peer-checked:border-blue-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-all">
+                    <div class="font-bold text-sm">1:1</div>
+                    <div class="text-[10px]">정사각형</div>
+                </div>
+            </label>
+            <label class="cursor-pointer">
+                <input type="radio" name="aspectRatio" value="9:16" class="peer sr-only">
+                <div
+                    class="p-2 border rounded-md text-center peer-checked:bg-blue-600 peer-checked:text-white peer-checked:border-blue-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-all">
+                    <div class="font-bold text-sm">9:16</div>
+                    <div class="text-[10px]">쇼츠/릴스</div>
+                </div>
+            </label>
+            <label class="cursor-pointer">
+                <input type="radio" name="aspectRatio" value="3:4" class="peer sr-only">
+                <div
+                    class="p-2 border rounded-md text-center peer-checked:bg-blue-600 peer-checked:text-white peer-checked:border-blue-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-all">
+                    <div class="font-bold text-sm">3:4</div>
+                    <div class="text-[10px]">9:12</div>
+                </div>
+            </label>
+        </div>
+
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">이미지 개수</label>
+        <select id="imageCount" class="input-field">
+            <option value="0" selected>🤖 AI 자동 판단 (기본)</option>
+            <option value="3">3개</option>
+            <option value="5">5개</option>
+            <option value="10">10개</option>
+        </select>
+    </div>
+</div>
 </div>
 
 <button onclick="generatePrompts()" id="generateBtn"
@@ -55,7 +191,16 @@
             <span>생성된 프롬프트로 이미지 만들기 (자동)</span>
         </button>
 
-        <div id="promptsList" class="space-y-4"></div>
+        <div id="promptsList" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
+
+        <!-- 다음 단계 버튼 (숨김 상태로 시작) -->
+        <div id="nextStepSection" class="hidden mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-center">
+            <h4 class="font-bold text-lg mb-2 text-blue-800 dark:text-blue-300">🎉 이미지 생성이 완료되었습니다!</h4>
+            <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">아래 버튼을 눌러 영상 합성을 위한 음성을 생성하세요.</p>
+            <a href="/tts" class="btn-primary inline-flex items-center gap-2">
+                <span>🔊</span> 음성(TTS) 생성하러 가기
+            </a>
+        </div>
 
         <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
             <h4 class="font-medium text-gray-800 dark:text-white mb-3">🔗 외부 생성 서비스 (옵션)</h4>
@@ -106,14 +251,23 @@
     function renderPrompts() {
         const container = document.getElementById('promptsList');
         container.innerHTML = prompts.map((p, i) => `
-            <div id="prompt-card-${i}" class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+            <div id="prompt-card-${i}" class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 flex flex-col h-full border border-gray-200 dark:border-gray-600 shadow-sm hover:shadow-md transition-shadow">
                 <div class="flex items-center justify-between mb-2">
-                    <span class="font-medium text-gray-800 dark:text-white">장면 ${i + 1}: ${p.scene}</span>
-                    <button onclick="copyPrompt(${i})" class="btn-secondary text-xs">복사</button>
+                    <span class="font-bold text-sm text-gray-800 dark:text-white truncate">#${i + 1} ${p.scene}</span>
+                    <button onclick="copyPrompt(${i})" class="btn-secondary text-[10px] px-2 py-1 shrink-0">복사</button>
                 </div>
-                <code class="block bg-gray-900 text-green-400 p-3 rounded text-sm overflow-x-auto">
-                    ${p.prompt} ${p.style_tags || ''}
-                </code>
+                <div class="relative group mt-auto">
+                    ${p.image_url ? `
+                    <div class="mb-2 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 aspect-video bg-black relative">
+                         <img src="${p.image_url}" class="w-full h-full object-contain" alt="Scene ${i + 1}">
+                         <div class="absolute top-1 right-1 bg-green-500 text-white text-[10px] px-1 rounded">Generated</div>
+                    </div>` : ''}
+                    <div class="h-20 bg-gray-900 rounded overflow-hidden relative">
+                         <div class="absolute inset-0 p-2 text-xs text-green-400 font-mono overflow-y-auto" style="scrollbar-width: thin;">
+                            ${p.prompt} ${p.style_tags || ''}
+                         </div>
+                    </div>
+                </div>
             </div>
         `).join('');
     }
@@ -160,28 +314,67 @@
 
                 // API 호출
                 const fullPrompt = `${p.prompt} ${p.style_tags || ''}`;
-                const result = await API.image.generate(fullPrompt, projectId, i + 1, document.getElementById('imageStyle').value);
+
+                // 비율 선택값 가져오기
+                const aspectRatio = document.querySelector('input[name="aspectRatio"]:checked').value || '16:9';
+
+                const result = await API.image.generate(fullPrompt, projectId, i + 1, document.getElementById('imageStyle').value, aspectRatio);
 
                 if (result.status === 'ok') {
                     // 이미지 표시
                     const imgDiv = document.createElement('div');
-                    imgDiv.className = 'mt-4 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600';
-                    imgDiv.innerHTML = `<img src="${result.image_url}" class="w-full h-auto" alt="Scene ${i + 1}">`;
+                    imgDiv.className = 'mt-3 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 aspect-video bg-black';
+                    imgDiv.innerHTML = `<img src="${result.image_url}" class="w-full h-full object-contain" alt="Scene ${i + 1}">`;
                     card.appendChild(imgDiv);
 
                     statusDiv.textContent = '✅ 생성 완료';
                     statusDiv.className = 'mt-2 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 p-2 rounded';
+
+                    // 스토리지에 결과 저장 (새로고침 시 유지)
+                    prompts[i].image_url = result.image_url;
+                    Utils.storage.set('imagePrompts', prompts);
                 } else {
                     statusDiv.textContent = '❌ 생성 실패: ' + result.error;
                     statusDiv.className = 'mt-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-2 rounded';
                 }
             }
             Utils.showToast('모든 이미지가 처리되었습니다', 'success');
+
+            // 다음 단계 (수동 이동)
+            const nextSection = document.getElementById('nextStepSection');
+            if (nextSection) {
+                nextSection.classList.remove('hidden');
+            }
         } catch (e) {
             console.error(e);
             Utils.showToast('이미지 생성 중 오류 발생', 'error');
         } finally {
             Utils.setLoading(btn, false);
+        }
+    }
+
+    // 스타일 선택 함수
+    function selectStyle(style, element) {
+        // 1. Update Hidden Input
+        document.getElementById('imageStyle').value = style;
+
+        // 2. Visual Update
+        // Reset all cards
+        document.querySelectorAll('.style-card').forEach(card => {
+            card.classList.remove('border-blue-600', 'ring-2', 'ring-blue-100');
+            card.classList.add('border-transparent');
+
+            const checkIcon = card.querySelector('.check-icon');
+            if (checkIcon) checkIcon.classList.add('opacity-0');
+        });
+
+        // Highlight selected
+        if (element) {
+            element.classList.remove('border-transparent');
+            element.classList.add('border-blue-600', 'ring-2', 'ring-blue-100');
+
+            const checkIcon = element.querySelector('.check-icon');
+            if (checkIcon) checkIcon.classList.remove('opacity-0');
         }
     }
 

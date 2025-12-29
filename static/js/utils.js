@@ -1,5 +1,5 @@
 /**
- * wingsAIStudio 유틸리티 함수
+ * 피카디리스튜디오 유틸리티 함수
  */
 
 const Utils = {
@@ -151,7 +151,9 @@ const Utils = {
     setLoading(button, loading, loadingText = '처리 중...') {
         if (loading) {
             button.disabled = true;
-            button.dataset.originalText = button.innerHTML;
+            if (!button.dataset.originalText) {
+                button.dataset.originalText = button.innerHTML;
+            }
             button.innerHTML = `<span class="loader"></span><span>${loadingText}</span>`;
         } else {
             button.disabled = false;

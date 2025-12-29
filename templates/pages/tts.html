@@ -38,9 +38,51 @@
         <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">서비스</label>
             <select id="providerSelect" class="input-field">
-                <option value="elevenlabs">ElevenLabs</option>
-                <option value="browser">브라우저 TTS (무료)</option>
+                <option value="gemini">Gemini TTS (무료/고품질)</option>
+                <option value="openai">OpenAI TTS (자연스러움/유료)</option>
+                <option value="elevenlabs" selected>ElevenLabs</option>
+                <option value="google_cloud">Google Cloud TTS</option>
             </select>
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            말하기 속도 (<span id="speedValue">1.1</span>x)
+        </label>
+        <div class="flex items-center gap-4">
+            <span class="text-xs text-gray-500">느림</span>
+            <input type="range" id="audioSpeed" min="0.5" max="2.0" step="0.1" value="1.1"
+                class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700">
+            <span class="text-xs text-gray-500">빠름</span>
+        </div>
+    </div>
+
+    <!-- 멀티 보이스 모드 토글 -->
+    <div class="mt-6 border-t pt-4 dark:border-gray-700">
+        <div class="flex items-center justify-between mb-2">
+            <div>
+                <label class="inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="multiVoiceToggle" class="sr-only peer">
+                    <div
+                        class="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 dark:peer-focus:ring-purple-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600">
+                    </div>
+                    <span class="ms-3 text-sm font-medium text-gray-900 dark:text-gray-300">🎙️ 멀티 보이스 모드 (인물별 성우
+                        지정)</span>
+                </label>
+                <p class="text-xs text-gray-500 mt-1 ml-14">
+                    대본에 <strong>"철수: 안녕"</strong> 처럼 이름이 있으면 자동으로 인식합니다. (Gemini TTS 전용)
+                </p>
+            </div>
+        </div>
+
+        <!-- 인물별 성우 매핑 UI (동적 생성) -->
+        <div id="voiceMappingSection" class="hidden mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+            <h4 class="text-sm font-bold mb-3 text-gray-700 dark:text-gray-300">🎭 인물별 목소리 설정</h4>
+            <div id="characterList" class="space-y-3">
+                <!-- 캐릭터별 셀렉트박스가 여기에 추가됨 -->
+                <p class="text-sm text-gray-500">대본을 분석 중입니다...</p>
+            </div>
         </div>
     </div>
 </div>
@@ -72,19 +114,27 @@
         <a id="downloadLink" href="#" download class="btn-secondary inline-flex items-center gap-2">
             💾 다운로드
         </a>
+
+        <!-- 다음 단계로 이동 -->
+        <div
+            class="mt-6 p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg text-center border border-purple-100 dark:border-purple-800">
+            <h4 class="font-bold text-lg mb-2 text-purple-800 dark:text-purple-300">🎉 음성 생성이 완료되었습니다!</h4>
+            <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">자막을 확인하고 수정할 수 있습니다.</p>
+            <div class="flex justify-center gap-4">
+                <a href="/subtitle_gen"
+                    class="btn-primary inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700">
+                    <span>📝</span> 자막 편집하러 가기
+                </a>
+                <a href="/render" class="btn-secondary inline-flex items-center gap-2">
+                    <span>⏩</span> 바로 렌더링 (건너뛰기)
+                </a>
+            </div>
+        </div>
     </div>
 </div>
 
 <!-- 브라우저 TTS (무료) -->
-<div id="browserTTS" class="card hidden">
-    <h3 class="font-bold text-gray-800 dark:text-white mb-4">🔊 브라우저 TTS</h3>
-    <div class="flex gap-2 mb-4">
-        <button onclick="playBrowserTTS()" class="btn-primary">▶️ 재생</button>
-        <button onclick="pauseBrowserTTS()" class="btn-secondary">⏸️ 일시정지</button>
-        <button onclick="stopBrowserTTS()" class="btn-secondary">⏹️ 정지</button>
-    </div>
-    <p class="text-sm text-gray-500">브라우저 TTS는 파일 저장이 불가능합니다. 고품질 음성은 ElevenLabs API를 사용하세요.</p>
-</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -98,6 +148,15 @@
         loadScript();
 
         document.getElementById('providerSelect').addEventListener('change', handleProviderChange);
+
+        // 속도 슬라이더 이벤트
+        const speedSlider = document.getElementById('audioSpeed');
+        const speedValue = document.getElementById('speedValue');
+        if (speedSlider && speedValue) {
+            speedSlider.addEventListener('input', (e) => {
+                speedValue.textContent = e.target.value;
+            });
+        }
     });
 
     // 상태 복구 이벤트 수신
@@ -107,11 +166,23 @@
             Utils.storage.set('fullScript', { script: data.script.full_script }); // 간단히 저장 (포맷 주의)
             loadScript();
         }
-        if (data.tts && data.tts.url) {
-            Utils.storage.set('ttsAudio', data.tts);
-            document.getElementById('audioPlayer').src = data.tts.url;
-            document.getElementById('downloadLink').href = data.tts.url;
-            document.getElementById('resultSection').classList.remove('hidden');
+        // 2. TTS 데이터 복구
+        if (data.tts) {
+            // [FIX] DB에는 절대 경로(audio_path)가 저장되어 있어 URL 재구성 필요
+            if (!data.tts.url && data.tts.audio_path) {
+                const path = data.tts.audio_path.replace(/\\/g, '/'); // Normalize slashes
+                const outputIndex = path.indexOf('/output/');
+                if (outputIndex !== -1) {
+                    data.tts.url = path.substring(outputIndex);
+                }
+            }
+
+            if (data.tts.url) {
+                Utils.storage.set('ttsAudio', data.tts);
+                document.getElementById('audioPlayer').src = data.tts.url;
+                document.getElementById('downloadLink').href = data.tts.url;
+                document.getElementById('resultSection').classList.remove('hidden');
+            }
         }
     });
 
@@ -122,43 +193,302 @@
         if (health.apis?.elevenlabs) {
             statusText.innerHTML = '<span class="text-green-600">✅ ElevenLabs 연결됨</span>';
         } else {
-            statusText.innerHTML = '<span class="text-yellow-600">⚠️ API 미설정 - 브라우저 TTS 사용</span>';
-            document.getElementById('providerSelect').value = 'browser';
-            handleProviderChange();
+            // API가 없어도 Gemini는 무료로 사용 가능하므로 긍정적 메시지
+            statusText.innerHTML = '<span class="text-blue-600">✨ Gemini TTS 사용 가능</span>';
+        }
+
+        if (health.apis?.openai) {
+            const currentHtml = statusText.innerHTML;
+            statusText.innerHTML = currentHtml + ' | <span class="text-green-600">✅ OpenAI 연결됨</span>';
+
+            // [MODIFIED] ElevenLabs를 기본으로 하므로 자동 전환 로직 제거
+            // const providerSelect = document.getElementById('providerSelect');
+            // if (providerSelect.value !== 'openai') {
+            //     providerSelect.value = 'openai';
+            // }
+        }
+
+        handleProviderChange();
+    }
+
+    // 전역 변수
+    let detectedCharacters = new Set();
+    let characterVoiceMap = {}; // { "철수": "voiceId" }
+    let availableVoices = []; // 로드된 음성 목록 캐싱
+    let currentLanguage = 'ko'; // 현재 프로젝트 언어
+
+    document.getElementById('multiVoiceToggle').addEventListener('change', (e) => {
+        const section = document.getElementById('voiceMappingSection');
+        if (e.target.checked) {
+            section.classList.remove('hidden');
+            analyzeScriptForCharacters(); // 켜질 때 분석
+
+            // 멀티보이스 켜지면 Gemini 강제 선택 (다른건 복잡하므로)
+            const provider = document.getElementById('providerSelect');
+            if (provider.value !== 'gemini') {
+                provider.value = 'gemini';
+                handleProviderChange();
+                Utils.showToast('멀티 보이스는 Gemini TTS에서 가장 잘 작동합니다.', 'info');
+            }
+        } else {
+            section.classList.add('hidden');
+        }
+    });
+
+    document.getElementById('ttsText').addEventListener('input', () => {
+        // 멀티 보이스 켜져있을 때만 실시간 분석 (너무 잦은 연산 방지 위해 디바운스 필요하지만 일단 그냥 함)
+        if (document.getElementById('multiVoiceToggle').checked) {
+            analyzeScriptForCharacters();
+        }
+    });
+
+    function analyzeScriptForCharacters() {
+        const text = document.getElementById('ttsText').value;
+        const lines = text.split('\n');
+        const newCharacters = new Set();
+
+        // 정규식: "이름: 대사" 형태 (공백 포함 가능, 특수문자 일부 허용)
+        // 예: "철수:", "Storyteller:", "[나레이션]:" 등
+        const regex = /^([^\s:\[\]\(\)]+)(?:\(.*\))?[:]/;
+
+        detectDefaultNarrator(newCharacters); // 기본 나레이터 추가? (선택사항)
+
+        lines.forEach(line => {
+            const match = line.trim().match(regex);
+            if (match && match[1]) {
+                newCharacters.add(match[1].trim());
+            }
+        });
+
+        // 변경사항이 있을 때만 UI 갱신
+        if (!isSetsEqual(detectedCharacters, newCharacters)) {
+            detectedCharacters = newCharacters;
+            renderCharacterMapping();
         }
     }
 
+    function isSetsEqual(a, b) {
+        if (a.size !== b.size) return false;
+        for (let item of a) if (!b.has(item)) return false;
+        return true;
+    }
+
+    function detectDefaultNarrator(setObj) {
+        // 명시적으로 나레이션이 없는 라인을 위해 '기본(나레이션)'을 항상 추가할지 결정
+        // 여기서는 일단 감지된 것만 보여주고, 감지 안된건 메인 Voice 설정을 따르게 함.
+        // 하지만 사용자 편의를 위해 '기본 목소리' 설정도 이 섹션 밖(위쪽)에 존재함.
+    }
+
+    function renderCharacterMapping() {
+        const container = document.getElementById('characterList');
+        container.innerHTML = '';
+
+        if (detectedCharacters.size === 0) {
+            container.innerHTML = '<p class="text-sm text-gray-500">인물 형식이 감지되지 않았습니다. (예: "철수: 안녕")</p>';
+            return;
+        }
+
+        const sortedChars = Array.from(detectedCharacters).sort();
+
+        sortedChars.forEach(char => {
+            const savedVoice = characterVoiceMap[char] || '';
+            const row = document.createElement('div');
+            row.className = 'flex items-center justify-between bg-white dark:bg-gray-700 p-2 rounded border dark:border-gray-600';
+
+            // 음성 옵션 HTML 생성
+            const options = availableVoices.map(v =>
+                `<option value="${v.id}" ${v.id === savedVoice ? 'selected' : ''}>${v.name}</option>`
+            ).join('');
+
+            row.innerHTML = `
+                <span class="font-bold text-gray-800 dark:text-gray-200 min-w-[80px]">${char}</span>
+                <select class="input-field text-sm py-1" onchange="updateCharVoice('${char}', this.value)">
+                    <option value="">-- 기본 설정 따름 --</option>
+                    ${options}
+                </select>
+            `;
+            container.appendChild(row);
+        });
+    }
+
+    // 전역 스코프에 노출
+    window.updateCharVoice = function (char, voiceId) {
+        if (voiceId) {
+            characterVoiceMap[char] = voiceId;
+        } else {
+            delete characterVoiceMap[char];
+        }
+    };
+
+
+
     async function loadVoices() {
         const select = document.getElementById('voiceSelect');
+        const provider = document.getElementById('providerSelect').value;
+        select.innerHTML = ''; // 기존 옵션 초기화
+        availableVoices = []; // 캐시 초기화
 
-        // ElevenLabs 음성
+        // 브라우저 TTS 음성
+        if (provider === 'browser') {
+            const browserVoices = speechSynthesis.getVoices()
+                .filter(v => v.lang.startsWith('ko'))
+                .map(v => ({ id: v.name, name: v.name }));
+            select.innerHTML = browserVoices.map(v =>
+                `<option value="${v.id}">${v.name}</option>`
+            ).join('');
+            availableVoices = browserVoices;
+            if (document.getElementById('multiVoiceToggle').checked) {
+                renderCharacterMapping();
+            }
+            return;
+        }
+
+        let detectedVoices = [];
+
+        if (provider === 'google_cloud') {
+            // Google Cloud 음성 (하드코딩된 프리셋)
+            const googleVoices = [
+                { id: 'ko-KR-Neural2-A', name: 'Google Neural2 A (여성)' },
+                { id: 'ko-KR-Neural2-B', name: 'Google Neural2 B (여성)' },
+                { id: 'ko-KR-Neural2-C', name: 'Google Neural2 C (남성)' },
+                { id: 'ko-KR-Standard-A', name: 'Google Standard A (여성)' },
+                { id: 'ko-KR-Standard-B', name: 'Google Standard B (여성)' },
+                { id: 'ko-KR-Standard-C', name: 'Google Standard C (남성)' },
+                { id: 'ko-KR-Standard-D', name: 'Google Standard D (남성)' }
+            ];
+
+            select.innerHTML = googleVoices.map(v =>
+                `<option value="${v.id}">${v.name}</option>`
+            ).join('');
+            detectedVoices = googleVoices;
+        } else if (provider === 'gemini') {
+            // Gemini 음성
+            const geminiVoices = [
+                { id: 'Puck', name: 'Puck (남성/중저음)' },
+                { id: 'Charon', name: 'Charon (남성/저음)' },
+                { id: 'Kore', name: 'Kore (여성/부드러움)' },
+                { id: 'Fenrir', name: 'Fenrir (남성/거침)' },
+                { id: 'Aoede', name: 'Aoede (여성/높음)' }
+            ];
+            select.innerHTML = geminiVoices.map(v =>
+                `<option value="${v.id}">${v.name}</option>`
+            ).join('');
+            detectedVoices = geminiVoices;
+        }
+
+        if (detectedVoices.length > 0) {
+            availableVoices = detectedVoices;
+            // 음성 목록 갱신되면 매핑 UI도 새로 그려야 함 (옵션 채우기 위해)
+            if (document.getElementById('multiVoiceToggle').checked) {
+                renderCharacterMapping();
+            }
+            return;
+        }
+
+        if (provider === 'openai') {
+            const openaiVoices = [
+                { id: 'alloy', name: 'Alloy (중립)' },
+                { id: 'echo', name: 'Echo (남성)' },
+                { id: 'fable', name: 'Fable (남성/액센트)' },
+                { id: 'onyx', name: 'Onyx (남성/저음)' },
+                { id: 'nova', name: 'Nova (여성)' },
+                { id: 'shimmer', name: 'Shimmer (여성/밝음)' }
+            ];
+            select.innerHTML = openaiVoices.map(v =>
+                `<option value="${v.id}">${v.name}</option>`
+            ).join('');
+            availableVoices = openaiVoices;
+            if (document.getElementById('multiVoiceToggle').checked) {
+                renderCharacterMapping();
+            }
+            return;
+        }
+
+        // ElevenLabs 음성 (API 호출)
         try {
             const result = await API.tts.getVoices();
             if (result.voices?.length > 0) {
                 select.innerHTML = result.voices.map(v =>
                     `<option value="${v.voice_id}">${v.name}</option>`
                 ).join('');
+
+                // ElevenLabs 캐싱
+                availableVoices = result.voices.map(v => ({ id: v.voice_id, name: v.name }));
+                if (document.getElementById('multiVoiceToggle').checked) {
+                    renderCharacterMapping();
+                }
+
             } else {
-                select.innerHTML = '<option value="">음성 없음</option>';
+                select.innerHTML = '<option value="">ElevenLabs 음성 없음 (API 키 확인)</option>';
+                availableVoices = [];
             }
         } catch {
-            select.innerHTML = '<option value="">음성 로딩 실패</option>';
+            select.innerHTML = '<option value="">API 연결 실패</option>';
+            availableVoices = [];
         }
     }
 
-    function loadScript() {
+    async function loadScript() {
+        // 1. 로컬 스토리지 확인
         const scriptData = Utils.storage.get('fullScript');
         if (scriptData?.script) {
-            // 대본 정리 (연출 지시 제거)
-            let text = scriptData.script;
-            text = text.replace(/\[.*?\]/g, '');
-            text = text.replace(/\(.*?\)/g, '');
-            text = text.replace(/#{1,6}\s*/g, '');
-            text = text.trim();
-
-            document.getElementById('ttsText').value = text;
-            updateStats();
+            applyScriptToTextarea(scriptData.script);
+            return;
         }
+
+        // 2. 스토리지에 없으면 서버에서 조회
+        const projectId = getCurrentProject();
+        if (projectId) {
+            try {
+                Utils.showToast('서버에서 대본을 불러오는 중...', 'info');
+                const project = await API.project.getFull(projectId);
+
+                // 언어 설정 저장
+                if (project.target_language) {
+                    currentLanguage = project.target_language;
+                    console.log('Project Language:', currentLanguage);
+                }
+
+                // project.script는 { full_script: "..." } 형태일 수 있음
+                const fullScript = project.script?.full_script || project.script || "";
+
+                if (fullScript) {
+                    applyScriptToTextarea(fullScript);
+                    Utils.showToast('대본을 불러왔습니다', 'success');
+
+                    // 로컬에도 저장
+                    Utils.storage.set('fullScript', { script: fullScript });
+                } else {
+                    Utils.showToast('저장된 대본이 없습니다', 'warning');
+                }
+            } catch (e) {
+                console.error(e);
+                Utils.showToast('대본 불러오기 실패', 'error');
+            }
+        } else {
+            Utils.showToast('선택된 프로젝트가 없습니다', 'warning');
+        }
+    }
+
+    function applyScriptToTextarea(text) {
+        if (!text) return;
+        // 대본 정리 (연출 지시 제거)
+        // text = text.replace(/\[.*?\]/g, ''); // 연출지시만 제거하고 괄호는 남길까? 일단 유지
+        // text = text.replace(/\(.*?\)/g, '');
+        // text = text.replace(/#{1,6}\s*/g, '');
+
+        // 너무 많이 지우면 사용자가 당황하므로, 마크다운 헤더 정도만 정리
+        text = text.replace(/#{1,6}\s/g, '');
+
+        document.getElementById('ttsText').value = text.trim();
+        updateStats();
+
+        // 대본 불러오면 즉시 분석
+        setTimeout(() => {
+            if (document.getElementById('multiVoiceToggle').checked) {
+                analyzeScriptForCharacters();
+            }
+        }, 100);
     }
 
     function updateStats() {
@@ -171,12 +501,8 @@
     }
 
     function handleProviderChange() {
-        const provider = document.getElementById('providerSelect').value;
-        if (provider === 'browser') {
-            document.getElementById('browserTTS').classList.remove('hidden');
-        } else {
-            document.getElementById('browserTTS').classList.add('hidden');
-        }
+        // 음성 목록 갱신
+        loadVoices();
     }
 
     async function generateTTS() {
@@ -187,6 +513,7 @@
         }
 
         const provider = document.getElementById('providerSelect').value;
+        const speed = parseFloat(document.getElementById('audioSpeed').value) || 1.0;
 
         if (provider === 'browser') {
             playBrowserTTS();
@@ -198,15 +525,25 @@
         Utils.setLoading(btn, true, '음성 생성 중...');
 
         try {
+            const isMultiVoice = document.getElementById('multiVoiceToggle').checked;
+
             const projectId = getCurrentProject();
             const result = await API.tts.generate(text, {
                 voiceId,
                 provider,
-                projectId: projectId ? parseInt(projectId) : null
+                language: currentLanguage, // 언어 전달
+                speed, // 속도 전달
+                projectId: projectId ? parseInt(projectId) : null,
+                // 멀티보이스 데이터 전달
+                multiVoice: isMultiVoice,
+                voiceMap: isMultiVoice ? characterVoiceMap : {}
             });
 
             if (result.status === 'ok') {
-                document.getElementById('audioPlayer').src = result.url;
+                const player = document.getElementById('audioPlayer');
+                player.src = result.url;
+                player.play().catch(e => console.log('Auto-play blocked:', e)); // 자동 재생 시도
+
                 document.getElementById('downloadLink').href = result.url;
                 document.getElementById('resultSection').classList.remove('hidden');
                 Utils.showToast('음성이 생성되었습니다', 'success');
@@ -231,12 +568,19 @@
 
         utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'ko-KR';
-        utterance.rate = 1.0;
+        utterance.rate = parseFloat(document.getElementById('audioSpeed').value) || 1.0;
         utterance.pitch = 1.0;
 
         const voices = speechSynth.getVoices();
-        const koreanVoice = voices.find(v => v.lang.includes('ko'));
-        if (koreanVoice) utterance.voice = koreanVoice;
+        const selectedVoiceName = document.getElementById('voiceSelect').value;
+
+        let voice = voices.find(v => v.name === selectedVoiceName);
+        if (!voice) {
+            // 선택된게 없으면 한국어 아무거나
+            voice = voices.find(v => v.lang.includes('ko'));
+        }
+
+        if (voice) utterance.voice = voice;
 
         speechSynth.speak(utterance);
     }

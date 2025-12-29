@@ -1,0 +1,476 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <!-- 헤더 -->
+    <div class="flex items-center justify-between mb-8">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800 dark:text-white">자막 편집 (Subtitle Editor)</h2>
+            <p class="text-gray-600 dark:text-gray-400 mt-2">AI가 생성한 자막의 싱크와 오타를 수정하세요.</p>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="saveSubtitles()" class="btn-primary">💾 저장하기</button>
+            <a href="/render" class="btn-secondary">다음 단계 ></a>
+        </div>
+    </div>
+
+    <!-- 오디오 플레이어 (고정) -->
+    <div
+        class="sticky top-4 z-30 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg mb-6 border border-gray-200 dark:border-gray-700">
+        <h3 class="font-bold text-sm mb-2 text-gray-700 dark:text-gray-300">🔊 오디오 미리듣기</h3>
+        <audio id="audioPlayer" controls class="w-full"></audio>
+    </div>
+
+    <!-- 자막 스타일 및 크기 선택 -->
+    <div class="mb-6 p-4 bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700">
+        <div class="flex justify-between items-center mb-3">
+            <h3 class="font-bold text-sm text-gray-700 dark:text-gray-300">🎨 자막 스타일 설정</h3>
+
+            <!-- 폰트 크기 슬라이더 -->
+            <div
+                class="flex items-center gap-3 bg-gray-50 dark:bg-gray-700 px-3 py-1 rounded-full border border-gray-200 dark:border-gray-600">
+                <span class="text-xs font-bold text-gray-500">크기</span>
+                <input type="range" id="fontSizeSlider" min="5" max="100" value="10" step="1"
+                    class="w-32 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-600">
+                <span id="fontSizeValue"
+                    class="text-xs font-mono w-8 text-right text-blue-600 dark:text-blue-400 font-bold">10</span>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3" id="styleSelector">
+            <!-- Basic White -->
+            <div onclick="selectStyle('Basic_White')"
+                class="style-card cursor-pointer p-3 rounded border-2 border-transparent hover:border-blue-300 transition-all text-center bg-gray-600 relative overflow-hidden group"
+                data-style="Basic_White">
+                <div class="absolute inset-0 bg-gray-500 opacity-20 group-hover:opacity-10 transition-opacity"></div>
+                <div class="text-xl font-bold text-white relative z-10"
+                    style="text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;">
+                    기본 화이트
+                </div>
+            </div>
+            <!-- Vlog Yellow -->
+            <div onclick="selectStyle('Vlog_Yellow')"
+                class="style-card cursor-pointer p-3 rounded border-2 border-transparent hover:border-blue-300 transition-all text-center bg-gray-100 relative overflow-hidden group"
+                data-style="Vlog_Yellow">
+                <div class="text-xl font-bold relative z-10"
+                    style="color: #FFD700; text-shadow: 2px 2px 0 #4B0082, -1px -1px 0 #4B0082, 1px -1px 0 #4B0082, -1px 1px 0 #4B0082, 1px 1px 0 #4B0082;">
+                    예능 옐로우
+                </div>
+            </div>
+            <!-- Cinematic Box -->
+            <div onclick="selectStyle('Cinematic_Box')"
+                class="style-card cursor-pointer p-3 rounded border-2 border-transparent hover:border-blue-300 transition-all text-center relative overflow-hidden group bg-cover bg-center"
+                style="background-image: url('https://picsum.photos/200/50?blur=2')" data-style="Cinematic_Box">
+                <div class="inline-block px-2 py-1 bg-black/60 text-white text-lg font-medium backdrop-blur-sm">
+                    시네마틱 박스
+                </div>
+            </div>
+            <!-- Cute Pink -->
+            <div onclick="selectStyle('Cute_Pink')"
+                class="style-card cursor-pointer p-3 rounded border-2 border-transparent hover:border-blue-300 transition-all text-center bg-pink-50 relative overflow-hidden group"
+                data-style="Cute_Pink">
+                <div class="text-xl font-bold relative z-10"
+                    style="color: #FF69B4; text-shadow: 2px 2px 0 #FFF, -1px -1px 0 #FFF, 1px -1px 0 #FFF, -1px 1px 0 #FFF, 1px 1px 0 #FFF; filter: drop-shadow(0 0 1px rgba(0,0,0,0.1));">
+                    큐티 핑크
+                </div>
+            </div>
+            <!-- Neon Green -->
+            <div onclick="selectStyle('Neon_Green')"
+                class="style-card cursor-pointer p-3 rounded border-2 border-transparent hover:border-blue-300 transition-all text-center bg-gray-900 relative overflow-hidden group"
+                data-style="Neon_Green">
+                <div class="text-xl font-bold relative z-10" style="color: #00FF00; text-shadow: 2px 2px 0 #000;">
+                    네온 그린
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 자막 리스트 -->
+    <div class="card p-0 overflow-hidden">
+        <div
+            class="bg-gray-50 dark:bg-gray-700 p-3 grid grid-cols-12 gap-2 text-sm font-bold border-b border-gray-200 dark:border-gray-600">
+            <div class="col-span-2 text-center">이미지</div>
+            <div class="col-span-2 text-center">시작 시간</div>
+            <div class="col-span-2 text-center">종료 시간</div>
+            <div class="col-span-5 text-center">내용</div>
+            <div class="col-span-1 text-center">삭제</div>
+        </div>
+        <div id="subtitleList" class="divide-y divide-gray-100 dark:divide-gray-700">
+            <!-- 자막 아이템들이 여기에 동적 생성됨 -->
+            <div class="p-8 text-center text-gray-500">
+                자막을 불러오는 중입니다...
+            </div>
+        </div>
+
+        <!-- 하단 추가 버튼 -->
+        <div class="p-4 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600 text-center">
+            <button onclick="addSubtitleRow()" class="text-blue-500 hover:text-blue-700 font-bold text-sm">
+                + 자막 라인 추가
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let projectId = Utils.storage.get('currentProjectId');
+    // Ensure numeric
+    if (projectId && typeof projectId === 'string') projectId = parseInt(projectId);
+
+    let subtitles = [];
+    let images = [];
+    let audioDuration = 0;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        if (!projectId) {
+            // Try getting from URL if present (e.g. ?project_id=1)
+            const urlParams = new URLSearchParams(window.location.search);
+            const pid = urlParams.get('project_id');
+            if (pid) {
+                projectId = parseInt(pid);
+                Utils.storage.set('currentProjectId', projectId);
+            }
+        }
+
+        if (!projectId) {
+            Utils.showToast('프로젝트를 선택해주세요.', 'warning');
+            return;
+        }
+        await loadSubtitles();
+    });
+
+    async function loadSubtitles() {
+        try {
+            const res = await fetch(`/api/subtitle/${projectId}`);
+            const data = await res.json();
+
+            if (data.status === 'error') {
+                Utils.showToast(data.error, 'error');
+                return;
+            }
+
+            // 오디오 설정
+            const audio = document.getElementById('audioPlayer');
+            audio.src = data.audio_url;
+            audio.onloadedmetadata = () => {
+                audioDuration = audio.duration;
+            };
+
+            // 이미지 및 자막 로드
+            images = data.images || [];
+            subtitles = data.subtitles || [];
+
+            // 자막이 없으면 자동 생성 시도
+            if (subtitles.length === 0) {
+                Utils.showToast('자막 자동 분석 중... (잠시만 기다려주세요)', 'info');
+                await generateSubtitles();
+            } else {
+                renderSubtitles();
+            }
+
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('자막 로드 실패', 'error');
+        }
+    }
+
+    // 스타일 선택 및 저장
+    window.selectStyle = async function (styleName) {
+        // UI 업데이트
+        document.querySelectorAll('.style-card').forEach(el => {
+            if (el.dataset.style === styleName) {
+                el.classList.add('ring-2', 'ring-blue-500', 'border-blue-500');
+                el.classList.remove('border-transparent');
+            } else {
+                el.classList.remove('ring-2', 'ring-blue-500', 'border-blue-500');
+                el.classList.add('border-transparent');
+            }
+        });
+
+        // 서버 저장 (PATCH Settings)
+        try {
+            const res = await fetch(`/api/projects/${projectId}/settings/subtitle_style_enum?value=${styleName}`, {
+                method: 'PATCH'
+            });
+            const data = await res.json();
+            if (data.status !== 'ok') throw new Error(data.error);
+        } catch (e) {
+            console.error("스타일 저장 실패", e);
+            // 조용히 실패 (Too many toasts)
+        }
+    };
+
+    // 초기 스타일 로드
+    async function loadProjectSettings() {
+        try {
+            const res = await fetch(`/api/projects/${projectId}/settings`);
+            if (res.ok) {
+                const settings = await res.json();
+
+                // 스타일 복원
+                const preservedStyle = settings.subtitle_style_enum || 'Basic_White';
+                selectStyle(preservedStyle);
+
+                // 폰트 크기 복원
+                const savedSize = settings.subtitle_font_size || 10;
+                const slider = document.getElementById('fontSizeSlider');
+                const label = document.getElementById('fontSizeValue');
+                if (slider && label) {
+                    slider.value = savedSize;
+                    label.textContent = savedSize;
+                }
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    // DOM load 시 settings도 로드
+    document.addEventListener('DOMContentLoaded', () => {
+        if (projectId) loadProjectSettings();
+
+        // 슬라이더 이벤트 리스너
+        const slider = document.getElementById('fontSizeSlider');
+        const label = document.getElementById('fontSizeValue');
+
+        if (slider) {
+            slider.addEventListener('input', (e) => {
+                label.textContent = e.target.value;
+            });
+
+            slider.addEventListener('change', async (e) => {
+                const newVal = e.target.value;
+                // 서버 저장
+                try {
+                    const res = await fetch(`/api/projects/${projectId}/settings/subtitle_font_size?value=${newVal}`, {
+                        method: 'PATCH'
+                    });
+                    const data = await res.json();
+                    if (data.status === 'ok') {
+                        Utils.showToast(`자막 크기 저장됨: ${newVal}`, 'success');
+                    }
+                } catch (err) {
+                    console.error("폰트 크기 저장 실패", err);
+                }
+            });
+        }
+    });
+
+    async function generateSubtitles(manualText = null) {
+        try {
+            const list = document.getElementById('subtitleList');
+            // 로딩 표시 (기존 컨텐츠 유지하며 오버레이하거나, 그냥 교체)
+            // list.innerHTML = ... (생략 - UX 유지)
+
+            const body = { project_id: projectId };
+            if (manualText) body.text = manualText;
+
+            const res = await fetch('/api/subtitle/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const data = await res.json();
+
+            if (data.status === 'ok') {
+                subtitles = data.subtitles || [];
+                renderSubtitles();
+                Utils.showToast('자막이 생성되었습니다.', 'success');
+                // 자동 저장
+                saveSubtitles();
+            } else {
+                Utils.showToast('자막 생성 실패: ' + data.error, 'error');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('자막 생성 요청 오류', 'error');
+        }
+    }
+
+    window.saveSubtitles = async function () {
+        try {
+            const btn = document.querySelector('button[onclick="saveSubtitles()"]');
+            const originalText = btn.textContent;
+            btn.textContent = "저장 중... (미리보기 생성)";
+            btn.disabled = true;
+
+            const res = await fetch('/api/subtitle/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    project_id: projectId,
+                    subtitles: subtitles
+                })
+            });
+
+            const data = await res.json();
+            if (data.status === 'ok') {
+                Utils.showToast('자막이 저장되었습니다.', 'success');
+                // 서버에서 업데이트된 자막 리스트(preview_url 포함)를 반환받음
+                if (data.subtitles) {
+                    subtitles = data.subtitles;
+                    renderSubtitles();
+                }
+            } else {
+                throw new Error(data.error);
+            }
+
+            btn.textContent = originalText;
+            btn.disabled = false;
+        } catch (e) {
+            Utils.showToast('저장 실패: ' + e.message, 'error');
+            const btn = document.querySelector('button[onclick="saveSubtitles()"]');
+            if (btn) {
+                btn.textContent = "💾 저장하기";
+                btn.disabled = false;
+            }
+        }
+    };
+
+    // 오디오 재생 시 현재 자막 하이라이팅 (옵션)
+    const audio = document.getElementById('audioPlayer');
+    audio.addEventListener('timeupdate', () => {
+        const currentTime = audio.currentTime;
+        // 성능상 리스트 전체 순회는 비효율적일 수 있으나 자막 개수가 적으므로 일단 단순 구현
+        document.querySelectorAll('.subtitle-row').forEach((row, idx) => {
+            const sub = subtitles[idx];
+            if (sub && currentTime >= sub.start && currentTime <= sub.end) {
+                row.classList.add('bg-blue-50', 'dark:bg-blue-900/30');
+            } else {
+                row.classList.remove('bg-blue-50', 'dark:bg-blue-900/30');
+            }
+        });
+    });
+
+    // ==========================================
+    // Render Helper
+    // ==========================================
+    function renderSubtitles() {
+        const list = document.getElementById('subtitleList');
+
+        // 상단에 '자막 생성' 버튼과 상태 표시 추가
+        const headerHtml = `
+            <div class="flex justify-between items-center mb-4 p-2 bg-gray-100 dark:bg-gray-800 rounded">
+                <span class="text-xs text-gray-500">
+                    💡 대본 자동 연동: ${subtitles.length > 0 ? '완료' : '대기 중'} 
+                    (${subtitles.length} 라인)
+                </span>
+                <button onclick="generateSubtitles()" class="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors">
+                    🔄 자막 다시 생성하기
+                </button>
+            </div>
+        `;
+
+        // 빈 상태 또는 실패 상태(플레이스홀더) 감지
+        const isEffectivelyEmpty = subtitles.length === 0 || (subtitles.length === 1 && (subtitles[0].text.includes("없습니다") || subtitles[0].text.includes("⚠️")));
+
+        if (isEffectivelyEmpty) {
+            const hasScript = loadedScript && loadedScript.length > 0;
+
+            list.innerHTML = headerHtml + `
+                <div class="text-center py-8 text-gray-500 dark:text-gray-400 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-6">
+                    <p class="mb-4 text-xl">⚠️ 자막 데이터 없음</p>
+                    <p class="text-sm mb-4">
+                        ${hasScript ? '<b>프로젝트에서 대본 데이터를 찾았습니다!</b><br>아래 내용을 확인하고 생성 버튼을 눌러주세요.' : '서버에 저장된 대본이 없습니다.<br>아래에 대본을 직접 붙여넣고 [생성]을 누르면 해결됩니다!'}
+                    </p>
+                    <div class="max-w-xl mx-auto mb-4">
+                        <textarea id="manualScriptInput" placeholder="여기에 대본을 붙여넣으세요..." 
+                            class="w-full h-32 p-3 border rounded dark:bg-gray-800 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 text-sm">${hasScript ? escapeHtml(loadedScript) : ''}</textarea>
+                    </div>
+                    <div class="flex justify-center gap-3">
+                        <button onclick="generateSubtitles(document.getElementById('manualScriptInput').value)" 
+                            class="btn-primary px-6 py-2 rounded-full shadow-lg hover:shadow-xl transition-all flex items-center gap-2">
+                             🪄 ${hasScript ? '대본 적용하여 자막 생성하기' : '대본 입력하고 자막 생성하기'}
+                        </button>
+                    </div>
+                     <div class="mt-6 border-t pt-4 dark:border-gray-700">
+                        <p class="text-xs text-gray-400 mb-2">또는 직접 한 줄씩 추가하기</p>
+                        <button onclick="addSubtitleRow()" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-full text-sm">
+                             ✏️ 빈 자막 추가
+                        </button>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        const itemsHtml = subtitles.map((sub, index) => {
+            // 이미지 매칭 (시간 기반) 또는 저장된 미리보기 사용
+            let imgUrl = "";
+            let isPreview = false;
+
+            if (sub.preview_url) {
+                imgUrl = sub.preview_url;
+                isPreview = true;
+            } else if (images.length > 0 && audioDuration > 0) {
+                // 이미지당 지속 시간 추정 (단순 균등 분할 가정)
+                const durationPerImage = audioDuration / images.length;
+                const midPoint = (sub.start + sub.end) / 2;
+                const imgIndex = Math.min(Math.floor(midPoint / durationPerImage), images.length - 1);
+                imgUrl = images[imgIndex] || "";
+            }
+
+            // 썸네일 클릭 시 확대 보기 (간단한 window.open)
+            const thumbnailHtml = imgUrl
+                ? `<div class="cursor-pointer group relative h-full w-full" onclick="window.open('${imgUrl}', '_blank')">
+                     <img src="${imgUrl}" class="h-full w-full object-cover transition-opacity ${isPreview ? 'opacity-100 border-2 border-blue-400' : 'opacity-80 hover:opacity-100'}">
+                     ${isPreview ? '<div class="absolute bottom-0 right-0 bg-blue-600 text-white text-[10px] px-1">미리보기</div>' : ''}
+                   </div>`
+                : '<span class="text-xs text-gray-500">No Image</span>';
+
+            return `
+            <div class="subtitle-row grid grid-cols-12 gap-2 mb-2 p-2 bg-gray-50 dark:bg-gray-800 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-sm items-center" data-start="${sub.start}" data-end="${sub.end}">
+                <!-- 썸네일 -->
+                <div class="col-span-2 flex justify-center items-center h-16 bg-black rounded overflow-hidden">
+                    ${thumbnailHtml}
+                </div>
+                
+                <div class="col-span-2">
+                    <input type="number" step="0.1" value="${sub.start.toFixed(2)}" 
+                        onchange="updateSubtitle(${index}, 'start', this.value)"
+                        class="w-full text-center text-sm p-1 border rounded dark:bg-gray-600 dark:border-gray-500 focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div class="col-span-2">
+                    <input type="number" step="0.1" value="${sub.end.toFixed(2)}"
+                        onchange="updateSubtitle(${index}, 'end', this.value)"
+                        class="w-full text-center text-sm p-1 border rounded dark:bg-gray-600 dark:border-gray-500 focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div class="col-span-5">
+                    <textarea 
+                        onchange="updateSubtitle(${index}, 'text', this.value)"
+                        class="w-full text-sm p-1 border rounded dark:bg-gray-600 dark:border-gray-500 focus:ring-2 focus:ring-blue-500 outline-none h-16 resize-none leading-normal pt-2">${escapeHtml(sub.text)}</textarea>
+                </div>
+                <div class="col-span-1 text-center flex items-center justify-center">
+                    <button onclick="removeSubtitle(${index})" class="text-gray-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+            </div>
+            `;
+        }).join('');
+
+        list.innerHTML = headerHtml + itemsHtml;
+    }
+
+    // 자막 삭제 함수
+    window.removeSubtitle = function (index) {
+        if (confirm("정말 이 자막을 삭제하시겠습니까?")) {
+            subtitles.splice(index, 1);
+            renderSubtitles();
+        }
+    };
+
+    // HTML Escape Helper
+    function escapeHtml(text) {
+        if (!text) return "";
+        return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+</script>
+{% endblock %}

@@ -1,5 +1,5 @@
 /**
- * wingsAIStudio API 클라이언트
+ * 피카디리스튜디오 API 클라이언트
  */
 
 const API = {
@@ -64,7 +64,8 @@ const API = {
                     like_count: parseInt(video.statistics.likeCount) || 0,
                     comment_count: parseInt(video.statistics.commentCount) || 0,
                     published_at: video.snippet.publishedAt,
-                    thumbnail_url: video.snippet.thumbnails.high?.url || video.snippet.thumbnails.default.url
+                    thumbnail_url: video.snippet.thumbnails.high?.url || video.snippet.thumbnails.default.url,
+                    transcript: video.transcript || null
                 })
             });
             return response.json();
@@ -81,6 +82,8 @@ const API = {
                     text,
                     voice_id: options.voiceId || null,
                     provider: options.provider || 'elevenlabs',
+                    language: options.language || 'ko', // 언어 전달
+                    speed: options.speed || 1.0, // 속도 전달
                     project_id: options.projectId || null
                 })
             });
@@ -103,7 +106,7 @@ const API = {
             return response.json();
         },
 
-        async generate(prompt, projectId, sceneNumber, style = 'realistic') {
+        async generate(prompt, projectId, sceneNumber, style = 'realistic', aspectRatio = '16:9') {
             const response = await fetch('/api/image/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -111,7 +114,8 @@ const API = {
                     prompt,
                     project_id: projectId,
                     scene_number: sceneNumber,
-                    style
+                    style,
+                    aspect_ratio: aspectRatio
                 })
             });
             return response.json();
@@ -127,7 +131,8 @@ const API = {
                     text,
                     text_position: options.textPosition || 'center',
                     text_color: options.textColor || '#FFFFFF',
-                    font_size: options.fontSize || 72
+                    font_size: options.fontSize || 72,
+                    language: options.language || 'ko'
                 })
             });
             return response.json();
@@ -159,11 +164,11 @@ const API = {
         },
 
         // 프로젝트 생성
-        async create(name, topic = null) {
+        async create(name, topic = null, target_language = 'ko') {
             const response = await fetch('/api/projects', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, topic })
+                body: JSON.stringify({ name, topic, target_language })
             });
             return response.json();
         },
@@ -181,11 +186,15 @@ const API = {
         },
 
         // 프로젝트 영상 렌더링
-        async render(projectId, useSubtitles = true) {
+        async render(projectId, options = {}) {
             const response = await fetch(`/api/projects/${projectId}/render`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ project_id: projectId, use_subtitles: useSubtitles })
+                body: JSON.stringify({
+                    project_id: parseInt(projectId),
+                    use_subtitles: options.useSubtitles ?? true,
+                    resolution: options.resolution || "720p"
+                })
             });
             return response.json();
         },
