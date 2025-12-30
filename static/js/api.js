@@ -202,7 +202,7 @@ const API = {
         // 프로젝트 업데이트
         async update(projectId, data) {
             const response = await fetch(`/api/projects/${projectId}`, {
-                method: 'PUT',
+                method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             });

@@ -7,6 +7,7 @@
     <title>{{ title }} - 피카디리스튜디오</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" type="image/png" href="/static/img/favicon.png">
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -43,12 +44,10 @@
         <!-- 사이드바 -->
         <aside class="w-64 bg-white dark:bg-gray-800 min-h-screen fixed left-0 top-0 shadow-lg z-40">
             <!-- 로고 -->
-            <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+            <div class="p-3 border-b border-gray-200 dark:border-gray-800">
                 <a href="/" class="flex items-center gap-2">
-                    <span class="text-2xl">🎬</span>
-                    <span class="text-xl font-bold text-gray-800 dark:text-white">피카디리스튜디오</span>
+                    <span class="text-lg font-bold text-gray-800 dark:text-white">피카디리스튜디오</span>
                 </a>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">AI 영상 제작 플랫폼</p>
             </div>
 
             <!-- Project Progress Header (Global) -->
@@ -57,9 +56,8 @@
                 <div class="px-4 py-3">
                     <div class="flex items-center justify-between mb-3">
                         <div class="flex flex-col">
-                            <span class="text-[10px] text-gray-400 font-medium">현재 작업 중</span>
                             <span id="currentProjectNameDisplay"
-                                class="text-sm font-bold text-gray-800 dark:text-gray-100 truncate max-w-[150px]">프로젝트명</span>
+                                class="text-xs font-bold text-gray-800 dark:text-gray-100 truncate max-w-[150px]">프로젝트명</span>
                         </div>
                         <button onclick="closeProjectContext()"
                             class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
@@ -139,11 +137,11 @@
             </div>
 
             <!-- 프로젝트 선택 -->
-            <div class="p-4 border-b border-gray-200 dark:border-gray-700">
-                <div class="flex items-center justify-between mb-2">
-                    <span class="text-xs font-medium text-gray-500 dark:text-gray-400">현재 프로젝트</span>
-                    <button onclick="openProjectModal()" class="text-xs text-blue-500 hover:text-blue-600">+ 새
-                        프로젝트</button>
+            <div class="px-3 py-1.5 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-[10px] font-medium text-gray-500 dark:text-gray-400">현재 프로젝트</span>
+                    <button onclick="openProjectModal()" class="text-[10px] text-blue-500 hover:text-blue-600">+
+                        새</button>
                 </div>
                 <select id="projectSelect" onchange="onProjectChange(this.value)"
                     class="w-full text-sm p-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-800 dark:text-white">
@@ -155,18 +153,12 @@
             </div>
 
             <!-- 네비게이션 -->
-            <nav class="p-4">
-                <ul class="space-y-1">
+            <nav class="px-2 py-1">
+                <ul class="space-y-0">
                     <li>
                         <a href="/projects" class="sidebar-item {% if page == 'projects' %}active{% endif %}">
                             <span class="sidebar-icon">📂</span>
                             <span>내 프로젝트</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/" class="sidebar-item {% if page == 'topic' %}active{% endif %}">
-                            <span class="sidebar-icon">☁️</span>
-                            <span>키워드</span>
                         </a>
                     </li>
                     <li>
@@ -229,7 +221,7 @@
                             <span>쇼츠 생성</span>
                         </a>
                     </li>
-                    <li class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <li class="mt-1 pt-1">
                         <a href="/settings" class="sidebar-item {% if page == 'settings' %}active{% endif %}">
                             <span class="sidebar-icon">⚙️</span>
                             <span>설정</span>
@@ -238,17 +230,17 @@
                 </ul>
             </nav>
 
-            <div class="px-4 pb-2">
+            <div class="px-3 pb-1">
                 <button onclick="toggleTheme()"
-                    class="w-full flex items-center justify-center gap-2 p-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-sm font-medium">
-                    <span class="dark:hidden">🌞 라이트 모드</span>
-                    <span class="hidden dark:inline">🌙 다크 모드</span>
+                    class="w-full flex items-center justify-center gap-2 p-1 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-[10px] font-medium">
+                    <span class="dark:hidden">🌞 라이트</span>
+                    <span class="hidden dark:inline">🌙 다크</span>
                 </button>
             </div>
     </div>
 
     <!-- API 상태 -->
-    <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700">
+    <div class="absolute bottom-0 left-0 right-0 p-4">
         <div id="apiStatus" class="text-xs text-gray-500 dark:text-gray-400">
             <div class="flex items-center gap-2 mb-1">
                 <span id="statusDot" class="w-2 h-2 rounded-full bg-gray-400"></span>

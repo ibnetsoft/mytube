@@ -329,9 +329,12 @@ JSON만 반환하세요."""
         
         Format as JSON list:
         [
-            {{"keyword": "Keyword 1 (Native Language ONLY, No Romaji)", "translation": "MEANING IN KOREAN (Must be Hangul)", "volume": 98, "category": "Gaming"}},
+            {{"keyword": "Keyword in Target Language", "translation": "MEANING IN KOREAN (ONLY HANGUL - VERY IMPORTANT)", "volume": 98, "category": "Gaming"}},
             ...
         ]
+
+        Example for Spanish (es):
+        {{"keyword": "Eurocopa 2024", "translation": "유로 2024", "volume": 95, "category": "Sports"}}
         
         RETURN ONLY JSON.
         """

@@ -100,7 +100,7 @@
         </div>
 
         <!-- 차트 컨테이너 -->
-        <div id="bubbleChart" class="w-full h-[600px] flex items-center justify-center relative">
+        <div id="bubbleChart" class="w-full h-[800px] flex items-center justify-center relative">
             <div class="absolute inset-0 flex items-center justify-center text-gray-400 pointer-events-none"
                 id="bubbleLoading">
                 <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
@@ -707,7 +707,7 @@
     function renderBubbleChart(data) {
         const container = document.getElementById('bubbleChart');
         const width = container.clientWidth;
-        const height = 600;
+        const height = 800;
 
         // Clear ALL previous SVGs immediately before rendering a new one
         // This solves race conditions where multiple fetches might return and stack charts
@@ -743,7 +743,7 @@
         const simulation = d3.forceSimulation(nodes)
             .force("x", d3.forceX(width / 2).strength(0.05)) // Weak horizontal pull -> Spread wide
             .force("y", d3.forceY(height / 2).strength(0.1)) // Stronger vertical pull -> Keep in band
-            .force("collide", d3.forceCollide(d => d.r + 4).strength(0.8)) // Prevent overlap
+            .force("collide", d3.forceCollide(d => d.r * 1.5).strength(0.8)) // Prevent overlap (adjusted for rectangle)
             .force("charge", d3.forceManyBody().strength(-10)); // Slight repulsion
 
         // 4. Render Elements
@@ -764,10 +764,10 @@
                 // 2. Scale up rect and change color
                 d3.select(this).select("rect")
                     .transition().duration(200)
-                    .attr("width", d.r * 2.4)        // Scale up
-                    .attr("height", d.r * 2.4)
-                    .attr("x", -d.r * 1.2)           // Recenter
-                    .attr("y", -d.r * 1.2)
+                    .attr("width", d.r * 4.4)        // Scale up (Horizontal)
+                    .attr("height", d.r * 2.2)      // Scale up
+                    .attr("x", -d.r * 2.2)           // Recenter
+                    .attr("y", -d.r * 1.1)
                     .attr("fill", "#60A5FA"); // Sky Blue (Tailwind blue-400)
 
                 // 3. Scale up text
@@ -780,9 +780,9 @@
                 // Restore logic
                 d3.select(this).select("rect")
                     .transition().duration(200)
-                    .attr("width", d.r * 2)
+                    .attr("width", d.r * 4)
                     .attr("height", d.r * 2)
-                    .attr("x", -d.r)
+                    .attr("x", -d.r * 2)
                     .attr("y", -d.r)
                     .attr("fill", d => colorScale(d.volume));
 
@@ -807,9 +807,9 @@
 
         // Transition rect size
         rects.transition().duration(800).ease(d3.easeBackOut)
-            .attr("width", d => d.r * 2)
+            .attr("width", d => d.r * 4)
             .attr("height", d => d.r * 2)
-            .attr("x", d => -d.r) // Center properly
+            .attr("x", d => -d.r * 2) // Center properly
             .attr("y", d => -d.r);
 
         const labels = node.append("text")

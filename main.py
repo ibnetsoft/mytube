@@ -345,10 +345,32 @@ async def update_project(project_id: int, req: ProjectUpdate):
 @app.delete("/api/projects/{project_id}")
 async def delete_project(project_id: int):
     """프로젝트 삭제"""
-    db.delete_project(project_id)
-    return {"status": "ok"}
+    try:
+        db.delete_project(project_id)
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-# 프로젝트 데이터 저장 엔드포인트
+@app.patch("/api/projects/{project_id}")
+async def update_project_details(project_id: int, data: Dict[str, Any]):
+    """프로젝트 정보 (이름, 주제, 제목) 업데이트"""
+    try:
+        # 1. projects 테이블 정보 업데이트 (name, topic)
+        project_updates = {}
+        if "name" in data: project_updates["name"] = data["name"]
+        if "topic" in data: project_updates["topic"] = data["topic"]
+        
+        if project_updates:
+            db.update_project(project_id, **project_updates)
+            
+        # 2. project_settings 테이블 정보 업데이트 (title -> video_title)
+        if "video_title" in data:
+            db.update_project_setting(project_id, "title", data["video_title"])
+            
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/projects/{project_id}/analysis")
 async def save_analysis(project_id: int, req: AnalysisSave):
     """분석 결과 저장"""

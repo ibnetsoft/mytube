@@ -141,8 +141,9 @@
             };
 
             return `
-            <tr class="hover:bg-gray-50 dark:hover:bg-gray-750 transition cursor-pointer group" onclick="selectAndGo('${p.id}')" ondblclick="handleProjectDoubleClick('${p.id}')">
-                <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white sticky left-0 bg-white dark:bg-gray-800 group-hover:bg-gray-50 dark:group-hover:bg-gray-750 z-10 border-r dark:border-gray-700">
+            <tr class="hover:bg-gray-50 dark:hover:bg-gray-750 transition cursor-pointer group" onclick="selectAndGo('${p.id}')">
+                <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white sticky left-0 bg-white dark:bg-gray-800 group-hover:bg-gray-50 dark:group-hover:bg-gray-750 z-10 border-r dark:border-gray-700"
+                    ondblclick="event.stopPropagation(); startInlineEdit(this, '${p.id}', 'name')">
                     <div class="flex items-center gap-2">
                         <span class="text-lg">📁</span>
                         <span>${p.name}</span>
@@ -150,8 +151,14 @@
                 </td>
                 <td class="px-1 py-3 whitespace-nowrap text-center text-sm text-gray-500 dark:text-gray-400 w-20">${created}</td>
                 <td class="px-1 py-3 whitespace-nowrap text-center text-sm text-gray-500 dark:text-gray-400 w-20">${updated}</td>
-                <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 max-w-[120px] truncate" title="${p.topic || ''}">${p.topic || '-'}</td>
-                <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 max-w-[150px] truncate" title="${p.video_title || ''}">${p.video_title || '-'}</td>
+                <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 max-w-[120px] truncate" 
+                    title="${p.topic || ''}" ondblclick="event.stopPropagation(); startInlineEdit(this, '${p.id}', 'topic')">
+                    ${p.topic || '-'}
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 max-w-[150px] truncate" 
+                    title="${p.video_title || ''}" ondblclick="event.stopPropagation(); startInlineEdit(this, '${p.id}', 'video_title')">
+                    ${p.video_title || '-'}
+                </td>
                 
                 <!-- Steps -->
                 <td class="px-1 py-3 text-center whitespace-nowrap">${checkLink(s.plan, 'script-plan', p.id)}</td>
@@ -206,19 +213,79 @@
     }
 
     async function handleProjectDoubleClick(projectId) {
-        // 더블 클릭 시 사이드바의 프로젝트 선택박스 업데이트
-        console.log('Double click on project:', projectId);
-
-        // base.html의 onProjectChange 호출
-        if (typeof onProjectChange === 'function') {
-            await onProjectChange(projectId);
-        } else {
-            console.error('onProjectChange function not found');
-            // Fallback: Set localStorage and reload if needed, but base.html should be there
-            setCurrentProject(projectId);
-            window.location.reload();
-        }
+        // [DEPRECATED] Now using inline editing on specific cells.
+        // If users still want to select project via double click, we can keep it for OTHER cells or handle it differently.
+        console.log('Project double clicked:', projectId);
     }
+
+    // --- Inline Inline Editing ---
+    let isEditing = false;
+
+    window.startInlineEdit = function (cell, projectId, field) {
+        if (isEditing) return;
+        isEditing = true;
+
+        const originalContent = cell.innerHTML;
+        const originalValue = cell.innerText.trim();
+        const valueToEdit = originalValue === '-' ? '' : originalValue;
+
+        // Create Input
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = valueToEdit;
+        input.className = 'input-field text-sm py-1 w-full';
+
+        // Match padding/style
+        cell.innerHTML = '';
+        cell.appendChild(input);
+        input.focus();
+        input.select();
+
+        const finishEdit = async (save) => {
+            const newValue = input.value.trim();
+            if (save && newValue !== valueToEdit) {
+                try {
+                    const data = {};
+                    data[field] = newValue;
+                    const res = await API.project.update(projectId, data);
+                    if (res.status === 'ok') {
+                        Utils.showToast('저장되었습니다', 'success');
+                        // Update UI
+                        if (field === 'name') {
+                            cell.innerHTML = `
+                                <div class="flex items-center gap-2">
+                                    <span class="text-lg">📁</span>
+                                    <span>${newValue}</span>
+                                </div>
+                            `;
+                            // Update sidebar if needed
+                            if (window.loadProjects) window.loadProjects();
+                        } else {
+                            cell.innerText = newValue || '-';
+                            cell.title = newValue;
+                        }
+                    } else {
+                        throw new Error(res.error || '저장 실패');
+                    }
+                } catch (e) {
+                    Utils.showToast(e.message, 'error');
+                    cell.innerHTML = originalContent;
+                }
+            } else {
+                cell.innerHTML = originalContent;
+            }
+            isEditing = false;
+        };
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') finishEdit(true);
+            if (e.key === 'Escape') finishEdit(false);
+        });
+
+        input.addEventListener('blur', () => {
+            finishEdit(true);
+        });
+    };
 
     async function deleteProject(projectId) {
         if (!confirm('정말 이 프로젝트를 삭제하시겠습니까? 복구할 수 없습니다.')) return;

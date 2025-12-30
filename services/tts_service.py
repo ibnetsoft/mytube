@@ -56,7 +56,7 @@ class TTSService:
     async def generate_elevenlabs(
         self,
         text: str,
-        voice_id: str = "21m00Tcm4TlvDq8ikWAM",
+        voice_id: str = "4JJwo477JUAx3HV0T7n7",
         filename: str = "tts_output.mp3"
     ) -> Optional[str]:
         """ElevenLabs TTS 생성"""

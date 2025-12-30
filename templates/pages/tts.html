@@ -48,11 +48,11 @@
 
     <div class="mt-4">
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            말하기 속도 (<span id="speedValue">1.1</span>x)
+            말하기 속도 (<span id="speedValue">1.0</span>x)
         </label>
         <div class="flex items-center gap-4">
             <span class="text-xs text-gray-500">느림</span>
-            <input type="range" id="audioSpeed" min="0.5" max="2.0" step="0.1" value="1.1"
+            <input type="range" id="audioSpeed" min="0.5" max="2.0" step="0.1" value="1.0"
                 class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700">
             <span class="text-xs text-gray-500">빠름</span>
         </div>
@@ -408,12 +408,25 @@
         try {
             const result = await API.tts.getVoices();
             if (result.voices?.length > 0) {
-                select.innerHTML = result.voices.map(v =>
-                    `<option value="${v.voice_id}">${v.name}</option>`
+                const defaultVoiceId = "4JJwo477JUAx3HV0T7n7";
+                const manualVoices = [
+                    { id: "ETPP7D0aZVdEj12Aa7ho", name: "Marcus (추천)" },
+                    { id: "DOL4zlUH4vnnX1hByxsw", name: "추천 목소리 2" }
+                ];
+
+                let voices = [...result.voices];
+                manualVoices.forEach(mv => {
+                    if (!voices.find(v => v.voice_id === mv.id)) {
+                        voices.push({ voice_id: mv.id, name: mv.name });
+                    }
+                });
+
+                select.innerHTML = voices.map(v =>
+                    `<option value="${v.voice_id}" ${v.voice_id === defaultVoiceId ? 'selected' : ''}>${v.name}</option>`
                 ).join('');
 
                 // ElevenLabs 캐싱
-                availableVoices = result.voices.map(v => ({ id: v.voice_id, name: v.name }));
+                availableVoices = voices.map(v => ({ id: v.voice_id, name: v.name }));
                 if (document.getElementById('multiVoiceToggle').checked) {
                     renderCharacterMapping();
                 }
