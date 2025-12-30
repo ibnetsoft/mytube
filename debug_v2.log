@@ -1,0 +1,1072 @@
+[2025-12-27 19:03:30.374168] Starting render V2 for project 5
+[2025-12-27 19:03:30.374178] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251227\tts_20251227_173617.mp3
+[2025-12-27 19:13:51.115443] Starting render V2 for project 5
+[2025-12-27 19:13:51.115460] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251227\tts_20251227_173617.mp3
+[2025-12-27 19:15:21.098380] Starting render V2 for project 5
+[2025-12-27 19:15:21.098411] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251227\tts_20251227_173617.mp3
+[2025-12-27 19:15:21.099273] Importing moviepy...
+[2025-12-27 19:15:21.888357] Loading audio clip...
+[2025-12-27 19:15:22.207519] Audio duration: 245.78
+[2025-12-27 19:15:22.210888] Calling create_slideshow...
+[2025-12-27 19:16:06.378698] Starting render V2 for project 5
+[2025-12-27 19:16:06.378716] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251227\tts_20251227_173617.mp3
+[2025-12-27 19:16:06.379895] Importing moviepy...
+[2025-12-27 19:16:07.403980] Loading audio clip...
+[2025-12-27 19:16:07.775394] Audio duration: 245.78
+[2025-12-27 19:16:07.779142] Calling create_slideshow...
+[2025-12-27 19:16:34.116327] Render Error: [Errno 22] Invalid argument
+
+MoviePy error: FFMPEG encountered the following error while writing file C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251227\temp_final_5_20251227_191606.mp4:
+
+ b'[in#0/rawvideo @ 000001ba697b4900] Error during demuxing: Cannot allocate memory\r\n'
+Traceback (most recent call last):
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\io\ffmpeg_writer.py", line 136, in write_frame
+    self.proc.stdin.write(img_array.tobytes())
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+OSError: [Errno 22] Invalid argument
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 1492, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<3 lines>...
+        title_text=project_title
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 174, in create_slideshow
+    video.write_videofile(
+    ~~~~~~~~~~~~~~~~~~~~~^
+        output_path,
+        ^^^^^^^^^^^^
+    ...<3 lines>...
+        threads=1  # Windows/FastAPI 환경 데드락 방지
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "<decorator-gen-55>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 54, in requires_duration
+    return f(clip, *a, **k)
+  File "<decorator-gen-54>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 135, in use_clip_fps_by_default
+    return f(clip, *new_a, **new_kw)
+  File "<decorator-gen-53>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 22, in convert_masks_to_RGB
+    return f(clip, *a, **k)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 300, in write_videofile
+    ffmpeg_write_video(self, filename, fps, codec,
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                       bitrate=bitrate,
+                       ^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+                       ffmpeg_params=ffmpeg_params,
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                       logger=logger)
+                       ^^^^^^^^^^^^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\io\ffmpeg_writer.py", line 228, in ffmpeg_write_video
+    writer.write_frame(frame)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\io\ffmpeg_writer.py", line 180, in write_frame
+    raise IOError(error)
+OSError: [Errno 22] Invalid argument
+
+MoviePy error: FFMPEG encountered the following error while writing file C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251227\temp_final_5_20251227_191606.mp4:
+
+ b'[in#0/rawvideo @ 000001ba697b4900] Error during demuxing: Cannot allocate memory\r\n'
+
+[2025-12-27 19:18:02.954906] Starting render V2 for project 5
+[2025-12-27 19:18:02.954938] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251227\tts_20251227_173617.mp3
+[2025-12-27 19:18:02.956002] Importing moviepy...
+[2025-12-27 19:18:03.641716] Loading audio clip...
+[2025-12-27 19:18:03.834851] Audio duration: 245.78
+[2025-12-27 19:18:03.838207] Calling create_slideshow...
+[2025-12-27 19:21:48.258496] Starting render V2 for project 5
+[2025-12-27 19:21:48.258519] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251227\tts_20251227_173617.mp3
+[2025-12-27 19:21:48.259219] Importing moviepy...
+[2025-12-27 19:21:48.259818] Loading audio clip...
+[2025-12-27 19:21:48.570840] Audio duration: 245.78
+[2025-12-27 19:21:48.574756] Calling create_slideshow...
+[2025-12-27 19:29:52.451114] Render Error: Unable to allocate 47.5 MiB for an array with shape (1080, 1920, 3) and data type float64
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 1492, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<3 lines>...
+        title_text=project_title
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 174, in create_slideshow
+    video.write_videofile(
+    ~~~~~~~~~~~~~~~~~~~~~^
+        output_path,
+        ^^^^^^^^^^^^
+    ...<4 lines>...
+        preset="ultrafast" # 인코딩 속도 최적화 및 행 방지
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "<decorator-gen-55>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 54, in requires_duration
+    return f(clip, *a, **k)
+  File "<decorator-gen-54>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 135, in use_clip_fps_by_default
+    return f(clip, *new_a, **new_kw)
+  File "<decorator-gen-53>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 22, in convert_masks_to_RGB
+    return f(clip, *a, **k)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 300, in write_videofile
+    ffmpeg_write_video(self, filename, fps, codec,
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                       bitrate=bitrate,
+                       ^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+                       ffmpeg_params=ffmpeg_params,
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                       logger=logger)
+                       ^^^^^^^^^^^^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\io\ffmpeg_writer.py", line 220, in ffmpeg_write_video
+    for t,frame in clip.iter_frames(logger=logger, with_times=True,
+                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                                    fps=fps, dtype="uint8"):
+                                    ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\Clip.py", line 472, in iter_frames
+    frame = self.get_frame(t)
+  File "<decorator-gen-11>", line 2, in get_frame
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 89, in wrapper
+    return f(*new_a, **new_kw)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\Clip.py", line 93, in get_frame
+    return self.make_frame(t)
+           ~~~~~~~~~~~~~~~^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\compositing\CompositeVideoClip.py", line 111, in make_frame
+    f = c.blit_on(f, t)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 564, in blit_on
+    return blit(img, picture, pos, mask=mask, ismask=self.ismask)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\tools\drawing.py", line 45, in blit
+    mask = np.dstack(3 * [mask])
+  File "C:\Program Files\Python313\Lib\site-packages\numpy\lib\_shape_base_impl.py", line 726, in dstack
+    return _nx.concatenate(arrs, 2)
+           ~~~~~~~~~~~~~~~^^^^^^^^^
+numpy._core._exceptions._ArrayMemoryError: Unable to allocate 47.5 MiB for an array with shape (1080, 1920, 3) and data type float64
+
+[2025-12-27 19:30:30.741827] Starting render V2 for project 5
+[2025-12-27 19:30:30.741894] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251227\tts_20251227_173617.mp3
+[2025-12-27 19:30:30.743501] Importing moviepy...
+[2025-12-27 19:30:30.745020] Loading audio clip...
+[2025-12-27 19:30:31.480564] Audio duration: 245.78
+[2025-12-27 19:30:31.512271] Calling create_slideshow...
+[2025-12-27 19:30:39.956858] Render Error: Unable to allocate 47.5 MiB for an array with shape (1080, 1920, 3) and data type float64
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 1473, in render_executor_func
+    audio_duration = audio_clip.duration
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    duration_per_image = audio_duration / len(images)
+    ^
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 174, in create_slideshow
+    video.write_videofile(
+    ^^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+        threads=1,  # Windows/FastAPI 환경 데드락 방지
+    
+  File "<decorator-gen-55>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 54, in requires_duration
+    return f(clip, *a, **k)
+  File "<decorator-gen-54>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 135, in use_clip_fps_by_default
+    return f(clip, *new_a, **new_kw)
+  File "<decorator-gen-53>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 22, in convert_masks_to_RGB
+    return f(clip, *a, **k)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 300, in write_videofile
+    ffmpeg_write_video(self, filename, fps, codec,
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                       bitrate=bitrate,
+                       ^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+                       ffmpeg_params=ffmpeg_params,
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                       logger=logger)
+                       ^^^^^^^^^^^^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\io\ffmpeg_writer.py", line 220, in ffmpeg_write_video
+    for t,frame in clip.iter_frames(logger=logger, with_times=True,
+                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                                    fps=fps, dtype="uint8"):
+                                    ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\Clip.py", line 472, in iter_frames
+    frame = self.get_frame(t)
+  File "<decorator-gen-11>", line 2, in get_frame
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 89, in wrapper
+    return f(*new_a, **new_kw)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\Clip.py", line 93, in get_frame
+    return self.make_frame(t)
+           ~~~~~~~~~~~~~~~^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\compositing\CompositeVideoClip.py", line 111, in make_frame
+    f = c.blit_on(f, t)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 564, in blit_on
+    return blit(img, picture, pos, mask=mask, ismask=self.ismask)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\tools\drawing.py", line 47, in blit
+    new_im2[yp1:yp2, xp1:xp2] = (1.0 * mask * blitted + (1.0 - mask) * blit_region)
+                                 ~~~~~~~~~~~^~~~~~~~~
+numpy._core._exceptions._ArrayMemoryError: Unable to allocate 47.5 MiB for an array with shape (1080, 1920, 3) and data type float64
+
+[2025-12-27 19:41:26.954780] Starting render V2 for project 5
+[2025-12-27 19:41:26.954795] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251227\tts_20251227_173617.mp3
+[2025-12-27 19:41:26.956012] Importing moviepy...
+[2025-12-27 19:41:27.753327] Loading audio clip...
+[2025-12-27 19:41:27.996161] Audio duration: 245.78
+[2025-12-27 19:41:28.002130] Calling create_slideshow...
+[2025-12-27 19:45:26.927256] Starting render V2 for project 5
+[2025-12-27 19:45:26.927266] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251227\tts_20251227_173617.mp3
+[2025-12-27 19:45:26.927729] Importing moviepy...
+[2025-12-27 19:45:27.275730] Loading audio clip...
+[2025-12-27 19:45:27.412736] Audio duration: 245.78
+[2025-12-27 19:45:27.414304] Calling create_slideshow...
+[2025-12-27 19:54:58.036133] Starting render V2 for project 5
+[2025-12-27 19:54:58.036145] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251227\tts_20251227_173617.mp3
+[2025-12-27 19:54:58.036687] Importing moviepy...
+[2025-12-27 19:54:58.354310] Loading audio clip...
+[2025-12-27 19:54:58.483278] Audio duration: 245.78
+[2025-12-27 19:54:58.484856] Calling create_slideshow...
+[2025-12-27 19:56:28.745347] Starting render V2 for project 5
+[2025-12-27 19:56:28.745368] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251227\tts_20251227_173617.mp3
+[2025-12-27 19:56:28.746172] Importing moviepy...
+[2025-12-27 19:56:29.072829] Loading audio clip...
+[2025-12-27 19:56:29.196806] Audio duration: 245.78
+[2025-12-27 19:56:29.198324] Calling create_slideshow...
+[2025-12-27 19:56:31.725099] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-27 20:11:58.768778] Render Error: name 'use_subtitles' is not defined
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 1517, in render_executor_func
+    if use_subtitles:
+       ^^^^^^^^^^^^^
+NameError: name 'use_subtitles' is not defined. Did you mean: 'get_subtitle'?
+
+[2025-12-27 20:45:46.587912] Starting render V2 for project 5
+[2025-12-27 20:45:46.587924] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251227\tts_20251227_173617.mp3
+[2025-12-27 20:45:46.588571] Importing moviepy...
+[2025-12-27 20:45:47.812246] Loading audio clip...
+[2025-12-27 20:45:47.984399] Audio duration: 245.78
+[2025-12-27 20:45:47.986023] Calling create_slideshow...
+[2025-12-27 20:45:50.519818] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-28 13:26:03.368404] Starting render V2 for project 5
+[2025-12-28 13:26:03.368418] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251228\tts_20251228_122300.mp3
+[2025-12-28 13:26:03.369411] Importing moviepy...
+[2025-12-28 13:26:03.370399] Loading audio clip...
+[2025-12-28 13:26:03.511001] Audio duration: 18.65
+[2025-12-28 13:26:03.513138] Calling create_slideshow...
+[2025-12-28 13:26:06.270532] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-28 14:13:01.482326] Starting render V2 for project 5
+[2025-12-28 14:13:01.482350] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251228\tts_20251228_141158.mp3
+[2025-12-28 14:13:01.483434] Importing moviepy...
+[2025-12-28 14:13:01.484063] Loading audio clip...
+[2025-12-28 14:13:01.727769] Audio duration: 104.5
+[2025-12-28 14:13:01.729761] Calling create_slideshow...
+[2025-12-28 14:13:04.218537] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-28 14:13:24.623496] Starting render V2 for project 5
+[2025-12-28 14:13:24.623541] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251228\tts_20251228_141158.mp3
+[2025-12-28 14:13:24.625028] Importing moviepy...
+[2025-12-28 14:13:24.625866] Loading audio clip...
+[2025-12-28 14:13:24.785324] Audio duration: 104.5
+[2025-12-28 14:13:24.790598] Calling create_slideshow...
+[2025-12-28 14:13:27.748008] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-28 14:13:52.995317] Starting render V2 for project 5
+[2025-12-28 14:13:52.995342] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251228\tts_20251228_141158.mp3
+[2025-12-28 14:13:52.996645] Importing moviepy...
+[2025-12-28 14:13:52.997547] Loading audio clip...
+[2025-12-28 14:13:53.261931] Audio duration: 104.5
+[2025-12-28 14:13:53.269222] Calling create_slideshow...
+[2025-12-28 14:13:56.603333] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-28 14:31:31.752224] Starting render V2 for project 5
+[2025-12-28 14:31:31.752236] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251228\tts_20251228_141158.mp3
+[2025-12-28 14:31:31.753376] Importing moviepy...
+[2025-12-28 14:31:32.287697] Loading audio clip...
+[2025-12-28 14:31:32.429089] Audio duration: 104.5
+[2025-12-28 14:31:32.430964] Calling create_slideshow...
+[2025-12-28 14:31:34.969594] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-28 19:34:29.009918] Starting render V2 for project 5
+[2025-12-28 19:34:29.009942] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251228\tts_20251228_141158.mp3
+[2025-12-28 19:34:29.010979] Importing moviepy...
+[2025-12-28 19:34:29.011717] Loading audio clip...
+[2025-12-28 19:34:29.147775] Audio duration: 104.5
+[2025-12-28 19:34:29.149818] Calling create_slideshow...
+[2025-12-28 19:34:31.781857] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-28 21:08:55.274443] Starting render V2 for project 5
+[2025-12-28 21:08:55.274461] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251228\tts_20251228_141158.mp3
+[2025-12-28 21:08:55.275675] Importing moviepy...
+[2025-12-28 21:08:55.276483] Loading audio clip...
+[2025-12-28 21:08:55.412158] Audio duration: 104.5
+[2025-12-28 21:08:55.414079] Calling create_slideshow...
+[2025-12-28 21:08:57.984777] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-28 21:31:15.008068] Starting render V2 for project 5
+[2025-12-28 21:31:15.008089] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251228\tts_20251228_141158.mp3
+[2025-12-28 21:31:15.008938] Importing moviepy...
+[2025-12-28 21:31:15.010015] Loading audio clip...
+[2025-12-28 21:31:15.150114] Audio duration: 104.5
+[2025-12-28 21:31:15.152089] Calling create_slideshow...
+[2025-12-28 21:31:17.708782] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-28 21:38:10.563407] Render Error: Unable to allocate 7.03 MiB for an array with shape (240, 1280, 3) and data type float64
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 1726, in render_executor_func
+    final_path = video_service.add_subtitles(
+        video_path=video_path,
+    ...<4 lines>...
+        font_size=80        # 사용자 요청: 큰 폰트 (첨부 이미지 참조)
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 459, in add_subtitles
+    final.write_videofile(
+    ~~~~~~~~~~~~~~~~~~~~~^
+        output_path,
+        ^^^^^^^^^^^^
+    ...<2 lines>...
+        audio_codec="aac"
+        ^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "<decorator-gen-55>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 54, in requires_duration
+    return f(clip, *a, **k)
+  File "<decorator-gen-54>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 135, in use_clip_fps_by_default
+    return f(clip, *new_a, **new_kw)
+  File "<decorator-gen-53>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 22, in convert_masks_to_RGB
+    return f(clip, *a, **k)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 300, in write_videofile
+    ffmpeg_write_video(self, filename, fps, codec,
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                       bitrate=bitrate,
+                       ^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+                       ffmpeg_params=ffmpeg_params,
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                       logger=logger)
+                       ^^^^^^^^^^^^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\io\ffmpeg_writer.py", line 220, in ffmpeg_write_video
+    for t,frame in clip.iter_frames(logger=logger, with_times=True,
+                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                                    fps=fps, dtype="uint8"):
+                                    ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\Clip.py", line 472, in iter_frames
+    frame = self.get_frame(t)
+  File "<decorator-gen-11>", line 2, in get_frame
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 89, in wrapper
+    return f(*new_a, **new_kw)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\Clip.py", line 93, in get_frame
+    return self.make_frame(t)
+           ~~~~~~~~~~~~~~~^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\compositing\CompositeVideoClip.py", line 111, in make_frame
+    f = c.blit_on(f, t)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 564, in blit_on
+    return blit(img, picture, pos, mask=mask, ismask=self.ismask)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\tools\drawing.py", line 47, in blit
+    new_im2[yp1:yp2, xp1:xp2] = (1.0 * mask * blitted + (1.0 - mask) * blit_region)
+                                 ~~~~~~~~~~~^~~~~~~~~
+numpy._core._exceptions._ArrayMemoryError: Unable to allocate 7.03 MiB for an array with shape (240, 1280, 3) and data type float64
+
+[2025-12-28 21:47:24.028693] Starting render V2 for project 5
+[2025-12-28 21:47:24.028706] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251228\tts_20251228_141158.mp3
+[2025-12-28 21:47:24.029585] Importing moviepy...
+[2025-12-28 21:47:24.511270] Loading audio clip...
+[2025-12-28 21:47:24.677495] Audio duration: 104.5
+[2025-12-28 21:47:24.679623] Calling create_slideshow...
+[2025-12-28 21:47:27.280370] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-28 21:50:34.767193] Render Error: Unable to allocate 21.1 MiB for an array with shape (720, 1280, 3) and data type float64
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 179, in create_slideshow
+    video.write_videofile(
+    ^^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+        temp_audiofile='temp-audio.m4a',
+    
+  File "<decorator-gen-55>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 54, in requires_duration
+    return f(clip, *a, **k)
+  File "<decorator-gen-54>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 135, in use_clip_fps_by_default
+    return f(clip, *new_a, **new_kw)
+  File "<decorator-gen-53>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 22, in convert_masks_to_RGB
+    return f(clip, *a, **k)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 300, in write_videofile
+    ffmpeg_write_video(self, filename, fps, codec,
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                       bitrate=bitrate,
+                       ^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+                       ffmpeg_params=ffmpeg_params,
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                       logger=logger)
+                       ^^^^^^^^^^^^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\io\ffmpeg_writer.py", line 220, in ffmpeg_write_video
+    for t,frame in clip.iter_frames(logger=logger, with_times=True,
+                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                                    fps=fps, dtype="uint8"):
+                                    ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\Clip.py", line 472, in iter_frames
+    frame = self.get_frame(t)
+  File "<decorator-gen-11>", line 2, in get_frame
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 89, in wrapper
+    return f(*new_a, **new_kw)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\Clip.py", line 93, in get_frame
+    return self.make_frame(t)
+           ~~~~~~~~~~~~~~~^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\compositing\CompositeVideoClip.py", line 111, in make_frame
+    f = c.blit_on(f, t)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 527, in blit_on
+    img = self.get_frame(ct)
+  File "<decorator-gen-11>", line 2, in get_frame
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 89, in wrapper
+    return f(*new_a, **new_kw)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\Clip.py", line 93, in get_frame
+    return self.make_frame(t)
+           ~~~~~~~~~~~~~~~^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\compositing\CompositeVideoClip.py", line 111, in make_frame
+    f = c.blit_on(f, t)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 564, in blit_on
+    return blit(img, picture, pos, mask=mask, ismask=self.ismask)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\tools\drawing.py", line 47, in blit
+    new_im2[yp1:yp2, xp1:xp2] = (1.0 * mask * blitted + (1.0 - mask) * blit_region)
+                                 ~~~~~~~~~~~^~~~~~~~~
+numpy._core._exceptions._ArrayMemoryError: Unable to allocate 21.1 MiB for an array with shape (720, 1280, 3) and data type float64
+
+[2025-12-28 21:50:34.779931] Render Error: Unable to allocate 21.1 MiB for an array with shape (720, 1280, 3) and data type float64
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 1638, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<4 lines>...
+        title_text="" # 사용자 요청: 프로젝트명 고정 노출 제거
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 192, in create_slideshow
+    with open("c:/Users/kimse/Downloads/유튜브소재발굴기/롱폼생성기/debug_v2.log", "a", encoding="utf-8") as f:
+    ^^^^^^^
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 179, in create_slideshow
+    video.write_videofile(
+    ^^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+        temp_audiofile='temp-audio.m4a',
+    
+  File "<decorator-gen-55>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 54, in requires_duration
+    return f(clip, *a, **k)
+  File "<decorator-gen-54>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 135, in use_clip_fps_by_default
+    return f(clip, *new_a, **new_kw)
+  File "<decorator-gen-53>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 22, in convert_masks_to_RGB
+    return f(clip, *a, **k)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 300, in write_videofile
+    ffmpeg_write_video(self, filename, fps, codec,
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                       bitrate=bitrate,
+                       ^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+                       ffmpeg_params=ffmpeg_params,
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                       logger=logger)
+                       ^^^^^^^^^^^^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\io\ffmpeg_writer.py", line 220, in ffmpeg_write_video
+    for t,frame in clip.iter_frames(logger=logger, with_times=True,
+                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                                    fps=fps, dtype="uint8"):
+                                    ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\Clip.py", line 472, in iter_frames
+    frame = self.get_frame(t)
+  File "<decorator-gen-11>", line 2, in get_frame
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 89, in wrapper
+    return f(*new_a, **new_kw)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\Clip.py", line 93, in get_frame
+    return self.make_frame(t)
+           ~~~~~~~~~~~~~~~^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\compositing\CompositeVideoClip.py", line 111, in make_frame
+    f = c.blit_on(f, t)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 527, in blit_on
+    img = self.get_frame(ct)
+  File "<decorator-gen-11>", line 2, in get_frame
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 89, in wrapper
+    return f(*new_a, **new_kw)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\Clip.py", line 93, in get_frame
+    return self.make_frame(t)
+           ~~~~~~~~~~~~~~~^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\compositing\CompositeVideoClip.py", line 111, in make_frame
+    f = c.blit_on(f, t)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 564, in blit_on
+    return blit(img, picture, pos, mask=mask, ismask=self.ismask)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\tools\drawing.py", line 47, in blit
+    new_im2[yp1:yp2, xp1:xp2] = (1.0 * mask * blitted + (1.0 - mask) * blit_region)
+                                 ~~~~~~~~~~~^~~~~~~~~
+numpy._core._exceptions._ArrayMemoryError: Unable to allocate 21.1 MiB for an array with shape (720, 1280, 3) and data type float64
+
+[2025-12-28 21:51:15.536666] Starting render V2 for project 5
+[2025-12-28 21:51:15.536678] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251228\tts_20251228_141158.mp3
+[2025-12-28 21:51:15.537340] Importing moviepy...
+[2025-12-28 21:51:16.588886] Loading audio clip...
+[2025-12-28 21:51:16.759094] Audio duration: 104.5
+[2025-12-28 21:51:16.761170] Calling create_slideshow...
+[2025-12-28 21:51:19.298190] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-28 21:51:23.122718] Render Error: Unable to allocate 21.1 MiB for an array with shape (720, 1280, 3) and data type float64
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 179, in create_slideshow
+    video.write_videofile(
+    ~~~~~~~~~~~~~~~~~~~~~^
+        output_path,
+        ^^^^^^^^^^^^
+    ...<6 lines>...
+        remove_temp=True
+        ^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "<decorator-gen-55>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 54, in requires_duration
+    return f(clip, *a, **k)
+  File "<decorator-gen-54>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 135, in use_clip_fps_by_default
+    return f(clip, *new_a, **new_kw)
+  File "<decorator-gen-53>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 22, in convert_masks_to_RGB
+    return f(clip, *a, **k)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 300, in write_videofile
+    ffmpeg_write_video(self, filename, fps, codec,
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                       bitrate=bitrate,
+                       ^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+                       ffmpeg_params=ffmpeg_params,
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                       logger=logger)
+                       ^^^^^^^^^^^^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\io\ffmpeg_writer.py", line 220, in ffmpeg_write_video
+    for t,frame in clip.iter_frames(logger=logger, with_times=True,
+                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                                    fps=fps, dtype="uint8"):
+                                    ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\Clip.py", line 472, in iter_frames
+    frame = self.get_frame(t)
+  File "<decorator-gen-11>", line 2, in get_frame
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 89, in wrapper
+    return f(*new_a, **new_kw)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\Clip.py", line 93, in get_frame
+    return self.make_frame(t)
+           ~~~~~~~~~~~~~~~^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\compositing\CompositeVideoClip.py", line 111, in make_frame
+    f = c.blit_on(f, t)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 527, in blit_on
+    img = self.get_frame(ct)
+  File "<decorator-gen-11>", line 2, in get_frame
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 89, in wrapper
+    return f(*new_a, **new_kw)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\Clip.py", line 93, in get_frame
+    return self.make_frame(t)
+           ~~~~~~~~~~~~~~~^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\compositing\CompositeVideoClip.py", line 111, in make_frame
+    f = c.blit_on(f, t)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 564, in blit_on
+    return blit(img, picture, pos, mask=mask, ismask=self.ismask)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\tools\drawing.py", line 47, in blit
+    new_im2[yp1:yp2, xp1:xp2] = (1.0 * mask * blitted + (1.0 - mask) * blit_region)
+                                                        ~~~~~~~~~~~~~^~~~~~~~~~~~~
+numpy._core._exceptions._ArrayMemoryError: Unable to allocate 21.1 MiB for an array with shape (720, 1280, 3) and data type float64
+
+[2025-12-28 21:51:23.130055] Render Error: Unable to allocate 21.1 MiB for an array with shape (720, 1280, 3) and data type float64
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 1638, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<4 lines>...
+        title_text="" # 사용자 요청: 프로젝트명 고정 노출 제거
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 194, in create_slideshow
+    raise e
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 179, in create_slideshow
+    video.write_videofile(
+    ~~~~~~~~~~~~~~~~~~~~~^
+        output_path,
+        ^^^^^^^^^^^^
+    ...<6 lines>...
+        remove_temp=True
+        ^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "<decorator-gen-55>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 54, in requires_duration
+    return f(clip, *a, **k)
+  File "<decorator-gen-54>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 135, in use_clip_fps_by_default
+    return f(clip, *new_a, **new_kw)
+  File "<decorator-gen-53>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 22, in convert_masks_to_RGB
+    return f(clip, *a, **k)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 300, in write_videofile
+    ffmpeg_write_video(self, filename, fps, codec,
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                       bitrate=bitrate,
+                       ^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+                       ffmpeg_params=ffmpeg_params,
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                       logger=logger)
+                       ^^^^^^^^^^^^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\io\ffmpeg_writer.py", line 220, in ffmpeg_write_video
+    for t,frame in clip.iter_frames(logger=logger, with_times=True,
+                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                                    fps=fps, dtype="uint8"):
+                                    ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\Clip.py", line 472, in iter_frames
+    frame = self.get_frame(t)
+  File "<decorator-gen-11>", line 2, in get_frame
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 89, in wrapper
+    return f(*new_a, **new_kw)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\Clip.py", line 93, in get_frame
+    return self.make_frame(t)
+           ~~~~~~~~~~~~~~~^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\compositing\CompositeVideoClip.py", line 111, in make_frame
+    f = c.blit_on(f, t)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 527, in blit_on
+    img = self.get_frame(ct)
+  File "<decorator-gen-11>", line 2, in get_frame
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 89, in wrapper
+    return f(*new_a, **new_kw)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\Clip.py", line 93, in get_frame
+    return self.make_frame(t)
+           ~~~~~~~~~~~~~~~^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\compositing\CompositeVideoClip.py", line 111, in make_frame
+    f = c.blit_on(f, t)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 564, in blit_on
+    return blit(img, picture, pos, mask=mask, ismask=self.ismask)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\tools\drawing.py", line 47, in blit
+    new_im2[yp1:yp2, xp1:xp2] = (1.0 * mask * blitted + (1.0 - mask) * blit_region)
+                                                        ~~~~~~~~~~~~~^~~~~~~~~~~~~
+numpy._core._exceptions._ArrayMemoryError: Unable to allocate 21.1 MiB for an array with shape (720, 1280, 3) and data type float64
+
+[2025-12-28 22:16:59.011903] Starting render V2 for project 5
+[2025-12-28 22:16:59.011913] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251228\tts_20251228_141158.mp3
+[2025-12-28 22:16:59.014115] Importing moviepy...
+[2025-12-28 22:16:59.017056] Importing moviepy...
+[2025-12-28 22:16:59.720702] Loading audio clip...
+[2025-12-28 22:16:59.968468] Audio duration: 104.5
+[2025-12-28 22:16:59.970959] Calling create_slideshow...
+[2025-12-28 22:16:59.990269] Audio duration: 104.5
+[2025-12-28 22:16:59.992274] Calling create_slideshow...
+[2025-12-28 22:17:02.855026] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-28 22:17:02.873820] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-28 22:22:23.868759] Starting render V2 for project 5
+[2025-12-28 22:22:23.868776] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251228\tts_20251228_141158.mp3
+[2025-12-28 22:22:23.870173] Importing moviepy...
+[2025-12-28 22:22:23.871343] Loading audio clip...
+[2025-12-28 22:22:24.081153] Audio duration: 104.5
+[2025-12-28 22:22:24.084020] Calling create_slideshow...
+[2025-12-28 22:22:27.934984] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-28 22:23:19.958899] Render Error: [WinError 32] 다른 프로세스가 파일을 사용 중이기 때문에 프로세스가 액세스 할 수 없습니다: 'temp-audio.mp3'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 179, in create_slideshow
+    video.write_videofile(
+    ~~~~~~~~~~~~~~~~~~~~~^
+        output_path,
+        ^^^^^^^^^^^^
+    ...<6 lines>...
+        remove_temp=True
+        ^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "<decorator-gen-55>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 54, in requires_duration
+    return f(clip, *a, **k)
+  File "<decorator-gen-54>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 135, in use_clip_fps_by_default
+    return f(clip, *new_a, **new_kw)
+  File "<decorator-gen-53>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 22, in convert_masks_to_RGB
+    return f(clip, *a, **k)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 311, in write_videofile
+    os.remove(audiofile)
+    ~~~~~~~~~^^^^^^^^^^^
+PermissionError: [WinError 32] 다른 프로세스가 파일을 사용 중이기 때문에 프로세스가 액세스 할 수 없습니다: 'temp-audio.mp3'
+
+[2025-12-28 22:23:19.963959] Render Error: [WinError 32] 다른 프로세스가 파일을 사용 중이기 때문에 프로세스가 액세스 할 수 없습니다: 'temp-audio.mp3'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 1638, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<4 lines>...
+        title_text="" # 사용자 요청: 프로젝트명 고정 노출 제거
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 194, in create_slideshow
+    raise e
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 179, in create_slideshow
+    video.write_videofile(
+    ~~~~~~~~~~~~~~~~~~~~~^
+        output_path,
+        ^^^^^^^^^^^^
+    ...<6 lines>...
+        remove_temp=True
+        ^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "<decorator-gen-55>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 54, in requires_duration
+    return f(clip, *a, **k)
+  File "<decorator-gen-54>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 135, in use_clip_fps_by_default
+    return f(clip, *new_a, **new_kw)
+  File "<decorator-gen-53>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 22, in convert_masks_to_RGB
+    return f(clip, *a, **k)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 311, in write_videofile
+    os.remove(audiofile)
+    ~~~~~~~~~^^^^^^^^^^^
+PermissionError: [WinError 32] 다른 프로세스가 파일을 사용 중이기 때문에 프로세스가 액세스 할 수 없습니다: 'temp-audio.mp3'
+
+[2025-12-28 22:23:20.916363] Render Error: [WinError 32] 다른 프로세스가 파일을 사용 중이기 때문에 프로세스가 액세스 할 수 없습니다: 'temp-audio.mp3'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 179, in create_slideshow
+    video.write_videofile(
+    ~~~~~~~~~~~~~~~~~~~~~^
+        output_path,
+        ^^^^^^^^^^^^
+    ...<6 lines>...
+        remove_temp=True
+        ^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "<decorator-gen-55>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 54, in requires_duration
+    return f(clip, *a, **k)
+  File "<decorator-gen-54>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 135, in use_clip_fps_by_default
+    return f(clip, *new_a, **new_kw)
+  File "<decorator-gen-53>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 22, in convert_masks_to_RGB
+    return f(clip, *a, **k)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 311, in write_videofile
+    os.remove(audiofile)
+    ~~~~~~~~~^^^^^^^^^^^
+PermissionError: [WinError 32] 다른 프로세스가 파일을 사용 중이기 때문에 프로세스가 액세스 할 수 없습니다: 'temp-audio.mp3'
+
+[2025-12-28 22:23:20.920588] Render Error: [WinError 32] 다른 프로세스가 파일을 사용 중이기 때문에 프로세스가 액세스 할 수 없습니다: 'temp-audio.mp3'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 1638, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<4 lines>...
+        title_text="" # 사용자 요청: 프로젝트명 고정 노출 제거
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 194, in create_slideshow
+    raise e
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 179, in create_slideshow
+    video.write_videofile(
+    ~~~~~~~~~~~~~~~~~~~~~^
+        output_path,
+        ^^^^^^^^^^^^
+    ...<6 lines>...
+        remove_temp=True
+        ^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "<decorator-gen-55>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 54, in requires_duration
+    return f(clip, *a, **k)
+  File "<decorator-gen-54>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 135, in use_clip_fps_by_default
+    return f(clip, *new_a, **new_kw)
+  File "<decorator-gen-53>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 22, in convert_masks_to_RGB
+    return f(clip, *a, **k)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 311, in write_videofile
+    os.remove(audiofile)
+    ~~~~~~~~~^^^^^^^^^^^
+PermissionError: [WinError 32] 다른 프로세스가 파일을 사용 중이기 때문에 프로세스가 액세스 할 수 없습니다: 'temp-audio.mp3'
+
+[2025-12-29 17:34:59.525567] Starting render V2 for project 5
+[2025-12-29 17:34:59.525580] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251229\tts_20251229_172838.mp3
+[2025-12-29 17:34:59.532841] Importing moviepy...
+[2025-12-29 17:34:59.533487] Loading audio clip...
+[2025-12-29 17:34:59.674925] Audio duration: 111.49000000000001
+[2025-12-29 17:34:59.676683] Calling create_slideshow...
+[2025-12-29 17:35:02.251642] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-29 18:13:17.749065] Starting render V2 for project 5
+[2025-12-29 18:13:17.749088] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251229\tts_20251229_172838.mp3
+[2025-12-29 18:13:17.750522] Importing moviepy...
+[2025-12-29 18:13:17.751135] Loading audio clip...
+[2025-12-29 18:13:17.892130] Audio duration: 111.49000000000001
+[2025-12-29 18:13:17.894526] Calling create_slideshow...
+[2025-12-29 18:13:20.339120] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-29 18:25:24.386806] Starting render V2 for project 5
+[2025-12-29 18:25:24.386823] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251229\tts_20251229_172838.mp3
+[2025-12-29 18:25:24.387525] Importing moviepy...
+[2025-12-29 18:25:24.388177] Loading audio clip...
+[2025-12-29 18:25:24.528286] Audio duration: 111.49000000000001
+[2025-12-29 18:25:24.530079] Calling create_slideshow...
+[2025-12-29 18:25:26.920717] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-29 18:31:50.899352] Starting render V2 for project 5
+[2025-12-29 18:31:50.899366] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251229\tts_20251229_172838.mp3
+[2025-12-29 18:31:50.899909] Importing moviepy...
+[2025-12-29 18:31:51.274022] Loading audio clip...
+[2025-12-29 18:31:51.391282] Audio duration: 111.49000000000001
+[2025-12-29 18:31:51.392971] Calling create_slideshow...
+[2025-12-29 18:31:53.794876] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-29 18:51:51.402987] Starting render V2 for project 5
+[2025-12-29 18:51:51.402999] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251229\tts_20251229_172838.mp3
+[2025-12-29 18:51:51.404415] Importing moviepy...
+[2025-12-29 18:51:51.405150] Loading audio clip...
+[2025-12-29 18:51:51.546115] Audio duration: 111.49000000000001
+[2025-12-29 18:51:51.548027] Calling create_slideshow...
+[2025-12-29 18:51:54.072986] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-29 18:59:47.392813] Starting render V2 for project 5
+[2025-12-29 18:59:47.392828] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251229\tts_20251229_172838.mp3
+[2025-12-29 18:59:47.394129] Importing moviepy...
+[2025-12-29 18:59:47.394960] Loading audio clip...
+[2025-12-29 18:59:47.526174] Audio duration: 111.49000000000001
+[2025-12-29 18:59:47.527988] Calling create_slideshow...
+[2025-12-29 18:59:49.949789] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-29 19:07:10.098512] Starting render V2 for project 5
+[2025-12-29 19:07:10.098531] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251229\tts_20251229_172838.mp3
+[2025-12-29 19:07:10.099250] Importing moviepy...
+[2025-12-29 19:07:10.100235] Loading audio clip...
+[2025-12-29 19:07:10.243139] Audio duration: 111.49000000000001
+[2025-12-29 19:07:10.245325] Calling create_slideshow...
+[2025-12-29 19:07:12.654488] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-29 19:08:06.536041] Starting render V2 for project 5
+[2025-12-29 19:08:06.536057] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251229\tts_20251229_172838.mp3
+[2025-12-29 19:08:06.536827] Importing moviepy...
+[2025-12-29 19:08:06.537732] Loading audio clip...
+[2025-12-29 19:08:06.689466] Audio duration: 111.49000000000001
+[2025-12-29 19:08:06.691474] Calling create_slideshow...
+[2025-12-29 19:08:09.323483] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-29 19:14:46.268335] Starting render V2 for project 5
+[2025-12-29 19:14:46.268344] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251229\tts_20251229_172838.mp3
+[2025-12-29 19:14:46.268750] Importing moviepy...
+[2025-12-29 19:14:46.727237] Loading audio clip...
+[2025-12-29 19:14:46.863100] Audio duration: 111.49000000000001
+[2025-12-29 19:14:46.864844] Calling create_slideshow...
+[2025-12-29 19:14:49.306478] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-29 19:14:49.966916] Render Error: 'FFMPEG_AudioWriter' object has no attribute 'ext'
+Traceback (most recent call last):
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\audio\io\ffmpeg_audiowriter.py", line 74, in write_frames
+    self.proc.stdin.write(frames_array.tobytes())
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 183, in create_slideshow
+    video.write_videofile(
+    ~~~~~~~~~~~~~~~~~~~~~^
+        output_path,
+        ^^^^^^^^^^^^
+    ...<6 lines>...
+        remove_temp=False # [STABILITY] 임시 파일 삭제 충돌 방지
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "<decorator-gen-55>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 54, in requires_duration
+    return f(clip, *a, **k)
+  File "<decorator-gen-54>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 135, in use_clip_fps_by_default
+    return f(clip, *new_a, **new_kw)
+  File "<decorator-gen-53>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 22, in convert_masks_to_RGB
+    return f(clip, *a, **k)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 293, in write_videofile
+    self.audio.write_audiofile(audiofile, audio_fps,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+                               audio_nbytes, audio_bufsize,
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+                               verbose=verbose,
+                               ^^^^^^^^^^^^^^^^
+                               logger=logger)
+                               ^^^^^^^^^^^^^^
+  File "<decorator-gen-45>", line 2, in write_audiofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 54, in requires_duration
+    return f(clip, *a, **k)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\audio\AudioClip.py", line 206, in write_audiofile
+    return ffmpeg_audiowrite(self, filename, fps, nbytes, buffersize,
+                             codec=codec, bitrate=bitrate,
+                             write_logfile=write_logfile, verbose=verbose,
+                             ffmpeg_params=ffmpeg_params,
+                             logger=logger)
+  File "<decorator-gen-9>", line 2, in ffmpeg_audiowrite
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 54, in requires_duration
+    return f(clip, *a, **k)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\audio\io\ffmpeg_audiowriter.py", line 170, in ffmpeg_audiowrite
+    writer.write_frames(chunk)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\audio\io\ffmpeg_audiowriter.py", line 102, in write_frames
+    % (self.codec, self.ext))
+                   ^^^^^^^^
+AttributeError: 'FFMPEG_AudioWriter' object has no attribute 'ext'
+
+[2025-12-29 19:14:49.972590] Render Error: 'FFMPEG_AudioWriter' object has no attribute 'ext'
+Traceback (most recent call last):
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\audio\io\ffmpeg_audiowriter.py", line 74, in write_frames
+    self.proc.stdin.write(frames_array.tobytes())
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 1650, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<4 lines>...
+        title_text="" # 사용자 요청: 프로젝트명 고정 노출 제거
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 198, in create_slideshow
+    raise e
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 183, in create_slideshow
+    video.write_videofile(
+    ~~~~~~~~~~~~~~~~~~~~~^
+        output_path,
+        ^^^^^^^^^^^^
+    ...<6 lines>...
+        remove_temp=False # [STABILITY] 임시 파일 삭제 충돌 방지
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "<decorator-gen-55>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 54, in requires_duration
+    return f(clip, *a, **k)
+  File "<decorator-gen-54>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 135, in use_clip_fps_by_default
+    return f(clip, *new_a, **new_kw)
+  File "<decorator-gen-53>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 22, in convert_masks_to_RGB
+    return f(clip, *a, **k)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 293, in write_videofile
+    self.audio.write_audiofile(audiofile, audio_fps,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+                               audio_nbytes, audio_bufsize,
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+                               verbose=verbose,
+                               ^^^^^^^^^^^^^^^^
+                               logger=logger)
+                               ^^^^^^^^^^^^^^
+  File "<decorator-gen-45>", line 2, in write_audiofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 54, in requires_duration
+    return f(clip, *a, **k)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\audio\AudioClip.py", line 206, in write_audiofile
+    return ffmpeg_audiowrite(self, filename, fps, nbytes, buffersize,
+                             codec=codec, bitrate=bitrate,
+                             write_logfile=write_logfile, verbose=verbose,
+                             ffmpeg_params=ffmpeg_params,
+                             logger=logger)
+  File "<decorator-gen-9>", line 2, in ffmpeg_audiowrite
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 54, in requires_duration
+    return f(clip, *a, **k)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\audio\io\ffmpeg_audiowriter.py", line 170, in ffmpeg_audiowrite
+    writer.write_frames(chunk)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\audio\io\ffmpeg_audiowriter.py", line 102, in write_frames
+    % (self.codec, self.ext))
+                   ^^^^^^^^
+AttributeError: 'FFMPEG_AudioWriter' object has no attribute 'ext'
+
+[2025-12-29 19:17:53.147854] Starting render V2 for project 5
+[2025-12-29 19:17:53.147865] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251229\tts_20251229_172838.mp3
+[2025-12-29 19:17:53.148344] Importing moviepy...
+[2025-12-29 19:17:53.443816] Loading audio clip...
+[2025-12-29 19:17:53.590091] Audio duration: 111.49000000000001
+[2025-12-29 19:17:53.592221] Calling create_slideshow...
+[2025-12-29 19:17:56.112955] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-29 19:45:58.731923] Starting render V2 for project 5
+[2025-12-29 19:45:58.731935] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251229\tts_20251229_172838.mp3
+[2025-12-29 19:45:58.732791] Importing moviepy...
+[2025-12-29 19:45:59.771763] Loading audio clip...
+[2025-12-29 19:45:59.905143] Audio duration: 111.49000000000001
+[2025-12-29 19:45:59.906870] Calling create_slideshow...
+[2025-12-29 19:46:02.495577] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-29 19:56:14.550395] Starting render V2 for project 5
+[2025-12-29 19:56:14.550409] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251229\tts_20251229_172838.mp3
+[2025-12-29 19:56:14.551110] Importing moviepy...
+[2025-12-29 19:56:14.551755] Loading audio clip...
+[2025-12-29 19:56:14.690448] Audio duration: 111.49000000000001
+[2025-12-29 19:56:14.692283] Calling create_slideshow...
+[2025-12-29 19:56:17.172345] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-29 20:12:10.852085] Starting render V2 for project 5
+[2025-12-29 20:12:10.852095] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251229\tts_20251229_172838.mp3
+[2025-12-29 20:12:10.852610] Importing moviepy...
+[2025-12-29 20:12:11.334542] Loading audio clip...
+[2025-12-29 20:12:11.464313] Audio duration: 111.49000000000001
+[2025-12-29 20:12:11.466035] Calling create_slideshow...
+[2025-12-29 20:12:14.028119] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-29 20:22:39.906730] Starting render V2 for project 5
+[2025-12-29 20:22:39.906749] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251229\tts_20251229_172838.mp3
+[2025-12-29 20:22:39.907547] Importing moviepy...
+[2025-12-29 20:22:39.909303] Loading audio clip...
+[2025-12-29 20:22:40.065849] Audio duration: 111.49000000000001
+[2025-12-29 20:22:40.067779] Calling create_slideshow...
+[2025-12-29 20:22:42.612500] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-30 11:15:10.850036] Starting render V2 for project 5
+[2025-12-30 11:15:10.850053] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251229\tts_20251229_172838.mp3
+[2025-12-30 11:15:10.851553] Importing moviepy...
+[2025-12-30 11:15:10.852086] Loading audio clip...
+[2025-12-30 11:15:10.995077] Audio duration: 100.0
+[2025-12-30 11:15:10.996797] Calling create_slideshow...
+[2025-12-30 11:15:13.676017] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-30 11:25:00.714773] Starting render V2 for project 5
+[2025-12-30 11:25:00.714791] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251230\tts_20251230_112315.mp3
+[2025-12-30 11:25:00.715754] Importing moviepy...
+[2025-12-30 11:25:00.716319] Loading audio clip...
+[2025-12-30 11:25:00.847998] Audio duration: 112.85
+[2025-12-30 11:25:00.851871] Calling create_slideshow...
+[2025-12-30 11:25:03.298385] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-30 12:02:26.100677] Starting render V2 for project 5
+[2025-12-30 12:02:26.100948] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251230\tts_20251230_112315.mp3
+[2025-12-30 12:02:26.101825] Importing moviepy...
+[2025-12-30 12:02:26.102424] Loading audio clip...
+[2025-12-30 12:02:26.236052] Audio duration: 110.47
+[2025-12-30 12:02:26.237919] Calling create_slideshow...
+[2025-12-30 12:02:28.878031] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-30 12:02:28.892052] Render Error: name 'output_path' is not defined
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 193, in create_slideshow
+    output_path,
+    ^^^^^^^^^^^
+NameError: name 'output_path' is not defined
+
+[2025-12-30 12:02:28.895197] Render Error: name 'output_path' is not defined
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 1665, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<5 lines>...
+        project_id=project_id # For progress tracking
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 208, in create_slideshow
+    raise e
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 193, in create_slideshow
+    output_path,
+    ^^^^^^^^^^^
+NameError: name 'output_path' is not defined
+
+[2025-12-30 12:04:09.716180] Starting render V2 for project 5
+[2025-12-30 12:04:09.716193] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251230\tts_20251230_112315.mp3
+[2025-12-30 12:04:09.716727] Importing moviepy...
+[2025-12-30 12:04:10.052043] Loading audio clip...
+[2025-12-30 12:04:10.188405] Audio duration: 110.47
+[2025-12-30 12:04:10.190016] Calling create_slideshow...
+[2025-12-30 12:04:12.665522] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-30 12:28:40.083704] Starting render V2 for project 5
+[2025-12-30 12:28:40.083717] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251230\tts_20251230_112315.mp3
+[2025-12-30 12:28:40.084792] Importing moviepy...
+[2025-12-30 12:28:40.085538] Loading audio clip...
+[2025-12-30 12:28:40.244542] Audio duration: 110.47
+[2025-12-30 12:28:40.246906] Calling create_slideshow...
+[2025-12-30 12:28:42.933539] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-30 13:34:07.811367] Starting render V2 for project 5
+[2025-12-30 13:34:07.811399] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251230\tts_20251230_112315.mp3
+[2025-12-30 13:34:07.814034] Importing moviepy...
+[2025-12-30 13:34:07.814935] Loading audio clip...
+[2025-12-30 13:34:07.961209] Audio duration: 110.47
+[2025-12-30 13:34:07.963408] Calling create_slideshow...
+[2025-12-30 13:34:10.636155] calling writes_videofile code in video_service (720p safe mode)
+[2025-12-30 13:58:33.350496] Starting render V2 for project 5
+[2025-12-30 13:58:33.350520] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251230\tts_20251230_134637.mp3
+[2025-12-30 13:58:33.355865] Importing moviepy...
+[2025-12-30 13:58:33.356500] Loading audio clip...
+[2025-12-30 13:58:33.511750] Audio duration: 121.65
+[2025-12-30 13:58:33.513711] Calling create_slideshow...
+[2025-12-30 13:58:35.996392] calling writes_videofile code in video_service (720p safe mode)

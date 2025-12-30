@@ -238,6 +238,16 @@ def migrate_db():
         cursor.execute("ALTER TABLE project_settings ADD COLUMN subtitle_path TEXT")
     except sqlite3.OperationalError:
         pass
+
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN is_published INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN youtube_video_id TEXT")
+    except sqlite3.OperationalError:
+        pass
         
     conn.commit()
     print("[DB] Migration completed")
@@ -322,6 +332,7 @@ def get_projects_with_status() -> List[Dict]:
         CASE WHEN t.id IS NOT NULL THEN 1 ELSE 0 END as has_tts,
         ps.video_path,
         ps.is_uploaded as is_uploaded,
+        ps.is_published as is_published,
         (SELECT COUNT(*) FROM thumbnails WHERE project_id = p.id) as thumbnail_count,
         m.description
     FROM projects p
@@ -357,6 +368,7 @@ def get_projects_with_status() -> List[Dict]:
                 "video": bool(r["video_path"]),       # 영상 렌더링
                 "thumbnail": r["thumbnail_count"] > 0,# 썸네일
                 "upload": bool(r["is_uploaded"]),     # 업로드
+                "publish": bool(r.get("is_published", 0)), # 발행
                 "desc": bool(r["description"])        # 설명
             }
         })

@@ -30,7 +30,8 @@
     </div>
 </div>
 
-<button onclick="generateMeta()" id="generateBtn" class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg mb-6">
+<button onclick="generateMeta()" id="generateBtn"
+    class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg mb-6">
     <span>📝</span>
     <span>제목/설명 생성</span>
 </button>
@@ -73,10 +74,70 @@
 
 {% block scripts %}
 <script>
+    let projectId = Utils.storage.get('currentProjectId');
+    // Ensure numeric
+    if (projectId && typeof projectId === 'string') projectId = parseInt(projectId);
+
     let metaData = null;
 
+    document.addEventListener('DOMContentLoaded', () => {
+        if (projectId) {
+            loadMetadata();
+        } else {
+            Utils.showToast('프로젝트를 선택해주세요.', 'warning');
+        }
+    });
+
+    async function loadMetadata() {
+        try {
+            const res = await fetch(`/api/projects/${projectId}/metadata`);
+            const data = await res.json();
+            if (data && data.titles) {
+                metaData = data;
+                renderResults();
+                document.getElementById('resultSection').classList.remove('hidden');
+            }
+        } catch (e) {
+            console.error('메타데이터 로드 실패', e);
+        }
+    }
+
+    async function saveMetadata() {
+        if (!projectId || !metaData) return;
+        try {
+            await fetch(`/api/projects/${projectId}/metadata`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(metaData)
+            });
+        } catch (e) {
+            console.error('메타데이터 저장 실패', e);
+        }
+    }
+
     async function generateMeta() {
-        const scriptData = Utils.storage.get('fullScript');
+        if (!projectId) {
+            Utils.showToast('프로젝트가 선택되지 않았습니다.', 'warning');
+            return;
+        }
+
+        // 대본 데이터 가져오기 (DB에서 직접 가져오는 것이 안전할 수 있으나, 일단 기존 flow 유지)
+        // 만약 Utils.storage에 없다면 서버에서 가져와야 함
+        let scriptData = Utils.storage.get('fullScript');
+
+        // storage에 없으면 서버에서 가져오기 시도
+        if (!scriptData) {
+            try {
+                const res = await fetch(`/api/projects/${projectId}/full`);
+                if (res.ok) {
+                    const fullData = await res.json();
+                    scriptData = { script: fullData.script?.full_script };
+                }
+            } catch (e) {
+                console.error("대본 로드 실패", e);
+            }
+        }
+
         const style = document.getElementById('titleStyle').value;
         const keyword = document.getElementById('targetKeyword').value;
 
@@ -113,6 +174,9 @@ JSON만 반환하세요.`;
                     metaData = JSON.parse(jsonMatch[0]);
                     renderResults();
                     document.getElementById('resultSection').classList.remove('hidden');
+                    // 생성 후 자동 저장
+                    await saveMetadata();
+                    Utils.showToast('메타데이터가 생성 및 저장되었습니다', 'success');
                 }
             }
         } catch (error) {
@@ -123,8 +187,10 @@ JSON만 반환하세요.`;
     }
 
     function renderResults() {
+        if (!metaData) return;
+
         // 제목
-        document.getElementById('titlesList').innerHTML = metaData.titles.map((title, i) => `
+        document.getElementById('titlesList').innerHTML = (metaData.titles || []).map((title, i) => `
             <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                 <span class="text-gray-800 dark:text-white">${title}</span>
                 <button onclick="copyTitle(${i})" class="btn-secondary text-xs">복사</button>
@@ -132,16 +198,24 @@ JSON만 반환하세요.`;
         `).join('');
 
         // 설명
-        document.getElementById('descriptionText').value = metaData.description;
+        document.getElementById('descriptionText').value = metaData.description || '';
 
         // 태그
-        document.getElementById('tagsList').innerHTML = metaData.tags.map(tag => `
+        document.getElementById('tagsList').innerHTML = (metaData.tags || []).map(tag => `
             <span class="px-3 py-1 bg-gray-200 dark:bg-gray-600 rounded-full text-sm">${tag}</span>
         `).join('');
 
         // 해시태그
-        document.getElementById('hashtagsText').textContent = metaData.hashtags.join(' ');
+        document.getElementById('hashtagsText').textContent = (metaData.hashtags || []).join(' ');
     }
+
+    // 설명문구 수정 시 자동 저장 트리거
+    document.getElementById('descriptionText').addEventListener('change', (e) => {
+        if (metaData) {
+            metaData.description = e.target.value;
+            saveMetadata();
+        }
+    });
 
     function copyTitle(index) {
         Utils.copyToClipboard(metaData.titles[index]);

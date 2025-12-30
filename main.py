@@ -650,6 +650,105 @@ async def youtube_search(req: SearchRequest):
         )
         return response.json()
 
+@app.post("/api/projects/{project_id}/youtube/auto-upload")
+async def auto_upload_youtube(project_id: int):
+    """유튜브 원클릭 자동 업로드 (영상 + 메타데이터 + 썸네일)"""
+    from services.youtube_upload_service import youtube_upload_service
+
+    # 1. 데이터 조회
+    project = db.get_project(project_id)
+    settings = db.get_project_settings(project_id)
+    meta = db.get_metadata(project_id)
+
+    if not project or not settings:
+        raise HTTPException(404, "프로젝트 정보를 찾을 수 없습니다.")
+
+    # 2. 파일 경로 및 메타데이터 준비
+    video_web_path = settings.get('video_path')
+    if not video_web_path:
+        raise HTTPException(400, "렌더링된 영상 파일 정보가 없습니다.")
+
+    # 웹 경로 (/output/folder/file.mp4) -> 절대 경로 변환
+    video_rel_path = video_web_path.replace('/output/', '', 1)
+    video_path = os.path.join(config.OUTPUT_DIR, video_rel_path)
+
+    if not os.path.exists(video_path):
+        print(f"DEBUG: Video file not found at {video_path}")
+        raise HTTPException(400, f"영상 파일을 찾을 수 없습니다: {os.path.basename(video_path)}")
+
+    # 메타데이터 (저장된 게 없으면 기본값 사용)
+    title = project['name']
+    description = ""
+    tags = []
+
+    if meta:
+        titles = meta.get('titles', [])
+        if titles:
+            title = titles[0] # 첫 번째 추천 제목 사용
+        description = meta.get('description', "")
+        tags = meta.get('tags', [])
+
+    # 3. 업로드 수행
+    try:
+        response = youtube_upload_service.upload_video(
+            file_path=video_path,
+            title=title,
+            description=description,
+            tags=tags,
+            privacy_status="private" # 기본은 비공개 (사용자가 검토 후 공개 전환)
+        )
+
+        video_id = response.get('id')
+        if not video_id:
+            raise Exception("업로드 응답에 비디오 ID가 없습니다.")
+
+        # 4. 썸네일 설정 (있는 경우)
+        thumb_url = settings.get('thumbnail_url')
+        if thumb_url:
+            # 웹 경로 (/output/file.png) -> 절대 경로 변환
+            thumb_rel_path = thumb_url.replace('/output/', '', 1)
+            thumb_path = os.path.join(config.OUTPUT_DIR, thumb_rel_path)
+            
+            if os.path.exists(thumb_path):
+                youtube_upload_service.set_thumbnail(video_id, thumb_path)
+
+        # 5. 상태 업데이트 (비디오 ID 저장)
+        db.update_project_setting(project_id, 'youtube_video_id', video_id)
+        db.update_project_setting(project_id, 'is_uploaded', 1)
+        db.update_project_setting(project_id, 'is_published', 0) # 아직 비공개 상태이므로 0
+
+        return {
+            "status": "ok",
+            "video_id": video_id,
+            "url": f"https://youtu.be/{video_id}"
+        }
+
+    except Exception as e:
+        print(f"Auto Upload Error: {e}")
+        raise HTTPException(500, f"업로드 중 오류 발생: {str(e)}")
+
+@app.post("/api/projects/{project_id}/youtube/public")
+async def publicize_youtube_video(project_id: int):
+    """유튜브 영상을 '공개(public)' 상태로 전환"""
+    from services.youtube_upload_service import youtube_upload_service
+    
+    settings = db.get_project_settings(project_id)
+    if not settings or not settings.get('youtube_video_id'):
+        raise HTTPException(400, "업로드된 영상의 ID를 찾을 수 없습니다. 먼저 업로드를 진행해 주세요.")
+    
+    video_id = settings['youtube_video_id']
+    
+    try:
+        youtube_upload_service.update_video_privacy(video_id, "public")
+        
+        # 상태 업데이트
+        db.update_project_setting(project_id, 'is_published', 1)
+        
+        return {"status": "ok", "message": "영상이 공개 상태로 전환되었습니다."}
+    except Exception as e:
+        print(f"Publicize Error: {e}")
+        raise HTTPException(500, f"공개 전환 중 오류 발생: {str(e)}")
+
 
 @app.get("/api/youtube/videos/{video_id}")
 async def youtube_video_detail(video_id: str):

@@ -102,5 +102,40 @@ class YouTubeUploadService:
         
         return response
 
+    def set_thumbnail(self, video_id: str, thumbnail_path: str):
+        """비디오 썸네일 설정"""
+        if not os.path.exists(thumbnail_path):
+            print(f"썸네일 파일을 찾을 수 없습니다: {thumbnail_path}")
+            return None
+
+        youtube = self.get_authenticated_service()
+        
+        request = youtube.thumbnails().set(
+            videoId=video_id,
+            media_body=MediaFileUpload(thumbnail_path)
+        )
+        response = request.execute()
+        print(f"썸네일 설정 완료: {video_id}")
+        return response
+
+    def update_video_privacy(self, video_id: str, privacy_status: str = "public"):
+        """비디오 공개 범위 수정 (private -> public 등)"""
+        youtube = self.get_authenticated_service()
+
+        body = {
+            "id": video_id,
+            "status": {
+                "privacyStatus": privacy_status
+            }
+        }
+
+        request = youtube.videos().update(
+            part="status",
+            body=body
+        )
+        response = request.execute()
+        print(f"공개 범위 수정 완료 ({privacy_status}): {video_id}")
+        return response
+
 # 싱글톤 인스턴스
 youtube_upload_service = YouTubeUploadService()

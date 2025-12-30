@@ -1,0 +1,147 @@
+[2025-12-27 18:29:16.605228] Scheduled task for project 5
+[2025-12-27 18:29:16.617401] Starting render for project 5
+[2025-12-27 18:29:16.617421] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251227\tts_20251227_173617.mp3
+[2025-12-27 18:29:17.285386] Render Error: cannot access local variable 'output_dir' where it is not associated with a value
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 1468, in process_project_render
+    temp_path = os.path.join(output_dir, temp_filename)
+                             ^^^^^^^^^^
+UnboundLocalError: cannot access local variable 'output_dir' where it is not associated with a value
+
+[2025-12-27 18:30:11.904177] Scheduled task for project 5
+[2025-12-27 18:30:11.905441] Starting render for project 5
+[2025-12-27 18:30:11.905452] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251227\tts_20251227_173617.mp3
+[2025-12-27 18:30:12.067863] Render Error: cannot access local variable 'output_dir' where it is not associated with a value
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 1468, in process_project_render
+    temp_path = os.path.join(output_dir, temp_filename)
+                             ^^^^^^^^^^
+UnboundLocalError: cannot access local variable 'output_dir' where it is not associated with a value
+
+[2025-12-27 18:32:21.137056] Scheduled task for project 5
+[2025-12-27 18:32:21.138406] Starting render for project 5
+[2025-12-27 18:32:21.138415] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251227\tts_20251227_173617.mp3
+[2025-12-27 18:32:21.308787] Render Error: cannot access local variable 'output_dir' where it is not associated with a value
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 1468, in process_project_render
+    temp_path = os.path.join(output_dir, temp_filename)
+                             ^^^^^^^^^^
+UnboundLocalError: cannot access local variable 'output_dir' where it is not associated with a value
+
+[2025-12-27 18:33:34.660509] Scheduled task for project 5
+[2025-12-27 18:33:34.661878] Starting render for project 5
+[2025-12-27 18:33:34.661891] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251227\tts_20251227_173617.mp3
+[2025-12-27 18:33:34.836080] Render Error: cannot access local variable 'output_dir' where it is not associated with a value
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 1468, in process_project_render
+    temp_path = os.path.join(output_dir, temp_filename)
+                             ^^^^^^^^^^
+UnboundLocalError: cannot access local variable 'output_dir' where it is not associated with a value
+
+[2025-12-27 18:34:43.969643] Scheduled task for project 5
+[2025-12-27 18:34:43.971339] Starting render for project 5
+[2025-12-27 18:34:43.971350] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251227\tts_20251227_173617.mp3
+[2025-12-27 18:34:44.153426] Render Error: cannot access local variable 'output_dir' where it is not associated with a value
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 1468, in process_project_render
+    temp_path = os.path.join(render_output_dir, temp_filename)
+                             ^^^^^^^^^^
+UnboundLocalError: cannot access local variable 'output_dir' where it is not associated with a value
+
+[2025-12-27 18:36:26.471449] Scheduled task for project 5
+[2025-12-27 18:36:26.473503] Starting render for project 5
+[2025-12-27 18:36:26.473519] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251227\tts_20251227_173617.mp3
+[2025-12-27 18:36:26.662994] Render Error: cannot access local variable 'output_dir' where it is not associated with a value
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 1468, in process_project_render
+    temp_path = os.path.join(render_path_v2, temp_filename)
+                             ^^^^^^^^^^
+UnboundLocalError: cannot access local variable 'output_dir' where it is not associated with a value
+
+[2025-12-27 18:38:21.398665] Scheduled task for project 5
+[2025-12-27 18:38:21.400401] Starting render for project 5
+[2025-12-27 18:38:21.400418] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251227\tts_20251227_173617.mp3
+[2025-12-27 18:38:21.557441] Render Error: cannot access local variable 'output_dir' where it is not associated with a value
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 1468, in process_project_render
+    temp_path = os.path.join(render_path_v2, temp_filename)
+                             ^^^^^^^^^^
+UnboundLocalError: cannot access local variable 'output_dir' where it is not associated with a value
+
+[2025-12-27 19:01:13.707904] Scheduled task for project 5
+[2025-12-27 19:01:13.709366] Starting render for project 5
+[2025-12-27 19:01:13.709376] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\고스톱_20251227\tts_20251227_173617.mp3
+[2025-12-27 19:01:13.869870] Render Error: cannot access local variable 'output_dir' where it is not associated with a value
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 1468, in process_project_render
+    temp_path = os.path.join(render_path_v2, temp_filename)
+                             ^^^^^^^^^^
+UnboundLocalError: cannot access local variable 'output_dir' where it is not associated with a value
+
+[2025-12-27 19:03:30.366425] Scheduled task for project 5
+[2025-12-27 19:11:20.605018] Scheduled task for project 5
+[2025-12-27 19:13:51.051969] Scheduled task for project 5
+[2025-12-27 19:15:21.012609] Scheduled task for project 5
+[2025-12-27 19:16:06.274081] Scheduled task for project 5
+[2025-12-27 19:16:33.988866] Render Error: Unable to allocate 47.5 MiB for an array with shape (1080, 1920, 3) and data type float64
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 1474, in render_executor_func
+    audio_clip.close()
+                 ^^^^^
+    ...<5 lines>...
+    
+    
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 174, in create_slideshow
+    video.write_videofile(
+    ^^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+        threads=1  # Windows/FastAPI 환경 데드락 방지
+    
+  File "<decorator-gen-55>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 54, in requires_duration
+    return f(clip, *a, **k)
+  File "<decorator-gen-54>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 135, in use_clip_fps_by_default
+    return f(clip, *new_a, **new_kw)
+  File "<decorator-gen-53>", line 2, in write_videofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 22, in convert_masks_to_RGB
+    return f(clip, *a, **k)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 300, in write_videofile
+    ffmpeg_write_video(self, filename, fps, codec,
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                       bitrate=bitrate,
+                       ^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+                       ffmpeg_params=ffmpeg_params,
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                       logger=logger)
+                       ^^^^^^^^^^^^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\io\ffmpeg_writer.py", line 220, in ffmpeg_write_video
+    for t,frame in clip.iter_frames(logger=logger, with_times=True,
+                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                                    fps=fps, dtype="uint8"):
+                                    ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\Clip.py", line 472, in iter_frames
+    frame = self.get_frame(t)
+  File "<decorator-gen-11>", line 2, in get_frame
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 89, in wrapper
+    return f(*new_a, **new_kw)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\Clip.py", line 93, in get_frame
+    return self.make_frame(t)
+           ~~~~~~~~~~~~~~~^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\compositing\CompositeVideoClip.py", line 111, in make_frame
+    f = c.blit_on(f, t)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\VideoClip.py", line 564, in blit_on
+    return blit(img, picture, pos, mask=mask, ismask=self.ismask)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\video\tools\drawing.py", line 47, in blit
+    new_im2[yp1:yp2, xp1:xp2] = (1.0 * mask * blitted + (1.0 - mask) * blit_region)
+                                                        ~~~~~~~~~~~~~^~~~~~~~~~~~~
+numpy._core._exceptions._ArrayMemoryError: Unable to allocate 47.5 MiB for an array with shape (1080, 1920, 3) and data type float64
+
+[2025-12-27 19:18:02.857599] Scheduled task for project 5
+[2025-12-27 19:21:48.249877] Scheduled task for project 5
+[2025-12-27 19:30:30.719834] Scheduled task for project 5
+[2025-12-27 19:41:26.850427] Scheduled task for project 5
+[2025-12-27 19:45:26.862342] Scheduled task for project 5
+[2025-12-27 19:54:57.989464] Scheduled task for project 5
+[2025-12-27 19:56:28.669830] Scheduled task for project 5
