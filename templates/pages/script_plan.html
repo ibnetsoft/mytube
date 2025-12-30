@@ -1,15 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="page-header">
-    <div class="flex items-center gap-3">
-        <span class="text-3xl">📋</span>
-        <div>
-            <h1>대본 기획</h1>
-            <p>분석 데이터를 기반으로 대본 구조를 설계합니다</p>
-        </div>
-    </div>
-</div>
+
 
 <!-- 분석 데이터 표시 -->
 <div id="analysisInfo" class="card mb-6 hidden">
@@ -50,49 +42,6 @@
     </div>
 </div>
 
-<!-- 스타일 설정 (일관성 유지) -->
-<div class="card mb-6 border-l-4 border-purple-500">
-    <h3 class="font-bold text-gray-800 dark:text-white mb-4">🎨 스타일 설정 (일관성 유지)</h3>
-    <p class="text-xs text-gray-500 mb-4">영상 전체에 적용될 스타일을 지정하세요. 이미지, 자막 등이 이 설정을 따릅니다.</p>
-
-    <div class="space-y-4">
-        <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">이미지 스타일 프롬프트</label>
-            <input type="text" id="imageStyleInput" class="input-field"
-                placeholder="예: 3D Pixar style, cute character, bright lighting">
-            <p class="text-xs text-gray-400 mt-1">모든 이미지 생성 프롬프트에 자동으로 추가됩니다.</p>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">자막 폰트</label>
-                <select id="subtitleFontSelect" class="input-field">
-                    <option value="Malgun-Gothic-Bold">맑은 고딕 (기본)</option>
-                    <option value="CookieRun Regular">쿠키런 (귀여움)</option>
-                    <option value="GmarketSansBold">G마켓 산스 (깔끔함)</option>
-                    <option value="NanumMyeongjo">나눔명조 (감성)</option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">자막 색상</label>
-                <select id="subtitleColorSelect" class="input-field">
-                    <option value="white">흰색 (기본)</option>
-                    <option value="yellow">노랑 (강조)</option>
-                    <option value="#FFD700">골드</option>
-                    <option value="#00FF00">라임</option>
-                    <option value="#FF00FF">핑트</option>
-                    <option value="black">검정</option>
-                </select>
-            </div>
-        </div>
-
-        <div class="flex justify-end">
-            <button onclick="saveStyleSettings()" class="btn-secondary text-sm px-4 py-2">
-                💾 스타일 저장
-            </button>
-        </div>
-    </div>
-</div>
 
 <!-- 생성 버튼 -->
 <button onclick="generateStructure()" id="generateBtn"
@@ -228,9 +177,9 @@
 
                     if (fullData.settings) {
                         const s = fullData.settings;
-                        if (s.image_style_prompt) document.getElementById('imageStyleInput').value = s.image_style_prompt;
-                        if (s.subtitle_font) document.getElementById('subtitleFontSelect').value = s.subtitle_font;
-                        if (s.subtitle_color) document.getElementById('subtitleColorSelect').value = s.subtitle_color;
+                        // if (s.image_style_prompt) document.getElementById('imageStyleInput').value = s.image_style_prompt;
+                        // if (s.subtitle_font) document.getElementById('subtitleFontSelect').value = s.subtitle_font;
+                        // if (s.subtitle_color) document.getElementById('subtitleColorSelect').value = s.subtitle_color;
                     }
                 }
             } catch (e) { console.error('스타일/언어 로드 실패:', e); }
@@ -240,34 +189,6 @@
         }
     }
 
-    async function saveStyleSettings() {
-        const projectId = getCurrentProject();
-        if (!projectId) return;
-
-        const imageStyle = document.getElementById('imageStyleInput').value;
-        const font = document.getElementById('subtitleFontSelect').value;
-        const color = document.getElementById('subtitleColorSelect').value;
-
-        const btn = document.querySelector('button[onclick="saveStyleSettings()"]');
-        const originalText = btn.innerHTML;
-        btn.innerHTML = '저장 중...';
-        btn.disabled = true;
-
-        try {
-            await API.project.update(projectId, {
-                image_style_prompt: imageStyle,
-                subtitle_font: font,
-                subtitle_color: color
-            });
-            Utils.showToast('스타일 설정이 저장되었습니다. 모든 단계에 적용됩니다.', 'success');
-        } catch (e) {
-            console.error(e);
-            Utils.showToast('저장 실패', 'error');
-        } finally {
-            btn.innerHTML = originalText;
-            btn.disabled = false;
-        }
-    }
 
     // [NEW] 전역 변수로 타겟 언어 관리
     let currentTargetLanguage = 'ko';

@@ -759,39 +759,34 @@ class VideoService:
         "Basic_White": {
             "font_color": "white",
             "stroke_color": "black",
-            "stroke_width_ratio": 0.15, # [User Request] Thicker Stroke
-            "bg_color": None,
-            "font_name": "malgunbd.ttf" # [User Request] Bold
+            "stroke_width_ratio": 0.15,
+            "bg_color": None
         },
         "Vlog_Yellow": {
-            "font_color": "#FFD700", # Gold
-            "stroke_color": "#4B0082", # Indigo
+            "font_color": "#FFD700",
+            "stroke_color": "#4B0082",
             "stroke_width_ratio": 0.08,
-            "bg_color": None,
-            "font_name": "malgunbd.ttf"
+            "bg_color": None
         },
         "Cinematic_Box": {
             "font_color": "white",
             "stroke_color": None,
             "stroke_width_ratio": 0,
             "bg_color": (0, 0, 0, 150),
-            "bg_padding_x": 20, # [User Request] Maintain width padding
-            "bg_padding_y": 0,  # [User Request] Tight vertical fit
-            "font_name": "malgunbd.ttf" # [User Request] Bold
+            "bg_padding_x": 20,
+            "bg_padding_y": 0
         },
         "Cute_Pink": {
-            "font_color": "#FF69B4", # HotPink
+            "font_color": "#FF69B4",
             "stroke_color": "white",
             "stroke_width_ratio": 0.12,
-            "bg_color": None,
-            "font_name": "malgunbd.ttf"
+            "bg_color": None
         },
         "Neon_Green": {
-            "font_color": "#00FF00", # Lime
+            "font_color": "#00FF00",
             "stroke_color": "black",
             "stroke_width_ratio": 0.15,
-            "bg_color": None,
-            "font_name": "arialbd.ttf"
+            "bg_color": None
         }
     }
 
@@ -812,13 +807,34 @@ class VideoService:
         font = None
         system = platform.system()
         try:
-            target_font = style.get("font_name", font_name)
+            # 스타일 설정보다 인자로 넘어온 font_name(사용자 선택)을 우선시하되, 
+            # 인자가 기본값이면 스타일 설정을 따름 (수정: 스타일에서 font_name 제거했으므로 font_name 사용)
+            target_font = font_name
+            
+            # 폰트 별칭 매핑 (UI 이름 -> 실제 파일명)
+            font_mapping = {
+                "Malgun-Gothic-Bold": "malgunbd.ttf",
+                "CookieRun Regular": "CookieRun Regular.ttf",
+                "GmarketSansBold": "GmarketSansBold.ttf",
+                "NanumMyeongjo": "NanumMyeongjo.ttf"
+            }
+            target_font = font_mapping.get(target_font, target_font)
+
             if system == 'Windows':
                 if not target_font.endswith('.ttf'): target_font += '.ttf'
                 font_path = f"C:/Windows/Fonts/{target_font}"
                 if not os.path.exists(font_path):
-                     font_path = "C:/Windows/Fonts/malgun.ttf"
-                font = ImageFont.truetype(font_path, font_size)
+                     # GmarketSansBold가 없으면 malgunbd.ttf로 대체 (GmarketSansBold가 보통 설치 안 되어 있을 수 있음)
+                     if "Gmarket" in target_font:
+                         font_path = "C:/Windows/Fonts/malgunbd.ttf"
+                     else:
+                         font_path = "C:/Windows/Fonts/malgun.ttf"
+                
+                # 최종 확인 한 번 더 (malgun.ttf도 없을 수 있는 극한의 상황 대비)
+                if not os.path.exists(font_path):
+                    font = ImageFont.load_default()
+                else:
+                    font = ImageFont.truetype(font_path, font_size)
             else:
                  font = ImageFont.truetype("arial.ttf", font_size)
         except:

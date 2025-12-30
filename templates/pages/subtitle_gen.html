@@ -2,6 +2,63 @@
 
 {% block content %}
 <div class="max-w-4xl mx-auto">
+    <style>
+        /* External Fonts for Preview */
+        @import url('https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@700;800&display=swap');
+
+        @font-face {
+            font-family: 'CookieRun-Regular';
+            src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/CookieRun-Regular.woff') format('woff');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'GmarketSansBold';
+            src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/GmarketSansBold.woff') format('woff');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        .font-radio-label {
+            cursor: pointer;
+        }
+
+        .font-radio-box {
+            padding: 8px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+            background: white;
+            color: #374151;
+            font-weight: 500;
+        }
+
+        .dark .font-radio-box {
+            background: #374151;
+            border-color: #4b5563;
+            color: #f3f4f6;
+        }
+
+        .color-circle {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.2s;
+            border: 2px solid transparent;
+        }
+
+        .color-circle.active {
+            border-color: #3b82f6;
+            transform: scale(1.2);
+        }
+
+        .color-circle:hover {
+            transform: scale(1.1);
+        }
+    </style>
     <!-- 헤더 -->
     <div class="flex items-center justify-between mb-8">
         <div>
@@ -30,10 +87,64 @@
             <div
                 class="flex items-center gap-3 bg-gray-50 dark:bg-gray-700 px-3 py-1 rounded-full border border-gray-200 dark:border-gray-600">
                 <span class="text-xs font-bold text-gray-500">크기</span>
-                <input type="range" id="fontSizeSlider" min="5" max="100" value="10" step="1"
+                <input type="range" id="fontSizeSlider" min="5" max="100" value="40" step="1"
                     class="w-32 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-600">
                 <span id="fontSizeValue"
-                    class="text-xs font-mono w-8 text-right text-blue-600 dark:text-blue-400 font-bold">10</span>
+                    class="text-xs font-mono w-8 text-right text-blue-600 dark:text-blue-400 font-bold">40</span>
+            </div>
+        </div>
+
+        <!-- [NEW] 자막 서체 및 색상 설정 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+            <!-- 폰트 선택 (라디오 버튼) -->
+            <div>
+                <label class="block text-xs font-bold text-gray-500 mb-3">🔤 자막 서체 (Font)</label>
+                <div class="flex flex-wrap gap-3">
+                    <label class="font-radio-label">
+                        <input type="radio" name="subtitle_font" value="Malgun-Gothic-Bold" class="hidden peer">
+                        <div
+                            class="font-radio-box peer-checked:border-blue-600 peer-checked:bg-blue-600 peer-checked:text-white">
+                            맑은 고딕</div>
+                    </label>
+                    <label class="font-radio-label">
+                        <input type="radio" name="subtitle_font" value="CookieRun Regular" class="hidden peer">
+                        <div
+                            class="font-radio-box peer-checked:border-blue-600 peer-checked:bg-blue-600 peer-checked:text-white">
+                            쿠키런</div>
+                    </label>
+                    <label class="font-radio-label">
+                        <input type="radio" name="subtitle_font" value="GmarketSansBold" class="hidden peer" checked>
+                        <div
+                            class="font-radio-box peer-checked:border-blue-600 peer-checked:bg-blue-600 peer-checked:text-white">
+                            G마켓 산스</div>
+                    </label>
+                    <label class="font-radio-label">
+                        <input type="radio" name="subtitle_font" value="NanumMyeongjo" class="hidden peer">
+                        <div
+                            class="font-radio-box peer-checked:border-blue-600 peer-checked:bg-blue-600 peer-checked:text-white">
+                            나눔명조</div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 색상 선택 -->
+            <div>
+                <label class="block text-xs font-bold text-gray-500 mb-3">🎨 자막 기본 색상 (Color)</label>
+                <div class="flex flex-wrap gap-2" id="colorPalette">
+                    <!-- 색상 서클들 -->
+                    <div onclick="selectColor('white')" data-color="white"
+                        class="color-circle bg-white border border-gray-300 active" title="흰색"></div>
+                    <div onclick="selectColor('yellow')" data-color="yellow" class="color-circle bg-yellow-400"
+                        title="노랑"></div>
+                    <div onclick="selectColor('#FFD700')" data-color="#FFD700" class="color-circle bg-[#FFD700]"
+                        title="골드"></div>
+                    <div onclick="selectColor('#00FF00')" data-color="#00FF00" class="color-circle bg-[#00FF00]"
+                        title="라임"></div>
+                    <div onclick="selectColor('#FF00FF')" data-color="#FF00FF" class="color-circle bg-[#FF00FF]"
+                        title="핑크"></div>
+                    <div onclick="selectColor('black')" data-color="black" class="color-circle bg-black" title="검정">
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -125,26 +236,47 @@
     let images = [];
     let audioDuration = 0;
 
-    document.addEventListener('DOMContentLoaded', async () => {
-        if (!projectId) {
-            // Try getting from URL if present (e.g. ?project_id=1)
-            const urlParams = new URLSearchParams(window.location.search);
-            const pid = urlParams.get('project_id');
-            if (pid) {
-                projectId = parseInt(pid);
-                Utils.storage.set('currentProjectId', projectId);
-            }
-        }
-
-        if (!projectId) {
-            Utils.showToast('프로젝트를 선택해주세요.', 'warning');
-            return;
-        }
-        await loadSubtitles();
-    });
 
     async function loadSubtitles() {
         try {
+            // Load project settings first
+            const projectData = await API.project.getFull(projectId);
+            if (projectData.settings) {
+                const s = projectData.settings;
+
+                // 폰트 크기
+                if (s.subtitle_font_size) {
+                    document.getElementById('fontSizeSlider').value = s.subtitle_font_size;
+                    document.getElementById('fontSizeValue').textContent = s.subtitle_font_size;
+                }
+
+                // 폰트 서체 (Radio)
+                if (s.subtitle_font) {
+                    const radio = document.querySelector(`input[name="subtitle_font"][value="${s.subtitle_font}"]`);
+                    if (radio) {
+                        radio.checked = true;
+                        updateFontPreview(s.subtitle_font);
+                    }
+                } else {
+                    // 기본값 GmarketSansBold 설정
+                    const radio = document.querySelector(`input[name="subtitle_font"][value="GmarketSansBold"]`);
+                    if (radio) {
+                        radio.checked = true;
+                        updateFontPreview("GmarketSansBold");
+                    }
+                }
+
+                // 색상
+                if (s.subtitle_color) {
+                    selectColor(s.subtitle_color, false); // false = don't save again
+                }
+
+                // 스타일
+                if (s.subtitle_style_enum) {
+                    selectStyle(s.subtitle_style_enum, false);
+                }
+            }
+
             const res = await fetch(`/api/subtitle/${projectId}`);
             const data = await res.json();
 
@@ -179,7 +311,7 @@
     }
 
     // 스타일 선택 및 저장
-    window.selectStyle = async function (styleName) {
+    window.selectStyle = async function (styleName, shouldSave = true) {
         // UI 업데이트
         document.querySelectorAll('.style-card').forEach(el => {
             if (el.dataset.style === styleName) {
@@ -191,73 +323,44 @@
             }
         });
 
-        // 서버 저장 (PATCH Settings)
-        try {
-            const res = await fetch(`/api/projects/${projectId}/settings/subtitle_style_enum?value=${styleName}`, {
-                method: 'PATCH'
-            });
-            const data = await res.json();
-            if (data.status !== 'ok') throw new Error(data.error);
-        } catch (e) {
-            console.error("스타일 저장 실패", e);
-            // 조용히 실패 (Too many toasts)
+        if (shouldSave) {
+            // 서버 저장 (PATCH Settings)
+            try {
+                await API.project.updateSetting(projectId, 'subtitle_style_enum', styleName);
+                Utils.showToast('스타일이 변경되었습니다', 'success');
+            } catch (e) {
+                console.error("스타일 저장 실패", e);
+                // 조용히 실패 (Too many toasts)
+            }
         }
     };
 
-    // 초기 스타일 로드
-    async function loadProjectSettings() {
-        try {
-            const res = await fetch(`/api/projects/${projectId}/settings`);
-            if (res.ok) {
-                const settings = await res.json();
-
-                // 스타일 복원
-                const preservedStyle = settings.subtitle_style_enum || 'Basic_White';
-                selectStyle(preservedStyle);
-
-                // 폰트 크기 복원
-                const savedSize = settings.subtitle_font_size || 10;
-                const slider = document.getElementById('fontSizeSlider');
-                const label = document.getElementById('fontSizeValue');
-                if (slider && label) {
-                    slider.value = savedSize;
-                    label.textContent = savedSize;
-                }
+    // DOM load 시 로드 지점 통합 (loadSubtitles 내부에서 settings도 함께 처리함)
+    document.addEventListener('DOMContentLoaded', async () => {
+        if (!projectId) {
+            const urlParams = new URLSearchParams(window.location.search);
+            const pid = urlParams.get('project_id');
+            if (pid) {
+                projectId = parseInt(pid);
+                Utils.storage.set('currentProjectId', projectId);
             }
-        } catch (e) {
-            console.error(e);
         }
-    }
 
-    // DOM load 시 settings도 로드
-    document.addEventListener('DOMContentLoaded', () => {
-        if (projectId) loadProjectSettings();
+        if (!projectId) {
+            Utils.showToast('프로젝트를 선택해주세요.', 'warning');
+            return;
+        }
 
-        // 슬라이더 이벤트 리스너
+        // 폰트 크기 슬라이더 실시간 숫자 표시 (Change는 API 저장)
         const slider = document.getElementById('fontSizeSlider');
         const label = document.getElementById('fontSizeValue');
-
-        if (slider) {
+        if (slider && label) {
             slider.addEventListener('input', (e) => {
                 label.textContent = e.target.value;
             });
-
-            slider.addEventListener('change', async (e) => {
-                const newVal = e.target.value;
-                // 서버 저장
-                try {
-                    const res = await fetch(`/api/projects/${projectId}/settings/subtitle_font_size?value=${newVal}`, {
-                        method: 'PATCH'
-                    });
-                    const data = await res.json();
-                    if (data.status === 'ok') {
-                        Utils.showToast(`자막 크기 저장됨: ${newVal}`, 'success');
-                    }
-                } catch (err) {
-                    console.error("폰트 크기 저장 실패", err);
-                }
-            });
         }
+
+        await loadSubtitles();
     });
 
     // AI 싱크 재설정 (강제 재분석)
@@ -341,6 +444,10 @@
                 if (data.subtitles) {
                     subtitles = data.subtitles;
                     renderSubtitles();
+
+                    // [NEW] 자막 저장 성공 시 백그라운드에서 미리 제목/설명 생성 시도
+                    // (페이지 이동 시 대기 시간을 줄이기 위함)
+                    triggerBackgroundMetaGen();
                 }
             } else {
                 throw new Error(data.error);
@@ -633,6 +740,72 @@
     };
 
     // HTML Escape Helper
+    // 폰트/색상 자동 저장
+    document.querySelectorAll('input[name="subtitle_font"]').forEach(radio => {
+        radio.addEventListener('change', async (e) => {
+            const fontName = e.target.value;
+            updateFontPreview(fontName);
+            try {
+                await API.project.updateSetting(projectId, 'subtitle_font', fontName);
+                Utils.showToast('폰트가 변경되었습니다', 'info');
+            } catch (err) {
+                console.error('폰트 저장 실패:', err);
+            }
+        });
+    });
+
+    // 폰트 미리보기 업데이트 기능
+    function updateFontPreview(fontName) {
+        // 프리뷰 텍스트 요소들 선택
+        const previewTexts = document.querySelectorAll('#styleSelector .text-xl, #styleSelector .text-lg');
+
+        // UI 선택값 -> CSS font-family 매핑
+        const familyMap = {
+            'Malgun-Gothic-Bold': '"Malgun Gothic", "맑은 고딕", sans-serif',
+            'CookieRun Regular': '"CookieRun-Regular", sans-serif',
+            'GmarketSansBold': '"GmarketSansBold", sans-serif',
+            'NanumMyeongjo': '"Nanum Myeongjo", serif'
+        };
+
+        const fontStack = familyMap[fontName] || fontName;
+
+        previewTexts.forEach(el => {
+            el.style.fontFamily = fontStack;
+        });
+        console.log("Preview font updated to:", fontName, "Stack:", fontStack);
+    }
+
+    window.selectColor = async function (color, shouldSave = true) {
+        // UI 반영
+        document.querySelectorAll('.color-circle').forEach(el => {
+            el.classList.toggle('active', el.dataset.color === color);
+        });
+
+        if (shouldSave) {
+            try {
+                await API.project.updateSetting(projectId, 'subtitle_color', color);
+                Utils.showToast('색상이 변경되었습니다', 'info');
+            } catch (err) {
+                console.error('색상 저장 실패:', err);
+            }
+        }
+    }
+
+    // 폰트 크기 핸들러 (기존 slider 핸들러가 있으면 덮어쓰거나 확인 필요)
+    // 기존 fontSizeSlider 핸들러를 찾아서 수정하거나 새로 등록
+    const fontSizeSlider = document.getElementById('fontSizeSlider');
+    if (fontSizeSlider) {
+        fontSizeSlider.addEventListener('change', async (e) => {
+            const newVal = e.target.value;
+            document.getElementById('fontSizeValue').textContent = newVal;
+            try {
+                await API.project.updateSetting(projectId, 'subtitle_font_size', newVal);
+            } catch (err) {
+                console.error('크기 저장 실패:', err);
+            }
+        });
+    }
+
     function escapeHtml(text) {
         if (!text) return "";
         return text

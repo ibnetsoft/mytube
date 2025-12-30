@@ -1,15 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="page-header">
-    <div class="flex items-center gap-3">
-        <span class="text-3xl">✍️</span>
-        <div>
-            <h1>대본 생성</h1>
-            <p>AI가 완성된 대본을 작성합니다</p>
-        </div>
-    </div>
-</div>
+
 
 <!-- 분석 데이터 표시 -->
 <div id="analysisInfo" class="card mb-6 hidden">
@@ -350,6 +342,16 @@ ${finalScript.length > 500 ? finalScript.substring(finalScript.length - 500) : f
                         // 중복 방지: 이미 내용이 포함된 경우 건너뛰기
                         if (!finalScript.includes(sectionText.substring(0, 20))) {
                             finalScript += `\n\n ** [${section.title}] **\n${sectionText} `;
+                        }
+
+                        // [NEW] 중간 결과 저장 (매 섹션마다)
+                        Utils.storage.set('fullScript', {
+                            topic: structureData?.topic || '영상',
+                            script: finalScript,
+                            timestamp: Date.now()
+                        });
+                        if (projectId) {
+                            API.project.saveScript(projectId, finalScript, finalScript.length, Math.ceil(finalScript.length / 300)).catch(e => console.error("Auto-save failed:", e));
                         }
 
                         // 중간 결과 표시

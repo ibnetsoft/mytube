@@ -1,15 +1,61 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="page-header">
-    <div class="flex items-center gap-3">
-        <span class="text-3xl">🎨</span>
-        <div>
-            <h1>썸네일 생성</h1>
-            <p>AI로 클릭률 높은 썸네일을 직접 생성합니다</p>
-        </div>
-    </div>
-</div>
+<style>
+    .style-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+        gap: 10px;
+    }
+
+    .style-card-thumb {
+        cursor: pointer;
+        border: 2px solid transparent;
+        border-radius: 8px;
+        overflow: hidden;
+        transition: all 0.2s;
+        background: #f3f4f6;
+        position: relative;
+    }
+
+    .dark .style-card-thumb {
+        background: #374151;
+    }
+
+    .style-card-thumb:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    .style-card-thumb.active {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 2px #3b82f6;
+    }
+
+    .style-card-thumb img {
+        width: 100%;
+        aspect-ratio: 16/9;
+        object-fit: cover;
+    }
+
+    .style-label {
+        padding: 6px;
+        text-align: center;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #4b5563;
+    }
+
+    .dark .style-label {
+        color: #d1d5db;
+    }
+
+    .style-card-thumb.active .style-label {
+        background: #3b82f6;
+        color: white;
+    }
+</style>
+
 
 <!-- 1단계: 아이디어 생성 -->
 <div class="card mb-6">
@@ -19,17 +65,40 @@
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">영상 주제</label>
             <input type="text" id="videoTitle" class="input-field" placeholder="예: 삼국지 최강의 무장 TOP 5">
         </div>
-        <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">스타일</label>
-            <select id="thumbnailStyle" class="input-field">
-                <option value="face">얼굴 강조형</option>
-                <option value="text">텍스트 중심형</option>
-                <option value="contrast">비포/애프터형</option>
-                <option value="mystery">미스터리형</option>
-                <option value="minimal">미니멀형</option>
-                <option value="dramatic">드라마틱형</option>
-                <option value="japanese_viral">🇯🇵 일본 바이럴 스타일 (강조형)</option>
-            </select>
+        <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">스타일 선택</label>
+            <input type="hidden" id="thumbnailStyle" value="face">
+            <div class="style-grid">
+                <div class="style-card-thumb active" onclick="selectThumbnailStyle('face')" data-style="face">
+                    <img src="/static/img/thumbs/face.png" alt="Face" loading="lazy">
+                    <div class="style-label">얼굴 강조형</div>
+                </div>
+                <div class="style-card-thumb" onclick="selectThumbnailStyle('text')" data-style="text">
+                    <img src="/static/img/thumbs/text.png" alt="Text" loading="lazy">
+                    <div class="style-label">텍스트 중심형</div>
+                </div>
+                <div class="style-card-thumb" onclick="selectThumbnailStyle('contrast')" data-style="contrast">
+                    <img src="/static/img/thumbs/contrast.png" alt="Contrast" loading="lazy">
+                    <div class="style-label">비포/애프터형</div>
+                </div>
+                <div class="style-card-thumb" onclick="selectThumbnailStyle('mystery')" data-style="mystery">
+                    <img src="/static/img/thumbs/mystery.png" alt="Mystery" loading="lazy">
+                    <div class="style-label">미스터리형</div>
+                </div>
+                <div class="style-card-thumb" onclick="selectThumbnailStyle('minimal')" data-style="minimal">
+                    <img src="/static/img/thumbs/minimal.png" alt="Minimal" loading="lazy">
+                    <div class="style-label">미니멀형</div>
+                </div>
+                <div class="style-card-thumb" onclick="selectThumbnailStyle('dramatic')" data-style="dramatic">
+                    <img src="/static/img/thumbs/dramatic.png" alt="Dramatic" loading="lazy">
+                    <div class="style-label">드라마틱형</div>
+                </div>
+                <div class="style-card-thumb" onclick="selectThumbnailStyle('japanese_viral')"
+                    data-style="japanese_viral">
+                    <img src="/static/img/thumbs/japanese_viral.png" alt="Japanese" loading="lazy">
+                    <div class="style-label">🇯🇵 일본 바이럴</div>
+                </div>
+            </div>
         </div>
         <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">색상 톤</label>
@@ -155,17 +224,6 @@
     </div>
 </div>
 
-<!-- 디자인 도구 링크 -->
-<div class="card mt-6">
-    <h3 class="font-bold text-gray-800 dark:text-white mb-4">🛠️ 추가 편집 도구</h3>
-    <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">더 세밀한 편집이 필요하면 아래 도구를 사용하세요</p>
-    <div class="flex flex-wrap gap-2">
-        <a href="https://www.canva.com" target="_blank" class="btn-secondary">Canva</a>
-        <a href="https://www.figma.com" target="_blank" class="btn-secondary">Figma</a>
-        <a href="https://www.photopea.com" target="_blank" class="btn-secondary">Photopea (무료)</a>
-        <a href="https://pixlr.com/kr/x/" target="_blank" class="btn-secondary">Pixlr</a>
-    </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
@@ -208,6 +266,22 @@
             }
         }
     });
+
+    // 스타일 선택 함수
+    function selectThumbnailStyle(styleId) {
+        document.getElementById('thumbnailStyle').value = styleId;
+
+        // UI 업데이트
+        document.querySelectorAll('.style-card-thumb').forEach(card => {
+            if (card.dataset.style === styleId) {
+                card.classList.add('active');
+            } else {
+                card.classList.remove('active');
+            }
+        });
+
+        console.log("Selected thumbnail style:", styleId);
+    }
 
     // 1. 아이디어 생성
     async function generateIdeas() {

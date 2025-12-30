@@ -1,15 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="page-header">
-    <div class="flex items-center gap-3">
-        <span class="text-3xl">🎬</span>
-        <div>
-            <h1>영상 렌더링</h1>
-            <p>이미지와 음성을 합성하여 영상을 생성합니다</p>
-        </div>
-    </div>
-</div>
+
 
 <!-- 프로젝트 요약 -->
 <div class="card mb-6">
@@ -87,39 +79,6 @@
 </div>
 
 
-<!-- 외부 도구 안내 -->
-<div class="card mb-6">
-    <h3 class="font-bold text-gray-800 dark:text-white mb-4">🛠️ 추천 편집 도구</h3>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-            <h4 class="font-medium text-gray-700 dark:text-gray-300 mb-2">무료 도구</h4>
-            <div class="space-y-2">
-                <a href="https://www.capcut.com" target="_blank"
-                    class="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-700 rounded hover:bg-gray-100 dark:hover:bg-gray-600 transition">
-                    <span>🎬</span> CapCut (무료, 초보자 추천)
-                </a>
-                <a href="https://www.davinciresolve.com" target="_blank"
-                    class="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-700 rounded hover:bg-gray-100 dark:hover:bg-gray-600 transition">
-                    <span>🎬</span> DaVinci Resolve (무료, 전문가급)
-                </a>
-            </div>
-        </div>
-        <div>
-            <h4 class="font-medium text-gray-700 dark:text-gray-300 mb-2">AI 영상 생성</h4>
-            <div class="space-y-2">
-                <a href="https://www.synthesia.io" target="_blank"
-                    class="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-700 rounded hover:bg-gray-100 dark:hover:bg-gray-600 transition">
-                    <span>🤖</span> Synthesia (AI 아바타)
-                </a>
-                <a href="https://www.heygen.com" target="_blank"
-                    class="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-700 rounded hover:bg-gray-100 dark:hover:bg-gray-600 transition">
-                    <span>🤖</span> HeyGen (AI 아바타)
-                </a>
-            </div>
-        </div>
-    </div>
-</div>
 
 <!-- 다운로드 섹션 -->
 <div class="card">
@@ -160,6 +119,13 @@
                 const videoPath = data.settings?.video_path || data.project?.video_path;
                 document.getElementById('existingVideoContainer').classList.remove('hidden');
                 renderComplete(videoPath, 'existingVideoContent');
+            }
+
+            // [NEW] 만약 현재 렌더링 중인 상태라면 UI 복구 및 폴링 시작
+            if (data.project?.status === 'rendering') {
+                Utils.showToast('이전 렌더링 작업을 이어서 확인합니다.', 'info');
+                startRenderingUI();
+                pollRenderStatus(projectId);
             }
         } catch (e) {
             console.error("Failed to load project status:", e);
@@ -285,55 +251,9 @@
 
             if (result.status === 'processing') {
                 Utils.showToast('영상 생성이 시작되었습니다...', 'info');
-
-                // Timer & Progress UI
-                let elapsedSeconds = 0;
-                const timerInterval = setInterval(() => {
-                    elapsedSeconds++;
-                    const minutes = Math.floor(elapsedSeconds / 60);
-                    const seconds = elapsedSeconds % 60;
-                    const timeStr = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-
-                    const timerEl = document.getElementById('renderTimer');
-                    if (timerEl) timerEl.innerText = timeStr;
-                }, 1000);
-
-                // Polling UI (버튼 대신 별도 UI 표시)
-                btn.innerHTML = `
-                    <div class="flex flex-col items-center w-full gap-2">
-                        <div class="flex items-center gap-2">
-                            <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                            <span>영상 생성 중...</span>
-                            <span id="renderTimer" class="font-mono bg-black/20 px-2 py-0.5 rounded">00:00</span>
-                            <span id="renderProgressText" class="font-bold text-yellow-300 ml-2">0%</span>
-                        </div>
-                        <!-- Progress Bar -->
-                        <div id="renderProgressBar" class="w-full bg-black/20 rounded-full h-2.5 overflow-hidden">
-                            <div class="bg-white/90 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
-                        </div>
-                    </div>
-                `;
-
-                // Add Global Style for Progress Animation
-                if (!document.getElementById('progressStyle')) {
-                    const style = document.createElement('style');
-                    style.id = 'progressStyle';
-                    style.innerHTML = `
-                        @keyframes progress-indeterminate {
-                            0% { margin-left: -50%; width: 50%; }
-                            50% { margin-left: 25%; width: 50%; }
-                            100% { margin-left: 100%; width: 50%; }
-                        }
-                        .animate-progress-indeterminate {
-                            animation: progress-indeterminate 2s infinite ease-in-out;
-                        }
-                    `;
-                    document.head.appendChild(style);
-                }
-
+                startRenderingUI();
                 isPolling = true;
-                // Pass timer interval to poll function to clear it later
-                pollRenderStatus(projectId, timerInterval);
+                pollRenderStatus(projectId);
             } else {
                 Utils.showToast('영상 생성 실패: ' + (result.message || result.error || '알 수 없는 오류'), 'error');
                 Utils.setLoading(btn, false);
@@ -346,10 +266,69 @@
         }
     }
 
-    async function pollRenderStatus(projectId, timerInterval = null) {
+    function startRenderingUI() {
+        const btn = document.getElementById('renderBtn');
+        if (!btn) return;
+
+        // UI Update: 우측 컨테이너 활성화
+        document.getElementById('newVideoContainer').classList.remove('hidden');
+        document.getElementById('newVideoContent').innerHTML = `
+            <div class="h-64 bg-gray-100 dark:bg-gray-800 rounded-lg flex flex-col items-center justify-center text-gray-500 animate-pulse">
+                <span class="text-4xl mb-2">🎬</span>
+                <span>영상을 생성하고 있습니다...</span>
+            </div>
+        `;
+
+        // Timer & Progress UI 초기화
+        let elapsedSeconds = 0;
+        window.renderTimerInterval = setInterval(() => {
+            elapsedSeconds++;
+            const minutes = Math.floor(elapsedSeconds / 60);
+            const seconds = elapsedSeconds % 60;
+            const timeStr = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+            const timerEl = document.getElementById('renderTimer');
+            if (timerEl) timerEl.innerText = timeStr;
+        }, 1000);
+
+        // Polling UI (버튼 대신 별도 UI 표시)
+        btn.disabled = true;
+        btn.innerHTML = `
+            <div class="flex flex-col items-center w-full gap-2">
+                <div class="flex items-center gap-2">
+                    <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                    <span>영상 생성 중...</span>
+                    <span id="renderTimer" class="font-mono bg-black/20 px-2 py-0.5 rounded">00:00</span>
+                    <span id="renderProgressText" class="font-bold text-yellow-300 ml-2">0%</span>
+                </div>
+                <!-- Progress Bar -->
+                <div id="renderProgressBar" class="w-full bg-black/20 rounded-full h-2.5 overflow-hidden">
+                    <div class="bg-white/90 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+        `;
+
+        // Add Global Style for Progress Animation
+        if (!document.getElementById('progressStyle')) {
+            const style = document.createElement('style');
+            style.id = 'progressStyle';
+            style.innerHTML = `
+                @keyframes progress-indeterminate {
+                    0% { margin-left: -50%; width: 50%; }
+                    50% { margin-left: 25%; width: 50%; }
+                    100% { margin-left: 100%; width: 50%; }
+                }
+                .animate-progress-indeterminate {
+                    animation: progress-indeterminate 2s infinite ease-in-out;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+    }
+
+    async function pollRenderStatus(projectId) {
         if (!isPolling) {
-            if (timerInterval) clearInterval(timerInterval);
-            return;
+            isPolling = true; // 강제 활성화 (페이지 로드 시 대응)
         }
 
         try {
@@ -386,7 +365,7 @@
 
             if (videoPath) {
                 isPolling = false;
-                if (timerInterval) clearInterval(timerInterval);
+                if (window.renderTimerInterval) clearInterval(window.renderTimerInterval);
 
                 // 완료 시 우측(새 영상) 컨테이너에 렌더링
                 renderComplete(videoPath, 'newVideoContent');
@@ -404,7 +383,7 @@
             // 실패 상태 감지
             if (status === 'failed') {
                 isPolling = false;
-                if (timerInterval) clearInterval(timerInterval);
+                if (window.renderTimerInterval) clearInterval(window.renderTimerInterval);
                 const btn = document.getElementById('renderBtn');
                 Utils.setLoading(btn, false);
                 Utils.showToast('영상 생성 중 오류가 발생했습니다. (서버 로그 확인 필요)', 'error');
@@ -427,14 +406,15 @@
 
         // 재귀 호출 (1초 간격으로 단축하여 부드럽게)
         if (isPolling) {
-            setTimeout(() => pollRenderStatus(projectId, timerInterval), 1000);
+            setTimeout(() => pollRenderStatus(projectId), 1000);
         } else {
-            if (timerInterval) clearInterval(timerInterval);
+            if (window.renderTimerInterval) clearInterval(window.renderTimerInterval);
         }
     }
 
     function resetRenderBtn() {
         isPolling = false;
+        if (window.renderTimerInterval) clearInterval(window.renderTimerInterval);
         const btn = document.getElementById('renderBtn');
         if (btn) {
             Utils.setLoading(btn, false); // Ensure utils state is cleared

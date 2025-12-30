@@ -1,15 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="page-header">
-    <div class="flex items-center gap-3">
-        <span class="text-3xl">🖼️</span>
-        <div>
-            <h1>이미지 생성</h1>
-            <p>대본 기반 AI 이미지 프롬프트를 생성합니다</p>
-        </div>
-    </div>
-</div>
+
 
 <div class="card mb-6">
     <h3 class="font-bold text-gray-800 dark:text-white mb-4">⚙️ 이미지 설정</h3>
@@ -125,7 +117,7 @@
     </div>
     <div>
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">이미지 비율</label>
-        <div class="grid grid-cols-2 gap-2 mb-4">
+        <div class="grid grid-cols-4 gap-2 mb-4">
             <label class="cursor-pointer">
                 <input type="radio" name="aspectRatio" value="16:9" checked class="peer sr-only">
                 <div
@@ -219,8 +211,28 @@
     let prompts = [];
 
     async function generatePrompts() {
+        let script = '';
         const scriptData = Utils.storage.get('fullScript');
-        if (!scriptData?.script) {
+
+        if (scriptData && scriptData.script) {
+            script = scriptData.script;
+        } else {
+            // [NEW] 로컬 스토리지에 없으면 DB에서 가져오기 시도
+            const projectId = getCurrentProject();
+            if (projectId) {
+                try {
+                    const result = await API.project.getScript(projectId);
+                    if (result && result.full_script) {
+                        script = result.full_script;
+                        console.log("Script fetched from DB for image prompt generation.");
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch script from DB:", e);
+                }
+            }
+        }
+
+        if (!script) {
             Utils.showToast('먼저 대본을 생성해주세요', 'warning');
             return;
         }
@@ -232,7 +244,7 @@
         Utils.setLoading(btn, true, '생성 중...');
 
         try {
-            const result = await API.image.generatePrompts(scriptData.script, style, parseInt(count));
+            const result = await API.image.generatePrompts(script, style, parseInt(count));
 
             if (result.prompts) {
                 prompts = result.prompts;
