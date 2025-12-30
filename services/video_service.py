@@ -19,7 +19,8 @@ class VideoService:
         duration_per_image: float = 5.0,
         fps: int = 24,
         resolution: tuple = (1920, 1080), # 16:9 Long-form Standard
-        title_text: Optional[str] = None
+        title_text: Optional[str] = None,
+        project_id: Optional[int] = None
     ) -> str:
         """
         이미지 슬라이드쇼 영상 생성 (시네마틱 프레임 적용)
@@ -171,6 +172,15 @@ class VideoService:
 
         # 출력
         output_path = os.path.join(self.output_dir, output_filename)
+        # Custom Logger for Progress Tracking
+        logger = 'bar'
+        if project_id:
+            try:
+                from services.progress import RenderLogger
+                logger = RenderLogger(project_id)
+            except Exception as e:
+                print(f"Logger init failed: {e}")
+
         try:
             import datetime
             with open("c:/Users/kimse/Downloads/유튜브소재발굴기/롱폼생성기/debug_v2.log", "a", encoding="utf-8") as f:
@@ -188,7 +198,8 @@ class VideoService:
                 threads=1,
                 preset="superfast",
                 temp_audiofile=temp_audio_path,
-                remove_temp=False 
+                remove_temp=False,
+                logger=logger # Apply custom logger
             )
         except Exception as e:
             import traceback
@@ -285,9 +296,13 @@ class VideoService:
         """
         Faster-Whisper를 사용하여 오디오 자막 생성 (정확한 타이밍)
         """
+        if not os.path.exists(audio_path):
+            print(f"Audio file not found: {audio_path}")
+            return []
+
         try:
             from faster_whisper import WhisperModel
-            import torch
+            # import torch # Not required for CPU inference with faster-whisper
         except ImportError:
             print("faster-whisper not installed. fallback to simple.")
             return []
@@ -308,34 +323,268 @@ class VideoService:
             # base가 tiny보다 훨씬 정확하며 속도도 준수함
             model = WhisperModel("base", device=device, compute_type=compute_type)
             
-            segments, info = model.transcribe(audio_path, beam_size=5, language="ko", word_timestamps=False)
+            # [IMPROVE] VAD 필터 켜기, 단어 타임스탬프 켜기 (정밀도 향상)
+            segments, info = model.transcribe(
+                audio_path, 
+                beam_size=5, 
+                language="ko", 
+                word_timestamps=True, # 정밀 타이밍
+                vad_filter=True,      # 무음 구간 제거 (환각 방지)
+                vad_parameters=dict(min_silence_duration_ms=500)
+            )
             
             import re
             
-            subtitles = []
-            for segment in segments:
-                raw_text = segment.text.strip()
-                
-                # [CLEAN] 지문 제거 (괄호, 대괄호, 별표 등)
-                # 예: (음악), [소음], **강조**
-                clean_text = re.sub(r'\([^)]*\)|\[[^\]]*\]|\*+[^*]+\*+', '', raw_text).strip()
-                
-                # 특수문자만 남은 경우 제거 (.,?! 등)
-                if not clean_text or not re.search(r'[가-힣a-zA-Z0-9]', clean_text):
-                    continue
-
-                subtitles.append({
-                    "start": segment.start,
-                    "end": segment.end,
-                    "text": clean_text
-                })
+            import re
             
-            print(f"Generated {len(subtitles)} subtitle segments (Cleaned).")
+            # Words flatten
+            ai_words = []
+            if hasattr(segments, '__iter__'):
+                for segment in segments:
+                    if segment.words:
+                        ai_words.extend(segment.words)
+                    else:
+                        ai_words.append({
+                            "start": segment.start,
+                            "end": segment.end,
+                            "word": segment.text.strip()
+                        })
+            
+            # [FORCE ALIGNMENT] Script Text가 있는 경우, AI 타임스탬프에 텍스트를 강제 매핑
+            final_words = []
+            if script_text and len(script_text.strip()) > 10:
+                print("Performing Script Alignment...")
+                final_words = self._align_script_with_timestamps(script_text, ai_words)
+            
+            # 매칭 실패하거나 스크립트 없으면 AI 결과 그대로 사용
+            if not final_words:
+                final_words = [{"word": w.word, "start": w.start, "end": w.end} for w in ai_words]
+
+            subtitles = []
+            
+            # Custom Segmentation Logic
+            # Goal: Max ~40 chars, break on long pause (>0.8s) or punctuation
+            current_sub = {"start": 0, "end": 0, "text": ""}
+            MAX_CHARS = 40
+            MAX_GAP = 0.8 # 말 빠르기 고려하여 조금 줄임
+
+            if final_words:
+                # 첫 단어 초기화
+                current_sub["start"] = final_words[0]["start"]
+                current_sub["end"] = final_words[0]["end"]
+                current_sub["text"] = final_words[0]["word"]
+                
+                for i in range(1, len(final_words)):
+                    word_obj = final_words[i]
+                    word_text = word_obj["word"].strip()
+                    
+                    # Gap check
+                    gap = word_obj["start"] - current_sub["end"]
+                    
+                    # Length check (temp)
+                    temp_len = len(current_sub["text"]) + len(word_text) + 1
+                    
+                    # Break conditions
+                    is_too_long = temp_len > MAX_CHARS
+                    is_long_gap = gap > MAX_GAP
+                    is_sentence_end = current_sub["text"].endswith(('.', '?', '!'))
+                    
+                    if is_long_gap or is_too_long or (is_sentence_end and len(current_sub["text"]) > 10):
+                        # Commit current sub
+                        cleaned = re.sub(r'\([^)]*\)|\[[^\]]*\]|\*+[^*]+\*+', '', current_sub["text"]).strip()
+                        if cleaned:
+                            subtitles.append({
+                                "start": current_sub["start"],
+                                "end": current_sub["end"],
+                                "text": cleaned
+                            })
+                        
+                        # Start new sub
+                        current_sub = {
+                            "start": word_obj["start"],
+                            "end": word_obj["end"],
+                            "text": word_text
+                        }
+                    else:
+                        # Append to current
+                        current_sub["text"] += " " + word_text
+                        current_sub["end"] = word_obj["end"]
+                
+                # Commit last sub
+                cleaned = re.sub(r'\([^)]*\)|\[[^\]]*\]|\*+[^*]+\*+', '', current_sub["text"]).strip()
+                if cleaned:
+                    subtitles.append({
+                        "start": current_sub["start"],
+                        "end": current_sub["end"],
+                        "text": cleaned
+                    })
+            
+            # [DEBUG] Log Final Subtitles
+            try:
+                with open("debug_alignment_REAL.txt", "a", encoding="utf-8") as f:
+                    f.write(f"Final Subtitles (First 5): {subtitles[:5]}\n")
+            except: pass
+
+            print(f"Generated {len(subtitles)} subtitle segments (Cleaned & VAD & Aligned).")
             return subtitles
             
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             print(f"Whisper alignment failed: {e}")
             return []
+
+    def _align_script_with_timestamps(self, script_text, ai_words):
+        """
+        Original Script의 단어들에 AI의 타임스탬프를 입히는 로직
+        difflib을 사용하여 유사도 매칭 수행 (자모 분해 + Interpolation)
+        """
+        import difflib
+        import re
+        import unicodedata
+
+        # 1. 스크립트 전처리 (지문 제거)
+        clean_script = re.sub(r'\([^)]*\)|\[[^\]]*\]|\*\*.*?\*\*', '', script_text)
+        script_tokens = clean_script.split()
+
+        # [DEBUG] Log Inputs
+        try:
+            with open("debug_alignment_REAL.txt", "w", encoding="utf-8") as f:
+                f.write(f"Script Tokens (First 20): {script_tokens[:20]}\n")
+                f.write(f"AI Words (First 20): {[w.word for w in ai_words[:20]]}\n")
+        except:
+            pass
+        
+        # 2. AI Words 전처리
+        ai_tokens_text = [w.word for w in ai_words]
+        
+        # 3. 매칭 준비 (Jamo Decomposition for better Hangul matching)
+        def normalize_jamo(s):
+            # NFD Normalization decomposes Hangul into Jamo
+            # Remove non-alphanumeric, lower case
+            s = re.sub(r'[^\w]', '', s).lower()
+            return unicodedata.normalize('NFD', s)
+
+        script_norm = [normalize_jamo(s) for s in script_tokens]
+        ai_norm = [normalize_jamo(s) for s in ai_tokens_text]
+        
+        # [DEBUG] Log Norms
+        try:
+            with open("debug_alignment_REAL.txt", "a", encoding="utf-8") as f:
+                f.write(f"Script Norm (6): {script_norm[6] if len(script_norm)>6 else 'N/A'}\n")
+                f.write(f"AI Norm (6): {ai_norm[6] if len(ai_norm)>6 else 'N/A'}\n")
+        except: pass
+        
+        matcher = difflib.SequenceMatcher(None, script_norm, ai_norm)
+        
+        aligned_pre = []
+        
+        # 4. Opcodes 처리 (Missing Words 확보)
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+            if tag == 'equal':
+                # 정확히 일치: 1:1 매핑
+                for k in range(i2 - i1):
+                    aligned_pre.append({
+                        "word": script_tokens[i1 + k],
+                        "start": ai_words[j1 + k].start,
+                        "end": ai_words[j1 + k].end
+                    })
+            elif tag == 'replace':
+                # 비슷: 구간 전체를 균등 배분
+                len_script = i2 - i1
+                len_ai = j2 - j1
+                
+                start_time = ai_words[j1].start
+                end_time = ai_words[j2-1].end
+                
+                duration = end_time - start_time
+                step = duration / len_script if len_script > 0 else 0
+                
+                for k in range(len_script):
+                    aligned_pre.append({
+                        "word": script_tokens[i1 + k],
+                        "start": start_time + (step * k),
+                        "end": start_time + (step * (k + 1))
+                    })
+            elif tag == 'delete':
+                # Script에는 있는데 AI가 놓친 경우 (Missing)
+                # Timestamp를 None으로 두고 나중에 보간
+                for k in range(i2 - i1):
+                    aligned_pre.append({
+                        "word": script_tokens[i1 + k],
+                        "start": None,
+                        "end": None
+                    })
+            elif tag == 'insert':
+                # AI가 엉뚱한 말을 추가한 경우 -> 무시 (Script 기준)
+                pass
+        
+        # 5. Timestamp Interpolation (보간)
+        # None 값을 앞뒤 유효한 타임스탬프로 채움
+        n = len(aligned_pre)
+        if n == 0:
+            return []
+
+        # (1) 앞쪽 None 채우기 (시작 0.0)
+        first_valid_idx = -1
+        for i in range(n):
+            if aligned_pre[i]["start"] is not None:
+                first_valid_idx = i
+                break
+        
+        if first_valid_idx == -1:
+            # 전체가 None인 경우 (매칭 대실패) - 대충 배분해야 함.. 
+            # 일단 전체 길이를 알 수 없으므로 0~1초씩 할당 충격 요법
+            for i in range(n):
+                aligned_pre[i]["start"] = float(i)
+                aligned_pre[i]["end"] = float(i+1)
+            return aligned_pre
+            
+        if first_valid_idx > 0:
+            # 0 ~ first까지 역산? 그냥 0부터 first_valid_start까지 균등 배분
+            start_t = 0.0
+            end_t = aligned_pre[first_valid_idx]["start"]
+            duration = end_t - start_t
+            step = duration / first_valid_idx
+            
+            for i in range(first_valid_idx):
+                aligned_pre[i]["start"] = start_t + (step * i)
+                aligned_pre[i]["end"] = start_t + (step * (i + 1))
+                
+        # (2) 중간/끝 None 채우기
+        i = 0
+        while i < n:
+            if aligned_pre[i]["start"] is None:
+                # 다음 유효 값 찾기
+                j = i + 1
+                while j < n and aligned_pre[j]["start"] is None:
+                    j += 1
+                
+                # i 부터 j-1 까지가 None 구간
+                if j < n:
+                    # 중간 구멍
+                    prev_end = aligned_pre[i-1]["end"] if i > 0 else 0.0
+                    next_start = aligned_pre[j]["start"]
+                    duration = next_start - prev_end
+                    count = j - i
+                    step = duration / count
+                    
+                    for k in range(count):
+                        aligned_pre[i+k]["start"] = prev_end + (step * k)
+                        aligned_pre[i+k]["end"] = prev_end + (step * (k + 1))
+                else:
+                    # 끝까지 구멍 (마지막 유효값 이후)
+                    prev_end = aligned_pre[i-1]["end"] if i > 0 else 0.0
+                    # 그냥 단어당 0.5초씩 할당 가정
+                    for k in range(j - i):
+                        aligned_pre[i+k]["start"] = prev_end + (k * 0.5)
+                        aligned_pre[i+k]["end"] = prev_end + ((k + 1) * 0.5)
+                
+                i = j
+            else:
+                i += 1
+                
+        return aligned_pre
 
     def _create_cinematic_frame(self, image_path: str, target_size: tuple) -> str:
         """
@@ -510,9 +759,9 @@ class VideoService:
         "Basic_White": {
             "font_color": "white",
             "stroke_color": "black",
-            "stroke_width_ratio": 0.1,
+            "stroke_width_ratio": 0.15, # [User Request] Thicker Stroke
             "bg_color": None,
-            "font_name": "malgun.ttf"
+            "font_name": "malgunbd.ttf" # [User Request] Bold
         },
         "Vlog_Yellow": {
             "font_color": "#FFD700", # Gold
@@ -526,8 +775,9 @@ class VideoService:
             "stroke_color": None,
             "stroke_width_ratio": 0,
             "bg_color": (0, 0, 0, 150),
-            "bg_padding": 20,
-            "font_name": "malgun.ttf"
+            "bg_padding_x": 20, # [User Request] Maintain width padding
+            "bg_padding_y": 0,  # [User Request] Tight vertical fit
+            "font_name": "malgunbd.ttf" # [User Request] Bold
         },
         "Cute_Pink": {
             "font_color": "#FF69B4", # HotPink
@@ -632,14 +882,14 @@ class VideoService:
         text_w = bbox[2] - bbox[0]
         text_h = bbox[3] - bbox[1]
         
-        padding = style.get("bg_padding", 20)
-        # 이미지 크기는 텍스트 박스 + 패딩만큼만 (add_subtitles에서 위치 잡음)
-        # 하지만 _create_subtitle_image의 width 인자가 canvas width로 쓰이고 있었음.
-        # 기존 로직: img_w = width
-        # 변경: img_w = width (투명 캔버스 전체)로 유지하되 텍스트는 중앙 정렬.
-        
+        # Padding Logic Split (X, Y)
+        padding_default = style.get("bg_padding", 20)
+        pad_x = style.get("bg_padding_x", padding_default)
+        pad_y = style.get("bg_padding_y", padding_default)
+
+        # 이미지 크기는 텍스트 박스 + Y패딩만큼만 (add_subtitles에서 위치 잡음)
         img_w = width
-        img_h = text_h + (padding * 4) 
+        img_h = text_h + (pad_y * 2) + 10 # 약간의 여유 10px
         
         img = Image.new('RGBA', (img_w, img_h), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
@@ -649,10 +899,16 @@ class VideoService:
         
         # 박스 그리기
         if bg_color:
-            box_x0 = center_x - (text_w // 2) - padding
-            box_y0 = center_y - (text_h // 2) - padding
-            box_x1 = center_x + (text_w // 2) + padding
-            box_y1 = center_y + (text_h // 2) + padding
+            box_x0 = center_x - (text_w // 2) - pad_x
+            box_y0 = center_y - (text_h // 2) - pad_y
+            box_x1 = center_x + (text_w // 2) + pad_x
+            box_y1 = center_y + (text_h // 2) + pad_y
+            
+            # [Fix] 폰트 렌더링 오차 등으로 박스가 살짝 작아보일 수 있으므로 최소 높이 보정
+            if pad_y < 5: 
+                # Tight fit인 경우에도 폰트 baseline 고려하여 살짝 하단 보정
+                box_y1 += 5
+                
             draw.rectangle([box_x0, box_y0, box_x1, box_y1], fill=bg_color)
 
         # 텍스트 그리기

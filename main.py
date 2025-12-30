@@ -18,6 +18,21 @@ import re
 import datetime
 from pathlib import Path
 
+# ==========================================
+# FFmpeg & Pydub Configuration (Global)
+# ==========================================
+try:
+    import imageio_ffmpeg
+    from pydub import AudioSegment
+    ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+    AudioSegment.converter = ffmpeg_path
+    AudioSegment.ffmpeg = ffmpeg_path
+    # Add to PATH so subprocess can find it if needed
+    os.environ["PATH"] += os.pathsep + os.path.dirname(ffmpeg_path)
+    print(f"[Main] FFmpeg configured: {ffmpeg_path}")
+except Exception as e:
+    print(f"[Main] FFmpeg setup warning: {e}")
+
 
 from config import config
 import database as db
@@ -1653,7 +1668,8 @@ async def render_project_video(
                     output_filename=temp_path,
                     duration_per_image=duration_per_image,
                     resolution=target_resolution_arg, # Use arg
-                    title_text="" # 사용자 요청: 프로젝트명 고정 노출 제거
+                    title_text="", # 사용자 요청: 프로젝트명 고정 노출 제거
+                    project_id=project_id # For progress tracking
                 )
                 
                 final_path = video_path
@@ -2048,13 +2064,135 @@ async def save_subtitle(
             
             updated_subtitles.append(sub)
         
-        # 업데이트된 자막(preview_url 포함) 반환
-        return {"status": "ok", "subtitles": updated_subtitles}
+        return {
+            "status": "ok",
+            "subtitles": updated_subtitles
+        }
 
     except Exception as e:
         print(f"Error generating previews: {e}")
         # 실패해도 저장은 성공했으므로 ok 리턴하되 경고 로그
         return {"status": "ok", "message": "Saved but preview generation failed"}
+
+
+@app.post("/api/project/{project_id}/subtitle/delete")
+async def delete_subtitle_segment(
+    project_id: int,
+    request: dict = Body(...)
+):
+    """자막 삭제 및 오디오 싱크 맞춤 (Destructive)"""
+    try:
+        index = request.get('index')
+        start = request.get('start')
+        end = request.get('end')
+        
+        # 1. 자막 로드
+        settings = db.get_project_settings(project_id)
+        subtitle_path = settings.get('subtitle_path')
+        if not subtitle_path or not os.path.exists(subtitle_path):
+             return {"status": "error", "error": "자막 파일이 없습니다"}
+             
+        import json
+        with open(subtitle_path, "r", encoding="utf-8") as f:
+            subtitles = json.load(f)
+            
+        if index < 0 or index >= len(subtitles):
+            return {"status": "error", "error": "잘못된 자막 인덱스"}
+            
+        # 2. 오디오 자르기 (서비스 호출)
+        audio_data = db.get_tts(project_id)
+        if audio_data and audio_data.get('audio_path'):
+            from services.audio_service import audio_service
+            audio_service.cut_audio_segment(audio_data['audio_path'], start, end)
+            
+        # 3. 자막 리스트 업데이트 (삭제 및 시간 시프트)
+        deleted_duration = end - start
+        
+        # 삭제
+        subtitles.pop(index)
+        
+        # 이후 자막들 당기기
+        for sub in subtitles:
+            if sub['start'] >= end:
+                sub['start'] -= deleted_duration
+                sub['end'] -= deleted_duration
+                # 부동소수점 오차 보정 (0보다 작아지지 않게)
+                sub['start'] = max(0, sub['start'])
+                sub['end'] = max(0, sub['end'])
+                
+        # 4. 저장
+        with open(subtitle_path, "w", encoding="utf-8") as f:
+            json.dump(subtitles, f, ensure_ascii=False, indent=2)
+            
+        # 5. 미리보기 재생성 (간소화: 여기서 다시 로직을 태우기보다 프론트에서 save 호출 유도하거나, 여기서 일부만 업데이트)
+        # 일단은 데이터만 반환하고 프론트가 렌더링하도록 함. 
+        # (완벽하려면 save_subtitle 로직처럼 preview image도 갱신해야 하나, 시간 단축 위해 생략 가능. 
+        #  단, preview image가 기존 것과 꼬일 수 있음. -> 클라이언트가 reload 시 해결됨)
+        
+        return {
+            "status": "ok",
+            "subtitles": subtitles,
+            "message": f"자막 삭제 완료 (오디오 {deleted_duration:.2f}초 단축됨)"
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"status": "error", "error": str(e)}
+        
+
+
+
+@app.post("/api/project/{project_id}/subtitle/regenerate")
+async def regenerate_subtitles(project_id: int):
+    """자막 AI 재분석 (싱크 맞추기)"""
+    try:
+        # 1. 오디오 경로 확인
+        audio_data = db.get_tts(project_id)
+        if not audio_data or not audio_data.get('audio_path') or not os.path.exists(audio_data['audio_path']):
+            return {"status": "error", "error": "오디오 파일이 없습니다."}
+            
+        audio_path = audio_data['audio_path']
+        
+        # 2. 대본 데이터 (힌트용)
+        script_data = db.get_script(project_id)
+        script_text = script_data.get("full_script") if script_data else ""
+        
+        # [DEBUG] Log script text
+        try:
+            with open("debug_script_log.txt", "w", encoding="utf-8") as f:
+                f.write(f"ProjectID: {project_id}\n")
+                f.write(f"ScriptText (Len={len(script_text)}):\n{script_text}\n")
+        except:
+            pass
+        
+        # 3. 기존 자막/VTT 무시하고 강제 생성
+        from services.video_service import video_service
+        print(f"Force regenerating subtitles for {project_id}...")
+        
+        new_subtitles = video_service.generate_aligned_subtitles(audio_path, script_text)
+        
+        if not new_subtitles:
+            return {"status": "error", "error": "AI 자막 생성 실패"}
+            
+        # 4. 저장
+        inner_output_dir, _ = get_project_output_dir(project_id)
+        saved_sub_path = os.path.join(inner_output_dir, f"subtitles_{project_id}.json")
+        
+        import json
+        with open(saved_sub_path, "w", encoding="utf-8") as f:
+            json.dump(new_subtitles, f, ensure_ascii=False, indent=2)
+            
+        return {
+            "status": "ok",
+            "subtitles": new_subtitles,
+            "message": "자막이 AI로 재분석되었습니다."
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"status": "error", "error": str(e)}
 
 
 # ===========================================
@@ -2109,6 +2247,16 @@ async def run_autopilot_now(
     """오토파일럿 즉시 실행 (테스트용)"""
     background_tasks.add_task(autopilot_service.run_workflow, keyword)
     return {"status": "started", "message": f"'{keyword}' 주제로 즉시 제작을 시작합니다."}
+
+# ===========================================
+# ===========================================
+# Render Progress API
+# ===========================================
+@app.get("/api/project/{project_id}/render/status")
+async def get_render_status(project_id: int):
+    """실시간 렌더링 진행률 조회"""
+    from services.progress import get_render_progress
+    return get_render_progress(project_id)
 
 # ===========================================
 # 서버 시작

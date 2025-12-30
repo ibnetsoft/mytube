@@ -234,6 +234,11 @@ def migrate_db():
     except sqlite3.OperationalError:
         pass
         
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN subtitle_path TEXT")
+    except sqlite3.OperationalError:
+        pass
+        
     conn.commit()
     print("[DB] Migration completed")
 
@@ -750,9 +755,10 @@ def update_project_setting(project_id: int, key: str, value: Any):
                     'script', 'hashtags', 'voice_tone', 'voice_name', 'voice_language', 'voice_style_prompt',
                     'video_command', 'video_path', 'is_uploaded',
                     'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum',
-                    'subtitle_font_size']
+                    'subtitle_font_size', 'subtitle_path']
 
     if key not in allowed_keys:
+        print(f"[DB] Key '{key}' not in allowed_keys: {allowed_keys}")
         conn.close()
         return False
 
@@ -762,9 +768,12 @@ def update_project_setting(project_id: int, key: str, value: Any):
         WHERE project_id = ?
     """, (value, project_id))
     
+    print(f"[DB] Update {key} for pid {project_id}. Rowcount: {cursor.rowcount}")
+
     if cursor.rowcount == 0:
         # 행이 없으면 새로 생성 (upsert)
         conn.close() # 기존 커서 닫고
+        print("[DB] Row not found, falling back to insert")
         # save_project_settings가 내부적으로 INSERT 수행
         save_project_settings(project_id, {key: value})
         return True

@@ -43,8 +43,9 @@
                 class="style-card cursor-pointer p-3 rounded border-2 border-transparent hover:border-blue-300 transition-all text-center bg-gray-600 relative overflow-hidden group"
                 data-style="Basic_White">
                 <div class="absolute inset-0 bg-gray-500 opacity-20 group-hover:opacity-10 transition-opacity"></div>
-                <div class="text-xl font-bold text-white relative z-10"
-                    style="text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;">
+                <!-- [Updated] Bold font + Thicker stroke (simulated with more shadows) -->
+                <div class="text-xl font-bold text-white relative z-10" style="text-shadow: 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 
+                           2px 0px 0 #000, -2px 0px 0 #000, 0px 2px 0 #000, 0px -2px 0 #000;">
                     기본 화이트
                 </div>
             </div>
@@ -61,7 +62,9 @@
             <div onclick="selectStyle('Cinematic_Box')"
                 class="style-card cursor-pointer p-3 rounded border-2 border-transparent hover:border-blue-300 transition-all text-center relative overflow-hidden group bg-cover bg-center"
                 style="background-image: url('https://picsum.photos/200/50?blur=2')" data-style="Cinematic_Box">
-                <div class="inline-block px-2 py-1 bg-black/60 text-white text-lg font-medium backdrop-blur-sm">
+                <!-- [Updated] Tight vertical padding (py-0) + Bold text -->
+                <div
+                    class="inline-block px-4 py-0 bg-black/60 text-white text-lg font-bold backdrop-blur-sm leading-snug pb-1">
                     시네마틱 박스
                 </div>
             </div>
@@ -257,6 +260,33 @@
         }
     });
 
+    // AI 싱크 재설정 (강제 재분석)
+    async function regenerateSubtitles() {
+        if (!confirm("현재 자막을 모두 지우고, 오디오를 정밀 분석하여 자막을 재생성하시겠습니까?\n(수동 편집된 내용은 사라집니다)")) {
+            return;
+        }
+
+        try {
+            Utils.showToast('AI가 오디오를 분석 중입니다... (시간이 걸릴 수 있습니다)', 'info');
+
+            const res = await fetch(`/api/project/${projectId}/subtitle/regenerate`, {
+                method: 'POST'
+            });
+            const data = await res.json();
+
+            if (data.status === 'ok') {
+                subtitles = data.subtitles || [];
+                renderSubtitles();
+                Utils.showToast('AI 분석 완료: 자막이 오디오 싱크에 맞춰 재설정되었습니다.', 'success');
+            } else {
+                throw new Error(data.error);
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('AI 분석 실패: ' + e.message, 'error');
+        }
+    }
+
     async function generateSubtitles(manualText = null) {
         try {
             const list = document.getElementById('subtitleList');
@@ -344,6 +374,90 @@
     });
 
     // ==========================================
+    // Subtitle CRUD & Playback
+    // ==========================================
+    window.currentPlayInterval = null;
+
+    window.playSegment = function (index, btn) {
+        const audio = document.getElementById('audioPlayer');
+        if (!audio) return;
+
+        const sub = subtitles[index];
+        if (!sub) return;
+
+        // 기존 재생 중단
+        if (window.currentPlayInterval) {
+            clearInterval(window.currentPlayInterval);
+            window.currentPlayInterval = null;
+        }
+        audio.pause();
+
+        // 재생 시작
+        const start = sub.start;
+        const end = sub.end;
+
+        audio.currentTime = start;
+        audio.play();
+
+        // [Smart Buffer] 다음 자막과 겹치지 않게 Buffer 조절
+        const buffer = 0.8;
+        let targetEnd = end + buffer;
+
+        // 다음 자막이 있으면 그 시작점 직전까지만 재생
+        const nextSub = subtitles[index + 1];
+        if (nextSub) {
+            // 0.05초 정도 여유를 두고 끊음 (다음 멘트 침범 방지)
+            targetEnd = Math.min(targetEnd, nextSub.start - 0.05);
+        }
+
+        // 본래 종료 시간보다는 길어야 함 (최소한 자막 구간은 다 듣기)
+        targetEnd = Math.max(targetEnd, end);
+
+        // 전체 길이 초과 방지
+        targetEnd = Math.min(targetEnd, audio.duration);
+
+        // 종료 지점 체크
+        window.currentPlayInterval = setInterval(() => {
+            if (audio.currentTime >= targetEnd) {
+                audio.pause();
+                clearInterval(window.currentPlayInterval);
+                window.currentPlayInterval = null;
+            }
+        }, 50);
+    };
+
+    window.updateSubtitle = function (index, field, value) {
+        if (!subtitles[index]) return;
+
+        if (field === 'text') {
+            subtitles[index].text = value;
+        } else if (field === 'start' || field === 'end') {
+            subtitles[index][field] = parseFloat(value) || 0;
+        }
+    };
+
+    window.addSubtitleRow = function () {
+        // 마지막 자막의 끝 시간을 기준으로 2초 추가, 없으면 0~2초
+        const lastSub = subtitles[subtitles.length - 1];
+        const newStart = lastSub ? lastSub.end : 0;
+        const newEnd = newStart + 2.0;
+
+        subtitles.push({
+            start: parseFloat(newStart.toFixed(2)),
+            end: parseFloat(newEnd.toFixed(2)),
+            text: "새 자막"
+        });
+        renderSubtitles();
+
+        // 스크롤 최하단으로 이동
+        setTimeout(() => {
+            const list = document.getElementById('subtitleList');
+            const newRow = list.lastElementChild;
+            if (newRow) newRow.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+    };
+
+    // ==========================================
     // Render Helper
     // ==========================================
     function renderSubtitles() {
@@ -356,9 +470,14 @@
                     💡 대본 자동 연동: ${subtitles.length > 0 ? '완료' : '대기 중'} 
                     (${subtitles.length} 라인)
                 </span>
-                <button onclick="generateSubtitles()" class="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors">
-                    🔄 자막 다시 생성하기
-                </button>
+                <div class="flex gap-2">
+                    <button onclick="regenerateSubtitles()" class="px-3 py-1 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors flex items-center gap-1 shadow-sm" title="오디오를 정밀 분석하여 싱크를 다시 맞춥니다">
+                        🎙️ AI 싱크 맞추기
+                    </button>
+                    <button onclick="generateSubtitles()" class="px-3 py-1 text-xs bg-gray-500 hover:bg-gray-600 text-white rounded transition-colors" title="대본 텍스트를 기반으로 초기화합니다">
+                        📝 대본 기반 초기화
+                    </button>
+                </div>
             </div>
         `;
 
@@ -436,7 +555,15 @@
                         onchange="updateSubtitle(${index}, 'end', this.value)"
                         class="w-full text-center text-sm p-1 border rounded dark:bg-gray-600 dark:border-gray-500 focus:ring-2 focus:ring-blue-500 outline-none">
                 </div>
-                <div class="col-span-5">
+                
+                <!-- Play Button (VREW Style) -->
+                <div class="col-span-1 flex justify-center">
+                    <button onclick="playSegment(${index}, this)" class="play-btn p-2 rounded-full hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 transition-colors" title="이 구간 듣기">
+                        <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    </button>
+                </div>
+                
+                <div class="col-span-4">
                     <textarea 
                         onchange="updateSubtitle(${index}, 'text', this.value)"
                         class="w-full text-sm p-1 border rounded dark:bg-gray-600 dark:border-gray-500 focus:ring-2 focus:ring-blue-500 outline-none h-16 resize-none leading-normal pt-2">${escapeHtml(sub.text)}</textarea>
@@ -454,9 +581,53 @@
     }
 
     // 자막 삭제 함수
-    window.removeSubtitle = function (index) {
-        if (confirm("정말 이 자막을 삭제하시겠습니까?")) {
-            subtitles.splice(index, 1);
+    // 자막 삭제 함수
+    window.removeSubtitle = async function (index) {
+        if (!confirm("정말 이 자막을 삭제하시겠습니까?\n주의: 해당 구간의 오디오도 함께 삭제되며, 이후 자막들의 싱크가 자동으로 조정됩니다.")) {
+            return;
+        }
+
+        const sub = subtitles[index];
+        if (!sub) return;
+
+        // UI Loading
+        const btn = document.querySelector(`button[onclick="removeSubtitle(${index})"]`);
+        if (btn) btn.innerHTML = '<div class="loader-sm w-4 h-4 border-2"></div>';
+
+        try {
+            const res = await fetch(`/api/project/${projectId}/subtitle/delete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    index: index,
+                    start: sub.start,
+                    end: sub.end
+                })
+            });
+
+            const data = await res.json();
+            if (data.status === 'ok') {
+                Utils.showToast(data.message || '삭제되었습니다.', 'success');
+                // 업데이트된 자막 리스트 반영
+                subtitles = data.subtitles;
+                renderSubtitles();
+
+                // 오디오 플레이어 리로드 (파일이 변경되었으므로)
+                const audioPlayer = document.getElementById('audioPlayer');
+                const currentTime = audioPlayer.currentTime;
+                // 캐시 방지용 타임스탬프 추가
+                const srcWithTs = audioPlayer.src.split('?')[0] + '?t=' + new Date().getTime();
+                audioPlayer.src = srcWithTs;
+                // 플레이어 상태 복원 시도 (삭제된 만큼 시간 조정 필요할 수 있으나, 일단 처음부터 혹은 적절히)
+                // 삭제된 앞부분이면 시간 그대로, 삭제된 부분이 포함되면? 
+                // 복잡하므로 일단 리로드만.
+            } else {
+                throw new Error(data.error);
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('삭제 실패: ' + e.message, 'error');
+            // UI Restore
             renderSubtitles();
         }
     };

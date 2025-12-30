@@ -1,4 +1,4 @@
-# wingsAIStudio Backend
+# 피카디리스튜디오 Backend
 
 AI 기반 YouTube 영상 자동화 제작 플랫폼 - Python 백엔드
 
