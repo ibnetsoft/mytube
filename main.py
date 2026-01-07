@@ -91,6 +91,16 @@ app.mount("/static", StaticFiles(directory=config.STATIC_DIR), name="static")
 os.makedirs(config.OUTPUT_DIR, exist_ok=True)
 app.mount("/output", StaticFiles(directory=config.OUTPUT_DIR), name="output")
 
+@app.on_event("startup")
+async def startup_event():
+    """앱 시작 시 실행 (DB 초기화 및 마이그레이션)"""
+    try:
+        db.init_db()
+        db.migrate_db()
+        print("[Startup] DB Initialized & Migrated")
+    except Exception as e:
+        print(f"[Startup] DB Setup Failed: {e}")
+
 
 # ===========================================
 # Pydantic 모델
@@ -161,6 +171,11 @@ class MetadataSave(BaseModel):
     tags: List[str]
     hashtags: List[str]
 
+class PromptsGenerateRequest(BaseModel):
+    script: str
+    style: str = "realistic"
+    count: int = 0
+
 class ThumbnailsSave(BaseModel):
     ideas: List[dict]
     texts: List[str]
@@ -182,7 +197,42 @@ class ProjectSettingsSave(BaseModel):
     is_uploaded: Optional[int] = None
     subtitle_style_enum: Optional[str] = None
     subtitle_font_size: Optional[int] = None
+    subtitle_stroke_color: Optional[str] = None
+    subtitle_stroke_width: Optional[float] = None
+    subtitle_position_y: Optional[int] = None
+    background_video_url: Optional[str] = None # 루프 동영상 배경 URL
 
+class SubtitleDefaultSave(BaseModel):
+    subtitle_font: str
+    subtitle_font_size: int
+    subtitle_color: str
+    subtitle_style_enum: str
+    subtitle_stroke_color: str
+    subtitle_stroke_width: float
+
+
+# ============ 학습 시스템 백그라운드 태스크 ============
+async def background_learn_strategy(video_id: str, analysis_result: dict, script_style: str = "story"):
+    """백그라운드에서 분석 결과를 기반으로 지식 추출 및 저장"""
+    try:
+        print(f"[Learning] Starting strategy extraction for video: {video_id}...")
+        strategies = await gemini_service.extract_success_strategy(analysis_result)
+        if strategies:
+            for s in strategies:
+                db.save_success_knowledge(
+                    category=s.get('category'),
+                    pattern=s.get('pattern'),
+                    insight=s.get('insight'),
+                    source_video_id=video_id,
+                    script_style=s.get('script_style', script_style)
+                )
+            print(f"[Learning] Successfully learned {len(strategies)} strategies from {video_id}")
+        else:
+            print(f"[Learning] No strategies extracted from {video_id}")
+    except Exception as e:
+        import traceback
+        print(f"[Learning] Failed to learn from {video_id}: {e}")
+        traceback.print_exc()
 
 # ===========================================
 # 페이지 라우트
@@ -231,6 +281,15 @@ async def page_image_gen(request: Request):
         "request": request,
         "page": "image-gen",
         "title": "이미지 생성"
+    })
+
+@app.get("/video-gen", response_class=HTMLResponse)
+async def page_video_gen(request: Request):
+    """동영상 생성 페이지"""
+    return templates.TemplateResponse("pages/video_gen.html", {
+        "request": request,
+        "page": "video-gen",
+        "title": "동영상 생성"
     })
 
 @app.get("/tts", response_class=HTMLResponse)
@@ -342,6 +401,19 @@ async def update_project(project_id: int, req: ProjectUpdate):
         db.update_project(project_id, **updates)
     return {"status": "ok"}
 
+@app.post("/api/projects/{project_id}/settings")
+async def save_project_settings(project_id: int, req: ProjectSettingsSave):
+    """프로젝트 상세 설정 (자막, 비디오 등) 저장"""
+    settings = req.dict(exclude_unset=True)
+    if not settings:
+         return {"status": "ok", "message": "No changes"}
+         
+    for key, value in settings.items():
+        # Enum to string conversion if needed
+        db.update_project_setting(project_id, key, value)
+        
+    return {"status": "ok", "message": "Settings saved"}
+
 @app.delete("/api/projects/{project_id}")
 async def delete_project(project_id: int):
     """프로젝트 삭제"""
@@ -372,10 +444,23 @@ async def update_project_details(project_id: int, data: Dict[str, Any]):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/projects/{project_id}/analysis")
-async def save_analysis(project_id: int, req: AnalysisSave):
+async def save_analysis(project_id: int, req: AnalysisSave, background_tasks: BackgroundTasks):
     """분석 결과 저장"""
     db.save_analysis(project_id, req.video_data, req.analysis_result)
     db.update_project(project_id, status="analyzed")
+    
+    # [NEW] 프로젝트 설정에서 스타일 가져오기 (기본값 story)
+    settings = db.get_project_settings(project_id)
+    script_style = settings.get('script_style', 'story') if settings else 'story'
+    
+    # [NEW] 성공 전략 학습 (백그라운드 실행)
+    background_tasks.add_task(
+        background_learn_strategy, 
+        req.video_data.get('id'), 
+        req.analysis_result,
+        script_style
+    )
+    
     return {"status": "ok"}
 
 @app.get("/api/projects/{project_id}/analysis")
@@ -453,14 +538,9 @@ async def auto_generate_images(project_id: int):
     if not prompts:
         raise HTTPException(500, "이미지 프롬프트 생성 실패")
 
-    # 3. 이미지 일괄 생성 (Imagen 3)
-    generated_prompts = []
-    import time
-    
-    # BackgroundTasks로 돌리면 좋겠지만 현재는 동기적으로 처리 (사용자 경험 고려)
-    for p in prompts:
+    # 3. 이미지 일괄 생성 (Imagen 3) - 병렬 처리
+    async def process_scene(p):
         try:
-            # 영어 프롬프트 사용
             images = await gemini_service.generate_image(
                 prompt=p["prompt_en"],
                 aspect_ratio="16:9",
@@ -468,28 +548,28 @@ async def auto_generate_images(project_id: int):
             )
             
             if images:
-                # 프로젝트별 폴더 경로 가져오기
                 output_dir, web_dir = get_project_output_dir(project_id)
-
-                # 이미지 저장
                 filename = f"p{project_id}_s{p['scene_number']}_{int(time.time())}.png"
                 output_path = os.path.join(output_dir, filename)
                 
                 with open(output_path, "wb") as f:
                     f.write(images[0])
                 
-                # 웹 경로 업데이트
                 p["image_url"] = f"{web_dir}/{filename}"
+                return True
         except Exception as e:
             print(f"이미지 생성 실패 (Scene {p.get('scene_number')}): {e}")
-            p["image_url"] = ""  # 실패 시 빈 문자열
-            
-        generated_prompts.append(p)
+            p["image_url"] = ""
+        return False
+
+    print(f"🎨 [Main] 이미지 병렬 생성 시작: {len(prompts)}개...")
+    tasks = [process_scene(p) for p in prompts]
+    await asyncio.gather(*tasks)
 
     # 4. DB 저장
-    db.save_image_prompts(project_id, generated_prompts)
+    db.save_image_prompts(project_id, prompts)
 
-    return {"status": "ok", "prompts": generated_prompts}
+    return {"status": "ok", "prompts": prompts}
 
 
 @app.post("/api/projects/{project_id}/image-prompts")
@@ -573,11 +653,24 @@ async def get_project_settings(project_id: int):
 async def update_project_setting(project_id: int, key: str, value: str):
     """단일 설정 업데이트"""
     # 숫자 변환
-    if key in ['duration_seconds', 'is_uploaded']:
+    if key in ['duration_seconds', 'is_uploaded', 'subtitle_font_size']:
         value = int(value)
+    elif key in ['subtitle_stroke_width']:
+        value = float(value)
     result = db.update_project_setting(project_id, key, value)
     if not result:
         raise HTTPException(400, f"유효하지 않은 설정 키: {key}")
+    return {"status": "ok"}
+
+@app.get("/api/settings/subtitle/default")
+async def get_subtitle_defaults():
+    """자막 스타일 기본값 조회"""
+    return db.get_subtitle_defaults()
+
+@app.post("/api/settings/subtitle/default")
+async def save_subtitle_defaults(req: SubtitleDefaultSave):
+    """자막 스타일 기본값 저장"""
+    db.save_global_setting("subtitle_default_style", req.dict())
     return {"status": "ok"}
 
 
@@ -641,6 +734,24 @@ async def save_api_keys(req: ApiKeySave):
         "updated": updated,
         "message": f"{len(updated)}개의 API 키가 저장되었습니다"
     }
+
+
+# ===========================================
+# API: 글로벌 설정 관리
+# ===========================================
+
+@app.get("/api/settings")
+async def get_global_settings():
+    """글로벌 설정 조회"""
+    from services.settings_service import settings_service
+    return settings_service.get_settings()
+
+@app.post("/api/settings")
+async def save_global_settings(data: Dict[str, Any] = Body(...)):
+    """글로벌 설정 저장"""
+    from services.settings_service import settings_service
+    settings_service.save_settings(data)
+    return {"status": "ok"}
 
 
 # ===========================================
@@ -830,11 +941,13 @@ async def youtube_channel(channel_id: str):
 # ===========================================
 
 class StructureGenerateRequest(BaseModel):
+    project_id: Optional[int] = None
     topic: str
     duration: int = 60
     tone: str = "informative"
     notes: Optional[str] = None
     target_language: Optional[str] = "ko"
+    script_style: Optional[str] = "story" # 기본값: 옛날 이야기
 
 @app.post("/api/gemini/generate-structure")
 async def generate_script_structure_api(req: StructureGenerateRequest):
@@ -844,7 +957,18 @@ async def generate_script_structure_api(req: StructureGenerateRequest):
         recent_projects = db.get_recent_projects(limit=5)
         recent_titles = [p['name'] for p in recent_projects]
 
-        # 2. 분석 데이터 구성 (단순화)
+        # [NEW] 스타일 프롬프트 가져오기
+        from services.settings_service import settings_service
+        all_settings = settings_service.get_settings()
+        style_prompts = all_settings.get("script_styles", {})
+        style_prompt = style_prompts.get(req.script_style, "")
+
+        # [NEW] 분석 데이터 구성 (영상 내용이 아닌 형식/스타일 학습용)
+        # 프로젝트 ID가 있으면 DB에서 기존 분석 결과를 가져옴
+        db_analysis = None
+        if req.project_id:
+            db_analysis = db.get_analysis(req.project_id)
+
         # Gemini가 숫자를 시간으로 인식하도록 단위 추가
         duration_str = f"{req.duration}초"
 
@@ -852,15 +976,21 @@ async def generate_script_structure_api(req: StructureGenerateRequest):
             "topic": req.topic,
             "duration_category": duration_str,
             "tone": req.tone,
-            "user_notes": req.notes
+            "user_notes": req.notes,
+            "script_style": req.script_style,
+            "success_analysis": db_analysis.get("analysis_result") if db_analysis else None
         }
 
+        # [NEW] 누적 지식 (Knowledge) 가져오기
+        accumulated_knowledge = db.get_recent_knowledge(limit=10, script_style=req.script_style)
+
         # 3. Gemini 호출
-        # [MODIFIED] target_language 전달
         result = await gemini_service.generate_script_structure(
             analysis_data, 
             recent_titles, 
-            target_language=req.target_language
+            target_language=req.target_language,
+            style_prompt=style_prompt,
+            accumulated_knowledge=accumulated_knowledge
         )
         
         if "error" in result:
@@ -984,6 +1114,8 @@ async def tts_generate(req: TTSRequest):
     ext = "mp3" # "wav" if req.provider == "gemini" else "mp3"
     filename = f"tts_{now_kst.strftime('%Y%m%d_%H%M%S')}.{ext}"
 
+    output_path = None # 초기화
+    
     # 프로젝트 ID가 있으면 전용 폴더 사용
     if req.project_id:
         output_dir, web_dir = get_project_output_dir(req.project_id)
@@ -996,11 +1128,11 @@ async def tts_generate(req: TTSRequest):
         # os.path.join(base, absolute) -> absolute가 됨 (Windows/Linux 공통)
         # 테스트 필요하지만 Python os.path.join 스펙상 두번째 인자가 절대경로면 앞부분 무시됨.
         # 따라서 filename에 full path를 넘기면 됨.
-        result_filename = os.path.join(output_dir, filename)
+        result_filename = os.path.normpath(os.path.abspath(os.path.join(output_dir, filename)))
     else:
         # Fallback
         web_dir = "/output"
-        result_filename = filename # tts_service 내부에서 OUTPUT_DIR과 결합
+        result_filename = os.path.normpath(os.path.abspath(os.path.join(config.OUTPUT_DIR, filename)))
 
         # ----------------------------------------------------------------
     try:
@@ -1012,8 +1144,13 @@ async def tts_generate(req: TTSRequest):
             segments = []
             lines = req.text.split('\n')
             
-            # 정규식: "이름: 대사"
-            pattern = re.compile(r'^([^\s:\[\]\(\)]+)(?:\(.*\))?[:](.+)')
+            # 정규식: "이름: 대사" (마크다운 기호, 괄호, 공백 등에 유연하게 대응)
+            # 1. 앞뒤 마크다운기호/괄호 허용: ^\s*[\*\_\[\(]*
+            # 2. 화자 이름 캡처: ([^\s:\[\(\*\_]+)
+            # 3. 뒤쪽 기호 및 지문(옵션): [\*\_\]\)]*[ \t]*(?:\([^)]*\))?[ \t]*
+            # 4. 구분자 및 대사: [:：][ \t]*(.*)
+            # (Note: .* allows empty content if the script has a speaker name followed by a newline)
+            pattern = re.compile(r'^\s*[\*\_\[\(]*([^\s:\[\(\*\_]+)[\*\_\]\)]*[ \t]*(?:\([^)]*\))?[ \t]*[:：][ \t]*(.*)')
             
             current_chunk = []
             current_speaker = None
@@ -1032,6 +1169,9 @@ async def tts_generate(req: TTSRequest):
                             "text": "\n".join(current_chunk)
                         })
                     current_speaker = match.group(1).strip()
+                    # 백엔드에서도 화자 이름에서 특수기호 2차 정지
+                    current_speaker = re.sub(r'[\*\_\#\[\]\(\)]', '', current_speaker).strip()
+                    
                     content = match.group(2).strip()
                     current_chunk = [content]
                 else:
@@ -1045,84 +1185,104 @@ async def tts_generate(req: TTSRequest):
                     "text": "\n".join(current_chunk)
                 })
 
-            # 2. 세그먼트별 오디오 생성
-            audio_files = []
+            # 2. 세그먼트별 오디오 생성 (동시 생성 개수 제한)
+            import asyncio
+            semaphore = asyncio.Semaphore(10) # 최대 10개 동시 요청
             
-            # 기본 목소리 (req.voice_id)를 'default' 화자용으로 사용하거나 fallback
-            default_voice = req.voice_id
-            
-            for idx, seg in enumerate(segments):
-                seg_speaker = seg["speaker"]
-                seg_text = seg["text"]
-                if not seg_text: continue
-                
-                # 화자별 보이스 매핑 확인 (없으면 기본 voice_id 사용)
-                target_voice = req.voice_map.get(seg_speaker, default_voice)
-                
-                # 임시 파일명
-                seg_filename = f"{base_filename}_seg_{idx}.{ext}"
-                if req.project_id:
+            async def process_segment(idx, segment):
+                async with semaphore:
+                    speaker = segment["speaker"]
+                    seg_text = segment["text"]
+                    
+                    # 15,000자 대본의 경우 수백 개의 세그먼트가 나올 수 있으므로 로그 출력
+                    if idx % 5 == 0 or idx == len(segments) - 1:
+                        print(f"🎙️ [Main] TTS 세그먼트 생성 중... ({idx+1}/{len(segments)})")
+                    
+                    # 화자별 목소리 결정
+                    target_voice = req.voice_map.get(speaker, req.voice_id)
+                    
+                    provider = req.provider
+                    # [ROBUSTNESS] '기본 설정 따름' 등의 비어있는 값 처리
+                    if not target_voice:
+                        target_voice = req.voice_id
+                    
+                    seg_filename = f"{base_filename}_seg_{idx:03d}.mp3"
                     seg_path = os.path.join(output_dir, seg_filename)
-                else:
-                    seg_path = seg_filename # tts_service가 알아서 처리 (주의: 중복 방지 위해 절대경로 권장)
-                    # 위 get_project_output_dir 로직 참고: project_id 없으면 OUTPUT_DIR 기준 상대경로일 수 있음
-                    # 안전하게 절대경로로 변환
-                    seg_path = os.path.join(config.OUTPUT_DIR, seg_filename)
-
-                # 개별 생성 호출 (Gemini만 지원한다고 가정하거나, provider 따름)
-                # 여기서는 provider 파라미터를 그대로 사용
-                try:
-                    # Generate call reuse
-                    # tts_service 호출을 위해 직접 함수 매핑
-                    if req.provider == "gemini":
-                        await tts_service.generate_gemini(
-                            seg_text, target_voice, req.language, req.style_prompt, seg_path
-                        )
-                    elif req.provider == "google_cloud":
-                        await tts_service.generate_google_cloud(
-                            seg_text, target_voice, req.language, seg_path, req.speed
-                        )
-                    # ElevenLabs 등 추가 가능
-                    else:
-                        # Fallback to Gemini if complex parsing is needed? No, just use requested provider
-                         await tts_service.generate_gemini(
-                            seg_text, target_voice, req.language, req.style_prompt, seg_path, req.speed
-                        )
                     
-                    audio_files.append(seg_path)
-                    
-                    # Rate Limit 방지
-                    await asyncio.sleep(0.5) 
-                    
-                except Exception as e:
-                    print(f"Segment generation failed: {e}")
-                    # 실패 시 무시하거나 에러 처리? 일단 진행
-            
-            # 3. 오디오 합치기 (MoviePy 사용)
-            if audio_files:
-                from moviepy.editor import AudioFileClip, concatenate_audioclips
-                
-                clips = []
-                for af in audio_files:
                     try:
-                        clips.append(AudioFileClip(af))
-                    except:
-                        pass
+                        if provider == "elevenlabs":
+                             await tts_service.generate_elevenlabs(seg_text, target_voice, seg_path)
+                        elif provider == "openai":
+                             await tts_service.generate_openai(seg_text, target_voice, "tts-1", seg_path, req.speed)
+                        else: # gemini / edge_tts
+                             await tts_service.generate_gemini(seg_text, target_voice, req.language, req.style_prompt, seg_path, req.speed)
+                        return seg_path
+                    except Exception as e:
+                        print(f"❌ Segment {idx} (Speaker: {speaker}) generation failed: {e}")
+                        return None
+
+            print(f"🎙️ [Main] 멀티보이스 TTS 병렬 생성 시작 (총 {len(segments)}개, 동시 10개 제한)...")
+            print(f"DEBUG: Voice Map: {req.voice_map}")
+            segment_tasks = [process_segment(i, s) for i, s in enumerate(segments)]
+            audio_files = [f for f in await asyncio.gather(*segment_tasks) if f]
+            
+            # 3. 오디오 합치기
+            if audio_files:
+                print(f"🔄 [Main] 오디오 파일 병합 시작 ({len(audio_files)}개)...")
+                output_path = None
                 
-                if clips:
-                    final_clip = concatenate_audioclips(clips)
-                    final_clip.write_audiofile(result_filename)
-                    final_clip.close()
-                    for clip in clips: clip.close()
+                # 가급적 pydub 사용 (더 안정적)
+                try:
+                    from pydub import AudioSegment
+                    import imageio_ffmpeg
                     
-                    # 임시 파일 삭제 (선택사항 - 디버깅 위해 남길수도 있지만 삭제 권장)
-                    # for af in audio_files: os.remove(af)
+                    # ffmpeg 경로 수동 설정
+                    ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+                    AudioSegment.converter = ffmpeg_exe
                     
+                    combined = AudioSegment.empty()
+                    for af in audio_files:
+                        segment_audio = AudioSegment.from_file(af)
+                        combined += segment_audio
+                    
+                    combined.export(result_filename, format="mp3")
                     output_path = result_filename
+                    print(f"✅ [Main] pydub으로 오디오 병합 완료: {result_filename}")
+                except Exception as pydub_err:
+                    print(f"⚠️ pydub 병합 실패 ({pydub_err}), MoviePy로 재시도합니다.")
+                    try:
+                        try:
+                            from moviepy.editor import AudioFileClip, concatenate_audioclips
+                        except ImportError:
+                            from moviepy import AudioFileClip, concatenate_audioclips
+                    except ImportError:
+                        from moviepy.audio.io.AudioFileClip import AudioFileClip
+                        from moviepy.audio.AudioClip import concatenate_audioclips
+                    
+                    clips = []
+                    for af in audio_files:
+                        try:
+                            clips.append(AudioFileClip(af))
+                        except:
+                            pass
+                    
+                    if clips:
+                        final_clip = concatenate_audioclips(clips)
+                        final_clip.write_audiofile(result_filename, verbose=False, logger=None)
+                        final_clip.close()
+                        for clip in clips: clip.close() # 모든 클립 리소스 해제
+                        output_path = result_filename
+                        print(f"✅ [Main] MoviePy로 오디오 병합 완료: {result_filename}")
+                
+                if output_path:
+                    # 임시 파일 삭제
+                    for af in audio_files:
+                         try: os.remove(af)
+                         except: pass
                 else:
-                     return {"status": "error", "error": "생성된 오디오 세그먼트가 없습니다."}
+                    return {"status": "error", "error": "오디오 병합 과정에서 모든 시도가 실패했습니다."}
             else:
-                 return {"status": "error", "error": "파싱된 대본 세그먼트가 없습니다."}
+                 return {"status": "error", "error": "생성된 오디오 세그먼트가 없습니다."}
 
         # ----------------------------------------------------------------
         # 일반(단일) 모드 처리
@@ -1242,13 +1402,26 @@ class ImageGenerateRequest(BaseModel):
     aspect_ratio: str = "9:16"  # 숏폼 전용 (9:16)
 
 
+class ThumbnailTextLayer(BaseModel):
+    text: str
+    position: str = "center" # top, center, bottom, custom
+    y_offset: int = 0
+    font_family: str = "malgun"
+    font_size: int = 72
+    color: str = "#FFFFFF"
+    stroke_color: Optional[str] = None
+    stroke_width: int = 0
+    bg_color: Optional[str] = None
+
 class ThumbnailGenerateRequest(BaseModel):
     prompt: str
-    text: str
+    text_layers: List[ThumbnailTextLayer] = []
+    # Legacy support
+    text: Optional[str] = None
     text_position: str = "center"
     text_color: str = "#FFFFFF"
     font_size: int = 72
-    language: str = "ko" # 언어 설정 추가
+    language: str = "ko"
 
 @app.post("/api/image/generate-thumbnail")
 async def generate_thumbnail(req: ThumbnailGenerateRequest):
@@ -1264,10 +1437,18 @@ async def generate_thumbnail(req: ThumbnailGenerateRequest):
 
         client = genai.Client(api_key=config.GEMINI_API_KEY)
 
-        # 1. Imagen 3로 배경 이미지 생성
+        # 1. Imagen 4로 배경 이미지 생성 (무조건 텍스트 생성 억제)
+        clean_prompt = req.prompt
+        
+        # [FORCE FIX] 사용자 요청: 절대 텍스트 금지
+        # Imagen 모델은 prompt에 부정 명령어도 포함해야 함
+        negative_constraints = ", textless, no text, no words, no letters, no alphabet, no typography, no watermarks, no speech bubbles, clean image, visual only"
+        
+        final_prompt = clean_prompt + negative_constraints + ", YouTube thumbnail background, high quality, 1280x720"
+
         response = client.models.generate_images(
             model="imagen-4.0-generate-001",
-            prompt=req.prompt + ", YouTube thumbnail background, high quality, 1280x720",
+            prompt=final_prompt,
             config={
                 "number_of_images": 1,
                 "aspect_ratio": "16:9",
@@ -1284,49 +1465,99 @@ async def generate_thumbnail(req: ThumbnailGenerateRequest):
 
         # 3. 텍스트 오버레이
         draw = ImageDraw.Draw(img)
-
-        # 폰트 설정 (다국어 지원)
-        font = None
         system = platform.system()
-        
-        if system == 'Windows':
-            try:
-                if req.language == 'ja':
-                    # 일본어: 메이리오 or MS 고딕
-                    try: font = ImageFont.truetype("meiryo.ttc", req.font_size)
-                    except: font = ImageFont.truetype("msgothic.ttc", req.font_size)
-                elif req.language == 'en':
-                     font = ImageFont.truetype("arial.ttf", req.font_size)
-                else: 
-                     # 한국어/기본: 맑은 고딕
-                     font = ImageFont.truetype("malgun.ttf", req.font_size)
-            except:
-                # 폰트 로드 실패 시 fallback
-                font = ImageFont.load_default()
-        
-        # 폰트가 여전히 없으면(리눅스 등) 기본값
-        if font is None:
-             try: font = ImageFont.truetype("malgun.ttf", req.font_size)
-             except: font = ImageFont.load_default()
 
-        # 텍스트 위치 계산
-        bbox = draw.textbbox((0, 0), req.text, font=font)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
+        # 레거시 요청을 새로운 형식으로 변환
+        layers = req.text_layers
+        if not layers and req.text:
+            layers = [ThumbnailTextLayer(
+                text=req.text,
+                position=req.text_position,
+                color=req.text_color,
+                font_size=req.font_size
+            )]
 
-        x = (1280 - text_width) // 2
+        for layer in layers:
+            # 폰트 결정 (Windows 환경 기준)
+            font_file = config.DEFAULT_FONT_PATH
+            if system == 'Windows':
+                if layer.font_family == "gmarket":
+                    font_file = "GmarketSansBold.otf" 
+                elif layer.font_family == "cookie":
+                    font_file = "CookieRun-Regular.ttf"
+                
+                # 언어별 기본 폰트 (레거시 호환 및 자동 선택)
+                if req.language == 'ja' and layer.font_family == "malgun":
+                    font_file = "meiryo.ttc"
+                elif req.language == 'en' and layer.font_family == "malgun":
+                    font_file = "arial.ttf"
 
-        if req.text_position == "top":
-            y = 50
-        elif req.text_position == "bottom":
-            y = 720 - text_height - 50
-        else:  # center
-            y = (720 - text_height) // 2
+            # 한글 지원 폰트 후보군 (Windows 시스템 폰트 우선)
+            font_candidates = []
+            if system == 'Windows':
+                if layer.font_family == "gmarket": font_candidates.extend(["GmarketSansBold.otf", "GmarketSansMedium.otf"])
+                elif layer.font_family == "cookie": font_candidates.extend(["CookieRun-Regular.ttf", "CookieRun.ttf"])
+                font_candidates.extend([config.DEFAULT_FONT_PATH, "malgunbd.ttf", "gulim.ttc", "batang.ttc"])
 
-        # 텍스트 그림자 (가독성)
-        shadow_offset = 3
-        draw.text((x + shadow_offset, y + shadow_offset), req.text, font=font, fill="#000000")
-        draw.text((x, y), req.text, font=font, fill=req.text_color)
+            font = None
+            for font_file in font_candidates:
+                paths = [font_file, os.path.join(os.environ.get('WINDIR', 'C:\\Windows'), 'Fonts', font_file)]
+                for p in paths:
+                    if os.path.exists(p):
+                        try:
+                            font = ImageFont.truetype(p, layer.font_size)
+                            print(f"[Thumbnail] Loaded font: {p}")
+                            break
+                        except: continue
+                if font: break
+
+            if not font:
+                try: font = ImageFont.truetype("arial.ttf", layer.font_size)
+                except: font = ImageFont.load_default()
+
+            # 텍스트 크기 계산 (Bbox)
+            bbox = draw.textbbox((0, 0), layer.text, font=font)
+            tw = bbox[2] - bbox[0]
+            th = bbox[3] - bbox[1]
+
+            # X 위치 (중앙 정렬 기반)
+            x = (1280 - tw) // 2
+            
+            # Y 위치 (720p 기준 5분할 강조)
+            if layer.position == "row1" or layer.position == "top":
+                y = 60 + layer.y_offset
+            elif layer.position == "row2":
+                y = 190 + layer.y_offset
+            elif layer.position == "row3":
+                y = 320 + layer.y_offset
+            elif layer.position == "row4":
+                y = 450 + layer.y_offset
+            elif layer.position == "row5" or layer.position == "bottom":
+                y = 580 + layer.y_offset
+            else: # center
+                y = (720 - th) // 2 + layer.y_offset
+
+            # 1. 배경 박스 (Highlights) - 텍스트 아래에 그려야 함
+            if layer.bg_color:
+                padding_x = 15
+                padding_y = 10
+                draw.rectangle(
+                    [x - padding_x, y - padding_y, x + tw + padding_x, y + th + padding_y],
+                    fill=layer.bg_color
+                )
+
+            # 2. 외곽선 (Strokes)
+            if layer.stroke_color and layer.stroke_width > 0:
+                for ox in range(-layer.stroke_width, layer.stroke_width + 1):
+                    for oy in range(-layer.stroke_width, layer.stroke_width + 1):
+                        draw.text((x + ox, y + oy), layer.text, font=font, fill=layer.stroke_color)
+
+            # 3. 텍스트 그림자 (Stroke가 없을 때 가독성용)
+            elif not layer.stroke_color:
+                draw.text((x + 2, y + 2), layer.text, font=font, fill="#000000")
+
+            # 4. 본문 텍스트 생성 (가장 위에 그려야 함)
+            draw.text((x, y), layer.text, font=font, fill=layer.color)
 
         # 4. 저장
         now_kst = config.get_kst_time()
@@ -1370,8 +1601,11 @@ async def get_trending_keywords(
 
 
 @app.post("/api/image/generate-prompts")
-async def generate_image_prompts(script: str, style: str = "realistic", count: int = 0):
-    """대본 기반 이미지 프롬프트 생성"""
+async def generate_image_prompts(req: PromptsGenerateRequest):
+    """대본 기반 이미지 프롬프트 생성 (POST Body 사용)"""
+    script = req.script
+    style = req.style
+    count = req.count
     
     # [NEW] 이미지 개수 처리 로직
     if count > 0:
@@ -1396,7 +1630,7 @@ async def generate_image_prompts(script: str, style: str = "realistic", count: i
 아래 대본을 읽고, 영상에 사용할 이미지 프롬프트를 생성해주세요.
 
 [대본]
-{script[:3000]}
+{script}  # [MODIFIED] 길이 제한 해제
 
 [스타일 지침]
 "{detailed_style}"
@@ -1407,6 +1641,12 @@ async def generate_image_prompts(script: str, style: str = "realistic", count: i
 - 각 프롬프트는 영어로 작성하세요
 - Midjourney/DALL-E에 적합한 형식으로 작성하세요
 - 프롬프트 시작 부분에 스타일 키워드를 배치하세요.
+- **장시간 영상 페이싱 지침**: 사용자의 몰입도 유지를 위해 다음 구간별 빈도를 준수하세요:
+  1. 0~2분: 8초당 1장 (고속 후킹)
+  2. 2~5분: 20초당 1장 (몰입 전개)
+  3. 5~7분: 40초당 1장 (안정 전개)
+  4. 7~10분: 1분당 1장 (유지 전개)
+  5. 10분 이후: 2~10분당 1장 (매크로 흐름)
 
 JSON 형식으로 반환:
 {{
@@ -1486,6 +1726,59 @@ async def debug_dump_image_prompts(project_id: int):
     except Exception as e:
         return {"error": str(e)}
 
+
+@app.post("/api/video/search")
+async def search_stock_video(
+    script: str = Body(None),
+    style: str = Body("cinematic"),
+    query: str = Body(None) # Direct query override
+):
+    """
+    Pexels Stock Video 검색 API
+    1. query가 있으면 바로 검색
+    2. script가 있으면 Gemini에게 검색어 추출 요청 후 검색
+    """
+    from services.pexels_service import pexels_service
+    
+    search_query = query
+    if not search_query and script:
+         # Gemini에게 Pexels용 검색어 생성 요청
+         search_query = await gemini_service.generate_video_search_keywords(script, style)
+    
+    if not search_query:
+        search_query = "nature loop background" # Default
+
+    result = pexels_service.search_videos(search_query, per_page=12) # Grid 3x4
+    
+    # Add Search Keyword to response for UI feedback
+    if result.get("status") == "ok":
+        result["search_query"] = search_query
+        
+    return result
+
+@app.post("/api/video/generate-veo")
+async def generate_veo_video(
+    prompt: str = Body(embedding=True), # Just string body or JSON
+    model: str = Body("veo-3.1-generate-preview")
+):
+    """
+    Google Veo Video Generation API
+    """
+    if not prompt:
+        raise HTTPException(400, "Prompt is required")
+        
+    # Check API key configuration (generic check)
+    if not config.GEMINI_API_KEY:
+         return {"status": "error", "error": "GEMINI_API_KEY not configured"}
+
+    # Call Service
+    # Note: This is a long-running operation (polling included). 
+    # Ideally should be a background task, but for MVP we wait.
+    # If it takes > 60s, browser might timeout. We might need async task logic later.
+    # Veo preview generation is usually fast (~10-20s).
+    
+    result = await gemini_service.generate_video(prompt, model)
+    return result
 
 # ===========================================
 # API: 영상 생성
@@ -1723,7 +2016,14 @@ async def render_project_video(
                     images.append(fpath)
         
         if not images:
-            raise HTTPException(400, "유효한 이미지 파일이 없습니다.")
+             # [NEW] Check if Background Video is set
+             project_settings = db.get_project_settings(project_id)
+             bg_video_url = project_settings.get("background_video_url")
+             if not bg_video_url:
+                 raise HTTPException(400, "유효한 이미지 파일 또는 배경 동영상이 없습니다.")
+        else:
+             project_settings = db.get_project_settings(project_id)
+             bg_video_url = project_settings.get("background_video_url")
             
         # 오디오 경로
         audio_path = tts_data.get("audio_path")
@@ -1741,71 +2041,36 @@ async def render_project_video(
         final_output_filename = f"final_{project_id}_{now_kst.strftime('%Y%m%d_%H%M%S')}.mp4"
         final_output_path = os.path.join(output_dir, final_output_filename)
 
-        def render_executor_func(target_dir_arg, use_subtitles_arg, target_resolution_arg):
+        def render_executor_func(target_dir_arg, use_subtitles_arg, target_resolution_arg, bg_video_url_arg):
             # 몽키패치: MoviePy 구버전 호환성 해결
             import PIL.Image
             if not hasattr(PIL.Image, 'ANTIALIAS'):
                 PIL.Image.ANTIALIAS = PIL.Image.LANCZOS
 
             try:
-                with open("c:/Users/kimse/Downloads/유튜브소재발굴기/롱폼생성기/debug_v2.log", "a", encoding="utf-8") as rf:
-                    rf.write(f"[{datetime.datetime.now()}] Starting render V2 for project {project_id}\n")
+                with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as rf:
+                    rf.write(f"[{datetime.datetime.now()}] Starting Single-pass render for project {project_id}\n")
                     rf.write(f"[{datetime.datetime.now()}] Images: {len(images)}, Audio: {audio_path}\n")
 
+                # 1. 자막 데이터 및 설정 준비 (단일 패스용)
+                subs = []
+                s_settings = {}
+                if use_subtitles_arg:
+                    # 자막 스타일 설정 로드
+                    s_settings = db.get_project_settings(project_id) or {}
+                    s_settings = {
+                        "font": s_settings.get("subtitle_font", config.DEFAULT_FONT_PATH),
+                        "font_color": s_settings.get("subtitle_color", "white"),
+                        "style_name": s_settings.get("subtitle_style_enum", "Basic_White"),
+                        "font_size": s_settings.get("subtitle_font_size", 80),
+                        "stroke_color": s_settings.get("subtitle_stroke_color", "black"),
+                        "stroke_color": s_settings.get("subtitle_stroke_color", "black"),
+                        "stroke_width": s_settings.get("subtitle_stroke_width", 5),
+                        "position_y": s_settings.get("subtitle_position_y")
+                    }
+                    print(f"DEBUG_RENDER: main.py prepared s_settings: {s_settings}") # [DEBUG] Logic Trace
 
-                # A. 기본 영상 생성 (이미지 + 오디오)
-                with open("c:/Users/kimse/Downloads/유튜브소재발굴기/롱폼생성기/debug_v2.log", "a", encoding="utf-8") as rf:
-                    rf.write(f"[{datetime.datetime.now()}] Importing moviepy...\n")
-                
-                # 이미지당 지속 시간은 오디오 길이 / 이미지 수
-                from moviepy.editor import AudioFileClip
-                
-                with open("c:/Users/kimse/Downloads/유튜브소재발굴기/롱폼생성기/debug_v2.log", "a", encoding="utf-8") as rf:
-                    rf.write(f"[{datetime.datetime.now()}] Loading audio clip...\n")
-                    
-                audio_clip = AudioFileClip(audio_path)
-                audio_duration = audio_clip.duration
-                audio_clip.close()
-                
-                with open("c:/Users/kimse/Downloads/유튜브소재발굴기/롱폼생성기/debug_v2.log", "a", encoding="utf-8") as rf:
-                    rf.write(f"[{datetime.datetime.now()}] Audio duration: {audio_duration}\n")
-                
-                duration_per_image = audio_duration / len(images)
-                
-                # temp 파일도 프로젝트 폴더 내에 생성
-                temp_filename = f"temp_{final_output_filename}"
-                temp_path = os.path.join(target_dir_arg, temp_filename)
-                
-                # 프로젝트 정보 조회 (제목용)
-                project_info = db.get_project(project_id)
-                project_title = project_info['name'] if project_info else ""
-
-                with open("c:/Users/kimse/Downloads/유튜브소재발굴기/롱폼생성기/debug_v2.log", "a", encoding="utf-8") as rf:
-                    rf.write(f"[{datetime.datetime.now()}] Calling create_slideshow...\n")
-
-                video_path = video_service.create_slideshow(
-                    images=images,
-                    audio_path=audio_path,
-                    output_filename=temp_path,
-                    duration_per_image=duration_per_image,
-                    resolution=target_resolution_arg, # Use arg
-                    title_text="", # 사용자 요청: 프로젝트명 고정 노출 제거
-                    project_id=project_id # For progress tracking
-                )
-                
-                final_path = video_path
-                
-                # B. 자막 생성 및 합성
-                if use_subtitles_arg: # Use arg
-                    # script 변수 안전하게 가져오기
-                    script = ""
-                    if script_data and script_data.get("full_script"):
-                        script = script_data["full_script"]
-                    
-                    # 자막 데이터 확인 (우선순위: 편집된 JSON > VTT > AI Align)
-                    subs = []
-                    
-                    # 1. 편집된 자막 JSON 로드
+                    # 자막 데이터 로드
                     inner_output_dir, _ = get_project_output_dir(project_id)
                     saved_sub_path = os.path.join(inner_output_dir, f"subtitles_{project_id}.json")
                     
@@ -1813,90 +2078,43 @@ async def render_project_video(
                         import json
                         with open(saved_sub_path, "r", encoding="utf-8") as f:
                             subs = json.load(f)
-                            print(f"DEBUG: 편집된 자막 JSON 사용 ({len(subs)} lines)")
-
-                    # 2. VTT 파일 (Edge TTS) 로드
-                    elif os.path.exists(audio_path.replace(".mp3", ".vtt").replace(".wav", ".vtt")):
-                        vtt_path = audio_path.replace(".mp3", ".vtt").replace(".wav", ".vtt")
-                        print(f"DEBUG: VTT 자막 파일 발견 -> {vtt_path}")
-                        
-                        # VTT 파싱 (간단 구현)
-                        # TODO: webvtt-py 라이브러리 사용 권장
-                        try:
-                            with open(vtt_path, "r", encoding="utf-8") as f:
-                                lines = f.readlines()
-                            
-                            current_sub = {}
-                            for line in lines:
-                                line = line.strip()
-                                if "-->" in line:
-                                    start, end = line.split(" --> ")
-                                    # VTT time format: 00:00:05.123
-                                    def parse_time(t_str):
-                                        parts = t_str.split(":")
-                                        if len(parts) == 3:
-                                            h, m, s = parts
-                                            return int(h)*3600 + int(m)*60 + float(s)
-                                        elif len(parts) == 2:
-                                            m, s = parts
-                                            return int(m)*60 + float(s)
-                                        return 0.0
-                                    
-                                    current_sub["start"] = parse_time(start)
-                                    current_sub["end"] = parse_time(end)
-                                elif line and not line.startswith("WEBVTT") and not line.isdigit() and "-->" not in line:
-                                    current_sub["text"] = line
-                                    if "start" in current_sub:
-                                        subs.append(current_sub)
-                                        current_sub = {}
-                        except Exception as e:
-                            print(f"VTT Parsing Error: {e}")
-                            
-                    # 3. Fallback: AI 자막 생성 (Faster-Whisper)
-                    elif script: # 대본이 있을 때만
-                        print("DEBUG: 저장된 자막 없음. AI 자막 생성 시도...")
-                        # ... omitted ...
-                        pass
                     
-
-                            
-                    # 3. AI Align (Fallback)
                     if not subs:
+                        # Fallback: 스크립트 기반 정렬 자막 생성
+                        script = script_data.get("full_script") if script_data else ""
                         subs = video_service.generate_aligned_subtitles(audio_path, script)
-                        print(f"DEBUG: AI Align 자막 사용 ({len(subs)} lines)")
-                    
-                    if subs:
-                        # 자막 스타일 설정 로드
-                        settings = db.get_project_settings(project_id)
-                        font = settings.get("subtitle_font", "malgun.ttf")
-                        color = settings.get("subtitle_color", "white")
-                        style_name = settings.get("subtitle_style_enum", "Basic_White")
-                        font_size = settings.get("subtitle_font_size", 80)
-                        
-                        # 자막 합성
-                        final_path = video_service.add_subtitles(
-                            video_path=video_path,
-                            subtitles=subs,
-                            output_filename=final_output_path,
-                            font=font,
-                            font_color=color, # 기존 변수 사용
-                            font_size=font_size, # DB 값 사용
-                            style_name=style_name
-                        )
-                        
-                        # 임시 파일 삭제
-                    try:
-                        if os.path.exists(video_path) and video_path != final_path:
-                            os.remove(video_path)
-                    except:
-                        pass
+
+                # 2. 오디오 정보
+                from moviepy.editor import AudioFileClip
+                audio_clip = AudioFileClip(audio_path)
+                audio_duration = audio_clip.duration
+                audio_clip.close()
+                
+                duration_per_image = audio_duration / len(images)
+                
+                # 3. 단일 패스 영상 생성 (이미지 + 오디오 + 자막 통합)
+                video_path = video_service.create_slideshow(
+                    images=images,
+                    audio_path=audio_path,
+                    output_filename=final_output_path, # 바로 최종 경로로 생성
+                    duration_per_image=duration_per_image,
+                    resolution=target_resolution_arg,
+                    title_text="",
+                    project_id=project_id,
+                    subtitles=subs if use_subtitles_arg else None,
+
+                    subtitle_settings=s_settings if use_subtitles_arg else None,
+                    background_video_url=bg_video_url_arg
+                )
+                
+                final_path = video_path
 
                 # C. DB 업데이트
                 # 웹 경로: /output/Project_Date/video.mp4
                 web_video_path = f"{web_dir}/{os.path.basename(final_path)}"
                 db.update_project_setting(project_id, "video_path", web_video_path)
                 db.update_project(project_id, status="rendered")
-                print(f"프로젝트 {project_id} 렌더링 완료: {final_path}")
+                print(f"프로젝트 {project_id} 단일 패스 렌더링 완료: {final_path}")
 
             except Exception as e:
                 import traceback
@@ -1905,7 +2123,7 @@ async def render_project_video(
                 traceback.print_exc()
                 
                 try:
-                    with open("c:/Users/kimse/Downloads/유튜브소재발굴기/롱폼생성기/debug_v2.log", "a", encoding="utf-8") as rf:
+                    with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as rf:
                          rf.write(f"[{datetime.datetime.now()}] Render Error: {e}\n{traceback.format_exc()}\n")
                 except:
                     pass
@@ -1923,7 +2141,7 @@ async def render_project_video(
         db.update_project_setting(project_id, "video_path", "")
 
         # background_tasks.add_task(render_executor_func, output_dir)
-        background_tasks.add_task(render_executor_func, target_dir_arg=output_dir, use_subtitles_arg=request.use_subtitles, target_resolution_arg=target_resolution)
+        background_tasks.add_task(render_executor_func, target_dir_arg=output_dir, use_subtitles_arg=request.use_subtitles, target_resolution_arg=target_resolution, bg_video_url_arg=bg_video_url)
 
         return {
             "status": "processing",
@@ -2025,83 +2243,140 @@ async def subtitle_gen_page(request: Request):
 @app.get("/api/subtitle/{project_id}")
 async def get_subtitle(project_id: int):
     """프로젝트의 자막 정보 조회 (VTT -> JSON 변환하여 반환)"""
-    tts_data = db.get_tts(project_id)
-    if not tts_data or not tts_data.get("audio_path"):
-        return {"status": "error", "error": "TTS 데이터가 없습니다."}
-    
-    audio_path = tts_data["audio_path"]
-    vtt_path = audio_path.replace(".mp3", ".vtt")
-    
-    subtitles = []
-    
-    # 1. 편집된/생성된 자막 JSON 로드 (우선순위 1)
-    output_dir, web_dir = get_project_output_dir(project_id)
-    saved_sub_path = os.path.join(output_dir, f"subtitles_{project_id}.json")
-    
-    if os.path.exists(saved_sub_path):
-        import json
+    try:
+        # [AUTO RECOVERY] 먼저 자동 복구 시도 (파일은 있는데 DB만 없는 경우 대비)
+        # 이미지/오디오 모두 스캔
+        recover_project_assets(project_id)
+        
+        tts_data = db.get_tts(project_id)
+        if not tts_data or not tts_data.get("audio_path"):
+            return {"status": "error", "error": "TTS 데이터가 없습니다."}
+        
+        audio_path = tts_data["audio_path"]
+        vtt_path = audio_path.replace(".mp3", ".vtt")
+        
+        subtitles = []
+        
+        # 1. 편집된/생성된 자막 JSON 로드 (우선순위 1)
+        output_dir, web_dir = get_project_output_dir(project_id)
+        saved_sub_path = os.path.join(output_dir, f"subtitles_{project_id}.json")
+        
+        if os.path.exists(saved_sub_path):
+            import json
+            try:
+                with open(saved_sub_path, "r", encoding="utf-8") as f:
+                    subtitles = json.load(f)
+            except Exception as e:
+                print(f"Error loading saved subtitles: {e}")
+                pass
+
+        # 2. Edge TTS로 생성된 VTT가 있으면 폴백 (우선순위 2)
+        if not subtitles and os.path.exists(vtt_path):
+            try:
+                import webvtt
+                # webvtt 라이브러리가 있으면 사용
+                for caption in webvtt.read(vtt_path):
+                    subtitles.append({
+                        "start": caption.start_in_seconds,
+                        "end": caption.end_in_seconds,
+                        "text": caption.text
+                    })
+            except ImportError:
+                print("webvtt library not found, using manual parser")
+                # Simple VTT Parser Fallback
+                try:
+                    with open(vtt_path, "r", encoding="utf-8") as f:
+                        lines = f.readlines()
+                    
+                    current_caption = None
+                    for line in lines:
+                        line = line.strip()
+                        if "-->" in line:
+                            # Timecode line: 00:00:01.000 --> 00:00:04.000
+                            start_str, end_str = line.split("-->")
+                            
+                            # Helper to convert HH:MM:SS.mmm to seconds
+                            def parse_time(t_str):
+                                parts = t_str.strip().split(":")
+                                seconds = 0
+                                if len(parts) == 3: # HH:MM:SS.mmm
+                                    seconds += float(parts[0]) * 3600
+                                    seconds += float(parts[1]) * 60
+                                    seconds += float(parts[2])
+                                elif len(parts) == 2: # MM:SS.mmm
+                                    seconds += float(parts[0]) * 60
+                                    seconds += float(parts[1])
+                                return seconds
+
+                            if current_caption:
+                                subtitles.append(current_caption)
+                            
+                            current_caption = {
+                                "start": parse_time(start_str),
+                                "end": parse_time(end_str),
+                                "text": ""
+                            }
+                        elif line and current_caption:
+                            # Text line (skip header/metadata)
+                            if not line.startswith("WEBVTT") and not line.startswith("Kind:") and not line.startswith("Language:"):
+                                current_caption["text"] += line + " "
+                    
+                    if current_caption:
+                        subtitles.append(current_caption)
+                        
+                except Exception as e:
+                    print(f"Manual VTT parsing failed: {e}")
+
+        # 오디오 Web URL 계산
+        # audio_path가 absolute path일 때, config.OUTPUT_DIR에 대한 상대 경로 계산
         try:
-            with open(saved_sub_path, "r", encoding="utf-8") as f:
-                subtitles = json.load(f)
-        except Exception:
-            pass
+            rel_path = os.path.relpath(audio_path, config.OUTPUT_DIR)
+            audio_url = f"/output/{rel_path}".replace("\\", "/")
+        except ValueError:
+            # 경로가 다른 드라이브에 있거나 파악 불가 시
+            audio_url = f"/output/{os.path.basename(audio_path)}"
 
-    # 2. Edge TTS로 생성된 VTT가 있으면 폴백 (우선순위 2)
-    if not subtitles and os.path.exists(vtt_path):
-        import webvtt
+        # [FIX] 이미지 리스트 조회 (자막 매칭용)
+        images = []
         try:
-            # webvtt 라이브러리가 없다면 간단 파싱 폴백
-            for caption in webvtt.read(vtt_path):
-                subtitles.append({
-                    "start": caption.start_in_seconds,
-                    "end": caption.end_in_seconds,
-                    "text": caption.text
-                })
-        except ImportError:
-            # Simple VTT Parser (생략 - 필요시 구현)
-            pass
-            
-            
-    # 오디오 Web URL 계산
-    # audio_path가 absolute path일 때, config.OUTPUT_DIR에 대한 상대 경로 계산
-    # 예: C:/.../output/Project_2024/tts.mp3 -> /output/Project_2024/tts.mp3
-    try:
-        rel_path = os.path.relpath(audio_path, config.OUTPUT_DIR)
-        audio_url = f"/output/{rel_path}".replace("\\", "/")
-    except ValueError:
-        # 경로가 다른 드라이브에 있거나 파악 불가 시
-        audio_url = f"/output/{os.path.basename(audio_path)}"
+            # DB에서 해당 프로젝트의 모든 이미지 프롬프트(및 생성된 URL) 가져오기
+            prompts = db.get_image_prompts(project_id)
+            # 장면 번호 순으로 정렬하여 영상 흐름과 맞춤
+            prompts.sort(key=lambda x: x.get('scene_number', 0))
+            # URL이 있는 것만 추출
+            images = [p['image_url'] for p in prompts if p.get('image_url')]
+            print(f"DEBUG: Found {len(images)} images for subtitle editor (PID: {project_id})")
+        except Exception as e:
+            print(f"Error loading images for subtitle: {e}")
 
-    # [FIX] 이미지 리스트 조회 (자막 매칭용)
-    images = []
-    try:
-        prompts = db.get_image_prompts(project_id)
-        # scene_number 순으로 정렬 보장
-        prompts.sort(key=lambda x: x.get('scene_number', 0))
-        images = [p['image_url'] for p in prompts if p.get('image_url')]
-    except Exception as e:
-        print(f"Error loading images for subtitle: {e}")
+        # [ADD] 대본 텍스트 미리 가져오기 (빈 상태일 때 자동 채움용)
+        fallback_script = ""
+        try:
+            settings = db.get_project_settings(project_id)
+            if settings and settings.get('script'):
+                fallback_script = settings['script']
+            else:
+                script_data = db.get_script(project_id)
+                if script_data and script_data.get('full_script'):
+                    fallback_script = script_data['full_script']
+        except Exception as e:
+            print(f"Error loading fallback script: {e}")
 
-    # [ADD] 대본 텍스트 미리 가져오기 (빈 상태일 때 자동 채움용)
-    fallback_script = ""
-    try:
-        settings = db.get_project_settings(project_id)
-        if settings and settings.get('script'):
-            fallback_script = settings['script']
-        else:
-            script_data = db.get_script(project_id)
-            if script_data and script_data.get('full_script'):
-                fallback_script = script_data['full_script']
-    except Exception as e:
-        print(f"Error loading fallback script: {e}")
-
-    return {
-        "status": "ok",
-        "subtitles": subtitles,
-        "audio_url": audio_url,
-        "images": images,
-        "script": fallback_script
-    }
+        return {
+            "status": "ok",
+            "subtitles": subtitles,
+            "audio_url": audio_url,
+            "images": images,
+            "script": fallback_script
+        }
+    except Exception as ie:
+        import traceback
+        error_msg = f"Internal Error in get_subtitle: {str(ie)}\n{traceback.format_exc()}"
+        print(error_msg)
+        # Write to debug file
+        with open("debug_error.log", "w", encoding="utf-8") as f:
+            f.write(error_msg)
+        return {"status": "error", "error": f"Internal Server Error: {str(ie)}"}
 
 @app.post("/api/subtitle/save")
 async def save_subtitle(
@@ -2147,7 +2422,10 @@ async def save_subtitle(
         # 스타일 정보
         font_size = settings.get('subtitle_font_size', 10)
         style_enum = settings.get('subtitle_style_enum', 'Basic_White')
-        font_name = "malgun.ttf" # 기본값
+        font_name = settings.get('subtitle_font', config.DEFAULT_FONT_PATH)
+        font_color = settings.get('subtitle_color', 'white')
+        stroke_color = settings.get('subtitle_stroke_color')
+        stroke_width = settings.get('subtitle_stroke_width')
 
         # 각 자막에 대해 미리보기 생성
         updated_subtitles = []
@@ -2170,9 +2448,12 @@ async def save_subtitle(
                     background_path=bg_image_path,
                     text=sub['text'],
                     font_size=font_size,
-                    font_color="white", # Style dictates this usually
+                    font_color=font_color,
                     font_name=font_name,
                     style_name=style_enum,
+                    stroke_color=stroke_color,
+                    stroke_width=stroke_width,
+                    position_y=settings.get('subtitle_position_y'),
                     target_size=(1280, 720) # 16:9 Landscape
                 )
                 
@@ -2386,11 +2667,97 @@ async def get_render_status(project_id: int):
 if __name__ == "__main__":
     import uvicorn
 
+
+@app.post("/api/project/{project_id}/scan-assets")
+async def scan_project_assets(project_id: int):
+    """
+    프로젝트 폴더를 스캔하여 DB에 누락된 오디오/이미지 자산을 수동으로 등록/복구합니다.
+    """
+    try:
+        result = recover_project_assets(project_id)
+        return {
+            "status": "success", 
+            "message": f"복구 완료: 오디오 {'있음' if result['audio'] else '없음'}, 이미지 {result['images']}장 복구됨"
+        }
+    except Exception as e:
+        print(f"Scan assets error: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+def recover_project_assets(project_id: int):
+    """
+    폴더 스캔 및 DB 복구 핵심 로직 (재사용 가능하도록 분리)
+    Returns: {'audio': bool, 'images': int}
+    """
+    output_dir, _ = get_project_output_dir(project_id)
+    recovered_audio = False
+    recovered_images = 0
+    
+    # 1. 오디오 파일 스캔
+    audio_filename = f"audio_{project_id}.mp3"
+    audio_path = os.path.join(output_dir, audio_filename)
+    
+    if os.path.exists(audio_path):
+        existing_tts = db.get_tts(project_id)
+        if not existing_tts:
+            print(f"Recovering audio for project {project_id}: {audio_path}")
+            db_conn = db.get_connection()
+            cursor = db_conn.cursor()
+            cursor.execute(
+                "INSERT INTO tts_audio (project_id, audio_path, duration, created_at) VALUES (?, ?, ?, ?)",
+                (project_id, audio_path, 0, datetime.datetime.now().isoformat())
+            )
+            db_conn.commit()
+            db_conn.close()
+            recovered_audio = True
+
+    # 2. 이미지 파일 스캔
+    import glob
+    image_pattern = os.path.join(output_dir, f"image_{project_id}_*.png")
+    found_images = glob.glob(image_pattern)
+    
+    if found_images:
+        db_conn = db.get_connection()
+        cursor = db_conn.cursor()
+        
+        for img_path in found_images:
+            filename = os.path.basename(img_path)
+            try:
+                parts = filename.replace(".png", "").split("_")
+                if len(parts) >= 3:
+                    scene_num = int(parts[2])
+                    
+                    cursor.execute("SELECT id FROM image_prompts WHERE project_id=? AND scene_number=?", (project_id, scene_num))
+                    if not cursor.fetchone():
+                        print(f"Recovering image for project {project_id} scene {scene_num}: {img_path}")
+                        rel_path = os.path.relpath(img_path, config.OUTPUT_DIR)
+                        web_url = f"/output/{rel_path}".replace("\\", "/")
+                        
+                        cursor.execute(
+                            "INSERT INTO image_prompts (project_id, scene_number, prompt, image_path, image_url, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                            (project_id, scene_num, "Recovered Image", img_path, web_url, datetime.datetime.now().isoformat())
+                        )
+                        recovered_images += 1
+            except Exception as e:
+                print(f"Skipping malformed filename {filename}: {e}")
+                
+        db_conn.commit()
+        db_conn.close()
+        
+    return {'audio': recovered_audio, 'images': recovered_images}
+        
+
+
+
+if __name__ == "__main__":
     print("=" * 50)
     print("🚀 피카디리스튜디오 v2.0 시작")
     print("=" * 50)
 
     config.validate()
+    
+    # Initialize & Migrate Database
+    db.init_db()
+    db.migrate_db()
 
 
 

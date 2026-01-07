@@ -52,6 +52,10 @@ def init_db():
             video_path TEXT,
             subtitle_style_enum TEXT DEFAULT 'Basic_White',
             subtitle_font_size INTEGER DEFAULT 10,
+            subtitle_stroke_color TEXT DEFAULT 'black',
+            subtitle_stroke_width REAL DEFAULT 0.15,
+            subtitle_position_y INTEGER,
+            background_video_url TEXT,
             is_uploaded INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -172,6 +176,19 @@ def init_db():
         )
     """)
 
+    # [NEW] 성공 전략 지식 베이스
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS success_knowledge (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category TEXT, -- hook, structure, emotion, thumbnail 등
+            pattern TEXT,  -- 일반화된 패턴 (예: "초반 3초 반전 후킹")
+            insight TEXT,  -- 상세 분석 내용
+            source_video_id TEXT,
+            script_style TEXT, -- story, informational 등
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -249,6 +266,26 @@ def migrate_db():
     except sqlite3.OperationalError:
         pass
         
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN subtitle_stroke_color TEXT DEFAULT 'black'")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN subtitle_stroke_width REAL DEFAULT 0.15")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN subtitle_position_y INTEGER")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN background_video_url TEXT")
+    except sqlite3.OperationalError:
+        pass
+        
     conn.commit()
     print("[DB] Migration completed")
 
@@ -270,12 +307,19 @@ def create_project(name: str, topic: str = None) -> int:
     from services.settings_service import settings_service
     defaults = settings_service.get_gemini_tts_settings()
     
+    # [NEW] 자막 기본값 가져오기
+    sub_defaults = get_subtitle_defaults()
+    
     cursor.execute(
         """INSERT INTO project_settings 
-           (project_id, title, voice_name, voice_language, voice_style_prompt) 
-           VALUES (?, ?, ?, ?, ?)""",
+           (project_id, title, voice_name, voice_language, voice_style_prompt,
+            subtitle_font, subtitle_font_size, subtitle_color, subtitle_style_enum, subtitle_stroke_color, subtitle_stroke_width) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (project_id, name, defaults.get("voice_name", "Puck"), 
-         defaults.get("language_code", "ko-KR"), defaults.get("style_prompt", ""))
+         defaults.get("language_code", "ko-KR"), defaults.get("style_prompt", ""),
+         sub_defaults.get("subtitle_font"), sub_defaults.get("subtitle_font_size"),
+         sub_defaults.get("subtitle_color"), sub_defaults.get("subtitle_style_enum"),
+         sub_defaults.get("subtitle_stroke_color"), sub_defaults.get("subtitle_stroke_width"))
     )
 
     conn.commit()
@@ -701,7 +745,7 @@ def save_project_settings(project_id: int, settings: Dict):
                     'script', 'hashtags', 'voice_tone', 'voice_name', 'voice_language', 'voice_style_prompt', 
                     'video_command', 'video_path', 'is_uploaded',
                     'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum',
-                    'subtitle_font_size']:
+                    'subtitle_font_size', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url']:
             if key in settings:
                 fields.append(f"{key} = ?")
                 values.append(settings[key])
@@ -720,8 +764,8 @@ def save_project_settings(project_id: int, settings: Dict):
             (project_id, title, thumbnail_text, thumbnail_url, duration_seconds, aspect_ratio,
              script, hashtags, voice_tone, voice_name, voice_language, voice_style_prompt,
              video_command, video_path, is_uploaded,
-             image_style_prompt, subtitle_font, subtitle_color, target_language, subtitle_style_enum, subtitle_font_size)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             image_style_prompt, subtitle_font, subtitle_color, target_language, subtitle_style_enum, subtitle_font_size, subtitle_stroke_color, subtitle_stroke_width, subtitle_position_y, background_video_url)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             project_id,
             settings.get('title'),
@@ -743,7 +787,12 @@ def save_project_settings(project_id: int, settings: Dict):
             settings.get('subtitle_color', 'white'),
             settings.get('target_language', 'ko'),
             settings.get('subtitle_style_enum', 'Basic_White'),
-            settings.get('subtitle_font_size', 80)
+            settings.get('subtitle_font_size', 80),
+            settings.get('subtitle_font_size', 80),
+            settings.get('subtitle_stroke_color', 'black'),
+            settings.get('subtitle_stroke_width', 0.15),
+            settings.get('subtitle_position_y'),
+            settings.get('background_video_url')
         ))
 
     conn.commit()
@@ -764,10 +813,11 @@ def update_project_setting(project_id: int, key: str, value: Any):
     cursor = conn.cursor()
 
     allowed_keys = ['title', 'thumbnail_text', 'thumbnail_url', 'duration_seconds', 'aspect_ratio',
-                    'script', 'hashtags', 'voice_tone', 'voice_name', 'voice_language', 'voice_style_prompt',
-                    'video_command', 'video_path', 'is_uploaded',
+                    'script', 'hashtags', 'voice_tone', 'voice_name', 'voice_language', 'voice_style_prompt', 
+                    'video_command', 'video_path', 'is_uploaded', 
                     'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum',
-                    'subtitle_font_size', 'subtitle_path']
+                    'subtitle_font_size', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'youtube_video_id', 'is_published', 'background_video_url']
+
 
     if key not in allowed_keys:
         print(f"[DB] Key '{key}' not in allowed_keys: {allowed_keys}")
@@ -808,23 +858,21 @@ def save_shorts(project_id: int, shorts_data: List[Dict]):
         INSERT INTO shorts (project_id, shorts_data)
         VALUES (?, ?)
     """, (project_id, json.dumps(shorts_data, ensure_ascii=False)))
-
+    
     conn.commit()
     conn.close()
 
-def get_shorts(project_id: int) -> Optional[Dict]:
+def get_shorts(project_id: int) -> List[Dict]:
     """쇼츠 데이터 조회"""
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM shorts WHERE project_id = ?", (project_id,))
+    cursor.execute("SELECT shorts_data FROM shorts WHERE project_id = ? ORDER BY created_at DESC", (project_id,))
     row = cursor.fetchone()
     conn.close()
-
+    
     if row:
-        data = dict(row)
-        data['shorts_data'] = json.loads(data['shorts_data']) if data['shorts_data'] else []
-        return data
-    return None
+        return json.loads(row['shorts_data'])
+    return []
 
 # ============ 프로젝트 전체 데이터 ============
 
@@ -846,6 +894,111 @@ def get_project_full_data(project_id: int) -> Optional[Dict]:
         'thumbnails': get_thumbnails(project_id),
         'shorts': get_shorts(project_id)
     }
+
+# ============ 글로벌 설정 (기본값) ============
+
+def save_global_setting(key: str, value: Any):
+    """글로벌 설정 저장"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # JSON 직렬화 (Dict/List 대비)
+    json_val = json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else str(value)
+
+    cursor.execute("""
+        INSERT INTO global_settings (key, value, updated_at)
+        VALUES (?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(key) DO UPDATE SET
+            value = excluded.value,
+            updated_at = CURRENT_TIMESTAMP
+    """, (key, json_val))
+    
+    conn.commit()
+    conn.close()
+
+def get_global_setting(key: str, default: Any = None) -> Any:
+    """글로벌 설정 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT value FROM global_settings WHERE key = ?", (key,))
+    row = cursor.fetchone()
+    conn.close()
+    
+    if row:
+        val = row['value']
+        try:
+            return json.loads(val)
+        except:
+            return val
+    return default
+
+def get_subtitle_defaults() -> Dict:
+    """자막 기본값 조회 (프로젝트 생성용)"""
+    return get_global_setting("subtitle_default_style", {
+        "subtitle_font": "GmarketSansBold",
+        "subtitle_font_size": 40,
+        "subtitle_color": "white",
+        "subtitle_style_enum": "Basic_White",
+        "subtitle_stroke_color": "black",
+        "subtitle_stroke_width": 0.15
+    })
+
+# ============ 성공 전략 지식 베이스 (학습 시스템) ============
+
+def save_success_knowledge(category: str, pattern: str, insight: str, source_video_id: str = None, script_style: str = "story"):
+    """성공 전략 지식 저장"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # 중복 패턴 방지 (단순 체크)
+    cursor.execute("SELECT id FROM success_knowledge WHERE pattern = ? AND category = ?", (pattern, category))
+    if cursor.fetchone():
+        conn.close()
+        return
+        
+    cursor.execute("""
+        INSERT INTO success_knowledge (category, pattern, insight, source_video_id, script_style)
+        VALUES (?, ?, ?, ?, ?)
+    """, (category, pattern, insight, source_video_id, script_style))
+    
+    conn.commit()
+    conn.close()
+
+def get_recent_knowledge(limit: int = 10, category: str = None, script_style: str = None) -> List[Dict]:
+    """최근 누적된 지식 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    query = "SELECT * FROM success_knowledge WHERE 1=1"
+    params = []
+    
+    if category:
+        query += " AND category = ?"
+        params.append(category)
+    if script_style:
+        query += " AND script_style = ?"
+        params.append(script_style)
+        
+    query += " ORDER BY created_at DESC LIMIT ?"
+    params.append(limit)
+    
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+def get_all_knowledge_by_style(script_style: str) -> List[Dict]:
+    """특정 스타일에 대한 모든 지식 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM success_knowledge WHERE script_style = ? ORDER BY category", (script_style,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+# 초기화
+init_db()
+migrate_db()
 
 # 초기화
 init_db()

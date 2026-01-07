@@ -4,7 +4,58 @@
 
 
 <div class="card mb-6">
-    <h3 class="font-bold text-gray-800 dark:text-white mb-4">⚙️ 이미지 설정</h3>
+    <div class="flex flex-wrap items-center gap-6 mb-6">
+        <h3 class="font-bold text-gray-800 dark:text-white shrink-0">⚙️ 이미지 설정</h3>
+
+        <div class="flex flex-wrap items-center gap-4">
+            <!-- Image Options -->
+            <div id="imageOptions" class="flex flex-wrap items-center gap-4">
+                <!-- Aspect Ratio -->
+                <div class="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg shadow-inner">
+                    <label class="cursor-pointer">
+                        <input type="radio" name="aspectRatio" value="16:9" checked class="peer sr-only">
+                        <div
+                            class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-gray-300 transition-all">
+                            16:9</div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="aspectRatio" value="1:1" class="peer sr-only">
+                        <div
+                            class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-gray-300 transition-all">
+                            1:1</div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="aspectRatio" value="9:16" class="peer sr-only">
+                        <div
+                            class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-gray-300 transition-all">
+                            9:16</div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="aspectRatio" value="3:4" class="peer sr-only">
+                        <div
+                            class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-gray-300 transition-all">
+                            3:4</div>
+                    </label>
+                </div>
+
+                <!-- Generate Prompt Button -->
+                <button onclick="generatePrompts()" id="generateBtn"
+                    class="btn-primary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-md hover:scale-105 transition-transform bg-gradient-to-r from-blue-600 to-indigo-600">
+                    <span>🪄</span>
+                    <span>프롬프트 생성</span>
+                </button>
+
+                <!-- Auto Image Generate Button -->
+                <button onclick="generateAllImages()" id="autoGenBtn"
+                    class="btn-primary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-md hover:scale-105 transition-transform bg-gradient-to-r from-purple-600 to-indigo-600 opacity-50 cursor-not-allowed"
+                    disabled>
+                    <span>🚀</span>
+                    <span>이미지 자동 생성</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="col-span-1 md:col-span-2">
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">스타일 선택</label>
@@ -115,73 +166,17 @@
             </div>
         </div>
     </div>
-    <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">이미지 비율</label>
-        <div class="grid grid-cols-4 gap-2 mb-4">
-            <label class="cursor-pointer">
-                <input type="radio" name="aspectRatio" value="16:9" checked class="peer sr-only">
-                <div
-                    class="p-2 border rounded-md text-center peer-checked:bg-blue-600 peer-checked:text-white peer-checked:border-blue-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-all">
-                    <div class="font-bold text-sm">16:9</div>
-                    <div class="text-[10px]">와이드</div>
-                </div>
-            </label>
-            <label class="cursor-pointer">
-                <input type="radio" name="aspectRatio" value="1:1" class="peer sr-only">
-                <div
-                    class="p-2 border rounded-md text-center peer-checked:bg-blue-600 peer-checked:text-white peer-checked:border-blue-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-all">
-                    <div class="font-bold text-sm">1:1</div>
-                    <div class="text-[10px]">정사각형</div>
-                </div>
-            </label>
-            <label class="cursor-pointer">
-                <input type="radio" name="aspectRatio" value="9:16" class="peer sr-only">
-                <div
-                    class="p-2 border rounded-md text-center peer-checked:bg-blue-600 peer-checked:text-white peer-checked:border-blue-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-all">
-                    <div class="font-bold text-sm">9:16</div>
-                    <div class="text-[10px]">쇼츠/릴스</div>
-                </div>
-            </label>
-            <label class="cursor-pointer">
-                <input type="radio" name="aspectRatio" value="3:4" class="peer sr-only">
-                <div
-                    class="p-2 border rounded-md text-center peer-checked:bg-blue-600 peer-checked:text-white peer-checked:border-blue-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-all">
-                    <div class="font-bold text-sm">3:4</div>
-                    <div class="text-[10px]">9:12</div>
-                </div>
-            </label>
-        </div>
-
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">이미지 개수</label>
-        <select id="imageCount" class="input-field">
-            <option value="0" selected>🤖 AI 자동 판단 (기본)</option>
-            <option value="3">3개</option>
-            <option value="5">5개</option>
-            <option value="10">10개</option>
-        </select>
-    </div>
-</div>
 </div>
 
-<button onclick="generatePrompts()" id="generateBtn"
-    class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg mb-6">
-    <span>🖼️</span>
-    <span>이미지 프롬프트 생성</span>
-</button>
 
 <div id="resultSection" class="hidden">
     <div class="card">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="font-bold text-gray-800 dark:text-white">🎨 생성된 프롬프트</h3>
-            <button onclick="copyAllPrompts()" class="btn-secondary text-sm">📋 전체 복사</button>
+        <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-100 dark:border-gray-700">
+            <h3 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                <span>🎨</span> 생성된 프롬프트
+            </h3>
+            <button onclick="copyAllPrompts()" class="btn-secondary text-sm px-4">📋 전체 복사</button>
         </div>
-
-        <!-- 자동 생성 버튼 추가 -->
-        <button onclick="generateAllImages()" id="autoGenBtn"
-            class="w-full btn-primary py-3 mb-6 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold rounded-lg shadow-md transition-all flex items-center justify-center gap-2">
-            <span>🚀</span>
-            <span>생성된 프롬프트로 이미지 만들기 (자동)</span>
-        </button>
 
         <div id="promptsList" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
 
@@ -189,9 +184,11 @@
         <div id="nextStepSection" class="hidden mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-center">
             <h4 class="font-bold text-lg mb-2 text-blue-800 dark:text-blue-300">🎉 이미지 생성이 완료되었습니다!</h4>
             <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">아래 버튼을 눌러 영상 합성을 위한 음성을 생성하세요.</p>
-            <a href="/tts" class="btn-primary inline-flex items-center gap-2">
-                <span>🔊</span> 음성(TTS) 생성하러 가기
+            <a href="/video-gen" class="btn-primary inline-flex items-center gap-2">
+                <span>🎥</span> 동영상(선택사항) 확인하러 가기
             </a>
+            <div class="mt-2 text-xs text-gray-500">또는 바로 <a href="/tts" class="underline hover:text-blue-600">TTS
+                    생성</a>으로 이동</div>
         </div>
 
         <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
@@ -207,12 +204,13 @@
 {% endblock %}
 
 {% block scripts %}
+</script>
 <script>
     let prompts = [];
 
     async function generatePrompts() {
-        let script = '';
         const scriptData = Utils.storage.get('fullScript');
+        let script = "";
 
         if (scriptData && scriptData.script) {
             script = scriptData.script;
@@ -238,7 +236,7 @@
         }
 
         const style = document.getElementById('imageStyle').value;
-        const count = document.getElementById('imageCount').value;
+        const count = 0; // AI 자동 판단 고정
 
         const btn = document.getElementById('generateBtn');
         Utils.setLoading(btn, true, '생성 중...');
@@ -250,6 +248,11 @@
                 prompts = result.prompts;
                 renderPrompts();
                 document.getElementById('resultSection').classList.remove('hidden');
+
+                // 활성화
+                const autoBtn = document.getElementById('autoGenBtn');
+                autoBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                autoBtn.disabled = false;
 
                 Utils.storage.set('imagePrompts', prompts);
             }
@@ -403,10 +406,16 @@
     // 초기 로드 시 로컬 스토리지 확인 (빠른 렌더링)
     document.addEventListener('DOMContentLoaded', () => {
         const savedPrompts = Utils.storage.get('imagePrompts');
+        const autoBtn = document.getElementById('autoGenBtn'); // Define locally since it's used inside
         if (savedPrompts && savedPrompts.length > 0) {
             prompts = savedPrompts;
             renderPrompts();
             document.getElementById('resultSection').classList.remove('hidden');
+
+            if (autoBtn) {
+                autoBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                autoBtn.disabled = false;
+            }
         }
     });
 </script>

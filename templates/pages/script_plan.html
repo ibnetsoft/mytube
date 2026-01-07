@@ -26,13 +26,12 @@
             <p class="text-xs text-gray-500 mt-1">기본값: 60분 (대본 길이 기준)</p>
         </div>
         <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">톤앤매너</label>
-            <select id="toneSelect" class="input-field">
-                <option value="friendly">친근한</option>
-                <option value="professional">전문적인</option>
-                <option value="humorous">유머러스한</option>
-                <option value="educational">교육적인</option>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">대본 스타일</label>
+            <select id="scriptStyleSelect" class="input-field">
+                <option value="story" selected>옛날 이야기 (Old Story)</option>
+                <option value="news">뉴스 보도 (News Delivery)</option>
             </select>
+            <p class="text-xs text-gray-500 mt-1">기본값: 옛날 이야기</p>
         </div>
     </div>
     <div>
@@ -105,20 +104,8 @@
     // 상태 복구 완료 시 UI 업데이트
     window.addEventListener('projectStateRestored', (e) => {
         const data = e.detail;
-        if (data.analysis && data.project) {
-            // 분석 데이터 렌더링
-            const analysis = data.analysis;
-            document.getElementById('analysisInfo').classList.remove('hidden');
-            if (analysis.video_title) document.getElementById('topicInput').value = analysis.video_title;
-            document.getElementById('analysisContent').innerHTML = `
-                <div class="flex gap-4 items-center">
-                    <img src="${analysis.thumbnail_url}" class="w-24 rounded">
-                    <div>
-                        <p class="font-medium text-gray-800 dark:text-white">${analysis.video_title}</p>
-                        <p class="text-sm text-gray-500">${analysis.channel_title}</p>
-                    </div>
-                </div>
-            `;
+        if (data) {
+            renderAnalysisSection(data);
         }
 
         if (data.script_structure) {
@@ -131,61 +118,114 @@
         if (!projectId) return;
 
         try {
-            const data = await API.project.getAnalysis(projectId);
-            if (data && data.video_title) { // DB column mapping might be snake_case, need to check API return
-                // The API returns the row, so columns like video_title, channel_title, thumbnail_url
-                document.getElementById('analysisInfo').classList.remove('hidden');
-                document.getElementById('topicInput').value = data.video_title;
-                document.getElementById('analysisContent').innerHTML = `
-                    <div class="flex gap-4 items-center">
-                        <img src="${data.thumbnail_url}" class="w-24 rounded">
-                        <div>
-                            <p class="font-medium text-gray-800 dark:text-white">${data.video_title}</p>
-                            <p class="text-sm text-gray-500">${data.channel_title}</p>
-                        </div>
-                    </div>
-                `;
-                Utils.showToast('분석 데이터를 불러왔습니다', 'success');
+            // [MODIFIED] Fetch Full Data to get both Analysis and Settings (Thumbnail)
+            const fullData = await API.project.getFull(projectId);
+            console.log("Full Data:", fullData);
+
+            if (fullData) {
+                // 1. Set Topic
+                if (fullData.project && fullData.project.topic) {
+                    document.getElementById('topicInput').value = fullData.project.topic;
+                }
+
+                // 2. Render Analysis Info + Generated Thumbnail
+                renderAnalysisSection(fullData);
+
+                // [NEW] Target Language
+                const settings = fullData.settings || {};
+                if (fullData.project && fullData.project.target_language) {
+                    currentTargetLanguage = fullData.project.target_language;
+                } else if (settings.target_language) {
+                    currentTargetLanguage = settings.target_language;
+                }
             }
 
-            // Load existing structure if any
+            // Load existing structure (Separate fetch as per legacy logic, usually structure is large)
             try {
                 const structData = await API.project.getScriptStructure(projectId);
                 if (structData && structData.sections) {
-                    // 저장된 구조가 있으면 렌더링
                     console.log("Loaded saved structure:", structData);
                     currentStructure = structData;
                     renderStructure(structData);
                     document.getElementById('resultSection').classList.remove('hidden');
-                    Utils.storage.set('scriptStructure', structData); // LocalStorage 동기화
+                    Utils.storage.set('scriptStructure', structData);
                 }
             } catch (e) {
                 console.error("Failed to load script structure:", e);
             }
 
-            // Load Style Settings & Language
-            try {
-                const fullData = await API.project.getFull(projectId);
-                if (fullData) {
-                    // [NEW] 타겟 언어 설정 로드
-                    if (fullData.project && fullData.project.target_language) {
-                        currentTargetLanguage = fullData.project.target_language;
-                        console.log("Target Language Loaded:", currentTargetLanguage);
-                    } else if (fullData.settings && fullData.settings.target_language) {
-                        currentTargetLanguage = fullData.settings.target_language;
-                    }
-
-                    if (fullData.settings) {
-                        const s = fullData.settings;
-                        // if (s.image_style_prompt) document.getElementById('imageStyleInput').value = s.image_style_prompt;
-                        // if (s.subtitle_font) document.getElementById('subtitleFontSelect').value = s.subtitle_font;
-                        // if (s.subtitle_color) document.getElementById('subtitleColorSelect').value = s.subtitle_color;
-                    }
-                }
-            } catch (e) { console.error('스타일/언어 로드 실패:', e); }
-
         } catch (e) {
             console.error('데이터 로드 실패:', e);
+            Utils.showToast('데이터 로드 실패', 'error');
+        }
+    }
+
+    function renderAnalysisSection(fullData) {
+        const analysis = fullData.analysis || {};
+        const settings = fullData.settings || {};
+
+        const hasAnalysis = analysis.video_title;
+        const hasThumbnail = settings.thumbnail_url;
+
+        // Note: We check if there's ANYTHING to show. 
+        // If analysis is missing but we have thumbnail, we still show the section.
+        if (hasAnalysis || hasThumbnail) {
+            document.getElementById('analysisInfo').classList.remove('hidden');
+
+            // If topic input is empty, maybe fill it from analysis? 
+            // Logic moved to loadProjectData to be safer (prefer project.topic)
+            if (analysis.video_title && !document.getElementById('topicInput').value) {
+                // document.getElementById('topicInput').value = analysis.video_title; 
+                // Kept commented out as per previous logic to strictly use project.topic
+            }
+
+            let html = '<div class="flex flex-col md:flex-row gap-6">';
+
+            // Left: Analysis Data (Source)
+            if (hasAnalysis) {
+                html += `
+                    <div class="flex-1 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border border-gray-100 dark:border-gray-700">
+                        <h4 class="text-xs font-bold text-gray-500 mb-2">📺 원본 영상 분석</h4>
+                        <div class="flex gap-4 items-center">
+                            <img src="${analysis.thumbnail_url}" class="w-24 h-16 object-cover rounded bg-black">
+                            <div class="min-w-0">
+                                <p class="font-medium text-sm text-gray-800 dark:text-white truncate" title="${analysis.video_title}">${analysis.video_title}</p>
+                                <p class="text-xs text-gray-500">${analysis.channel_title}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Optional: Show empty state for analysis if needed, but usually we just skip.
+                // For balance, if we have thumbnail but no analysis (rare), we could leave left side empty?
+                // Let's just render what we have.
+            }
+
+            // Right: Generated Thumbnail (My Project)
+            if (hasThumbnail) {
+                html += `
+                    <div class="flex-1 bg-blue-50 dark:bg-blue-900/10 p-3 rounded-lg border border-blue-100 dark:border-blue-900/30">
+                        <h4 class="text-xs font-bold text-blue-600 dark:text-blue-400 mb-2">🎨 내 썸네일 (생성됨)</h4>
+                        <div class="flex gap-4 items-center">
+                            <img src="${settings.thumbnail_url}" class="w-24 h-16 object-cover rounded bg-black cursor-pointer hover:opacity-90" onclick="window.open('${settings.thumbnail_url}', '_blank')">
+                            <div class="min-w-0">
+                                <p class="font-medium text-sm text-gray-800 dark:text-white truncate">메인 썸네일</p>
+                                <p class="text-xs text-gray-500">클릭하여 크게 보기</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Placeholder
+                html += `
+                    <div class="flex-1 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border border-gray-100 dark:border-gray-700 dashed-border flex items-center justify-center text-gray-400 text-xs">
+                        <span>썸네일이 아직 없습니다</span>
+                    </div>
+                `;
+            }
+
+            html += '</div>';
+            document.getElementById('analysisContent').innerHTML = html;
         }
     }
 
@@ -204,24 +244,27 @@
         // 요청사항: 60분 기본.
         const durationMin = parseInt(document.getElementById('durationInput').value) || 60;
         const duration = durationMin * 60;
-        const tone = document.getElementById('toneSelect').value;
+        const tone = "professional"; // Simplified or removed if not needed, as style prompt covers it.
+        const scriptStyle = document.getElementById('scriptStyleSelect').value;
         const notes = document.getElementById('additionalNotes').value;
 
         const btn = document.getElementById('generateBtn');
         Utils.setLoading(btn, true, '생성 중...');
 
         try {
-            // 새 엔드포인트 호출 (중복 방지 적용됨)
-            // [MODIFIED] target_language 추가 전송
+            const projectId = getCurrentProject();
+
             const response = await fetch('/api/gemini/generate-structure', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    project_id: projectId,
                     topic,
                     duration,
                     tone,
                     notes: notes || '',
-                    target_language: currentTargetLanguage
+                    target_language: currentTargetLanguage,
+                    script_style: scriptStyle
                 })
             });
 
@@ -263,7 +306,7 @@
                             sections: structureData.sections,
                             cta: structureData.cta,
                             style: structureData.style,
-                            duration: parseInt(structureData.estimated_duration) || 10
+                            duration: duration // Use the user-intended duration (already in seconds)
                         });
                         Utils.showToast('대본 구조가 저장되었습니다', 'success');
                         API.project.update(projectId, { status: 'planned' });

@@ -3,12 +3,12 @@
 - MoviePy + FFmpeg를 사용한 이미지+음성 합성
 """
 import os
-from typing import List, Optional
+from typing import List, Optional, Union
+from config import config
 
 
 class VideoService:
     def __init__(self):
-        from config import config
         self.output_dir = config.OUTPUT_DIR
 
     def create_slideshow(
@@ -16,11 +16,14 @@ class VideoService:
         images: List[str],
         audio_path: Optional[str] = None,
         output_filename: str = "output.mp4",
-        duration_per_image: float = 5.0,
+        duration_per_image: Union[float, List[float]] = 5.0,
         fps: int = 24,
         resolution: tuple = (1920, 1080), # 16:9 Long-form Standard
         title_text: Optional[str] = None,
-        project_id: Optional[int] = None
+        project_id: Optional[int] = None,
+        subtitles: Optional[List[dict]] = None,
+        subtitle_settings: Optional[dict] = None,
+        background_video_url: Optional[str] = None 
     ) -> str:
         """
         이미지 슬라이드쇼 영상 생성 (시네마틱 프레임 적용)
@@ -28,17 +31,72 @@ class VideoService:
         try:
             from moviepy.editor import (
                 ImageClip, concatenate_videoclips,
-                AudioFileClip, CompositeVideoClip
+                AudioFileClip, CompositeVideoClip, VideoFileClip, vfx
             )
             import numpy as np
+            import requests # For downloading background video
         except ImportError:
-            raise ImportError("moviepy가 설치되지 않았습니다. pip install moviepy")
+            raise ImportError("moviepy 또는 requests가 설치되지 않았습니다.")
 
         clips = []
         temp_files = [] # 나중에 삭제할 임시 파일들
 
         current_duration = 0.0
         
+        # [NEW] Background Video Logic
+        video = None # Base video clip
+        
+        # Audio Load First to determine duration
+        audio = None
+        if audio_path and os.path.exists(audio_path):
+             audio = AudioFileClip(audio_path)
+             
+        if background_video_url:
+             print(f"DEBUG: Using Background Video: {background_video_url}")
+             try:
+                 # 1. Download Video
+                 local_video_path = os.path.join(self.output_dir, f"bg_video_{project_id or 'temp'}.mp4")
+                 if not os.path.exists(local_video_path): # Cache check
+                     print("Downloading video...")
+                     r = requests.get(background_video_url, stream=True)
+                     if r.status_code == 200:
+                         with open(local_video_path, 'wb') as f:
+                             for chunk in r.iter_content(chunk_size=8192):
+                                 f.write(chunk)
+                     else:
+                         print(f"Failed to download video: {r.status_code}")
+                 
+                 # 2. Load & Process
+                 if os.path.exists(local_video_path):
+                     temp_files.append(local_video_path)
+                     bg_clip = VideoFileClip(local_video_path)
+                     
+                     # 3. Loop to match Audio Duration
+                     target_duration = audio.duration if audio else (len(images) * duration_per_image if images else 10)
+                     
+                     # Loop!
+                     bg_clip = bg_clip.fx(vfx.loop, duration=target_duration)
+                     
+                     # 4. Resize/Crop to target resolution (1080p etc)
+                     # Aspect Ratio Logic
+                     target_w, target_h = resolution
+                     
+                     # Resize logic: Cover
+                     bg_clip = bg_clip.resize(height=target_h) # Fit height first
+                     if bg_clip.w < target_w:
+                         bg_clip = bg_clip.resize(width=target_w) # Fit width if still small
+                         
+                     # Center Crop
+                     bg_clip = bg_clip.crop(x1=bg_clip.w/2 - target_w/2, width=target_w, height=target_h)
+                     
+                     video = bg_clip
+                     print(f"Background Video Prepared: {target_duration}s")
+             
+             except Exception as e:
+                 print(f"Background Video Error: {e}")
+                 # Fallback to images if failed
+                 pass
+
         # Veo 통합을 위한 임시 헬퍼 (Sync -> Async 호출)
         def run_async(coro):
             import asyncio
@@ -112,23 +170,41 @@ class VideoService:
                 #         print(f"Veo Generation Failed: {e}")
                 #         clip = None
 
+                # Get specific duration for this image
+                dur = duration_per_image[i] if isinstance(duration_per_image, list) else duration_per_image
+
                 # Veo 실패하거나 30초 이후면 줌인 효과 (Ken Burns) 사용
                 if clip is None:
                     if current_duration < 30.0:
                         # 30초 내인데 실패 시 -> 줌인
-                         clip = self._create_zoom_clip(processed_img_path, duration_per_image, resolution)
+                         clip = self._create_zoom_clip(processed_img_path, dur, resolution)
                     else:
                         # 30초 이후 -> 정지 화상 (또는 줌인 계속? 일단 정지)
-                        clip = ImageClip(processed_img_path).set_duration(duration_per_image)
+                        clip = ImageClip(processed_img_path).set_duration(dur)
 
                 clips.append(clip)
-                current_duration += duration_per_image
+                current_duration += dur
 
-        if not clips:
-            raise ValueError("유효한 이미지가 없습니다")
+        if not clips and video is None:
+            raise ValueError("유효한 이미지나 배경 동영상이 없습니다")
 
-        # 클립 연결
-        video = concatenate_videoclips(clips, method="compose")
+        # 클립 연결 (이미지가 있을 때만)
+        if clips:
+            video_slideshow = concatenate_videoclips(clips, method="compose")
+            if video:
+                 # 배경 영상이 메인이므로, 슬라이드쇼는 무시하거나 오버레이? 
+                 # 기획상: 반복영상 모드에선 이미지 안씀. 
+                 # 하지만 이미지가 있으면 배경 영상 위에 얹을수도 있음. 
+                 # 현재 로직: 배경 영상이 있으면 그것을 메인으로 씀. 이미지가 있으면 무시?
+                 # -> 기획 수정: 배경 영상 모드일 땐 이미지가 없을 가능성이 높음.
+                 # 만약 이미지가 있다면? 일단 배경 영상을 덮어쓰기보단, 배경 영상이 우선순위가 되도록 video 변수 유지
+                 pass 
+            else:
+                 video = video_slideshow
+        
+        # 만약 video가 여전히 None이면 에러 (위 체크에서 걸러지겠지만 안전장치)
+        if video is None:
+             raise ValueError("영상 생성 실패 (소스 없음)")
 
         # 오디오 추가
         if audio_path and os.path.exists(audio_path):
@@ -137,8 +213,9 @@ class VideoService:
             # 오디오 길이에 맞춰 비디오 조절
             if audio.duration > video.duration:
                 # 비디오가 짧으면 마지막 이미지 연장
+                last_dur = duration_per_image[-1] if isinstance(duration_per_image, list) else duration_per_image
                 last_clip = clips[-1].set_duration(
-                    audio.duration - video.duration + duration_per_image
+                    audio.duration - video.duration + last_dur
                 )
                 clips[-1] = last_clip
                 video = concatenate_videoclips(clips, method="compose")
@@ -154,7 +231,7 @@ class VideoService:
                     width=video.w,
                     font_size=70,
                     font_color="#FFD700", # Gold
-                    font_name="malgun.ttf"
+                    font_name=config.DEFAULT_FONT_PATH
                 )
                 if title_img_path:
                     temp_files.append(title_img_path)
@@ -166,9 +243,76 @@ class VideoService:
                     title_clip = title_clip.set_position(("center", 150)) 
                     title_clip = title_clip.set_duration(video.duration)
                     
-                    video = CompositeVideoClip([video, title_clip])
+                video = CompositeVideoClip([video, title_clip])
             except Exception as e:
                 print(f"제목 생성 실패: {e}")
+
+        # [NEW] 단일 패스 자막 합성 (Single-pass Subtitle Overlay)
+        if subtitles:
+            print(f"DEBUG: Overlaying {len(subtitles)} subtitles in single-pass...")
+            subtitle_clips = []
+            
+            # 스타일 설정 추출
+            s_settings = subtitle_settings or {}
+            print(f"DEBUG_RENDER: video_service received s_settings: {s_settings}")
+            f_size = s_settings.get("font_size", 80)
+            f_color = s_settings.get("font_color", "white")
+            f_name = s_settings.get("font", config.DEFAULT_FONT_PATH)
+            s_style = s_settings.get("style_name", "Basic_White")
+            s_stroke_color = s_settings.get("subtitle_stroke_color")
+            s_stroke_width = s_settings.get("subtitle_stroke_width")
+
+            for sub in subtitles:
+                try:
+                    txt_img_path = self._create_subtitle_image(
+                        text=sub["text"],
+                        width=video.w,
+                        font_size=f_size,
+                        font_color=f_color,
+                        font_name=f_name,
+                        style_name=s_style,
+                        stroke_color=s_stroke_color,
+                        stroke_width=s_stroke_width
+                    )
+                    
+                    if txt_img_path:
+                        # 임시파일 추적 (나중에 삭제)
+                        temp_files.append(txt_img_path)
+                        
+                        txt_clip = ImageClip(txt_img_path)
+                        
+                        # [FIX] Position Logic (Custom Y or Default Safe Area)
+                        # position_y: 0~100 (Top to Bottom %). If None, use default safe margin.
+                        custom_y_pct = s_settings.get("position_y") 
+                        
+                        if custom_y_pct is not None:
+                            # User defined position (Center of text box at Y%)
+                            # But ImageClip set_position uses top-left usually, or we calculate top-left
+                            # Let's align center-y to the percentage
+                            center_y = int(video.h * (float(custom_y_pct) / 100.0))
+                            y_pos = center_y - (txt_clip.h // 2)
+                        else:
+                            # Default: Bottom Safe Area (15% margin)
+                            margin_bottom = int(video.h * 0.15)
+                            y_pos = video.h - txt_clip.h - margin_bottom
+
+                        # Screen Boundary Safety (Don't go off screen)
+                        # Top limit
+                        y_pos = max(0, y_pos)
+                        # Bottom limit
+                        y_pos = min(video.h - txt_clip.h, y_pos)
+
+                        txt_clip = txt_clip.set_position(("center", y_pos))
+                        txt_clip = txt_clip.set_start(sub["start"])
+                        txt_clip = txt_clip.set_duration(sub["end"] - sub["start"])
+                        subtitle_clips.append(txt_clip)
+                except Exception as e:
+                    print(f"Error creating subtitle clip for text '{sub.get('text', '')}': {e}")
+                    import traceback
+                    traceback.print_exc()
+
+            if subtitle_clips:
+                video = CompositeVideoClip([video] + subtitle_clips)
 
         # 출력
         output_path = os.path.join(self.output_dir, output_filename)
@@ -177,34 +321,38 @@ class VideoService:
         if project_id:
             try:
                 from services.progress import RenderLogger
-                logger = RenderLogger(project_id)
+                # Single-pass Rendering (0-100%)
+                logger = RenderLogger(project_id, start_pct=0, end_pct=100)
             except Exception as e:
                 print(f"Logger init failed: {e}")
 
         try:
             import datetime
-            with open("c:/Users/kimse/Downloads/유튜브소재발굴기/롱폼생성기/debug_v2.log", "a", encoding="utf-8") as f:
+            with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
                 f.write(f"[{datetime.datetime.now()}] calling writes_videofile code in video_service (720p safe mode)\n")
 
             # [FIX] Unique temp audio path to avoid conflicts/locks
             import uuid
             temp_audio_path = os.path.join(self.output_dir, f"temp_audio_{uuid.uuid4()}.mp3")
             
+            # [OPTIMIZE] Multi-threaded rendering & Single-pass Logger
+            num_threads = os.cpu_count() or 1
+            
             video.write_videofile(
                 output_path,
                 fps=fps,
                 codec="libx264",
-                audio_codec="libmp3lame", # [REVERT] aac -> libmp3lame (mp3 확장자와 매칭)
-                threads=1,
-                preset="superfast",
+                audio_codec="libmp3lame",
+                threads=num_threads,
+                preset="ultrafast", # Speed prioritized, Single-pass means we don't worry about multi-encoding compression loss
                 temp_audiofile=temp_audio_path,
                 remove_temp=False,
-                logger=logger # Apply custom logger
+                logger=logger
             )
         except Exception as e:
             import traceback
             error_msg = traceback.format_exc()
-            with open("c:/Users/kimse/Downloads/유튜브소재발굴기/롱폼생성기/debug_v2.log", "a", encoding="utf-8") as f:
+            with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
                 f.write(f"[{datetime.datetime.now()}] Render Error: {e}\n{error_msg}\n")
             raise e
 
@@ -297,14 +445,24 @@ class VideoService:
         Faster-Whisper를 사용하여 오디오 자막 생성 (정확한 타이밍)
         """
         if not os.path.exists(audio_path):
-            print(f"Audio file not found: {audio_path}")
+            msg = f"Audio file not found: {audio_path}"
+            print(msg)
+            try:
+                with open("debug_whisper_error.log", "a", encoding="utf-8") as f:
+                    f.write(msg + "\n")
+            except: pass
             return []
 
         try:
             from faster_whisper import WhisperModel
             # import torch # Not required for CPU inference with faster-whisper
-        except ImportError:
-            print("faster-whisper not installed. fallback to simple.")
+        except ImportError as e:
+            msg = f"faster-whisper not installed. fallback to simple. Error: {e}"
+            print(msg)
+            try:
+                with open("debug_whisper_error.log", "a", encoding="utf-8") as f:
+                    f.write(msg + "\n")
+            except: pass
             return []
 
         print(f"Aligning subtitles for: {audio_path}")
@@ -391,7 +549,9 @@ class VideoService:
                     
                     if is_long_gap or is_too_long or (is_sentence_end and len(current_sub["text"]) > 10):
                         # Commit current sub
-                        cleaned = re.sub(r'\([^)]*\)|\[[^\]]*\]|\*+[^*]+\*+', '', current_sub["text"]).strip()
+                        # [FIX] Aggressive cleanup for unclosed brackets or artifacts
+                        cleaned = re.sub(r'\([^)]*\)|\[[^\]]*\]|\*+[^*]+\*+', '', current_sub["text"])
+                        cleaned = cleaned.replace('(', '').replace(')', '').replace('[', '').replace(']', '').strip()
                         if cleaned:
                             subtitles.append({
                                 "start": current_sub["start"],
@@ -411,7 +571,8 @@ class VideoService:
                         current_sub["end"] = word_obj["end"]
                 
                 # Commit last sub
-                cleaned = re.sub(r'\([^)]*\)|\[[^\]]*\]|\*+[^*]+\*+', '', current_sub["text"]).strip()
+                cleaned = re.sub(r'\([^)]*\)|\[[^\]]*\]|\*+[^*]+\*+', '', current_sub["text"])
+                cleaned = cleaned.replace('(', '').replace(')', '').replace('[', '').replace(']', '').strip()
                 if cleaned:
                     subtitles.append({
                         "start": current_sub["start"],
@@ -430,8 +591,13 @@ class VideoService:
             
         except Exception as e:
             import traceback
-            traceback.print_exc()
+            error_msg = traceback.format_exc()
             print(f"Whisper alignment failed: {e}")
+            try:
+                with open("debug_whisper_error.log", "w", encoding="utf-8") as f:
+                    f.write(f"Error during generate_aligned_subtitles:\n{error_msg}")
+            except:
+                pass
             return []
 
     def _align_script_with_timestamps(self, script_text, ai_words):
@@ -689,8 +855,11 @@ class VideoService:
         output_filename: str = "output_with_subs.mp4",
         font_size: int = 50,
         font_color: str = "white",
-        font: str = "malgun.ttf",
-        style_name: str = "Basic_White"
+        font: str = config.DEFAULT_FONT_PATH,
+        style_name: str = "Basic_White",
+        stroke_color: Optional[str] = None,
+        stroke_width: Optional[float] = None,
+        project_id: Optional[int] = None
     ) -> str:
         """
         영상에 자막 추가 (PIL 사용 - ImageMagick 불필요)
@@ -712,7 +881,9 @@ class VideoService:
                     font_size=font_size,
                     font_color=font_color,
                     font_name=font,
-                    style_name=style_name
+                    style_name=style_name,
+                    stroke_color=stroke_color,
+                    stroke_width_ratio=stroke_width
                 )
                 
                 if txt_img_path:
@@ -737,12 +908,24 @@ class VideoService:
             final = video
 
         output_path = os.path.join(self.output_dir, output_filename)
+        
+        # Custom Logger for Progress Tracking
+        logger = 'bar'
+        if project_id:
+            try:
+                from services.progress import RenderLogger
+                # Stage 2: Subtitle overlay (50-100%)
+                logger = RenderLogger(project_id, start_pct=50, end_pct=100)
+            except Exception as e:
+                print(f"Logger init failed in add_subtitles: {e}")
+
         final.write_videofile(
             output_path, 
             fps=video.fps,
             threads=1,
             codec="libx264",
-            audio_codec="aac"
+            audio_codec="aac",
+            logger=logger # Apply custom logger
         )
 
         video.close()
@@ -757,19 +940,23 @@ class VideoService:
     # 자막 스타일 정의
     SUBTITLE_STYLES = {
         "Basic_White": {
-            "font_color": "white",
             "stroke_color": "black",
             "stroke_width_ratio": 0.15,
             "bg_color": None
         },
+        "Basic_Black": {
+            "stroke_color": None,
+            "stroke_width_ratio": 0,
+            "bg_color": None,
+            "bg_padding_x": 20,
+            "bg_padding_y": 10
+        },
         "Vlog_Yellow": {
-            "font_color": "#FFD700",
             "stroke_color": "#4B0082",
             "stroke_width_ratio": 0.08,
             "bg_color": None
         },
         "Cinematic_Box": {
-            "font_color": "white",
             "stroke_color": None,
             "stroke_width_ratio": 0,
             "bg_color": (0, 0, 0, 150),
@@ -777,70 +964,109 @@ class VideoService:
             "bg_padding_y": 0
         },
         "Cute_Pink": {
-            "font_color": "#FF69B4",
             "stroke_color": "white",
             "stroke_width_ratio": 0.12,
             "bg_color": None
         },
         "Neon_Green": {
-            "font_color": "#00FF00",
             "stroke_color": "black",
             "stroke_width_ratio": 0.15,
             "bg_color": None
         }
     }
 
-    def _create_subtitle_image(self, text, width, font_size, font_color, font_name, style_name="Basic_White"):
+    def _create_subtitle_image(self, text, width, font_size, font_color, font_name, style_name="Basic_White", stroke_color=None, stroke_width_ratio=None, stroke_width=None):
         from PIL import Image, ImageDraw, ImageFont
         import textwrap
         import platform
+        import unicodedata
+        import re
+
+        # [FIX] Safety cleaning just in case (Include Unicode Brackets)
+        print(f"DEBUG_RENDER: Raw Text Input: '{text}'")
+        if text:
+            # 1. Normalize Unicode (Full-width -> ASCII, etc.)
+            text = unicodedata.normalize('NFKC', text)
+            # 2. Regex Clean (Strip all brackets)
+            text = re.sub(r'[()\[\]\{\}（）「」『』【】]', '', text)
+            # 3. Newline Safety
+            text = text.replace('\r', '').strip()
+            print(f"DEBUG_RENDER: Cleaned Text: '{text}'")
         
         # 스타일 조회
         style = self.SUBTITLE_STYLES.get(style_name, self.SUBTITLE_STYLES["Basic_White"])
         
         final_font_color = style.get("font_color", font_color)
-        stroke_color = style.get("stroke_color", "black")
-        stroke_width_ratio = style.get("stroke_width_ratio", 0.1)
+        print(f"DEBUG_RENDER: _create_subtitle_image style='{style_name}' font_color='{font_color}' final='{final_font_color}'")
+        stroke_color = stroke_color if stroke_color is not None else style.get("stroke_color", "black")
+        
+        # [FIX] Stroke Width Priority: Explicit(px) > Explicit(Ratio) > Style(Ratio)
+        if stroke_width is not None:
+             final_stroke_width = int(stroke_width)
+        else:
+             ratio = stroke_width_ratio if stroke_width_ratio is not None else style.get("stroke_width_ratio", 0.1)
+             final_stroke_width = max(1, int(font_size * ratio)) if ratio > 0 else 0
+
         bg_color = style.get("bg_color", None)
         
         # 폰트 로드
         font = None
-        system = platform.system()
-        try:
-            # 스타일 설정보다 인자로 넘어온 font_name(사용자 선택)을 우선시하되, 
-            # 인자가 기본값이면 스타일 설정을 따름 (수정: 스타일에서 font_name 제거했으므로 font_name 사용)
-            target_font = font_name
+        
+        # 폰트 매핑 (UI 이름 -> 실제 파일명)
+        font_mapping = {
+            "G 마켓 산스 (Bold)": "GmarketSansTTFBold.ttf",
+            "G마켓 산스 (Bold)": "GmarketSansTTFBold.ttf",
+            "Gmarket Sans (Bold)": "GmarketSansTTFBold.ttf",
+            "GmarketSansBold": "GmarketSansTTFBold.ttf",
             
-            # 폰트 별칭 매핑 (UI 이름 -> 실제 파일명)
-            font_mapping = {
-                "Malgun-Gothic-Bold": "malgunbd.ttf",
-                "CookieRun Regular": "CookieRun Regular.ttf",
-                "GmarketSansBold": "GmarketSansBold.ttf",
-                "NanumMyeongjo": "NanumMyeongjo.ttf"
-            }
-            target_font = font_mapping.get(target_font, target_font)
+            "나눔명조": "NanumMyeongjo.ttf",
+            "NanumMyeongjo": "NanumMyeongjo.ttf",
+            
+            "쿠키런 (Regular)": "CookieRun Regular.ttf",
+            "CookieRun Regular": "CookieRun Regular.ttf",
+            
+            "맑은 고딕": "malgun.ttf",
+            "Malgun Gothic": "malgun.ttf",
+        }
+        
+        target_font_file = font_mapping.get(font_name, font_name)
+        if not target_font_file.lower().endswith(".ttf"):
+            target_font_file += ".ttf"
 
-            if system == 'Windows':
-                if not target_font.endswith('.ttf'): target_font += '.ttf'
-                font_path = f"C:/Windows/Fonts/{target_font}"
-                if not os.path.exists(font_path):
-                     # GmarketSansBold가 없으면 malgunbd.ttf로 대체 (GmarketSansBold가 보통 설치 안 되어 있을 수 있음)
-                     if "Gmarket" in target_font:
-                         font_path = "C:/Windows/Fonts/malgunbd.ttf"
-                     else:
-                         font_path = "C:/Windows/Fonts/malgun.ttf"
-                
-                # 최종 확인 한 번 더 (malgun.ttf도 없을 수 있는 극한의 상황 대비)
-                if not os.path.exists(font_path):
-                    font = ImageFont.load_default()
-                else:
-                    font = ImageFont.truetype(font_path, font_size)
+        # 검색 경로: 1. 프로젝트 assets/fonts  2. 윈도우 폰트  3. 현재 폴더
+        search_paths = [
+            os.path.join(os.path.dirname(__file__), "..", "assets", "fonts"),
+            "C:/Windows/Fonts",
+            os.path.dirname(__file__)
+        ]
+        
+        font_path = None
+        for path in search_paths:
+            candidate = os.path.join(path, target_font_file)
+            if os.path.exists(candidate):
+                font_path = candidate
+                break
+        
+        # G마켓 산스 없으면 malgunbd.ttf (굵은 고딕) 시도
+        if not font_path and "Gmarket" in font_name:
+             font_path = "C:/Windows/Fonts/malgunbd.ttf"
+             
+        # 그래도 없으면 기본
+        if not font_path or not os.path.exists(font_path):
+             font_path = "C:/Windows/Fonts/malgun.ttf"
+             
+        try:
+            if font_path and os.path.exists(font_path):
+                font = ImageFont.truetype(font_path, font_size)
             else:
-                 font = ImageFont.truetype("arial.ttf", font_size)
+                font = ImageFont.truetype("arial.ttf", font_size)
         except:
-            font = ImageFont.load_default()
+             try:
+                 font = ImageFont.load_default()
+             except:
+                 pass
 
-        # Balanced Wrapping Logic
+        # Balanced Wrapping Logic with Manual Newline Support
         # 1. 텍스트 너비가 맥스 폭(너비 - 패딩)을 넘는지 확인
         safe_width = int(width * 0.9) # 좌우 5% 패딩
         
@@ -848,46 +1074,53 @@ class VideoService:
             dummy_draw = ImageDraw.Draw(Image.new('RGBA', (1, 1)))
             return dummy_draw.textlength(text, font=font)
 
-        total_width = get_text_width(text, font)
-        
+        # [FIX] Manual Newline Support
+        # 사용자가 입력한 엔터(\n)를 먼저 기준으로 나눈 뒤, 각 라인에 대해 길이 체크/줄바꿈 수행
+        manual_lines = text.split('\n')
         wrapped_lines = []
-        if total_width <= safe_width:
-             wrapped_lines = [text]
-        else:
-            # 2. 넘는다면, 균형있게 나누기 (Balanced Wrapping)
-            # 단순히 꽉 채우는게 아니라, 전체 길이를 라인 수로 나누어 목표 길이를 정함
-            # 여기서는 최대 2~3줄 가정
-            
-            # 예상 라인 수
-            est_lines = int(total_width / safe_width) + 1
-            target_line_width = total_width / est_lines
-            
-            words = text.split(' ')
-            current_line = []
-            current_width = 0
-            
-            for word in words:
-                word_width = get_text_width(word + " ", font)
+        
+        for m_line in manual_lines:
+            m_line = m_line.strip()
+            if not m_line:
+                # 빈 줄 유지하고 싶다면:
+                # wrapped_lines.append("") 
+                continue
                 
-                # 현재 라인에 단어를 더했을 때 목표치보다 현저히 크지 않은지 확인
-                # 혹은 safe_width를 넘지 않는지 확인 (Hardware Limit)
+            line_width = get_text_width(m_line, font)
+            
+            if line_width <= safe_width:
+                 wrapped_lines.append(m_line)
+            else:
+                # 2. 넘는다면, 균형있게 나누기 (Balanced Wrapping)
+                # 단순히 꽉 채우는게 아니라, 전체 길이를 라인 수로 나누어 목표 길이를 정함
                 
-                if current_width + word_width > safe_width:
-                    # 무조건 줄바꿈 (화면 넘어감)
+                # 예상 라인 수
+                est_lines = int(line_width / safe_width) + 1
+                target_line_width = line_width / est_lines
+                
+                words = m_line.split(' ')
+                current_line = []
+                current_width = 0
+                
+                for word in words:
+                    word_width = get_text_width(word + " ", font)
+                    
+                    if current_width + word_width > safe_width:
+                        # 무조건 줄바꿈 (화면 넘어감)
+                        wrapped_lines.append(" ".join(current_line))
+                        current_line = [word]
+                        current_width = word_width
+                    elif current_width + word_width > target_line_width * 1.2 and len(current_line) > 0:
+                         # 목표 너비를 적당히(20%) 넘으면 줄바꿈 -> 균형 유도
+                         wrapped_lines.append(" ".join(current_line))
+                         current_line = [word]
+                         current_width = word_width
+                    else:
+                        current_line.append(word)
+                        current_width += word_width
+                
+                if current_line:
                     wrapped_lines.append(" ".join(current_line))
-                    current_line = [word]
-                    current_width = word_width
-                elif current_width + word_width > target_line_width * 1.2 and len(current_line) > 0:
-                     # 목표 너비를 적당히(20%) 넘으면 줄바꿈 -> 균형 유도
-                     wrapped_lines.append(" ".join(current_line))
-                     current_line = [word]
-                     current_width = word_width
-                else:
-                    current_line.append(word)
-                    current_width += word_width
-            
-            if current_line:
-                wrapped_lines.append(" ".join(current_line))
                 
         wrapped_text = "\n".join(wrapped_lines)
 
@@ -931,10 +1164,9 @@ class VideoService:
         text_x = center_x - (text_w // 2)
         text_y = center_y - (text_h // 2)
         
-        if stroke_color:
-            stroke_width = max(1, int(font_size * stroke_width_ratio))
+        if stroke_color and final_stroke_width > 0:
             draw.text((text_x, text_y), wrapped_text, font=font, fill=final_font_color, 
-                      stroke_width=stroke_width, stroke_fill=stroke_color, align="center")
+                      stroke_width=final_stroke_width, stroke_fill=stroke_color, align="center")
         else:
             draw.text((text_x, text_y), wrapped_text, font=font, fill=final_font_color, align="center")
 
@@ -945,7 +1177,7 @@ class VideoService:
         
         return output_path
 
-    def create_preview_image(self, background_path, text, font_size, font_color, font_name, style_name="Basic_White", target_size=(1280, 720)):
+    def create_preview_image(self, background_path, text, font_size, font_color, font_name, style_name="Basic_White", stroke_color=None, stroke_width=None, position_y=None, target_size=(1280, 720)):
         """
         자막 확인용 미리보기 이미지 생성 (배경 + 자막 합성)
         """
@@ -987,20 +1219,30 @@ class VideoService:
                 font_size=font_size,
                 font_color=font_color,
                 font_name=font_name,
-                style_name=style_name
+                style_name=style_name,
+                stroke_color=stroke_color,
+                stroke_width=stroke_width
             )
             
             if sub_img_path and os.path.exists(sub_img_path):
                 sub_img = Image.open(sub_img_path).convert("RGBA")
                 
-                # 3. 합성 (하단 배치)
-                # 안전 영역 (Safe Area): 하단 5% (720px 기준 약 36px)
-                bottom_margin = int(target_size[1] * 0.05)
-                
+                # 3. 합성 (위치 조정)
                 # Center X
                 x = (bg.width - sub_img.width) // 2
-                # Bottom Y
-                y = bg.height - sub_img.height - bottom_margin
+                
+                if position_y is not None:
+                    # User Percentage Position (0 ~ 100)
+                    center_y = int(bg.height * (float(position_y) / 100.0))
+                    y = center_y - (sub_img.height // 2)
+                else:
+                    # Default: Bottom Safe Area (15%)
+                    bottom_margin = int(bg.height * 0.15)
+                    y = bg.height - sub_img.height - bottom_margin
+                
+                # Screen Boundary Safety (Clamp)
+                y = max(0, y)
+                y = min(bg.height - sub_img.height, y)
                 
                 bg.paste(sub_img, (x, y), sub_img)
                 

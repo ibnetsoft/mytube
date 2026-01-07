@@ -17,6 +17,7 @@ class Config:
     TYPECAST_API_KEY: str = os.getenv("TYPECAST_API_KEY", "")
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "") # OpenAI TTS
     GOOGLE_APPLICATION_CREDENTIALS: str = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
+    PEXELS_API_KEY: str = os.getenv("PEXELS_API_KEY", "") # Pexels Stock Video
 
     # 서버 설정
     HOST = os.getenv("HOST", "127.0.0.1")
@@ -26,12 +27,25 @@ class Config:
     # API URLs
     YOUTUBE_BASE_URL = "https://www.googleapis.com/youtube/v3"
     GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+    PEXELS_BASE_URL = "https://api.pexels.com/videos"
 
     # 경로 설정
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
     STATIC_DIR = os.path.join(BASE_DIR, "static")
     OUTPUT_DIR = os.path.join(BASE_DIR, "output")
+    LOG_DIR = os.path.join(BASE_DIR, "logs")
+    
+    # 하드코딩된 상수 관리
+    DEFAULT_FONT_PATH = "malgun.ttf"  # 시스템에 설치된 맑은 고딕 또는 폰트 파일 경로
+    DEBUG_LOG_PATH = os.path.join(LOG_DIR, "debug.log")
+
+    @classmethod
+    def setup_directories(cls):
+        """필요한 디렉토리 생성"""
+        for d in [cls.OUTPUT_DIR, cls.LOG_DIR]:
+            if not os.path.exists(d):
+                os.makedirs(d, exist_ok=True)
 
     @classmethod
     def validate(cls):
@@ -51,7 +65,7 @@ class Config:
     @classmethod
     def update_api_key(cls, key_name: str, value: str):
         """API 키 런타임 업데이트 및 .env 파일 저장"""
-        valid_keys = ['YOUTUBE_API_KEY', 'GEMINI_API_KEY', 'ELEVENLABS_API_KEY', 'TYPECAST_API_KEY', 'GOOGLE_APPLICATION_CREDENTIALS', 'OPENAI_API_KEY']
+        valid_keys = ['YOUTUBE_API_KEY', 'GEMINI_API_KEY', 'ELEVENLABS_API_KEY', 'TYPECAST_API_KEY', 'GOOGLE_APPLICATION_CREDENTIALS', 'OPENAI_API_KEY', 'PEXELS_API_KEY']
 
         if key_name not in valid_keys:
             return False
@@ -130,3 +144,4 @@ class Config:
         return datetime.now(kst)
 
 config = Config()
+config.setup_directories()

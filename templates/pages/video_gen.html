@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card mb-6">
+    <div class="flex flex-wrap items-center gap-6 mb-6">
+        <h3 class="font-bold text-gray-800 dark:text-white shrink-0">🎥 동영상 설정 (Loop Mode)</h3>
+
+        <div class="flex flex-wrap items-center gap-4">
+            <!-- Video Options -->
+            <div id="videoOptions" class="flex flex-wrap items-center gap-4">
+                <!-- Sub Tabs -->
+                <div class="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
+                    <button onclick="setVideoSubTab('search')" id="vTabSearch"
+                        class="px-3 py-1 text-xs font-bold rounded bg-white dark:bg-gray-600 shadow-sm transition-all">
+                        🔍 검색 (Pexels)
+                    </button>
+                    <button onclick="setVideoSubTab('generate')" id="vTabGen"
+                        class="px-3 py-1 text-xs font-bold rounded text-gray-500 hover:bg-gray-200 transition-all">
+                        ✨ 생성 (Veo)
+                    </button>
+                </div>
+
+                <div class="h-4 w-px bg-gray-300 mx-2"></div>
+
+                <!-- Search Controls -->
+                <div id="vidSearchControls" class="flex flex-wrap items-center gap-2">
+                    <div class="relative">
+                        <input type="text" id="videoSearchQuery" placeholder="검색어 (예: winter night)"
+                            class="pl-3 pr-10 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 w-40">
+                        <button onclick="searchVideos()"
+                            class="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-blue-600">
+                            🔍
+                        </button>
+                    </div>
+
+                    <button onclick="searchVideos(true)" id="autoVideoBtn"
+                        class="btn-primary py-1.5 px-3 flex items-center justify-center gap-2 text-xs font-bold shadow-md bg-gradient-to-r from-teal-500 to-emerald-600">
+                        <span>🤖 자동</span>
+                    </button>
+                </div>
+
+                <!-- Generate Controls (Hidden) -->
+                <div id="vidGenControls" class="hidden flex flex-wrap items-center gap-2">
+                    <input type="text" id="veoPrompt"
+                        placeholder="프롬프트 (예: A cinematic drone shot of a futuristic city)"
+                        class="pl-3 pr-2 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-purple-500 w-64">
+
+                    <button onclick="generateVeoVideo()" id="btnVeoGen"
+                        class="btn-primary py-1.5 px-3 flex items-center justify-center gap-2 text-xs font-bold shadow-md bg-gradient-to-r from-purple-500 to-pink-600">
+                        <span>✨ 생성하기</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="resultSection">
+    <div class="card">
+        <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-100 dark:border-gray-700">
+            <h3 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                <span>🎬</span> 동영상 결과
+            </h3>
+        </div>
+
+        <!-- Video Results Container -->
+        <div id="videoResultsList" class="grid grid-cols-2 md:grid-cols-3 gap-4"></div>
+
+        <!-- 다음 단계 버튼 (숨김 상태로 시작) -->
+        <div id="nextStepSection" class="hidden mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-center">
+            <h4 class="font-bold text-lg mb-2 text-blue-800 dark:text-blue-300">🎉 동영상 설정이 완료되었습니다!</h4>
+            <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">배경 동영상은 자동으로 반복 재생됩니다.</p>
+            <a href="/tts" class="btn-primary inline-flex items-center gap-2">
+                <span>🔊</span> 음성(TTS) 생성하러 가기
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function searchVideos(isAuto = false) {
+        const projectId = getCurrentProject();
+        let query = document.getElementById('videoSearchQuery').value;
+        let script = "";
+
+        if (isAuto) {
+            const scriptData = Utils.storage.get('fullScript');
+            if (scriptData && scriptData.script) {
+                script = scriptData.script;
+            } else {
+                // [FIX] Fallback to DB if local storage is empty
+                if (projectId) {
+                    try {
+                        const result = await API.project.getScript(projectId);
+                        if (result && result.full_script) {
+                            script = result.full_script;
+                            // Optionally save back to storage for next time
+                            Utils.storage.set('fullScript', { script: result.full_script });
+                        }
+                    } catch (e) {
+                        console.error("DB Script fetch failed:", e);
+                    }
+                }
+
+                if (!script) {
+                    Utils.showToast('대본이 없어 자동 검색을 할 수 없습니다.', 'warning');
+                    return;
+                }
+            }
+        } else {
+            if (!query) {
+                Utils.showToast('검색어를 입력해주세요.', 'warning');
+                return;
+            }
+        }
+
+        const btn = isAuto ? document.getElementById('autoVideoBtn') : null;
+        if (btn) Utils.setLoading(btn, true, '검색 중...');
+
+        try {
+            // Style Default: realistic or cinematic
+            const style = 'cinematic';
+            const result = await API.video.search(script, style, isAuto ? null : query);
+
+            if (result.status === 'ok') {
+                if (result.search_query) {
+                    document.getElementById('videoSearchQuery').value = result.search_query;
+                }
+                renderVideoResults(result.videos);
+                Utils.showToast(`${result.videos.length}개의 영상을 찾았습니다.`, 'success');
+            } else {
+                Utils.showToast('검색 실패: ' + result.error, 'error');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('검색 중 오류 발생', 'error');
+        } finally {
+            if (btn) Utils.setLoading(btn, false);
+        }
+    }
+
+    function renderVideoResults(videos) {
+        const container = document.getElementById('videoResultsList');
+        if (!videos || videos.length === 0) {
+            container.innerHTML = '<div class="col-span-full text-center py-8 text-gray-500">검색 결과가 없습니다.</div>';
+            return;
+        }
+
+        container.innerHTML = videos.map(v => `
+            <div class="group relative rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 shadow-sm hover:shadow-md transition-all bg-black cursor-pointer" onclick="selectVideo('${v.url}', '${v.image}', ${v.id})">
+                <div class="aspect-video relative">
+                    <img src="${v.image}" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity">
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <span class="text-white text-3xl opacity-0 group-hover:opacity-100 transition-opacity">▶️</span>
+                    </div>
+                    <div class="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 rounded">
+                        ${v.duration}s
+                    </div>
+                </div>
+                <!-- Selection Overlay -->
+                <div id="vid-selected-${v.id}" class="hidden absolute inset-0 bg-blue-500/30 border-4 border-blue-500 flex items-start justify-end p-2">
+                    <div class="bg-blue-500 text-white rounded-full p-1 shadow-lg">✓</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function selectVideo(url, image, id) {
+        // UI Selection Highlight
+        document.querySelectorAll('[id^="vid-selected-"]').forEach(el => el.classList.add('hidden'));
+
+        // Escape special chars handling
+        const el = document.getElementById(`vid-selected-${id}`);
+        if (el) el.classList.remove('hidden');
+
+        // Save to Project Settings
+        const projectId = getCurrentProject();
+        if (projectId) {
+            try {
+                await API.project.updateSetting(projectId, 'background_video_url', url);
+                await API.project.updateSetting(projectId, 'video_path', null); // Reset video path to force re-render perception
+                Utils.showToast('배경 동영상이 선택되었습니다. (Loop Mode)', 'success');
+
+                document.getElementById('nextStepSection').classList.remove('hidden');
+            } catch (e) {
+                console.error(e);
+                Utils.showToast('설정 저장 실패', 'error');
+            }
+        }
+    }
+
+    function setVideoSubTab(tab) {
+        const tSearch = document.getElementById('vTabSearch');
+        const tGen = document.getElementById('vTabGen');
+        const cSearch = document.getElementById('vidSearchControls');
+        const cGen = document.getElementById('vidGenControls');
+
+        if (tab === 'search') {
+            tSearch.classList.add('bg-white', 'shadow-sm');
+            tSearch.classList.remove('text-gray-500', 'hover:bg-gray-200');
+
+            tGen.classList.remove('bg-white', 'shadow-sm');
+            tGen.classList.add('text-gray-500', 'hover:bg-gray-200');
+
+            cSearch.classList.remove('hidden');
+            cGen.classList.add('hidden');
+        } else {
+            tGen.classList.add('bg-white', 'shadow-sm');
+            tGen.classList.remove('text-gray-500', 'hover:bg-gray-200');
+
+            tSearch.classList.remove('bg-white', 'shadow-sm');
+            tSearch.classList.add('text-gray-500', 'hover:bg-gray-200');
+
+            cGen.classList.remove('hidden');
+            cSearch.classList.add('hidden');
+        }
+    }
+
+    async function generateVeoVideo() {
+        const prompt = document.getElementById('veoPrompt').value;
+        if (!prompt) {
+            Utils.showToast('프롬프트를 입력해주세요.', 'warning');
+            return;
+        }
+
+        const btn = document.getElementById('btnVeoGen');
+        Utils.setLoading(btn, true, 'Veo 생성 중... (약 20초)');
+
+        document.getElementById('videoResultsList').innerHTML = '';
+
+        try {
+            const result = await API.video.generateVeo(prompt);
+
+            if (result.status === 'ok') {
+                Utils.showToast('Veo 영상 생성 완료!', 'success');
+                const veoVideo = [{
+                    id: 'veo-' + Date.now(),
+                    url: result.video_url,
+                    image: '/static/img/placeholder_video.png',
+                    duration: 'Preview',
+                    width: 1280,
+                    height: 720,
+                    user: 'Google Veo',
+                    pexel_url: '#'
+                }];
+                renderVideoResults(veoVideo);
+            } else {
+                let errorMsg = result.error;
+                if (typeof errorMsg === 'string' && (errorMsg.includes('429') || errorMsg.includes('RESOURCE_EXHAUSTED'))) {
+                    errorMsg = "일일 사용량이 초과되었습니다 (429).";
+                    Utils.showToast(errorMsg, 'warning');
+                } else {
+                    Utils.showToast('생성 실패: ' + errorMsg, 'error');
+                }
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('오류가 발생했습니다.', 'error');
+        } finally {
+            Utils.setLoading(btn, false, '✨ 생성하기');
+        }
+    }
+
+    // Auto-Search on Load if coming from "Old Story"
+    document.addEventListener('DOMContentLoaded', () => {
+        // Maybe redundant to search here, but good to have
+    });
+</script>
+{% endblock %}

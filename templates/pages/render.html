@@ -49,6 +49,15 @@
                 <option value="720p" selected>720p (1280x720) - 권장</option>
                 <option value="1080p">1080p (1920x1080) - 고화질 (느림)</option>
             </select>
+
+            <div class="mt-4 flex items-center p-1">
+                <input id="useSubtitles" type="checkbox" checked
+                    class="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 transition-colors cursor-pointer">
+                <label for="useSubtitles"
+                    class="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300 cursor-pointer select-none">
+                    자막 포함 (Burn-in Subtitles)
+                </label>
+            </div>
         </div>
     </div>
 
@@ -133,64 +142,105 @@
     });
 
     function updateProjectSummary(data) {
-        console.log("Project Data Loaded:", data); // Debug Log
+        console.log("Project Data Loaded:", data);
 
-        // 1. 대본 상태
+        // Global Loop Mode Check
+        const bgVideo = data.settings?.background_video_url;
+        const isLoopMode = !!bgVideo;
+        window.isLoopMode = isLoopMode;
+
+        // 1. 대본 상태 (Script)
         const scriptEl = document.getElementById('scriptStatus');
-        const hasScriptRow = !!data.script;
-        const hasFullScript = data.script && data.script.full_script;
-        const hasTtsScript = data.tts && data.tts.audio_path; // TTS implies script existence
+        const hasScript = data.script && data.script.full_script;
 
-        if (hasFullScript) {
-            scriptEl.innerHTML = '<span class="text-green-600 font-bold">✅ 완료</span>';
-        } else if (hasScriptRow) {
-            // Row exists but no content?
-            scriptEl.innerHTML = '<span class="text-yellow-600 font-bold">⚠️ 내용 없음</span>';
-        } else if (data.settings?.script) {
-            scriptEl.innerHTML = '<span class="text-green-600 font-bold">✅ 완료 (Settings)</span>';
-        } else if (hasTtsScript) {
-            scriptEl.innerHTML = '<span class="text-green-600 font-bold">✅ 완료 (TTS)</span>';
+        if (hasScript) {
+            scriptEl.innerHTML = '<span class="text-green-600 font-bold">✅ 대본 완료</span>';
         } else {
-            scriptEl.innerHTML = '<span class="text-red-500">대본 없음</span>';
+            // Loop 모드에서는 대본이 없어도 됨 (배경음악만 깔고 싶을수도 있음) -> 하지만 현재 로직상 TTS는 대본존재여부 따짐
+            if (isLoopMode) {
+                scriptEl.innerHTML = '<span class="text-gray-500">대본 없음 (선택)</span>';
+            } else {
+                scriptEl.innerHTML = '<span class="text-red-500">대본 없음</span>';
+            }
         }
 
-        // 2. 이미지 상태
+        // 2. 이미지 상태 (Images vs Background Video)
         const imageEl = document.getElementById('imageStatus');
         const images = data.image_prompts || [];
         const hasImages = images.length > 0 && images.some(img => img.image_url);
-        const hasPrompts = images.length > 0;
 
-        if (hasImages) {
-            imageEl.innerHTML = `<span class="text-green-600 font-bold">✅ 완료 (${images.length}장)</span>`;
-        } else if (hasPrompts) {
-            // Prompts exist but no images -> Sidebar says Green, we say Yellow
-            imageEl.innerHTML = '<span class="text-yellow-600 font-bold">⚠️ 생성 필요 (프롬프트만 있음)</span>';
+        if (isLoopMode) {
+            // Loop Mode: Images are replaced by Video
+            imageEl.parentElement.querySelector('.text-2xl').innerText = '🎥'; // Icon Change
+            imageEl.innerHTML = '<span class="text-blue-600 font-bold">배경 동영상 사용</span>';
         } else {
-            imageEl.innerHTML = '<span class="text-red-500">이미지 없음</span>';
+            imageEl.parentElement.querySelector('.text-2xl').innerText = '🖼️'; // Restore Icon
+            if (hasImages) {
+                imageEl.innerHTML = `<span class="text-green-600 font-bold">✅ 이미지 ${images.length}장</span>`;
+            } else if (images.length > 0) {
+                imageEl.innerHTML = '<span class="text-yellow-600 font-bold">⚠️ 프롬프트만 있음</span>';
+            } else {
+                imageEl.innerHTML = '<span class="text-red-500">이미지 없음</span>';
+            }
         }
 
-        // 3. 음성 상태
+        // 3. 음성 상태 (Audio)
         const audioEl = document.getElementById('audioStatus');
         if (data.tts && data.tts.audio_path) {
-            audioEl.innerHTML = '<span class="text-green-600 font-bold">✅ 완료</span>';
+            audioEl.innerHTML = '<span class="text-green-600 font-bold">✅ 음성 완료</span>';
         } else {
-            audioEl.innerHTML = '<span class="text-red-500">음성 없음</span>';
+            if (isLoopMode) {
+                audioEl.innerHTML = '<span class="text-gray-400">음성 없음 (무음/BGM)</span>';
+            } else {
+                audioEl.innerHTML = '<span class="text-red-500">음성 없음</span>';
+            }
         }
 
-        // 4. 영상 상태
+        // 4. 영상 상태 (Final Video)
         const videoEl = document.getElementById('videoStatus');
         const hasVideoPath = data.settings?.video_path || data.project?.video_path;
-        const isRenderedStatus = data.project?.status === 'rendered' || data.project?.status === 'completed';
 
         if (hasVideoPath) {
-            videoEl.innerHTML = '<span class="text-green-600 font-bold">✅ 생성됨</span>';
-        } else if (isRenderedStatus) {
-            // DB says rendered, but file missing
-            videoEl.innerHTML = '<span class="text-red-500 font-bold">❌ 파일 유실됨</span>';
+            // 다운로드 링크 제공은 renderComplete에서 함. 여기는 상태 텍스트만.
+            videoEl.innerHTML = '<span class="text-green-600 font-bold">✅ 생성 완료</span>';
         } else {
-            videoEl.innerHTML = '<span class="text-gray-500">준비 중</span>';
+            if (isLoopMode) {
+                videoEl.innerHTML = '<span class="text-blue-600 font-bold">생성 대기 (Loop)</span>';
+            } else {
+                videoEl.innerHTML = '<span class="text-gray-500">생성 대기</span>';
+            }
+        }
+
+        // [UI Enforcement Call]
+        if (isLoopMode) enforceLoopModeUI();
+    }
+
+    // [FORCE FIX] Aggressive UI Enforcement
+    function enforceLoopModeUI() {
+        if (!window.isLoopMode) return;
+
+        // 1. Hide Image Duration
+        const durationContainer = document.getElementById('imageDuration');
+        if (durationContainer) {
+            durationContainer.closest('div').style.display = 'none';
+        }
+
+        // 2. Uncheck Subtitles (Forcefully)
+        const subCheckbox = document.getElementById('useSubtitles');
+        if (subCheckbox) {
+            subCheckbox.checked = false;
+        }
+
+        // 3. Update Image Status text if needed
+        const imageEl = document.getElementById('imageStatus');
+        if (imageEl && imageEl.innerText.includes('완료')) {
+            // Keep green check if images exist, but maybe add text?
+            // User didn't complain about this part, so leave it or set safely
         }
     }
+
+    // Run enforcement periodically to fight any race conditions
+    setInterval(enforceLoopModeUI, 500);
 
     function renderComplete(videoPath, targetId = 'resultContainer') {
         const container = document.getElementById(targetId);
@@ -244,8 +294,10 @@
 
         try {
             const resolution = document.getElementById('resolution').value;
+            const useSubtitles = document.getElementById('useSubtitles').checked;
+
             const result = await API.project.render(projectId, {
-                useSubtitles: true,
+                useSubtitles: useSubtitles,
                 resolution: resolution
             });
 
