@@ -100,8 +100,10 @@ const API = {
     // 이미지 API
     image: {
         async generatePrompts(script, style = 'realistic', count = 5) {
-            const response = await fetch(`/api/image/generate-prompts?script=${encodeURIComponent(script)}&style=${style}&count=${count}`, {
-                method: 'POST'
+            const response = await fetch('/api/image/generate-prompts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ script, style, count })
             });
             return response.json();
         },
@@ -121,19 +123,54 @@ const API = {
             return response.json();
         },
 
-        // 썸네일 생성 (이미지 + 텍스트)
+        // 썸네일 생성 (이미지 + 텍스트 합성)
         async generateThumbnail(prompt, text, options = {}) {
+            const body = {
+                prompt,
+                text,
+                text_position: options.textPosition || options.position || 'center',
+                text_color: options.textColor || options.color || '#FFFFFF',
+                font_size: options.fontSize || 72,
+                language: options.language || 'ko',
+                background_path: options.background_path || null // 배경 이미지 경로
+            };
+
+            if (options.text_layers) {
+                // 데이터 타입 안전 변환 (서버 유효성 검사 통과용)
+                body.text_layers = options.text_layers.map(layer => ({
+                    ...layer,
+                    font_size: parseInt(layer.font_size, 10),
+                    x_offset: parseInt(layer.x_offset || 0, 10),
+                    y_offset: parseInt(layer.y_offset || 0, 10),
+                    stroke_width: parseInt(layer.stroke_width || 0, 10)
+                }));
+            }
+            if (options.shape_layers) {
+                body.shape_layers = options.shape_layers.map(shape => ({
+                    ...shape,
+                    x: parseInt(shape.x, 10),
+                    y: parseInt(shape.y, 10),
+                    width: parseInt(shape.width, 10),
+                    height: parseInt(shape.height, 10),
+                    opacity: parseFloat(shape.opacity),
+                    opacity_end: shape.opacity_end !== null && shape.opacity_end !== undefined ? parseFloat(shape.opacity_end) : null
+                }));
+            }
+
             const response = await fetch('/api/image/generate-thumbnail', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    prompt,
-                    text,
-                    text_position: options.textPosition || 'center',
-                    text_color: options.textColor || '#FFFFFF',
-                    font_size: options.fontSize || 72,
-                    language: options.language || 'ko'
-                })
+                body: JSON.stringify(body)
+            });
+            return response.json();
+        },
+
+        // 썸네일 배경만 생성
+        async generateThumbnailBackground(prompt) {
+            const response = await fetch('/api/image/generate-thumbnail-background', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt })
             });
             return response.json();
         }
@@ -150,6 +187,24 @@ const API = {
                     audio_url: audioUrl,
                     duration_per_image: durationPerImage
                 })
+            });
+            return response.json();
+        },
+
+        async search(script, style, query = null) {
+            const response = await fetch('/api/video/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ script, style, query })
+            });
+            return response.json();
+        },
+
+        async generateVeo(prompt, model = "veo-3.1-generate-preview") {
+            const response = await fetch('/api/video/generate-veo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt, model })
             });
             return response.json();
         }
@@ -344,6 +399,36 @@ const API = {
         async updateSetting(projectId, key, value) {
             const response = await fetch(`/api/projects/${projectId}/settings/${key}?value=${encodeURIComponent(value)}`, {
                 method: 'PATCH'
+            });
+            return response.json();
+        },
+
+        // [New] Bulk update settings
+        async updateSettings(projectId, settings) {
+            return this.saveSettings(projectId, settings);
+        }
+    },
+
+    // Video API
+    video: {
+        async search(script, style, query = null) {
+            const response = await fetch('/api/video/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    script,
+                    style,
+                    query
+                })
+            });
+            return response.json();
+        },
+
+        async generateVeo(prompt) {
+            const response = await fetch('/api/video/generate-veo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt })
             });
             return response.json();
         }

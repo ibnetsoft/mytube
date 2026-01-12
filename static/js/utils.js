@@ -123,7 +123,7 @@ const Utils = {
     // 알림 토스트
     showToast(message, type = 'info', duration = 3000) {
         const toast = document.createElement('div');
-        toast.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 transition-all transform translate-y-full opacity-0`;
+        toast.className = `toast-notification fixed right-4 px-6 py-3 rounded-lg shadow-lg z-50 transition-all transform translate-x-full opacity-0`;
 
         const colors = {
             info: 'bg-blue-500 text-white',
@@ -134,17 +134,56 @@ const Utils = {
 
         toast.className += ` ${colors[type] || colors.info}`;
         toast.textContent = message;
+
+        // 기존 토스트들의 위치 계산
+        const existingToasts = document.querySelectorAll('.toast-notification');
+        let bottomPosition = 16; // 기본 bottom: 1rem (16px)
+
+        existingToasts.forEach(existingToast => {
+            const rect = existingToast.getBoundingClientRect();
+            const currentBottom = parseInt(existingToast.style.bottom) || 16;
+            const toastHeight = rect.height;
+            const gap = 8; // 토스트 간 간격
+
+            if (currentBottom + toastHeight + gap > bottomPosition) {
+                bottomPosition = currentBottom + toastHeight + gap;
+            }
+        });
+
+        toast.style.bottom = `${bottomPosition}px`;
         document.body.appendChild(toast);
 
         // 애니메이션
         requestAnimationFrame(() => {
-            toast.classList.remove('translate-y-full', 'opacity-0');
+            toast.classList.remove('translate-x-full', 'opacity-0');
         });
 
         setTimeout(() => {
-            toast.classList.add('translate-y-full', 'opacity-0');
-            setTimeout(() => toast.remove(), 300);
+            toast.classList.add('translate-x-full', 'opacity-0');
+            setTimeout(() => {
+                toast.remove();
+                // 토스트 제거 후 남은 토스트들 위치 재조정
+                Utils.repositionToasts();
+            }, 300);
         }, duration);
+    },
+
+    // 토스트 위치 재조정 (내부 사용)
+    repositionToasts() {
+        const existingToasts = Array.from(document.querySelectorAll('.toast-notification'));
+        existingToasts.sort((a, b) => {
+            const bottomA = parseInt(a.style.bottom) || 16;
+            const bottomB = parseInt(b.style.bottom) || 16;
+            return bottomA - bottomB;
+        });
+
+        let currentBottom = 16;
+        const gap = 8;
+
+        existingToasts.forEach(toast => {
+            toast.style.bottom = `${currentBottom}px`;
+            currentBottom += toast.getBoundingClientRect().height + gap;
+        });
     },
 
     // 로딩 상태 표시

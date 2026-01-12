@@ -2,7 +2,7 @@
 wingsAIStudio - FastAPI 메인 서버
 YouTube 영상 자동화 제작 플랫폼 (Python 기반)
 """
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Body, Request, Form
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Body, Request, Form, UploadFile, File
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
@@ -196,8 +196,18 @@ class ProjectSettingsSave(BaseModel):
     video_path: Optional[str] = None
     is_uploaded: Optional[int] = None
     subtitle_style_enum: Optional[str] = None
-    subtitle_font_size: Optional[int] = None
-    subtitle_stroke_color: Optional[str] = None
+class ChannelCreate(BaseModel):
+    name: str
+    handle: str
+    description: Optional[str] = None
+
+class ChannelResponse(BaseModel):
+    id: int
+    name: str
+    handle: str
+    description: Optional[str]
+    created_at: Any
+
     subtitle_stroke_width: Optional[float] = None
     subtitle_position_y: Optional[int] = None
     background_video_url: Optional[str] = None # 루프 동영상 배경 URL
@@ -308,6 +318,15 @@ async def page_render(request: Request):
         "request": request,
         "page": "render",
         "title": "영상 렌더링"
+    })
+
+@app.get("/video-upload", response_class=HTMLResponse)
+async def page_video_upload(request: Request):
+    """영상 업로드 페이지"""
+    return templates.TemplateResponse("pages/video_upload.html", {
+        "request": request,
+        "page": "video-upload",
+        "title": "영상 업로드"
     })
 
 @app.get("/subtitle_gen", response_class=HTMLResponse)
@@ -572,6 +591,36 @@ async def auto_generate_images(project_id: int):
     return {"status": "ok", "prompts": prompts}
 
 
+
+@app.post("/api/projects/{project_id}/tts/upload")
+async def save_external_tts(project_id: int, file: UploadFile = File(...)):
+    """외부 TTS 오디오 파일 업로드 및 저장"""
+    try:
+        # 1. 출력 경로 확보
+        output_dir, web_dir = get_project_output_dir(project_id)
+        
+        # 2. 파일명 생성 (tts_ext_timestamp.mp3)
+        import time
+        ext = os.path.splitext(file.filename)[1]
+        if not ext: ext = ".mp3"
+        filename = f"tts_ext_{project_id}_{int(time.time())}{ext}"
+        file_path = os.path.join(output_dir, filename)
+        web_url = f"{web_dir}/{filename}"
+        
+        # 3. 저장
+        content = await file.read()
+        with open(file_path, "wb") as f:
+            f.write(content)
+            
+        # 4. DB 업데이트 (TTS 결과로 등록)
+        # TTS 테이블 구조에 맞게 저장 (provider='external', voice_id='upload')
+        db.save_tts_result(project_id, file_path, "external", "upload", "ko", 1.0)
+        
+        return {"status": "ok", "url": web_url, "path": file_path}
+    except Exception as e:
+        print(f"Error saving external TTS: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 @app.post("/api/projects/{project_id}/image-prompts")
 async def save_image_prompts(project_id: int, req: ImagePromptsSave):
     """이미지 프롬프트 저장"""
@@ -616,6 +665,64 @@ async def save_thumbnails(project_id: int, req: ThumbnailsSave):
 async def get_thumbnails(project_id: int):
     """썸네일 아이디어 조회"""
     return db.get_thumbnails(project_id) or {}
+
+@app.post("/api/projects/{project_id}/thumbnail/save")
+async def save_client_thumbnail(project_id: int, file: UploadFile = File(...)):
+    """클라이언트 캔버스에서 생성된 썸네일 이미지 저장"""
+    try:
+        # 1. 출력 경로 확보
+        output_dir, web_dir = get_project_output_dir(project_id)
+        
+        # 2. 유니크 파일명
+        import time
+        filename = f"thumb_{project_id}_{int(time.time())}.png"
+        file_path = os.path.join(output_dir, filename)
+        web_url = f"{web_dir}/{filename}"
+        
+        # 3. 저장
+        content = await file.read()
+        with open(file_path, "wb") as f:
+            f.write(content)
+            
+        # 4. DB 업데이트
+        db.update_project_setting(project_id, 'thumbnail_url', web_url)
+        
+        return {"status": "ok", "url": web_url, "path": file_path}
+    except Exception as e:
+        print(f"Error saving thumbnail: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post("/api/projects/{project_id}/intro/save")
+async def save_intro_video(project_id: int, file: UploadFile = File(...)):
+    """인트로(배경) 동영상 업로드 및 저장"""
+    try:
+        # 1. 출력 경로 확보
+        output_dir, web_dir = get_project_output_dir(project_id)
+        
+        # 2. 파일명 생성 (intro_timestamp.mp4)
+        import time
+        ext = os.path.splitext(file.filename)[1]
+        if not ext: ext = ".mp4"
+        filename = f"intro_{project_id}_{int(time.time())}{ext}"
+        file_path = os.path.join(output_dir, filename)
+        web_url = f"{web_dir}/{filename}"
+        
+        # 3. 저장
+        content = await file.read()
+        with open(file_path, "wb") as f:
+            f.write(content)
+            
+        # 4. DB 업데이트 (background_video_url 설정을 사용하여 인트로/배경으로 지정)
+        # video_path 설정이 있으면 렌더링 시 그게 우선될 수 있으므로, 여기서도 초기화하거나 
+        # 명시적으로 background_video_url을 업데이트
+        db.update_project_setting(project_id, 'background_video_url', web_url)
+        # video_path는 '생성된' 결과물일 수 있으므로 null로 리셋하여 업로드된 영상을 우선시하게 둠
+        db.update_project_setting(project_id, 'video_path', None)
+        
+        return {"status": "ok", "url": web_url, "path": file_path}
+    except Exception as e:
+        print(f"Error saving intro video: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.post("/api/projects/{project_id}/shorts")
 async def save_shorts(project_id: int, req: ShortsSave):
@@ -1406,6 +1513,7 @@ class ThumbnailTextLayer(BaseModel):
     text: str
     position: str = "center" # top, center, bottom, custom
     y_offset: int = 0
+    x_offset: int = 0
     font_family: str = "malgun"
     font_size: int = 72
     color: str = "#FFFFFF"
@@ -1413,8 +1521,20 @@ class ThumbnailTextLayer(BaseModel):
     stroke_width: int = 0
     bg_color: Optional[str] = None
 
+class ThumbnailShapeLayer(BaseModel):
+    x: int
+    y: int
+    width: int
+    height: int
+    color_start: str = "#000000"
+    color_end: Optional[str] = None # 그라디언트 끝 색상 (없으면 단색)
+    opacity: float = 1.0
+    opacity_end: Optional[float] = None # 그라디언트 끝 투명도 (없으면 opacity와 동일)
+    gradient_direction: str = "horizontal" # horizontal, vertical
+
 class ThumbnailGenerateRequest(BaseModel):
     prompt: str
+    shape_layers: List[ThumbnailShapeLayer] = []
     text_layers: List[ThumbnailTextLayer] = []
     # Legacy support
     text: Optional[str] = None
@@ -1422,29 +1542,31 @@ class ThumbnailGenerateRequest(BaseModel):
     text_color: str = "#FFFFFF"
     font_size: int = 72
     language: str = "ko"
+    background_path: Optional[str] = None # 기존 이미지 사용 시 경로
 
-@app.post("/api/image/generate-thumbnail")
-async def generate_thumbnail(req: ThumbnailGenerateRequest):
-    """썸네일 생성 (이미지 + 텍스트 합성)"""
+class ThumbnailBackgroundRequest(BaseModel):
+    prompt: str
+
+@app.post("/api/image/generate-thumbnail-background")
+async def generate_thumbnail_background(req: ThumbnailBackgroundRequest):
+    """썸네일 배경 이미지만 생성 (텍스트 없음)"""
     if not config.GEMINI_API_KEY:
         raise HTTPException(400, "Gemini API 키가 설정되지 않았습니다")
 
     try:
         from google import genai
-        from PIL import Image, ImageDraw, ImageFont
-        import io
-        import platform # Import platform for OS detection
+        from PIL import Image
+        import uuid
 
         client = genai.Client(api_key=config.GEMINI_API_KEY)
 
-        # 1. Imagen 4로 배경 이미지 생성 (무조건 텍스트 생성 억제)
+        # 1. Imagen 4로 배경 이미지 생성
         clean_prompt = req.prompt
+        # negative_constraints 강화 (CJK 포함)
+        negative_constraints = "text, words, letters, alphabet, typography, watermark, signature, speech bubble, logo, brand name, writing, caption, chinese characters, japanese kanji, korean hangul, hanzi"
         
-        # [FORCE FIX] 사용자 요청: 절대 텍스트 금지
-        # Imagen 모델은 prompt에 부정 명령어도 포함해야 함
-        negative_constraints = ", textless, no text, no words, no letters, no alphabet, no typography, no watermarks, no speech bubbles, clean image, visual only"
-        
-        final_prompt = clean_prompt + negative_constraints + ", YouTube thumbnail background, high quality, 1280x720"
+        # 프롬프트 앞뒤로 강력한 부정 명령 배치
+        final_prompt = f"ABSOLUTELY NO TEXT. NO CHINESE/JAPANESE/KOREAN CHARACTERS. {clean_prompt}. Background image only. High quality, 8k, detailed, YouTube thumbnail background, empty background, no watermark. DO NOT INCLUDE: {negative_constraints}. INVISIBLE TEXT."
 
         response = client.models.generate_images(
             model="imagen-4.0-generate-001",
@@ -1459,11 +1581,150 @@ async def generate_thumbnail(req: ThumbnailGenerateRequest):
         if not response.generated_images:
             return {"status": "error", "error": "배경 이미지 생성 실패"}
 
-        # 2. 이미지 로드
+        # 2. 이미지 저장
         img_data = response.generated_images[0].image._pil_image
-        img = img_data.resize((1280, 720), Image.LANCZOS)
+        
+        # static/img/thumbnails 폴더 확보
+        save_dir = "static/img/thumbnails"
+        os.makedirs(save_dir, exist_ok=True)
+        
+        filename = f"bg_{uuid.uuid4().hex}.png"
+        filepath = os.path.join(save_dir, filename)
+        
+        img_data.save(filepath, format="PNG")
+        
+        # URL 및 절대 경로 반환
+        return {
+            "status": "ok",
+            "url": f"/static/img/thumbnails/{filename}",
+            "path": os.path.abspath(filepath)
+        }
+
+    except Exception as e:
+        print(f"Error generating background: {e}")
+        return {"status": "error", "error": str(e)}
+
+@app.post("/api/image/generate-thumbnail")
+async def generate_thumbnail(req: ThumbnailGenerateRequest):
+    """썸네일 생성 (이미지 + 텍스트 합성)"""
+    if not config.GEMINI_API_KEY:
+        raise HTTPException(400, "Gemini API 키가 설정되지 않았습니다")
+
+    try:
+        from google import genai
+        from PIL import Image, ImageDraw, ImageFont
+        import io
+        import platform # Import platform for OS detection
+        import re # Import regex
+
+        # If background_path is provided, use it. Otherwise, generate new image.
+        img = None
+        
+        if req.background_path and os.path.exists(req.background_path):
+            # 기존 이미지 로드
+            try:
+                img = Image.open(req.background_path)
+                img = img.resize((1280, 720), Image.LANCZOS)
+                print(f"Loaded background from: {req.background_path}")
+            except Exception as e:
+                print(f"Failed to load background: {e}")
+                # Fallback to generation if load fails? Or error? Let's error for clarity.
+                raise HTTPException(400, f"배경 이미지 로드 실패: {str(e)}")
+        else:
+            # Generate new image
+            from google import genai
+            client = genai.Client(api_key=config.GEMINI_API_KEY)
+
+            # 1. Imagen 4로 배경 이미지 생성 (무조건 텍스트 생성 억제)
+            clean_prompt = req.prompt
+            
+            # [FORCE FIX] 사용자 요청: 절대 텍스트 금지 (프롬프트 전처리)
+            # [FORCE FIX] 사용자 요청: 절대 텍스트 금지 (프롬프트 전처리)
+            # 2. negative_constraints 강화 (CJK 포함)
+            negative_constraints = "text, words, letters, alphabet, typography, watermark, signature, speech bubble, logo, brand name, writing, caption, chinese characters, japanese kanji, korean hangul, hanzi"
+            
+            final_prompt = f"ABSOLUTELY NO TEXT. NO CHINESE/JAPANESE/KOREAN CHARACTERS. {clean_prompt}. High quality, 8k, detailed, YouTube thumbnail background, empty background, no watermark. DO NOT INCLUDE: {negative_constraints}. INVISIBLE TEXT."
+
+            # 최신 google-genai SDK는 config에 negative_prompt 지원 가능성 높음 (또는 튜닝된 템플릿 사용)
+            response = client.models.generate_images(
+                model="imagen-4.0-generate-001",
+                prompt=final_prompt,
+                config={
+                    "number_of_images": 1,
+                    "aspect_ratio": "16:9",
+                    "safety_filter_level": "BLOCK_LOW_AND_ABOVE"
+                }
+            )
+
+            if not response.generated_images:
+                return {"status": "error", "error": "배경 이미지 생성 실패"}
+
+            # 2. 이미지 로드
+            img_data = response.generated_images[0].image._pil_image
+            img = img_data.resize((1280, 720), Image.LANCZOS)
+
 
         # 3. 텍스트 오버레이
+
+        # 3. 도형 및 텍스트 오버레이
+
+        # Helper: 그라디언트 사각형 그리기 (Alpha Interpolation 지원)
+        def draw_gradient_rect(draw, img, x, y, w, h, start_color, end_color, direction="horizontal", start_opacity=1.0, end_opacity=None):
+            if end_opacity is None:
+                end_opacity = start_opacity
+
+            # PIL Draw는 그라디언트 미지원 -> 이미지 합성으로 처리
+            # 1. 그라디언트 마스크 생성
+            base = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+            draw_base = ImageDraw.Draw(base)
+            
+            # 색상 파싱
+            from PIL import ImageColor
+            c1 = ImageColor.getrgb(start_color)
+            c2 = ImageColor.getrgb(end_color) if end_color else c1
+            
+            # Alpha 값 (0-255 scaling)
+            a1 = int(255 * start_opacity)
+            a2 = int(255 * end_opacity)
+
+            if not end_color or (start_color == end_color and start_opacity == end_opacity):
+                # 단색 (색상도 같고 투명도도 같을 때)
+                draw_base.rectangle([(0, 0), (w, h)], fill=c1 + (a1,))
+            else:
+                # 그라디언트 (색상 OR 투명도가 다를 때)
+                for i in range(w if direction == 'horizontal' else h):
+                    ratio = i / float((w if direction == 'horizontal' else h))
+                    
+                    # RGB Interpolation
+                    r = int(c1[0] * (1 - ratio) + c2[0] * ratio)
+                    g = int(c1[1] * (1 - ratio) + c2[1] * ratio)
+                    b = int(c1[2] * (1 - ratio) + c2[2] * ratio)
+                    
+                    # Alpha Interpolation
+                    a = int(a1 * (1 - ratio) + a2 * ratio)
+                    
+                    if direction == 'horizontal':
+                        draw_base.line([(i, 0), (i, h)], fill=(r, g, b, a))
+                    else:
+                        draw_base.line([(0, i), (w, i)], fill=(r, g, b, a))
+            
+            # 원본 이미지에 합성
+            img.paste(base, (x, y), base)
+
+        # 3.1 도형 렌더링 (텍스트보다 뒤에)
+        if hasattr(req, 'shape_layers') and req.shape_layers:
+            draw = ImageDraw.Draw(img) # Draw 객체 생성 (단색은 직접 그리지만 그라디언트는 paste 사용)
+            for shape in req.shape_layers:
+                draw_gradient_rect(
+                    draw, img, 
+                    shape.x, shape.y, shape.width, shape.height,
+                    shape.color_start, shape.color_end,
+                    shape.gradient_direction, 
+                    start_opacity=shape.opacity,
+                    end_opacity=shape.opacity_end
+                )
+
+        # 3.2 텍스트 오버레이
         draw = ImageDraw.Draw(img)
         system = platform.system()
 
@@ -1478,52 +1739,65 @@ async def generate_thumbnail(req: ThumbnailGenerateRequest):
             )]
 
         for layer in layers:
-            # 폰트 결정 (Windows 환경 기준)
-            font_file = config.DEFAULT_FONT_PATH
-            if system == 'Windows':
-                if layer.font_family == "gmarket":
-                    font_file = "GmarketSansBold.otf" 
-                elif layer.font_family == "cookie":
-                    font_file = "CookieRun-Regular.ttf"
-                
-                # 언어별 기본 폰트 (레거시 호환 및 자동 선택)
-                if req.language == 'ja' and layer.font_family == "malgun":
-                    font_file = "meiryo.ttc"
-                elif req.language == 'en' and layer.font_family == "malgun":
-                    font_file = "arial.ttf"
-
-            # 한글 지원 폰트 후보군 (Windows 시스템 폰트 우선)
+            # 폰트 결정 (static/fonts 우선 탐색)
             font_candidates = []
+            
+            # [Smart Fix] 일본어/한자 포함 여부 확인 (Gmarket Sans는 한자 미지원)
+            has_japanese = bool(re.search(r'[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]', layer.text))
+            
+            # 1. 프로젝트 내 폰트
+            if layer.font_family == "gmarket":
+                if has_japanese:
+                    # Gmarket 요청이지만 일본어가 있으면 -> 윈도우용 굵은 일본어 폰트 파일명으로 대체
+                    # Meiryo Bold, Malgun Gothic Bold, Yu Gothic Bold
+                    font_candidates.extend(["meiryob.ttc", "malgunbd.ttf", "YuGothB.ttc", "msgothic.ttc"])
+                    print(f"[Thumbnail] 'gmarket' requested but Japanese text detected. Fallback to System Bold font filenames.")
+                else:
+                    font_candidates.extend(["static/fonts/GmarketSansBold.woff", "static/fonts/GmarketSansBold.ttf", "GmarketSansBold.otf"])
+            elif layer.font_family == "cookie":
+                 # 쿠키런도 한자 지원이 제한적일 수 있음 -> 필요시 유사 로직 추가
+                font_candidates.extend(["static/fonts/CookieRun-Regular.woff", "static/fonts/CookieRun-Regular.ttf", "CookieRun-Regular.ttf"])
+            
+            # 2. 시스템 폰트 Fallback
             if system == 'Windows':
-                if layer.font_family == "gmarket": font_candidates.extend(["GmarketSansBold.otf", "GmarketSansMedium.otf"])
-                elif layer.font_family == "cookie": font_candidates.extend(["CookieRun-Regular.ttf", "CookieRun.ttf"])
-                font_candidates.extend([config.DEFAULT_FONT_PATH, "malgunbd.ttf", "gulim.ttc", "batang.ttc"])
+                # Meiryo(일본어), Malgun(한국어) 순서
+                font_candidates.extend(["meiryo.ttc", "meiryob.ttc", "malgunbd.ttf", "malgun.ttf", "gulim.ttc", "arial.ttf"])
+            else:
+                font_candidates.extend(["AppleGothic.ttf", "NotoSansCJK-Bold.ttc", "Arial.ttf"])
 
             font = None
             for font_file in font_candidates:
-                paths = [font_file, os.path.join(os.environ.get('WINDIR', 'C:\\Windows'), 'Fonts', font_file)]
-                for p in paths:
-                    if os.path.exists(p):
+                # 1. 절대/상대 경로 직접 확인
+                if os.path.exists(font_file):
+                    try:
+                        font = ImageFont.truetype(font_file, layer.font_size)
+                        print(f"[Thumbnail] Loaded font: {font_file}")
+                        break
+                    except Exception as e:
+                        print(f"[Thumbnail] Font load error ({font_file}): {e}")
+                        continue
+                
+                # 2. Windows Fonts 폴더 확인
+                if system == 'Windows':
+                    win_path = os.path.join(os.environ.get('WINDIR', 'C:\\Windows'), 'Fonts', font_file)
+                    if os.path.exists(win_path):
                         try:
-                            font = ImageFont.truetype(p, layer.font_size)
-                            print(f"[Thumbnail] Loaded font: {p}")
+                            font = ImageFont.truetype(win_path, layer.font_size)
                             break
                         except: continue
-                if font: break
 
             if not font:
-                try: font = ImageFont.truetype("arial.ttf", layer.font_size)
-                except: font = ImageFont.load_default()
+                font = ImageFont.load_default()
 
             # 텍스트 크기 계산 (Bbox)
             bbox = draw.textbbox((0, 0), layer.text, font=font)
             tw = bbox[2] - bbox[0]
             th = bbox[3] - bbox[1]
 
-            # X 위치 (중앙 정렬 기반)
-            x = (1280 - tw) // 2
+            # X 위치 (중앙 정렬 기반) + X 오프셋 적용
+            x = (1280 - tw) // 2 + layer.x_offset
             
-            # Y 위치 (720p 기준 5분할 강조)
+            # Y 위치 (720p 기준 5분할 강조) - [FIX] 하단 여백 확보
             if layer.position == "row1" or layer.position == "top":
                 y = 60 + layer.y_offset
             elif layer.position == "row2":
@@ -1533,7 +1807,7 @@ async def generate_thumbnail(req: ThumbnailGenerateRequest):
             elif layer.position == "row4":
                 y = 450 + layer.y_offset
             elif layer.position == "row5" or layer.position == "bottom":
-                y = 580 + layer.y_offset
+                y = 550 + layer.y_offset # [FIX] 580 -> 550 (바닥 붙음 방지)
             else: # center
                 y = (720 - th) // 2 + layer.y_offset
 
@@ -1573,8 +1847,12 @@ async def generate_thumbnail(req: ThumbnailGenerateRequest):
         return {"status": "ok", "url": web_url}
 
     except Exception as e:
-        print(f"Thumbnail generation error: {e}")
-        return {"status": "error", "error": str(e)}
+        print(f"Error generating thumbnail: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"status": "error", "error": f"서버 오류: {str(e)}"}
+
+
 
 @app.get("/api/trends/keywords")
 async def get_trending_keywords(
@@ -1757,13 +2035,13 @@ async def search_stock_video(
     return result
 
 @app.post("/api/video/generate-veo")
-async def generate_veo_video(
-    prompt: str = Body(embedding=True), # Just string body or JSON
-    model: str = Body("veo-3.1-generate-preview")
-):
+async def generate_veo_video(request: dict = Body(...)):
     """
     Google Veo Video Generation API
     """
+    prompt = request.get("prompt")
+    model = request.get("model", "veo-3.1-generate-preview")
+    
     if not prompt:
         raise HTTPException(400, "Prompt is required")
         
@@ -1779,6 +2057,106 @@ async def generate_veo_video(
     
     result = await gemini_service.generate_video(prompt, model)
     return result
+
+# ===========================================
+# API: 인트로 영상 업로드/삭제
+# ===========================================
+
+@app.post("/api/video/upload-intro/{project_id}")
+async def upload_intro_video(
+    project_id: int,
+    file: UploadFile = File(...)
+):
+    """인트로 영상 업로드"""
+    import shutil
+    from pathlib import Path
+    
+    # 파일 확장자 검증
+    allowed_extensions = {'.mp4', '.mov', '.avi', '.mkv', '.webm'}
+    file_ext = Path(file.filename).suffix.lower()
+    
+    if file_ext not in allowed_extensions:
+        raise HTTPException(400, f"지원하지 않는 파일 형식입니다. 허용: {', '.join(allowed_extensions)}")
+    
+    # 파일 크기 제한 (100MB)
+    max_size = 100 * 1024 * 1024
+    file.file.seek(0, 2)
+    file_size = file.file.tell()
+    file.file.seek(0)
+    
+    if file_size > max_size:
+        raise HTTPException(400, "파일 크기는 100MB를 초과할 수 없습니다.")
+    
+    # 저장 경로 생성
+    intro_dir = Path("uploads") / "intros" / str(project_id)
+    intro_dir.mkdir(parents=True, exist_ok=True)
+    
+    # 파일 저장
+    intro_path = intro_dir / f"intro{file_ext}"
+    
+    try:
+        with intro_path.open("wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # 데이터베이스에 경로 저장
+        conn = database.get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE project_settings 
+            SET intro_video_path = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE project_id = ?
+        """, (str(intro_path), project_id))
+        conn.commit()
+        conn.close()
+        
+        return {
+            "status": "success",
+            "intro_path": str(intro_path),
+            "file_size": file_size,
+            "message": "인트로 영상이 업로드되었습니다."
+        }
+    except Exception as e:
+        if intro_path.exists():
+            intro_path.unlink()
+        raise HTTPException(500, f"업로드 실패: {str(e)}")
+
+@app.delete("/api/video/delete-intro/{project_id}")
+async def delete_intro_video(project_id: int):
+    """인트로 영상 삭제"""
+    from pathlib import Path
+    
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT intro_video_path FROM project_settings WHERE project_id = ?
+    """, (project_id,))
+    row = cursor.fetchone()
+    
+    if not row or not row[0]:
+        conn.close()
+        raise HTTPException(404, "인트로 영상이 없습니다.")
+    
+    intro_path = Path(row[0])
+    
+    try:
+        if intro_path.exists():
+            intro_path.unlink()
+        
+        cursor.execute("""
+            UPDATE project_settings 
+            SET intro_video_path = NULL, updated_at = CURRENT_TIMESTAMP
+            WHERE project_id = ?
+        """, (project_id,))
+        conn.commit()
+        conn.close()
+        
+        return {
+            "status": "success",
+            "message": "인트로 영상이 삭제되었습니다."
+        }
+    except Exception as e:
+        conn.close()
+        raise HTTPException(500, f"삭제 실패: {str(e)}")
 
 # ===========================================
 # API: 영상 생성
@@ -2661,9 +3039,167 @@ async def get_render_status(project_id: int):
     return get_render_progress(project_id)
 
 # ===========================================
-# 서버 시작
+# API: 채널 관리 (설정)
 # ===========================================
 
+@app.get("/api/channels", response_model=List[ChannelResponse])
+async def get_channels():
+    """등록된 채널 목록 조회"""
+    conn = db.get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM channels ORDER BY created_at DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+@app.post("/api/channels", response_model=ChannelResponse)
+async def create_channel(channel: ChannelCreate):
+    """채널 등록"""
+    conn = db.get_db()
+    cursor = conn.cursor()
+    
+    # 중복 체크? (핸들 기준)
+    cursor.execute("SELECT id FROM channels WHERE handle = ?", (channel.handle,))
+    if cursor.fetchone():
+        conn.close()
+        raise HTTPException(400, "이미 등록된 채널 핸들입니다.")
+
+    cursor.execute("""
+        INSERT INTO channels (name, handle, description)
+        VALUES (?, ?, ?)
+    """, (channel.name, channel.handle, channel.description))
+    conn.commit()
+    
+    new_id = cursor.lastrowid
+    cursor.execute("SELECT * FROM channels WHERE id = ?", (new_id,))
+    row = cursor.fetchone()
+    conn.close()
+    
+    return dict(row)
+
+@app.delete("/api/channels/{channel_id}")
+async def delete_channel(channel_id: int):
+    """채널 삭제"""
+    conn = db.get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM channels WHERE id = ?", (channel_id,))
+    conn.commit()
+    conn.close()
+    return {"status": "ok", "message": "채널이 삭제되었습니다."}
+
+@app.get("/api/auth/youtube/{channel_id}")
+async def authenticate_channel(channel_id: int):
+    """채널별 유튜브 계정 인증 (OAuth)"""
+    from services.youtube_upload_service import youtube_upload_service
+    
+    # 1. 채널 정보 확인
+    conn = db.get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM channels WHERE id = ?", (channel_id,))
+    channel = cursor.fetchone()
+    
+    if not channel:
+        conn.close()
+        raise HTTPException(404, "채널을 찾을 수 없습니다.")
+
+    # 2. 토큰 저장 경로 설정 (tokens/channel_{id}.pickle)
+    token_dir = os.path.join(config.BASE_DIR, "tokens")
+    os.makedirs(token_dir, exist_ok=True)
+    token_path = os.path.join(token_dir, f"channel_{channel_id}.pickle")
+    
+    try:
+        # 3. 인증 시작 (기존 서비스 재활용)
+        # get_authenticated_service 내부에서 '없으면 새로 인증' 로직이 돔
+        # 로컬 브라우저가 열리고 인증 진행
+        print(f"[Auth] Starting OAuth for channel {channel_id} ({channel['name']}) -> {token_path}")
+        
+        # 만약 기존 토큰이 있다면 삭제하여 강제 재인증 유도 (선택 사항)
+        # if os.path.exists(token_path):
+        #     os.remove(token_path)
+            
+        youtube_upload_service.get_authenticated_service(token_path=token_path)
+        
+        # 4. DB에 토큰 경로 업데이트
+        cursor.execute("UPDATE channels SET credentials_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (token_path, channel_id))
+        conn.commit()
+        conn.close()
+        
+        return {"status": "success", "message": f"채널 '{channel['name']}' 인증이 완료되었습니다."}
+        
+    except Exception as e:
+        conn.close()
+        print(f"[Auth] Failed: {e}")
+        raise HTTPException(500, f"인증 실패: {str(e)}")
+
+# ===========================================
+# 서버 실행 (Direct Run)
+# ===========================================
+# ===========================================
+# API: 배경음악 생성 (MusicGen)
+# ===========================================
+
+# Pydantic 모델
+class MusicGenRequest(BaseModel):
+    prompt: str
+    duration: int = 10  # 5~30초
+    project_id: Optional[int] = None
+
+@app.get("/music-gen", response_class=HTMLResponse)
+async def music_gen_page(request: Request):
+    """배경음악 생성 페이지"""
+    return templates.TemplateResponse("pages/music_gen.html", {
+        "request": request,
+        "page": "music-gen",
+        "title": "배경음악 생성"
+    })
+
+@app.post("/api/music/generate")
+async def generate_background_music(req: MusicGenRequest):
+    """MusicGen으로 배경음악 생성"""
+    try:
+        from services.music_service import music_service
+        
+        # 프롬프트 검증
+        if not req.prompt or len(req.prompt.strip()) < 3:
+            raise HTTPException(400, "프롬프트를 입력해주세요 (최소 3자)")
+        
+        # 길이 검증
+        duration = max(5, min(30, req.duration))
+        
+        # 파일명 생성
+        import time
+        timestamp = int(time.time())
+        filename = f"bgm_{timestamp}.wav"
+        
+        # 음악 생성
+        file_path = await music_service.generate_music(
+            prompt=req.prompt,
+            duration_seconds=duration,
+            filename=filename,
+            project_id=req.project_id
+        )
+        
+        # 웹 접근 경로
+        rel_path = os.path.relpath(file_path, config.OUTPUT_DIR)
+        web_url = f"/output/{rel_path}".replace("\\", "/")
+        
+        # DB에 저장 (선택사항)
+        if req.project_id:
+            db.update_project_setting(req.project_id, 'background_music_path', file_path)
+        
+        return {
+            "status": "ok",
+            "path": file_path,
+            "url": web_url,
+            "duration": duration,
+            "prompt": req.prompt
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Music generation error: {e}")
+        raise HTTPException(500, f"음악 생성 중 오류가 발생했습니다: {str(e)}")
 if __name__ == "__main__":
     import uvicorn
 
@@ -2745,6 +3281,150 @@ def recover_project_assets(project_id: int):
         
     return {'audio': recovered_audio, 'images': recovered_images}
         
+
+# ===========================================
+# API: 외부 영상 업로드
+# ===========================================
+
+@app.post("/api/video/upload-external/{project_id}")
+async def upload_external_video(project_id: int, file: UploadFile = File(...)):
+    """외부 영상 파일 업로드"""
+    try:
+        # 파일 확장자 검증
+        allowed_extensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm']
+        file_ext = os.path.splitext(file.filename)[1].lower()
+        
+        if file_ext not in allowed_extensions:
+            raise HTTPException(400, f"지원하지 않는 파일 형식입니다. {', '.join(allowed_extensions)} 파일만 업로드 가능합니다.")
+        
+        # 파일 크기 검증 (2GB)
+        max_size = 2 * 1024 * 1024 * 1024
+        file.file.seek(0, 2)  # 파일 끝으로 이동
+        file_size = file.file.tell()
+        file.file.seek(0)  # 파일 처음으로 되돌리기
+        
+        if file_size > max_size:
+            raise HTTPException(400, "파일 크기가 너무 큽니다. 최대 2GB까지 업로드 가능합니다.")
+        
+        # 저장 경로 생성
+        upload_dir = os.path.join(config.OUTPUT_DIR, "external", str(project_id))
+        os.makedirs(upload_dir, exist_ok=True)
+        
+        # 파일 저장
+        safe_filename = f"external_video{file_ext}"
+        file_path = os.path.join(upload_dir, safe_filename)
+        
+        with open(file_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+        
+        # 웹 접근 경로
+        rel_path = os.path.relpath(file_path, config.OUTPUT_DIR)
+        web_url = f"/output/{rel_path}".replace("\\", "/")
+        
+        # DB에 저장
+        db.update_project_setting(project_id, 'external_video_path', file_path)
+        
+        return {
+            "status": "ok",
+            "path": file_path,
+            "url": web_url,
+            "size": file_size,
+            "filename": file.filename
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"External video upload error: {e}")
+        raise HTTPException(500, f"업로드 중 오류가 발생했습니다: {str(e)}")
+
+
+@app.delete("/api/video/delete-external/{project_id}")
+async def delete_external_video(project_id: int):
+    """업로드된 외부 영상 삭제"""
+    try:
+        # DB에서 경로 조회
+        settings = db.get_project_settings(project_id)
+        if not settings or not settings.get('external_video_path'):
+            raise HTTPException(404, "업로드된 영상이 없습니다.")
+        
+        file_path = settings['external_video_path']
+        
+        # 파일 삭제
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        
+        # DB에서 경로 제거
+        db.update_project_setting(project_id, 'external_video_path', None)
+        
+        return {"status": "ok"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"External video delete error: {e}")
+        raise HTTPException(500, f"삭제 중 오류가 발생했습니다: {str(e)}")
+
+
+@app.post("/api/youtube/upload-external/{project_id}")
+async def upload_external_to_youtube(project_id: int):
+    """업로드된 외부 영상을 YouTube에 게시"""
+    try:
+        # 프로젝트 정보 조회
+        project = db.get_project(project_id)
+        if not project:
+            raise HTTPException(404, "프로젝트를 찾을 수 없습니다.")
+        
+        # 외부 영상 경로 조회
+        settings = db.get_project_settings(project_id)
+        if not settings or not settings.get('external_video_path'):
+            raise HTTPException(404, "업로드된 영상이 없습니다.")
+        
+        video_path = settings['external_video_path']
+        
+        if not os.path.exists(video_path):
+            raise HTTPException(404, "영상 파일을 찾을 수 없습니다.")
+        
+        # YouTube 업로드 서비스 import
+        from services.youtube_upload_service import youtube_upload_service
+        
+        # 메타데이터 조회 (title, description, tags)
+        metadata = db.get_metadata(project_id)
+        title = metadata.get('titles', [project['name']])[0] if metadata else project['name']
+        description = metadata.get('description', '') if metadata else ''
+        tags = metadata.get('tags', []) if metadata else []
+        
+        # YouTube 업로드
+        result = await youtube_upload_service.upload_video(
+            video_path=video_path,
+            title=title,
+            description=description,
+            tags=tags,
+            category_id="22",  # People & Blogs
+            privacy_status="private"  # 기본값: 비공개
+        )
+        
+        if result.get('status') == 'ok':
+            video_id = result.get('video_id')
+            
+            # DB에 YouTube 비디오 ID 저장
+            db.update_project_setting(project_id, 'youtube_video_id', video_id)
+            db.update_project_setting(project_id, 'is_published', 1)
+            
+            return {
+                "status": "ok",
+                "video_id": video_id,
+                "url": f"https://www.youtube.com/watch?v={video_id}"
+            }
+        else:
+            raise HTTPException(500, result.get('error', 'YouTube 업로드 실패'))
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"YouTube upload error: {e}")
+        raise HTTPException(500, f"YouTube 업로드 중 오류가 발생했습니다: {str(e)}")
 
 
 

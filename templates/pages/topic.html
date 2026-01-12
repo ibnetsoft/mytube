@@ -7,10 +7,6 @@
 <!-- 트렌드 키워드 버블 차트 -->
 <div
     class="card mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 border-none shadow-lg overflow-hidden relative">
-    <div class="absolute top-0 right-0 p-4 opacity-10">
-        <span class="text-9xl">☁️</span>
-    </div>
-
     <div class="relative z-10">
         <div class="flex items-center justify-between mb-4">
             <h3 class="font-bold text-xl text-gray-800 dark:text-white flex items-center gap-2">
@@ -37,7 +33,7 @@
                     <option value="20s">20대</option>
                     <option value="30s">30대</option>
                     <option value="40s">40대</option>
-                    <option value="50s">50대 이상</option>
+                    <option value="50s" selected>50대 이상</option>
                 </select>
 
                 <!-- 언어 선택 -->
@@ -153,13 +149,45 @@
             검색 결과 <span id="resultCount" class="text-gray-500 font-normal"></span>
         </h2>
         <div class="flex gap-2">
-            <button onclick="sortVideos('viral')" class="btn-secondary text-sm">🔥 바이럴순</button>
+            <button onclick="sortVideos('viral')" class="btn-secondary text-sm">🔥 성과도순</button>
             <button onclick="sortVideos('views')" class="btn-secondary text-sm">👁️ 조회수순</button>
+            <button onclick="saveSelectedToArchive()" class="btn-primary text-sm bg-green-600 hover:bg-green-700">📂 선택
+                보관</button>
         </div>
     </div>
 
-    <div id="videoGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <!-- 비디오 카드들이 여기에 렌더링됨 -->
+    <div
+        class="overflow-x-auto bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700">
+        <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+            <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                <tr>
+                    <th scope="col" class="p-4">
+                        <div class="flex items-center">
+                            <input id="checkbox-all" type="checkbox" onclick="toggleAllCheckboxes(this)"
+                                class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500">
+                        </div>
+                    </th>
+                    <th scope="col" class="px-2 py-3">썸네일</th>
+                    <th scope="col" class="px-2 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                        onclick="sortVideos('channel')">채널명</th>
+                    <th scope="col" class="px-2 py-3 w-[30%]">제목</th>
+                    <th scope="col" class="px-2 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                        onclick="sortVideos('date')">업로드</th>
+                    <th scope="col" class="px-2 py-3 text-right">구독자수</th>
+                    <th scope="col" class="px-2 py-3 text-right cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                        onclick="sortVideos('views')">조회수</th>
+                    <th scope="col" class="px-2 py-3 text-center">기여도</th>
+                    <th scope="col"
+                        class="px-2 py-3 text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                        onclick="sortVideos('performance')">성과도</th>
+                    <th scope="col" class="px-2 py-3 text-right">좋아요</th>
+                    <th scope="col" class="px-2 py-3 text-center">작업</th>
+                </tr>
+            </thead>
+            <tbody id="videoTableBody">
+                <!-- Rows rendered here -->
+            </tbody>
+        </table>
     </div>
 </div>
 
@@ -243,18 +271,60 @@
                 return;
             }
 
-            // 2. 상세 정보 가져오기
+            // 2. 비디오 상세 정보 가져오기
             const videoIds = searchResult.items.map(item => item.id.videoId).join(',');
             const detailResult = await fetch(`/api/youtube/videos/${videoIds}`);
             const detailData = await detailResult.json();
 
-            // 3. 데이터 병합 및 바이럴 스코어 계산
-            currentVideos = detailData.items.map(video => ({
-                ...video,
-                viralScore: Utils.calculateViralScore(video)
-            }));
+            // 3. 채널 상세 정보 가져오기 (구독자 수 등)
+            const channelIds = [...new Set(detailData.items.map(v => v.snippet.channelId))];
+            // 50개씩 끊어서 요청 (YouTube API 제한 고려 - GET URL 길이 때문은 아니고, ID 갯수 제한은 50개)
+            // 여기서는 24개 maxResults이므로 한 번에 가능
+            let channelsMap = {};
+            if (channelIds.length > 0) {
+                try {
+                    const channelResult = await API.youtube.getChannel(channelIds.join(','));
+                    if (channelResult.items) {
+                        channelResult.items.forEach(c => {
+                            channelsMap[c.id] = c;
+                        });
+                    }
+                } catch (e) {
+                    console.error("채널 정보 로드 실패:", e);
+                }
+            }
 
-            // 4. 렌더링
+            // 4. 데이터 병합 및 스코어 계산
+            currentVideos = detailData.items.map(video => {
+                const channel = channelsMap[video.snippet.channelId] || {};
+                const subs = parseInt(channel.statistics?.subscriberCount || 0);
+                const channelViews = parseInt(channel.statistics?.viewCount || 0);
+                const channelVideoCount = parseInt(channel.statistics?.videoCount || 0);
+
+                // 채널 평균 조회수 (단순 계산)
+                const channelAvgViews = channelVideoCount > 0 ? channelViews / channelVideoCount : 0;
+
+                const views = parseInt(video.statistics.viewCount || 0);
+
+                // 채널 기여도: 평소보다 얼마나 더 잘 나왔나?
+                const contribution = channelAvgViews > 0 ? (views / channelAvgViews) * 100 : 0;
+
+                // 성과도 배율: 구독자 대비 조회수
+                const performance = subs > 0 ? (views / subs) : 0;
+
+                return {
+                    ...video,
+                    channelData: channel,
+                    stats: {
+                        subs,
+                        contribution: contribution.toFixed(2),
+                        performance: performance.toFixed(2)
+                    },
+                    viralScore: Utils.calculateViralScore(video)
+                };
+            });
+
+            // 5. 렌더링
             renderVideos();
 
             document.getElementById('loadingSection').classList.add('hidden');
@@ -268,53 +338,130 @@
         }
     }
 
-    // 비디오 렌더링
+    // 비디오 렌더링 (리스트/테이블 형태)
     function renderVideos() {
-        const grid = document.getElementById('videoGrid');
-        grid.innerHTML = currentVideos.map(video => {
-            const score = video.viralScore;
-            const scoreClass = score >= 70 ? 'high' : score >= 40 ? 'medium' : 'low';
+        const tbody = document.getElementById('videoTableBody');
+        tbody.innerHTML = currentVideos.map((video, index) => {
+            const stats = video.stats || {};
+            // 성과도 배율 색상
+            const perfClass = stats.performance >= 5 ? 'text-red-500 font-bold' : (stats.performance >= 1 ? 'text-indigo-500' : 'text-gray-500');
+
+            // 기여도 색상
+            const contribClass = stats.contribution >= 500 ? 'text-red-500 font-bold' : (stats.contribution >= 150 ? 'text-indigo-500' : 'text-gray-500');
+
+            // Small thumbnail for table
+            const thumbUrl = video.snippet.thumbnails.default?.url || video.snippet.thumbnails.medium?.url;
 
             return `
-                <div class="video-card">
-                    <div class="video-thumbnail">
-                        <img src="${video.snippet.thumbnails.high?.url || video.snippet.thumbnails.default.url}"
-                            alt="${video.snippet.title}">
-                        <span class="viral-score ${scoreClass}">${score}점</span>
-                    </div>
-                    <div class="p-4">
-                        <h3 class="font-semibold text-gray-800 dark:text-white mb-2 line-clamp-2">
+                <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition">
+                    <td class="w-4 p-4">
+                        <div class="flex items-center">
+                            <input id="checkbox-table-${index}" type="checkbox" data-video-id="${video.id}" class="video-checkbox w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500">
+                        </div>
+                    </td>
+                    <th scope="row" class="px-2 py-3 font-medium text-gray-900 dark:text-white whitespace-nowrap">
+                         <!-- [Modified] 썸네일 크기 1.5배 확대 (w-16 -> w-24, h-9 -> h-[54px]) -->
+                         <div class="relative group w-24 h-[54px] overflow-hidden rounded shadow-sm">
+                            <img class="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-300" src="${thumbUrl}" alt="Thumbnail">
+                         </div>
+                    </th>
+                    <td class="px-2 py-3 text-gray-600 dark:text-gray-300 font-medium">
+                        ${video.snippet.channelTitle}
+                    </td>
+                    <td class="px-2 py-3">
+                        <a href="https://youtube.com/watch?v=${video.id}" target="_blank" class="text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 font-medium line-clamp-2" title="${video.snippet.title}">
                             ${video.snippet.title}
-                        </h3>
-                        <p class="text-sm text-gray-500 mb-3">${video.snippet.channelTitle}</p>
-                        <div class="flex items-center gap-4 text-sm text-gray-500 mb-4">
-                            <span>👁️ ${Utils.formatNumber(video.statistics.viewCount)}</span>
-                            <span>👍 ${Utils.formatNumber(video.statistics.likeCount)}</span>
-                            <span>💬 ${Utils.formatNumber(video.statistics.commentCount)}</span>
-                        </div>
-                        <div class="flex gap-2">
-                            <button onclick="openAnalysisModal('${video.id}')"
-                                class="flex-1 btn-primary text-sm py-2">
-                                🤖 분석
+                        </a>
+                    </td>
+                    <td class="px-2 py-3 text-gray-500 whitespace-nowrap">
+                        ${video.snippet.publishedAt.split('T')[0]}
+                    </td>
+                    <td class="px-2 py-3 text-right">
+                        ${Utils.formatNumber(stats.subs)}
+                    </td>
+                    <td class="px-2 py-3 text-right font-medium text-gray-900 dark:text-white">
+                         ${Utils.formatNumber(video.statistics.viewCount)}
+                    </td>
+                    <td class="px-2 py-3 text-center ${contribClass}">
+                        ${Utils.formatNumber(stats.contribution)}%
+                    </td>
+                    <td class="px-2 py-3 text-center ${perfClass}">
+                        x${stats.performance}
+                    </td>
+                     <td class="px-2 py-3 text-right">
+                        👍 ${Utils.formatNumber(video.statistics.likeCount)}
+                    </td>
+                    <td class="px-2 py-3 text-center">
+                        <div class="flex items-center justify-center gap-1">
+                             <button onclick="openAnalysisModal('${video.id}')" class="p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-gray-700 rounded transition" title="분석">
+                                🤖
                             </button>
-                            <a href="https://youtube.com/watch?v=${video.id}" target="_blank"
-                                class="btn-secondary text-sm py-2 px-3">
-                                ▶️
-                            </a>
+                             <button onclick="downloadThumbnail('${video.id}', '${video.snippet.thumbnails.high?.url}')" class="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition" title="썸네일 다운로드">
+                                ⬇️
+                            </button>
+                            <!-- Archive Actions -->
+                             <button onclick="archiveVideo('${video.id}')" class="p-1.5 text-green-500 hover:bg-green-50 dark:hover:bg-gray-700 rounded transition" title="영상 보관">
+                                🎬
+                            </button>
                         </div>
-                    </div>
-                </div>
+                    </td>
+                </tr>
             `;
         }).join('');
     }
 
     function sortVideos(type) {
-        if (type === 'viral') {
-            currentVideos.sort((a, b) => b.viralScore - a.viralScore);
+        if (type === 'viral' || type === 'performance') {
+            currentVideos.sort((a, b) => (parseFloat(b.stats.performance) || 0) - (parseFloat(a.stats.performance) || 0));
         } else if (type === 'views') {
             currentVideos.sort((a, b) => parseInt(b.statistics.viewCount) - parseInt(a.statistics.viewCount));
+        } else if (type === 'date') {
+            currentVideos.sort((a, b) => new Date(b.snippet.publishedAt) - new Date(a.snippet.publishedAt));
+        } else if (type === 'channel') {
+            currentVideos.sort((a, b) => a.snippet.channelTitle.localeCompare(b.snippet.channelTitle));
         }
         renderVideos();
+    }
+
+    // [New] Checkbox helper
+    function toggleAllCheckboxes(source) {
+        const checkboxes = document.getElementsByClassName('video-checkbox');
+        for (let i = 0; i < checkboxes.length; i++) {
+            checkboxes[i].checked = source.checked;
+        }
+    }
+
+    // [New] Download helper
+    function downloadThumbnail(videoId, url) {
+        if (!url) {
+            Utils.showToast("썸네일 URL이 없습니다.", "error");
+            return;
+        }
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `thumbnail_${videoId}.jpg`;
+        a.target = '_blank'; // YouTube URLs behave better with target blank usually
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+
+    // [New] Archive placeholder
+    function archiveVideo(videoId) {
+        Utils.showToast("영상 보관함에 추가되었습니다 (Demo)", "success");
+    }
+
+    function saveSelectedToArchive() {
+        const checkboxes = document.getElementsByClassName('video-checkbox');
+        let count = 0;
+        for (let i = 0; i < checkboxes.length; i++) {
+            if (checkboxes[i].checked) count++;
+        }
+        if (count === 0) {
+            Utils.showToast("선택된 항목이 없습니다", "warning");
+            return;
+        }
+        Utils.showToast(`${count}개의 영상을 보관함에 저장했습니다 (Demo)`, "success");
     }
 
     // 분석 준비 모달 열기

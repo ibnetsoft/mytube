@@ -1356,6 +1356,72 @@ class VideoService:
             
         print(f"Generated {len(subtitles)} simple subtitles (Fallback).")
         return subtitles
+    
+    def merge_with_intro(self, intro_path: str, main_video_path: str, output_path: str) -> str:
+        """
+        인트로 영상과 메인 영상을 병합
+        FFmpeg concat demuxer 사용
+        """
+        import subprocess
+        from pathlib import Path
+        import tempfile
+        
+        try:
+            # 파일 존재 확인
+            if not Path(intro_path).exists():
+                print(f"Intro video not found: {intro_path}")
+                return main_video_path
+            
+            if not Path(main_video_path).exists():
+                raise FileNotFoundError(f"Main video not found: {main_video_path}")
+            
+            # concat.txt 파일 생성
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as f:
+                concat_file = f.name
+                # 절대 경로로 변환
+                intro_abs = str(Path(intro_path).absolute()).replace('\\', '/')
+                main_abs = str(Path(main_video_path).absolute()).replace('\\', '/')
+                
+                f.write(f"file '{intro_abs}'\n")
+                f.write(f"file '{main_abs}'\n")
+            
+            # FFmpeg concat 명령
+            cmd = [
+                config.FFMPEG_PATH,
+                '-f', 'concat',
+                '-safe', '0',
+                '-i', concat_file,
+                '-c', 'copy',  # 재인코딩 없이 복사 (빠름)
+                '-y',  # 덮어쓰기
+                output_path
+            ]
+            
+            print(f"Merging intro with main video...")
+            print(f"Command: {' '.join(cmd)}")
+            
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='replace'
+            )
+            
+            # concat.txt 삭제
+            Path(concat_file).unlink(missing_ok=True)
+            
+            if result.returncode != 0:
+                print(f"FFmpeg error: {result.stderr}")
+                # 병합 실패 시 원본 비디오 반환
+                return main_video_path
+            
+            print(f"Successfully merged intro. Output: {output_path}")
+            return output_path
+            
+        except Exception as e:
+            print(f"Error merging intro: {e}")
+            # 오류 발생 시 원본 비디오 반환
+            return main_video_path
 
 # 싱글톤 인스턴스
 video_service = VideoService()

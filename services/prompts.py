@@ -1,0 +1,182 @@
+"""
+AI 프롬프트 템플릿 관리
+"""
+import json
+
+class Prompts:
+    # --- AutoPilot 관련 프롬프트 ---
+    AUTOPILOT_ANALYZE_VIDEO = """
+        유튜브 쇼츠 영상(ID: {video_id})을 벤치마킹하여 새로운 영상을 만들려 합니다.
+        대중들이 좋아할만한 '반전 매력'이나 '공감 포인트'를 3가지만 분석해서 JSON으로 주세요.
+        
+        JSON 포맷:
+        {{
+            "sentiment": "positive",
+            "topics": ["topic1", "topic2"],
+            "viewer_needs": "viewers want..."
+        }}
+    """
+
+    AUTOPILOT_GENERATE_SCRIPT = """
+        분석 내용: {analysis_json}
+        
+        위 분석을 바탕으로 1분 이내의 유튜브 쇼츠 대본을 작성해줘.
+        - 초반 5초에 강력한 후킹 멘트 필수
+        - 구어체 사용
+        - 문장은 짧게
+        - 전체 길이는 300자 내외
+        
+        오직 대본 내용만 출력해. 설명 제외.
+    """
+
+    # --- Gemini Service 관련 프롬프트 ---
+    GEMINI_ANALYZE_COMMENTS = """당신은 유튜브 콘텐츠 분석 전문가입니다.
+아래 영상의 댓글{script_indicator}를 분석해주세요.
+
+[영상 제목]
+{video_title}
+{script_section}
+[댓글 목록]
+{comments_text}
+
+다음 JSON 형식으로 반환해주세요:
+{{
+    "sentiment": {{
+        "positive": 비율,
+        "negative": 비율,
+        "neutral": 비율
+    }},
+    "main_topics": ["주요 토픽 1", "주요 토픽 2", ...],
+    "viewer_needs": ["시청자 니즈 1", "시청자 니즈 2", ...],
+    "content_suggestions": ["콘텐츠 제안 1", "콘텐츠 제안 2", ...],
+    "script_analysis": {{
+        "structure": "서론-본론-결론 구조 요약",
+        "hooks": "초반 몰입을 유도한 요소 (Hooks)",
+        "pacing": "영상 전개 속도 및 톤앤매너",
+        "key_message": "영상이 전달하고자 하는 핵심 메시지"
+    }},
+    "summary": "전체 요약 (2-3문장)"
+}}
+
+JSON만 반환하세요."""
+
+    GEMINI_EXTRACT_STRATEGY = """당신은 유튜브 알고리즘과 시청자 심리를 꿰뚫어 보는 세계 최고의 컨설턴트입니다.
+제시된 영상 분석 데이터를 바탕으로, 다른 영상에도 범용적으로 적용 가능한 **'일반화된 성공 공식(Strategy Logic)'**을 3~5개 추출하세요.
+
+[분석 데이터]
+{analysis_json}
+
+**[지침]**
+1. 특정 영상의 내용에 국한되지 않고, '구조', '심리', '데이터' 측면에서 성공 원인을 일반화하세요.
+2. 유튜브 알고리즘(노출, 클릭률, 시청 지속 시간)에 어떻게 기여하는지 구체적으로 기술하세요.
+3. 결과는 반드시 한국어로 작성하세요.
+
+다음 JSON 리스트 형식으로만 답변하세요:
+[
+    {{
+        "category": "hook/structure/emotion/thumbnail/interaction 중 하나",
+        "pattern": "일반화된 패턴 제목 (예: 초반 3초 시각적 반전 후킹)",
+        "insight": "성공 원인 상세 (알고리즘 및 심리적 근거)",
+        "script_style": "어울리는 스타일 (story/informational/all)"
+    }}
+]
+JSON만 반환하세요."""
+
+    GEMINI_SCRIPT_STRUCTURE = """당신은 세계 최고의 유튜브 콘텐츠 기획자이자 스토리텔러입니다.
+당신의 임무는 주어진 **키워드(주제)**를 바탕으로, **분석된 성공 전략**과 **누적된 학습 지식**을 적용하여 폭발적인 조회수를 기록할 대본 기획안을 작성하는 것입니다.
+
+### 1. 주제 (Subject Content) - 반드시 이 내용을 다루어야 함
+- **핵심 키워드:** {topic_keyword}
+- **추가 요청사항:** {user_notes}
+
+### 2. 스타일 및 구조 지침
+{specialized_instruction}
+- **목표 길이:** {duration_seconds}초 (최소 {min_sections}개 섹션 필요)
+{custom_prompt_section}
+
+{knowledge_instruction}
+
+### 4. 벤치마킹 분석 데이터 (Current Success Strategy) - 형식/기법 참고용
+- **분석 데이터:** {success_strategy_json}
+
+### 5. 제약 사항
+- **언어:** {target_language_context}
+- **콘텐츠 분리(CRITICAL):** 벤치마킹 데이터의 줄거리나 고유명사(인물, 채널명 등)를 절대 복제하지 마십시오.
+- **창작성:** 주제 키워드({topic_keyword})를 바탕으로 완전히 새로운 인물과 상황을 창조하십시오.
+- **중복 방지:** {history_instruction}
+---
+다음 JSON 형식으로 기획안을 작성해주세요:
+{{
+    "hook": "강렬한 멘트 (분석된 기법 적용)",
+    "sections": [
+        {{
+            "title": "섹션 제목",
+            "key_points": ["상세 묘사 1", "상세 묘사 2"]
+        }}
+    ],
+    "cta": "구독과 좋아요 멘트",
+    "style": "영상 분위기",
+    "duration": {duration_seconds}
+}}
+JSON만 반환하세요."""
+
+    GEMINI_TRENDING_KEYWORDS = """
+        Act as a YouTube Trend Analyst and SEO Expert.
+        Generate a list of 20-30 trending search keywords/topics on YouTube.
+        
+        **Target Audience & Context:**
+        - Region/Language: {lang_name}
+        - Time Period: {period_text}
+        - Target Age Group: {age_text}
+
+        Focus on broad, high-traffic topics relevant to this specific demographic and time.
+
+        Assign a 'volume' score (Search Volume Index) from 1 to 100 for each keyword.
+        **CRITICAL: Use a 'Power Law' distribution for volume scores.**
+        - Only 1-2 keywords should have 95-100 (Viral).
+        - 3-5 keywords should have 70-90.
+        - The majority should be between 20-60.
+        - Use this variance to make the bubble chart interesting.
+
+        The keywords must be in the TARGET LANGUAGE ({language}).
+        
+        Format as JSON list:
+        [
+            {{"keyword": "Keyword in Target Language", "translation": "MEANING IN KOREAN (ONLY HANGUL - VERY IMPORTANT)", "volume": 98, "category": "Gaming"}},
+            ...
+        ]
+
+        Example for Spanish (es):
+        {{"keyword": "Eurocopa 2024", "translation": "유로 2024", "volume": 95, "category": "Sports"}}
+        
+        RETURN ONLY JSON.
+    """
+
+    GEMINI_IMAGE_PROMPTS = """당신은 유튜브 영상 연출 전문가입니다.
+아래 대본을 {num_scenes}개의 장면(Scene)으로 나누고, 각 장면에 어울리는 이미지 프롬프트 작성해주세요.
+
+[대본]
+{script}
+
+{style_instruction}
+{limit_instruction}
+
+다음 JSON 형식으로 출력해주세요:
+{{
+    "scenes": [
+        {{
+            "scene_number": 1,
+            "scene_text": "해당 장면에서 나오는 대본의 일부",
+            "prompt_ko": "이미지 묘사 (한글)",
+            "prompt_en": "{style_prefix}, (영어 묘사)"
+        }},
+        ...
+    ]
+}}
+
+- 이미지는 16:9 비율(가로형)에 적합해야 합니다.
+- 텍스트가 없는 이미지를 묘사해주세요.
+- JSON만 반환하세요.
+"""
+
+prompts = Prompts()

@@ -1,82 +1,135 @@
 {% extends "base.html" %}
 
 {% block content %}
-
-
-<div class="card mb-6">
-    <h3 class="font-bold text-gray-800 dark:text-white mb-4">⚙️ 생성 옵션</h3>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">제목 스타일</label>
-            <select id="titleStyle" class="input-field">
-                <option value="curiosity" selected>호기심 유발형</option>
+<div class="h-[calc(100vh-140px)] flex flex-col gap-3 p-2">
+    <!-- 1. 상단 컨트롤 바 (높이 최소화) -->
+    <div
+        class="flex items-center gap-3 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 shrink-0">
+        <div class="flex items-center gap-2">
+            <span class="text-sm font-bold text-gray-700 dark:text-gray-300">⚙️ 옵션</span>
+            <select id="titleStyle"
+                class="text-xs border-gray-300 dark:border-gray-600 rounded-md py-1.5 pl-2 pr-8 focus:ring-primary focus:border-primary bg-gray-50 dark:bg-gray-700 dark:text-white w-56">
+                <option value="sleep" selected>수면/힐링형 (잠잘 때 듣는 영상)</option>
+                <option value="curiosity">호기심 유발형</option>
                 <option value="benefit">혜택 강조형</option>
                 <option value="number">숫자 포함형</option>
                 <option value="question">질문형</option>
             </select>
         </div>
-        <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">타겟 키워드</label>
-            <input type="text" id="targetKeyword" class="input-field" placeholder="선택사항">
+
+        <div class="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
+
+        <div class="flex-1 flex items-center gap-2">
+            <span class="text-sm font-bold text-gray-700 dark:text-gray-300 whitespace-nowrap">🎯 키워드</span>
+            <input type="text" id="targetKeyword"
+                class="text-xs flex-1 border-gray-300 dark:border-gray-600 rounded-md py-1.5 px-3 focus:ring-primary focus:border-primary bg-gray-50 dark:bg-gray-700 dark:text-white"
+                placeholder="타겟 키워드 (선택사항)">
         </div>
-    </div>
-</div>
 
-<button onclick="generateMeta()" id="generateBtn"
-    class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg mb-6">
-    <span>📝</span>
-    <span>제목/설명 생성</span>
-</button>
+        <button onclick="generateMeta()" id="generateBtn"
+            class="btn-primary py-1.5 px-4 text-sm font-medium rounded-md shadow-sm hover:shadow active:scale-95 transition-all flex items-center gap-2 whitespace-nowrap">
+            <span>🚀 생성하기</span>
+        </button>
 
-<div id="resultSection" class="hidden space-y-6">
-    <!-- 제목 -->
-    <div class="card">
-        <h3 class="font-bold text-gray-800 dark:text-white mb-4">🏷️ 추천 제목</h3>
-        <div id="titlesList" class="space-y-2"></div>
-    </div>
+        <div class="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
 
-    <!-- 설명 -->
-    <div class="card">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="font-bold text-gray-800 dark:text-white">📄 영상 설명</h3>
-            <button onclick="copyDescription()" class="btn-secondary text-sm">📋 복사</button>
-        </div>
-        <textarea id="descriptionText" class="input-field" rows="8"></textarea>
-    </div>
-
-    <!-- 태그 -->
-    <div class="card">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="font-bold text-gray-800 dark:text-white">#️⃣ 태그 (쉼표로 구분)</h3>
-            <button onclick="copyTags()" class="btn-secondary text-sm">📋 복사</button>
-        </div>
-        <textarea id="tagsText" class="input-field" rows="3" placeholder="태그1, 태그2, 태그3..."></textarea>
-    </div>
-
-    <!-- 해시태그 -->
-    <div class="card">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="font-bold text-gray-800 dark:text-white"># 해시태그 (공백으로 구분)</h3>
-            <button onclick="copyHashtags()" class="btn-secondary text-sm">📋 복사</button>
-        </div>
-        <textarea id="hashtagsText" class="input-field text-blue-500 font-medium" rows="2"
-            placeholder="#해시태그1 #해시태그2..."></textarea>
-    </div>
-
-    <!-- 저장 버튼 -->
-    <div class="flex justify-center pt-4">
         <button onclick="saveAllMetadata()" id="saveAllBtn"
-            class="btn-primary px-10 py-3 rounded-full shadow-lg hover:shadow-xl transition-all flex items-center gap-2">
-            <span>💾</span> 변경사항 저장
+            class="btn-secondary py-1.5 px-3 text-xs font-medium rounded-md flex items-center gap-1 whitespace-nowrap">
+            <span>💾 저장</span>
         </button>
     </div>
+
+    <!-- 2. 결과 워크스페이스 (Grid Layout) -->
+    <div id="resultSection" class="hidden grid grid-cols-12 gap-3 flex-1 min-h-0">
+        <!-- 왼쪽 패널: 추천 제목 (Col-5) -->
+        <div
+            class="col-span-12 md:col-span-5 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex flex-col overflow-hidden shadow-sm">
+            <h3 class="text-sm font-bold text-gray-800 dark:text-white mb-2 flex items-center gap-2">
+                🏷️ 추천 제목 <span class="text-xs font-normal text-gray-500">(클릭하여 복사)</span>
+            </h3>
+            <div id="titlesList" class="overflow-y-auto flex-1 space-y-1 pr-1 custom-scrollbar">
+                <!-- 제목 아이템들이 여기에 들어갑니다 -->
+            </div>
+        </div>
+
+        <!-- 오른쪽 패널: 설명 & 태그 (Col-7) -->
+        <div class="col-span-12 md:col-span-7 flex flex-col gap-3 min-h-0">
+            <!-- 설명 영역 -->
+            <div
+                class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex-1 flex flex-col shadow-sm min-h-0">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-sm font-bold text-gray-800 dark:text-white">📄 영상 설명</h3>
+                    <button onclick="copyDescription()"
+                        class="text-xs text-gray-500 hover:text-primary transition-colors flex items-center gap-1">
+                        📋 복사
+                    </button>
+                </div>
+                <textarea id="descriptionText"
+                    class="flex-1 w-full text-xs p-3 border border-gray-200 dark:border-gray-700 rounded-md resize-none focus:ring-primary focus:border-primary bg-gray-50 dark:bg-gray-900 dark:text-gray-300 leading-relaxed custom-scrollbar"></textarea>
+            </div>
+
+            <!-- 태그 & 해시태그 영역 (Grid) -->
+            <div class="grid grid-cols-2 gap-3 shrink-0 h-32">
+                <!-- 태그 -->
+                <div
+                    class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex flex-col shadow-sm">
+                    <div class="flex items-center justify-between mb-1">
+                        <h3 class="text-xs font-bold text-gray-800 dark:text-white">#️⃣ 태그</h3>
+                        <button onclick="copyTags()" class="text-[10px] text-gray-500 hover:text-primary">📋</button>
+                    </div>
+                    <textarea id="tagsText"
+                        class="flex-1 w-full text-xs p-2 border border-gray-200 dark:border-gray-700 rounded resize-none focus:ring-primary focus:border-primary bg-gray-50 dark:bg-gray-900 dark:text-gray-300 custom-scrollbar"
+                        placeholder="태그1, 태그2..."></textarea>
+                </div>
+                <!-- 해시태그 -->
+                <div
+                    class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex flex-col shadow-sm">
+                    <div class="flex items-center justify-between mb-1">
+                        <h3 class="text-xs font-bold text-gray-800 dark:text-white"># 해시태그</h3>
+                        <button onclick="copyHashtags()"
+                            class="text-[10px] text-gray-500 hover:text-primary">📋</button>
+                    </div>
+                    <textarea id="hashtagsText"
+                        class="flex-1 w-full text-xs p-2 border border-gray-200 dark:border-gray-700 rounded resize-none focus:ring-primary focus:border-primary bg-gray-50 dark:bg-gray-900 text-blue-500 font-medium custom-scrollbar"
+                        placeholder="#해시태그1 #해시태그2..."></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 초기 안내 화면 -->
+    <div id="initialState"
+        class="flex-1 flex flex-col items-center justify-center text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700">
+        <div class="text-4xl mb-3">📝</div>
+        <p class="text-sm">상단 옵션을 설정하고 <span class="font-bold text-gray-600 dark:text-gray-300">'🚀 생성하기'</span> 버튼을
+            눌러주세요.</p>
+    </div>
 </div>
+
+<style>
+    /* 커스텀 스크롤바 */
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background-color: #e5e7eb;
+        border-radius: 20px;
+    }
+
+    .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+        background-color: #4b5563;
+    }
+</style>
 {% endblock %}
 
 {% block scripts %}
 <script>
     let projectId = Utils.storage.get('currentProjectId');
-    // Ensure numeric
     if (projectId && typeof projectId === 'string') projectId = parseInt(projectId);
 
     let metaData = null;
@@ -91,13 +144,11 @@
 
     async function loadMetadata() {
         try {
-            // [NEW] 프로젝트 정보를 가져와 주제(Topic)를 타겟 키워드 기본값으로 설정
             const projectRes = await API.project.get(projectId);
             if (projectRes && (projectRes.topic || projectRes.name)) {
                 const keywordInput = document.getElementById('targetKeyword');
                 if (keywordInput && !keywordInput.value) {
                     keywordInput.value = projectRes.topic || projectRes.name;
-                    console.log("Auto-populated keyword from project topic:", keywordInput.value);
                 }
             }
 
@@ -106,33 +157,32 @@
             if (data && data.titles && data.titles.length > 0) {
                 metaData = data;
                 renderResults();
-                document.getElementById('resultSection').classList.remove('hidden');
-            } else {
-                // [NEW] 메타데이터가 없으면 자동으로 생성 시도
-                console.log("No metadata found, triggered auto-generation during page load.");
-                generateMeta();
+                showResultSection();
             }
         } catch (e) {
             console.error('메타데이터 로드 실패', e);
         }
     }
 
+    function showResultSection() {
+        document.getElementById('resultSection').classList.remove('hidden');
+        document.getElementById('initialState').classList.add('hidden');
+    }
+
     async function saveAllMetadata() {
-        if (!projectId || !metaData) return;
+        if (!projectId || !metaData) {
+            Utils.showToast('저장할 데이터가 없습니다', 'warning');
+            return;
+        }
 
         const btn = document.getElementById('saveAllBtn');
-        const originalHtml = btn.innerHTML;
-        Utils.setLoading(btn, true, '저장 중...');
+        const originalText = btn.innerHTML;
+        Utils.setLoading(btn, true, '저장...');
 
         try {
-            // UI의 최신 값으로 metaData 객체 업데이트
             metaData.description = document.getElementById('descriptionText').value;
-
-            // 태그: 쉼표로 분리하여 배열화 (공백 제거)
             const tagsRaw = document.getElementById('tagsText').value;
             metaData.tags = tagsRaw.split(',').map(t => t.trim()).filter(t => t !== "");
-
-            // 해시태그: 공백으로 분리하여 배열화 (공백 제거)
             const hashtagsRaw = document.getElementById('hashtagsText').value;
             metaData.hashtags = hashtagsRaw.split(/\s+/).map(h => h.trim()).filter(h => h !== "");
 
@@ -141,18 +191,17 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(metaData)
             });
-            Utils.showToast('모든 변경사항이 저장되었습니다', 'success');
+            Utils.showToast('저장 완료', 'success');
         } catch (e) {
-            console.error('메타데이터 저장 실패', e);
-            Utils.showToast('저장 중 오류가 발생했습니다', 'error');
+            console.error('저장 실패', e);
+            Utils.showToast('저장 오류', 'error');
         } finally {
             Utils.setLoading(btn, false);
-            btn.innerHTML = originalHtml;
+            btn.innerHTML = originalText;
         }
     }
 
     async function saveMetadata() {
-        // 기존 자동 저장 로직 유지 (단순 객체 저장용)
         if (!projectId || !metaData) return;
         try {
             await fetch(`/api/projects/${projectId}/metadata`, {
@@ -160,42 +209,41 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(metaData)
             });
-        } catch (e) {
-            console.error('메타데이터 저장 실패', e);
-        }
+        } catch (e) { console.error('자동 저장 실패', e); }
     }
 
     async function generateMeta() {
         if (!projectId) {
-            Utils.showToast('프로젝트가 선택되지 않았습니다.', 'warning');
+            Utils.showToast('프로젝트 선택 필요', 'warning');
             return;
         }
 
-        // 대본 데이터 가져오기 (DB에서 직접 가져오는 것이 안전할 수 있으나, 일단 기존 flow 유지)
-        // 만약 Utils.storage에 없다면 서버에서 가져와야 함
-        let scriptData = Utils.storage.get('fullScript');
-
-        // storage에 없으면 서버에서 가져오기 시도
-        if (!scriptData) {
-            try {
-                const res = await fetch(`/api/projects/${projectId}/full`);
-                if (res.ok) {
-                    const fullData = await res.json();
-                    scriptData = { script: fullData.script?.full_script };
+        let scriptData = null;
+        try {
+            const res = await fetch(`/api/projects/${projectId}/full`);
+            if (res.ok) {
+                const fullData = await res.json();
+                if (fullData.script && fullData.script.full_script) {
+                    scriptData = { script: fullData.script.full_script };
                 }
-            } catch (e) {
-                console.error("대본 로드 실패", e);
             }
-        }
+        } catch (e) { console.error("대본 로드 실패", e); }
+
+        if (!scriptData) scriptData = Utils.storage.get('fullScript');
 
         const style = document.getElementById('titleStyle').value;
         const keyword = document.getElementById('targetKeyword').value;
-
         const btn = document.getElementById('generateBtn');
+
         Utils.setLoading(btn, true, '생성 중...');
 
-        const prompt = `유튜브 SEO 전문가로서 다음 대본에 맞는 메타데이터를 생성해주세요.
+        let sysPrompt = `유튜브 SEO 전문가로서 다음 대본에 맞는 메타데이터를 생성해주세요.`;
+        if (style === 'sleep') {
+            sysPrompt += `\n특히 '수면 유도', 'ASMR', '힐링', '잠잘 때 듣는' 컨셉을 강조하여, 편안함을 느끼고 클릭하게 만드는 제목을 만드세요. 안정감을 주는 단어 사용.`;
+        }
 
+        const prompt = `${sysPrompt}
+        
 [대본 요약]
 ${scriptData?.script?.substring(0, 1000) || '일반 유튜브 영상'}
 
@@ -207,12 +255,11 @@ ${keyword || '없음'}
 
 JSON 형식으로 반환:
 {
-    "titles": ["제목1 (50자 이내)", "제목2", "제목3", "제목4", "제목5"],
+    "titles": ["제목1 (50자 이내)", "제목2", "...", "제목5"],
     "description": "영상 설명 (타임스탬프 포함, 500자 내외)",
     "tags": ["태그1", "태그2", ...],
     "hashtags": ["#해시태그1", "#해시태그2", ...]
 }
-
 JSON만 반환하세요.`;
 
         try {
@@ -223,14 +270,14 @@ JSON만 반환하세요.`;
                 if (jsonMatch) {
                     metaData = JSON.parse(jsonMatch[0]);
                     renderResults();
-                    document.getElementById('resultSection').classList.remove('hidden');
-                    // 생성 후 자동 저장
+                    showResultSection();
                     await saveMetadata();
-                    Utils.showToast('메타데이터가 생성 및 저장되었습니다', 'success');
+                    Utils.showToast('생성 완료', 'success');
                 }
             }
         } catch (error) {
-            Utils.showToast('생성 중 오류가 발생했습니다', 'error');
+            Utils.showToast('생성 오류', 'error');
+            console.error(error);
         } finally {
             Utils.setLoading(btn, false);
         }
@@ -239,59 +286,45 @@ JSON만 반환하세요.`;
     function renderResults() {
         if (!metaData) return;
 
-        // 제목
         document.getElementById('titlesList').innerHTML = (metaData.titles || []).map((title, i) => `
-            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <span class="text-gray-800 dark:text-white">${title}</span>
-                <button onclick="copyTitle(${i})" class="btn-secondary text-xs">복사</button>
+            <div class="group flex items-center justify-between p-2.5 bg-gray-50 dark:bg-gray-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded border border-transparent hover:border-blue-200 dark:hover:border-blue-800 transition-all cursor-pointer" onclick="copyTitle(${i})">
+                <span class="text-xs text-gray-700 dark:text-gray-200 group-hover:text-blue-700 dark:group-hover:text-blue-300 font-medium">${title}</span>
+                <span class="opacity-0 group-hover:opacity-100 text-[10px] text-blue-500 bg-white dark:bg-gray-800 px-1.5 py-0.5 rounded border border-blue-100 dark:border-blue-900">복사</span>
             </div>
         `).join('');
 
-        // 설명
         document.getElementById('descriptionText').value = metaData.description || '';
-
-        // 태그 (쉼표로 구분하여 텍스트 표시)
         document.getElementById('tagsText').value = (metaData.tags || []).join(', ');
-
-        // 해시태그 (공백으로 구분하여 텍스트 표시)
         document.getElementById('hashtagsText').value = (metaData.hashtags || []).join(' ');
     }
 
-    // 설명문구 수정 시 자동 반영 (객체만 업데이트, 실제 저장은 버튼 클릭 시)
+    // Input Listeners
     document.getElementById('descriptionText').addEventListener('input', (e) => {
         if (metaData) metaData.description = e.target.value;
     });
-
     document.getElementById('tagsText').addEventListener('input', (e) => {
-        if (metaData) {
-            metaData.tags = e.target.value.split(',').map(t => t.trim()).filter(t => t !== "");
-        }
+        if (metaData) metaData.tags = e.target.value.split(',').map(t => t.trim()).filter(t => t !== "");
     });
-
     document.getElementById('hashtagsText').addEventListener('input', (e) => {
-        if (metaData) {
-            metaData.hashtags = e.target.value.split(/\s+/).map(h => h.trim()).filter(h => h !== "");
-        }
+        if (metaData) metaData.hashtags = e.target.value.split(/\s+/).map(h => h.trim()).filter(h => h !== "");
     });
 
+    // Copy Functions
     function copyTitle(index) {
         Utils.copyToClipboard(metaData.titles[index]);
-        Utils.showToast('제목이 복사되었습니다', 'success');
+        Utils.showToast('제목 복사됨', 'success');
     }
-
     function copyDescription() {
         Utils.copyToClipboard(document.getElementById('descriptionText').value);
-        Utils.showToast('설명이 복사되었습니다', 'success');
+        Utils.showToast('설명 복사됨', 'success');
     }
-
     function copyTags() {
         Utils.copyToClipboard(document.getElementById('tagsText').value);
-        Utils.showToast('태그가 복사되었습니다', 'success');
+        Utils.showToast('태그 복사됨', 'success');
     }
-
     function copyHashtags() {
         Utils.copyToClipboard(document.getElementById('hashtagsText').value);
-        Utils.showToast('해시태그가 복사되었습니다', 'success');
+        Utils.showToast('해시태그 복사됨', 'success');
     }
 </script>
 {% endblock %}

@@ -1,0 +1,11 @@
+[2026-01-06 22:24:57.324801] Starting Single-pass render for project 10
+[2026-01-06 22:24:57.324817] Images: 34, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\등산_20260106\tts_20260106_182429.mp3
+[2026-01-06 22:24:57.342612] Render Error: No module named 'moviepy.editor'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 1985, in render_executor_func
+    from moviepy.editor import AudioFileClip
+ModuleNotFoundError: No module named 'moviepy.editor'
+
+[2026-01-07 12:19:50.394236] Starting Single-pass render for project 10
+[2026-01-07 12:19:50.394249] Images: 34, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\등산_20260106\tts_20260106_182429.mp3
+[2026-01-07 12:20:06.247199] calling writes_videofile code in video_service (720p safe mode)

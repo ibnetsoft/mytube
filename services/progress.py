@@ -6,13 +6,17 @@ import time
 RENDER_PROGRESS = {}
 
 class RenderLogger(ProgressBarLogger):
-    def __init__(self, project_id):
+    def __init__(self, project_id, start_pct=0, end_pct=100):
         super().__init__()
         self.project_id = project_id
+        self.start_pct = start_pct
+        self.end_pct = end_pct
         self.last_update = 0
+        
+        # Initialize or update existing progress to the start_pct
         RENDER_PROGRESS[project_id] = {
-            "status": "starting",
-            "progress": 0
+            "status": "rendering",
+            "progress": start_pct
         }
 
     def callback(self, **changes):
@@ -25,11 +29,15 @@ class RenderLogger(ProgressBarLogger):
                 total = t_bar.get('total', 1) # Avoid division by zero
                 
                 if total > 0:
-                    percentage = int((index / total) * 100)
-                    # Update global store (throttle updates slightly if needed, but simple is fine)
+                    # Calculate percentage within the given range [start_pct, end_pct]
+                    local_percentage = index / total
+                    range_size = self.end_pct - self.start_pct
+                    global_percentage = int(self.start_pct + (local_percentage * range_size))
+                    
+                    # Update global store
                     RENDER_PROGRESS[self.project_id] = {
                         "status": "rendering",
-                        "progress": percentage
+                        "progress": global_percentage
                     }
 
     def bars_callback(self, bar, attr, value, old_value=None):

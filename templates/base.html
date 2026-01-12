@@ -186,21 +186,27 @@
                         </a>
                     </li>
                     <li>
+                        <a href="/video-gen" class="sidebar-item {% if page == 'video-gen' %}active{% endif %}">
+                            <span class="sidebar-icon">🎥</span>
+                            <span>인트로 생성</span>
+                        </a>
+                    </li>
+                    <li>
                         <a href="/image-gen" class="sidebar-item {% if page == 'image-gen' %}active{% endif %}">
                             <span class="sidebar-icon">🖼️</span>
                             <span>이미지 생성</span>
                         </a>
                     </li>
                     <li>
-                        <a href="/video-gen" class="sidebar-item {% if page == 'video-gen' %}active{% endif %}">
-                            <span class="sidebar-icon">🎥</span>
-                            <span>동영상 생성</span>
-                        </a>
-                    </li>
-                    <li>
                         <a href="/tts" class="sidebar-item {% if page == 'tts' %}active{% endif %}">
                             <span class="sidebar-icon">🔊</span>
                             <span>TTS 생성</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/music-gen" class="sidebar-item {% if page == 'music-gen' %}active{% endif %}">
+                            <span class="sidebar-icon">🎵</span>
+                            <span>배경음악 생성</span>
                         </a>
                     </li>
                     <li>
@@ -213,6 +219,12 @@
                         <a href="/render" class="sidebar-item {% if page == 'render' %}active{% endif %}">
                             <span class="sidebar-icon">🎬</span>
                             <span>영상 렌더링</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/video-upload" class="sidebar-item {% if page == 'video-upload' %}active{% endif %}">
+                            <span class="sidebar-icon">📤</span>
+                            <span>영상 업로드</span>
                         </a>
                     </li>
                     <li>
@@ -288,7 +300,7 @@
 
     <!-- 공통 스크립트 -->
     <script src="/static/js/api.js?v=2"></script>
-    <script src="/static/js/utils.js?v=2"></script>
+    <script src="/static/js/utils.js?v=3"></script>
     {% block scripts %}{% endblock %}
 
     <script>

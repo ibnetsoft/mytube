@@ -4,14 +4,14 @@
 
 
 <!-- 분석 데이터 표시 -->
-<div id="analysisInfo" class="card mb-6 hidden">
-    <h3 class="font-bold text-gray-800 dark:text-white mb-4">📊 분석 데이터 기반</h3>
+<div id="analysisInfo" class="card container-content section-spacing hidden">
+    <h3 class="card-title">📊 분석 데이터 기반</h3>
     <div id="analysisContent"></div>
 </div>
 
 <!-- 대본 설정 -->
-<div class="card mb-6">
-    <h3 class="font-bold text-gray-800 dark:text-white mb-4">⚙️ 대본 설정</h3>
+<div class="card container-content section-spacing">
+    <h3 class="card-title">⚙️ 대본 설정</h3>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">영상 주제</label>
@@ -43,27 +43,28 @@
 
 
 <!-- 생성 버튼 -->
-<button onclick="generateStructure()" id="generateBtn"
-    class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg mb-6">
-    <span>🤖</span>
-    <span>대본 구조 생성하기</span>
-</button>
+<div class="btn-group btn-group-center section-spacing">
+    <button onclick="generateStructure()" id="generateBtn" class="btn-primary btn-primary-lg"
+        style="max-width: 400px; width: 100%;">
+        <span>🤖</span>
+        <span>대본 구조 생성하기</span>
+    </button>
+</div>
 
 <!-- 결과 영역 -->
 <div id="resultSection" class="hidden">
-    <div class="card">
+    <div class="card container-lg section-spacing">
         <div class="flex items-center justify-between mb-4">
-            <h3 class="font-bold text-gray-800 dark:text-white">📝 생성된 대본 구조</h3>
-            <div class="flex gap-2">
-                <button onclick="copyStructure()" class="btn-secondary text-sm">📋 복사</button>
-                <button onclick="regenerate()" class="btn-secondary text-sm">🔄 다시 생성</button>
+            <h3 class="card-title mb-0">📝 생성된 대본 구조</h3>
+            <div class="btn-group">
+                <button onclick="copyStructure()" class="btn-secondary">📋 복사</button>
+                <button onclick="regenerate()" class="btn-secondary">🔄 다시 생성</button>
             </div>
         </div>
         <div id="structureContent" class="prose dark:prose-invert max-w-none"></div>
 
-        <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-            <button onclick="goToScriptGen()"
-                class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg">
+        <div class="btn-group btn-group-center mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <button onclick="goToScriptGen()" class="btn-primary btn-primary-lg" style="max-width: 400px; width: 100%;">
                 <span>✍️</span>
                 <span>전체 대본 생성하기</span>
                 <span>→</span>
@@ -379,8 +380,43 @@
     }
 
     function copyStructure() {
-        Utils.copyToClipboard(currentStructure);
-        Utils.showToast('복사되었습니다', 'success');
+        if (!currentStructure) {
+            Utils.showToast('복사할 데이터가 없습니다', 'warning');
+            return;
+        }
+
+        const text = formatStructureToString(currentStructure);
+        Utils.copyToClipboard(text);
+        Utils.showToast('대본 구조가 복사되었습니다', 'success');
+    }
+
+    function formatStructureToString(data) {
+        let text = '';
+
+        // Hook
+        if (data.hook) text += `🪝 후킹 (Hook)\n"${data.hook}"\n\n`;
+
+        // Sections
+        if (data.sections && data.sections.length > 0) {
+            data.sections.forEach((section, index) => {
+                text += `Scene ${index + 1}: ${section.title}\n`;
+                if (section.key_points) {
+                    section.key_points.forEach(point => {
+                        text += `- ${point}\n`;
+                    });
+                }
+                text += '\n';
+            });
+        }
+
+        // CTA
+        if (data.cta) text += `📢 CTA (행동 유도)\n"${data.cta}"\n\n`;
+
+        // Style & Duration
+        if (data.style) text += `🎨 스타일: ${data.style}\n`;
+        if (data.duration) text += `⏱️ 예상 길이: ${data.duration}초\n`;
+
+        return text;
     }
 
     function regenerate() {

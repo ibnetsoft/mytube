@@ -1,0 +1,5 @@
+Internal Error in get_subtitle: No module named 'webvtt'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 2166, in get_subtitle
+    import webvtt
+ModuleNotFoundError: No module named 'webvtt'

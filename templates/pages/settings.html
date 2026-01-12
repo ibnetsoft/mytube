@@ -106,6 +106,29 @@
             placeholder="Gemini에게 음성 스타일에 대해 지시할 내용을 입력하세요..."></textarea>
     </div>
 </div>
+</div>
+
+<!-- Script Style Prompts -->
+<div class="card mb-6">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">📜 대본 스타일 프롬프트 (커스텀)</h3>
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        대본 기획 및 생성 시 AI가 사용할 상세 지침입니다. 각 스타일별로 원하는 결과물의 톤앤매너를 구체적으로 적어주세요.
+    </p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">뉴스 보도 (News Delivery)</label>
+            <textarea id="promptNews" class="input-field w-full" rows="6"
+                placeholder="뉴스 스타일 프롬프트를 입력하세요..."></textarea>
+            <p class="text-xs text-gray-500 mt-1">객관적이고 신뢰감 있는 뉴스 전달 톤을 위한 지침입니다.</p>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">옛날 이야기 (Old Story)</label>
+            <textarea id="promptStory" class="input-field w-full" rows="6"
+                placeholder="옛날 이야기 스타일 프롬프트를 입력하세요..."></textarea>
+            <p class="text-xs text-gray-500 mt-1">흥미진진한 구연동화/스토리텔링을 위한 지침입니다. (기본값)</p>
+        </div>
+    </div>
+</div>
 
 <!-- 저장 버튼 -->
 <div class="mt-6 flex gap-3">
@@ -146,8 +169,36 @@
     </div>
 </div>
 
+<!-- 채널 관리 -->
+<div class="card mb-6">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">📺 채널 관리</h3>
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        영상 업로드 시 선택할 유튜브 채널 목록을 관리합니다.
+    </p>
+
+    <!-- 채널 목록 -->
+    <div id="channelList" class="space-y-3 mb-4">
+        <!-- JS로 로드됨 -->
+        <p class="text-gray-500 text-sm">등록된 채널이 없습니다.</p>
+    </div>
+
+    <!-- 채널 추가 폼 -->
+    <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+        <h4 class="font-medium text-gray-800 dark:text-white mb-2 text-sm">새 채널 추가</h4>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <input type="text" id="newChannelName" class="input-field text-sm" placeholder="채널명 (예: 내 일상 채널)">
+            <input type="text" id="newChannelHandle" class="input-field text-sm" placeholder="핸들 (예: @myvlog)">
+            <button onclick="addChannel()" class="btn-primary text-sm whitespace-nowrap">
+                ➕ 추가하기
+            </button>
+        </div>
+        <input type="text" id="newChannelDesc" class="input-field text-sm mt-3 w-full" placeholder="설명 (선택사항)">
+    </div>
+</div>
+
 <!-- API 키 발급 링크 -->
 <div class="card mb-6">
+
     <h3 class="font-bold text-gray-800 dark:text-white mb-4">🔗 API 키 발급</h3>
     <div class="space-y-3">
         <a href="https://console.cloud.google.com/apis/credentials" target="_blank"
@@ -229,6 +280,11 @@
                 document.getElementById('geminiLanguage').value = data.gemini_tts.language_code || 'ko-KR';
                 document.getElementById('geminiStylePrompt').value = data.gemini_tts.style_prompt || '';
             }
+
+            if (data.script_styles) {
+                document.getElementById('promptNews').value = data.script_styles.news || '';
+                document.getElementById('promptStory').value = data.script_styles.story || '';
+            }
         } catch (e) {
             console.error('설정 로드 실패:', e);
         }
@@ -245,6 +301,10 @@
                 voice_name: document.getElementById('geminiVoice').value,
                 language_code: document.getElementById('geminiLanguage').value,
                 style_prompt: document.getElementById('geminiStylePrompt').value
+            },
+            script_styles: {
+                news: document.getElementById('promptNews').value,
+                story: document.getElementById('promptStory').value
             }
         };
 
@@ -392,11 +452,145 @@
         Utils.showToast('모든 데이터가 삭제되었습니다', 'success');
     }
 
+    // 채널 로드
+    async function loadChannels() {
+        const list = document.getElementById('channelList');
+        try {
+            const res = await fetch('/api/channels');
+            if (!res.ok) throw new Error('채널 목록 로드 실패');
+            const channels = await res.json();
+
+            if (channels.length === 0) {
+                list.innerHTML = '<p class="text-gray-500 text-sm text-center py-4">등록된 채널이 없습니다.</p>';
+                return;
+            }
+
+            // credentials_path가 있으면 인증된 것으로 간주
+            list.innerHTML = channels.map(ch => {
+                const isAuthenticated = !!ch.credentials_path;
+                const statusBadge = isAuthenticated
+                    ? '<span class="text-green-600 border border-green-200 bg-green-50 px-2 py-0.5 rounded text-xs">✅ 연결됨</span>'
+                    : '<span class="text-gray-500 border border-gray-200 bg-gray-50 px-2 py-0.5 rounded text-xs">❌ 미연결</span>';
+
+                const authBtn = isAuthenticated
+                    ? `<button onclick="authenticateChannel(${ch.id}, '${ch.name}')" class="text-blue-500 hover:text-blue-700 text-xs border border-blue-200 px-2 py-1 rounded">🔄 재연결</button>`
+                    : `<button onclick="authenticateChannel(${ch.id}, '${ch.name}')" class="text-white bg-blue-500 hover:bg-blue-600 px-3 py-1 rounded text-xs shadow-sm">🔑 로그인</button>`;
+
+                return `
+                <div class="flex items-center justify-between p-3 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-lg shadow-sm">
+                    <div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="font-medium text-gray-800 dark:text-white">${ch.name}</span>
+                            <span class="text-xs text-gray-500 font-normal">${ch.handle}</span>
+                            ${statusBadge}
+                        </div>
+                        ${ch.description ? `<p class="text-xs text-gray-500">${ch.description}</p>` : ''}
+                    </div>
+                    <div class="flex items-center gap-2">
+                        ${authBtn}
+                        <button onclick="deleteChannel(${ch.id})" class="text-red-500 hover:text-red-700 p-2" title="삭제">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+            `}).join('');
+
+        } catch (e) {
+            console.error(e);
+            list.innerHTML = '<p class="text-red-500 text-sm">목록을 불러오지 못했습니다.</p>';
+        }
+    }
+
+    // 채널 인증 (OAuth)
+    async function authenticateChannel(id, name) {
+        if (!confirm(`'${name}' 채널의 유튜브 계정으로 로그인하시겠습니까?\n\n(참고: 새 창이 뜨면 해당 채널의 구글 계정으로 로그인해주세요.)`)) return;
+
+        try {
+            // 이 요청은 서버에서 Python 로컬 서버를 통해 브라우저를 띄우므로 시간이 걸릴 수 있음
+            Utils.showToast('인증 창이 열립니다. 브라우저를 확인해주세요...', 'info');
+
+            const res = await fetch(`/api/auth/youtube/${id}`);
+            const data = await res.json();
+
+            if (res.ok) {
+                Utils.showToast(data.message || '인증 완료!', 'success');
+                loadChannels();
+            } else {
+                Utils.showToast(data.detail || '인증 실패', 'error');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('인증 과정 중 오류가 발생했습니다.', 'error');
+        }
+    }
+
+    // 채널 추가
+    async function addChannel() {
+
+        const nameInput = document.getElementById('newChannelName');
+        const handleInput = document.getElementById('newChannelHandle');
+        const descInput = document.getElementById('newChannelDesc');
+
+        const name = nameInput.value.trim();
+        let handle = handleInput.value.trim();
+        const description = descInput.value.trim();
+
+        if (!name || !handle) {
+            Utils.showToast('채널명과 핸들을 모두 입력해주세요.', 'warning');
+            return;
+        }
+
+        if (!handle.startsWith('@')) {
+            handle = '@' + handle;
+        }
+
+        try {
+            const res = await fetch('/api/channels', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, handle, description })
+            });
+
+            if (res.ok) {
+                Utils.showToast('채널이 추가되었습니다.', 'success');
+                nameInput.value = '';
+                handleInput.value = '';
+                descInput.value = '';
+                loadChannels(); // 목록 갱신
+            } else {
+                const err = await res.json();
+                Utils.showToast(err.detail || '채널 추가 실패', 'error');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('서버 오류가 발생했습니다.', 'error');
+        }
+    }
+
+    // 채널 삭제
+    async function deleteChannel(id) {
+        if (!confirm('정말 이 채널을 삭제하시겠습니까?')) return;
+
+        try {
+            const res = await fetch(`/api/channels/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                Utils.showToast('채널이 삭제되었습니다.', 'success');
+                loadChannels();
+            } else {
+                Utils.showToast('삭제 실패', 'error');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('서버 오류', 'error');
+        }
+    }
+
     // 초기화
     document.addEventListener('DOMContentLoaded', () => {
         populateOptions();
         loadAllSettings();
         checkApiConnection();
+        loadChannels(); // 채널 목록 로드
     });
 </script>
 {% endblock %}

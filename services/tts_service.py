@@ -24,6 +24,20 @@ except ImportError:
     texttospeech = None
 
 
+try:
+    try:
+        from moviepy.editor import AudioFileClip, concatenate_audioclips
+    except ImportError:
+        from moviepy import AudioFileClip, concatenate_audioclips
+except ImportError:
+    try:
+        from moviepy.audio.io.AudioFileClip import AudioFileClip
+        from moviepy.audio.AudioClip import concatenate_audioclips
+    except ImportError:
+        AudioFileClip = None
+        concatenate_audioclips = None
+
+
 class TTSService:
     def __init__(self):
         self.elevenlabs_key = config.ELEVENLABS_API_KEY
@@ -63,6 +77,26 @@ class TTSService:
         # [FIX] 텍스트 정제 (지문 제거)
         text = self.clean_text(text)
         
+        # [NEW] 문장 단위 분할 처리 (제한 10,000자, 안전빵 8,000자)
+        max_chars = 8000
+        if len(text) > max_chars:
+            chunks = self._split_text(text, max_chars)
+            print(f"DEBUG: Text too long ({len(text)} chars). Splitting into {len(chunks)} chunks for ElevenLabs.")
+            
+            chunk_files = []
+            for i, chunk in enumerate(chunks):
+                chunk_filename = f"temp_{i}_{filename}"
+                chunk_path = await self.generate_elevenlabs(chunk, voice_id, chunk_filename)
+                if chunk_path:
+                    chunk_files.append(chunk_path)
+            
+            if not chunk_files:
+                return None
+            
+            output_path = os.path.join(self.output_dir, filename)
+            self._merge_audio_files(chunk_files, output_path)
+            return output_path
+
         # [FIX] 런타임에 .env 변경사항 반영
         load_dotenv(override=True)
         api_key = os.getenv("ELEVENLABS_API_KEY")
@@ -127,6 +161,26 @@ class TTSService:
         if not self.google_client:
             raise ValueError("Google Cloud TTS 클라이언트가 초기화되지 않았습니다. GOOGLE_APPLICATION_CREDENTIALS 설정을 확인하세요.")
         
+        # [NEW] 문장 단위 분할 처리 (제한 5,000자, 안전빵 4,500자)
+        max_chars = 4500
+        if len(text) > max_chars:
+            chunks = self._split_text(text, max_chars)
+            print(f"DEBUG: Text too long ({len(text)} chars). Splitting into {len(chunks)} chunks for Google Cloud TTS.")
+            
+            chunk_files = []
+            for i, chunk in enumerate(chunks):
+                chunk_filename = f"temp_{i}_{filename}"
+                chunk_path = await self.generate_google_cloud(chunk, voice_name, language_code, chunk_filename, speaking_rate)
+                if chunk_path:
+                    chunk_files.append(chunk_path)
+            
+            if not chunk_files:
+                return None
+            
+            output_path = os.path.join(self.output_dir, filename)
+            self._merge_audio_files(chunk_files, output_path)
+            return output_path
+
         try:
             # [FIX] 텍스트 정제
             clean_text = self.clean_text(text)
@@ -172,6 +226,26 @@ class TTSService:
         """OpenAI TTS 생성"""
         if not self.openai_client:
             raise ValueError("OpenAI Client가 초기화되지 않았습니다. OPENAI_API_KEY 설정을 확인하세요.")
+
+        # [NEW] 문장 단위 분할 처리 (제한 4,096자, 안전빵 4,000자)
+        max_chars = 4000
+        if len(text) > max_chars:
+            chunks = self._split_text(text, max_chars)
+            print(f"DEBUG: Text too long ({len(text)} chars). Splitting into {len(chunks)} chunks for OpenAI TTS.")
+            
+            chunk_files = []
+            for i, chunk in enumerate(chunks):
+                chunk_filename = f"temp_{i}_{filename}"
+                chunk_path = await self.generate_openai(chunk, voice, model, chunk_filename, speed)
+                if chunk_path:
+                    chunk_files.append(chunk_path)
+            
+            if not chunk_files:
+                return None
+            
+            output_path = os.path.join(self.output_dir, filename)
+            self._merge_audio_files(chunk_files, output_path)
+            return output_path
 
         try:
             # 속도 범위 제한 (0.25 - 4.0)
@@ -260,6 +334,30 @@ class TTSService:
 
         output_path = os.path.join(self.output_dir, filename)
         
+        # [NEW] 문장 단위 분할 처리 (Edge TTS는 약 30,000자 제한설이 있음, 안전하게 20,000자)
+        max_chars = 20000
+        if len(text) > max_chars:
+            chunks = self._split_text(text, max_chars)
+            print(f"DEBUG: Text too long ({len(text)} chars). Splitting into {len(chunks)} chunks for Edge TTS.")
+            
+            chunk_files = []
+            for i, chunk in enumerate(chunks):
+                # [FIX] filename이 절대 경로일 경우를 대비해 basename만 사용
+                # 이렇게 해야 recursive 호출 시 output_dir와 중복 결합되지 않음.
+                base_name = os.path.basename(filename)
+                chunk_filename = f"temp_{i}_{base_name}"
+                chunk_path = await self.generate_edge_tts(chunk, voice, rate, chunk_filename)
+                if chunk_path:
+                    chunk_files.append(chunk_path)
+            
+            if not chunk_files:
+                return None
+            
+            output_path = os.path.join(self.output_dir, filename)
+            self._merge_audio_files(chunk_files, output_path)
+            # VTT는 합치기 복잡하므로 일단 무시 (MP3라도 건짐)
+            return output_path
+
         # 텍스트 정제
         clean_text = self.clean_text(text)
         if not clean_text:
@@ -412,30 +510,86 @@ class TTSService:
                 target_voice = "en-US-JennyNeural"
                 
         else: # Korean (Default)
+            # 확장된 한국어 음성 맵 (Edge TTS 지원 목록 활용)
             voice_map = {
+                # 남성향 (Male)
                 "Puck": "ko-KR-InJoonNeural",
-                "Charon": "ko-KR-InJoonNeural",
+                "Charon": "ko-KR-BongJinNeural",
+                "Fenrir": "ko-KR-GookMinNeural",
+                "Atlas": "ko-KR-InJoonNeural", 
+                
+                # 여성향 (Female)
                 "Kore": "ko-KR-SunHiNeural",
-                "Fenrir": "ko-KR-InJoonNeural",
-                "Aoede": "ko-KR-SunHiNeural"
+                "Aoede": "ko-KR-JiMinNeural",
+                "Hestia": "ko-KR-SeoHyeonNeural",
+                "Iris": "ko-KR-SoonBokNeural",
+                "Calliope": "ko-KR-YuJinNeural"
             }
             target_voice = voice_map.get(voice_name, "ko-KR-SunHiNeural")
         
         return await self.generate_edge_tts(text, target_voice, rate_str, filename)
 
-        # 아래는 Gemini Audio Model이 정식 오픈되면 사용할 코드
-        """
-        import base64
-        import json
+    def _split_text(self, text: str, max_chars: int) -> list:
+        """텍스트를 문장 단위로 분할"""
+        if len(text) <= max_chars:
+            return [text]
+            
+        import re
+        # 문장 종결자 기준으로 분할 (마침표, 물음표, 느낌표, 개행)
+        # 공백을 포함하도록 긍정형 전방 탐색 사용
+        sentences = re.split(r'(?<=[.?!])\s+|\n', text)
         
-        # KEY 확인
-        api_key = config.GEMINI_API_KEY
+        chunks = []
+        current_chunk = ""
+        
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if not sentence: continue
+            
+            if len(current_chunk) + len(sentence) + 1 <= max_chars:
+                current_chunk += (sentence + " ")
+            else:
+                if current_chunk:
+                    chunks.append(current_chunk.strip())
+                
+                # 문장 하나가 max_chars를 초과하는 경우 강제 절단
+                if len(sentence) > max_chars:
+                    while len(sentence) > max_chars:
+                        chunks.append(sentence[:max_chars])
+                        sentence = sentence[max_chars:]
+                    current_chunk = sentence + " "
+                else:
+                    current_chunk = sentence + " "
+        
+        if current_chunk:
+            chunks.append(current_chunk.strip())
+            
+        return chunks
 
-        if not api_key:
-             raise ValueError("GEMINI_API_KEY가 설정되지 않았습니다")
-
-        # ... (Original Gemini Implementation) ...
-        """
+    def _merge_audio_files(self, audio_files: list, output_path: str):
+        """여러 오디오 파일을 하나로 합침"""
+        if not AudioFileClip or not concatenate_audioclips:
+            raise ImportError("MoviePy가 설치되지 않았습니다. 오디오 합치기가 불가능합니다.")
+            
+        clips = []
+        try:
+            for f in audio_files:
+                clips.append(AudioFileClip(f))
+            
+            final_clip = concatenate_audioclips(clips)
+            # FFmpeg 로그 억제 (verbose=False, logger=None)
+            final_clip.write_audiofile(output_path, verbose=False, logger=None)
+            final_clip.close()
+        finally:
+            for clip in clips:
+                try: clip.close()
+                except: pass
+            
+            # 임시 파일 삭제
+            for f in audio_files:
+                if os.path.exists(f) and f != output_path:
+                    try: os.remove(f)
+                    except: pass
 
 
 # 싱글톤 인스턴스

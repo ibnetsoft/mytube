@@ -433,37 +433,128 @@ class GeminiService:
                  }
              )
              
-
              
-
+             # Handle operation - it might be a string (operation name) or an object
+             print(f"DEBUG: Operation type: {type(operation)}")
              
-             # Handle case where operation is just a name string or an object
-             op_name = None
+             # If operation is a string, we need to poll differently
              if isinstance(operation, str):
                  op_name = operation
-                 print(f"DEBUG: Operation started (name only): {op_name}")
-                 # Fetch the actual operation object
-                 operation = client.operations.get(op_name)
-             elif hasattr(operation, 'name'):
-                 op_name = operation.name
-                 print(f"DEBUG: Operation started: {op_name}")
-             else:
-                 print(f"DEBUG: Unknown operation type: {type(operation)}")
-                 op_name = str(operation)
-             
-             
-             # 2. Poll for completion (Manual)
-             # Note: 'operation.result' might be a property returning None if not done, 
-             # so we must poll 'operation.done' using client.operations.get()
-             import time
-             
-             while not operation.done:
-                 print("Waiting for video generation...")
-                 time.sleep(5)
-                 # Correct way to refresh operation in google.genai SDK
-                 # Signature is get(operation, *, config=...)
-                 operation = client.operations.get(operation.name)
+                 print(f"DEBUG: Operation is a string (name): {op_name}")
                  
+                 # Manual polling using the operation name
+                 import time
+                 max_attempts = 60  # 5 minutes
+                 attempts = 0
+                 
+                 while attempts < max_attempts:
+                     print(f"Polling operation status... (attempt {attempts + 1}/{max_attempts})")
+                     time.sleep(5)
+                     attempts += 1
+                     
+                     try:
+                         # Try to get operation status
+                         # The SDK might have a different method to check status
+                         op_status = client.operations.get(op_name)
+                         
+                         # Check if it's done
+                         if hasattr(op_status, 'done') and op_status.done:
+                             operation = op_status
+                             break
+                         elif isinstance(op_status, dict) and op_status.get('done'):
+                             operation = op_status
+                             break
+                     except Exception as e:
+                         print(f"Polling error: {e}")
+                         # If we can't poll, just wait and hope for the best
+                         if attempts >= 30:  # After 2.5 minutes, try to get result anyway
+                             try:
+                                 operation = client.operations.get(op_name)
+                                 break
+                             except:
+                                 pass
+                 
+                 if attempts >= max_attempts:
+                     return {"status": "error", "error": "Video generation timed out"}
+             
+             # If operation is an object, use wait() or poll
+             elif hasattr(operation, 'wait'):
+                 print("DEBUG: Using operation.wait() method")
+                 try:
+                     operation = operation.wait(timeout=300)
+                 except Exception as e:
+                     print(f"Wait error: {e}")
+                     return {"status": "error", "error": f"Wait failed: {str(e)}"}
+             
+             # Try using result() method (blocks until complete)
+             elif hasattr(operation, 'result'):
+                 print("DEBUG: Using operation.result property (checking if complete)")
+                 try:
+                     # First check if it's a method or property
+                     if callable(operation.result):
+                         print("DEBUG: result is callable (method)")
+                         result_obj = operation.result(timeout=300)
+                     else:
+                         print("DEBUG: result is a property")
+                         # For properties, we need to poll manually
+                         import time
+                         max_wait = 300  # 5 minutes
+                         start_time = time.time()
+                         
+                         while time.time() - start_time < max_wait:
+                             # Try to refresh operation status
+                             if hasattr(operation, 'name'):
+                                 try:
+                                     fresh_op = client.operations.get(operation.name)
+                                     operation = fresh_op
+                                 except:
+                                     pass
+                             
+                             # Check if done
+                             if hasattr(operation, 'done'):
+                                 if callable(operation.done):
+                                     is_done = operation.done()
+                                 else:
+                                     is_done = operation.done
+                                 
+                                 if is_done:
+                                     print("DEBUG: Operation completed!")
+                                     break
+                             
+                             print(f"Waiting for completion... ({int(time.time() - start_time)}s elapsed)")
+                             time.sleep(5)
+                         
+                         if time.time() - start_time >= max_wait:
+                             return {"status": "error", "error": "Timeout waiting for video generation"}
+                         
+                         result_obj = operation.result
+                     
+                     print(f"DEBUG: Got result: {type(result_obj)}")
+                 except Exception as e:
+                     print(f"Result error: {e}")
+                     import traceback
+                     traceback.print_exc()
+                     return {"status": "error", "error": f"Result failed: {str(e)}"}
+             
+             
+             # Otherwise, try manual polling on the object
+             else:
+                 print("DEBUG: Manual polling on operation object")
+                 import time
+                 max_attempts = 60
+                 attempts = 0
+                 
+                 while attempts < max_attempts:
+                     if hasattr(operation, 'done') and operation.done:
+                         break
+                     
+                     print(f"Waiting... (attempt {attempts + 1}/{max_attempts})")
+                     time.sleep(5)
+                     attempts += 1
+                 
+                 if attempts >= max_attempts:
+                     return {"status": "error", "error": "Timeout"}
+                  
              if operation.error:
                  print(f"Veo Error: {operation.error}")
                  return {"status": "error", "error": str(operation.error)}

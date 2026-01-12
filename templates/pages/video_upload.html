@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="h-[calc(100vh-140px)] flex flex-col gap-3 p-2">
+    <!-- Top Bar -->
+    <div
+        class="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 shrink-0">
+        <h3 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <span>📤 영상 업로드</span>
+            <span class="text-xs font-normal text-gray-500">완성된 영상을 직접 업로드하여 YouTube에 게시하세요.</span>
+        </h3>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 flex-1 min-h-0">
+
+        <!-- Left: Upload Zone -->
+        <div
+            class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 flex flex-col justify-center">
+            <div id="uploadArea"
+                class="flex-1 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl flex flex-col items-center justify-center p-6 cursor-pointer hover:border-primary hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all group"
+                ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)"
+                onclick="document.getElementById('fileInput').click()">
+
+                <div
+                    class="w-16 h-16 mb-4 rounded-full bg-gray-100 dark:bg-gray-700 mx-auto flex items-center justify-center text-gray-400 group-hover:text-primary group-hover:bg-white transition-colors">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12">
+                        </path>
+                    </svg>
+                </div>
+
+                <p class="text-sm font-bold text-gray-700 dark:text-gray-300">파일을 드래그하거나 클릭하세요</p>
+                <p class="text-xs text-gray-500 mt-2 text-center">MP4, MOV, AVI, MKV (최대 2GB)</p>
+                <input type="file" id="fileInput" accept="video/*" class="hidden" onchange="handleFileSelect(event)">
+            </div>
+
+            <!-- Upload Progress -->
+            <div id="uploadProgress" class="hidden mt-4">
+                <div class="flex justify-between text-xs mb-1">
+                    <span class="font-bold text-blue-600">업로드 중...</span>
+                    <span id="progressPercent">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-1.5 dark:bg-gray-700 overflow-hidden">
+                    <div id="progressBar" class="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                        style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Preview & Actions -->
+        <div
+            class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 flex flex-col overflow-hidden relative">
+            <div id="emptyState"
+                class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 bg-gray-50/50 dark:bg-gray-900/50 z-10 backdrop-blur-[1px]">
+                <div class="text-4xl mb-2 grayscale opacity-30">📺</div>
+                <p class="text-xs">영상을 업로드하면 미리보기가 표시됩니다.</p>
+            </div>
+
+            <div id="previewContent" class="flex flex-col h-full gap-4">
+                <!-- Player -->
+                <div class="relative bg-black rounded-lg overflow-hidden shadow-md shrink-0"
+                    style="aspect-ratio: 16/9;">
+                    <video id="videoPlayer" controls class="absolute inset-0 w-full h-full object-contain"></video>
+                </div>
+
+                <!-- Info -->
+                <div
+                    class="grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg border border-gray-100 dark:border-gray-700">
+                    <div>파일명: <span id="videoFileName"
+                            class="text-gray-900 dark:text-white font-mono truncate block"></span></div>
+                    <div>크기: <span id="videoFileSize" class="text-gray-900 dark:text-white font-mono"></span></div>
+                    <div>길이: <span id="videoDuration" class="text-gray-900 dark:text-white font-mono"></span></div>
+                </div>
+
+                <div class="flex-1"></div>
+
+                <!-- Actions -->
+                <div class="grid grid-cols-1 gap-2">
+                    <button onclick="uploadToYouTube()" id="youtubeUploadBtn"
+                        class="btn-primary py-2.5 flex items-center justify-center gap-2 text-sm shadow-md">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                            <path
+                                d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+                        </svg>
+                        YouTube 게시
+                    </button>
+                    <button onclick="deleteVideo()"
+                        class="btn-secondary py-2 text-xs hover:text-red-600 hover:bg-red-50 hover:border-red-200">
+                        🗑️ 삭제하기
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let uploadedVideoPath = null;
+
+    function handleDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('border-primary', 'bg-blue-50'); }
+    function handleDragLeave(e) { e.preventDefault(); e.currentTarget.classList.remove('border-primary', 'bg-blue-50'); }
+    function handleDrop(e) {
+        e.preventDefault();
+        const files = e.dataTransfer.files;
+        if (files.length) processFile(files[0]);
+    }
+    function handleFileSelect(e) { if (e.target.files.length) processFile(e.target.files[0]); }
+
+    function processFile(file) {
+        if (file.size > 2 * 1024 * 1024 * 1024) return Utils.showToast('2GB 이하만 가능합니다', 'error');
+        uploadVideo(file);
+    }
+
+    async function uploadVideo(file) {
+        const projectId = getCurrentProject();
+        if (!projectId) return Utils.showToast('프로젝트 선택 필요', 'warning');
+
+        const formData = new FormData(); formData.append('file', file);
+        document.getElementById('uploadProgress').classList.remove('hidden');
+
+        try {
+            const xhr = new XMLHttpRequest();
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                    const pct = Math.round((e.loaded / e.total) * 100);
+                    document.getElementById('progressBar').style.width = pct + '%';
+                    document.getElementById('progressPercent').innerText = pct + '%';
+                }
+            });
+            xhr.onload = () => {
+                if (xhr.status === 200) {
+                    const res = JSON.parse(xhr.responseText);
+                    if (res.status === 'ok') {
+                        uploadedVideoPath = res.path;
+                        showVideoPreview(file, res);
+                        Utils.showToast('업로드 완료', 'success');
+                    } else Utils.showToast(res.error, 'error');
+                } else Utils.showToast('업로드 실패', 'error');
+                document.getElementById('uploadProgress').classList.add('hidden');
+            };
+            xhr.open('POST', `/api/video/upload-external/${projectId}`);
+            xhr.send(formData);
+        } catch (e) { Utils.showToast('오류 발생', 'error'); }
+    }
+
+    function showVideoPreview(file, result) {
+        document.getElementById('emptyState').classList.add('hidden');
+        const player = document.getElementById('videoPlayer');
+        player.src = result.url;
+        player.load();
+
+        document.getElementById('videoFileName').textContent = file.name;
+        document.getElementById('videoFileSize').textContent = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
+        player.addEventListener('loadedmetadata', () => {
+            document.getElementById('videoDuration').textContent = Math.floor(player.duration) + 's';
+        });
+    }
+
+    async function uploadToYouTube() {
+        const projectId = getCurrentProject();
+        if (!uploadedVideoPath) return Utils.showToast('영상 없음', 'warning');
+
+        const btn = document.getElementById('youtubeUploadBtn');
+        Utils.setLoading(btn, true, '업로드 중...');
+        try {
+            const res = await fetch(`/api/youtube/upload-external/${projectId}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await res.json();
+            if (data.status === 'ok') {
+                Utils.showToast('YouTube 게시 완료!', 'success');
+                window.open(`https://www.youtube.com/watch?v=${data.video_id}`, '_blank');
+            } else Utils.showToast(data.error, 'error');
+        } catch (e) { Utils.showToast('게시 실패', 'error'); }
+        finally { Utils.setLoading(btn, false); }
+    }
+
+    async function deleteVideo() {
+        if (!confirm('삭제하시겠습니까?')) return;
+        const projectId = getCurrentProject();
+        try {
+            await fetch(`/api/video/delete-external/${projectId}`, { method: 'DELETE' });
+            location.reload();
+        } catch (e) { Utils.showToast('삭제 오류', 'error'); }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        const projectId = getCurrentProject();
+        if (projectId) {
+            const settings = await API.project.getSettings(projectId);
+            if (settings?.external_video_path) {
+                // Restore logic simplified for demo
+                const url = settings.external_video_path.replace(/\\/g, '/').split('/output').pop();
+                if (url) {
+                    uploadedVideoPath = settings.external_video_path;
+                    showVideoPreview({ name: 'Existing Video', size: 0 }, { url: '/output' + url });
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

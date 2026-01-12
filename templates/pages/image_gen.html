@@ -5,7 +5,13 @@
 
 <div class="card mb-6">
     <div class="flex flex-wrap items-center gap-6 mb-6">
-        <h3 class="font-bold text-gray-800 dark:text-white shrink-0">⚙️ 이미지 설정</h3>
+        <h3 class="font-bold text-gray-800 dark:text-white shrink-0 flex items-center gap-2">
+            <span>⚙️ 이미지 설정</span>
+            <span id="scriptStatusBadge"
+                class="text-[10px] items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 font-normal hidden md:flex">
+                <span>🔄</span> 대본 확인 중...
+            </span>
+        </h3>
 
         <div class="flex flex-wrap items-center gap-4">
             <!-- Image Options -->
@@ -61,7 +67,8 @@
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">스타일 선택</label>
             <input type="hidden" id="imageStyle" value="realistic">
 
-            <div class="grid grid-cols-3 md:grid-cols-6 gap-3">
+            <!-- [Modified] Grid density increased to reduce thumbnail size (cols-3/6 -> cols-6/12) -->
+            <div class="grid grid-cols-6 md:grid-cols-12 gap-3">
                 <!-- Realistic -->
                 <div class="style-card relative cursor-pointer border-2 border-blue-600 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all"
                     onclick="selectStyle('realistic', this)" data-value="realistic">
@@ -403,10 +410,49 @@
         }
     });
 
+    // Script Status Check
+    async function checkScriptStatus() {
+        const badge = document.getElementById('scriptStatusBadge');
+        if (!badge) return;
+
+        let hasScript = false;
+
+        // 1. Check Local Storage
+        const localData = Utils.storage.get('fullScript');
+        if (localData && localData.script) {
+            hasScript = true;
+        } else {
+            // 2. Check DB
+            const projectId = getCurrentProject();
+            if (projectId) {
+                try {
+                    const result = await API.project.getScript(projectId);
+                    if (result && result.full_script) {
+                        hasScript = true;
+                        // Sync to local
+                        Utils.storage.set('fullScript', { script: result.full_script });
+                    }
+                } catch (e) {
+                    console.error("Script check failed:", e);
+                }
+            }
+        }
+
+        if (hasScript) {
+            badge.className = "text-[10px] items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 font-normal hidden md:flex";
+            badge.innerHTML = "<span>✅</span> 대본 준비됨";
+        } else {
+            badge.className = "text-[10px] items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-normal hidden md:flex";
+            badge.innerHTML = "<span>🚫</span> 대본 없음";
+        }
+    }
+
     // 초기 로드 시 로컬 스토리지 확인 (빠른 렌더링)
     document.addEventListener('DOMContentLoaded', () => {
+        checkScriptStatus(); // [NEW] Check status
+
         const savedPrompts = Utils.storage.get('imagePrompts');
-        const autoBtn = document.getElementById('autoGenBtn'); // Define locally since it's used inside
+        const autoBtn = document.getElementById('autoGenBtn');
         if (savedPrompts && savedPrompts.length > 0) {
             prompts = savedPrompts;
             renderPrompts();

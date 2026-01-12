@@ -1084,3 +1084,4 @@ NameError: name 'output_path' is not defined
 [2025-12-30 20:41:08.285769] Audio duration: 354.74
 [2025-12-30 20:41:08.289631] Calling create_slideshow...
 [2025-12-30 20:41:11.229469] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-06 11:54:16.704929] calling writes_videofile code in video_service (720p safe mode)

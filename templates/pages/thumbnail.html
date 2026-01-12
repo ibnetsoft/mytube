@@ -96,7 +96,7 @@
                 <div class="style-card-thumb" onclick="selectThumbnailStyle('japanese_viral')"
                     data-style="japanese_viral">
                     <img src="/static/img/thumbs/japanese_viral.png" alt="Japanese" loading="lazy">
-                    <div class="style-label">🇯🇵 일본 바이럴</div>
+                    <div class="style-label">시니어 롱폼</div>
                 </div>
             </div>
         </div>
@@ -131,55 +131,58 @@
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">텍스트 후보 (클릭해서 선택)</label>
                 <div id="textCandidates" class="flex flex-wrap gap-2 mb-3"></div>
-                <input type="text" id="thumbnailText" class="input-field" placeholder="직접 입력 또는 위에서 선택">
             </div>
 
-            <div class="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">텍스트 위치</label>
-                    <select id="textPosition" class="input-field">
-                        <option value="top">상단</option>
-                        <option value="center" selected>중앙</option>
-                        <option value="bottom">하단</option>
-                    </select>
+
+
+            <div id="layersContainer" class="space-y-4 mb-6">
+                <!-- 레이어들이 여기에 동적으로 생성됨 -->
+            </div>
+
+            <button onclick="addLayer()" class="btn-secondary w-full mb-4 text-sm">
+                ➕ 텍스트 레이어 추가
+            </button>
+
+            <div class="border-t border-gray-200 dark:border-gray-700 my-4 pt-4">
+                <p class="text-xs text-gray-500 mb-2">① 배경 먼저 생성 후 위치 조정하기 (선택사항)</p>
+                <button onclick="generateBackground()" id="bgBtn" class="w-full btn-secondary mb-3 py-2">
+                    🖼️ 배경 이미지만 먼저 생성 (위치 조정용)
+                </button>
+
+                <p class="text-xs text-gray-500 mb-2">② 최종 결과물 생성</p>
+                <button onclick="generateFinalThumbnail()" id="generateBtn" class="w-full btn-primary py-3">
+                    🎨 썸네일 최종 생성 (합성)
+                </button>
+            </div>
+        </div>
+
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">썸네일 레이아웃 미리보기</label>
+                <div
+                    class="bg-gray-100 dark:bg-gray-700 rounded-lg p-2 aspect-video relative overflow-hidden flex items-center justify-center">
+                    <canvas id="thumbnailCanvas" width="1280" height="720"
+                        class="w-full h-auto rounded shadow-inner bg-gray-200 dark:bg-gray-800"></canvas>
+                    <div id="previewPlaceholder"
+                        class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <span class="text-gray-500 text-sm">아이디어를 선택하세요</span>
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">폰트 크기</label>
-                    <select id="fontSize" class="input-field">
-                        <option value="48">작게 (48px)</option>
-                        <option value="72" selected>보통 (72px)</option>
-                        <option value="96">크게 (96px)</option>
-                        <option value="120">아주 크게 (120px)</option>
-                    </select>
-                </div>
+            </div>
+
+            <div class="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4">
+                <h4 class="text-xs font-bold text-yellow-800 dark:text-yellow-300 mb-1 uppercase">Styling Tip</h4>
+                <p class="text-xs text-yellow-700 dark:text-yellow-400">
+                    바이럴 스타일을 위해 <b>외곽선(Stroke)</b>을 굵게 하고 <b>Gmarket Sans</b> 폰트를 사용해 보세요.
+                </p>
             </div>
 
             <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">텍스트 색상</label>
-                <div class="flex gap-2">
-                    <button onclick="setTextColor('#FFFFFF')"
-                        class="w-10 h-10 bg-white border-2 border-gray-300 rounded-lg"></button>
-                    <button onclick="setTextColor('#FFFF00')" class="w-10 h-10 bg-yellow-400 rounded-lg"></button>
-                    <button onclick="setTextColor('#FF0000')" class="w-10 h-10 bg-red-500 rounded-lg"></button>
-                    <button onclick="setTextColor('#00FF00')" class="w-10 h-10 bg-green-500 rounded-lg"></button>
-                    <button onclick="setTextColor('#00FFFF')" class="w-10 h-10 bg-cyan-400 rounded-lg"></button>
-                    <button onclick="setTextColor('#FF00FF')" class="w-10 h-10 bg-pink-500 rounded-lg"></button>
-                    <input type="color" id="customColor" value="#FFFFFF" onchange="setTextColor(this.value)"
-                        class="w-10 h-10 rounded-lg cursor-pointer">
-                </div>
-                <p id="selectedColor" class="text-sm text-gray-500 mt-1">선택: #FFFFFF</p>
-            </div>
-
-            <button onclick="generateFinalThumbnail()" id="generateBtn" class="w-full btn-primary py-3">
-                🎨 썸네일 생성 (Gemini Imagen 3)
-            </button>
-        </div>
-
-        <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">선택된 배경 이미지</label>
-            <div id="selectedImagePreview"
-                class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 flex items-center justify-center h-48">
-                <span class="text-gray-500">아이디어를 선택하세요</span>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">도형 레이어 (배경 위)</label>
+                <div id="shapeLayersContainer" class="space-y-4 mb-4"></div>
+                <button onclick="addShapeLayer()" class="btn-secondary w-full text-sm">
+                    ➕ 도형 레이어 추가
+                </button>
             </div>
         </div>
     </div>
@@ -230,13 +233,41 @@
 <script>
     let thumbnailData = null;
     let selectedPrompt = null;
-    let selectedTextColor = '#FFFFFF';
+    let selectedIdeaIndex = -1;
     let generatedHistory = [];
-    let targetLang = 'ko'; // 전역 변수로 선언
+    let targetLang = 'ko';
+    let currentBackgroundPath = null; // 생성된 배경 이미지 경로 (백엔드용)
+    let currentBackgroundUrl = null; // 생성된 배경 이미지 URL (프론트엔드용)
+
+    // 텍스트 레이어 상태 (동적 관리)
+    let textLayers = [
+        { text: '텍스트 입력...', position: 'center', x_offset: 0, y_offset: 0, font_family: 'malgun', font_size: 72, color: '#FFFFFF', stroke_color: '#000000', stroke_width: 2, bg_color: null }
+    ];
+
+    // 도형 레이어 상태
+    let shapeLayers = [];
+
+    // 드래그 상태 변수
+    let isDragging = false;
+    let draggedLayerIndex = -1;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let initialLayerX = 0;
+    let initialLayerY = 0;
+    let layerBBoxes = []; // 히트 테스트용 좌표 저장 [{x, y, w, h, index}]
+
+    // 도형 크기 조절 관련 변수
+    let selectedShapeIndex = -1;
+    let resizeHandle = null; // 'nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'
+    let shapeBBoxes = [];
+    let shapeHandleBBoxes = [];
+    let initialShapeParams = {};
 
     // 프로젝트 데이터 로드
     document.addEventListener('DOMContentLoaded', async () => {
         const projectId = getCurrentProject();
+        initCanvasEvents(); // 캔버스 이벤트 초기화
+
         if (projectId) {
             try {
                 // 프로젝트 정보 가져오기 (언어 설정)
@@ -265,6 +296,9 @@
                 console.log('프로젝트 데이터 로드 실패');
             }
         }
+
+        // 로컬 상태 복구 (프로젝트 데이터보다 우선하거나 병합)
+        loadStateFromLocal();
     });
 
     // 스타일 선택 함수
@@ -279,6 +313,67 @@
                 card.classList.remove('active');
             }
         });
+
+        // 스타일에 따른 기본 텍스트 설정 자동 최적화 (1, 4, 5번 줄 위주)
+        // 스타일에 따른 기본 텍스트 설정 자동 최적화
+        if (styleId === 'japanese_viral') {
+            // 레이어 4개 확보
+            while (textLayers.length < 4) {
+                textLayers.push({ text: '추가 텍스트', position: 'center', font_family: 'gmarket', font_size: 90, color: '#FFFFFF', stroke_color: '#000000', stroke_width: 5, bg_color: null });
+            }
+
+            const x_shift = -320; // 좌측 정렬 효과
+
+            // Layer 1: Green
+            if (textLayers[0]) {
+                textLayers[0].position = 'row1';
+                textLayers[0].x_offset = x_shift;
+                textLayers[0].y_offset = 20;
+                textLayers[0].font_family = 'gmarket';
+                textLayers[0].font_size = 85;
+                textLayers[0].color = '#00FF00';
+                textLayers[0].stroke_color = '#000000';
+                textLayers[0].stroke_width = 8;
+            }
+            // Layer 2: Cyan
+            if (textLayers[1]) {
+                textLayers[1].position = 'row2';
+                textLayers[1].x_offset = x_shift;
+                textLayers[1].y_offset = 20;
+                textLayers[1].font_family = 'gmarket';
+                textLayers[1].font_size = 85;
+                textLayers[1].color = '#00FFFF';
+                textLayers[1].stroke_color = '#000000';
+                textLayers[1].stroke_width = 8;
+            }
+            // Layer 3: Purple
+            if (textLayers[2]) {
+                textLayers[2].position = 'row3';
+                textLayers[2].x_offset = x_shift;
+                textLayers[2].y_offset = 20;
+                textLayers[2].font_family = 'gmarket';
+                textLayers[2].font_size = 85;
+                textLayers[2].color = '#E000FF';
+                textLayers[2].stroke_color = '#FFFFFF';
+                textLayers[2].stroke_width = 8;
+            }
+            // Layer 4: Red + Yellow
+            if (textLayers[3]) {
+                textLayers[3].position = 'row4';
+                textLayers[3].x_offset = x_shift;
+                textLayers[3].y_offset = 40;
+                textLayers[3].font_family = 'gmarket';
+                textLayers[3].font_size = 100;
+                textLayers[3].color = '#FF0000';
+                textLayers[3].stroke_color = '#FFFF00';
+                textLayers[3].stroke_width = 10;
+            }
+
+            Utils.showToast('시니어 롱폼 스타일 (4줄 컬러)이 적용되었습니다.', 'info');
+        } else if (styleId === 'text') {
+            textLayers.forEach(l => { l.bg_color = '#000000'; l.color = '#FFFFFF'; });
+        }
+        renderLayers();
 
         console.log("Selected thumbnail style:", styleId);
     }
@@ -326,30 +421,51 @@ JSON 형식으로 반환:
         {
             "concept": "컨셉 설명 (1-2문장)",
             "layout": "레이아웃 설명",
-            "prompt_en": "Imagen 3용 영어 프롬프트. 반드시 상세하게 작성. 예: A dramatic cinematic scene of ancient Chinese warrior general in golden armor, dark stormy background, epic lighting, professional photography, 8k quality"
+            "prompt_en": "Detailed English prompt for Imagen 4. DO NOT include names of real people; use generic descriptions like 'middle-aged man', 'female doctor', etc. Example: A dramatic cinematic scene of a middle-aged male doctor in a dark room, expressive lighting, professional photography, 8k quality"
         }
     ],
     "texts": ["썸네일 텍스트 후보 1 (3-5단어)", "후보 2", "후보 3", "후보 4", "후보 5"]
 }
 
-ideas는 3개 생성하세요. prompt_en은 Imagen 3에서 좋은 결과가 나오도록 상세하게 작성하세요. JSON만 반환하세요.`;
+ideas는 3개 생성하세요. prompt_en은 Imagen 4에서 최상의 결과가 나오도록 아주 상세하게 영어로 작성하세요. 실존 인물의 이름(예: 연예인, 정치인, 의사명 등)은 절대로 넣지 마세요. 대신 그 사람의 특징이나 직업 등으로 묘사하세요. JSON만 반환하세요.`;
 
         try {
             const result = await API.gemini.generate(prompt, { temperature: 0.8 });
+            console.log('API Response:', JSON.stringify(result, null, 2));
 
             if (result.status === 'ok') {
+                console.log('Response text:', result.text);
                 const jsonMatch = result.text.match(/\{[\s\S]*\}/);
+                console.log('JSON match found:', jsonMatch ? 'Yes' : 'No');
+
                 if (jsonMatch) {
-                    thumbnailData = JSON.parse(jsonMatch[0]);
-                    renderIdeas();
-                    document.getElementById('ideasSection').classList.remove('hidden');
+                    try {
+                        thumbnailData = JSON.parse(jsonMatch[0]);
+                        console.log('Parsed thumbnail data:', JSON.stringify(thumbnailData, null, 2));
+                        renderIdeas();
+                        document.getElementById('ideasSection').classList.remove('hidden');
+                        saveStateToLocal(); // 저장
+                    } catch (parseError) {
+                        console.error('JSON parse error:', parseError);
+                        Utils.showToast('JSON 파싱 실패: ' + parseError.message, 'error');
+                    }
+                } else {
+                    console.error('No JSON found in response. Full text:', result.text);
+                    Utils.showToast('응답에서 JSON을 찾을 수 없습니다', 'error');
                 }
             } else {
-                Utils.showToast('아이디어 생성 실패', 'error');
+                console.error('API returned error status:', JSON.stringify(result, null, 2));
+
+                // 할당량 초과 에러 특별 처리
+                if (result.error && result.error.code === 429) {
+                    Utils.showToast('⚠️ Gemini API 할당량이 초과되었습니다. API 키를 확인하거나 내일 다시 시도해주세요.', 'error');
+                } else {
+                    Utils.showToast('아이디어 생성 실패: ' + (result.error?.message || result.error || '알 수 없는 오류'), 'error');
+                }
             }
         } catch (error) {
-            Utils.showToast('오류가 발생했습니다', 'error');
-            console.error(error);
+            console.error('Error in generateIdeas:', error);
+            Utils.showToast('오류가 발생했습니다: ' + error.message, 'error');
         } finally {
             Utils.setLoading(btn, false);
         }
@@ -357,26 +473,117 @@ ideas는 3개 생성하세요. prompt_en은 Imagen 3에서 좋은 결과가 나�
 
     // 아이디어 렌더링
     function renderIdeas() {
+        if (!thumbnailData || !thumbnailData.ideas) return;
         const container = document.getElementById('ideasList');
         container.innerHTML = thumbnailData.ideas.map((idea, i) => `
-            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-primary transition" onclick="selectIdea(${i})">
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-primary transition ${i === selectedIdeaIndex ? 'ring-2 ring-primary bg-blue-50 dark:bg-gray-600' : ''}" onclick="selectIdea(${i})">
                 <div class="flex items-center justify-between mb-2">
                     <span class="font-medium text-gray-800 dark:text-white">아이디어 ${i + 1}</span>
-                    <button onclick="event.stopPropagation(); selectIdea(${i})" class="btn-primary text-xs">선택</button>
+                    <button onclick="event.stopPropagation(); selectIdea(${i})" class="btn-primary text-xs">${i === selectedIdeaIndex ? '선택됨' : '선택'}</button>
                 </div>
                 <p class="text-gray-600 dark:text-gray-400 mb-2">${idea.concept}</p>
                 <p class="text-sm text-gray-500">레이아웃: ${idea.layout}</p>
-                <details class="mt-2">
-                    <summary class="text-xs text-blue-500 cursor-pointer">프롬프트 보기</summary>
-                    <code class="block bg-gray-900 text-green-400 p-2 rounded text-xs mt-2 overflow-x-auto">${idea.prompt_en}</code>
+                <details class="mt-2" open>
+                    <summary class="text-xs text-blue-500 cursor-pointer">프롬프트 수정</summary>
+                    <textarea 
+                        class="w-full h-32 bg-gray-900 text-green-400 p-2 rounded text-xs mt-2 focus:ring-1 focus:ring-blue-500 outline-none resize-y"
+                        onclick="event.stopPropagation()"
+                        oninput="updateIdeaPrompt(${i}, this.value)"
+                    >${idea.prompt_en}</textarea>
                 </details>
             </div>
         `).join('');
     }
 
+    function updateIdeaPrompt(index, newPrompt) {
+        // 데이터 업데이트
+        if (thumbnailData && thumbnailData.ideas && thumbnailData.ideas[index]) {
+            thumbnailData.ideas[index].prompt_en = newPrompt;
+
+            // 만약 현재 선택된 아이디어라면, 선택된 프롬프트 변수도 즉시 업데이트
+            if (index === selectedIdeaIndex) {
+                selectedPrompt = newPrompt;
+            }
+            saveStateToLocal(); // 저장
+        }
+    }
+
     // 아이디어 선택
     function selectIdea(index) {
+        selectedIdeaIndex = index;
         selectedPrompt = thumbnailData.ideas[index].prompt_en;
+
+        // UI 업데이트 (선택됨 표시)
+        renderIdeas();
+
+        // 텍스트 후보 자동 배정 (레이어 동적 생성)
+        if (thumbnailData.texts && thumbnailData.texts.length > 0) {
+            // 기존 레이어 초기화 (또는 사용자에게 물어봐야 하지만, 편의상 초기화)
+            textLayers = [];
+
+            const currentStyle = document.getElementById('thumbnailStyle').value;
+            const isJapaneseViral = currentStyle === 'japanese_viral';
+
+            thumbnailData.texts.forEach((text, i) => {
+                // 기본 스타일 정의
+                let newLayer = {
+                    text: text,
+                    position: 'center',
+                    x_offset: 0,
+                    y_offset: 0,
+                    font_family: 'malgun',
+                    font_size: 72,
+                    color: '#FFFFFF',
+                    stroke_color: '#000000',
+                    stroke_width: 3,
+                    bg_color: null
+                };
+
+                // 스타일별 배치 로직
+                if (isJapaneseViral) {
+                    const x_shift = -320;
+                    newLayer.font_family = 'gmarket';
+                    newLayer.x_offset = x_shift;
+                    newLayer.stroke_width = 8;
+
+                    if (i === 0) { // Green
+                        newLayer.position = 'row1';
+                        newLayer.y_offset = 20;
+                        newLayer.font_size = 85;
+                        newLayer.color = '#00FF00';
+                        newLayer.stroke_color = '#000000';
+                    } else if (i === 1) { // Cyan
+                        newLayer.position = 'row2';
+                        newLayer.y_offset = 20;
+                        newLayer.font_size = 85;
+                        newLayer.color = '#00FFFF';
+                        newLayer.stroke_color = '#000000';
+                    } else if (i === 2) { // Purple
+                        newLayer.position = 'row3';
+                        newLayer.y_offset = 20;
+                        newLayer.font_size = 85;
+                        newLayer.color = '#E000FF';
+                        newLayer.stroke_color = '#FFFFFF';
+                    } else if (i === 3) { // Red + Yellow
+                        newLayer.position = 'row4';
+                        newLayer.y_offset = 40;
+                        newLayer.font_size = 100;
+                        newLayer.color = '#FF0000';
+                        newLayer.stroke_color = '#FFFF00';
+                        newLayer.stroke_width = 10;
+                    } else {
+                        newLayer.position = 'center';
+                    }
+                } else {
+                    // 일반 스타일: 순차적 배치
+                    if (i === 0) newLayer.position = 'row1';
+                    else if (i === 1) newLayer.position = 'row5';
+                    else newLayer.position = 'center';
+                }
+
+                textLayers.push(newLayer);
+            });
+        }
 
         // 텍스트 섹션 표시
         document.getElementById('textSection').classList.remove('hidden');
@@ -384,99 +591,763 @@ ideas는 3개 생성하세요. prompt_en은 Imagen 3에서 좋은 결과가 나�
         // 텍스트 후보 표시
         const textContainer = document.getElementById('textCandidates');
         textContainer.innerHTML = thumbnailData.texts.map(text => `
-            <button onclick="selectText('${text.replace(/'/g, "\\'")}')" class="px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 rounded-lg hover:bg-yellow-200 transition text-sm">
+            <button onclick="addTextToActiveLayer('${text.replace(/'/g, "\\'")}')" class="px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 rounded-lg hover:bg-yellow-200 transition text-sm">
                 ${text}
             </button>
         `).join('');
 
-        // 선택된 이미지 미리보기
-        document.getElementById('selectedImagePreview').innerHTML = `
-            <div class="text-center">
-                <div class="text-4xl mb-2">🖼️</div>
-                <p class="text-sm text-gray-600 dark:text-gray-400">아이디어 ${index + 1} 선택됨</p>
-                <p class="text-xs text-gray-500 mt-1">${thumbnailData.ideas[index].concept}</p>
-            </div>
-        `;
+        // 미리보기 플레이스홀더 숨기기
+        const placeholder = document.getElementById('previewPlaceholder');
+        if (placeholder) placeholder.classList.add('hidden');
 
+        renderLayers();
         Utils.showToast(`아이디어 ${index + 1} 선택됨`, 'success');
 
         // 스크롤
+        // 스크롤
         document.getElementById('textSection').scrollIntoView({ behavior: 'smooth' });
+        saveStateToLocal(); // 저장
     }
 
-    // 텍스트 선택
-    function selectText(text) {
-        document.getElementById('thumbnailText').value = text;
+    // 레이어 추가
+    function addLayer() {
+        textLayers.push({
+            text: '', position: 'center', x_offset: 0, y_offset: 0, font_family: 'malgun', font_size: 72, color: '#FFFFFF', stroke_color: '#000000', stroke_width: 2, bg_color: null
+        });
+        renderLayers();
+        saveStateToLocal();
     }
 
-    // 텍스트 색상 설정
-    function setTextColor(color) {
-        selectedTextColor = color;
-        document.getElementById('selectedColor').textContent = `선택: ${color}`;
-        document.getElementById('customColor').value = color;
+    // 레이어 제거
+    function removeLayer(index) {
+        textLayers.splice(index, 1);
+        renderLayers();
+        saveStateToLocal();
     }
+
+    // 레이어 UI 렌더링 (Compact & Position Removed)
+    function renderLayers() {
+        const container = document.getElementById('layersContainer');
+        container.innerHTML = textLayers.map((layer, i) => `
+            <div class="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 relative group shadow-sm">
+                <!-- Header -->
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-[10px] font-bold text-indigo-500 dark:text-indigo-400">LAYER ${i + 1}</span>
+                    <button onclick="removeLayer(${i})" class="text-gray-400 hover:text-red-500 transition px-2">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+                
+                <!-- Text Input -->
+                <input type="text" value="${layer.text}" oninput="updateLayer(${i}, 'text', this.value)" 
+                    class="input-field mb-3 font-bold text-sm w-full" placeholder="텍스트 입력...">
+
+                <!-- Controls Row -->
+                <div class="flex flex-wrap gap-2 items-end">
+                    <!-- Font -->
+                    <div class="flex-1 min-w-[100px]">
+                        <label class="block text-[9px] text-gray-500 mb-1">폰트</label>
+                        <select onchange="updateLayer(${i}, 'font_family', this.value)" class="input-field py-1 text-xs w-full h-8">
+                            <option value="malgun" ${layer.font_family === 'malgun' ? 'selected' : ''}>맑은고딕</option>
+                            <option value="gmarket" ${layer.font_family === 'gmarket' ? 'selected' : ''}>Gmarket</option>
+                            <option value="cookie" ${layer.font_family === 'cookie' ? 'selected' : ''}>쿠키런</option>
+                        </select>
+                    </div>
+
+                    <!-- Size -->
+                    <div class="w-14">
+                        <label class="block text-[9px] text-gray-500 mb-1">크기</label>
+                        <input type="number" value="${layer.font_size}" oninput="updateLayer(${i}, 'font_size', parseInt(this.value))" 
+                            class="input-field py-1 text-xs w-full h-8 px-1 text-center">
+                    </div>
+
+                    <div class="w-[1px] h-6 bg-gray-200 dark:bg-gray-600 mx-1 mb-1"></div>
+
+                    <!-- Text Color -->
+                    <div>
+                        <label class="block text-[9px] text-gray-500 mb-1">색상</label>
+                        <div class="h-8 w-8 relative overflow-hidden rounded border border-gray-300 dark:border-gray-600">
+                             <input type="color" value="${layer.color}" onchange="updateLayer(${i}, 'color', this.value)" 
+                                class="absolute -top-2 -left-2 w-12 h-12 p-0 border-none cursor-pointer">
+                        </div>
+                    </div>
+
+                    <!-- Stroke -->
+                    <div class="flex gap-1 items-end">
+                        <div class="group/stroke">
+                             <label class="block text-[9px] text-gray-500 mb-1">외곽선</label>
+                             <div class="h-8 w-8 relative overflow-hidden rounded border border-gray-300 dark:border-gray-600">
+                                <input type="color" value="${layer.stroke_color || '#000000'}" onchange="updateLayer(${i}, 'stroke_color', this.value)" 
+                                   class="absolute -top-2 -left-2 w-12 h-12 p-0 border-none cursor-pointer">
+                             </div>
+                        </div>
+                        <input type="number" value="${layer.stroke_width}" oninput="updateLayer(${i}, 'stroke_width', parseInt(this.value))" 
+                            class="input-field py-1 text-xs w-10 h-8 px-1 text-center" title="외곽선 두께">
+                    </div>
+
+                    <!-- BG -->
+                    <div class="flex gap-1 items-end">
+                        <div>
+                             <label class="block text-[9px] text-gray-500 mb-1">배경</label>
+                             <div class="h-8 w-8 relative overflow-hidden rounded border border-gray-300 dark:border-gray-600 ${!layer.bg_color ? 'opacity-30' : ''}">
+                                <input type="color" value="${layer.bg_color || '#000000'}" onchange="updateLayer(${i}, 'bg_color', this.value)" 
+                                   class="absolute -top-2 -left-2 w-12 h-12 p-0 border-none cursor-pointer">
+                             </div>
+                        </div>
+                        <button onclick="toggleLayerBg(${i})" class="h-8 btn-secondary text-[10px] px-2 whitespace-nowrap ${layer.bg_color ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : ''}">
+                            ${layer.bg_color ? 'ON' : 'OFF'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // --- 도형 레이어 관리 ---
+    function addShapeLayer() {
+        shapeLayers.push({
+            x: 100, y: 100, width: 300, height: 100,
+            color_start: '#000000', color_end: null, // null이면 단색
+            opacity: 0.5, opacity_end: 0.5,
+            gradient_direction: 'horizontal'
+        });
+        selectedShapeIndex = shapeLayers.length - 1; // 추가 시 자동 선택
+        renderShapeLayers();
+        drawPreview();
+        saveStateToLocal();
+    }
+
+    function removeShapeLayer(index) {
+        shapeLayers.splice(index, 1);
+        selectedShapeIndex = -1; // 선택 해제
+        renderShapeLayers();
+        drawPreview();
+        saveStateToLocal();
+    }
+
+    function updateShapeLayer(index, key, value) {
+        shapeLayers[index][key] = value;
+        drawPreview();
+        saveStateToLocal();
+    }
+
+    // 도형 선택 (UI에서 클릭 시)
+    function selectShapeLayer(index) {
+        selectedShapeIndex = index;
+        renderShapeLayers(); // 하이라이트 갱신 등을 위해
+        drawPreview(); // 핸들 표시
+    }
+
+    function renderShapeLayers() {
+        const container = document.getElementById('shapeLayersContainer');
+        container.innerHTML = shapeLayers.map((shape, i) => `
+            <div class="p-3 rounded-lg border relative transition ${i === selectedShapeIndex ? 'bg-blue-100 border-blue-400 dark:bg-blue-900/40 dark:border-blue-500 ring-1 ring-blue-400' : 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800'}"
+                 onclick="selectShapeLayer(${i})">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-[10px] font-bold text-blue-500">도형 ${i + 1}</span>
+                    <button onclick="removeShapeLayer(${i}); event.stopPropagation();" class="text-gray-400 hover:text-red-500">×</button>
+                </div>
+                
+                <div class="grid grid-cols-4 gap-2 mb-2">
+                    <input type="number" value="${shape.x}" oninput="updateShapeLayer(${i}, 'x', parseInt(this.value))" class="input-field py-1 text-xs" placeholder="X">
+                    <input type="number" value="${shape.y}" oninput="updateShapeLayer(${i}, 'y', parseInt(this.value))" class="input-field py-1 text-xs" placeholder="Y">
+                    <input type="number" value="${shape.width}" oninput="updateShapeLayer(${i}, 'width', parseInt(this.value))" class="input-field py-1 text-xs" placeholder="W">
+                    <input type="number" value="${shape.height}" oninput="updateShapeLayer(${i}, 'height', parseInt(this.value))" class="input-field py-1 text-xs" placeholder="H">
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <div>
+                        <label class="block text-[10px] text-gray-500">시작 색상</label>
+                        <input type="color" value="${shape.color_start}" onchange="updateShapeLayer(${i}, 'color_start', this.value)" class="w-full h-6 p-0 border-none rounded cursor-pointer">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-gray-500">끝 색상 (선택)</label>
+                        <div class="flex gap-1">
+                            <input type="color" value="${shape.color_end || '#000000'}" onchange="updateShapeLayer(${i}, 'color_end', this.value)" class="w-full h-6 p-0 border-none rounded cursor-pointer ${!shape.color_end ? 'opacity-30' : ''}">
+                            <button onclick="updateShapeLayer(${i}, 'color_end', '${shape.color_end ? '' : '#000000'}')" class="text-[9px] w-12 btn-secondary py-0">${shape.color_end ? 'OFF' : 'ON'}</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-1">
+                     <div class="flex items-center gap-2">
+                         <span class="text-[10px] text-gray-500 w-14">시작 투명도</span>
+                         <input type="range" min="0" max="1" step="0.1" value="${shape.opacity}" oninput="updateShapeLayer(${i}, 'opacity', parseFloat(this.value))" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                     </div>
+                     <div class="flex items-center gap-2" style="${!shape.color_end ? 'opacity: 0.5; pointer-events: none;' : ''}">
+                         <span class="text-[10px] text-gray-500 w-14">끝 투명도</span>
+                         <input type="range" min="0" max="1" step="0.1" value="${shape.opacity_end ?? shape.opacity}" oninput="updateShapeLayer(${i}, 'opacity_end', parseFloat(this.value))" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                     </div>
+                </div>
+                
+                <div class="mt-2 text-right">
+                     <select onchange="updateShapeLayer(${i}, 'gradient_direction', this.value)" class="text-xs p-1 rounded border dark:bg-gray-700 dark:border-gray-600">
+                        <option value="horizontal" ${shape.gradient_direction === 'horizontal' ? 'selected' : ''}>방향: 가로</option>
+                        <option value="vertical" ${shape.gradient_direction === 'vertical' ? 'selected' : ''}>방향: 세로</option>
+                     </select>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function updateLayer(index, key, value) {
+        textLayers[index][key] = value;
+        if (key === 'position') {
+            // 행 변경 시 오프셋 초기화 (사용자 편의)
+            textLayers[index].x_offset = 0;
+            textLayers[index].y_offset = 0;
+            renderLayers(); // 오프셋 입력창 값도 바뀌어야 하므로 전체 렌더링
+        } else {
+            drawPreview(); // 실시간 업데이트
+        }
+        saveStateToLocal();
+    }
+
+    function toggleLayerBg(index) {
+        textLayers[index].bg_color = textLayers[index].bg_color ? null : '#000000';
+        renderLayers();
+        saveStateToLocal();
+    }
+
+    function addTextToActiveLayer(text) {
+        const emptyLayer = textLayers.find(l => !l.text) || textLayers[0];
+        emptyLayer.text = text;
+        renderLayers();
+        saveStateToLocal();
+    }
+
+    // 캔버스 이벤트 초기화 (드래그 앤 드롭)
+    function initCanvasEvents() {
+        const canvas = document.getElementById('thumbnailCanvas');
+        if (!canvas) return;
+
+        canvas.addEventListener('mousedown', handleMouseDown);
+        canvas.addEventListener('mousemove', handleMouseMove);
+        canvas.addEventListener('mouseup', handleMouseUp);
+        canvas.addEventListener('mouseout', handleMouseUp);
+
+        // 터치 이벤트 지원 (모바일)
+        canvas.addEventListener('touchstart', (e) => handleMouseDown(e.touches[0]));
+        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); handleMouseMove(e.touches[0]); });
+        canvas.addEventListener('touchend', handleMouseUp);
+    }
+
+    function getCanvasCoordinates(e, canvas) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        return {
+            x: (e.clientX - rect.left) * scaleX,
+            y: (e.clientY - rect.top) * scaleY
+        };
+    }
+
+    function handleMouseDown(e) {
+        e.preventDefault(); // 기본 드래그 방지
+        const canvas = document.getElementById('thumbnailCanvas');
+        const coords = getCanvasCoordinates(e, canvas);
+
+        // 0. 핸들 클릭 확인 (이미 선택된 도형이 있을 때)
+        if (selectedShapeIndex !== -1) {
+            for (let i = 0; i < shapeHandleBBoxes.length; i++) {
+                const h = shapeHandleBBoxes[i];
+                // 현재 선택된 도형의 핸들인지 확인
+                if (h.index !== selectedShapeIndex) continue;
+
+                if (coords.x >= h.x && coords.x <= h.x + h.w &&
+                    coords.y >= h.y && coords.y <= h.y + h.h) {
+
+                    isDragging = true;
+                    resizeHandle = h.type;
+                    dragStartX = coords.x;
+                    dragStartY = coords.y;
+
+                    const shape = shapeLayers[selectedShapeIndex];
+                    initialShapeParams = { x: shape.x, y: shape.y, w: shape.width, h: shape.height };
+                    return; // 리사이즈 시작하면 종료
+                }
+            }
+        }
+
+        // 1. 도형 클릭 확인 (텍스트보다 아래에 있으므로 먼저 체크하지만 텍스트가 우선권 가짐)
+        // 하지만 직관성을 위해 '가장 위에 있는 요소'를 선택하는게 맞음.
+        // 여기선 단순화를 위해: 텍스트 히트 -> 텍스트 드래그 / 도형 히트(텍스트 아님) -> 도형 선택+드래그
+
+        // 텍스트 히트 테스트
+        let hitText = false;
+        for (let i = layerBBoxes.length - 1; i >= 0; i--) {
+            const bbox = layerBBoxes[i];
+            if (coords.x >= bbox.x && coords.x <= bbox.x + bbox.w &&
+                coords.y >= bbox.y && coords.y <= bbox.y + bbox.h) {
+
+                isDragging = true;
+                draggedLayerIndex = bbox.index;
+                resizeHandle = null; // 텍스트 드래그임
+
+                dragStartX = coords.x;
+                dragStartY = coords.y;
+                initialLayerX = textLayers[draggedLayerIndex].x_offset || 0;
+                initialLayerY = textLayers[draggedLayerIndex].y_offset || 0;
+
+                canvas.style.cursor = 'grabbing';
+                hitText = true;
+
+                // 텍스트 선택 시 도형 선택 해제 (원한다면)
+                // selectedShapeIndex = -1; renderShapeLayers();
+                break;
+            }
+        }
+        if (hitText) return;
+
+        // 도형 히트 테스트
+        for (let i = shapeBBoxes.length - 1; i >= 0; i--) {
+            const bbox = shapeBBoxes[i];
+            if (coords.x >= bbox.x && coords.x <= bbox.x + bbox.w &&
+                coords.y >= bbox.y && coords.y <= bbox.y + bbox.h) {
+
+                selectedShapeIndex = bbox.index;
+                isDragging = true;
+                resizeHandle = 'move_shape'; // 특별 타입
+
+                dragStartX = coords.x;
+                dragStartY = coords.y;
+                const shape = shapeLayers[selectedShapeIndex];
+                initialShapeParams = { x: shape.x, y: shape.y, w: shape.width, h: shape.height };
+
+                renderShapeLayers(); // UI Highlight
+                drawPreview(); // Show Handles
+                return;
+            }
+        }
+
+        // 아무것도 안찍음 -> 선택 해제
+        if (selectedShapeIndex !== -1) {
+            selectedShapeIndex = -1;
+            renderShapeLayers();
+            drawPreview();
+        }
+    }
+
+    function handleMouseMove(e) {
+        const canvas = document.getElementById('thumbnailCanvas');
+        const coords = getCanvasCoordinates(e, canvas);
+
+        if (!isDragging) {
+            // 커서 업데이트 로직
+            let cursor = 'default';
+
+            // 1. 핸들 오버
+            if (selectedShapeIndex !== -1) {
+                for (const h of shapeHandleBBoxes) {
+                    if (h.index === selectedShapeIndex &&
+                        coords.x >= h.x && coords.x <= h.x + h.w &&
+                        coords.y >= h.y && coords.y <= h.y + h.h) {
+
+                        if (h.type === 'nw' || h.type === 'se') cursor = 'nwse-resize';
+                        else if (h.type === 'ne' || h.type === 'sw') cursor = 'nesw-resize';
+                        else if (h.type === 'n' || h.type === 's') cursor = 'ns-resize';
+                        else if (h.type === 'e' || h.type === 'w') cursor = 'ew-resize';
+                        break;
+                    }
+                }
+            }
+
+            // 2. 텍스트 오버
+            if (cursor === 'default') {
+                for (const bbox of layerBBoxes) {
+                    if (coords.x >= bbox.x && coords.x <= bbox.x + bbox.w &&
+                        coords.y >= bbox.y && coords.y <= bbox.y + bbox.h) {
+                        cursor = 'grab'; break;
+                    }
+                }
+            }
+
+            // 3. 도형 오버
+            if (cursor === 'default') {
+                for (const bbox of shapeBBoxes) {
+                    if (coords.x >= bbox.x && coords.x <= bbox.x + bbox.w &&
+                        coords.y >= bbox.y && coords.y <= bbox.y + bbox.h) {
+                        cursor = 'move'; break;
+                    }
+                }
+            }
+
+            canvas.style.cursor = cursor;
+            return;
+        }
+
+        // 드래그/리사이즈 처리
+        const dx = coords.x - dragStartX;
+        const dy = coords.y - dragStartY;
+
+        if (resizeHandle && selectedShapeIndex !== -1) {
+            const shape = shapeLayers[selectedShapeIndex];
+            const init = initialShapeParams;
+
+            if (resizeHandle === 'move_shape') {
+                shape.x = init.x + dx;
+                shape.y = init.y + dy;
+            } else {
+                // Resize Logic
+                if (resizeHandle.includes('e')) shape.width = Math.max(10, init.w + dx);
+                if (resizeHandle.includes('s')) shape.height = Math.max(10, init.h + dy);
+                if (resizeHandle.includes('w')) {
+                    const newW = Math.max(10, init.w - dx);
+                    shape.x = init.x + (init.w - newW);
+                    shape.width = newW;
+                }
+                if (resizeHandle.includes('n')) {
+                    const newH = Math.max(10, init.h - dy);
+                    shape.y = init.y + (init.h - newH);
+                    shape.height = newH;
+                }
+            }
+            renderShapeLayers(); // 수치 업데이트
+            drawPreview();
+        } else if (draggedLayerIndex !== -1) {
+            // 텍스트 이동
+            textLayers[draggedLayerIndex].x_offset = initialLayerX + dx;
+            textLayers[draggedLayerIndex].y_offset = initialLayerY + dy;
+            drawPreview();
+        }
+    }
+
+    function handleMouseUp() {
+        if (isDragging) {
+            isDragging = false;
+            resizeHandle = null;
+            draggedLayerIndex = -1;
+            document.getElementById('thumbnailCanvas').style.cursor = 'default';
+            renderLayers(); // 텍스트만 업데이트
+            renderShapeLayers(); // 도형 업데이트
+            saveStateToLocal(); // 드래그 종료 시 저장
+        }
+    }
+
+    // 배경 생성 함수
+    async function generateBackground() {
+        if (!selectedPrompt) {
+            Utils.showToast('먼저 아이디어를 선택하세요', 'warning');
+            return;
+        }
+
+        const btn = document.getElementById('bgBtn');
+        Utils.setLoading(btn, true, '배경 생성 중... (40초 소요)');
+
+        try {
+            const result = await API.image.generateThumbnailBackground(selectedPrompt);
+
+            if (result.status === 'ok') {
+                currentBackgroundPath = result.path;
+                currentBackgroundUrl = result.url;
+
+                Utils.showToast('배경 이미지가 생성되었습니다!', 'success');
+                drawPreview(); // 배경 적용
+                saveStateToLocal(); // 저장
+            } else {
+                // 404 등의 경우 detail 필드로 에러가 옴
+                const errorMsg = result.error || result.detail || '배경 생성 실패';
+                if (errorMsg === 'Not Found' || errorMsg.includes('Not Found')) {
+                    Utils.showToast('⚠️ 서버 재시작이 필요합니다. (새로운 기능 적용을 위해 main.py를 재실행해주세요)', 'error');
+                } else {
+                    Utils.showToast(errorMsg, 'error');
+                }
+            }
+        } catch (error) {
+            Utils.showToast('오류가 발생했습니다: ' + error.message, 'error');
+            console.error(error);
+        } finally {
+            Utils.setLoading(btn, false);
+        }
+    }
+
+    // 캔버스 미리보기 렌더링
+    function drawPreview() {
+        const canvas = document.getElementById('thumbnailCanvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+
+        // 2. 배경 그리기
+        if (currentBackgroundUrl) {
+            const bgImg = new Image();
+            bgImg.src = currentBackgroundUrl;
+            // 배경 이미지는 비동기 로드될 수 있으므로 drawPreview 호출 시점 중요. 
+            // 여기선 이미 로드되었다고 가정하거나, onload 핸들러가 필요할 수 있음.
+            // 단순화를 위해 이미지 객체가 캐시되어 있다고 가정.
+            // 실제로는 currentBackgroundUrl 설정 시점에 프리로딩 하는 것이 좋음.
+            if (bgImg.complete) {
+                ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+                drawShapeLayers(ctx); // 배경 로드 후 도형 다시 그리기
+                drawTextOverlays(ctx); // 배경 로드 후 텍스트 다시 그리기
+            } else {
+                bgImg.onload = () => {
+                    ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+                    drawShapeLayers(ctx); // 배경 로드 후 도형 다시 그리기
+                    drawTextOverlays(ctx); // 배경 로드 후 텍스트 다시 그리기
+                }
+            }
+        } else {
+            // 기본 배경
+            ctx.fillStyle = '#1f2937';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            drawShapeLayers(ctx); // 배경 로드 후 도형 다시 그리기
+            drawTextOverlays(ctx); // 배경 로드 후 텍스트 다시 그리기
+        }
+    }
+
+    function drawShapeLayers(ctx) {
+        if (!shapeLayers) return;
+        shapeBBoxes = [];
+        shapeHandleBBoxes = [];
+
+        shapeLayers.forEach((shape, i) => {
+            const x = shape.x;
+            const y = shape.y;
+            const w = shape.width;
+            const h = shape.height;
+
+            // Hitbox 저장
+            shapeBBoxes.push({ x, y, w, h, index: i });
+
+            // Hex to RGB Helper
+            const hexToRgb = (hex) => {
+                const bigint = parseInt(hex.slice(1), 16);
+                const r = (bigint >> 16) & 255;
+                const g = (bigint >> 8) & 255;
+                const b = bigint & 255;
+                return `${r}, ${g}, ${b}`;
+            };
+
+            const startRgb = hexToRgb(shape.color_start);
+            const opacityStart = shape.opacity !== undefined ? shape.opacity : 1.0;
+            const opacityEnd = shape.opacity_end !== undefined ? shape.opacity_end : opacityStart;
+
+            let fillStyle;
+
+            if (shape.color_end && shape.color_end !== shape.color_start) {
+                const endRgb = hexToRgb(shape.color_end);
+
+                // 그라디언트
+                let grad;
+                if (shape.gradient_direction === 'vertical') {
+                    grad = ctx.createLinearGradient(x, y, x, y + h);
+                } else {
+                    grad = ctx.createLinearGradient(x, y, x + w, y);
+                }
+
+                grad.addColorStop(0, `rgba(${startRgb}, ${opacityStart})`);
+                grad.addColorStop(1, `rgba(${endRgb}, ${opacityEnd})`);
+                fillStyle = grad;
+            } else if (opacityStart !== opacityEnd) {
+                // 단색이지만 투명도만 다를 때 (투명도 그라디언트)
+                let grad;
+                if (shape.gradient_direction === 'vertical') {
+                    grad = ctx.createLinearGradient(x, y, x, y + h);
+                } else {
+                    grad = ctx.createLinearGradient(x, y, x + w, y);
+                }
+                grad.addColorStop(0, `rgba(${startRgb}, ${opacityStart})`);
+                grad.addColorStop(1, `rgba(${startRgb}, ${opacityEnd})`);
+                fillStyle = grad;
+            } else {
+                // 완전 단색
+                fillStyle = `rgba(${startRgb}, ${opacityStart})`;
+            }
+
+            ctx.save();
+            ctx.fillStyle = fillStyle;
+            ctx.fillRect(x, y, w, h);
+
+            // 선택된 도형은 외곽선 + 핸들 표시
+            if (i === selectedShapeIndex) {
+                ctx.strokeStyle = '#00cdff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x, y, w, h);
+
+                // 핸들 그리기
+                const handleSize = 8;
+                const handles = [
+                    { type: 'nw', x: x, y: y },
+                    { type: 'n', x: x + w / 2, y: y },
+                    { type: 'ne', x: x + w, y: y },
+                    { type: 'e', x: x + w, y: y + h / 2 },
+                    { type: 'se', x: x + w, y: y + h },
+                    { type: 's', x: x + w / 2, y: y + h },
+                    { type: 'sw', x: x, y: y + h },
+                    { type: 'w', x: x, y: y + h / 2 }
+                ];
+
+                ctx.strokeStyle = '#00cdff';
+                ctx.fillStyle = '#ffffff';
+
+                handles.forEach(h => {
+                    const hx = h.x - handleSize / 2;
+                    const hy = h.y - handleSize / 2;
+                    ctx.fillRect(hx, hy, handleSize, handleSize);
+                    ctx.strokeRect(hx, hy, handleSize, handleSize);
+
+                    shapeHandleBBoxes.push({
+                        x: hx, y: hy, w: handleSize, h: handleSize,
+                        type: h.type, index: i
+                    });
+                });
+            }
+            ctx.restore();
+        });
+    }
+
+    // 텍스트 그리기 (기본 함수 분리)
+    function drawTextOverlays(ctx) {
+        // 히트박스 초기화
+        layerBBoxes = [];
+
+        // 기본 폰트 설정 (브라우저 캔버스용)
+        // main.py와 최대한 비슷하게 맞춤
+        const getFont = (family, size) => {
+            let fontName = 'Malgun Gothic';
+            if (family === 'gmarket') fontName = 'Gmarket Sans';
+            if (family === 'cookie') fontName = 'CookieRun';
+            return `bold ${size}px "${fontName}", sans-serif`;
+        };
+
+        textLayers.forEach((layer, i) => {
+            if (!layer.text.trim()) return;
+
+            ctx.save();
+            ctx.font = getFont(layer.font_family, layer.font_size);
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            // 위치 계산 (main.py 로직 포팅)
+            let x = 640; // center
+            let y = 360;
+
+            if (layer.position === 'center') y = 360;
+            else if (layer.position === 'top') y = 100;
+            else if (layer.position === 'bottom') y = 620;
+            else if (layer.position === 'row1') y = 100;
+            else if (layer.position === 'row2') y = 250;
+            else if (layer.position === 'row3') y = 400;
+            else if (layer.position === 'row4') y = 550;
+            else if (layer.position === 'row5') y = 650;
+
+            x += (layer.x_offset || 0);
+            y += (layer.y_offset || 0);
+
+            // 외곽선
+            if (layer.stroke_width > 0) {
+                ctx.lineWidth = layer.stroke_width * 2; // 캔버스는 중앙 기준이라 2배
+                ctx.strokeStyle = layer.stroke_color;
+                ctx.strokeText(layer.text, x, y);
+            }
+
+            // 채우기
+            ctx.fillStyle = layer.color;
+            ctx.fillText(layer.text, x, y);
+
+            // 히트박스 저장 (대략적)
+            const metrics = ctx.measureText(layer.text);
+            const w = metrics.width;
+            const h = layer.font_size; // 근사치
+            layerBBoxes.push({
+                x: x - w / 2,
+                y: y - h / 2,
+                w: w,
+                h: h,
+                index: i
+            });
+
+            ctx.restore();
+        });
+    }
+
+    // renderLayers에서 drawPreview 호출 포함
+    const originalRenderLayers = renderLayers;
+    renderLayers = function () {
+        originalRenderLayers();
+        drawPreview();
+    };
 
     // 최종 썸네일 생성
+    // 최종 썸네일 생성 (Canvas 캡처 & 저장)
     async function generateFinalThumbnail() {
         if (!selectedPrompt) {
             Utils.showToast('먼저 아이디어를 선택하세요', 'warning');
             return;
         }
 
-        const text = document.getElementById('thumbnailText').value.trim();
-        const position = document.getElementById('textPosition').value;
-        const fontSize = parseInt(document.getElementById('fontSize').value);
+        const validLayers = textLayers.filter(l => l.text.trim() !== '');
+        if (validLayers.length === 0 && shapeLayers.length === 0) {
+            Utils.showToast('최소 하나 이상의 텍스트 또는 도형을 입력하세요', 'warning');
+            return;
+        }
 
         const btn = document.getElementById('generateBtn');
-        Utils.setLoading(btn, true, '이미지 생성 중... (30초 소요)');
+        const originalText = btn.innerText;
+        Utils.setLoading(btn, true, '썸네일 저장 중...');
 
         try {
-            let result;
+            const canvas = document.getElementById('thumbnailCanvas');
 
-            if (text) {
-                // 텍스트 포함 썸네일 생성
-                result = await API.image.generateThumbnail(selectedPrompt, text, {
-                    textPosition: position,
-                    textColor: selectedTextColor,
-                    fontSize: fontSize,
-                    language: targetLang // 언어 설정 전달
-                });
-            } else {
-                // 이미지만 생성
-                result = await API.image.generate(selectedPrompt, '16:9');
-            }
-
-            if (result.status === 'ok') {
-                // 결과 표시
-                document.getElementById('resultImage').src = result.url;
-                document.getElementById('downloadLink').href = result.url;
-                document.getElementById('resultSection').classList.remove('hidden');
-
-                // 이력 추가
-                generatedHistory.unshift(result.url);
-                updateHistory();
-
-                Utils.showToast('썸네일 생성 완료!', 'success');
-
-                // 프로젝트에 저장
-                const projectId = getCurrentProject();
-                if (projectId) {
-                    // 썸네일 아이디어/텍스트 저장
-                    await API.project.saveThumbnails(projectId, thumbnailData.ideas, thumbnailData.texts);
-                    // 생성된 썸네일 URL 저장 (프로젝트 설정에)
-                    await API.project.updateSetting(projectId, 'thumbnail_url', result.url);
-                    console.log('썸네일 URL 저장됨:', result.url);
+            // 캔버스 데이터를 Blob으로 변환
+            canvas.toBlob(async (blob) => {
+                if (!blob) {
+                    Utils.setLoading(btn, false);
+                    Utils.showToast('이미지 변환에 실패했습니다', 'error');
+                    return;
                 }
 
-                // 스크롤
-                document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth' });
-            } else {
-                Utils.showToast(result.error || '이미지 생성 실패', 'error');
-            }
+                const projectId = getCurrentProject();
+                if (!projectId) {
+                    Utils.setLoading(btn, false);
+                    Utils.showToast('프로젝트 정보를 찾을 수 없습니다', 'error');
+                    return;
+                }
+
+                // 서버로 전송
+                const formData = new FormData();
+                formData.append('file', blob, 'thumbnail.png');
+
+                try {
+                    const response = await fetch(`/api/projects/${projectId}/thumbnail/save`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+
+                    if (response.ok && result.status === 'ok') {
+                        // 결과 표시
+                        document.getElementById('resultImage').src = result.url;
+                        document.getElementById('downloadLink').href = result.url;
+                        document.getElementById('resultSection').classList.remove('hidden');
+
+                        // 이력 추가
+                        generatedHistory.unshift(result.url);
+                        updateHistory();
+
+                        Utils.showToast('썸네일이 저장되었습니다!', 'success');
+
+                        // 썸네일 아이디어/텍스트 정보도 함께 저장 (선택 사항)
+                        try {
+                            await API.project.saveThumbnails(projectId, thumbnailData.ideas, thumbnailData.texts);
+                        } catch (ignore) { }
+
+                        saveStateToLocal(); // 저장
+                        document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth' });
+                    } else {
+                        throw new Error(result.detail || result.error || '저장 실패');
+                    }
+                } catch (err) {
+                    console.error('Upload Error:', err);
+                    Utils.showToast(`저장 실패: ${err.message}`, 'error');
+                } finally {
+                    Utils.setLoading(btn, false);
+                }
+            }, 'image/png', 1.0); // High quality
+
         } catch (error) {
             Utils.showToast('오류가 발생했습니다: ' + error.message, 'error');
             console.error(error);
-        } finally {
             Utils.setLoading(btn, false);
         }
     }
@@ -494,6 +1365,97 @@ ideas는 3개 생성하세요. prompt_en은 Imagen 3에서 좋은 결과가 나�
     // 다시 생성
     function regenerate() {
         generateFinalThumbnail();
+    }
+
+    // --- Persistence Logic ---
+    function saveStateToLocal() {
+        const title = document.getElementById('videoTitle').value;
+        const style = document.getElementById('thumbnailStyle').value;
+        const color = document.getElementById('colorTone').value;
+
+        const state = {
+            title,
+            style,
+            color,
+            thumbnailData,
+            selectedIdeaIndex,
+            selectedPrompt,
+            textLayers,
+            shapeLayers,
+            currentBackgroundPath,
+            currentBackgroundUrl,
+            generatedHistory
+        };
+        localStorage.setItem('thumbnail_gen_state', JSON.stringify(state));
+    }
+
+    function loadStateFromLocal() {
+        const saved = localStorage.getItem('thumbnail_gen_state');
+        if (!saved) return;
+
+        try {
+            const state = JSON.parse(saved);
+
+            if (state.title) document.getElementById('videoTitle').value = state.title;
+            if (state.style) selectThumbnailStyle(state.style); // This might reset layers, so we load layers after
+            if (state.color) document.getElementById('colorTone').value = state.color;
+
+            if (state.thumbnailData) {
+                thumbnailData = state.thumbnailData;
+                selectedIdeaIndex = state.selectedIdeaIndex;
+                selectedPrompt = state.selectedPrompt;
+                renderIdeas();
+                document.getElementById('ideasSection').classList.remove('hidden');
+            }
+
+            if (state.textLayers) {
+                textLayers = state.textLayers;
+                document.getElementById('textSection').classList.remove('hidden');
+                // 텍스트 후보 표시 복구
+                if (thumbnailData && thumbnailData.texts) {
+                    const textContainer = document.getElementById('textCandidates');
+                    textContainer.innerHTML = thumbnailData.texts.map(text => `
+                        <button onclick="addTextToActiveLayer('${text.replace(/'/g, "\\'")}')" class="px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 rounded-lg hover:bg-yellow-200 transition text-sm">
+                            ${text}
+                        </button>
+                    `).join('');
+                }
+            }
+            if (state.shapeLayers) shapeLayers = state.shapeLayers;
+
+            // 배경 이미지 복구
+            if (state.currentBackgroundUrl) {
+                currentBackgroundPath = state.currentBackgroundPath;
+                currentBackgroundUrl = state.currentBackgroundUrl;
+
+                // 이미지 로드 후 그리기
+                const img = new Image();
+                img.onload = () => {
+                    drawPreview();
+                };
+                img.src = state.currentBackgroundUrl;
+
+                // 배경 이미지가 있으면 결과 섹션이 아니라 프리뷰에 보여야 함.
+                // 하지만 currentBackgroundUrl은 생성된 '배경' 이미지 URL임.
+                document.getElementById('backgroundPreview').src = state.currentBackgroundUrl;
+                document.getElementById('backgroundPreview').classList.remove('hidden');
+                document.getElementById('backgroundPlaceholder').classList.add('hidden');
+            }
+
+            if (state.generatedHistory) {
+                generatedHistory = state.generatedHistory;
+                updateHistory();
+            }
+
+            renderLayers();
+            renderShapeLayers();
+            drawPreview();
+
+            Utils.showToast('이전 작업 상태를 복구했습니다.', 'info');
+
+        } catch (e) {
+            console.error('State load error:', e);
+        }
     }
 </script>
 {% endblock %}

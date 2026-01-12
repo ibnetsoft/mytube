@@ -97,6 +97,19 @@ def init_db():
         )
     """)
 
+    # 채널 관리 (설정)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS channels (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            handle TEXT,
+            description TEXT,
+            credentials_path TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     # 생성된 대본
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS scripts (
@@ -283,6 +296,24 @@ def migrate_db():
 
     try:
         cursor.execute("ALTER TABLE project_settings ADD COLUMN background_video_url TEXT")
+    except sqlite3.OperationalError:
+        pass
+    
+    # Intro video path
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN intro_video_path TEXT")
+    except sqlite3.OperationalError:
+        pass
+    
+    # External video path (for uploaded videos)
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN external_video_path TEXT")
+    except sqlite3.OperationalError:
+        pass
+
+    # Channel Auth Migration
+    try:
+        cursor.execute("ALTER TABLE channels ADD COLUMN credentials_path TEXT")
     except sqlite3.OperationalError:
         pass
         
