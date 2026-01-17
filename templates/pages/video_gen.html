@@ -42,9 +42,9 @@
         </div>
 
         <!-- Whisk Tool Link -->
-        <a href="https://labs.google/fx/ko/tools/whisk" target="_blank"
+        <a href="https://labs.google/fx/ko/tools/flow" target="_blank"
             class="ml-auto flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-full border border-blue-100 dark:border-blue-800 transition">
-            <span>🎨 ImageFX (Whisk)</span>
+            <span>🎥 VideoFX (Flow)</span>
             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
@@ -181,6 +181,9 @@
                 await API.project.updateSetting(projectId, 'video_path', null); // Reset video path to force re-render perception
                 Utils.showToast('배경 동영상이 선택되었습니다. (Loop Mode)', 'success');
 
+                // [NEW] Update Stepper
+                if (window.updateStepStatus) window.updateStepStatus('intro', true);
+
                 document.getElementById('nextStepSection').classList.remove('hidden');
             } catch (e) {
                 console.error(e);
@@ -221,6 +224,9 @@
                 Utils.showToast('인트로 영상이 업로드 및 설정되었습니다.', 'success');
                 status.textContent = "완료!";
                 setTimeout(() => status.classList.add('hidden'), 2000);
+
+                // [NEW] Update Stepper
+                if (window.updateStepStatus) window.updateStepStatus('intro', true);
 
                 // Show as a result card (Mock ID) - using a video tag for thumbnail could be complex, 
                 // so we just show a generic placeholder or the video itself.
@@ -267,9 +273,87 @@
         }
     }
 
+    function updateHeaderStatus(stepName, isComplete) {
+        const step = document.querySelector(`.step-item[data-step="${stepName}"]`);
+        if (step && isComplete) {
+            const circle = step.querySelector('.step-circle');
+            const text = step.querySelector('span');
+
+            if (circle) {
+                circle.classList.remove('bg-gray-200', 'dark:bg-gray-700', 'border-white', 'dark:border-gray-900');
+                circle.classList.add('bg-green-500', 'border-green-500', 'text-white');
+                circle.innerHTML = '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>';
+            }
+
+            if (text) {
+                text.classList.remove('text-gray-400');
+                text.classList.add('text-green-600', 'dark:text-green-400', 'font-bold');
+            }
+        }
+    }
+
     // Auto-Search on Load if coming from "Old Story"
-    document.addEventListener('DOMContentLoaded', () => {
-        // Maybe redundant to search here, but good to have
+    document.addEventListener('DOMContentLoaded', async () => {
+        const projectId = getCurrentProject();
+        if (projectId) {
+            try {
+                const fullData = await API.project.getFull(projectId);
+
+                // [NEW] Check Intro Video Persistence or Generic Background Persistence
+                let videoPath = fullData.settings && fullData.settings.intro_video_path;
+                let isIntroUpload = true;
+
+                if (!videoPath) {
+                    videoPath = fullData.settings && fullData.settings.background_video_url;
+                    isIntroUpload = false;
+                }
+
+                if (videoPath) {
+                    // Normalize Path
+                    let webPath = videoPath;
+                    if (videoPath.includes('\\') || (videoPath.startsWith('uploads') && !videoPath.startsWith('/'))) {
+                        webPath = videoPath.replace(/\\/g, '/');
+                        if (!webPath.startsWith('/')) {
+                            webPath = '/' + webPath;
+                        }
+                    }
+
+                    // Render Card
+                    const container = document.getElementById('videoResultsList');
+                    if (container) {
+                        const label = isIntroUpload ? "Uploaded" : "Selected";
+                        container.innerHTML = `
+                            <div class="group relative rounded-lg overflow-hidden border border-blue-500 shadow-md bg-black cursor-pointer">
+                                <div class="aspect-video relative flex items-center justify-center bg-gray-800">
+                                    <video src="${webPath}" class="w-full h-full object-contain" muted onmouseover="this.play()" onmouseout="this.pause();this.currentTime=0;"></video>
+                                    <div class="absolute bottom-1 right-1 bg-blue-600 text-white text-[10px] px-1 rounded">
+                                        ${label}
+                                    </div>
+                                </div>
+                                <div class="absolute inset-0 bg-blue-500/30 border-4 border-blue-500 flex items-start justify-end p-2 pointer-events-none">
+                                    <div class="bg-blue-500 text-white rounded-full p-1 shadow-lg">✓</div>
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    const nextSection = document.getElementById('nextStepSection');
+                    if (nextSection) nextSection.classList.remove('hidden');
+
+                    // Update Header Status (Green Light)
+                    updateHeaderStatus('intro', true);
+
+                    // Status Badge Update
+                    const status = document.getElementById('uploadStatus');
+                    if (status) {
+                        status.textContent = "저장된 영상 불러옴";
+                        status.classList.remove('hidden');
+                    }
+                }
+            } catch (e) {
+                console.error("Load failed", e);
+            }
+        }
     });
 </script>
 {% endblock %}

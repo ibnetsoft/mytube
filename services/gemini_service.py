@@ -41,6 +41,40 @@ class GeminiService:
             else:
                 raise Exception(f"Gemini API 오류: {result}")
 
+    async def generate_text_from_image(self, prompt: str, image_bytes: bytes, mime_type: str = "image/png") -> str:
+        """이미지 + 텍스트 생성 (Vision)"""
+        url = f"{self.base_url}/models/gemini-2.0-flash:generateContent?key={self.api_key}"
+
+        encoded_image = base64.b64encode(image_bytes).decode("utf-8")
+
+        payload = {
+            "contents": [{
+                "parts": [
+                    {"text": prompt},
+                    {
+                        "inline_data": {
+                            "mime_type": mime_type,
+                            "data": encoded_image
+                        }
+                    }
+                ]
+            }],
+            "generationConfig": {
+                "temperature": 0.4, # Lower temperature for accurate description
+                "maxOutputTokens": 2048
+            }
+        }
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(url, json=payload)
+            result = response.json()
+
+            if "candidates" in result:
+                return result["candidates"][0]["content"]["parts"][0]["text"]
+            else:
+                error_msg = result.get('error', {}).get('message', str(result))
+                raise Exception(f"Gemini Vision API 오류: {error_msg}")
+
     async def generate_image(
         self,
         prompt: str,
@@ -103,6 +137,7 @@ class GeminiService:
             "instances": [instance_data],
             "parameters": {
                 "sampleCount": 1,
+                "aspectRatio": aspect_ratio  # [NEW] Pass Aspect Ratio
             }
         }
 
@@ -592,6 +627,63 @@ class GeminiService:
             import traceback
             traceback.print_exc()
             return {"status": "error", "error": str(e)}
+
+    async def match_images_to_subtitles(self, subtitles: List[dict], image_data: List[dict]) -> dict:
+        """
+        자막(텍스트)와 이미지(프롬프트)를 분석하여 최적의 매칭(타이밍)을 생성
+        output: { "assignments": [ {"image_index": 0, "subtitle_index": 0}, ... ] }
+        """
+        
+        # 데이터 간소화 (토큰 절약)
+        subs_simplified = [{"id": i, "text": s['text'], "start": s['start'], "end": s['end']} for i, s in enumerate(subtitles)]
+        imgs_simplified = [{"id": i, "prompt": img.get('prompt', 'Unknown Scene')} for i, img in enumerate(image_data)]
+        
+        prompt = f"""
+        You are a Professional Video Editor.
+        Your task is to assign the provided Images (described by prompts) to the Subtitles (timeline) to create a cohesive video flow.
+
+        [Inputs]
+        1. Subtitles (Timeline):
+        {json.dumps(subs_simplified, ensure_ascii=False, indent=1)}
+
+        2. Available Images (Asset Pool):
+        {json.dumps(imgs_simplified, ensure_ascii=False, indent=1)}
+
+        [Instructions]
+        - Assign EVERY Image to a specific Subtitle index where it should START appearing.
+        - Images should be distributed logically based on the narrative context (Semantic Match).
+        - If an image matches a specific keyword in a subtitle, place it there.
+        - Ensure images are spread out; do not clump them all at the beginning.
+        - Return the result as a JSON object with a list of assignments.
+
+        [Output Format]
+        {{
+            "assignments": [
+                {{ "image_id": 0, "subtitle_id": 2 }},
+                {{ "image_id": 1, "subtitle_id": 5 }},
+                ...
+            ]
+        }}
+        """
+
+        try:
+            print(f"[Gemini Sync] Sending {len(subs_simplified)} subs and {len(imgs_simplified)} images to AI...")
+            text = await self.generate_text(prompt, temperature=0.1)
+            print(f"[Gemini Sync] Response: {text[:200]}...") # Log first 200 chars
+            
+            # JSON 파싱
+            import re
+            json_match = re.search(r'\{[\s\S]*\}', text)
+            if json_match:
+                data = json.loads(json_match.group())
+                print(f"[Gemini Sync] Parsed Data: {data}")
+                return data
+            print("[Gemini Sync] JSON Parse Failed")
+            return {"assignments": []}
+            
+        except Exception as e:
+            print(f"Image-Subtitle Match Failed: {e}")
+            return {"assignments": []}
 
 # 싱글톤 인스턴스
 gemini_service = GeminiService()

@@ -3,52 +3,57 @@
 {% block content %}
 
 
-<!-- 분석 데이터 표시 -->
-<div id="analysisInfo" class="card container-content section-spacing hidden">
-    <h3 class="card-title">📊 분석 데이터 기반</h3>
-    <div id="analysisContent"></div>
-</div>
+<!-- Flex Container for Analysis & Settings -->
+<div class="flex flex-col lg:flex-row gap-4 section-spacing">
 
-<!-- 대본 설정 -->
-<div class="card container-content section-spacing">
-    <h3 class="card-title">⚙️ 대본 설정</h3>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-        <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">영상 주제</label>
-            <input type="text" id="topicInput" class="input-field" placeholder="예: 초보자를 위한 파이썬 강의">
-        </div>
-        <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">영상 길이</label>
-            <div class="flex items-center gap-2">
-                <input type="number" id="durationInput" class="input-field w-32" value="60" min="1" step="1">
-                <span class="text-gray-700 dark:text-gray-300">분</span>
+    <!-- 분석 데이터 표시 (Left) -->
+    <div id="analysisInfo" class="card hidden lg:w-1/3 h-fit">
+        <h3 class="card-title">📊 분석 데이터 기반</h3>
+        <div id="analysisContent"></div>
+    </div>
+
+    <!-- 대본 설정 (Right, Expands) -->
+    <div class="card flex-1 h-fit">
+        <h3 class="card-title">⚙️ 대본 설정</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">영상 주제</label>
+                <input type="text" id="topicInput" class="input-field" placeholder="예: 초보자를 위한 파이썬 강의">
             </div>
-            <p class="text-xs text-gray-500 mt-1">기본값: 60분 (대본 길이 기준)</p>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">영상 길이</label>
+                <div class="flex items-center gap-2">
+                    <input type="number" id="durationInput" class="input-field w-32" value="60" min="1" step="1">
+                    <span id="durationUnit" class="text-gray-700 dark:text-gray-300">분</span>
+                </div>
+                <p id="durationHelper" class="text-xs text-gray-500 mt-1">기본값: 60분</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">대본 스타일</label>
+                <select id="scriptStyleSelect" class="input-field">
+                    <option value="news" selected>뉴스 보도 (News Delivery)</option>
+                    <option value="story">옛날 이야기 (Old Story)</option>
+                    <option value="senior_story">시니어 사연 (Senior Story)</option>
+                    <option value="bgm">배경음악 중심 (BGM Focus)</option>
+                </select>
+                <p class="text-xs text-gray-500 mt-1">기본값: 뉴스 보도</p>
+            </div>
         </div>
         <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">대본 스타일</label>
-            <select id="scriptStyleSelect" class="input-field">
-                <option value="story" selected>옛날 이야기 (Old Story)</option>
-                <option value="news">뉴스 보도 (News Delivery)</option>
-            </select>
-            <p class="text-xs text-gray-500 mt-1">기본값: 옛날 이야기</p>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">추가 요청사항</label>
+            <textarea id="additionalNotes" class="input-field" rows="2"
+                placeholder="특별히 포함하고 싶은 내용이나 스타일을 적어주세요"></textarea>
+        </div>
+
+        <!-- 생성 버튼 (Integrated) -->
+        <div class="flex justify-end mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+            <button onclick="generateStructure()" id="generateBtn"
+                class="btn-primary py-2.5 px-6 text-sm font-semibold shadow-sm hover:shadow-md transition-all rounded-lg flex items-center gap-2">
+                <span>🤖</span>
+                <span>대본 구조 생성</span>
+            </button>
         </div>
     </div>
-    <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">추가 요청사항</label>
-        <textarea id="additionalNotes" class="input-field" rows="3"
-            placeholder="특별히 포함하고 싶은 내용이나 스타일을 적어주세요"></textarea>
-    </div>
-</div>
-
-
-<!-- 생성 버튼 -->
-<div class="btn-group btn-group-center section-spacing">
-    <button onclick="generateStructure()" id="generateBtn" class="btn-primary btn-primary-lg"
-        style="max-width: 400px; width: 100%;">
-        <span>🤖</span>
-        <span>대본 구조 생성하기</span>
-    </button>
 </div>
 
 <!-- 결과 영역 -->
@@ -63,8 +68,9 @@
         </div>
         <div id="structureContent" class="prose dark:prose-invert max-w-none"></div>
 
-        <div class="btn-group btn-group-center mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-            <button onclick="goToScriptGen()" class="btn-primary btn-primary-lg" style="max-width: 400px; width: 100%;">
+        <div class="flex justify-end mt-6 pt-4 border-t border-gray-100 dark:border-gray-700">
+            <button onclick="goToScriptGen()"
+                class="btn-primary py-2.5 px-6 text-sm font-semibold shadow-sm hover:shadow-md transition-all rounded-lg flex items-center gap-2">
                 <span>✍️</span>
                 <span>전체 대본 생성하기</span>
                 <span>→</span>
@@ -89,6 +95,29 @@
         if (projectId) {
             await loadProjectData(projectId);
         }
+
+        // [NEW] Check App Mode
+        try {
+            const res = await fetch('/api/settings');
+            const settings = await res.json();
+            window.APP_MODE = settings.app_mode || 'longform';
+
+            if (window.APP_MODE === 'shorts') {
+                document.getElementById('durationUnit').innerText = '초';
+                document.getElementById('durationInput').value = 60;
+                document.getElementById('durationHelper').innerText = '기본값: 60초 (쇼츠 권장)';
+                document.getElementById('durationInput').max = 60;
+
+                // Add badge
+                const title = document.querySelector('.card-title');
+                if (title) {
+                    const badge = document.createElement('span');
+                    badge.className = "ml-2 text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full";
+                    badge.innerText = "Shorts";
+                    title.appendChild(badge);
+                }
+            }
+        } catch (e) { console.error(e); }
 
         // 자동 생성 요청 확인
         const urlParams = new URLSearchParams(window.location.search);
@@ -129,7 +158,15 @@
                     document.getElementById('topicInput').value = fullData.project.topic;
                 }
 
-                // 2. Render Analysis Info + Generated Thumbnail
+                // [NEW] Load preferred style if available (Fallback)
+                const savedStyle = localStorage.getItem('latestScriptStyle');
+                if (savedStyle) document.getElementById('scriptStyleSelect').value = savedStyle;
+
+                // [NEW] Persist style preference on change
+                document.getElementById('scriptStyleSelect').addEventListener('change', (e) => {
+                    localStorage.setItem('latestScriptStyle', e.target.value);
+                });
+
                 renderAnalysisSection(fullData);
 
                 // [NEW] Target Language
@@ -241,10 +278,13 @@
             return;
         }
 
-        // 분 단위 입력 -> 초 단위 변환 (AI 프롬프트가 초 단위 예상)
-        // 요청사항: 60분 기본.
-        const durationMin = parseInt(document.getElementById('durationInput').value) || 60;
-        const duration = durationMin * 60;
+        // 분 단위 입력 -> 초 단위 변환 (Longform) / 초 단위 유지 (Shorts)
+        const durationVal = parseInt(document.getElementById('durationInput').value) || 60;
+        let duration = durationVal * 60; // Default Longform (min -> sec)
+
+        if (window.APP_MODE === 'shorts') {
+            duration = durationVal; // Shorts (sec -> sec)
+        }
         const tone = "professional"; // Simplified or removed if not needed, as style prompt covers it.
         const scriptStyle = document.getElementById('scriptStyleSelect').value;
         const notes = document.getElementById('additionalNotes').value;
@@ -283,6 +323,8 @@
 
             if (result.status === 'ok') {
                 const structureData = result.structure;
+                // [NEW] 기획 단계에서 선택한 스타일을 구조 데이터에 포함하여 다음 단계로 전달
+                structureData.script_style = scriptStyle;
 
                 currentStructure = structureData;
                 renderStructure(structureData);
@@ -298,8 +340,8 @@
                 // DB 저장
                 if (projectId) {
                     try {
-                        // 1. 프로젝트 주제 업데이트 (중요: 이 부분이 빠져서 토픽 불일치 발생)
-                        await API.project.update(projectId, { topic: topic });
+                        // 1. 프로젝트 주제 & 스타일 업데이트
+                        await API.project.update(projectId, { topic: topic, script_style: scriptStyle });
 
                         // 2. 구조 저장
                         await API.project.saveScriptStructure(projectId, {
@@ -311,6 +353,8 @@
                         });
                         Utils.showToast('대본 구조가 저장되었습니다', 'success');
                         API.project.update(projectId, { status: 'planned' });
+                        // [NEW] Update Stepper
+                        if (window.updateStepStatus) window.updateStepStatus('plan', true);
                     } catch (e) { console.error('DB 저장 실패:', e); }
                 }
             } else {

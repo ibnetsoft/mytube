@@ -18,25 +18,25 @@
             <div id="imageOptions" class="flex flex-wrap items-center gap-4">
                 <!-- Aspect Ratio -->
                 <div class="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg shadow-inner">
-                    <label class="cursor-pointer">
+                    <label class="cursor-pointer" id="ratio-16-9">
                         <input type="radio" name="aspectRatio" value="16:9" checked class="peer sr-only">
                         <div
                             class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-gray-300 transition-all">
                             16:9</div>
                     </label>
-                    <label class="cursor-pointer">
+                    <label class="cursor-pointer" id="ratio-1-1">
                         <input type="radio" name="aspectRatio" value="1:1" class="peer sr-only">
                         <div
                             class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-gray-300 transition-all">
                             1:1</div>
                     </label>
-                    <label class="cursor-pointer">
+                    <label class="cursor-pointer" id="ratio-9-16">
                         <input type="radio" name="aspectRatio" value="9:16" class="peer sr-only">
                         <div
                             class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-gray-300 transition-all">
                             9:16</div>
                     </label>
-                    <label class="cursor-pointer">
+                    <label class="cursor-pointer" id="ratio-3-4">
                         <input type="radio" name="aspectRatio" value="3:4" class="peer sr-only">
                         <div
                             class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-gray-300 transition-all">
@@ -59,6 +59,87 @@
                     <span>이미지 자동 생성</span>
                 </button>
             </div>
+        </div>
+
+        <!-- Character Consistency Input -->
+        <div class="w-full mt-4 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+            <div class="flex flex-col md:flex-row gap-6">
+                <!-- Left: Controls -->
+                <div class="flex-1">
+                    <label class="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-3">👤 주인공/캐릭터 일관성 유지
+                        (Reference)</label>
+
+                    <div class="flex flex-col gap-3">
+                        <div class="flex items-center flex-wrap gap-4">
+                            <!-- Upload Button -->
+                            <div class="flex items-center gap-2">
+                                <button onclick="document.getElementById('charUploadInput').click()"
+                                    class="btn-secondary text-xs py-2 px-3 flex items-center gap-1">
+                                    <span>📂</span> 이미지 업로드
+                                </button>
+                                <input type="file" id="charUploadInput" class="hidden" accept="image/*"
+                                    onchange="previewCharImage(this)">
+                            </div>
+
+                            <span class="text-xs text-gray-400">OR</span>
+
+                            <!-- Use Thumbnail Checkbox -->
+                            <label
+                                class="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                                <input type="checkbox" id="useThumbnailCheck"
+                                    class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" checked>
+                                <span class="text-xs font-medium text-gray-700 dark:text-gray-300">현재 썸네일 이미지를 주인공으로
+                                    사용</span>
+                            </label>
+                        </div>
+
+                        <!-- Preview (Upload) -->
+                        <div id="charPreviewArea"
+                            class="hidden items-center gap-3 bg-white dark:bg-gray-900 p-2 rounded border border-gray-200 dark:border-gray-700 w-fit">
+                            <img id="charPreviewImg" src=""
+                                class="w-10 h-10 rounded object-cover border border-gray-300">
+                            <span class="text-xs text-gray-500" id="charPreviewName">이미지 선택됨</span>
+                            <button onclick="clearCharImage()"
+                                class="text-red-500 hover:text-red-700 text-xs ml-2">❌</button>
+                        </div>
+
+                        <!-- Analyze Button -->
+                        <div class="flex items-center gap-2 mt-1">
+                            <button onclick="analyzeAndSetConsistency()" id="analyzeBtn"
+                                class="btn-primary flex-1 md:flex-none text-xs py-2 px-4 bg-indigo-600 hover:bg-indigo-700">
+                                🤖 이미지 분석하여 설정에 적용하기 (AI Vision)
+                            </button>
+                            <p class="text-[10px] text-gray-400">
+                                * 이미지를 분석하여 텍스트 프롬프트로 변환 후 아래 설정에 추가합니다.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Thumbnail Reference Display -->
+                <div
+                    class="w-full md:w-1/3 flex flex-col items-center justify-center border-l border-gray-200 dark:border-gray-600 pl-0 md:pl-6 pt-4 md:pt-0 border-dashed">
+                    <label class="block text-xs font-medium text-gray-500 mb-2 w-full text-center">현재 프로젝트 썸네일
+                        (Reference)</label>
+                    <div id="thumbnailReferenceContainer"
+                        class="relative w-[30%] aspect-video bg-black rounded-lg overflow-hidden shadow-sm group border border-gray-200 dark:border-gray-700">
+                        <img id="currentProjectThumbnail" src=""
+                            class="w-full h-full object-contain opacity-50 transition-opacity duration-300"
+                            alt="Thumbnail" onerror="this.style.opacity=0">
+                        <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <span class="text-xs text-gray-400" id="thumbPlaceholder">썸네일 없음</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="w-full mt-3">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">🌍 캐릭터/배경 일관성 프롬프트 (Global
+                Generated)</label>
+            <textarea id="globalPrompt"
+                class="input-field w-full text-sm p-3 h-24 bg-yellow-50 dark:bg-yellow-900/10 border-yellow-200 dark:border-yellow-800 focus:border-yellow-400 focus:ring-yellow-400"
+                placeholder="위 '이미지 분석' 버튼을 누르면 캐릭터 외형 묘사가 여기에 자동으로 입력됩니다. 직접 수정하셔도 됩니다."></textarea>
         </div>
     </div>
 
@@ -242,18 +323,20 @@
             return;
         }
 
-        const style = document.getElementById('imageStyle').value;
+        const styleVal = document.getElementById('imageStyle').value;
+        const globalPrompt = document.getElementById('globalPrompt').value;
         const count = 0; // AI 자동 판단 고정
 
         const btn = document.getElementById('generateBtn');
         Utils.setLoading(btn, true, '생성 중...');
 
         try {
-            const result = await API.image.generatePrompts(script, style, parseInt(count));
+            // [Modified] Pass global prompt separately for intelligent application
+            const result = await API.image.generatePrompts(script, styleVal, parseInt(count), globalPrompt.trim(), getCurrentProject());
 
             if (result.prompts) {
                 prompts = result.prompts;
-                renderPrompts();
+                drawPromptsUI(prompts);
                 document.getElementById('resultSection').classList.remove('hidden');
 
                 // 활성화
@@ -270,12 +353,15 @@
         }
     }
 
-    function renderPrompts() {
+    function drawPromptsUI(data) {
+        if (!data) data = prompts;
+        console.log("Drawing UI with items:", data.length);
+
         const container = document.getElementById('promptsList');
-        container.innerHTML = prompts.map((p, i) => `
+        container.innerHTML = data.map((p, i) => `
             <div id="prompt-card-${i}" class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 flex flex-col h-full border border-gray-200 dark:border-gray-600 shadow-sm hover:shadow-md transition-shadow">
                 <div class="flex items-center justify-between mb-2">
-                    <span class="font-bold text-sm text-gray-800 dark:text-white truncate">#${i + 1} ${p.scene}</span>
+                    <span class="font-bold text-sm text-gray-800 dark:text-white truncate" title="${p.scene_title || ''}">#${i + 1} ${p.scene_title ? (p.scene_title.length > 20 ? p.scene_title.substring(0, 20) + '...' : p.scene_title) : ('Scene ' + (i + 1))}</span>
                     <button onclick="copyPrompt(${i})" class="btn-secondary text-[10px] px-2 py-1 shrink-0">복사</button>
                 </div>
                 <div class="relative group mt-auto">
@@ -286,7 +372,7 @@
                     </div>` : ''}
                     <div class="h-20 bg-gray-900 rounded overflow-hidden relative">
                          <div class="absolute inset-0 p-2 text-xs text-green-400 font-mono overflow-y-auto" style="scrollbar-width: thin;">
-                            ${p.prompt} ${p.style_tags || ''}
+                            ${p.prompt_en || p.prompt_content || ''}
                          </div>
                     </div>
                 </div>
@@ -296,12 +382,13 @@
 
     function copyPrompt(index) {
         const p = prompts[index];
-        Utils.copyToClipboard(`${p.prompt} ${p.style_tags || ''}`);
+        const content = p.prompt_en || p.prompt_content || '';
+        Utils.copyToClipboard(content);
         Utils.showToast('복사되었습니다', 'success');
     }
 
     function copyAllPrompts() {
-        const text = prompts.map((p, i) => `[장면 ${i + 1}] ${p.scene}\n${p.prompt} ${p.style_tags || ''}`).join('\n\n');
+        const text = prompts.map((p, i) => `[장면 ${i + 1}] ${p.scene_text || ''}\n${p.prompt_en || p.prompt_content || ''}`).join('\n\n');
         Utils.copyToClipboard(text);
         Utils.showToast('전체 복사되었습니다', 'success');
     }
@@ -324,18 +411,23 @@
         try {
             for (let i = 0; i < prompts.length; i++) {
                 const p = prompts[i];
+                // Reuse existing checks
+                if (p.image_url) continue; // Skip already generated (optional, or force regen?) -> Let's regen if user clicked "Generate All"
+
                 const card = document.getElementById(`prompt-card-${i}`);
                 if (!card) continue;
 
                 // 상태 표시
-                const statusDiv = document.createElement('div');
-                statusDiv.className = 'mt-2 text-sm text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 p-2 rounded';
-                statusDiv.id = `status-${i}`;
+                let statusDiv = card.querySelector('.status-indicator');
+                if (!statusDiv) {
+                    statusDiv = document.createElement('div');
+                    statusDiv.className = 'status-indicator mt-2 text-sm text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 p-2 rounded';
+                    card.appendChild(statusDiv);
+                }
                 statusDiv.textContent = '⏳ 이미지 생성 중... (10~20초 소요)';
-                card.appendChild(statusDiv);
 
                 // API 호출
-                const fullPrompt = `${p.prompt} ${p.style_tags || ''}`;
+                const fullPrompt = p.prompt_en || p.prompt_content || '';
 
                 // 비율 선택값 가져오기
                 const aspectRatio = document.querySelector('input[name="aspectRatio"]:checked').value || '16:9';
@@ -343,21 +435,38 @@
                 const result = await API.image.generate(fullPrompt, projectId, i + 1, document.getElementById('imageStyle').value, aspectRatio);
 
                 if (result.status === 'ok') {
-                    // 이미지 표시
+                    // 이미지 표시 (Clear previous if exists)
+                    const existingImg = card.querySelector('div.aspect-video');
+                    if (existingImg) existingImg.remove();
+
                     const imgDiv = document.createElement('div');
-                    imgDiv.className = 'mt-3 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 aspect-video bg-black';
-                    imgDiv.innerHTML = `<img src="${result.image_url}" class="w-full h-full object-contain" alt="Scene ${i + 1}">`;
-                    card.appendChild(imgDiv);
+                    imgDiv.className = 'mb-2 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 aspect-video bg-black relative';
+                    imgDiv.innerHTML = `<img src="${result.image_url}" class="w-full h-full object-contain" alt="Scene ${i + 1}"><div class="absolute top-1 right-1 bg-green-500 text-white text-[10px] px-1 rounded">Generated</div>`;
+
+                    // Insert before text box (which is inside relative group mt-auto)
+                    // Actually promptsUI structure puts image inside "relative group".
+                    // Let's just re-render UI for simplicity or append correctly.
+                    // For now, reload data to be safe? 
+                    // Let's just update data object and re-render this card content or simpler logic.
+                    // Simple append for now as in original code.
+
+                    const containerGroup = card.querySelector('.group');
+                    if (containerGroup) {
+                        containerGroup.insertAdjacentElement('afterbegin', imgDiv); // Insert at top of group
+                    }
 
                     statusDiv.textContent = '✅ 생성 완료';
-                    statusDiv.className = 'mt-2 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 p-2 rounded';
+                    statusDiv.className = 'status-indicator mt-2 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 p-2 rounded';
 
                     // 스토리지에 결과 저장 (새로고침 시 유지)
                     prompts[i].image_url = result.image_url;
                     Utils.storage.set('imagePrompts', prompts);
+
+                    // [NEW] Update Progress Stepper (If at least one image generated)
+                    if (window.updateStepStatus) window.updateStepStatus('image', true);
                 } else {
                     statusDiv.textContent = '❌ 생성 실패: ' + result.error;
-                    statusDiv.className = 'mt-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-2 rounded';
+                    statusDiv.className = 'status-indicator mt-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-2 rounded';
                 }
             }
             Utils.showToast('모든 이미지가 처리되었습니다', 'success');
@@ -405,7 +514,16 @@
         const data = e.detail;
         if (data && data.image_prompts && data.image_prompts.length > 0) {
             prompts = data.image_prompts;
-            renderPrompts();
+            // Map legacy format if needed
+            if (prompts[0] && !prompts[0].scene_title) {
+                prompts = prompts.map(p => ({
+                    scene_title: p.scene_text || p.prompt_ko || `Scene ${p.scene_number || ''}`,
+                    prompt_content: p.prompt_en || '',
+                    image_url: p.image_url,
+                    style_tags: ''
+                }));
+            }
+            drawPromptsUI(prompts);
             document.getElementById('resultSection').classList.remove('hidden');
         }
     });
@@ -447,22 +565,314 @@
         }
     }
 
-    // 초기 로드 시 로컬 스토리지 확인 (빠른 렌더링)
-    document.addEventListener('DOMContentLoaded', () => {
-        checkScriptStatus(); // [NEW] Check status
+    // 초기 로드 시 DB 및 로컬 스토리지 확인
+    document.addEventListener('DOMContentLoaded', async () => {
+        checkScriptStatus();
+        loadProjectThumbnail();
 
-        const savedPrompts = Utils.storage.get('imagePrompts');
+        const projectId = getCurrentProject();
         const autoBtn = document.getElementById('autoGenBtn');
-        if (savedPrompts && savedPrompts.length > 0) {
-            prompts = savedPrompts;
-            renderPrompts();
-            document.getElementById('resultSection').classList.remove('hidden');
+        let loadedFromDB = false;
 
-            if (autoBtn) {
-                autoBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                autoBtn.disabled = false;
+        // 1. DB에서 프롬프트 불러오기 (권장)
+        if (projectId) {
+            try {
+                const fullData = await API.project.getFull(projectId);
+
+                // [NEW] Load Persistent Settings
+                if (fullData.settings) {
+                    if (fullData.settings.character_ref_text) {
+                        const gp = document.getElementById('globalPrompt');
+                        if (gp) gp.value = fullData.settings.character_ref_text;
+                    }
+                    if (fullData.settings.character_ref_image_path) {
+                        const preview = document.getElementById('charPreviewImg');
+                        const placeholder = document.getElementById('charPlaceholder');
+                        if (preview && placeholder) {
+                            preview.src = fullData.settings.character_ref_image_path;
+                            preview.classList.remove('hidden');
+                            placeholder.classList.add('hidden');
+                        }
+                    }
+                }
+
+                if (fullData && fullData.image_prompts && fullData.image_prompts.length > 0) {
+                    // DB 포맷 -> 프론트엔드 포맷 매핑
+                    prompts = fullData.image_prompts.map(p => ({
+                        scene_title: p.scene_text || p.prompt_ko || `Scene ${p.scene_number || ''}`,
+                        prompt_content: p.prompt_en || '',
+                        image_url: p.image_url,
+                        style_tags: ''
+                    }));
+
+                    drawPromptsUI(prompts);
+                    document.getElementById('resultSection').classList.remove('hidden');
+
+                    if (autoBtn) {
+                        autoBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                        autoBtn.disabled = false;
+                    }
+                    loadedFromDB = true;
+
+                    // 로컬 스토리지 동기화
+                    Utils.storage.set('imagePrompts', prompts);
+                    console.log('Loaded prompts from DB:', prompts.length);
+
+                    // [DEBUG REMOVED] Dump first prompt to textarea for diagnosis
+                    // const gp = document.getElementById('globalPrompt');
+                    // if (gp && prompts.length > 0) {
+                    //     gp.value = "[DEBUG DATA]: " + JSON.stringify(prompts[0], null, 2) + "\n\n" + gp.value;
+                    // }
+
+                    Utils.showToast(`${prompts.length}개의 프롬프트를 서버에서 복구했습니다.`, 'success');
+                } else {
+                    console.log("No image prompts in DB");
+                }
+            } catch (e) {
+                console.warn("Failed to load prompts from DB:", e);
             }
         }
+
+        // 2. DB에 없으면 로컬 스토리지 확인 (Fallback)
+        if (!loadedFromDB) {
+            const savedPrompts = Utils.storage.get('imagePrompts');
+            if (savedPrompts && savedPrompts.length > 0) {
+                prompts = savedPrompts;
+                renderPrompts();
+                document.getElementById('resultSection').classList.remove('hidden');
+
+                if (autoBtn) {
+                    autoBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    autoBtn.disabled = false;
+                }
+            }
+        }
+    });
+
+    // ==========================================
+    // Character Consistency Logic
+    // ==========================================
+
+    function previewCharImage(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                document.getElementById('charPreviewImg').src = e.target.result;
+                document.getElementById('charPreviewName').textContent = input.files[0].name;
+
+                const area = document.getElementById('charPreviewArea');
+                area.classList.remove('hidden');
+                area.classList.add('flex');
+
+                // Clear checkbox if explicit upload
+                document.getElementById('useThumbnailCheck').checked = false;
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    function clearCharImage() {
+        document.getElementById('charUploadInput').value = '';
+
+        const area = document.getElementById('charPreviewArea');
+        area.classList.add('hidden');
+        area.classList.remove('flex');
+
+        document.getElementById('useThumbnailCheck').checked = true;
+    }
+
+    async function analyzeAndSetConsistency() {
+        const btn = document.getElementById('analyzeBtn');
+        const uploadInput = document.getElementById('charUploadInput');
+        const useThumb = document.getElementById('useThumbnailCheck').checked;
+
+        let formData = new FormData();
+        let hasSource = false;
+        let pid = getCurrentProject(); // Define pid here for broader scope
+
+        if (!pid) return Utils.showToast('프로젝트를 선택하세요', 'warning');
+        formData.append('project_id', pid); // Append project_id here
+
+        if (uploadInput.files && uploadInput.files[0]) {
+            formData.append('file', uploadInput.files[0]);
+            hasSource = true;
+        } else if (useThumb) {
+            try {
+                // Fetch settings for thumbnail path
+                const fullData = await API.project.getFull(pid);
+                // Try to find thumbnail path in settings or project root
+                const settings = fullData.settings || {};
+                const thumb = settings.thumbnail_path || fullData.project?.thumbnail_path;
+
+                if (thumb) {
+                    formData.append('image_path', thumb);
+                    hasSource = true;
+                } else {
+                    return Utils.showToast('썸네일 이미지가 확인되지 않습니다. 먼저 썸네일을 생성하거나 이미지를 직접 업로드해주세요.', 'warning');
+                }
+            } catch (e) {
+                console.error(e);
+                return Utils.showToast('프로젝트 정보 로드 로드 실패', 'error');
+            }
+        }
+
+        if (!hasSource) {
+            return Utils.showToast('이미지를 선택하거나 "썸네일 사용"을 체크해주세요.', 'warning');
+        }
+
+        Utils.setLoading(btn, true, '이미지 분석 중... (Vision AI)');
+        try {
+            const result = await API.image.analyzeCharacter(formData);
+
+            if (result.description) {
+                const textArea = document.getElementById('globalPrompt');
+                const currentVal = textArea.value;
+
+                // Formatted prompt
+                const newText = `[Character Visual Reference]: ${result.description}`;
+
+                if (currentVal.includes('[Character Visual Reference]:')) {
+                    // Alert user it's appended
+                    textArea.value = currentVal + "\n\n" + newText;
+                } else {
+                    textArea.value = (currentVal ? currentVal + "\n\n" : "") + newText;
+                }
+
+                // [NEW] Save to DB
+                if (pid) {
+                    API.project.updateSetting(pid, 'character_ref_text', textArea.value).then(() => {
+                        console.log("Character ref text saved");
+                    });
+
+                    if (result.image_url) {
+                        API.project.updateSetting(pid, 'character_ref_image_path', result.image_url).then(() => {
+                            console.log("Character ref image saved:", result.image_url);
+                            // Also update preview if needed (though user just uploaded it)
+                            // But maybe cleaner to use server URL? 
+                            // We already showed preview via FileReader. No need to reload.
+                            const preview = document.getElementById('charPreviewImg');
+                            const placeholder = document.getElementById('charPlaceholder');
+                            const area = document.getElementById('charPreviewArea');
+                            if (preview && placeholder && area) {
+                                preview.src = result.image_url;
+                                preview.classList.remove('hidden');
+                                placeholder.classList.add('hidden');
+                                area.classList.remove('hidden');
+                                area.classList.add('flex');
+                            }
+                        });
+                    }
+                }
+
+                Utils.showToast('✅ 캐릭터 외형 분석이 완료되어 설정에 적용되었습니다. (자동 저장됨)', 'success');
+            } else {
+                const errMsg = result.error || '분석 결과 없음';
+                Utils.showToast('분석 실패: ' + errMsg, 'error');
+            }
+        } catch (e) {
+            Utils.showToast('분석 중 통신 오류: ' + e.message, 'error');
+            console.error(e);
+        } finally {
+            Utils.setLoading(btn, false);
+        }
+    }
+    async function loadProjectThumbnail() {
+        const pid = getCurrentProject();
+        if (!pid) return;
+
+        try {
+            const fullData = await API.project.getFull(pid);
+            const thumb = fullData.settings?.thumbnail_url || fullData.project?.thumbnail_url || fullData.project?.thumbnail_path;
+
+            const imgEl = document.getElementById('currentProjectThumbnail');
+            const placeholder = document.getElementById('thumbPlaceholder');
+
+            if (imgEl && thumb) {
+                // Cache busting
+                if (thumb.startsWith('http') || thumb.startsWith('/')) {
+                    imgEl.src = `${thumb}?t=${new Date().getTime()}`;
+                } else {
+                    imgEl.src = thumb;
+                }
+                imgEl.classList.remove('opacity-50');
+                imgEl.style.opacity = 1;
+                if (placeholder) placeholder.classList.add('hidden');
+            } else {
+                console.warn("Thumbnail URL not found in project data:", fullData);
+            }
+        } catch (e) {
+            console.error("Failed to load thumbnail for reference UI", e);
+        }
+    }
+
+    // [NEW] App Mode Logic
+    async function applyAppMode() {
+        try {
+            const res = await fetch('/api/settings');
+            const settings = await res.json();
+            const mode = settings.app_mode || 'longform';
+
+            const r169 = document.getElementById('ratio-16-9');
+            const r11 = document.getElementById('ratio-1-1');
+            const r916 = document.getElementById('ratio-9-16');
+            const r34 = document.getElementById('ratio-3-4');
+
+            // Reset all to visible first (or hidden then toggle)
+            // But Tailwind 'hidden' class is what we toggle
+
+            if (mode === 'shorts') {
+                // Show 9:16, 3:4. Hide 16:9, 1:1
+                if (r169) r169.classList.add('hidden');
+                if (r11) r11.classList.add('hidden');
+                if (r916) r916.classList.remove('hidden');
+                if (r34) r34.classList.remove('hidden');
+
+                // Default to 3:4
+                const radio34 = document.querySelector('input[value="3:4"]');
+                if (radio34) radio34.checked = true;
+
+                // [NEW] Adjust Thumbnail Reference for Vertical
+                const thumbRef = document.getElementById('thumbnailReferenceContainer');
+                if (thumbRef) {
+                    thumbRef.classList.remove('aspect-video');
+                    thumbRef.classList.add('aspect-[9/16]');
+                }
+
+            } else {
+                // Longform
+                // Hide 9:16. Show 16:9, 1:1, 3:4(optional? User said 'remove 9:16').
+                // Let's hide 9:16 only as requested.
+                if (r916) r916.classList.add('hidden');
+
+                if (r169) r169.classList.remove('hidden');
+                if (r11) r11.classList.remove('hidden');
+                if (r34) r34.classList.remove('hidden');
+
+                // Default to 16:9 if 9:16 was somehow checked or just ensure 16:9 is default
+                const radio169 = document.querySelector('input[value="16:9"]');
+                if (radio169 && !document.querySelector('input[name="aspectRatio"]:checked')) {
+                    radio169.checked = true;
+                }
+                if (radio169) radio169.checked = true;
+
+                // [NEW] Restor Thumbnail Reference to 16:9
+                const thumbRef = document.getElementById('thumbnailReferenceContainer');
+                if (thumbRef) {
+                    thumbRef.classList.remove('aspect-[9/16]');
+                    thumbRef.classList.add('aspect-video');
+                }
+            }
+
+            console.log("App Mode Applied:", mode);
+
+        } catch (e) {
+            console.error("Failed to apply app mode:", e);
+        }
+    }
+
+    // Initialize on load
+    document.addEventListener('DOMContentLoaded', () => {
+        applyAppMode();
     });
 </script>
 {% endblock %}

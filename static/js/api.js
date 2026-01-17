@@ -99,11 +99,11 @@ const API = {
     // 이미지 API
     // 이미지 API
     image: {
-        async generatePrompts(script, style = 'realistic', count = 5) {
+        async generatePrompts(script, style = 'realistic', count = 5, characterReference = null, projectId = null) {
             const response = await fetch('/api/image/generate-prompts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ script, style, count })
+                body: JSON.stringify({ script, style, count, character_reference: characterReference, project_id: projectId })
             });
             return response.json();
         },
@@ -132,7 +132,8 @@ const API = {
                 text_color: options.textColor || options.color || '#FFFFFF',
                 font_size: options.fontSize || 72,
                 language: options.language || 'ko',
-                background_path: options.background_path || null // 배경 이미지 경로
+                background_path: options.background_path || null, // 배경 이미지 경로
+                aspect_ratio: options.aspectRatio || '16:9' // [NEW] Aspect Ratio
             };
 
             if (options.text_layers) {
@@ -166,11 +167,20 @@ const API = {
         },
 
         // 썸네일 배경만 생성
-        async generateThumbnailBackground(prompt) {
+        async generateThumbnailBackground(prompt, aspectRatio = '16:9') {
             const response = await fetch('/api/image/generate-thumbnail-background', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt })
+                body: JSON.stringify({ prompt, aspect_ratio: aspectRatio })
+            });
+            return response.json();
+        },
+
+        // 캐릭터 이미지 분석 (Consistency)
+        async analyzeCharacter(formData) {
+            const response = await fetch('/api/image/analyze-character', {
+                method: 'POST',
+                body: formData // Form Data (multipart)
             });
             return response.json();
         }
@@ -263,7 +273,14 @@ const API = {
             });
             return response.json();
         },
-
+        async updateSetting(id, key, value) {
+            const response = await fetch(`/api/projects/${id}/setting`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key, value })
+            });
+            return response.json();
+        },
         // 프로젝트 삭제
         async delete(projectId) {
             const response = await fetch(`/api/projects/${projectId}`, {
@@ -405,6 +422,11 @@ const API = {
 
         // [New] Bulk update settings
         async updateSettings(projectId, settings) {
+            return this.saveSettings(projectId, settings);
+        },
+
+        // Alias for update (commonly used)
+        async update(projectId, settings) {
             return this.saveSettings(projectId, settings);
         }
     },

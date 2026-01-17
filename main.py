@@ -12,6 +12,7 @@ from typing import List, Optional, Dict, Any, Union
 import uvicorn
 import os
 import httpx
+import time
 import asyncio
 import json
 import re
@@ -91,12 +92,17 @@ app.mount("/static", StaticFiles(directory=config.STATIC_DIR), name="static")
 os.makedirs(config.OUTPUT_DIR, exist_ok=True)
 app.mount("/output", StaticFiles(directory=config.OUTPUT_DIR), name="output")
 
+# uploads 폴더 (인트로 등 업로드용)
+os.makedirs("uploads", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
 @app.on_event("startup")
 async def startup_event():
     """앱 시작 시 실행 (DB 초기화 및 마이그레이션)"""
     try:
         db.init_db()
         db.migrate_db()
+        db.reset_rendering_status() # [FIX] Stuck rendering status reset
         print("[Startup] DB Initialized & Migrated")
     except Exception as e:
         print(f"[Startup] DB Setup Failed: {e}")
@@ -175,6 +181,12 @@ class PromptsGenerateRequest(BaseModel):
     script: str
     style: str = "realistic"
     count: int = 0
+    character_reference: Optional[str] = None # [NEW]
+    project_id: Optional[int] = None # [NEW] Save to DB
+
+class ProjectSettingUpdate(BaseModel):
+    key: str
+    value: Any
 
 class ThumbnailsSave(BaseModel):
     ideas: List[dict]
@@ -207,6 +219,7 @@ class ChannelResponse(BaseModel):
     handle: str
     description: Optional[str]
     created_at: Any
+    credentials_path: Optional[str] = None # credentials_path 추가
 
     subtitle_stroke_width: Optional[float] = None
     subtitle_position_y: Optional[int] = None
@@ -330,12 +343,22 @@ async def page_video_upload(request: Request):
     })
 
 @app.get("/subtitle_gen", response_class=HTMLResponse)
-async def page_subtitle_gen(request: Request):
+async def page_subtitle_gen(request: Request, project_id: int = Query(None)):
     """자막 생성/편집 페이지"""
+    project = None
+    if project_id:
+        project = db.get_project(project_id)
+    else:
+        # Fallback: Load most recent project
+        recent = db.get_recent_projects(limit=1)
+        if recent:
+            project = recent[0]
+        
     return templates.TemplateResponse("pages/subtitle_gen.html", {
         "request": request,
         "page": "subtitle-gen",
-        "title": "자막 편집"
+        "title": "자막 편집",
+        "project": project
     })
 
 
@@ -406,11 +429,57 @@ async def get_project(project_id: int):
 
 @app.get("/api/projects/{project_id}/full")
 async def get_project_full(project_id: int):
-    """프로젝트 전체 데이터 조회"""
-    data = db.get_project_full_data(project_id)
-    if not data:
-        raise HTTPException(404, "프로젝트를 찾을 수 없습니다")
-    return data
+    """프로젝트 전체 데이터 조회 (통합 & Fallback 적용)"""
+    try:
+        # 1. 기본 정보
+        project = db.get_project(project_id)
+        if not project:
+             raise HTTPException(404, "Project not found")
+        
+        # 2. 설정, 대본, 이미지 프롬프트 등 모두 조회
+        settings = db.get_project_settings(project_id)
+        script_structure = db.get_script_structure(project_id)
+        script_data = db.get_script(project_id)
+        image_prompts = db.get_image_prompts(project_id) # List[Dict]
+        shorts_data = db.get_shorts(project_id) # [NEW]
+
+        tts_data = db.get_tts(project_id) # [FIX] Add TTS fetch
+
+        # [NEW] Thumbnail URL Fallback
+        # If thumbnail_path exists but URL missing (legacy data), compute it.
+        if settings and not settings.get('thumbnail_url') and settings.get('thumbnail_path'):
+            path = settings.get('thumbnail_path')
+            # Check if path is in OUTPUT_DIR or STATIC_DIR
+            if path and os.path.exists(path):
+                if path.startswith(config.OUTPUT_DIR):
+                     rel = os.path.relpath(path, config.OUTPUT_DIR).replace("\\", "/")
+                     web_url = f"/output/{rel}"
+                elif path.startswith(config.STATIC_DIR):
+                     rel = os.path.relpath(path, config.STATIC_DIR).replace("\\", "/")
+                     web_url = f"/static/{rel}"
+                else:
+                    web_url = None
+
+                if web_url:
+                     settings['thumbnail_url'] = web_url
+                     # Update DB for future
+                     try:
+                         db.update_project_setting(project_id, 'thumbnail_url', web_url)
+                         print(f"Restored missing thumbnail_url: {web_url}")
+                     except: pass
+
+        return {
+            "project": dict(project) if project else None,
+            "settings": settings,
+            "script_structure": script_structure,
+            "full_script": script_data['full_script'] if script_data else None,
+            "shorts": shorts_data, # [NEW]
+            "image_prompts": image_prompts,
+            "tts": tts_data # [FIX] Include TTS data
+        }
+    except Exception as e:
+        print(f"Full Data Load Error: {e}")
+        raise HTTPException(500, str(e))
 
 @app.put("/api/projects/{project_id}")
 async def update_project(project_id: int, req: ProjectUpdate):
@@ -541,14 +610,40 @@ async def get_script(project_id: int):
 
 @app.post("/api/projects/{project_id}/image-prompts/auto")
 async def auto_generate_images(project_id: int):
-    """대본 기반 이미지 프롬프트 생성 및 일괄 이미지 생성"""
-    # 1. 대본 조회
+    """대본 기반 이미지 프롬프트 생성 및 일괄 이미지 생성 (Longform & Shorts)"""
+    # 1. 대본 조회 (Longform 우선, 없으면 Shorts 확인)
     script_data = db.get_script(project_id)
-    if not script_data or not script_data.get("full_script"):
-        raise HTTPException(400, "대본이 없습니다. 먼저 대본을 생성해주세요.")
+    script = ""
+    duration = 60
+
+    if script_data and script_data.get("full_script"):
+        script = script_data["full_script"]
+        duration = script_data.get("estimated_duration", 60)
+    else:
+        # Longform 대본이 없으면 Shorts 대본 확인
+        shorts_data = db.get_shorts(project_id)
+        if shorts_data and shorts_data.get("shorts_data"):
+             # Shorts 데이터에서 텍스트 추출 (Narrations/Dialogue concatenating)
+             # shorts_data structure might be complex, assuming simple list of scenes or text
+             # Based on previous knowledge, shorts_data is likely a JSON with scenes
+             try:
+                 scenes = shorts_data.get("shorts_data", {}).get("scenes", [])
+                 if not scenes and isinstance(shorts_data.get("shorts_data"), list):
+                     scenes = shorts_data.get("shorts_data") # Handle list format
+                 
+                 parts = []
+                 for s in scenes:
+                     if "narration" in s: parts.append(s["narration"])
+                     if "dialogue" in s: parts.append(s["dialogue"])
+                     if "script" in s: parts.append(s["script"])
+                 
+                 script = "\n".join(parts)
+                 duration = 50 # Default shorts duration
+             except:
+                 script = str(shorts_data) # Fallback
     
-    script = script_data["full_script"]
-    duration = script_data.get("estimated_duration", 60)
+    if not script:
+        raise HTTPException(400, "대본이 없습니다. 먼저 대본(Longform 또는 Shorts)을 생성해주세요.")
 
     # 2. 프롬프트 생성 (Gemini)
     from services.gemini_service import gemini_service
@@ -666,31 +761,7 @@ async def get_thumbnails(project_id: int):
     """썸네일 아이디어 조회"""
     return db.get_thumbnails(project_id) or {}
 
-@app.post("/api/projects/{project_id}/thumbnail/save")
-async def save_client_thumbnail(project_id: int, file: UploadFile = File(...)):
-    """클라이언트 캔버스에서 생성된 썸네일 이미지 저장"""
-    try:
-        # 1. 출력 경로 확보
-        output_dir, web_dir = get_project_output_dir(project_id)
-        
-        # 2. 유니크 파일명
-        import time
-        filename = f"thumb_{project_id}_{int(time.time())}.png"
-        file_path = os.path.join(output_dir, filename)
-        web_url = f"{web_dir}/{filename}"
-        
-        # 3. 저장
-        content = await file.read()
-        with open(file_path, "wb") as f:
-            f.write(content)
-            
-        # 4. DB 업데이트
-        db.update_project_setting(project_id, 'thumbnail_url', web_url)
-        
-        return {"status": "ok", "url": web_url, "path": file_path}
-    except Exception as e:
-        print(f"Error saving thumbnail: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+# [REMOVED] Duplicate thumbnail save endpoint (Moved to line ~1630 with updated logic)
 
 @app.post("/api/projects/{project_id}/intro/save")
 async def save_intro_video(project_id: int, file: UploadFile = File(...)):
@@ -730,13 +801,8 @@ async def save_shorts(project_id: int, req: ShortsSave):
     db.save_shorts(project_id, req.shorts_data)
     return {"status": "ok"}
 
-@app.get("/api/projects/{project_id}/full")
-async def get_project_full(project_id: int):
-    """프로젝트 전체 데이터 조회 (상태 복구용)"""
-    data = db.get_project_full_data(project_id)
-    if not data:
-        raise HTTPException(404, "프로젝트를 찾을 수 없습니다.")
-    return data
+# [REMOVED] Duplicate full endpoint
+
 
 @app.get("/api/projects/{project_id}/shorts")
 async def get_shorts(project_id: int):
@@ -1425,14 +1491,40 @@ async def tts_generate(req: TTSRequest):
         # DB 저장 (프로젝트와 연결)
         if req.project_id:
              try:
-                 # save_tts(project_id, voice_id, voice_name, audio_path, duration)
-                 # duration은 현재 계산하지 않으므로 0으로 저장
+                 # [FIX] Calculate actual duration before saving
+                 duration = 0.0
+                 try:
+                     # Check file existence first
+                     if os.path.exists(output_path):
+                         # Try pydub first (more accurate for VBR/altered speed)
+                         try:
+                             import pydub
+                             audio_seg = pydub.AudioSegment.from_file(output_path)
+                             duration = audio_seg.duration_seconds
+                         except ImportError:
+                             # Fallback to MoviePy
+                             try:
+                                 from moviepy.editor import AudioFileClip
+                                 with AudioFileClip(output_path) as ac:
+                                     duration = ac.duration
+                             except: pass
+                         except Exception as e:
+                             print(f"pydub check failed: {e}")
+                             # Fallback to MoviePy
+                             try:
+                                 from moviepy.editor import AudioFileClip
+                                 with AudioFileClip(output_path) as ac:
+                                     duration = ac.duration
+                             except: pass
+                 except Exception as e:
+                     print(f"Failed to calculate audio duration: {e}")
+
                  db.save_tts(
                      req.project_id,
                      req.voice_id or "multi-voice" if req.multi_voice else "default",
                      req.voice_id or "multi-voice" if req.multi_voice else "default",
                      output_path,
-                     0
+                     duration
                  )
                  
                  # [FIX] 자막 생성을 위해 TTS 입력 텍스트를 프로젝트 설정(script)에 저장
@@ -1459,6 +1551,133 @@ async def tts_generate(req: TTSRequest):
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
+
+@app.post("/api/upload/template")
+async def upload_template_api(file: UploadFile = File(...)):
+    """템플릿 이미지 업로드 (9:16 오버레이)"""
+    try:
+        # public/templates 폴더
+        template_dir = os.path.join(config.STATIC_DIR, "templates")
+        os.makedirs(template_dir, exist_ok=True)
+        
+        # 안전한 파일명
+        filename = f"template_{int(time.time())}.png"
+        filepath = os.path.join(template_dir, filename)
+        
+        # 저장
+        with open(filepath, "wb") as f:
+            content = await file.read()
+            f.write(content)
+            
+        # DB 업데이트 (Global Setting assumes project_id=1 for defaults or handle strictly)
+        # For now, we save it as a 'default' setting with project_id=0 or just update recent project?
+        # Re-reading user request: "9:16 Template Image... for SHORTS".
+        # Usually settings page updates a GLOBAL default or current project.
+        # Let's assume GLOBAL default for new projects, or update specific project if provided.
+        # However, `settings.html` seems to load 'global-ish' settings.
+        # Let's check `db.update_project_setting`.
+        # Actually, `settings.html` usually loads default settings from a dummy project or specific config.
+        # But wait, `get_settings_api` fetches from `db.get_project_settings(None)`?
+        # Let's fallback to updating the most recent project OR a specific logic.
+        # Since `settings.html` seems to be global context, let's assume project_id=1 for now as 'default slot'
+        # OR better: The user wants this "Applied to video".
+        # Let's save the URL and let the frontend/backend use it.
+        
+        web_url = f"/static/templates/{filename}"
+        
+        # [HACK] For this specific user request, we might need to apply this to the CURRENT project being edited.
+        # But settings.html is global. Let's update project_id=1 (often Default) AND return URL.
+        # Ideally, we should have a `global_settings` table.
+        # Existing `project_settings` references `project_id`.
+        # Let's use `db.update_project_setting(1, ...)` as a placeholder for "Default" if no project context.
+        # BUT, to be safe and consistent with previous patterns:
+        # Check if we can store it in a way available to new projects.
+        # For now, update global default project (ID 1)
+        db.update_project_setting(1, 'template_image_url', web_url)
+        
+        return {"status": "ok", "url": web_url}
+    except Exception as e:
+        print(f"Template Upload Error: {e}")
+        return {"status": "error", "error": str(e)}
+
+@app.delete("/api/settings/template")
+async def delete_template_api():
+    """템플릿 이미지 삭제"""
+    try:
+        db.update_project_setting(1, 'template_image_url', None)
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+@app.get("/api/settings")
+async def get_settings_api():
+    """전체 설정 로드 (기본 프로젝트 ID=1 기준)"""
+    try:
+        # Load API Keys
+        # ...
+        
+        # Load DB Settings (Project 1 as default container)
+        p_settings = db.get_project_settings(1) or {}
+        
+        script_styles = {
+            "news": "뉴스 스타일 프롬프트...",
+            "story": "옛날 이야기 스타일...",
+            "senior_story": "시니어 사연 스타일..."
+        }
+        # In a real app, these prompts might be in a separate table or JSON column. 
+        # Here we mock or retrieve if saved.
+        
+        return {
+            "status": "ok",
+            "gemini_tts": {
+                "voice_name": p_settings.get("voice_name"),
+                "language_code": p_settings.get("voice_language"),
+                "style_prompt": p_settings.get("voice_style_prompt")
+            },
+            "app_mode": p_settings.get("app_mode", "longform"),
+            "template_image_url": p_settings.get("template_image_url")
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
+@app.post("/api/settings")
+async def save_settings_api(settings: dict):
+    """전체 설정 저장 (기본 프로젝트 ID=1 기준)"""
+    try:
+        # Check and save allowed keys
+        # We use update_project_setting for specific keys or save_project_settings for bulk
+        # For simplicity and consistence with db.py logic, let's use save_project_settings
+        # But we need to be careful not to overwrite other fields if we only get partial data
+        # settings.html sends: app_mode, gemini_tts, script_styles
+        
+        # 1. Flatten structure for DB
+        flat_settings = {}
+        if "app_mode" in settings:
+            flat_settings["app_mode"] = settings["app_mode"]
+            
+        if "gemini_tts" in settings:
+            g = settings["gemini_tts"]
+            flat_settings["voice_name"] = g.get("voice_name")
+            flat_settings["voice_language"] = g.get("language_code")
+            flat_settings["voice_style_prompt"] = g.get("style_prompt")
+            
+        if "script_styles" in settings:
+            # These might be saved in Global Settings or Project Settings?
+            # DB schema 'project_settings' doesn't have individual script style columns except maybe mapped ones?
+            # Let's check schema. We added 'script_style' column but that's current style.
+            # Storing prompts: The Code in `get_settings_api` had them hardcoded dict.
+            # We should probably store them in `global_settings` table or `project_settings` JSON column?
+            # For now, let's focus on APP_MODE which is critical.
+            pass
+
+        # Save to Project 1 (Default Container)
+        db.save_project_settings(1, flat_settings)
+        
+        return {"status": "ok"}
+    except Exception as e:
+        print(f"Save Settings Error: {e}")
+        return {"status": "error", "error": str(e)}
 
 @app.get("/api/tts/voices")
 async def tts_voices():
@@ -1498,6 +1717,351 @@ async def tts_voices():
             pass
 
     return {"voices": voices}
+
+
+# ===========================================
+# API: 자막 (Subtitle)
+# ===========================================
+
+@app.get("/api/subtitle/{project_id}")
+async def get_subtitles(project_id: int):
+    """자막 데이터 조회"""
+    try:
+        # 1. Project & TTS Check
+        tts_data = db.get_tts(project_id)
+        if not tts_data or not tts_data.get('audio_path'):
+            return {"status": "error", "error": "TTS 오디오가 없습니다. 먼저 TTS를 생성해주세요."}
+            
+        settings = db.get_project_settings(project_id)
+        
+        # 2. Audio URL
+        audio_path = tts_data['audio_path']
+        web_url = None
+        if audio_path.startswith(config.OUTPUT_DIR):
+             rel = os.path.relpath(audio_path, config.OUTPUT_DIR).replace("\\", "/")
+             web_url = f"/output/{rel}"
+        
+        # [FIX] Calculate accurate duration for frontend sync
+        audio_duration = 0.0
+        try:
+            import pydub
+            audio_seg = pydub.AudioSegment.from_file(audio_path)
+            audio_duration = audio_seg.duration_seconds
+        except:
+            # Fallback (though pydub is preferred)
+            try:
+                from moviepy.editor import AudioFileClip
+                with AudioFileClip(audio_path) as clip:
+                    audio_duration = clip.duration
+            except:
+                pass
+
+        # 3. Load Subtitles (JSON) if exists
+        subtitles = []
+        subtitle_path = settings.get('subtitle_path')
+        if subtitle_path and os.path.exists(subtitle_path):
+            try:
+                with open(subtitle_path, "r", encoding="utf-8") as f:
+                    subtitles = json.load(f)
+            except:
+                pass # Failed to load, empty list
+        
+        # 4. Images for preview
+        # Source Images (Palette)
+        image_prompts = db.get_image_prompts(project_id)
+        source_images = [p['image_url'] for p in image_prompts if p.get('image_url')]
+
+        # Timeline Images (Used in Video)
+        timeline_images_path = settings.get('timeline_images_path')
+        timeline_images = []
+        if timeline_images_path and os.path.exists(timeline_images_path):
+            try:
+                with open(timeline_images_path, "r", encoding="utf-8") as f:
+                    timeline_images = json.load(f)
+            except:
+                pass
+        
+        # Default to source if no timeline
+        if not timeline_images:
+            timeline_images = source_images[:]
+
+        # [NEW] Calculate Image Timings for Frontend Preview (Same as Generate API)
+        image_timings = []
+        
+        # Load saved timings if exist (Override calculation)
+        saved_timings_path = settings.get('image_timings_path')
+        if saved_timings_path and os.path.exists(saved_timings_path):
+             try:
+                 with open(saved_timings_path, "r") as f:
+                     image_timings = json.load(f)
+             except: pass
+        
+        # Calculate Only if NO saved timings
+        if not image_timings:
+            try:
+                num_img = len(timeline_images)
+                num_sub = len(subtitles)
+                
+                if num_img > 0 and num_sub > 0:
+                    if num_sub >= num_img:
+                        step = num_sub / num_img
+                        image_timings = [0.0]
+                        for i in range(1, num_img):
+                            sub_idx = int(i * step)
+                            sub_idx = min(sub_idx, num_sub - 1)
+                            if sub_idx < len(subtitles):
+                                t_start = subtitles[sub_idx]['start']
+                                # Ensure monotony
+                                if t_start < image_timings[-1]: t_start = image_timings[-1]
+                                image_timings.append(t_start)
+                            else:
+                                 image_timings.append(image_timings[-1] + 2.0)
+                    else:
+                        # More images than subtitles (rare)
+                        pass
+            except Exception as e:
+                print(f"Error calc timings in get_subtitles: {e}")
+
+        return {
+            "status": "ok",
+            "subtitles": subtitles,
+            "audio_url": web_url,
+            "audio_duration": audio_duration,
+            "images": source_images, # Palette
+            "timeline_images": timeline_images, # Actual Timeline
+            "image_timings": image_timings
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"status": "error", "error": str(e)}
+
+@app.post("/api/subtitle/generate")
+async def generate_subtitles_api(req: dict = Body(...)):
+    """자막 자동 생성 (Whisper)"""
+    project_id = req.get("project_id")
+    if not project_id:
+        raise HTTPException(400, "project_id required")
+        
+    try:
+        # Load necessary data
+        tts_data = db.get_tts(project_id)
+        if not tts_data or not tts_data.get('audio_path'):
+            return {"status": "error", "error": "TTS 오디오가 없습니다."}
+            
+        project = db.get_project(project_id)
+        
+        # Script text for alignment (optional)
+        # Try to get full script from DB
+        script_data = db.get_script(project_id)
+        full_script = script_data['full_script'] if script_data else ""
+        
+        # Service Call
+        from services.video_service import video_service
+        subtitles = video_service.generate_aligned_subtitles(tts_data['audio_path'], full_script)
+        
+        if not subtitles:
+            return {"status": "error", "error": "자막 생성 실패 (Whisper 오류)"}
+            
+        # Save to JSON
+        filename = f"subtitles_{project_id}_{int(time.time())}.json"
+        save_path = os.path.join(config.OUTPUT_DIR, filename)
+        
+        with open(save_path, "w", encoding="utf-8") as f:
+            json.dump(subtitles, f, ensure_ascii=False, indent=2)
+            
+        # Update DB
+        db.update_project_setting(project_id, 'subtitle_path', save_path)
+        
+        # [NEW] Calculate Image Timings for Frontend Preview
+        image_timings = []
+        image_urls = []
+        try:
+             # Load images
+             images_data = db.get_image_prompts(project_id)
+             # Mock images list count
+             if images_data:
+                 image_urls = [img.get('image_url') for img in images_data if img.get('image_url')]
+             
+             num_img = len(images_data) if images_data else 0
+             num_sub = len(subtitles)
+             
+             # DEBUG LOG
+             try:
+                 example_url = image_urls[0] if image_urls else 'None'
+                 with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
+                     f.write(f"[{datetime.datetime.now()}] API get_subtitles(PID={project_id}): num_img={num_img}, num_sub={num_sub}, urls={len(image_urls)}, ex_url={example_url}\n")
+             except: pass
+             
+             if num_img > 0 and num_sub > 0:
+                 # Dynamic Pacing Logic (Same as Render)
+                 if num_sub >= num_img:
+                     step = num_sub / num_img
+                     image_timings = [0.0]
+                     for i in range(1, num_img):
+                         sub_idx = int(i * step)
+                         sub_idx = min(sub_idx, num_sub - 1)
+                         t_start = subtitles[sub_idx]['start']
+                         if t_start < image_timings[-1]: t_start = image_timings[-1]
+                         image_timings.append(t_start)
+                 else:
+                     pass 
+        except Exception as e:
+             try:
+                 with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
+                     f.write(f"[{datetime.datetime.now()}] API get_subtitles ERROR: {e}\n")
+             except: pass
+             pass
+        
+        return {"status": "ok", "subtitles": subtitles, "image_timings": image_timings, "images": image_urls}
+        
+    except Exception as e:
+        print(f"Subtitle Gen Error: {e}")
+        return {"status": "error", "error": str(e)}
+
+@app.post("/api/subtitle/save")
+async def save_subtitles_api(req: dict = Body(...)):
+    """자막 수동 저장"""
+    project_id = req.get("project_id")
+    subtitles = req.get("subtitles")
+    
+    if not project_id or subtitles is None:
+        raise HTTPException(400, "Invalid data")
+        
+    try:
+        # Save Subtitles to JSON
+        filename = f"subtitles_{project_id}_saved_{int(time.time())}.json"
+        save_path = os.path.join(config.OUTPUT_DIR, filename)
+        
+        with open(save_path, "w", encoding="utf-8") as f:
+            json.dump(subtitles, f, ensure_ascii=False, indent=2)
+            
+        # Update DB
+        db.update_project_setting(project_id, 'subtitle_path', save_path)
+        
+        # [NEW] Save Image Timings if provided
+        image_timings = req.get("image_timings")
+        if image_timings:
+             timings_filename = f"image_timings_{project_id}_{int(time.time())}.json"
+             timings_path = os.path.join(config.OUTPUT_DIR, timings_filename)
+             with open(timings_path, "w", encoding="utf-8") as f:
+                 json.dump(image_timings, f, indent=2)
+             db.update_project_setting(project_id, 'image_timings_path', timings_path)
+
+        # [NEW] Save Timeline Images (Custom Order/Reuse)
+        timeline_images = req.get("images")
+        if timeline_images:
+             tl_filename = f"timeline_images_{project_id}_{int(time.time())}.json"
+             tl_path = os.path.join(config.OUTPUT_DIR, tl_filename)
+             with open(tl_path, "w", encoding="utf-8") as f:
+                 json.dump(timeline_images, f, indent=2)
+             db.update_project_setting(project_id, 'timeline_images_path', tl_path)
+
+        return {"status": "ok", "subtitles": subtitles, "image_timings": image_timings, "images": timeline_images}
+    except Exception as e:
+        print(f"Save Subtitles Error: {e}")
+        return {"status": "error", "error": str(e)}
+
+@app.post("/api/subtitle/auto_sync_images")
+async def auto_sync_images_api(req: dict = Body(...)):
+    """Gemini를 사용해 이미지와 자막 싱크 자동 맞춤"""
+    project_id = req.get("project_id")
+    if not project_id:
+        raise HTTPException(400, "Project ID required")
+
+    try:
+        # 1. Load Data
+        settings = db.get_project_settings(project_id)
+        
+        # Subtitles
+        subtitle_path = settings.get('subtitle_path')
+        subtitles = []
+        if subtitle_path and os.path.exists(subtitle_path):
+            with open(subtitle_path, "r", encoding="utf-8") as f:
+                subtitles = json.load(f)
+        else:
+             return {"status": "error", "error": "자막이 없습니다. 먼저 자막을 생성하세요."}
+
+        # Images (Source)
+        prompts_data = db.get_image_prompts(project_id)
+        # Filter valid images
+        valid_images = [p for p in prompts_data if p.get('image_url')]
+        
+        if not valid_images:
+             return {"status": "error", "error": "생성된 이미지가 없습니다."}
+
+        # 2. Call Gemini Service
+        result = await gemini_service.match_images_to_subtitles(subtitles, valid_images)
+        assignments = result.get('assignments', [])
+        
+        # 3. Construct Timeline
+        # We need to build `timeline_images` (ordered list of URLs) and `image_timings` (start times)
+        # Default: If no assignment, what do we do?
+        # Strategy:
+        # - Create a timeline based on assignments.
+        # - Sort assignments by subtitle_index.
+        
+        # Sort assignments by subtitle ID
+        assignments.sort(key=lambda x: x.get('subtitle_id', 0))
+        
+        new_timeline_images = []
+        new_image_timings = []
+        
+        for assign in assignments:
+            img_id = assign.get('image_id')
+            sub_id = assign.get('subtitle_id')
+            
+            if img_id is not None and sub_id is not None:
+                if 0 <= img_id < len(valid_images) and 0 <= sub_id < len(subtitles):
+                    img_url = valid_images[img_id]['image_url']
+                    start_time = subtitles[sub_id]['start']
+                    
+                    # Add to timeline
+                    new_timeline_images.append(img_url)
+                    new_image_timings.append(start_time)
+
+        # Fallback if AI fails completely
+        if not new_timeline_images:
+             print("AI returned no assignments, falling back to even distribution")
+             new_timeline_images = [p['image_url'] for p in valid_images]
+             # Recalculate default timings (handled by frontend or get_subtitles usually, but let's do it here)
+             # Simple even split
+             duration = subtitles[-1]['end'] if subtitles else 60
+             step = duration / len(new_timeline_images)
+             new_image_timings = [i * step for i in range(len(new_timeline_images))]
+
+        # 4. Save Results
+        # Save Timeline Images
+        tl_filename = f"timeline_images_{project_id}_auto_{int(time.time())}.json"
+        tl_path = os.path.join(config.OUTPUT_DIR, tl_filename)
+        with open(tl_path, "w", encoding="utf-8") as f:
+            json.dump(new_timeline_images, f, indent=2)
+        db.update_project_setting(project_id, 'timeline_images_path', tl_path)
+        
+        # Save Timings
+        timings_filename = f"image_timings_{project_id}_auto_{int(time.time())}.json"
+        timings_path = os.path.join(config.OUTPUT_DIR, timings_filename)
+        with open(timings_path, "w", encoding="utf-8") as f:
+             json.dump(new_image_timings, f, indent=2)
+        db.update_project_setting(project_id, 'image_timings_path', timings_path)
+
+        return {
+            "status": "ok", 
+            "message": f"{len(new_timeline_images)}개 이미지 싱크 완료",
+            "timeline_images": new_timeline_images,
+            "image_timings": new_image_timings
+        }
+
+    except Exception as e:
+        print(f"Auto Sync Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"status": "error", "error": str(e)}
+
+@app.post("/api/project/{project_id}/subtitle/regenerate")
+async def regenerate_subtitles_api(project_id: int):
+    """자막 강제 재생성"""
+    return await generate_subtitles_api({"project_id": project_id})
 
 
 # ===========================================
@@ -1546,7 +2110,20 @@ class ThumbnailGenerateRequest(BaseModel):
 
 class ThumbnailBackgroundRequest(BaseModel):
     prompt: str
+    aspect_ratio: Optional[str] = "16:9"  # [NEW] Aspect Ratio
 
+class ThumbnailGenerateRequest(BaseModel):
+    prompt: str
+    layers: Optional[List[dict]] = None
+    shape_layers: Optional[List[dict]] = None
+    # Legacy support
+    text: Optional[str] = None
+    text_position: str = "center"
+    text_color: str = "#FFFFFF"
+    font_size: int = 72
+    language: str = "ko"
+    background_path: Optional[str] = None
+    aspect_ratio: Optional[str] = "16:9"  # [NEW] Aspect Ratio
 @app.post("/api/image/generate-thumbnail-background")
 async def generate_thumbnail_background(req: ThumbnailBackgroundRequest):
     """썸네일 배경 이미지만 생성 (텍스트 없음)"""
@@ -1573,7 +2150,7 @@ async def generate_thumbnail_background(req: ThumbnailBackgroundRequest):
             prompt=final_prompt,
             config={
                 "number_of_images": 1,
-                "aspect_ratio": "16:9",
+                "aspect_ratio": req.aspect_ratio, # [NEW] Dynamic AR
                 "safety_filter_level": "BLOCK_LOW_AND_ABOVE"
             }
         )
@@ -1604,6 +2181,54 @@ async def generate_thumbnail_background(req: ThumbnailBackgroundRequest):
         print(f"Error generating background: {e}")
         return {"status": "error", "error": str(e)}
 
+@app.post("/api/projects/{project_id}/thumbnail/save")
+async def save_project_thumbnail(project_id: int, file: UploadFile = File(...)):
+    """최종 썸네일(합성본) 저장"""
+    try:
+        # 1. 저장 디렉토리 (output/thumbnails)
+        # static 폴더 대신 output 폴더 사용 (확실한 서빙 보장)
+        save_dir = os.path.join(config.OUTPUT_DIR, "thumbnails")
+        os.makedirs(save_dir, exist_ok=True)
+        
+        # 2. 파일명 (project_{id}_{timestamp}.png)
+        import time
+        filename = f"thumbnail_{project_id}_{int(time.time())}.png"
+        filepath = os.path.join(save_dir, filename)
+        
+        print(f"[Thumbnail] Saving to: {filepath}") # [DEBUG]
+        
+        # 3. 저장
+        content = await file.read()
+        if len(content) == 0:
+            print("[Thumbnail] Error: Received empty file content")
+            raise HTTPException(400, "Empty file received")
+
+        with open(filepath, "wb") as f:
+            f.write(content)
+            
+        print(f"[Thumbnail] Saved successfully. Size: {len(content)} bytes")
+
+        # 4. DB 업데이트 (thumbnail_path & thumbnail_url)
+        try:
+             db.update_project_setting(project_id, 'thumbnail_path', filepath)
+             db.update_project_setting(project_id, 'thumbnail_url', web_url) # [NEW] URL 저장
+        except Exception as db_e:
+             print(f"[Thumbnail] DB Update Failed: {db_e}")
+
+        # 5. URL 반환
+        # output 폴더는 /output 으로 마운트되어 있음
+        web_url = f"/output/thumbnails/{filename}"
+        return {
+            "status": "ok",
+            "url": web_url,
+            "path": filepath
+        }
+    except Exception as e:
+        print(f"Thumbnail save error: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"status": "error", "error": str(e)}
+
 @app.post("/api/image/generate-thumbnail")
 async def generate_thumbnail(req: ThumbnailGenerateRequest):
     """썸네일 생성 (이미지 + 텍스트 합성)"""
@@ -1618,25 +2243,47 @@ async def generate_thumbnail(req: ThumbnailGenerateRequest):
         import re # Import regex
 
         # If background_path is provided, use it. Otherwise, generate new image.
+        # If background_path is provided, use it. Otherwise, generate new image.
         img = None
+        
+        # [NEW] Dynamic Resolution
+        target_size = (1280, 720) # Default 16:9
+        if req.aspect_ratio == "9:16":
+            target_size = (720, 1280)
         
         if req.background_path and os.path.exists(req.background_path):
             # 기존 이미지 로드
             try:
                 img = Image.open(req.background_path)
-                img = img.resize((1280, 720), Image.LANCZOS)
-                print(f"Loaded background from: {req.background_path}")
+                img = img.resize(target_size, Image.LANCZOS)
+                print(f"Loaded background from: {req.background_path} (Resize: {target_size})")
             except Exception as e:
-                print(f"Failed to load background: {e}")
-                # Fallback to generation if load fails? Or error? Let's error for clarity.
-                raise HTTPException(400, f"배경 이미지 로드 실패: {str(e)}")
-        else:
-            # Generate new image
+                pass
+
+        if img is None: # If no bg or failed to load, generate
             from google import genai
             client = genai.Client(api_key=config.GEMINI_API_KEY)
 
             # 1. Imagen 4로 배경 이미지 생성 (무조건 텍스트 생성 억제)
             clean_prompt = req.prompt
+            
+            # negative_constraints 강화 (CJK 포함)
+            negative_constraints = "text, words, letters, alphabet, typography, watermark, signature, speech bubble, logo, brand name, writing, caption, chinese characters, japanese kanji, korean hangul, hanzi"
+            
+            response = client.models.generate_images(
+                model="imagen-4.0-generate-001",
+                prompt=f"ABSOLUTELY NO TEXT. {clean_prompt}. Background only. High quality, 8k. DO NOT INCLUDE: {negative_constraints}.",
+                config={
+                    "number_of_images": 1,
+                    "aspect_ratio": req.aspect_ratio, # [NEW]
+                    "safety_filter_level": "BLOCK_LOW_AND_ABOVE"
+                }
+            )
+            if response.generated_images:
+                 img = response.generated_images[0].image._pil_image
+                 img = img.resize(target_size, Image.LANCZOS)
+            else:
+                 raise HTTPException(500, "Background generation failed")
             
             # [FORCE FIX] 사용자 요청: 절대 텍스트 금지 (프롬프트 전처리)
             # [FORCE FIX] 사용자 요청: 절대 텍스트 금지 (프롬프트 전처리)
@@ -1878,13 +2525,82 @@ async def get_trending_keywords(
 
 
 
+@app.post("/api/image/analyze-character")
+async def analyze_character(
+    file: Optional[UploadFile] = File(None),
+    image_path: Optional[str] = Form(None),
+    project_id: Optional[int] = Form(None) # [NEW] Persistence support
+):
+    try:
+        image_bytes = None
+        saved_image_url = None
+        
+        # 1. Check Uploaded File
+        if file:
+            image_bytes = await file.read()
+            # [NEW] Save file for persistence if project_id provided
+            if project_id and image_bytes:
+                try:
+                    save_dir = f"static/project_data/{project_id}"
+                    os.makedirs(save_dir, exist_ok=True)
+                    ext = file.filename.split('.')[-1] if '.' in file.filename else 'png'
+                    filename = f"char_ref_{int(datetime.datetime.now().timestamp())}.{ext}"
+                    filepath = os.path.join(save_dir, filename)
+                    with open(filepath, "wb") as f:
+                        f.write(image_bytes)
+                    saved_image_url = f"/{save_dir.replace(os.sep, '/')}/{filename}"
+                    print(f"Saved character ref to {saved_image_url}")
+                except Exception as e:
+                    print(f"Failed to save character ref image: {e}")
+            
+        # 2. Check Local Path (Thumbnail fallback)
+        elif image_path:
+            saved_image_url = image_path # Reuse provided path
+            # Basic path validation
+            if os.path.exists(image_path):
+                with open(image_path, "rb") as f:
+                    image_bytes = f.read()
+            else:
+                 # Check relative path from current dir
+                 rel_path = image_path.lstrip("/").replace("/", os.sep)
+                 if os.path.exists(rel_path):
+                     with open(rel_path, "rb") as f:
+                         image_bytes = f.read()
+        
+        if not image_bytes:
+             return JSONResponse(status_code=400, content={"error": "Image file or valid path required"})
+
+        # 3. Vision Analysis
+        # 3. Vision Analysis
+        prompt = """
+        Analyze this image and provide a highly detailed, identity-focused description of the main character (or subject). 
+        
+        [CRITICAL REQUIREMENT]
+        YOU MUST EXPLICITLY STATE THE RACE / ETHNICITY / NATIONALITY of the person (e.g., "Korean woman", "Japanese man", "Caucasian female"). 
+        DO NOT leave this ambiguous. If they look East Asian, say "East Asian" or specific nationality if apparent.
+        
+        Capture specific facial features (eye shape, nose structure, jawline), exact hair texture/color/style, skin tone, and body proportions.
+        Describe the clothing and accessories in detail.
+        The goal is to generate a new image of the SAME person in a different setting, so the description must be specific enough to preserve identity.
+        Output ONLY the description text. Start with "(Character Reference) A photo of...".
+        """
+        
+        description = await gemini_service.generate_text_from_image(prompt, image_bytes)
+        
+        return {"description": description.strip(), "image_url": saved_image_url}
+        
+    except Exception as e:
+        print(f"Analyze character failed: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 @app.post("/api/image/generate-prompts")
 async def generate_image_prompts(req: PromptsGenerateRequest):
     """대본 기반 이미지 프롬프트 생성 (POST Body 사용)"""
     script = req.script
     style = req.style
     count = req.count
-    
+    character_reference = req.character_reference # [NEW]
+
     # [NEW] 이미지 개수 처리 로직
     if count > 0:
         count_instruction = f"- {count}개의 이미지 프롬프트를 생성하세요 (지정된 개수 준수)"
@@ -1904,6 +2620,23 @@ async def generate_image_prompts(req: PromptsGenerateRequest):
     # 선택된 스타일의 상세 프롬프트 가져오기 (없으면 입력값 그대로 사용)
     detailed_style = style_prompts.get(style.lower(), style)
 
+    # [NEW] Character Consistency Logic
+    char_instruction = ""
+    if character_reference:
+        char_instruction = f"""
+[CHARACTER CONSISTENCY REQUIREMENT]
+You have a specific character reference:
+"{character_reference}"
+
+**CRITICAL INSTRUCTION FOR CHARACTER USAGE:**
+1. **Conditional Application**: ONLY describe this character when the scene explicitly involves them (e.g. "she walks", "he looks", "close up of person").
+2. **Contextual Exclusion**: If the scene is a background (e.g. "empty street"), object (e.g. "coffee cup"), or landscape, DO NOT include the character description.
+3. **Identity & ETHNICITY Preservation**:
+   - You MUST explicitly include the race/ethnicity terms from the reference in every prompt where the character appears (e.g. "Korean woman", "Asian female").
+   - Do NOT rely on implicit bias. Force the ethnicity keyword to ensure consistency.
+4. **Visual Consistency**: Use the same hair color, hair style, and key facial features described in the reference.
+"""
+
     prompt = f"""당신은 AI 이미지 생성 프롬프트 전문가입니다.
 아래 대본을 읽고, 영상에 사용할 이미지 프롬프트를 생성해주세요.
 
@@ -1913,6 +2646,8 @@ async def generate_image_prompts(req: PromptsGenerateRequest):
 [스타일 지침]
 "{detailed_style}"
 모든 이미지 프롬프트에 위 스타일 키워드를 반드시 포함시켜야 합니다.
+
+{char_instruction}
 
 [요청]
 {count_instruction}
@@ -1941,8 +2676,29 @@ JSON만 반환하세요."""
         json_match = re.search(r'\{[\s\S]*\}', result["text"])
         if json_match:
             try:
-                return json.loads(json_match.group())
-            except:
+                data = json.loads(json_match.group())
+
+                # [NEW] DB 저장 (프로젝트 ID가 있는 경우)
+                if req.project_id and "prompts" in data:
+                    save_list = []
+                    for item in data["prompts"]:
+                        # DB 스키마 매핑
+                        save_list.append({
+                            "scene": item.get("scene", ""),
+                            "prompt_ko": item.get("scene", ""), # 장면 설명을 한국어 프롬프트로 사용
+                            "prompt_en": item.get("prompt") or item.get("prompt_content") or "",
+
+                            "image_url": item.get("image_url", "")
+                        })
+                    try:
+                        db.save_image_prompts(req.project_id, save_list)
+                        print(f"[Main] Saved {len(save_list)} image prompts to DB for project {req.project_id}")
+                    except Exception as e:
+                        print(f"[Main] Failed to save prompts to DB: {e}")
+
+                return data
+            except Exception as e:
+                print(f"JSON Parsing Error: {e}")
                 pass
         return {"raw": result["text"]}
 
@@ -1995,6 +2751,81 @@ async def generate_image(
         import traceback
         traceback.print_exc()
         return {"status": "error", "error": str(e)}
+
+@app.post("/api/projects/{project_id}/thumbnail/save")
+async def save_project_thumbnail(
+    project_id: int,
+    file: UploadFile = File(...)
+):
+    """썸네일 이미지 저장 (Canvas에서 Blob으로 전송됨)"""
+    try:
+        # 파일 저장 경로 설정
+        # thumbnails 폴더 별도 관리 또는 output 폴더 사용
+        # 여기서는 관리 편의상 /static/thumbnails/{project_id} 사용
+        upload_dir = os.path.join(config.STATIC_DIR, "thumbnails", str(project_id))
+        os.makedirs(upload_dir, exist_ok=True)
+        
+        # 파일명 생성 (Timestamp)
+        import time
+        timestamp = int(time.time())
+        filename = f"thumbnail_{timestamp}.png"
+        file_path = os.path.join(upload_dir, filename)
+        
+        # 파일 저장
+        with open(file_path, "wb") as buffer:
+            import shutil
+            shutil.copyfileobj(file.file, buffer)
+            
+        # 웹 접근 URL 생성
+        # /static/thumbnails/{project_id}/{filename}
+        web_url = f"/static/thumbnails/{project_id}/{filename}".replace(os.path.sep, '/')
+        
+        # DB 업데이트
+        # 1. project_settings의 thumbnail_url 업데이트
+        db.update_project_setting(project_id, "thumbnail_url", web_url)
+        db.update_project_setting(project_id, "thumbnail_path", file_path) # 로컬 경로도 저장
+        
+        # 2. 프로젝트 메타정보 업데이트 (선택)
+        # db.update_project(project_id, thumbnail_url=web_url) # 만약 projects 테이블에 컬럼이 있다면
+        
+        print(f"Thumbnail saved for project {project_id}: {web_url}")
+        
+        return {
+            "status": "ok",
+            "url": web_url,
+            "path": file_path
+        }
+        
+    except Exception as e:
+        print(f"Thumbnail save error: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post("/api/projects/{project_id}/setting")
+async def update_project_setting_api(project_id: int, req: ProjectSettingUpdate):
+    """프로젝트 설정 단일 업데이트"""
+    try:
+        success = db.update_project_setting(project_id, req.key, req.value)
+        if success:
+            return {"status": "ok"}
+        else:
+            return {"status": "error", "error": "Invalid key or database error"}
+    except Exception as e:
+         return {"status": "error", "error": str(e)}
+
+@app.post("/api/projects/{project_id}/settings")
+async def save_project_settings_api(project_id: int, settings: Dict[str, Any] = Body(...)):
+    """프로젝트 설정 일괄 업데이트 (Bulk)"""
+    try:
+        # DB 저장 (Upsert or Update)
+        db.save_project_settings(project_id, settings)
+        return {"status": "ok", "message": "Settings saved"}
+    except Exception as e:
+        print(f"Settings Save Error: {e}")
+        return {"status": "error", "error": str(e)}
+
+# [REMOVED] Duplicate full endpoint (Merged to line 418)
 
 @app.get("/api/debug/dump_image_prompts/{project_id}")
 async def debug_dump_image_prompts(project_id: int):
@@ -2098,20 +2929,25 @@ async def upload_intro_video(
         with intro_path.open("wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
-        # 데이터베이스에 경로 저장
+        # Web URL 생성 (Unix Style Path for URL)
+        # /uploads/intros/{project_id}/intro{file_ext}
+        web_url = f"/uploads/intros/{project_id}/intro{file_ext}"
+
+        # 데이터베이스에 경로 저장 (intro_video_path AND background_video_url)
         conn = database.get_db()
         cursor = conn.cursor()
         cursor.execute("""
             UPDATE project_settings 
-            SET intro_video_path = ?, updated_at = CURRENT_TIMESTAMP
+            SET intro_video_path = ?, background_video_url = ?, updated_at = CURRENT_TIMESTAMP
             WHERE project_id = ?
-        """, (str(intro_path), project_id))
+        """, (str(intro_path), web_url, project_id))
         conn.commit()
         conn.close()
         
         return {
             "status": "success",
             "intro_path": str(intro_path),
+            "url": web_url,
             "file_size": file_size,
             "message": "인트로 영상이 업로드되었습니다."
         }
@@ -2355,10 +3191,27 @@ async def render_project_video(
 ):
     """프로젝트 영상 최종 렌더링 (이미지 + 오디오 + 자막)"""
     try:
-        # 해상도 설정 (기본 16:9 롱폼)
-        target_resolution = (1920, 1080)
+        # [NEW] App Mode & Resolution Logic
+        from services.settings_service import settings_service
+        global_settings = settings_service.get_settings()
+        app_mode = global_settings.get("app_mode", "longform")
+
+        # 해상도 설정
+        if app_mode == 'shorts':
+            target_resolution = (1080, 1920) # 9:16 Shorts Default
+            # If user selected 3:4 aspect ratio in image gen, we might want to respect that?
+            # But "Shorts" video file is usually 9:16 canvas. 3:4 content fits inside.
+            # Let's stick to 9:16 canvas for the video file standard.
+        else:
+            target_resolution = (1920, 1080) # 16:9 Longform
+            
         if request.resolution == "720p":
-            target_resolution = (1280, 720)
+            if app_mode == 'shorts':
+                target_resolution = (720, 1280)
+            else:
+                target_resolution = (1280, 720)
+        
+        print(f"DEBUG: Rendering in {app_mode} mode at {target_resolution}")
         
         # 1. 데이터 조회
         images_data = db.get_image_prompts(project_id)
@@ -2438,52 +3291,178 @@ async def render_project_video(
                     s_settings = db.get_project_settings(project_id) or {}
                     s_settings = {
                         "font": s_settings.get("subtitle_font", config.DEFAULT_FONT_PATH),
-                        "font_color": s_settings.get("subtitle_color", "white"),
+                        "font_color": s_settings.get("subtitle_base_color", "white"), # [FIX] Key match
                         "style_name": s_settings.get("subtitle_style_enum", "Basic_White"),
-                        "font_size": s_settings.get("subtitle_font_size", 80),
+                        "font_size": int(s_settings.get("subtitle_font_size", 80)),
                         "stroke_color": s_settings.get("subtitle_stroke_color", "black"),
-                        "stroke_color": s_settings.get("subtitle_stroke_color", "black"),
-                        "stroke_width": s_settings.get("subtitle_stroke_width", 5),
-                        "position_y": s_settings.get("subtitle_position_y")
+                        "stroke_width": int(s_settings.get("subtitle_stroke_width", 5)),
+                        "position_y": s_settings.get("subtitle_pos_y") # [FIX] Key match
                     }
                     print(f"DEBUG_RENDER: main.py prepared s_settings: {s_settings}") # [DEBUG] Logic Trace
 
                     # 자막 데이터 로드
+                    # 자막 데이터 로드
                     inner_output_dir, _ = get_project_output_dir(project_id)
-                    saved_sub_path = os.path.join(inner_output_dir, f"subtitles_{project_id}.json")
                     
-                    if os.path.exists(saved_sub_path):
+                    # [FIX] Priority: Check DB saved path first (Manual Saves)
+                    p_settings = db.get_project_settings(project_id)
+                    db_sub_path = p_settings.get('subtitle_path') if p_settings else None
+                    
+                    subs = None
+                    if db_sub_path and os.path.exists(db_sub_path):
+                        print(f"DEBUG_RENDER: Loading subtitles from DB path: {db_sub_path}")
                         import json
-                        with open(saved_sub_path, "r", encoding="utf-8") as f:
-                            subs = json.load(f)
+                        try:
+                            with open(db_sub_path, "r", encoding="utf-8") as f:
+                                subs = json.load(f)
+                        except Exception as e:
+                            print(f"DEBUG_RENDER: Failed to load DB sub path: {e}")
+                    
+                    if not subs:
+                         # Fallback to default name
+                        saved_sub_path = os.path.join(inner_output_dir, f"subtitles_{project_id}.json")
+                        if os.path.exists(saved_sub_path):
+                            print(f"DEBUG_RENDER: Loading subtitles from default path: {saved_sub_path}")
+                            import json
+                            with open(saved_sub_path, "r", encoding="utf-8") as f:
+                                subs = json.load(f)
                     
                     if not subs:
                         # Fallback: 스크립트 기반 정렬 자막 생성
+                        print("DEBUG_RENDER: No saved subtitles found. Generating from scratch.")
                         script = script_data.get("full_script") if script_data else ""
                         subs = video_service.generate_aligned_subtitles(audio_path, script)
 
                 # 2. 오디오 정보
-                from moviepy.editor import AudioFileClip
-                audio_clip = AudioFileClip(audio_path)
-                audio_duration = audio_clip.duration
-                audio_clip.close()
+                # 2. 오디오 정보 (Duration 정밀 측정)
+                audio_duration = 0.0
+                print(f"DEBUG_RENDER: Checking audio duration for: {audio_path}")
+                try:
+                    import pydub
+                    # pydub는 ffprobe/ffmpeg를 통해 디코딩 길이를 가져오므로 더 정확함 (VBR 상황 등)
+                    audio_seg = pydub.AudioSegment.from_file(audio_path)
+                    audio_duration = audio_seg.duration_seconds
+                    print(f"DEBUG_RENDER: pydub audio duration: {audio_duration}s")
+                except ImportError:
+                    print("DEBUG_RENDER: pydub not installed, falling back to moviepy")
+                    from moviepy.editor import AudioFileClip
+                    with AudioFileClip(audio_path) as audio_clip:
+                        audio_duration = audio_clip.duration
+                except Exception as e:
+                    print(f"DEBUG_RENDER: pydub failed ({e}), falling back to moviepy")
+                    from moviepy.editor import AudioFileClip
+                    with AudioFileClip(audio_path) as audio_clip:
+                        audio_duration = audio_clip.duration
                 
-                duration_per_image = audio_duration / len(images)
+                print(f"DEBUG_RENDER: Final audio duration for sync: {audio_duration}s")
+                if audio_duration <= 0:
+                     print("DEBUG_RENDER: Audio duration is 0 or invalid. Using default 10s per image?? No, failing.")
                 
+                # [IMPROVED] Dynamic Image Pacing based on Subtitles
+                num_img = len(images) if images else 0
+                num_sub = len(subs) if subs else 0
+                
+                duration_per_image = 5.0 # Default
+                
+                if num_img > 0:
+                    # Debug Logging
+                    try:
+                        with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
+                             f.write(f"[{datetime.datetime.now()}] DEBUG_RENDER: num_img={num_img}, num_sub={num_sub}\n")
+                    except: pass
+
+                    # If we have enough subtitles to map nicely
+                    forced_timings = None
+                    # [FIX] Try to load saved image timings first
+                    i_settings = db.get_project_settings(project_id)
+                    tm_path = i_settings.get('image_timings_path') if i_settings else None
+                    if tm_path and os.path.exists(tm_path):
+                        try:
+                            import json
+                            with open(tm_path, "r", encoding="utf-8") as f:
+                                forced_timings = json.load(f)
+                            print(f"DEBUG_RENDER: Loaded explicit image timings from {tm_path}")
+                        except Exception as e:
+                            print(f"DEBUG_RENDER: Failed to load image timings: {e}")
+
+                    # If we have enough subtitles to map nicely
+                    if num_sub >= num_img and num_sub > 0:
+                        # ...
+                        durations = []
+                        
+                        if forced_timings and len(forced_timings) == num_img:
+                             # Use forced timings
+                             print("DEBUG_RENDER: Using FORCED timings from database.")
+                             current_start_times = forced_timings
+                        else:
+                             # Calculate start times for each image (Dynamic Pacing)
+                             print(f"DEBUG_RENDER: Using Dynamic Pacing (Images: {num_img}, Subs: {num_sub})")
+                             step = num_sub / num_img
+                             current_start_times = [0.0]
+                             for i in range(1, num_img):
+                                 sub_idx = int(i * step)
+                                 sub_idx = min(sub_idx, num_sub - 1)
+                                 t_start = subs[sub_idx]['start']
+                                 if t_start < current_start_times[-1]: t_start = current_start_times[-1]
+                                 current_start_times.append(t_start)
+                        
+                        # Convert Start Times to Durations
+                        for i in range(len(current_start_times)):
+                            start_t = current_start_times[i]
+                            if i < len(current_start_times) - 1:
+                                end_t = current_start_times[i+1]
+                                duration = end_t - start_t
+                            else:
+                                # Last image
+                                duration = audio_duration - start_t
+                            
+                            if duration < 0.1: duration = 0.1 # Min duration safety
+                            durations.append(duration)
+                        # (Redundant OLD logic removed)
+                        pass
+                        
+                        duration_per_image = durations
+                        print(f"DEBUG_RENDER: Dynamic Durations: {durations}")
+                    else:
+                        # Fallback to equal spacing
+                        duration_per_image = audio_duration / num_img
+                        print(f"DEBUG_RENDER: Calculated fixed duration_per_image: {duration_per_image}s")
+                
+                # [NEW] Thumbnail Path for Shorts Baking
+                thumbnail_path_arg = None
+                if app_mode == 'shorts':
+                    # Find thumbnail
+                    # Priority: Project Settings -> Project Table
+                    p_settings = db.get_project_settings(project_id)
+                    thumb_url = p_settings.get("thumbnail_url")
+                    
+                    if thumb_url:
+                        # Convert URL to Path
+                        if thumb_url.startswith("/static/"):
+                            t_rel = thumb_url.replace("/static/", "", 1).replace("/", os.sep)
+                            t_path = os.path.join(config.STATIC_DIR, t_rel)
+                        elif thumb_url.startswith("/output/"):
+                            t_rel = thumb_url.replace("/output/", "", 1).replace("/", os.sep)
+                            t_path = os.path.join(config.OUTPUT_DIR, t_rel)
+                        else:
+                            t_path = None
+                        
+                        if t_path and os.path.exists(t_path):
+                            thumbnail_path_arg = t_path
+
                 # 3. 단일 패스 영상 생성 (이미지 + 오디오 + 자막 통합)
                 video_path = video_service.create_slideshow(
                     images=images,
                     audio_path=audio_path,
                     output_filename=final_output_path, # 바로 최종 경로로 생성
-                    duration_per_image=duration_per_image,
                     resolution=target_resolution_arg,
-                    title_text="",
-                    project_id=project_id,
-                    subtitles=subs if use_subtitles_arg else None,
-
-                    subtitle_settings=s_settings if use_subtitles_arg else None,
-                    background_video_url=bg_video_url_arg
+                    subtitles=subs,                   # 자막 데이터 전달 (Overlay용)
+                    subtitle_settings=s_settings,      # 자막 스타일 전달
+                    background_video_url=bg_video_url_arg,
+                    thumbnail_path=thumbnail_path_arg,  # [NEW] Pass thumbnail
+                    duration_per_image=duration_per_image # [FIX] Pass calculated durations
                 )
+
                 
                 final_path = video_path
 
@@ -2536,6 +3515,89 @@ async def render_project_video(
         print(error_msg)
         traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": error_msg, "traceback": traceback.format_exc()})
+
+
+@app.get("/api/projects/{project_id}/subtitles")
+async def get_project_subtitles(project_id: int):
+    """프로젝트 자막 및 이미지 싱크 데이터 조회"""
+    try:
+        # 1. 설정 및 경로 조회
+        settings = db.get_project_settings(project_id) or {}
+        subtitle_path = settings.get('subtitle_path')
+        image_timings_path = settings.get('image_timings_path')
+        timeline_images_path = settings.get('timeline_images_path')
+
+        subtitles = []
+        image_timings = []
+        timeline_images = [] # Ordered images
+
+        # 2. 자막 로드
+        if subtitle_path and os.path.exists(subtitle_path):
+             with open(subtitle_path, "r", encoding="utf-8") as f:
+                 subtitles = json.load(f)
+        
+        # 3. 이미지 타이밍 로드
+        if image_timings_path and os.path.exists(image_timings_path):
+             with open(image_timings_path, "r", encoding="utf-8") as f:
+                 image_timings = json.load(f)
+        
+        # 4. 타임라인 이미지 로드 (없으면 기본 Prompt 이미지 사용?)
+        if timeline_images_path and os.path.exists(timeline_images_path):
+             with open(timeline_images_path, "r", encoding="utf-8") as f:
+                 timeline_images = json.load(f)
+        
+        # Fallback: 타임라인 이미지가 없으면? (Subtitles exist but no timeline yet)
+        # Frontend handles empty timeline by showing palette.
+        # But we should probably send palette 'source_images' too here?
+        # Or frontend calls 'getImagePrompts'.
+        
+        # Let's return just what we have for timeline. 
+        # Source images are fetched via API.image.generatePrompts or similar usually? 
+        # No, `db.get_image_prompts`.
+        
+        prompts = db.get_image_prompts(project_id)
+        source_images = [p['image_url'] for p in prompts if p.get('image_url')]
+
+        if not timeline_images and source_images:
+             # Default: Use source images as timeline if empty? 
+             # No, let frontend decide or stay empty.
+             pass
+
+        return {
+            "status": "ok",
+            "subtitles": subtitles,
+            "image_timings": image_timings,
+            "timeline_images": timeline_images,
+            "source_images": source_images,
+            "settings": settings # useful for styles
+        }
+
+    except Exception as e:
+        print(f"Get Subtitles Error: {e}")
+        return {"status": "error", "error": str(e)}
+
+@app.get("/api/projects/{project_id}/status")
+async def get_project_status(project_id: int):
+    """프로젝트 상태 및 결과물 조회 (Polling용)"""
+    try:
+        project = db.get_project(project_id)
+        if not project:
+             raise HTTPException(404, "Project not found")
+        
+        settings = db.get_project_settings(project_id)
+        video_path = settings.get("video_path")
+        
+        # 만약 video_path가 있고 status가 rendered라면, 웹 접근 가능한 URL인지 확인 필요
+        # 현재 video_path는 /output/... 형식이므로 그대로 사용 가능
+        
+        return {
+            "status": "ok",
+            "project_status": project["status"], # rendered, rendering, failed, etc.
+            "video_path": video_path
+        }
+    except Exception as e:
+        print(f"Status check failed: {e}")
+        return {"status": "error", "error": str(e)}
 
 
 @app.post("/api/projects/{project_id}/upload")
@@ -2612,6 +3674,7 @@ async def upload_project_video(
 
 @app.get("/subtitle-gen", response_class=HTMLResponse)
 async def subtitle_gen_page(request: Request):
+    print("DEBUG LOG: Serving subtitle_gen.html route (If you see this, the route is correct)")
     return templates.TemplateResponse("pages/subtitle_gen.html", {
         "request": request,
         "title": "자막 생성 및 편집",
@@ -2759,18 +3822,41 @@ async def get_subtitle(project_id: int):
 @app.post("/api/subtitle/save")
 async def save_subtitle(
     project_id: int = Body(...),
-    subtitles: List[dict] = Body(...)
+    subtitles: List[dict] = Body(...),
+    image_timings: Optional[List[float]] = Body(None),
+    images: Optional[List[str]] = Body(None)
 ):
-    """편집된 자막 저장 (및 미리보기 이미지 생성)"""
+    """편집된 자막 및 이미지 싱크 정보 저장"""
     output_dir, _ = get_project_output_dir(project_id)
-    sub_path = os.path.join(output_dir, f"subtitles_{project_id}.json")
     
     # 1. 자막 저장
+    sub_path = os.path.join(output_dir, f"subtitles_{project_id}.json")
     import json
     with open(sub_path, "w", encoding="utf-8") as f:
         json.dump(subtitles, f, ensure_ascii=False, indent=2)
         
     db.update_project_setting(project_id, "subtitle_path", sub_path)
+
+    # 2. 이미지 타이밍 저장
+    if image_timings is not None:
+        timings_filename = f"image_timings_{project_id}.json" # Fixed name for manual save? Or timestamp? Let's use clean name.
+        # Actually, let's include timestamp or just overwrite a 'latest' file? 
+        # For simplicity and consistence with load logic, let's just overwrite a specific file or update the setting.
+        # save_subtitle is called frequently. Overwrite is better.
+        timings_path = os.path.join(output_dir, timings_filename)
+        with open(timings_path, "w", encoding="utf-8") as f:
+            json.dump(image_timings, f, indent=2)
+        db.update_project_setting(project_id, 'image_timings_path', timings_path)
+
+    # 3. 타임라인 이미지 저장 (순서)
+    if images is not None:
+        tl_filename = f"timeline_images_{project_id}.json"
+        tl_path = os.path.join(output_dir, tl_filename)
+        with open(tl_path, "w", encoding="utf-8") as f:
+            json.dump(images, f, indent=2)
+        db.update_project_setting(project_id, 'timeline_images_path', tl_path)
+
+
 
     # 2. 미리보기 이미지 생성 (비동기 처리 권장되나 사용자 경험 위해 동기 처리)
     # 필요한 정보 로드

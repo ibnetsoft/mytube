@@ -3,107 +3,134 @@
 {% block content %}
 
 
-<!-- 분석 데이터 표시 -->
-<div id="analysisInfo" class="card container-content section-spacing hidden">
-    <h3 class="card-title">📋 대본 구조 기반</h3>
-    <input type="text" id="structureTopic" class="input-field mt-1" placeholder="영상 주제 (수정 가능)">
-    <p class="text-xs text-gray-500 mt-1">💡 주제가 다르다면 직접 수정해주세요. AI는 이 주제와 아래 구조를 바탕으로 대본을 씁니다.</p>
-</div>
+<!-- Flex Container -->
+<div class="flex flex-col lg:flex-row gap-6 section-spacing">
 
-<!-- 디버그/프리뷰: 실제로 로드된 구조 확인용 -->
-<div id="structurePreview" class="card mb-6 border-l-4 border-indigo-500 bg-indigo-50 dark:bg-indigo-900/10">
-    <div class="flex items-center justify-between mb-2">
-        <h3 class="font-bold text-indigo-800 dark:text-indigo-300">🔍 AI에게 전달될 구조 데이터 (확인용)</h3>
-        <button onclick="copyStructurePreview()"
-            class="text-xs bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-2 py-1 rounded transition-colors">
-            📋 전체 복사
-        </button>
-    </div>
-    <div id="previewContent"
-        class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono max-h-40 overflow-y-auto p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
-        (데이터 로딩 중...)
-    </div>
-</div>
-
-<!-- 탭 네비게이션 -->
-<div class="flex mb-6 border-b border-gray-200 dark:border-gray-700">
-    <button onclick="setScriptMode('ai')" id="tabAI"
-        class="px-6 py-3 font-bold border-b-2 border-blue-500 text-blue-600 dark:text-blue-400 transition-all">
-        🤖 AI 자동 생성
-    </button>
-    <button onclick="setScriptMode('manual')" id="tabManual"
-        class="px-6 py-3 font-bold border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-all">
-        📝 직접 입력 (붙여넣기)
-    </button>
-</div>
-
-<!-- ================= AI 생성 모드 ================= -->
-<div id="aiGenSection">
-    <!-- 대본 옵션 -->
-    <div class="card mb-6">
-        <h3 class="font-bold text-gray-800 dark:text-white mb-4">⚙️ 대본 옵션</h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">대본 스타일</label>
-                <select id="scriptStyle" class="input-field">
-                    <option value="story" selected>옛날 이야기 (Old Story)</option>
-                    <option value="news">뉴스 보도 (News Delivery)</option>
-                    <option value="narration">나레이션형 (설명 위주)</option>
-                    <option value="conversational">대화형 (친근한 말투)</option>
-                    <option value="storytelling">스토리텔링형 (이야기 전개)</option>
-                </select>
+    <!-- Left Column: Context (Topic & Data) -->
+    <div class="w-full lg:w-1/3 space-y-4">
+        <!-- 분석 데이터 표시 -->
+        <div id="analysisInfo" class="card hidden">
+            <div class="flex justify-between items-center mb-2">
+                <h3 class="card-title mb-0">📋 대본 구조 기반</h3>
+                <button onclick="window.location.href='/script-plan'"
+                    class="text-xs bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 px-2 py-1 rounded text-gray-700 dark:text-gray-300 transition-colors">
+                    🔄 구조 다시 짜기
+                </button>
             </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">포함 요소</label>
-                <div class="flex gap-4">
-                    <label class="flex items-center gap-2">
-                        <input type="checkbox" id="includeHooks" checked class="rounded">
-                        <span class="text-sm text-gray-700 dark:text-gray-300">후킹 멘트</span>
-                    </label>
-                    <label class="flex items-center gap-2">
-                        <input type="checkbox" id="includeCTA" checked class="rounded">
-                        <span class="text-sm text-gray-700 dark:text-gray-300">CTA</span>
-                    </label>
-                </div>
-            </div>
+            <input type="text" id="structureTopic" class="input-field mt-1 text-sm" placeholder="영상 주제">
+            <p class="text-xs text-gray-500 mt-2 leading-relaxed">
+                💡 주제가 다르다면 직접 수정해주세요. AI는 이 주제를 바탕으로 대본을 작성합니다.
+            </p>
         </div>
+
+        <!-- Structure Data Preview (Collapsed) -->
+        <details class="bg-gray-900 rounded-lg p-2 border border-gray-700">
+            <summary
+                class="text-xs font-medium text-blue-400 cursor-pointer select-none hover:text-blue-300 transition-colors">
+                🔍 AI 전달 데이터 확인하기
+            </summary>
+            <pre id="previewContent"
+                class="mt-2 text-[10px] text-gray-400 font-mono whitespace-pre-wrap overflow-x-auto max-h-60 p-2 bg-black/50 rounded border border-gray-800">(데이터 로딩 중...)</pre>
+        </details>
     </div>
 
-    <!-- 생성 버튼 그룹 -->
-    <div class="flex gap-2 mb-6">
-        <button onclick="generateScript()" id="generateBtn"
-            class="flex-1 btn-primary py-4 flex items-center justify-center gap-3 text-lg">
-            <span>✍️</span>
-            <span>대본 생성 시작하기</span>
-        </button>
-        <button onclick="stopAndSave()" id="stopBtn"
-            class="hidden btn-secondary bg-red-100 text-red-600 hover:bg-red-200 py-4 px-6 flex items-center justify-center gap-2">
-            <span>⏹️</span>
-            <span>멈춤 & 저장 (즉시 완료)</span>
-        </button>
-    </div>
-</div>
-<!-- End of aiGenSection -->
+    <!-- Right Column: Actions (Tabs & Generation) -->
+    <div class="w-full lg:w-2/3 flex-1">
 
-<!-- ================= 직접 입력 모드 ================= -->
-<div id="manualInputSection" class="hidden">
-    <div
-        class="card container-content section-spacing bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-100 dark:border-yellow-900/30">
-        <h3 class="card-title">📝 이미 작성된 대본이 있나요?</h3>
-        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            외부에서 작성한 대본을 여기에 붙여넣으세요. AI 생성 과정을 건너뛰고 바로 다음 단계(TTS, 이미지)로 진행할 수 있습니다.
-        </p>
-
-        <textarea id="manualScriptInput" class="input-field font-mono" rows="15"
-            placeholder="여기에 대본을 붙여넣으세요..."></textarea>
-
-        <div class="btn-group btn-group-end mt-4">
-            <button onclick="registerManualScript()" class="btn-primary btn-primary-lg">
-                <span>💾</span>
-                <span>대본 등록하기</span>
+        <!-- 탭 네비게이션 -->
+        <div class="flex mb-4 border-b border-gray-200 dark:border-gray-700">
+            <button onclick="setScriptMode('ai')" id="tabAI"
+                class="px-6 py-3 font-bold border-b-2 border-blue-500 text-blue-600 dark:text-blue-400 transition-all text-sm">
+                🤖 AI 자동 생성
+            </button>
+            <button onclick="setScriptMode('manual')" id="tabManual"
+                class="px-6 py-3 font-bold border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-all text-sm">
+                📝 직접 입력
             </button>
         </div>
+
+        <!-- AI 생성 모드 -->
+        <div id="aiGenSection">
+            <!-- 옵션 패널 -->
+            <div
+                class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
+                <h3 class="text-sm font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                    ⚙️ 대본 옵션 설정
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label
+                            class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">스타일</label>
+                        <input type="text" id="scriptStyleDisplay"
+                            class="input-field bg-gray-50 text-gray-700 cursor-not-allowed dark:bg-gray-900 dark:text-gray-300 text-sm py-2 font-medium"
+                            readonly value="불러오는 중...">
+                        <input type="hidden" id="scriptStyle" value="news">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">포함
+                            요소</label>
+                        <div class="flex gap-4 mt-2">
+                            <label class="flex items-center gap-2 cursor-pointer group">
+                                <div class="relative flex items-center">
+                                    <input type="checkbox" id="includeHooks" checked
+                                        class="peer h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 transition-all">
+                                </div>
+                                <span
+                                    class="text-sm text-gray-700 dark:text-gray-300 group-hover:text-blue-500 transition-colors">후킹
+                                    멘트</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer group">
+                                <div class="relative flex items-center">
+                                    <input type="checkbox" id="includeCTA" checked
+                                        class="peer h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 transition-all">
+                                </div>
+                                <span
+                                    class="text-sm text-gray-700 dark:text-gray-300 group-hover:text-blue-500 transition-colors">CTA</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 생성 버튼 그룹 -->
+            <div class="flex justify-end gap-3">
+                <button onclick="stopAndSave()" id="stopBtn"
+                    class="hidden btn-secondary bg-red-50 text-red-600 hover:bg-red-100 py-2.5 px-4 rounded-lg flex items-center gap-2 text-sm font-medium transition-colors">
+                    <span>⏹️</span>
+                    <span>멈춤 & 저장</span>
+                </button>
+                <button onclick="generateScript()" id="generateBtn"
+                    class="btn-primary py-2.5 px-6 rounded-lg flex items-center gap-2 text-sm font-semibold shadow-sm hover:shadow-md transition-all">
+                    <span>✍️</span>
+                    <span>대본 생성 시작</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 직접 입력 모드 -->
+        <div id="manualInputSection" class="hidden">
+            <div
+                class="bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-100 dark:border-yellow-900/30 rounded-xl p-5 mb-4">
+                <h3 class="text-sm font-bold text-gray-800 dark:text-white mb-2">📝 외부 대본 붙여넣기</h3>
+                <p class="text-xs text-gray-600 dark:text-gray-400 mb-4 leading-relaxed">
+                    AI 생성을 건너뛰고 준비된 대본을 바로 사용합니다.
+                </p>
+                <textarea id="manualScriptInput" class="input-field font-mono text-sm leading-relaxed" rows="12"
+                    placeholder="여기에 대본을 붙여넣으세요..."></textarea>
+            </div>
+
+            <div class="flex justify-end">
+                <button onclick="registerManualScript()"
+                    class="btn-primary py-2.5 px-6 rounded-lg flex items-center gap-2 text-sm font-semibold shadow-sm hover:shadow-md transition-all">
+                    <span>💾</span>
+                    <span>작성 완료</span>
+                </button>
+            </div>
+        </div>
     </div>
+</div>
+</div>
+</div>
 </div>
 
 <!-- 결과 영역 -->
@@ -145,8 +172,30 @@
 <script>
     let currentScript = '';
 
+    // [NEW] Global App Mode
+    window.APP_MODE = 'longform';
+
     // 페이지 로드 시 데이터 로딩
     document.addEventListener('DOMContentLoaded', async () => {
+        // 0. App Mode Check
+        try {
+            const res = await fetch('/api/settings');
+            const settings = await res.json();
+            window.APP_MODE = settings.app_mode || 'longform';
+            console.log("App Mode:", window.APP_MODE);
+
+            // UI Indication
+            if (window.APP_MODE === 'shorts') {
+                const tabContainer = document.querySelector('.flex.mb-4.border-b');
+                if (tabContainer) {
+                    const badge = document.createElement('span');
+                    badge.className = "ml-auto text-xs px-3 py-1 bg-purple-100 text-purple-700 font-bold rounded-full flex items-center";
+                    badge.innerText = "📱 쇼츠 모드";
+                    tabContainer.appendChild(badge);
+                }
+            }
+        } catch (e) { console.error(e); }
+
         const projectId = getCurrentProject();
         console.log("Current Project ID:", projectId);
 
@@ -182,6 +231,11 @@
                         structureData.project_id = projectId;
                     }
 
+                    // [NEW] DB Settings에서 스타일 가져오기 (Fallback)
+                    if (projectFull.settings && projectFull.settings.script_style) {
+                        structureData.script_style = projectFull.settings.script_style;
+                    }
+
                     Utils.storage.set('scriptStructure', structureData);
                     Utils.showToast('기획 데이터를 server에서 불러왔습니다', 'success');
                 }
@@ -200,15 +254,46 @@
             const topic = structureData.topic || structureData.hook || '주제 미상';
             if (topicEl) topicEl.value = topic;
 
-            // 프리뷰 업데이트
             if (previewEl) {
                 previewEl.textContent = JSON.stringify(structureData, null, 2);
                 previewEl.classList.remove('text-red-600');
             }
+
+            // [NEW] Set Style Code and Display Name from Structure Data
+            const styleCode = structureData.script_style || 'news';
+            const styleEl = document.getElementById('scriptStyle');
+            const displayEl = document.getElementById('scriptStyleDisplay');
+
+            if (styleEl) styleEl.value = styleCode;
+
+            const styleNames = {
+                'story': '옛날 이야기 (Old Story)',
+                'news': '뉴스 보도 (News Delivery)',
+                'senior_story': '시니어 사연 (Senior Story)',
+                'narration': '나레이션형 (설명 위주)',
+                'conversational': '대화형 (친근한 말투)',
+                'storytelling': '스토리텔링형 (이야기 전개)'
+            };
+            if (displayEl) displayEl.value = styleNames[styleCode] || styleCode;
+
         } else {
             if (previewEl) {
-                previewEl.textContent = "❌ 구조 데이터가 없습니다! 대본 기획 단계 완료 여부를 확인해주세요.";
-                previewEl.classList.add('text-red-600', 'font-bold');
+                if (window.APP_MODE === 'shorts') {
+                    // [NEW] Shorts Quick Start Button
+                    previewEl.innerHTML = `
+                        <div class="text-center py-4">
+                            <p class="text-yellow-500 font-bold mb-2">⚠ 구조 데이터가 없습니다</p>
+                            <button onclick="window.location.href='/script-plan?mode=shorts&auto=true'" 
+                                class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg text-xs transition-colors shadow-lg animate-pulse">
+                                ⚡ 쇼츠 기획 바로 시작하기 (Auto)
+                            </button>
+                        </div>
+                    `;
+                    previewEl.classList.remove('text-red-600');
+                } else {
+                    previewEl.textContent = "❌ 구조 데이터가 없습니다! 대본 기획 단계 완료 여부를 확인해주세요.";
+                    previewEl.classList.add('text-red-600', 'font-bold');
+                }
             }
         }
     });
@@ -229,12 +314,24 @@
                         structureData.topic = projectFull.project.topic || projectFull.project.name;
                     }
                     if (!structureData.project_id) structureData.project_id = projectId;
+
+                    // [NEW] DB Settings에서 스타일 가져오기 (Fallback)
+                    if (projectFull.settings && projectFull.settings.script_style) {
+                        structureData.script_style = projectFull.settings.script_style;
+                    }
                     Utils.storage.set('scriptStructure', structureData);
                 }
             } catch (e) { console.error(e); }
         }
 
         if (!structureData) {
+            // [NEW] Shorts Auto Redirect Prompt
+            if (window.APP_MODE === 'shorts') {
+                if (confirm('쇼츠 대본을 만들기 위해 기획 데이터가 필요합니다.\n자동으로 생성하시겠습니까? (기획 페이지로 이동)')) {
+                    window.location.href = '/script-plan?mode=shorts&auto=true';
+                    return;
+                }
+            }
             Utils.showToast('대본 구조 데이터가 없습니다. 기획 단계부터 진행해주세요.', 'error');
             return;
         }
@@ -255,12 +352,25 @@
         // 주제정보 보강
         const topic = document.getElementById('structureTopic').value || structureData.topic || structureData.hook || '유튜브 영상';
 
-        // 길이 정보 보강 (기본값 60초)
-        const duration = structureData.duration || 60;
+        // 길이 정보 보강 (기본값 60초 / 쇼츠는 30초)
+        let duration = structureData.duration || 60;
+
+        // [NEW] Shorts Mode Constraint
+        if (window.APP_MODE === 'shorts') {
+            duration = 30; // Default to 30s for shorts
+            // 만약 구조 데이터에 명시된 길이가 있어도 쇼츠라면 60초 미만으로 강제
+            if (structureData.duration && structureData.duration > 60) {
+                console.warn("Override duration for shorts mode to 59s");
+                duration = 59;
+            }
+        }
+
         // 한국어 말하기 속도: 초당 약 2.5~3음절 (여유있게 계산)
         // 30초 -> 90~120자, 60초 -> 200~250자
         // 너무 짧으면 AI가 내용을 못 채우므로 초당 4.5자 정도로 넉넉히 잡고 제한
-        const maxChars = duration * 5;
+        // [NEW] 쇼츠는 좀 더 빠른 호흡을 위해 기준 조정
+        const charRate = (window.APP_MODE === 'shorts') ? 5 : 5;
+        const maxChars = duration * charRate;
         const targetLenMsg = `${duration}초 영상 (약 ${Math.round(duration * 2.5)} ~ ${maxChars}자 내외)`;
 
         const style = document.getElementById('scriptStyle').value;
@@ -294,6 +404,20 @@
         let finalScript = "";
         const sections = structureData.sections || [];
 
+        // [NEW] Shorts Mode Structure Validation
+        if (window.APP_MODE === 'shorts' && sections.length > 8) {
+            const confirmFix = confirm(
+                `현재 대본 구조가 롱폼용으로 생성되어 있습니다 (${sections.length}개 섹션).\n` +
+                "이대로 진행하면 내용이 너무 길어집니다.\n\n" +
+                "'확인'을 누르면 [기획 단계]로 이동하여 쇼츠용으로 다시 구성합니다.\n" +
+                "'취소'를 누르면 강제로 진행합니다."
+            );
+            if (confirmFix) {
+                window.location.href = '/script-plan?auto=true&mode=shorts';
+                return;
+            }
+        }
+
         // 전체 구조 텍스트 (문맥 유지용)
         const fullStructureSummary = sections.map((s, i) => `${i + 1}. ${s.title}: ${s.key_points.join(', ')}`).join('\n');
 
@@ -314,13 +438,25 @@
                 - **"도대체 왜 그랬을까요?", "하지만 여기서 반전이 일어납니다."**와 같은 **호기심 유발 질문(Curiosity Gap)**을 지속적으로 던지세요.
                 - 단순한 사실 나열을 멈추고, 눈앞에 그려지는 듯한 **생생하고 감각적인 묘사**를 사용하세요.
                 - 문장과 문장 사이를 매끄럽게 잇는 **연결 고리(Bridge)**를 사용하여 몰입감을 깨뜨리지 마세요.
-                - 긴장감을 조성했다가 해소하는 방식을 사용하여 드라마틱한 전개를 만드세요.`
+                - 긴장감을 조성했다가 해소하는 방식을 사용하여 드라마틱한 전개를 만드세요.`,
+            'senior_story': `
+                - **인생의 지혜와 깊이가 느껴지는 따뜻하고 차분한 어조**로 작성하세요.
+                - 마치 **오랜 친구나 인생 선배가 옆에서 조곤조곤 이야기해주는 듯한 느낌**을 주세요.
+                - 너무 빠르거나 가벼운 유행어는 피하고, **이해하기 쉬운 순우리말이나 익숙한 표현**을 사용하세요.
+                - **"참 기가 막힌 일이죠.", "그때 마음이 어땠겠습니까."** 같은 **공감과 감탄**을 자아내는 표현을 적절히 섞으세요.
+                - 듣는 이의 마음을 어루만지는 **위로와 공감, 그리고 감동**을 주는 이야기를 만드세요.`,
+            'bgm': `
+                - **배경음악(BGM)이 주인공인 영상**입니다. 내레이션은 최소화하고 음악의 감동을 극대화하세요.
+                - 구구절절한 설명보다는 **짧고 강렬한 감성적인 문구**나 **명언**, **시적인 표현**을 사용하세요.
+                - 음악의 비트나 분위기에 맞춰 **호흡이 긴 여운 있는 문장**을 배치하세요.
+                - 청각적 요소(빗소리, 파도 소리 등)나 시각적 묘사를 글에 담아 듣는 이가 상상하게 만드세요.
+                - "마음을 편안하게 하세요", "잠시 눈을 감아보세요" 같은 **청유형 문장**으로 힐링을 유도하세요.`
         };
 
         // [NEW] 글로벌 설정에서 커스텀 프롬프트 가져오기
         let selectedStyleInstruction = styleInstructionMap[style] || styleInstructionMap['narration'];
 
-        if (style === 'news' || style === 'story') {
+        if (style === 'news' || style === 'story' || style === 'senior_story') {
             try {
                 const settingsRes = await fetch('/api/settings');
                 const settingsData = await settingsRes.json();
@@ -364,7 +500,7 @@
                 const maxChars = Math.floor(sectionDuration * 5);
                 const sectionTargetMsg = `${sectionDuration}초 분량 (최소 ${minChars}자 ~ 최대 ${maxChars}자 내외)`;
 
-                const sectionPrompt = `당신은 ${duration}초 분량의 유튜브 장편 영상 대본 작가입니다.
+                const sectionPrompt = `당신은 ${duration}초 분량의 ${window.APP_MODE === 'shorts' ? '유튜브 쇼츠(Shorts)' : '유튜브 장편 영상'} 대본 작가입니다.
 전체 기획된 대본 구조 중 ** "${section.title}" ** 파트를 작성해주세요.
 
 [전체 대본 구조]
@@ -380,10 +516,14 @@ ${fullStructureSummary}
         2. ** 스타일 지침(매우 중요):**
             ${selectedStyleInstruction}
 
-         3. ** 분량을 충분히 뽑아주세요.** 
+         3. ** 분량을 충분히 뽑아주세요. (단, 목표 길이 준수)**
             - 현재 섹션의 목표 분량은 **${minChars}자 이상**입니다. 
-            - 내용이 부족하다면 구체적인 사례, 통계, 전문가의 견해, 관련 비하인드 스토리 등을 추가하여 내용을 대폭 보강하세요.
-            - 핵심 키포인트를 하나하나 심도 있게 다루십시오.
+            ${window.APP_MODE === 'shorts' ?
+                        `- **[쇼츠 필독]**: 군더더기 없이 **핵심만 타격감 있게** 전달하세요. 서론을 길게 빼지 말고 바로 본론으로 들어가야 합니다. 불필요한 수식어를 제거하고 호흡을 짧게 가져가세요. 전체 60초를 절대 넘기면 안 됩니다.`
+                        :
+                        `- 내용이 부족하다면 구체적인 사례, 통계, 전문가의 견해, 관련 비하인드 스토리 등을 추가하여 내용을 대폭 보강하세요.
+            - 핵심 키포인트를 하나하나 심도 있게 다루십시오.`}
+            
         4. 섹션 제목(예: [서론])은 출력하지 말고, 오직 대본 본문만 작성하세요.
         5. ** 반드시 한국어로 작성하세요.** (1차 생성은 무조건 한국어)
         6. **현재 섹션의 내용만 작성하고, 절대 다음 섹션(결론 등)이나 마무리 멘트를 미리 작성하지 마세요.**
@@ -455,6 +595,8 @@ ${finalScript.length > 500 ? finalScript.substring(finalScript.length - 500) : f
                     const readTime = Math.ceil(charCount / 415);
                     await API.project.saveScript(projectId, currentScript, charCount, readTime);
                     console.log("Script saved to DB successfully.");
+                    // [NEW] Update Stepper
+                    if (window.updateStepStatus) window.updateStepStatus('script', true);
                 } catch (dbErr) {
                     console.error("Failed to save script to DB:", dbErr);
                 }
@@ -738,6 +880,8 @@ ${script.substring(0, 2000)}...
                 const readTime = Math.ceil(charCount / 415);
                 await API.project.saveScript(projectId, currentScript, charCount, readTime);
                 Utils.showToast('대본이 성공적으로 등록되었습니다', 'success');
+                // [NEW] Update Stepper
+                if (window.updateStepStatus) window.updateStepStatus('script', true);
 
                 // 제목 자동 생성 (선택 사항)
                 // await autoGenerateTitle(projectId, currentScript); 

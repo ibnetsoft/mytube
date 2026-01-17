@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block content %}
 <style>
@@ -94,18 +94,30 @@
                 title="옐로우">A</button>
         </div>
 
+        <div class=" flex items-center gap-2 border-l border-gray-600 pl-4 ml-2">
+            <span class="text-xs font-bold text-gray-400">화면비</span>
+            <button id="ratioToggleBtn" onclick="toggleAspectRatio()"
+                class="btn-secondary py-1 px-3 text-xs bg-gray-700 hover:bg-gray-600 text-white border-gray-600">
+                화면비 16:9
+            </button>
+        </div>
+
         <div class="flex-1"></div>
 
         <!-- Actions -->
         <div class="flex items-center gap-2">
-            <button onclick="saveSubtitles()" id="saveBtn"
-                class="btn-secondary py-1.5 px-3 text-xs flex items-center gap-1">
-                💾 저장
+            <button onclick="distributeImages()"
+                class="px-3 py-1 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded shadow transition flex items-center gap-1">
+                <span>AI 이미지 싱크 맞추기</span>
             </button>
-            <a href="/render"
+            <button id="saveBtn" onclick="saveSubtitles()"
+                class="px-3 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded shadow transition flex items-center gap-1">
+                <span>저장</span>
+            </button>
+            <button id="renderBtn" onclick="renderVideoInPlace()"
                 class="btn-primary py-1.5 px-4 text-xs font-bold bg-blue-600 hover:bg-blue-700 flex items-center gap-1">
-                🎬 렌더링
-            </a>
+                <span>영상 렌더링</span>
+            </button>
         </div>
     </div>
 
@@ -118,21 +130,32 @@
             <!-- List Header -->
             <div
                 class="p-2 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600 flex justify-between items-center shrink-0">
-                <h3 class="text-xs font-bold text-gray-700 dark:text-gray-300">📜 자막 리스트</h3>
+                <h3 class="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                    자막 리스트 (DEBUG MODE)
+                    <span id="debug-info" class="text-[10px] text-red-500 font-mono hidden"></span>
+                </h3>
                 <div class="flex gap-1">
                     <button onclick="regenerateSubtitles()"
-                        class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded hover:bg-indigo-100 border border-indigo-200">🎙️
-                        AI 재싱크</button>
+                        class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded hover:bg-indigo-100 border border-indigo-200">전체
+                        AI 재생성</button>
                     <button onclick="addSubtitleRow()"
                         class="text-[10px] bg-gray-100 text-gray-600 px-2 py-1 rounded hover:bg-gray-200 border border-gray-300">+
                         추가</button>
                 </div>
             </div>
 
-            <!-- Scrollable List -->
-            <div id="subtitleList" class="flex-1 overflow-y-auto custom-scrollbar p-1 space-y-1">
-                <!-- Rows injected by JS -->
-                <div class="text-center py-10 text-gray-400 text-xs">로딩 중...</div>
+            <!-- Lists & Strip Container -->
+            <div class="flex flex-1 min-h-0 overflow-hidden">
+                <!-- Vertical Image Strip -->
+                <div id="imageThumbnailStrip"
+                    class="w-20 flex flex-col gap-2 p-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 custom-scrollbar shrink-0 items-center">
+                    <!-- Thumbnails injected by JS -->
+                </div>
+
+                <!-- Subtitle List -->
+                <div id="subtitleList" class="flex-1 overflow-y-auto custom-scrollbar p-1 space-y-1">
+                    <!-- Rows injected by JS -->
+                </div>
             </div>
         </div>
 
@@ -142,15 +165,23 @@
             <!-- Preview Area (Top) -->
             <div class="relative bg-black rounded-lg border border-gray-800 shadow-sm overflow-hidden group shrink-0"
                 style="aspect-ratio: 16/9;">
-                <!-- Preview Canvas/Image -->
-                <div id="previewContainer" class="absolute inset-0 flex items-center justify-center bg-gray-900">
-                    <p class="text-gray-600 text-xs">Select a subtitle to preview</p>
+                <!-- Preview Container -->
+                <div class="bg-black/50 rounded-lg flex items-center justify-center p-4 h-full">
+                    <div id="mainPreviewBox"
+                        class="relative w-full max-w-2xl bg-black shadow-2xl overflow-hidden transition-all duration-300"
+                        style="aspect-ratio: 16/9;">
+                        <!-- Background Image/Video -->
+                        <div id="previewContainer"
+                            class="absolute inset-0 flex items-center justify-center bg-gray-900">
+                            <p class="text-gray-600 text-xs">자막을 선택하면 미리보기媛 표시?⑸땲영상/p>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Overlay Text -->
                 <div id="subtitlePreviewBox" class="absolute inset-0 overflow-hidden pointer-events-none">
                     <div id="previewTextMain"
-                        class="absolute transform -translate-x-1/2 -translate-y-1/2 pointer-events-auto cursor-move select-none whitespace-pre-wrap text-center leading-tight hover:border hover:border-blue-400/50 hover:bg-white/10 rounded transition-colors px-2 py-1"
+                        class="absolute transform -translate-x-1/2 -translate-y-1/2 pointer-events-auto cursor-move select-none whitespace-pre-wrap text-center leading-tight hover:border hover:border-blue-400/50 hover:bg-white/10 rounded transition-colors px-4 py-2"
                         style="left: 50%; top: 85%; width: auto; max-width: 90%;">
                         자막 미리보기
                     </div>
@@ -166,161 +197,204 @@
             <!-- Edit Area (Bottom) -->
             <div
                 class="flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm flex flex-col min-h-0">
-                <div class="flex justify-between items-center mb-2">
-                    <h3 class="text-xs font-bold text-gray-700 dark:text-gray-300">✏️ 선택된 자막 편집</h3>
-                    <div class="text-xs text-gray-500">
-                        <span id="currentStartTime">0.00</span>s ~ <span id="currentEndTime">0.00</span>s
+                <div class="flex flex-col mb-2">
+                    <div class="flex justify-between items-center mb-1">
+                        <h3 class="text-xs font-bold text-gray-700 dark:text-gray-300">현재 선택된 자막 편집</h3>
+                        <div class="flex gap-1">
+                            <button onclick="adjustTime(-0.1)"
+                                class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded border border-gray-300 dark:border-gray-600 text-[10px] font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">-0.1s</button>
+                            <button onclick="adjustTime(0.1)"
+                                class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded border border-gray-300 dark:border-gray-600 text-[10px] font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">+0.1s</button>
+                            <!-- [NEW] Contextual Save Button -->
+                            <button onclick="saveAndSync()"
+                                class="px-2 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded border border-blue-300 dark:border-blue-700 text-[10px] font-bold hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                                title="조정된 시간을 저장하고 이미지 싱크를 맞춥니다">저장</button>
+                        </div>
                     </div>
-                </div>
+                    <div class="flex justify-between items-center text-xs text-gray-500 mb-1">
+                        <span class="font-semibold text-blue-500" id="currentImageIndicator">현재 이미지: -</span>
+                        <div class="text-right">
+                            <div class="text-right">
+                                <span id="currentStartTime">0.00</span>s ~ <span id="currentEndTime">0.00</span>s
+                            </div>
+                        </div>
+                        <!-- [NEW] Image Timing Control -->
+                        <div
+                            class="flex justify-between items-center bg-blue-50 dark:bg-gray-700/50 p-1 rounded mb-1 border border-blue-100 dark:border-gray-600">
+                            <span class="text-[10px] font-bold text-blue-600 dark:text-blue-400">현재 이미지 시작</span>
+                            <div class="flex items-center gap-2">
+                                <span id="currentImageTime"
+                                    class="text-xs font-mono text-gray-700 dark:text-gray-200">0.0s</span>
+                                <div class="flex gap-1">
+                                    <button onclick="adjustImageTime(-0.1)"
+                                        class="px-1.5 py-0.5 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded text-[10px] hover:bg-gray-50">-0.1s</button>
+                                    <button onclick="adjustImageTime(0.1)"
+                                        class="px-1.5 py-0.5 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded text-[10px] hover:bg-gray-50">+0.1s</button>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- [NEW] Image End Time Control -->
+                        <div
+                            class="flex justify-between items-center bg-orange-50 dark:bg-orange-900/20 p-1 rounded mb-1 border border-orange-100 dark:border-orange-800">
+                            <span class="text-[10px] font-bold text-orange-600 dark:text-orange-400">현재 이미지
+                                종료</span>
+                            <div class="flex items-center gap-2">
+                                <span id="currentImageEndTime"
+                                    class="text-xs font-mono text-gray-700 dark:text-gray-200">-</span>
+                                <div class="flex gap-1">
+                                    <button id="btnImgEndMinus" onclick="adjustImageEndTime(-0.1)"
+                                        class="px-1.5 py-0.5 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded text-[10px] hover:bg-gray-50">-0.1s</button>
+                                    <button id="btnImgEndPlus" onclick="adjustImageEndTime(0.1)"
+                                        class="px-1.5 py-0.5 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded text-[10px] hover:bg-gray-50">+0.1s</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
-                <textarea id="currentSubtitleText"
-                    class="flex-1 w-full p-2 text-sm border border-gray-200 dark:border-gray-600 rounded resize-none bg-gray-50 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 text-center leading-relaxed"
-                    placeholder="리스트에서 자막을 선택하세요"></textarea>
 
-                <div class="flex justify-center gap-2 mt-2">
-                    <button onclick="adjustTime(-0.1)"
-                        class="px-2 py-1 bg-gray-100 rounded hover:bg-gray-200 text-xs">-0.1s</button>
-                    <button onclick="adjustTime(0.1)"
-                        class="px-2 py-1 bg-gray-100 rounded hover:bg-gray-200 text-xs">+0.1s</button>
+                    <textarea id="currentSubtitleText"
+                        class="flex-1 w-full p-2 text-sm border border-gray-200 dark:border-gray-600 rounded resize-none bg-gray-50 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 text-center leading-relaxed overflow-y-auto min-h-[5rem]"
+                        placeholder="리스트에서 자막을 선택하세요."></textarea>
+
+                    <!-- DEBUG OVERLAY -->
+                    <div id="debug-overlay"
+                        class="p-2 bg-red-100 text-red-600 text-xs font-bold border border-red-300 rounded mt-2">
+                        DEBUG: Initializing...
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<script>
-    let projectId = Utils.storage.get('currentProjectId');
-    if (projectId && typeof projectId === 'string') projectId = parseInt(projectId);
+</div>
+</div>
+{% endblock %}
 
+{% block scripts %}
+<script>
+    // Global State
+    let projectId = {{ project.id if project else 'null' }};
     let subtitles = [];
-    let images = [];
+    let images = []; // Timeline Images (Used in video)
+    let sourceImages = []; // Palette Images (Source)
     let loadedScript = "";
     let styleSettings = {};
     let audioDuration = 0;
     let selectedIndex = -1;
+    let imageTimings = []; // [NEW] Image Start Times based on backend Pacing
 
     // --- Initialization ---
     document.addEventListener('DOMContentLoaded', async () => {
+        // Initialize Utils-dependent variables here to be safe
+        // [FIX] projectId is now injected server-side.
         if (!projectId) {
-            const urlParams = new URLSearchParams(window.location.search);
-            const pid = urlParams.get('project_id');
-            if (pid) {
-                projectId = parseInt(pid);
-                Utils.storage.set('currentProjectId', projectId);
-            } else {
-                return Utils.showToast('프로젝트 선택 필요', 'warning');
-            }
+            const storedId = Utils.storage.get('currentProjectId');
+            if (storedId) projectId = parseInt(storedId);
+        }
+
+        if (!projectId) {
+            return Utils.showToast('프로젝트 ID를 찾을 수 없습니다.', 'error');
         }
 
         setupStyleListeners();
         await loadProjectAndSubtitles();
 
         // Draggable Preview
-        makeDraggable(document.getElementById('previewTextMain'));
+        const previewEl = document.getElementById('previewTextMain');
+        if (previewEl) makeDraggable(previewEl);
     });
 
-    async function loadProjectAndSubtitles() {
-        try {
-            // 1. Load Settings
-            const projectData = await API.project.getFull(projectId);
-            if (projectData.settings) applySettings(projectData.settings);
-            loadedScript = projectData.script?.full_script || "";
+    // (Deleted legacy duplicate function)
 
-            // 2. Load Subtitles
-            const res = await fetch(`/api/subtitle/${projectId}`);
-            const data = await res.json();
-
-            if (data.status === 'error') throw new Error(data.error);
-
-            // 3. Setup Audio
-            const audio = document.getElementById('audioPlayer');
-            audio.src = data.audio_url;
-            audio.onloadedmetadata = () => { audioDuration = audio.duration; };
-
-            images = data.images || [];
-            subtitles = data.subtitles || [];
-
-            if (subtitles.length === 0) {
-                await generateSubtitles();
-            } else {
-                renderSubtitles();
-                if (subtitles.length > 0) selectSubtitle(0);
-            }
-
-        } catch (e) {
-            console.error(e);
-            document.getElementById('subtitleList').innerHTML = `<div class='p-4 text-center text-red-500 text-xs'>로드 실패: ${e.message}<br><button onclick='loadProjectAndSubtitles()' class='mt-2 underline'>재시도</button></div>`;
-        }
-    }
-
-    function applySettings(s) {
-        if (s.subtitle_font) document.getElementById('fontFamilySelect').value = s.subtitle_font;
-        if (s.subtitle_font_size) document.getElementById('fontSizeInput').value = s.subtitle_font_size;
-        if (s.subtitle_base_color) document.getElementById('textColorInput').value = s.subtitle_base_color;
-        if (s.subtitle_stroke_color) document.getElementById('strokeColorInput').value = s.subtitle_stroke_color;
-        if (s.subtitle_stroke_width !== undefined) {
-            document.getElementById('strokeWidthSlider').value = s.subtitle_stroke_width;
-            document.getElementById('strokeWidthValue').textContent = s.subtitle_stroke_width;
-        }
-
-        const preview = document.getElementById('previewTextMain');
-        if (s.subtitle_pos_x) preview.style.left = s.subtitle_pos_x;
-        if (s.subtitle_pos_y) preview.style.top = s.subtitle_pos_y;
-
-        updateSubtitlePreview();
-    }
-
-    function setupStyleListeners() {
-        // Debounced or direct auto-save logic
-        const update = async (key, val) => {
-            styleSettings[key] = val;
-            updateSubtitlePreview();
-            await API.project.updateSetting(projectId, key, val);
-        };
-
-        document.getElementById('fontFamilySelect').addEventListener('change', e => update('subtitle_font', e.target.value));
-        document.getElementById('fontSizeInput').addEventListener('change', e => update('subtitle_font_size', parseInt(e.target.value)));
-        document.getElementById('textColorInput').addEventListener('change', e => update('subtitle_base_color', e.target.value));
-        document.getElementById('strokeColorInput').addEventListener('change', e => update('subtitle_stroke_color', e.target.value));
-        document.getElementById('strokeWidthSlider').addEventListener('input', e => {
-            document.getElementById('strokeWidthValue').textContent = e.target.value;
-            update('subtitle_stroke_width', parseInt(e.target.value));
-        });
-
-        // Text Input Listener
-        document.getElementById('currentSubtitleText').addEventListener('input', (e) => {
-            if (selectedIndex >= 0 && subtitles[selectedIndex]) {
-                subtitles[selectedIndex].text = e.target.value;
-                document.getElementById('previewTextMain').textContent = e.target.value;
-                // Update List Item text too
-                const row = document.getElementById(`sub-row-${selectedIndex}`);
-                if (row) row.querySelector('.sub-text').textContent = e.target.value;
-            }
-        });
-    }
-
-    // --- Core Logic ---
     function renderSubtitles() {
         const list = document.getElementById('subtitleList');
+        if (!list) return;
+
         if (subtitles.length === 0) {
-            list.innerHTML = "<div class='text-center p-4 text-xs text-gray-400'>자막이 없습니다.</div>";
+            list.innerHTML = `
+                <div class='flex flex-col items-center justify-center h-40 text-gray-400 gap-3'>
+                    <p class="text-xs">자막영상?놁뒿니다.</p>
+                    <button onclick="generateSubtitles()" class="btn-primary py-1.5 px-4 text-xs">
+                        ?쨼 AI 자막 생성 (?먮룞)
+                    </button>
+                </div>`;
             return;
         }
 
-        list.innerHTML = subtitles.map((sub, idx) => {
+        // 1. Calculate Image Assignments
+        const assignments = new Array(subtitles.length).fill(-1);
+        if (imageTimings && imageTimings.length > 0) {
+            for (let i = 0; i < subtitles.length; i++) {
+                const start = subtitles[i].start;
+                let bestImgIdx = -1;
+                for (let k = 0; k < imageTimings.length; k++) {
+                    if (start >= imageTimings[k] - 0.05) bestImgIdx = k;
+                    else break;
+                }
+                assignments[i] = bestImgIdx;
+            }
+        }
+
+        const html = subtitles.map((sub, index) => {
+            const isActive = index === selectedIndex ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-gray-800' : 'hover:bg-gray-50 dark:hover:bg-gray-800';
+            const imgIdx = assignments[index];
+            const prevImgIdx = index > 0 ? assignments[index - 1] : -1;
+            const isTransition = (imgIdx !== -1 && imgIdx !== prevImgIdx); // Image actually changes here
+
+            // Render Image Column
+            let leftCol = "";
+            if (isTransition) {
+                // New Image Starts Here
+                const actualIndex = Math.min(imgIdx, images.length - 1);
+                const imgUrl = images[actualIndex];
+                leftCol = `
+                <div class="flex flex-col items-center mr-2 w-10 shrink-0 relative group/thumb">
+                    <!-- Move Up (Merge with prev) -->
+                    ${index > 0 ? `<button onclick="event.stopPropagation(); moveImageStart(${imgIdx}, -1)" class="absolute -top-3 z-10 w-full h-4 bg-gray-200 hover:bg-blue-100 text-[9px] flex items-center justify-center rounded-t border border-b-0 border-gray-300 opacity-0 group-hover/thumb:opacity-100 transition-opacity" title="이미지를 이전 자막부터 시작 (앞으로 확장)">▲</button>` : ''}
+                    
+                    <img src="${imgUrl}" class="w-8 h-[3.5rem] rounded-sm object-cover border-2 border-blue-400 z-0 bg-gray-100" alt="Scene">
+                    <div class="absolute bottom-0 right-0 bg-blue-500 text-white text-[9px] px-1 rounded-tl font-bold shadow-sm">${actualIndex + 1}</div>
+
+                    <!-- Move Down (Start later) -->
+                    ${index < subtitles.length - 1 ? `<button onclick="event.stopPropagation(); moveImageStart(${imgIdx}, 1)" class="absolute -bottom-3 z-10 w-full h-4 bg-gray-200 hover:bg-blue-100 text-[9px] flex items-center justify-center rounded-b border border-t-0 border-gray-300 opacity-0 group-hover/thumb:opacity-100 transition-opacity" title="이미지를 다음 자막부터 시작 (아래로 축소)">▼</button>` : ''}
+                </div>`;
+            } else {
+                // Continuation
+                leftCol = `
+                <div class="flex flex-col items-center mr-2 w-10 shrink-0">
+                    <div class="w-0.5 h-full bg-gray-200 dark:bg-gray-700 min-h-[3.5rem]"></div>
+                </div>`;
+            }
+
             return `
-            <div id="sub-row-${idx}" onclick="selectSubtitle(${idx})" class="subtitle-row group flex items-start gap-2 p-2 rounded cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 border border-transparent transition-colors">
-                <div class="text-[10px] text-gray-400 font-mono w-12 shrink-0 pt-1 text-right">
-                    ${sub.start.toFixed(1)}s<br>~${sub.end.toFixed(1)}s
+            <div id="sub-row-${index}" 
+                 onclick="selectSubtitle(${index})"
+                 draggable="true"
+                 ondragstart="handleSubtitleDragStart(event, ${index})"
+                 ondragover="allowDrop(event)"
+                 ondrop="handleCombinedDrop(event, ${index})"
+                 class="flex items-stretch p-2 mb-1 bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-700 cursor-pointer transition-all ${isActive} group relative overflow-visible">
+                
+                ${leftCol}
+                
+                <div class="flex items-center flex-1 min-w-0">
+                    <div class="flex flex-col gap-1 mr-2 shrink-0">
+                        <!-- Subtitle Time -->
+                        <div class="w-12 text-[10px] text-gray-500 font-mono text-center leading-tight" id="sub-time-${index}">
+                            <div class="font-bold text-gray-600 dark:text-gray-400">${sub.start.toFixed(1)}s</div>
+                            <div class="text-[9px]">~${sub.end.toFixed(1)}s</div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex-1 text-sm text-gray-700 dark:text-gray-300 sub-text break-words leading-snug">
+                        ${sub.text}
+                    </div>
                 </div>
-                <div class="flex-1 min-w-0">
-                    <p class="sub-text text-xs text-gray-800 dark:text-gray-200 font-medium break-keep leading-tight">${sub.text}</p>
-                </div>
-                <button onclick="event.stopPropagation(); playSegment(${idx})" class="opacity-0 group-hover:opacity-100 p-1 text-blue-500 hover:bg-blue-50 rounded">
-                    ▶
-                </button>
             </div>`;
         }).join('');
+        list.innerHTML = html;
+        renderImageStrip(); // [NEW] Sync strip with render
     }
 
     function selectSubtitle(index) {
@@ -340,32 +414,256 @@
         if (!sub) return;
 
         // Update Editor
-        document.getElementById('currentSubtitleText').value = sub.text;
+        const textField = document.getElementById('currentSubtitleText');
+        if (textField) textField.value = sub.text;
+
         document.getElementById('currentStartTime').textContent = sub.start.toFixed(2);
         document.getElementById('currentEndTime').textContent = sub.end.toFixed(2);
 
+        updateImageMatchIndicator(sub.start); // [NEW] Check Image Match
+        renderImageStrip(); // [NEW] Update strip to highlight current image
+
+        // [FIX] Update List View Timestamp
+        const listTimeEl = document.getElementById(`sub-time-${index}`);
+        if (listTimeEl) {
+            listTimeEl.innerHTML = `${sub.start.toFixed(1)}s<br>~${sub.end.toFixed(1)}s`;
+        }
+
         // Update Preview
-        document.getElementById('previewTextMain').textContent = sub.text;
+        const previewText = document.getElementById('previewTextMain');
+        if (previewText) previewText.textContent = sub.text;
 
         // Update Background Image
+        // Update Background Image & Selector
         const container = document.getElementById('previewContainer');
+
         // Find rough image match
-        // Assuming images cover duration evenly for now, or match preview_url
         if (sub.preview_url) {
-            container.innerHTML = `<img src="${sub.preview_url}" class="w-full h-full object-cover opacity-50">`;
+            if (container) container.innerHTML = `<img src="${sub.preview_url}" class="w-full h-full object-cover opacity-50">`;
         } else if (images.length > 0) {
-            // Basic estimation
             const durationPerImg = audioDuration / images.length;
-            const mid = (sub.start + sub.end) / 2;
-            const imgIdx = Math.min(Math.floor(mid / durationPerImg), images.length - 1);
-            if (images[imgIdx]) {
-                container.innerHTML = `<img src="${images[imgIdx]}" class="w-full h-full object-cover opacity-50">`;
+            // Find active image index based on time
+            let imgIdx = -1;
+            if (imageTimings && imageTimings.length > 0) {
+                for (let i = 0; i < imageTimings.length; i++) {
+                    if (sub.start >= imageTimings[i] - 0.05) imgIdx = i;
+                    else break;
+                }
+            } else {
+                // Fallback if no timings
+                const mid = (sub.start + sub.end) / 2;
+                imgIdx = Math.min(Math.floor(mid / durationPerImg), images.length - 1);
+            }
+
+            if (imgIdx !== -1 && images[imgIdx]) {
+                if (container) container.innerHTML = `<img src="${images[imgIdx]}" class="w-full h-full object-cover opacity-50">`;
             }
         }
     }
 
+    function applySettings(s) {
+        if (s.subtitle_font) {
+            const el = document.getElementById('fontFamilySelect');
+            if (el) el.value = s.subtitle_font;
+        }
+        if (s.subtitle_font_size) {
+            const el = document.getElementById('fontSizeInput');
+            if (el) el.value = s.subtitle_font_size;
+        }
+        if (s.subtitle_base_color) {
+            const el = document.getElementById('textColorInput');
+            if (el) el.value = s.subtitle_base_color;
+        }
+        if (s.subtitle_stroke_color) {
+            const el = document.getElementById('strokeColorInput');
+            if (el) el.value = s.subtitle_stroke_color;
+        }
+        if (s.subtitle_stroke_width !== undefined) {
+            const el = document.getElementById('strokeWidthSlider');
+            if (el) {
+                el.value = s.subtitle_stroke_width;
+                document.getElementById('strokeWidthValue').textContent = s.subtitle_stroke_width;
+            }
+        }
+        // [NEW] Aspect Ratio
+        if (s.aspect_ratio) {
+            setAspectRatio(s.aspect_ratio);
+        }
+
+        const preview = document.getElementById('previewTextMain');
+        if (preview) {
+            if (s.subtitle_pos_x) preview.style.left = s.subtitle_pos_x;
+            if (s.subtitle_pos_y) preview.style.top = s.subtitle_pos_y;
+        }
+
+        updateSubtitlePreview();
+    }
+
+    // [NEW] Update Image Match Indicator
+    function updateImageMatchIndicator(startTime) {
+        const el = document.getElementById('currentImageIndicator');
+        const timeEl = document.getElementById('currentImageTime'); // [NEW]
+
+        if (!el || !imageTimings || imageTimings.length === 0) {
+            if (el) el.textContent = "?뼹截영상대?吏: 留ㅼ묶 정보 없음";
+            if (timeEl) timeEl.textContent = "-";
+            return;
+        }
+
+        // Find which image is active at startTime
+        let imgIndex = -1;
+        for (let i = 0; i < imageTimings.length; i++) {
+            if (startTime >= imageTimings[i] - 0.05) { // tolerance
+                imgIndex = i;
+            } else {
+                break;
+            }
+        }
+
+        // Ensure index is within images array bounds
+        if (imgIndex !== -1 && images.length > 0) {
+            const actualIndex = Math.min(imgIndex, images.length - 1);
+            el.textContent = `현재 이미지 #${actualIndex + 1}`;
+
+            // [NEW] Update Time Display
+            if (timeEl) timeEl.textContent = `${imageTimings[imgIndex].toFixed(1)}s`;
+
+            // [NEW] Update End Time Display & Buttons
+            const endTimeEl = document.getElementById('currentImageEndTime');
+            const btnMinus = document.getElementById('btnImgEndMinus');
+            const btnPlus = document.getElementById('btnImgEndPlus');
+
+            let endTime = audioDuration;
+            let isLast = false;
+            // Check if there is a next image timing
+            if (actualIndex < imageTimings.length - 1) {
+                endTime = imageTimings[actualIndex + 1];
+            } else {
+                isLast = true;
+            }
+
+            if (endTimeEl) endTimeEl.textContent = `${endTime.toFixed(1)}s`;
+
+            if (btnMinus) btnMinus.disabled = isLast;
+            if (btnPlus) btnPlus.disabled = isLast;
+            if (isLast) {
+                if (btnMinus) btnMinus.classList.add('opacity-50', 'cursor-not-allowed');
+                if (btnPlus) btnPlus.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                if (btnMinus) btnMinus.classList.remove('opacity-50', 'cursor-not-allowed');
+                if (btnPlus) btnPlus.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+
+            // Optional: Update Preview Image
+            // We show the CURRENT image in preview usually.
+            // ... (existing preview update logic if any)
+            const previewBg = document.getElementById('previewContainer');
+            if (previewBg && images[actualIndex]) {
+                previewBg.innerHTML = `<img src="${images[actualIndex]}" class="w-full h-full object-cover opacity-50">`;
+            }
+
+        } else {
+            if (el) el.textContent = "?뼹截영상대?吏: 留ㅼ묶 정보 없음";
+            if (timeEl) timeEl.textContent = "-";
+            const endTimeEl = document.getElementById('currentImageEndTime');
+            if (endTimeEl) endTimeEl.textContent = "-";
+        }
+    }
+
+    // [NEW] Adjust Image End Time (Next Image Start)
+    function adjustImageEndTime(seconds) {
+        if (!imageTimings || imageTimings.length === 0) return;
+
+        // Find current image index from subtitle start time
+        // Note: 'currentStartTime' logic might be slightly off if user clicked a subtitle mid-image, 
+        // but generally correct for "active subtitle".
+        const startTime = parseFloat(document.getElementById('currentStartTime').textContent);
+
+        let imgIndex = -1;
+        for (let i = 0; i < imageTimings.length; i++) {
+            if (startTime >= imageTimings[i] - 0.05) imgIndex = i;
+            else break;
+        }
+
+        if (imgIndex === -1) return;
+
+        // Target is the NEXT image's start time
+        // If imgIndex is last, we cannot adjust end time (it's fixed to audio end).
+        const targetIndex = imgIndex + 1;
+
+        if (targetIndex >= imageTimings.length) {
+            Utils.showToast("마지막 이미지는 종료 시간을 오디오 길이로 고정합니다.", "warning");
+            return;
+        }
+
+        // Use existing logic to change timing
+        const currentEnd = imageTimings[targetIndex]; // Current "End Time" (Next Start)
+        const newTime = Math.max(0, Math.min(audioDuration, currentEnd + seconds));
+
+        // Simple clamp against previous start (current image start) and next-next start
+        const prevStart = imageTimings[imgIndex];
+        const nextStart = (targetIndex + 1 < imageTimings.length) ? imageTimings[targetIndex + 1] : audioDuration;
+
+        if (newTime <= prevStart) {
+            Utils.showToast("시작 시간보다 앞설 수 없습니다.", "warning");
+            return;
+        }
+        if (newTime >= nextStart) {
+            Utils.showToast("다음 이미지 시간과 겹칠 수 없습니다.", "warning");
+            return;
+        }
+
+        imageTimings[targetIndex] = newTime;
+
+        saveSubtitles();
+        renderSubtitles();
+
+        // Refresh Indicator
+        updateImageMatchIndicator(startTime);
+    }
+
+
+
+    // [NEW] Aspect Ratio Logic
+    function setAspectRatio(ratio) {
+        const box = document.getElementById('mainPreviewBox');
+        if (box) {
+            // Apply Aspect Ratio
+            box.style.aspectRatio = ratio.replace(':', '/');
+
+            // Adjust Width for Mobile vs Desktop feel
+            if (ratio === '9:16') {
+                box.classList.remove('max-w-2xl');
+                box.classList.add('max-w-[300px]'); // Phone width (reduced)
+            } else {
+                box.classList.remove('max-w-[300px]');
+                box.classList.add('max-w-2xl'); // Desktop width (reduced)
+            }
+        }
+
+        // Update toggle button state if exists
+        const btn = document.getElementById('ratioToggleBtn');
+        if (btn) {
+            btn.textContent = ratio === '9:16' ? '세로 9:16' : '가로 16:9';
+        }
+    }
+
+    async function toggleAspectRatio() {
+        const box = document.getElementById('mainPreviewBox');
+        let current = box.style.aspectRatio;
+        // normalize
+        if (current.includes('16 / 9') || current.includes('1.77')) current = '16:9';
+        else current = '9:16';
+
+        const newRatio = current === '16:9' ? '9:16' : '16:9';
+        setAspectRatio(newRatio);
+        await API.project.updateSetting(projectId, 'aspect_ratio', newRatio);
+    }
+
     function updateSubtitlePreview() {
         const text = document.getElementById('previewTextMain');
+        if (!text) return;
+
         const font = document.getElementById('fontFamilySelect').value;
         const size = document.getElementById('fontSizeInput').value;
         const color = document.getElementById('textColorInput').value;
@@ -375,28 +673,78 @@
         text.style.fontFamily = font;
         text.style.fontSize = size + 'px';
         text.style.color = color;
-        // SVG stroke simulation needed for perfect text-stroke, but webkit-text-stroke is ok for now
         text.style.webkitTextStroke = `${strokeWidth / 2}px ${strokeColor}`;
+    }
+
+    function setupStyleListeners() {
+        // Debounced or direct auto-save logic
+        const update = async (key, val) => {
+            styleSettings[key] = val;
+            updateSubtitlePreview();
+            await API.project.updateSetting(projectId, key, val);
+        };
+
+        const fontEl = document.getElementById('fontFamilySelect');
+        if (fontEl) fontEl.addEventListener('change', e => update('subtitle_font', e.target.value));
+
+        const sizeEl = document.getElementById('fontSizeInput');
+        if (sizeEl) sizeEl.addEventListener('change', e => update('subtitle_font_size', parseInt(e.target.value)));
+
+        const colorEl = document.getElementById('textColorInput');
+        if (colorEl) colorEl.addEventListener('change', e => update('subtitle_base_color', e.target.value));
+
+        const strokeColorEl = document.getElementById('strokeColorInput');
+        if (strokeColorEl) strokeColorEl.addEventListener('change', e => update('subtitle_stroke_color', e.target.value));
+
+        const strokeWidthEl = document.getElementById('strokeWidthSlider');
+        if (strokeWidthEl) strokeWidthEl.addEventListener('input', e => {
+            document.getElementById('strokeWidthValue').textContent = e.target.value;
+            update('subtitle_stroke_width', parseInt(e.target.value));
+        });
+
+        // Text Input Listener
+        const textInput = document.getElementById('currentSubtitleText');
+        if (textInput) {
+            textInput.addEventListener('input', (e) => {
+                if (selectedIndex >= 0 && subtitles[selectedIndex]) {
+                    subtitles[selectedIndex].text = e.target.value;
+                    const preview = document.getElementById('previewTextMain');
+                    if (preview) preview.textContent = e.target.value;
+                    // Update List Item text too
+                    const row = document.getElementById(`sub-row-${selectedIndex}`);
+                    if (row) row.querySelector('.sub-text').textContent = e.target.value;
+                }
+            });
+        }
     }
 
     // --- Action Functions ---
     async function saveSubtitles() {
         const btn = document.getElementById('saveBtn');
-        Utils.setLoading(btn, true, '저장...');
+        Utils.setLoading(btn, true, '저장..');
         try {
             // Update Position before save
             const preview = document.getElementById('previewTextMain');
-            await API.project.updateSetting(projectId, 'subtitle_pos_x', preview.style.left);
-            await API.project.updateSetting(projectId, 'subtitle_pos_y', preview.style.top);
+            if (preview) {
+                await API.project.updateSetting(projectId, 'subtitle_pos_x', preview.style.left);
+                await API.project.updateSetting(projectId, 'subtitle_pos_y', preview.style.top);
+            }
 
             const res = await fetch('/api/subtitle/save', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ project_id: projectId, subtitles: subtitles })
+                body: JSON.stringify({
+                    project_id: projectId,
+                    subtitles: subtitles,
+                    image_timings: imageTimings,
+                    images: images // [NEW] Save custom image order
+                })
             });
             const data = await res.json();
             if (data.status === 'ok') {
-                Utils.showToast('자막 저장됨', 'success');
+                Utils.showToast("자막 및 이미지 저장 완료", "success");
+                if (window.updateStepStatus) window.updateStepStatus('subtitle', true);
+
                 if (data.subtitles) {
                     subtitles = data.subtitles;
                     renderSubtitles();
@@ -421,6 +769,8 @@
             const data = await res.json();
             if (data.status === 'ok') {
                 subtitles = data.subtitles;
+                images = data.images || images; // Update images if provided
+                imageTimings = data.image_timings || []; // Update timings
                 renderSubtitles();
                 selectSubtitle(0);
                 Utils.showToast('생성 완료', 'success');
@@ -432,17 +782,79 @@
 
     async function regenerateSubtitles() {
         if (!confirm('모든 자막을 다시 분석합니다. 수동 편집이 사라집니다.')) return;
-        Utils.showToast('재분석 중...', 'info');
+        Utils.showToast('재분석 중..', 'info');
         try {
             const res = await fetch(`/api/project/${projectId}/subtitle/regenerate`, { method: 'POST' });
             const data = await res.json();
             if (data.status === 'ok') {
                 subtitles = data.subtitles;
+                images = data.images || images;
+                imageTimings = data.image_timings || [];
                 renderSubtitles();
                 selectSubtitle(0);
                 Utils.showToast('재분석 완료', 'success');
             } else throw new Error(data.error);
         } catch (e) { Utils.showToast('실패: ' + e.message, 'error'); }
+    }
+
+    // [NEW] Distribute Images based on CURRENT subtitles (WYSIWYG)
+    function distributeImages() {
+        if (!images || images.length === 0) {
+            Utils.showToast('프로젝트 선택 필요', 'warning');
+            return;
+        }
+        if (!subtitles || subtitles.length === 0) {
+            Utils.showToast('프로젝트 선택 필요', 'warning');
+            return;
+        }
+
+        const num_img = images.length;
+        const num_sub = subtitles.length;
+
+        imageTimings = [0.0]; // First image always starts at 0
+
+        if (num_sub >= num_img) {
+            const step = num_sub / num_img;
+            for (let i = 1; i < num_img; i++) {
+                let sub_idx = Math.floor(i * step);
+                sub_idx = Math.min(sub_idx, num_sub - 1);
+
+                let t_start = subtitles[sub_idx].start;
+
+                // Ensure monotony
+                if (t_start < imageTimings[imageTimings.length - 1]) {
+                    t_start = imageTimings[imageTimings.length - 1];
+                }
+                imageTimings.push(t_start);
+            }
+        } else {
+            // More images than subtitles - logic not defined in Python effectively or just linear?
+            // Python logic does 'else: pass'. So we keep existing logic or just mapping 1:1?
+            // If we just mapped 1:1, leftover images are ignored.
+            // Let's stick to 1:1 for the first N.
+            for (let i = 1; i < num_sub; i++) {
+                imageTimings.push(subtitles[i].start);
+            }
+            // Fill rest with infinity? Python passed so timings remains [0.0]. 
+            // We'll mimic Python 'pass' behavior (timings not added).
+        }
+
+        renderSubtitles();
+        renderImageStrip(); // [NEW] Update Strip
+        // Update indicator for current selection
+        if (subtitles[selectedIndex]) updateImageMatchIndicator(subtitles[selectedIndex].start);
+
+        Utils.showToast('?대?吏 ?깊겕媛 ?꾩옱 자막 시간영상留욎떠 ?ъ꽕?뺣릺?덉뒿니다.', 'success');
+    }
+
+    // [NEW] Adjust Time -> Sync Images -> Save
+    async function saveAndSync() {
+        if (!subtitles || subtitles.length === 0) return;
+
+        // 1. Save to backend (No auto-distribute)
+        await saveSubtitles();
+
+        // 3. Feedback handled by saveSubtitles
     }
 
     function applyPreset(name) {
@@ -451,11 +863,6 @@
             document.getElementById('strokeColorInput').value = '#000000';
             updateSubtitlePreview();
         } else if (name === 'basic_black') {
-            document.getElementById('textColorInput').value = '#ffffff'; // Black preset usually implies white text on black bg or similar, adjusting...
-            document.getElementById('strokeColorInput').value = '#000000'; // Logic same? Let's check original. 
-            // Original: bg-gray-800 text-white for button. 
-            // Actually 'basic_black' might mean yellow on black or something. 
-            // Let's just toggle standard values.
             document.getElementById('textColorInput').value = '#000000';
             document.getElementById('strokeColorInput').value = '#ffffff';
             updateSubtitlePreview();
@@ -464,8 +871,6 @@
             document.getElementById('strokeColorInput').value = '#000000';
             updateSubtitlePreview();
         }
-        // Save these settings implicitly via listener trigger? No, inputs changed programmatically don't always trigger 'change'.
-        // Manually trigger updates
         document.getElementById('textColorInput').dispatchEvent(new Event('change'));
         document.getElementById('strokeColorInput').dispatchEvent(new Event('change'));
     }
@@ -473,28 +878,138 @@
     function addSubtitleRow() {
         const last = subtitles[subtitles.length - 1];
         const start = last ? last.end : 0;
-        subtitles.push({ start: start, end: start + 2, text: "새 자막" });
+        subtitles.push({ start: start, end: start + 2, text: "영상자막" });
         renderSubtitles();
         selectSubtitle(subtitles.length - 1);
     }
 
     function adjustTime(delta) {
-        if (selectedIndex < 0) return;
-        // Adjust both if needed or specific logic? 
-        // Simple logic: Shift entire subtitle
-        subtitles[selectedIndex].start = parseFloat((subtitles[selectedIndex].start + delta).toFixed(2));
-        subtitles[selectedIndex].end = parseFloat((subtitles[selectedIndex].end + delta).toFixed(2));
-        if (subtitles[selectedIndex].start < 0) subtitles[selectedIndex].start = 0;
+        if (selectedIndex < 0 || !subtitles[selectedIndex]) return;
 
-        selectSubtitle(selectedIndex); // Refresh UI
+        console.log('Adjusting time', delta, subtitles[selectedIndex]);
+
+        let newStart = subtitles[selectedIndex].start + delta;
+        let newEnd = subtitles[selectedIndex].end + delta;
+
+        if (newStart < 0) {
+            newEnd = newEnd - newStart; // Shift end if start hits 0? Or just clamp?
+            newStart = 0;
+            // Actually just clamp start, let duration change? Or keep duration?
+            // User probably wants shift.
+            // If start < 0, shift back.
+        }
+
+        subtitles[selectedIndex].start = parseFloat(newStart.toFixed(2));
+        subtitles[selectedIndex].end = parseFloat(newEnd.toFixed(2));
+
+        // Force full re-render to ensure list is updated (inefficient but safe)
+        // Actually, just updating the DOM element for time is better UX (no flicker).
+        // I verified the ID exists. Let's stick to updateElement but make sure it works.
+        // Maybe the ID search is failing?
+
+        // Update List UI to reflect new time (thumbnails/time text)
+        renderSubtitles();
+
+        // Re-call selectSubtitle to update specific UI parts
+        selectSubtitle(selectedIndex);
     }
+
+    // [NEW] Adjust Image Time separately
+    // [NEW] Adjust Image Time separately
+    function adjustImageTime(delta) {
+        if (selectedIndex < 0) return;
+        const sub = subtitles[selectedIndex];
+
+        // Find which image segment corresponds to this subtitle
+        // We look for image index 'i' where imageTimings[i] <= sub.start
+        let imgIdx = -1;
+        if (!imageTimings || imageTimings.length === 0) imageTimings = [0.0];
+
+        for (let i = 0; i < imageTimings.length; i++) {
+            if (sub.start >= imageTimings[i] - 0.05) { // tolerance
+                imgIdx = i;
+            } else {
+                break;
+            }
+        }
+
+        if (imgIdx !== -1) {
+            let newT = imageTimings[imgIdx] + delta;
+            if (newT < 0) newT = 0;
+            // Ensure it doesn't cross previous image? Maybe not strictly required but safer.
+            if (imgIdx > 0 && newT <= imageTimings[imgIdx - 1]) newT = imageTimings[imgIdx - 1] + 0.1;
+
+            imageTimings[imgIdx] = parseFloat(newT.toFixed(2));
+
+            // Update UI
+            renderSubtitles();
+            selectSubtitle(selectedIndex); // Refresh right panel display
+        }
+    }
+
+    // [NEW] Move Image Boundary (Start Time)
+    function moveImageStart(imgIdx, direction) {
+        // imgIdx: Index in imageTimings array
+        // direction: -1 (move earlier, Up), 1 (move later, Down)
+
+        if (imgIdx < 0 || imgIdx >= imageTimings.length) return;
+
+        // Find current start time
+        const currentT = imageTimings[imgIdx];
+
+        // Find which subtitle corresponds to this time
+        let subIdx = -1;
+        for (let i = 0; i < subtitles.length; i++) {
+            // Basic tolerance matching
+            if (Math.abs(subtitles[i].start - currentT) < 0.1) {
+                subIdx = i;
+                break;
+            }
+        }
+
+        // Fallback or explicit check if failed
+        if (subIdx === -1) {
+            let minDiff = 999;
+            for (let i = 0; i < subtitles.length; i++) {
+                const diff = Math.abs(subtitles[i].start - currentT);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    subIdx = i;
+                }
+            }
+        }
+
+        const targetSubIdx = subIdx + direction;
+
+        if (targetSubIdx >= 0 && targetSubIdx < subtitles.length) {
+
+            const newStart = subtitles[targetSubIdx].start;
+
+            // Validate: Must be > previous image start, < next image start
+            if (imgIdx > 0 && newStart <= imageTimings[imgIdx - 1]) {
+                return Utils.showToast("?댁쟾 ?대?吏蹂대떎 ?욎꽕 영상?놁뒿니다.", 'warning');
+            }
+            if (imgIdx < imageTimings.length - 1 && newStart >= imageTimings[imgIdx + 1]) {
+                return Utils.showToast("?ㅼ쓬 ?대?吏蹂대떎 ?ㅼ꽕 영상?놁뒿니다.", 'warning');
+            }
+
+            // Update time
+            imageTimings[imgIdx] = newStart;
+
+            // Update UI
+            renderSubtitles();
+
+            // [NEW] Persist Change
+            saveSubtitles();
+        }
+    }
+
 
     function playSegment(idx) {
         const sub = subtitles[idx];
         const audio = document.getElementById('audioPlayer');
         audio.currentTime = sub.start;
         audio.play();
-        // Stop at end logic... omitted for brevity but can add timeout
         setTimeout(() => audio.pause(), (sub.end - sub.start) * 1000);
     }
 
@@ -526,10 +1041,516 @@
         function closeDragElement() {
             document.onmouseup = null;
             document.onmousemove = null;
-            // Save position
-            API.project.updateSetting(projectId, 'subtitle_pos_x', elmnt.style.left);
-            API.project.updateSetting(projectId, 'subtitle_pos_y', elmnt.style.top);
+            if (projectId) {
+                API.project.updateSetting(projectId, 'subtitle_pos_x', elmnt.style.left);
+                API.project.updateSetting(projectId, 'subtitle_pos_y', elmnt.style.top);
+            }
         }
     }
+
+    // [NEW] Render Image Thumbnail Strip (Palette)
+    function renderImageStrip() {
+        const strip = document.getElementById('imageThumbnailStrip');
+        if (!strip) return;
+
+        // Use sourceImages for the strip (Palette)
+        if (!sourceImages || sourceImages.length === 0) {
+            strip.innerHTML = '<span class="text-xs text-gray-400 p-2">이미지 없음</span>';
+            return;
+        }
+
+        // Determine which image is currently active
+        let activeImgIdx = -1;
+        if (selectedIndex >= 0 && subtitles[selectedIndex]) {
+            const start = subtitles[selectedIndex].start;
+            if (imageTimings && imageTimings.length > 0) {
+                for (let i = 0; i < imageTimings.length; i++) {
+                    if (start >= imageTimings[i] - 0.05) activeImgIdx = i;
+                    else break;
+                }
+            }
+        }
+
+        strip.innerHTML = sourceImages.map((url, idx) => {
+            // Check if this URL is used in the timeline
+            let isUsed = images.includes(url);
+
+            // Highlight if this specific image URL is the one currently displayed based on time
+            let activeTimelineUrl = null;
+            if (activeImgIdx !== -1 && images[activeImgIdx]) {
+                activeTimelineUrl = images[activeImgIdx];
+            }
+            // If multiple same URLs exist in timeline, this highlights all of them in palette?
+            // Yes, that's acceptable for "Active" status in palette.
+            const isActive = (url === activeTimelineUrl);
+            const borderClass = isActive ? 'border-2 border-green-500 ring-1 ring-green-500' : 'border border-gray-200 dark:border-gray-600';
+            const opacityClass = isActive ? 'opacity-100' : 'opacity-80 hover:opacity-100';
+
+            return `
+            <div class="relative w-full aspect-[9/16] group cursor-pointer rounded overflow-hidden transition-all ${borderClass} ${opacityClass} mb-2"
+                 draggable="true"
+                 ondragstart="handleDragStart(event, ${idx})"
+                 onclick="previewImage(${idx})"
+                 title="이미지 #${idx + 1} (드래그하여 자막에 적용)">
+                <img src="${url}" class="w-full h-full object-cover">
+                <div class="absolute top-0 left-0 bg-black/50 text-white text-[9px] px-1 rounded-br">
+                    #${idx + 1}
+                </div>
+                ${isUsed ? `<div class="absolute bottom-0 right-0 bg-blue-500/80 text-white text-[8px] px-1">사용중</div>` : ''}
+            </div>`;
+        }).join('');
+
+        // Auto-scroll to active
+        if (activeImgIdx !== -1) {
+            const activeEl = strip.children[activeImgIdx];
+            if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); // block:center is better for vertical
+        }
+    }
+
+    function previewImage(idx) {
+        if (idx < 0 || idx >= sourceImages.length) return;
+        const container = document.getElementById('previewContainer');
+        if (container) container.innerHTML = `<img src="${sourceImages[idx]}" class="w-full h-full object-cover opacity-80">`;
+        Utils.showToast(`?대?吏 #${idx + 1} 미리보기`, 'info');
+    }
+
+    // [NEW] Drag & Drop Logic
+    function handleDragStart(ev, idx) {
+        ev.dataTransfer.setData("text/plain", idx);
+        ev.dataTransfer.effectAllowed = "copy"; // Use copy visual
+    }
+
+    async function distributeImages() {
+        if (!confirm('AI가 자막 내용을 분석하여 이미지를 자동으로 배치합니다.\n기존 이미지 배치는 덮어씌워집니다. 진행하시겠습니까?')) return;
+
+        Utils.setLoading(true, "AI가 이미지 싱크를 맞추는 중입니다...");
+
+        try {
+            const res = await fetch('/api/subtitle/auto_sync_images', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ project_id: projectId })
+            });
+            const data = await res.json();
+
+            if (data.status === 'ok') {
+                images = data.timeline_images;
+                imageTimings = data.image_timings;
+
+                renderSubtitles();
+                renderImageStrip();
+                Utils.showToast(data.message, 'success');
+                // Auto-save inferred by API update, but good to refresh UI state
+            } else {
+                throw new Error(data.error);
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast("이미지 싱크 실패: " + e.message, 'error');
+        } finally {
+            Utils.setLoading(false);
+        }
+    }
+
+    function handleSubtitleDragStart(ev, index) {
+        ev.dataTransfer.effectAllowed = "move";
+        ev.dataTransfer.setData("type", "subtitle");
+        ev.dataTransfer.setData("index", index);
+        // Optional: Set drag image
+    }
+
+    function handleCombinedDrop(ev, targetIndex) {
+        ev.preventDefault();
+
+        const type = ev.dataTransfer.getData("type");
+
+        // CASE 1: Subtitle Reordering
+        if (type === "subtitle") {
+            const sourceIndexStr = ev.dataTransfer.getData("index");
+            if (sourceIndexStr === "" || isNaN(sourceIndexStr)) return;
+            const sourceIndex = parseInt(sourceIndexStr);
+
+            if (sourceIndex === targetIndex) return;
+
+            // Reorder Array
+            const [movedItem] = subtitles.splice(sourceIndex, 1);
+            subtitles.splice(targetIndex, 0, movedItem);
+
+            saveSubtitles();
+            renderSubtitles();
+            Utils.showToast("자막 순서가 변경되었습니다.", "success");
+            return;
+        }
+
+        // CASE 2: Image Assignment (Copied Logic from handleDrop)
+        const srcIdx = ev.dataTransfer.getData("text/plain");
+        if (srcIdx === "" || isNaN(srcIdx)) return;
+
+        const imageIndex = parseInt(srcIdx);
+        // Validate against sourceImages (Palette)
+        if (imageIndex < 0 || imageIndex >= sourceImages.length) return;
+
+        // Logic: Apply Image #imageIndex to start at Subtitle #subIdx
+        if (targetIndex < 0 || targetIndex >= subtitles.length) return;
+
+        const targetTime = subtitles[targetIndex].start;
+        const targetUrl = sourceImages[imageIndex]; // Get from Palette
+
+        if (!imageTimings) imageTimings = [];
+
+        // Insert/Overwrite Logic
+        let insertPos = 0;
+        while (insertPos < imageTimings.length && imageTimings[insertPos] < targetTime) {
+            insertPos++;
+        }
+
+        // Prevent duplicate time exact match (overwrite instead)
+        if (insertPos < imageTimings.length && Math.abs(imageTimings[insertPos] - targetTime) < 0.1) {
+            images[insertPos] = targetUrl;
+            imageTimings[insertPos] = targetTime;
+        } else {
+            imageTimings.splice(insertPos, 0, targetTime);
+            images.splice(insertPos, 0, targetUrl);
+        }
+
+        renderSubtitles();
+        renderImageStrip();
+        Utils.showToast(`?대?吏 #${imageIndex + 1} 적용 완료`, 'success');
+        saveSubtitles();
+    }
+
+    // [NEW] In-Place Rendering Logic
+    async function renderVideoInPlace() {
+        const btn = document.getElementById('renderBtn');
+        const originalText = btn.innerHTML;
+
+        if (!confirm('현재 설정으로 영상을 렌더링하시겠습니까?')) return;
+
+        // UI Loading State
+        btn.disabled = true;
+        btn.innerHTML = `<svg class="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> 렌더링 중...`;
+
+        try {
+            // 1. Request Render
+            // Note: API expects resolution, use_subtitles, etc. Defaulting for now.
+            const res = await fetch(`/api/projects/${projectId}/render`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    project_id: projectId,
+                    use_subtitles: true,
+                    resolution: "1080p" // or load from settings
+                })
+            });
+            const data = await res.json();
+
+            if (data.status === 'processing') {
+                Utils.showToast("렌더링이 시작되었습니다. 잠시만 기다려주세요...", "info");
+                // Start Polling
+                pollRenderStatus(btn, originalText);
+            } else {
+                throw new Error(data.error || "Unknown Error");
+            }
+
+        } catch (e) {
+            console.error(e);
+            Utils.showToast("렌더링 요청 실패: " + e.message, 'error');
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+
+    async function pollRenderStatus(btn, originalText) {
+        const pollInterval = 2000; // 2 seconds
+
+        const timer = setInterval(async () => {
+            try {
+                const res = await fetch(`/api/projects/${projectId}/status`);
+                const data = await res.json();
+
+                if (data.status === 'ok') {
+                    if (data.project_status === 'rendered' && data.video_path) {
+                        clearInterval(timer);
+                        onRenderComplete(data.video_path, btn, originalText);
+                    } else if (data.project_status === 'failed') {
+                        clearInterval(timer);
+                        throw new Error("Render Failed on Server");
+                    }
+                    // Else: keep polling
+                }
+            } catch (e) {
+                console.error("Polling Error", e);
+                clearInterval(timer);
+                Utils.showToast("상태 확인 중 오류 발생: " + e.message, 'error');
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }, pollInterval);
+    }
+
+    function onRenderComplete(videoPath, btn, originalText) {
+        Utils.showToast("렌더링 완료!", "success");
+
+        // Reset Button
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+
+        // Replace Preview with Video Player
+        const previewBox = document.getElementById('mainPreviewBox');
+        if (previewBox) {
+            // Normalize Path: /output/ is mapped to static or direct?
+            // Usually /static/output/... or direct /output/ if app mounts it.
+            // videoPath from DB is usually /output/project/video.mp4
+            // Let's assume the backend mounted /output or returned a web-friendly path.
+            // Based on create_slideshow, it returns a web_path.
+
+            // Just in case, ensure it starts with /
+            const webPath = videoPath.startsWith('/') ? videoPath : '/' + videoPath;
+
+            previewBox.innerHTML = `
+                <video controls autoplay class="w-full h-full object-contain bg-black">
+                    <source src="${webPath}" type="video/mp4">
+                    釉뚮씪?곗?媛 鍮꾨뵒영상?쒓렇를吏?먰븯吏 ?딆뒿니다.
+                </video>
+            `;
+
+            // Remove overlays if needed
+            const subtitleOverlay = document.getElementById('subtitlePreviewBox');
+            if (subtitleOverlay) subtitleOverlay.style.display = 'none';
+        }
+    }
+
+    function allowDrop(ev) {
+        ev.preventDefault();
+        ev.target.closest('.group').classList.add('bg-blue-50', 'dark:bg-blue-900/20');
+    }
+
+    // Reset visual on drag leave (optional but good)
+    // We didn't add ondragleave, so might skip visual reset for simplicity or add it.
+    // Let's keep it simple. The hover (dragover) effect might stick if not careful, 
+    // but the `renderSubtitles()` call will clear everything instantly on drop.
+
+    function handleDrop(ev, subIdx) {
+        ev.preventDefault();
+        const srcIdx = ev.dataTransfer.getData("text/plain");
+        if (srcIdx === "" || isNaN(srcIdx)) return;
+
+        const imageIndex = parseInt(srcIdx);
+        // Validate against sourceImages (Palette)
+        if (imageIndex < 0 || imageIndex >= sourceImages.length) return;
+
+        // Logic: Apply Image #imageIndex to start at Subtitle #subIdx
+        if (subIdx < 0 || subIdx >= subtitles.length) return;
+
+        const targetTime = subtitles[subIdx].start;
+        const targetUrl = sourceImages[imageIndex]; // Get from Palette
+
+        // 1. Check if an image timing already exists nearby (tolerance)
+        // If so, update it. If not, insert it.
+        // Actually, for reuse/insert, we should insert into the lists.
+        // But `imageTimings` and `images` must be parallel.
+        // But `imageTimings` is float[], `images` is string[].
+
+        // Current structure assumption:
+        // images uses separate index? No.
+        // `imageTimings` maps 1:1 to `images`?
+        // Let's check `get_subtitles`.
+        // `images = [url, url, ...]`
+        // `image_timings = [0.0, 5.0, ...]`
+        // They MUST be parallel arrays index-wise.
+
+        // So validation:
+        // We need to insert `targetTime` into `imageTimings`.
+        // And insert `targetUrl` into `images` at the SAME index.
+
+        if (!imageTimings) imageTimings = [];
+
+        // Find insert position
+        let insertPos = 0;
+        while (insertPos < imageTimings.length && imageTimings[insertPos] < targetTime) {
+            insertPos++;
+        }
+
+        // Prevent duplicate time exact match (overwrite instead)
+        if (insertPos < imageTimings.length && Math.abs(imageTimings[insertPos] - targetTime) < 0.1) {
+            // Overwrite existing at this time
+            images[insertPos] = targetUrl;
+            imageTimings[insertPos] = targetTime;
+        } else {
+            // Insert new
+            imageTimings.splice(insertPos, 0, targetTime);
+            images.splice(insertPos, 0, targetUrl);
+        }
+
+        // Update UI
+        renderSubtitles();
+        renderImageStrip();
+        Utils.showToast(`?대?吏 #${imageIndex + 1} 적용 완료`, 'success');
+
+        // Auto Save to persist custom order
+        // We use a debounced save or immediate? Immediate is fine for interaction.
+        saveSubtitles();
+    }
+
+    async function loadProjectAndSubtitles() {
+        updateDebug(`[Func] loadProjectAndSubtitles START. Pid: ${projectId}`);
+        if (!projectId) {
+            Utils.showToast('프로젝트 ID를 찾을 수 없습니다.', 'error');
+            updateDebug('[Func] No Project ID');
+            return;
+        }
+
+        if (typeof Utils === 'undefined') {
+            updateDebug('CRITICAL: Utils is undefined!');
+            return;
+        }
+        if (typeof Utils.setLoading !== 'function') {
+            updateDebug('CRITICAL: Utils.setLoading is not a function!');
+            console.error(Utils);
+            // Try to proceed without loading screen?
+        }
+
+        try {
+            // [Fix] Utils.setLoading CRASHES (originalText undefined). Disabled.
+            // if (typeof Utils.setLoading === 'function') Utils.setLoading(true, "데이터 로딩 중..");
+
+
+            updateDebug('[Func] Fetching data...');
+            // [NEW] Use the dedicated endpoint
+            const res = await fetch(`/api/projects/${projectId}/subtitles`);
+            updateDebug(`[Func] Fetch Res: ${res.status}`);
+            const data = await res.json();
+            updateDebug(`[Func] Data JSON parsed. Status: ${data.status}`);
+
+            if (data.status === 'ok') {
+                // 1. Set Data
+                subtitles = data.subtitles || [];
+                imageTimings = data.image_timings || [0.0];
+                images = data.timeline_images || [];
+                sourceImages = data.source_images || [];
+
+                updateDebug(`[Data] Subtitles: ${subtitles.length}, Images: ${images.length}, Timings: ${imageTimings.length}, Source: ${sourceImages.length}`);
+                console.log("[Data Detail]", { imageTimings, images, sourceImages });
+
+
+
+                // Style Settings
+                if (data.settings) {
+                    styleSettings = {
+                        font: data.settings.subtitle_font || 'Pretendard',
+                        fontSize: data.settings.subtitle_font_size || 60,
+                        color: data.settings.subtitle_base_color || '#ffffff',
+                        strokeColor: data.settings.subtitle_stroke_color || '#000000',
+                        strokeWidth: data.settings.subtitle_stroke_width || 5
+                    };
+
+                    // Apply UI
+                    const fontEl = document.getElementById('fontFamilySelect');
+                    if (fontEl) fontEl.value = styleSettings.font;
+
+                    const sizeEl = document.getElementById('fontSizeInput');
+                    if (sizeEl) sizeEl.value = styleSettings.fontSize;
+
+                    const colorEl = document.getElementById('textColorInput');
+                    if (colorEl) colorEl.value = styleSettings.color;
+
+                    const strokeEl = document.getElementById('strokeColorInput');
+                    if (strokeEl) strokeEl.value = styleSettings.strokeColor;
+
+                    const widthEl = document.getElementById('strokeWidthSlider');
+                    if (widthEl) {
+                        widthEl.value = styleSettings.strokeWidth;
+                        document.getElementById('strokeWidthValue').textContent = styleSettings.strokeWidth;
+                    }
+
+                    // Position
+                    if (data.settings.subtitle_pos_x && data.settings.subtitle_pos_y) {
+                        const preview = document.getElementById('previewTextMain');
+                        if (preview) {
+                            preview.style.left = data.settings.subtitle_pos_x;
+                            preview.style.top = data.settings.subtitle_pos_y;
+                        }
+                    }
+
+                    // Aspect Ratio
+                    if (data.settings.aspect_ratio) {
+                        setAspectRatio(data.settings.aspect_ratio);
+                    }
+                    else if (data.settings.app_mode === 'shorts') {
+                        setAspectRatio('9:16');
+                    }
+                }
+
+                // 2. Render
+                // 2. Render
+                renderSubtitles();
+                const listEl = document.getElementById('subtitleList');
+                updateDebug(`Render Called. List Element: ${!!listEl}, InnerHTML Length: ${listEl ? listEl.innerHTML.length : 0}`);
+                renderImageStrip();
+                updateSubtitlePreview();
+
+                if (subtitles.length > 0) {
+                    selectSubtitle(0);
+                    updateDebug(`Loaded and Selected. Subtitles: ${subtitles.length}`);
+                } else {
+                    Utils.showToast('생성된 자막이 없습니다. 자막 생성을 진행해주세요.', 'info');
+                    updateDebug('Loaded but empty subtitles.');
+                }
+
+            } else {
+                throw new Error(data.error);
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast("?곗씠영상濡쒕뵫 실패: " + e.message, 'error');
+        } finally {
+            Utils.setLoading(false);
+        }
+    }
+
+    // [DEBUG] Helper
+    function updateDebug(msg) {
+        const el = document.getElementById('debug-overlay');
+        if (el) {
+            const time = new Date().toLocaleTimeString();
+            el.innerHTML = `[${time}] ${msg}<br>` + el.innerHTML;
+        }
+        console.log('[DEBUG]', msg);
+    }
+
+    // Global Error Handler
+    window.onerror = function (msg, url, lineNo, columnNo, error) {
+        updateDebug(`SCRIPT ERROR: ${msg} (Line: ${lineNo})`);
+        return false;
+    };
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function () {
+        try {
+            // Safe Project ID Access
+            const pid = (typeof projectId !== 'undefined') ? projectId : "{{ project_id }}";
+            console.log("Page Loaded. ProjectId:", pid);
+            updateDebug("DOM Content Loaded. Starting Init...");
+
+            if (typeof loadProjectAndSubtitles === 'function') {
+                loadProjectAndSubtitles();
+            } else {
+                updateDebug("CRITICAL: loadProjectAndSubtitles function missing!");
+                console.error("loadProjectAndSubtitles function not found");
+            }
+
+            if (typeof setupStyleListeners === 'function') {
+                setupStyleListeners();
+            }
+
+            // Draggable Preview Text
+            const previewText = document.getElementById('previewTextMain');
+            if (previewText) makeDraggable(previewText);
+        } catch (e) {
+            updateDebug(`INIT CRASH: ${e.message}`);
+            console.error(e);
+        }
+    });
+
 </script>
 {% endblock %}

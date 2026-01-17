@@ -3,240 +3,250 @@
 {% block content %}
 
 
-<!-- API 키 입력 폼 -->
-<div class="card mb-6">
-    <h3 class="font-bold text-gray-800 dark:text-white mb-4">🔑 API 키 설정</h3>
-    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-        API 키를 입력하고 저장하면 즉시 적용됩니다. 서버 재시작 없이 바로 사용할 수 있습니다.
-    </p>
-
-    <div class="space-y-4">
-        <!-- YouTube API Key -->
-        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-            <div class="flex items-center justify-between mb-2">
-                <div class="flex items-center gap-2">
-                    <span>📺</span>
-                    <label class="font-medium text-gray-800 dark:text-white">YouTube Data API</label>
-                </div>
-                <span id="youtubeStatus" class="text-sm text-gray-500">확인 중...</span>
-            </div>
-            <div class="flex gap-2">
-                <input type="password" id="youtubeApiKey" class="flex-1 input-field text-sm"
-                    placeholder="YouTube API 키 입력...">
-                <button onclick="toggleKeyVisibility('youtubeApiKey')" class="btn-secondary px-3">
-                    <span id="youtubeApiKey-eye">👁️</span>
-                </button>
-            </div>
-            <p id="youtubeKeyMasked" class="text-xs text-gray-500 mt-1"></p>
-        </div>
-
-        <!-- Gemini API Key -->
-        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-            <div class="flex items-center justify-between mb-2">
-                <div class="flex items-center gap-2">
-                    <span>🤖</span>
-                    <label class="font-medium text-gray-800 dark:text-white">Gemini API</label>
-                </div>
-                <span id="geminiStatus" class="text-sm text-gray-500">확인 중...</span>
-            </div>
-            <div class="flex gap-2">
-                <input type="password" id="geminiApiKey" class="flex-1 input-field text-sm"
-                    placeholder="Gemini API 키 입력...">
-                <button onclick="toggleKeyVisibility('geminiApiKey')" class="btn-secondary px-3">
-                    <span id="geminiApiKey-eye">👁️</span>
-                </button>
-            </div>
-            <p id="geminiKeyMasked" class="text-xs text-gray-500 mt-1"></p>
-        </div>
-
-        <!-- ElevenLabs API Key -->
-        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-            <div class="flex items-center justify-between mb-2">
-                <div class="flex items-center gap-2">
-                    <span>🔊</span>
-                    <label class="font-medium text-gray-800 dark:text-white">ElevenLabs TTS (선택)</label>
-                </div>
-                <span id="elevenlabsStatus" class="text-sm text-gray-500">확인 중...</span>
-            </div>
-            <div class="flex gap-2">
-                <input type="password" id="elevenlabsApiKey" class="flex-1 input-field text-sm"
-                    placeholder="ElevenLabs API 키 입력...">
-                <button onclick="toggleKeyVisibility('elevenlabsApiKey')" class="btn-secondary px-3">
-                    <span id="elevenlabsApiKey-eye">👁️</span>
-                </button>
-            </div>
-            <p id="elevenlabsKeyMasked" class="text-xs text-gray-500 mt-1"></p>
-        </div>
-    </div>
-
-</div>
-
-<!-- Gemini Voice Settings -->
-<div class="card mb-6">
-    <h3 class="font-bold text-gray-800 dark:text-white mb-4">🗣️ Gemini 음성 설정 (기본값)</h3>
-    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-        새 프로젝트 생성 시 적용될 기본 음성 설정입니다.
-    </p>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-        <!-- 음성 선택 -->
-        <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">음성 (Voice)</label>
-            <select id="geminiVoice" class="input-field w-full">
-                <!-- Loaded via JS -->
-            </select>
-        </div>
-
-        <!-- 언어 선택 -->
-        <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">언어 (Language)</label>
-            <select id="geminiLanguage" class="input-field w-full">
-                <!-- Loaded via JS -->
-            </select>
-        </div>
-    </div>
-
-    <!-- 스타일 프롬프트 -->
-    <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            음성 스타일 프롬프트 (Style Prompt)
-            <span class="text-xs text-gray-500 font-normal ml-2">예: "차분하고 전문적인 톤으로", "활기차고 빠르게"</span>
-        </label>
-        <textarea id="geminiStylePrompt" rows="3" class="input-field w-full"
-            placeholder="Gemini에게 음성 스타일에 대해 지시할 내용을 입력하세요..."></textarea>
-    </div>
-</div>
-</div>
-
-<!-- Script Style Prompts -->
-<div class="card mb-6">
-    <h3 class="font-bold text-gray-800 dark:text-white mb-4">📜 대본 스타일 프롬프트 (커스텀)</h3>
-    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-        대본 기획 및 생성 시 AI가 사용할 상세 지침입니다. 각 스타일별로 원하는 결과물의 톤앤매너를 구체적으로 적어주세요.
-    </p>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">뉴스 보도 (News Delivery)</label>
-            <textarea id="promptNews" class="input-field w-full" rows="6"
-                placeholder="뉴스 스타일 프롬프트를 입력하세요..."></textarea>
-            <p class="text-xs text-gray-500 mt-1">객관적이고 신뢰감 있는 뉴스 전달 톤을 위한 지침입니다.</p>
-        </div>
-        <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">옛날 이야기 (Old Story)</label>
-            <textarea id="promptStory" class="input-field w-full" rows="6"
-                placeholder="옛날 이야기 스타일 프롬프트를 입력하세요..."></textarea>
-            <p class="text-xs text-gray-500 mt-1">흥미진진한 구연동화/스토리텔링을 위한 지침입니다. (기본값)</p>
-        </div>
-    </div>
-</div>
-
-<!-- 저장 버튼 -->
-<div class="mt-6 flex gap-3">
-    <button onclick="saveAllSettings()" class="btn-primary px-6">
-        💾 전체 설정 저장
-    </button>
-    <button onclick="loadAllSettings()" class="btn-secondary">
-        🔄 새로고침
-    </button>
-</div>
-</div>
-
-<!-- API 연결 상태 -->
-<div class="card mb-6">
-    <h3 class="font-bold text-gray-800 dark:text-white mb-4">📡 API 연결 상태</h3>
-    <div id="apiStatusList" class="space-y-3">
-        <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-            <div class="flex items-center gap-3">
-                <span>📺</span>
-                <span>YouTube Data API</span>
-            </div>
-            <span id="youtubeConnectionStatus" class="text-gray-500">확인 중...</span>
-        </div>
-        <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-            <div class="flex items-center gap-3">
-                <span>🤖</span>
-                <span>Gemini API</span>
-            </div>
-            <span id="geminiConnectionStatus" class="text-gray-500">확인 중...</span>
-        </div>
-        <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-            <div class="flex items-center gap-3">
-                <span>🔊</span>
-                <span>ElevenLabs TTS</span>
-            </div>
-            <span id="elevenlabsConnectionStatus" class="text-gray-500">확인 중...</span>
-        </div>
-    </div>
-</div>
-
-<!-- 채널 관리 -->
-<div class="card mb-6">
-    <h3 class="font-bold text-gray-800 dark:text-white mb-4">📺 채널 관리</h3>
-    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-        영상 업로드 시 선택할 유튜브 채널 목록을 관리합니다.
-    </p>
-
-    <!-- 채널 목록 -->
-    <div id="channelList" class="space-y-3 mb-4">
-        <!-- JS로 로드됨 -->
-        <p class="text-gray-500 text-sm">등록된 채널이 없습니다.</p>
-    </div>
-
-    <!-- 채널 추가 폼 -->
-    <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-        <h4 class="font-medium text-gray-800 dark:text-white mb-2 text-sm">새 채널 추가</h4>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <input type="text" id="newChannelName" class="input-field text-sm" placeholder="채널명 (예: 내 일상 채널)">
-            <input type="text" id="newChannelHandle" class="input-field text-sm" placeholder="핸들 (예: @myvlog)">
-            <button onclick="addChannel()" class="btn-primary text-sm whitespace-nowrap">
-                ➕ 추가하기
+<div class="h-[calc(100vh-80px)] overflow-y-auto p-4 custom-scrollbar">
+    <!-- Header with Actions -->
+    <div
+        class="flex justify-between items-center mb-4 sticky top-0 bg-gray-50 dark:bg-gray-900 z-10 py-2 border-b border-gray-200 dark:border-gray-700">
+        <h2 class="text-lg font-bold flex items-center gap-2">
+            <span>⚙️ 환경 설정</span>
+        </h2>
+        <div class="flex gap-2">
+            <button onclick="loadAllSettings()" class="btn-secondary py-1.5 px-3 text-xs flex items-center gap-1">
+                <span>🔄</span> 새로고침
+            </button>
+            <button onclick="saveAllSettings()"
+                class="btn-primary py-1.5 px-4 text-xs font-bold shadow-sm flex items-center gap-1">
+                <span>💾</span> 변경사항 저장
             </button>
         </div>
-        <input type="text" id="newChannelDesc" class="input-field text-sm mt-3 w-full" placeholder="설명 (선택사항)">
     </div>
-</div>
 
-<!-- API 키 발급 링크 -->
-<div class="card mb-6">
+    <div class="grid grid-cols-1 xl:grid-cols-12 gap-4">
 
-    <h3 class="font-bold text-gray-800 dark:text-white mb-4">🔗 API 키 발급</h3>
-    <div class="space-y-3">
-        <a href="https://console.cloud.google.com/apis/credentials" target="_blank"
-            class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition">
-            <div class="flex items-center gap-3">
-                <span>📺</span>
-                <span>YouTube Data API 키 발급</span>
-            </div>
-            <span class="text-blue-500">→</span>
-        </a>
-        <a href="https://aistudio.google.com/apikey" target="_blank"
-            class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition">
-            <div class="flex items-center gap-3">
-                <span>🤖</span>
-                <span>Gemini API 키 발급</span>
-            </div>
-            <span class="text-blue-500">→</span>
-        </a>
-        <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank"
-            class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition">
-            <div class="flex items-center gap-3">
-                <span>🔊</span>
-                <span>ElevenLabs API 키 발급</span>
-            </div>
-            <span class="text-blue-500">→</span>
-        </a>
-    </div>
-</div>
+        <!-- Left Column: System & Connections (5/12) -->
+        <div class="xl:col-span-5 space-y-4">
 
-<!-- 데이터 관리 -->
-<div class="card">
-    <h3 class="font-bold text-gray-800 dark:text-white mb-4">🗂️ 로컬 데이터 관리</h3>
-    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-        브라우저에 저장된 프로젝트 데이터를 관리합니다.
-    </p>
-    <div class="flex gap-3">
-        <button onclick="exportData()" class="btn-secondary">📤 데이터 내보내기</button>
-        <button onclick="clearData()" class="btn-secondary text-red-600">🗑️ 모든 데이터 삭제</button>
+            <!-- API Keys & Connectivity -->
+            <div class="card p-3 shadow-sm border border-gray-200 dark:border-gray-700">
+                <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-3 flex items-center justify-between">
+                    <span>🔑 API 인증 및 연결 상태</span>
+                    <a href="https://console.cloud.google.com/apis/credentials" target="_blank"
+                        class="text-[10px] text-blue-500 hover:underline">Console 바로가기 ↗</a>
+                </h3>
+
+                <div class="space-y-3">
+                    <!-- YouTube -->
+                    <div
+                        class="bg-gray-50 dark:bg-gray-800/50 rounded-md p-2 border border-gray-100 dark:border-gray-700">
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1">
+                                <span>📺 YouTube Data API</span>
+                                <span id="youtubeStatus" class="text-[10px] font-normal text-gray-400"></span>
+                            </label>
+                            <span id="youtubeConnectionStatus"
+                                class="text-[10px] bg-gray-200 dark:bg-gray-700 px-1.5 rounded text-gray-500">대기</span>
+                        </div>
+                        <div class="flex gap-1">
+                            <input type="password" id="youtubeApiKey" class="flex-1 input-field text-xs py-1 px-2 h-8"
+                                placeholder="API Key 입력">
+                            <button onclick="toggleKeyVisibility('youtubeApiKey')"
+                                class="btn-secondary px-2 h-8 text-xs">👁️</button>
+                        </div>
+                        <p id="youtubeKeyMasked" class="text-[10px] text-gray-400 mt-0.5 truncate h-3"></p>
+                    </div>
+
+                    <!-- Gemini -->
+                    <div
+                        class="bg-gray-50 dark:bg-gray-800/50 rounded-md p-2 border border-gray-100 dark:border-gray-700">
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1">
+                                <span>🤖 Gemini API</span>
+                                <span id="geminiStatus" class="text-[10px] font-normal text-gray-400"></span>
+                            </label>
+                            <span id="geminiConnectionStatus"
+                                class="text-[10px] bg-gray-200 dark:bg-gray-700 px-1.5 rounded text-gray-500">대기</span>
+                        </div>
+                        <div class="flex gap-1">
+                            <input type="password" id="geminiApiKey" class="flex-1 input-field text-xs py-1 px-2 h-8"
+                                placeholder="API Key 입력">
+                            <button onclick="toggleKeyVisibility('geminiApiKey')"
+                                class="btn-secondary px-2 h-8 text-xs">👁️</button>
+                        </div>
+                        <p id="geminiKeyMasked" class="text-[10px] text-gray-400 mt-0.5 truncate h-3"></p>
+                    </div>
+
+                    <!-- ElevenLabs -->
+                    <div
+                        class="bg-gray-50 dark:bg-gray-800/50 rounded-md p-2 border border-gray-100 dark:border-gray-700">
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1">
+                                <span>🔊 ElevenLabs API</span>
+                                <span class="text-[10px] text-gray-400 font-normal">(선택)</span>
+                                <span id="elevenlabsStatus" class="text-[10px] font-normal text-gray-400"></span>
+                            </label>
+                            <span id="elevenlabsConnectionStatus"
+                                class="text-[10px] bg-gray-200 dark:bg-gray-700 px-1.5 rounded text-gray-500">미설정</span>
+                        </div>
+                        <div class="flex gap-1">
+                            <input type="password" id="elevenlabsApiKey"
+                                class="flex-1 input-field text-xs py-1 px-2 h-8" placeholder="API Key 입력">
+                            <button onclick="toggleKeyVisibility('elevenlabsApiKey')"
+                                class="btn-secondary px-2 h-8 text-xs">👁️</button>
+                        </div>
+                        <p id="elevenlabsKeyMasked" class="text-[10px] text-gray-400 mt-0.5 truncate h-3"></p>
+                    </div>
+                </div>
+
+                <div class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex justify-between text-[10px]">
+                    <a href="https://aistudio.google.com/apikey" target="_blank"
+                        class="text-blue-500 hover:underline flex items-center gap-1">
+                        🔑 Gemini 키 발급
+                    </a>
+                    <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank"
+                        class="text-gray-500 hover:underline flex items-center gap-1">
+                        🔑 ElevenLabs 키 발급
+                    </a>
+                </div>
+            </div>
+
+            <!-- Data Management -->
+            <div class="card p-3 shadow-sm border border-gray-200 dark:border-gray-700">
+                <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-2">🗂️ 데이터 관리</h3>
+                <div class="flex gap-2">
+                    <button onclick="exportData()" class="flex-1 btn-secondary py-1.5 text-xs">📤 백업 (JSON)</button>
+                    <button onclick="clearData()"
+                        class="flex-1 btn-secondary text-red-600 bg-red-50 hover:bg-red-100 border-red-200 py-1.5 text-xs">🗑️
+                        초기화</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Configurations (7/12) -->
+        <div class="xl:col-span-7 space-y-4">
+
+            <!-- Channel Management -->
+            <div class="card p-3 shadow-sm border border-gray-200 dark:border-gray-700">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100">📺 유튜브 채널 관리</h3>
+                    <span class="text-[10px] text-gray-400">업로드 대상 채널</span>
+                </div>
+
+                <div id="channelList"
+                    class="space-y-2 mb-3 max-h-40 overflow-y-auto custom-scrollbar bg-gray-50 dark:bg-gray-800/30 rounded p-1">
+                    <!-- Loaded via JS -->
+                    <p class="text-gray-400 text-xs text-center py-4">등록된 채널이 없습니다.</p>
+                </div>
+
+                <div
+                    class="flex gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded border border-gray-100 dark:border-gray-700">
+                    <input type="text" id="newChannelName" class="input-field text-xs flex-1 h-8"
+                        placeholder="채널명 (내 브이로그)">
+                    <input type="text" id="newChannelHandle" class="input-field text-xs w-24 h-8" placeholder="@handle">
+                    <button onclick="addChannel()"
+                        class="btn-primary py-0 px-3 text-xs h-8 whitespace-nowrap">추가</button>
+                </div>
+                <input type="text" id="newChannelDesc" class="input-field text-xs w-full mt-2 h-7"
+                    placeholder="채널 설명 (선택)">
+            </div>
+
+            <!-- Content Settings (Voice & Scripts) -->
+            <div class="card p-3 shadow-sm border border-gray-200 dark:border-gray-700">
+                <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-3">🎨 콘텐츠 생성 설정</h3>
+
+                <!-- Platform Mode -->
+                <div class="mb-5 border-b border-gray-100 dark:border-gray-700 pb-4">
+                    <label class="text-xs font-bold text-gray-700 dark:text-gray-300 mb-2 block">🖥️ 플랫폼 모드</label>
+                    <input type="hidden" id="appMode" value="longform">
+                    <div class="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1 w-fit">
+                        <button id="btnModeLong" onclick="setAppMode('longform')"
+                            class="px-4 py-1.5 rounded-md text-xs font-bold transition-all bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-white">
+                            🎞️ 롱폼 (기본)
+                        </button>
+                        <button id="btnModeShort" onclick="setAppMode('shorts')"
+                            class="px-4 py-1.5 rounded-md text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+                            📱 쇼츠
+                        </button>
+                    </div>
+                    <p class="text-[10px] text-gray-400 mt-2">
+                        * 모드를 변경하면 메뉴 구성과 영상 생성 설정이 해당 포맷에 최적화됩니다.
+                    </p>
+                </div>
+
+                <!-- [NEW] Template Image (Overlay) -->
+                <div class="mb-5 border-b border-gray-100 dark:border-gray-700 pb-4">
+                    <label
+                        class="text-xs font-bold text-gray-700 dark:text-gray-300 mb-2 flex justify-between items-center">
+                        <span>🖼️ 템플릿 이미지 (9:16 오버레이)</span>
+                        <span class="text-[10px] text-gray-400 font-normal">.png 투명 배경 권장</span>
+                    </label>
+
+                    <div class="flex items-start gap-4">
+                        <!-- Preview -->
+                        <div
+                            class="w-16 h-28 bg-gray-100 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 overflow-hidden flex items-center justify-center relative group">
+                            <img id="templatePreview" src="" class="w-full h-full object-cover hidden">
+                            <div id="templatePlaceholder" class="text-gray-300 text-[10px] text-center p-1">No Image
+                            </div>
+                            <button onclick="deleteTemplate()" id="btnDeleteTemplate"
+                                class="hidden absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                🗑️
+                            </button>
+                        </div>
+
+                        <!-- Upload Control -->
+                        <div class="flex-1">
+                            <input type="file" id="templateImageInput" accept="image/png, image/jpeg" class="hidden"
+                                onchange="uploadTemplate(this)">
+                            <button onclick="document.getElementById('templateImageInput').click()"
+                                class="btn-secondary w-full py-2 text-xs mb-2 border-dashed border-2">
+                                📁 이미지 업로드 (Upload)
+                            </button>
+                            <p class="text-[10px] text-gray-400 leading-tight">
+                                * 쇼츠 영상 생성 시, 전체 프레임 위에 오버레이로 적용됩니다.<br>
+                                * 프레임, 로고, 테두리 장식 등에 활용하세요.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Voice -->
+                    <div>
+                        <label class="text-xs font-bold text-gray-700 dark:text-gray-300 mb-2 block">🗣️ 기본 목소리
+                            (Gemini)</label>
+                        <div class="grid grid-cols-2 gap-2 mb-2">
+                            <select id="geminiVoice" class="input-field text-xs h-8"></select>
+                            <select id="geminiLanguage" class="input-field text-xs h-8"></select>
+                        </div>
+                        <textarea id="geminiStylePrompt" rows="2" class="input-field w-full text-xs"
+                            placeholder="음성 스타일 (예: 차분하고 신뢰감 있는 톤)"></textarea>
+                    </div>
+
+                    <!-- Script Prompts -->
+                    <div class="space-y-4">
+                        <div>
+                            <label class="text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 block">📜 시니어 사연 스타일
+                                프롬프트 (New)</label>
+                            <textarea id="promptSeniorStory" class="input-field w-full text-xs" rows="3"
+                                placeholder="중장년층 공감 사연 톤앤매너 지침..."></textarea>
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 block">📜 옛날 이야기 스타일
+                                프롬프트</label>
+                            <textarea id="promptStory" class="input-field w-full text-xs" rows="2"
+                                placeholder="구연동화 톤앤매너 지침..."></textarea>
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 block">📜 뉴스 스타일
+                                프롬프트</label>
+                            <textarea id="promptNews" class="input-field w-full text-xs" rows="2"
+                                placeholder="뉴스 톤앤매너 지침..."></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -257,6 +267,25 @@
         "it-IT", "pt-BR", "ru-RU", "nl-NL", "pl-PL", "th-TH", "tr-TR", "vi-VN",
         "ro-RO", "uk-UA", "bn-BD", "en-IN", "mr-IN", "ta-IN", "te-IN", "ar-EG"
     ];
+
+    // App Mode Toggle
+    function setAppMode(mode) {
+        document.getElementById('appMode').value = mode;
+
+        const btnLong = document.getElementById('btnModeLong');
+        const btnShort = document.getElementById('btnModeShort');
+
+        const activeClass = "bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-white font-bold";
+        const inactiveClass = "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 font-medium";
+
+        if (mode === 'longform') {
+            btnLong.className = `px-4 py-1.5 rounded-md text-xs transition-all ${activeClass}`;
+            btnShort.className = `px-4 py-1.5 rounded-md text-xs transition-all ${inactiveClass}`;
+        } else {
+            btnShort.className = `px-4 py-1.5 rounded-md text-xs transition-all ${activeClass}`;
+            btnLong.className = `px-4 py-1.5 rounded-md text-xs transition-all ${inactiveClass}`;
+        }
+    }
 
     // Populate Select Options
     function populateOptions() {
@@ -284,7 +313,15 @@
             if (data.script_styles) {
                 document.getElementById('promptNews').value = data.script_styles.news || '';
                 document.getElementById('promptStory').value = data.script_styles.story || '';
+                // [NEW]
+                document.getElementById('promptSeniorStory').value = data.script_styles.senior_story || '';
             }
+
+            // [NEW] App Mode
+            setAppMode(data.app_mode || 'longform');
+
+            // [NEW] Template Image
+            updateTemplatePreview(data.template_image_url);
         } catch (e) {
             console.error('설정 로드 실패:', e);
         }
@@ -297,6 +334,7 @@
 
         // Save Global Settings
         const settings = {
+            app_mode: document.getElementById('appMode').value,
             gemini_tts: {
                 voice_name: document.getElementById('geminiVoice').value,
                 language_code: document.getElementById('geminiLanguage').value,
@@ -304,7 +342,8 @@
             },
             script_styles: {
                 news: document.getElementById('promptNews').value,
-                story: document.getElementById('promptStory').value
+                story: document.getElementById('promptStory').value,
+                senior_story: document.getElementById('promptSeniorStory').value // [NEW]
             }
         };
 
@@ -400,8 +439,76 @@
                 await loadApiKeys();
                 await checkApiConnection();
             } catch (e) {
-                console.error('API 키 저장 오류:', e);
+                console.error(e);
+                Utils.showToast('키 저장 실패', 'error');
             }
+        }
+    }
+
+    // [NEW] Template Image Functions
+    async function uploadTemplate(input) {
+        if (!input.files || !input.files[0]) return;
+        const file = input.files[0];
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('type', 'template'); // flag
+
+        Utils.showToast('이미지 업로드 중...', 'info');
+
+        try {
+            const res = await fetch('/api/upload/template', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                Utils.showToast('템플릿 업로드 완료', 'success');
+                // Update UI
+                updateTemplatePreview(data.url);
+            } else {
+                Utils.showToast('업로드 실패: ' + (data.error || 'Unknown'), 'error');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('오류 발생', 'error');
+        } finally {
+            input.value = ''; // Reset input
+        }
+    }
+
+    async function deleteTemplate() {
+        if (!confirm('템플릿 이미지를 삭제하시겠습니까?')) return;
+
+        try {
+            const res = await fetch('/api/settings/template', { method: 'DELETE' });
+            if (res.ok) {
+                Utils.showToast('삭제되었습니다', 'success');
+                updateTemplatePreview(null);
+            } else {
+                Utils.showToast('삭제 실패', 'error');
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    function updateTemplatePreview(url) {
+        const img = document.getElementById('templatePreview');
+        const ph = document.getElementById('templatePlaceholder');
+        const delBtn = document.getElementById('btnDeleteTemplate');
+
+        if (url) {
+            img.src = url;
+            img.classList.remove('hidden');
+            ph.classList.add('hidden');
+            delBtn.classList.remove('hidden');
+        } else {
+            img.src = '';
+            img.classList.add('hidden');
+            ph.classList.remove('hidden');
+            delBtn.classList.add('hidden');
         }
     }
 

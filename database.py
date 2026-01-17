@@ -14,6 +14,20 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
+def reset_rendering_status():
+    """서버 시작 시 렌더링 중이던 상태를 초기화"""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE projects SET status = 'failed' WHERE status = 'rendering'")
+        if cursor.rowcount > 0:
+            print(f"[DB] Reset {cursor.rowcount} stuck rendering projects to 'failed'")
+        conn.commit()
+    except Exception as e:
+        print(f"[DB] Failed to reset rendering status: {e}")
+    finally:
+        conn.close()
+
 def init_db():
     """테이블 초기화"""
     conn = get_db()
@@ -234,6 +248,18 @@ def migrate_db():
 
     # New Style Columns
     try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN subtitle_path TEXT")
+    except sqlite3.OperationalError: pass
+    
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN image_timings_path TEXT")
+    except sqlite3.OperationalError: pass
+
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN timeline_images_path TEXT")
+    except sqlite3.OperationalError: pass
+
+    try:
         cursor.execute("ALTER TABLE project_settings ADD COLUMN image_style_prompt TEXT")
     except sqlite3.OperationalError:
         pass
@@ -283,6 +309,28 @@ def migrate_db():
         cursor.execute("ALTER TABLE project_settings ADD COLUMN subtitle_stroke_color TEXT DEFAULT 'black'")
     except sqlite3.OperationalError:
         pass
+        
+    # 마이그레이션: project_settings 테이블에 template_image_url 컬럼 추가
+    cursor.execute("PRAGMA table_info(project_settings)")
+    columns = [info[1] for info in cursor.fetchall()]
+    if 'template_image_url' not in columns:
+        print("[Migration] Adding template_image_url column to project_settings table...")
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN template_image_url TEXT")
+
+    # 마이그레이션: project_settings 테이블에 subtitle_position_y 컬럼 추가
+    if 'subtitle_position_y' not in columns:
+        print("[Migration] Adding subtitle_position_y column to project_settings table...")
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN subtitle_position_y INTEGER")
+
+    # 마이그레이션: project_settings 테이블에 background_video_url 컬럼 추가
+    if 'background_video_url' not in columns:
+        print("[Migration] Adding background_video_url column to project_settings table...")
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN background_video_url TEXT")
+
+    # 마이그레이션: project_settings 테이블에 is_uploaded 컬럼 추가
+    if 'is_uploaded' not in columns:
+        print("[Migration] Adding is_uploaded column to project_settings table...")
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN is_uploaded INTEGER DEFAULT 0")
 
     try:
         cursor.execute("ALTER TABLE project_settings ADD COLUMN subtitle_stroke_width REAL DEFAULT 0.15")
@@ -296,6 +344,11 @@ def migrate_db():
 
     try:
         cursor.execute("ALTER TABLE project_settings ADD COLUMN background_video_url TEXT")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN script_style TEXT")
     except sqlite3.OperationalError:
         pass
     
@@ -317,6 +370,22 @@ def migrate_db():
     except sqlite3.OperationalError:
         pass
         
+    # [NEW] Character Consistency Persistence
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN character_ref_text TEXT")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN character_ref_image_path TEXT")
+    except sqlite3.OperationalError:
+        pass
+        
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN app_mode TEXT DEFAULT 'longform'")
+    except sqlite3.OperationalError:
+        pass
+
     conn.commit()
     print("[DB] Migration completed")
 
@@ -605,9 +674,9 @@ def save_image_prompts(project_id: int, prompts: List[Dict]):
         """, (
             project_id,
             i + 1,
-            prompt.get('scene'),
-            prompt.get('prompt_ko'),
-            prompt.get('prompt_en'),
+            prompt.get('scene_text') or prompt.get('scene') or prompt.get('scene_title') or '',
+            prompt.get('prompt_ko') or '',
+            prompt.get('prompt_en') or prompt.get('prompt_content') or prompt.get('prompt') or '',
             prompt.get('image_url')
         ))
 
@@ -776,7 +845,8 @@ def save_project_settings(project_id: int, settings: Dict):
                     'script', 'hashtags', 'voice_tone', 'voice_name', 'voice_language', 'voice_style_prompt', 
                     'video_command', 'video_path', 'is_uploaded',
                     'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum',
-                    'subtitle_font_size', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url']:
+                    'subtitle_font_size', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url',
+                    'character_ref_text', 'character_ref_image_path', 'script_style']: # [NEW]
             if key in settings:
                 fields.append(f"{key} = ?")
                 values.append(settings[key])
@@ -792,12 +862,12 @@ def save_project_settings(project_id: int, settings: Dict):
         # 새로 생성
         cursor.execute("""
             INSERT INTO project_settings
-            (project_id, title, thumbnail_text, thumbnail_url, duration_seconds, aspect_ratio,
-             script, hashtags, voice_tone, voice_name, voice_language, voice_style_prompt,
-             video_command, video_path, is_uploaded,
-             image_style_prompt, subtitle_font, subtitle_color, target_language, subtitle_style_enum, subtitle_font_size, subtitle_stroke_color, subtitle_stroke_width, subtitle_position_y, background_video_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
+             (project_id, title, thumbnail_text, thumbnail_url, duration_seconds, aspect_ratio,
+              script, hashtags, voice_tone, voice_name, voice_language, voice_style_prompt,
+              video_command, video_path, is_uploaded,
+              image_style_prompt, subtitle_font, subtitle_color, target_language, subtitle_style_enum, subtitle_font_size, subtitle_stroke_color, subtitle_stroke_width, subtitle_position_y, background_video_url, character_ref_text, character_ref_image_path, script_style)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         """, (
             project_id,
             settings.get('title'),
             settings.get('thumbnail_text'),
@@ -823,7 +893,11 @@ def save_project_settings(project_id: int, settings: Dict):
             settings.get('subtitle_stroke_color', 'black'),
             settings.get('subtitle_stroke_width', 0.15),
             settings.get('subtitle_position_y'),
-            settings.get('background_video_url')
+             settings.get('subtitle_position_y'),
+            settings.get('background_video_url'),
+            settings.get('character_ref_text'),
+            settings.get('character_ref_image_path'),
+            settings.get('script_style')
         ))
 
     conn.commit()
@@ -847,7 +921,9 @@ def update_project_setting(project_id: int, key: str, value: Any):
                     'script', 'hashtags', 'voice_tone', 'voice_name', 'voice_language', 'voice_style_prompt', 
                     'video_command', 'video_path', 'is_uploaded', 
                     'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum',
-                    'subtitle_font_size', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'youtube_video_id', 'is_published', 'background_video_url']
+                    'subtitle_font_size', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'youtube_video_id', 'is_published', 'background_video_url',
+                    'character_ref_text', 'character_ref_image_path', 'script_style',
+                    'subtitle_path', 'image_timings_path', 'timeline_images_path', 'app_mode'] # [FIX] Added app_mode
 
 
     if key not in allowed_keys:
@@ -904,6 +980,17 @@ def get_shorts(project_id: int) -> List[Dict]:
     if row:
         return json.loads(row['shorts_data'])
     return []
+
+# ============ 이미지 프롬프트 ============
+
+def get_image_prompts(project_id: int) -> List[Dict]:
+    """이미지 프롬프트 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM image_prompts WHERE project_id = ? ORDER BY scene_number ASC", (project_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
 
 # ============ 프로젝트 전체 데이터 ============
 

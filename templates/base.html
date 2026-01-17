@@ -50,91 +50,8 @@
                 </a>
             </div>
 
-            <!-- Project Progress Header (Global) -->
-            <div id="projectProgressHeader"
-                class="hidden relative bg-slate-50 dark:bg-[#0f172a] border-b border-gray-200 dark:border-gray-800">
-                <div class="px-4 py-3">
-                    <div class="flex items-center justify-between mb-3">
-                        <div class="flex flex-col">
-                            <span id="currentProjectNameDisplay"
-                                class="text-xs font-bold text-gray-800 dark:text-gray-100 truncate max-w-[150px]">프로젝트명</span>
-                        </div>
-                        <button onclick="closeProjectContext()"
-                            class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M6 18L18 6M6 6l12 12"></path>
-                            </svg>
-                        </button>
-                    </div>
+            <!-- Project Progress Header (Moved to Main Area) -->
 
-                    <!-- Progress Steps -->
-                    <div class="flex justify-between items-center relative px-1">
-                        <!-- Connecting Line -->
-                        <div class="absolute top-[9px] left-0 right-0 h-[2px] bg-gray-200 dark:bg-gray-700 -z-0"></div>
-
-                        <!-- Steps -->
-                        <a href="/script-plan"
-                            class="step-item relative z-10 flex flex-col items-center group cursor-pointer"
-                            data-step="plan">
-                            <div
-                                class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-800 flex items-center justify-center transition-all duration-300">
-                                <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
-                            </div>
-                            <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">기획</span>
-                        </a>
-
-                        <a href="/script-gen"
-                            class="step-item relative z-10 flex flex-col items-center group cursor-pointer"
-                            data-step="script">
-                            <div
-                                class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-800 flex items-center justify-center transition-all duration-300">
-                                <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
-                            </div>
-                            <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">대본</span>
-                        </a>
-
-                        <a href="/image-gen"
-                            class="step-item relative z-10 flex flex-col items-center group cursor-pointer"
-                            data-step="image">
-                            <div
-                                class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-800 flex items-center justify-center transition-all duration-300">
-                                <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
-                            </div>
-                            <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">이미지</span>
-                        </a>
-
-                        <a href="/tts" class="step-item relative z-10 flex flex-col items-center group cursor-pointer"
-                            data-step="tts">
-                            <div
-                                class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-800 flex items-center justify-center transition-all duration-300">
-                                <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
-                            </div>
-                            <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">TTS</span>
-                        </a>
-
-                        <a href="/subtitle-gen"
-                            class="step-item relative z-10 flex flex-col items-center group cursor-pointer"
-                            data-step="subtitle">
-                            <div
-                                class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-800 flex items-center justify-center transition-all duration-300">
-                                <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
-                            </div>
-                            <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">자막</span>
-                        </a>
-
-                        <a href="/render"
-                            class="step-item relative z-10 flex flex-col items-center group cursor-pointer"
-                            data-step="render">
-                            <div
-                                class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-800 flex items-center justify-center transition-all duration-300">
-                                <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
-                            </div>
-                            <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">영상</span>
-                        </a>
-                    </div>
-                </div>
-            </div>
 
             <!-- 프로젝트 선택 -->
             <div class="px-3 py-1.5 border-b border-gray-200 dark:border-gray-700">
@@ -156,92 +73,105 @@
             <nav class="px-2 py-1">
                 <ul class="space-y-0">
                     <li>
-                        <a href="/projects" class="sidebar-item {% if page == 'projects' %}active{% endif %}">
+                        <a href="/projects" id="nav-projects"
+                            class="sidebar-item {% if page == 'projects' %}active{% endif %}">
                             <span class="sidebar-icon">📂</span>
                             <span>내 프로젝트</span>
                         </a>
                     </li>
                     <li>
-                        <a href="/" class="sidebar-item {% if page == 'topic' %}active{% endif %}">
+                        <a href="/" id="nav-topic" class="sidebar-item {% if page == 'topic' %}active{% endif %}">
                             <span class="sidebar-icon">🔍</span>
                             <span>주제 찾기</span>
                         </a>
                     </li>
                     <li>
-                        <a href="/thumbnail" class="sidebar-item {% if page == 'thumbnail' %}active{% endif %}">
+                        <a href="/thumbnail" id="nav-thumbnail"
+                            class="sidebar-item {% if page == 'thumbnail' %}active{% endif %}">
                             <span class="sidebar-icon">🎨</span>
                             <span>썸네일 생성</span>
                         </a>
                     </li>
                     <li>
-                        <a href="/script-plan" class="sidebar-item {% if page == 'script-plan' %}active{% endif %}">
+                        <a href="/script-plan" id="nav-plan"
+                            class="sidebar-item {% if page == 'script-plan' %}active{% endif %}">
                             <span class="sidebar-icon">📋</span>
                             <span>대본 기획</span>
                         </a>
                     </li>
                     <li>
-                        <a href="/script-gen" class="sidebar-item {% if page == 'script-gen' %}active{% endif %}">
+                        <a href="/script-gen" id="nav-script"
+                            class="sidebar-item {% if page == 'script-gen' %}active{% endif %}">
                             <span class="sidebar-icon">✍️</span>
                             <span>대본 생성</span>
                         </a>
                     </li>
                     <li>
-                        <a href="/video-gen" class="sidebar-item {% if page == 'video-gen' %}active{% endif %}">
+                        <a href="/video-gen" id="nav-intro"
+                            class="sidebar-item {% if page == 'video-gen' %}active{% endif %}">
                             <span class="sidebar-icon">🎥</span>
                             <span>인트로 생성</span>
                         </a>
                     </li>
                     <li>
-                        <a href="/image-gen" class="sidebar-item {% if page == 'image-gen' %}active{% endif %}">
+                        <a href="/image-gen" id="nav-image"
+                            class="sidebar-item {% if page == 'image-gen' %}active{% endif %}">
                             <span class="sidebar-icon">🖼️</span>
                             <span>이미지 생성</span>
                         </a>
                     </li>
                     <li>
-                        <a href="/tts" class="sidebar-item {% if page == 'tts' %}active{% endif %}">
+                        <a href="/tts" id="nav-tts" class="sidebar-item {% if page == 'tts' %}active{% endif %}">
                             <span class="sidebar-icon">🔊</span>
                             <span>TTS 생성</span>
                         </a>
                     </li>
                     <li>
-                        <a href="/music-gen" class="sidebar-item {% if page == 'music-gen' %}active{% endif %}">
+                        <a href="/music-gen" id="nav-bgm"
+                            class="sidebar-item {% if page == 'music-gen' %}active{% endif %}">
                             <span class="sidebar-icon">🎵</span>
                             <span>배경음악 생성</span>
                         </a>
                     </li>
                     <li>
-                        <a href="/subtitle-gen" class="sidebar-item {% if page == 'subtitle-gen' %}active{% endif %}">
+                        <a href="/subtitle-gen" id="nav-subtitle"
+                            class="sidebar-item {% if page == 'subtitle-gen' %}active{% endif %}">
                             <span class="sidebar-icon">📝</span>
                             <span>자막 편집</span>
                         </a>
                     </li>
                     <li>
-                        <a href="/render" class="sidebar-item {% if page == 'render' %}active{% endif %}">
+                        <a href="/render" id="nav-render"
+                            class="sidebar-item {% if page == 'render' %}active{% endif %}">
                             <span class="sidebar-icon">🎬</span>
                             <span>영상 렌더링</span>
                         </a>
                     </li>
                     <li>
-                        <a href="/video-upload" class="sidebar-item {% if page == 'video-upload' %}active{% endif %}">
+                        <a href="/video-upload" id="nav-upload"
+                            class="sidebar-item {% if page == 'video-upload' %}active{% endif %}">
                             <span class="sidebar-icon">📤</span>
                             <span>영상 업로드</span>
                         </a>
                     </li>
                     <li>
-                        <a href="/title-desc" class="sidebar-item {% if page == 'title-desc' %}active{% endif %}">
+                        <a href="/title-desc" id="nav-title"
+                            class="sidebar-item {% if page == 'title-desc' %}active{% endif %}">
                             <span class="sidebar-icon">📝</span>
                             <span>제목/설명 생성</span>
                         </a>
                     </li>
 
                     <li>
-                        <a href="/shorts" class="sidebar-item {% if page == 'shorts' %}active{% endif %}">
+                        <a href="/shorts" id="nav-shorts"
+                            class="sidebar-item {% if page == 'shorts' %}active{% endif %}">
                             <span class="sidebar-icon">📱</span>
-                            <span>쇼츠 생성</span>
+                            <span>쇼츠 추출</span>
                         </a>
                     </li>
                     <li class="mt-1 pt-1">
-                        <a href="/settings" class="sidebar-item {% if page == 'settings' %}active{% endif %}">
+                        <a href="/settings" id="nav-settings"
+                            class="sidebar-item {% if page == 'settings' %}active{% endif %}">
                             <span class="sidebar-icon">⚙️</span>
                             <span>설정</span>
                         </a>
@@ -269,10 +199,171 @@
     </div>
     </aside>
 
-    <!-- 메인 컨텐츠 -->
-    <main class="flex-1 ml-64 p-6">
-        {% block content %}{% endblock %}
-    </main>
+
+    <!-- 메인 컨텐츠 영역 (헤더 포함) -->
+    <div class="flex-1 ml-64 flex flex-col h-screen overflow-hidden">
+
+        <!-- Top Fixed Header (Project Progress) -->
+        <header id="projectProgressHeader"
+            class="hidden shrink-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 z-30 transition-all duration-300">
+            <div class="px-6 py-3">
+                <!-- Top Row: Title & Actions -->
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold text-gray-500 dark:text-gray-400">Project:</span>
+                        <h2 id="currentProjectNameDisplay" class="text-sm font-bold text-gray-800 dark:text-white">프로젝트명
+                        </h2>
+                    </div>
+                    <button onclick="closeProjectContext()"
+                        class="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-gray-400 transition-colors"
+                        title="프로젝트 닫기">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Bottom Row: 11-Step Progress Stepper -->
+                <div class="relative">
+                    <!-- Scrollable Container -->
+                    <div class="overflow-x-auto no-scrollbar pb-1 -mx-6 px-6">
+                        <div class="flex items-center min-w-max gap-4 relative">
+                            <!-- Connecting Line (Background) -->
+                            <div class="absolute top-[9px] left-0 right-0 h-[2px] bg-gray-200 dark:bg-gray-700 -z-0">
+                            </div>
+
+                            <!-- Step 1: Topic -->
+                            <a href="/"
+                                class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                data-step="topic">
+                                <div
+                                    class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                </div>
+                                <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">주제</span>
+                            </a>
+
+                            <!-- Step 2: Thumbnail -->
+                            <a href="/thumbnail"
+                                class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                data-step="thumbnail">
+                                <div
+                                    class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                </div>
+                                <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">썸네일</span>
+                            </a>
+
+                            <!-- Step 3: Plan -->
+                            <a href="/script-plan"
+                                class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                data-step="plan">
+                                <div
+                                    class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                </div>
+                                <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">기획</span>
+                            </a>
+
+                            <!-- Step 4: Script -->
+                            <a href="/script-gen"
+                                class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                data-step="script">
+                                <div
+                                    class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                </div>
+                                <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">대본</span>
+                            </a>
+
+                            <!-- Step 5: Intro -->
+                            <a href="/video-gen"
+                                class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                data-step="intro">
+                                <div
+                                    class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                </div>
+                                <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">인트로</span>
+                            </a>
+
+                            <!-- Step 6: Image -->
+                            <a href="/image-gen"
+                                class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                data-step="image">
+                                <div
+                                    class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                </div>
+                                <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">이미지</span>
+                            </a>
+
+                            <!-- Step 7: TTS -->
+                            <a href="/tts"
+                                class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                data-step="tts">
+                                <div
+                                    class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                </div>
+                                <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">TTS</span>
+                            </a>
+
+                            <!-- Step 8: BGM -->
+                            <a href="/music-gen"
+                                class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                data-step="bgm">
+                                <div
+                                    class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                </div>
+                                <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">BGM</span>
+                            </a>
+
+                            <!-- Step 9: Subtitles -->
+                            <a href="/subtitle-gen"
+                                class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                data-step="subtitle">
+                                <div
+                                    class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                </div>
+                                <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">자막</span>
+                            </a>
+
+                            <!-- Step 10: Render -->
+                            <a href="/render"
+                                class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                data-step="render">
+                                <div
+                                    class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                </div>
+                                <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">영상</span>
+                            </a>
+
+                            <!-- Step 11: Upload -->
+                            <a href="/video-upload"
+                                class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                data-step="upload">
+                                <div
+                                    class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                </div>
+                                <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">업로드</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content (Scrollable) -->
+        <main class="flex-1 overflow-y-auto p-6 scroll-smooth">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
     </div>
 
     <!-- 프로젝트 생성 모달 -->
@@ -299,8 +390,8 @@
     </div>
 
     <!-- 공통 스크립트 -->
-    <script src="/static/js/api.js?v=2"></script>
-    <script src="/static/js/utils.js?v=3"></script>
+    <script src="/static/js/utils.js?v=2.0"></script>
+    <script src="/static/js/api.js?v=2.3"></script>
     {% block scripts %}{% endblock %}
 
     <script>
@@ -399,13 +490,19 @@
 
                         // ✨ UI 진행 상태 업데이트 (Green Light)
                         // 사용자 요청: 각 단계별 실제 데이터 존재 여부만 확인 (Strict Mode)
+                        const settings = fullData.settings || {};
                         const steps = {
+                            'topic': !!fullData.project.topic,
+                            'thumbnail': !!settings.thumbnail_url || !!settings.thumbnail_path, // URL or Path
                             'plan': !!fullData.script_structure, // 기획 데이터가 있어야만 Green
-                            'script': !!fullData.script,         // 대본 데이터가 있어야만 Green
-                            'image': fullData.image_prompts?.length > 0,
+                            'script': !!fullData.full_script || (fullData.shorts && Object.keys(fullData.shorts).length > 0), // Longform OR Shorts
+                            'intro': !!settings.intro_video_path || !!settings.background_video_url, // 인트로 비디오 유무
+                            'image': fullData.image_prompts && fullData.image_prompts.length > 0,
                             'tts': !!fullData.tts,
-                            'subtitle': !!fullData.tts, // 임시: TTS와 연동
-                            'render': project.status === 'rendered' || project.status === 'completed'
+                            'bgm': !!settings.background_music_path,
+                            'subtitle': !!settings.subtitle_path || (fullData.tts && !!settings.subtitle_style_enum),
+                            'render': project.status === 'rendered' || project.status === 'completed' || !!settings.video_path,
+                            'upload': !!settings.is_uploaded
                         };
 
                         document.querySelectorAll('.step-item').forEach(el => {
@@ -414,10 +511,14 @@
                             const indicator = el.querySelector('.step-circle div');
                             const label = el.querySelector('span');
 
+                            // Check if element exists (safety)
+                            if (!circle || !indicator || !label) return;
+
                             // Reset
-                            circle.className = 'step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-800 flex items-center justify-center transition-all duration-300';
+                            circle.className = 'step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300';
                             indicator.className = 'w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors';
-                            label.classList.remove('text-green-500', 'font-bold');
+                            indicator.innerHTML = ''; // Clear SVG
+                            label.classList.remove('text-green-500', 'font-bold', 'text-green-600', 'dark:text-green-400');
                             label.classList.add('text-gray-400');
 
                             if (steps[stepName]) {
@@ -520,14 +621,96 @@
             }
         }
 
+        // [NEW] App Mode Navigation Logic
+        async function applyAppModeToNav() {
+            try {
+                const res = await fetch('/api/settings');
+                const settings = await res.json();
+                const mode = settings.app_mode || 'longform';
+                window.APP_MODE = mode; // [NEW] Expose globally
+                console.log("Global Mode:", mode);
+
+                // Elements to toggle
+                const navPlan = document.getElementById('nav-plan');
+                const navIntro = document.getElementById('nav-intro');
+                const navBgm = document.getElementById('nav-bgm');
+                const navTitle = document.getElementById('nav-title');
+                const navShorts = document.getElementById('nav-shorts');
+                const navScript = document.getElementById('nav-script');
+                const navTopic = document.getElementById('nav-topic');
+
+                if (mode === 'shorts') {
+                    // Shorts Mode: Hide Planner, Intro, BGM, Title, Shorts-Extraction
+                    if (navPlan) navPlan.parentElement.classList.add('hidden');
+                    if (navIntro) navIntro.parentElement.classList.add('hidden');
+                    if (navBgm) navBgm.parentElement.classList.add('hidden');
+                    if (navTitle) navTitle.parentElement.classList.add('hidden');
+
+                    // Hide the 'Shorts Extraction' tool because we are building shorts directly
+                    if (navShorts) navShorts.parentElement.classList.add('hidden');
+
+                    // Rename Script Gen
+                    if (navScript) {
+                        navScript.querySelector('span:last-child').textContent = "쇼츠 대본";
+                    }
+                } else {
+                    // Longform Mode: Show everything (default)
+                    if (navPlan) navPlan.parentElement.classList.remove('hidden');
+                    if (navIntro) navIntro.parentElement.classList.remove('hidden');
+                    if (navBgm) navBgm.parentElement.classList.remove('hidden');
+                    if (navTitle) navTitle.parentElement.classList.remove('hidden');
+                    if (navShorts) navShorts.parentElement.classList.remove('hidden');
+
+                    if (navScript) {
+                        navScript.querySelector('span:last-child').textContent = "대본 생성";
+                    }
+                }
+
+            } catch (e) {
+                console.error("Failed to apply mode to nav:", e);
+            }
+        }
+
         // ESC 키로 모달 닫기
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') closeProjectModal();
         });
 
+        // [NEW] Global function to update step status dynamically
+        window.updateStepStatus = function (stepName, isComplete) {
+            const el = document.querySelector(`.step-item[data-step="${stepName}"]`);
+            if (!el) return;
+
+            const circle = el.querySelector('.step-circle');
+            const indicator = el.querySelector('.step-circle div');
+            const label = el.querySelector('span');
+
+            if (!circle || !indicator || !label) return;
+
+            if (isComplete) {
+                // Completed Style
+                circle.className = 'step-circle w-5 h-5 rounded-full bg-green-500 border-2 border-green-500 dark:bg-green-500 dark:border-green-500 flex items-center justify-center transition-all duration-300';
+
+                indicator.className = 'w-2 h-1.5 text-white';
+                indicator.innerHTML = `<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>`;
+                indicator.classList.remove('rounded-full', 'bg-gray-400', 'w-1.5', 'h-1.5');
+
+                label.classList.remove('text-gray-400');
+                label.classList.add('text-green-600', 'dark:text-green-400', 'font-bold');
+            } else {
+                // Reset (if needed)
+                circle.className = 'step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300';
+                indicator.className = 'w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors';
+                indicator.innerHTML = '';
+                label.classList.remove('text-green-600', 'dark:text-green-400', 'font-bold');
+                label.classList.add('text-gray-400');
+            }
+        };
+
         // 초기화
         loadProjects();
         checkApiStatus();
+        applyAppModeToNav();
     </script>
 </body>
 

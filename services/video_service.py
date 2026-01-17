@@ -23,7 +23,9 @@ class VideoService:
         project_id: Optional[int] = None,
         subtitles: Optional[List[dict]] = None,
         subtitle_settings: Optional[dict] = None,
-        background_video_url: Optional[str] = None 
+
+        background_video_url: Optional[str] = None,
+        thumbnail_path: Optional[str] = None  # [NEW] Baked-in Thumbnail
     ) -> str:
         """
         이미지 슬라이드쇼 영상 생성 (시네마틱 프레임 적용)
@@ -50,6 +52,33 @@ class VideoService:
         audio = None
         if audio_path and os.path.exists(audio_path):
              audio = AudioFileClip(audio_path)
+             
+        # [NEW] Check for Template Image (Overlay)
+        template_path = None
+        try:
+            # We need to import db here to avoid circular dependencies if not already imported
+            import database as db
+            
+            p_settings = db.get_project_settings(project_id)
+            if p_settings and p_settings.get('template_image_url'):
+                t_url = p_settings.get('template_image_url')
+                # Convert URL to local path
+                # e.g. /static/templates/xxx.png -> static/templates/xxx.png
+                if t_url.startswith("/static/"):
+                    rel_path = t_url.lstrip("/")
+                    # If running from app root, 'static' is usually at root.
+                    # config.STATIC_DIR is usually absolute path.
+                    # Let's map it: /static/templates -> config.STATIC_DIR/templates
+                    # Assuming t_url format: /static/templates/filename
+                    # config.STATIC_DIR usually points to the folder that is mounted as /static
+                    # If config.STATIC_DIR is "C:/.../static", then we just join properly.
+                    
+                    # Safer way: split by /static/
+                    part = t_url.split("/static/", 1)[1]
+                    template_path = os.path.join(config.STATIC_DIR, part)
+                    print(f"DEBUG: Using Template Image: {template_path}")
+        except Exception as e:
+            print(f"Failed to load template settings: {e}")
              
         if background_video_url:
              print(f"DEBUG: Using Background Video: {background_video_url}")
@@ -118,10 +147,10 @@ class VideoService:
         from services.gemini_service import gemini_service
         import uuid
 
-        for img_path in images:
+        for i, img_path in enumerate(images):
             if os.path.exists(img_path):
                 # 시네마틱 프레임 생성 (이미지 필터링) - 일단 프레임은 생성 (fallback 및 video input용)
-                processed_img_path = self._create_cinematic_frame(img_path, resolution)
+                processed_img_path = self._create_cinematic_frame(img_path, resolution, template_path=template_path)
                 temp_files.append(processed_img_path)
                 
                 clip = None
@@ -211,14 +240,37 @@ class VideoService:
             audio = AudioFileClip(audio_path)
 
             # 오디오 길이에 맞춰 비디오 조절
+            # 오디오 길이에 맞춰 비디오 조절
+            # [FIX] MoviePy's audio.duration might be inaccurate for variable bitrate or speed-changed audio.
+            # Use pydub to verify actual duration if possible.
+            check_duration = audio.duration
+            try:
+                import pydub
+                check_duration = pydub.AudioSegment.from_file(audio_path).duration_seconds
+            except:
+                pass
+            
+            # Adjust video duration to match audio duration
             if audio.duration > video.duration:
-                # 비디오가 짧으면 마지막 이미지 연장
-                last_dur = duration_per_image[-1] if isinstance(duration_per_image, list) else duration_per_image
-                last_clip = clips[-1].set_duration(
-                    audio.duration - video.duration + last_dur
-                )
-                clips[-1] = last_clip
-                video = concatenate_videoclips(clips, method="compose")
+                # Video is shorter than audio, extend last image
+                # [FIX] Use pydub duration for check if available, or rely on moviepy's audio.duration
+                # Use a tolerance (e.g. 1.0s) because visual slideshow doesn't need to be frame-perfect to audio end
+                if check_duration > video.duration + 1.0:
+                    print(f"DEBUG: Audio ({check_duration:.2f}s) is significantly longer than video ({video.duration:.2f}s). Extending last clip.")
+                    # 비디오가 짧으면 마지막 이미지 연장
+                    last_dur = duration_per_image[-1] if isinstance(duration_per_image, list) else duration_per_image
+                    last_clip = clips[-1].set_duration(
+                        check_duration - video.duration + last_dur
+                    )
+                    clips[-1] = last_clip
+                    video = concatenate_videoclips(clips, method="compose")
+                else:
+                    print(f"DEBUG: Video ({video.duration:.2f}s) roughly matches Audio ({check_duration:.2f}s). Skipping extension.")
+                
+            elif video.duration > audio.duration + 0.5:
+                # [FIX] Video is significantly longer than audio (Sync Issue Safety Net)
+                print(f"DEBUG: Video ({video.duration}s) is longer than Audio ({audio.duration}s). Trimming video.")
+                video = video.subclip(0, audio.duration)
 
             video = video.set_audio(audio)
             
@@ -246,6 +298,31 @@ class VideoService:
                 video = CompositeVideoClip([video, title_clip])
             except Exception as e:
                 print(f"제목 생성 실패: {e}")
+
+        # [NEW] Shorts Thumbnail Baking (Insert 0.1s at start)
+        # This is done AFTER composition but BEFORE subtitles to avoid subtitle on thumbnail?
+        # Actually better to do it AT THE END of composition so it's clean.
+        # But wait, we want it explicitly as the first frame provided to YouTube.
+        if thumbnail_path and os.path.exists(thumbnail_path):
+            print(f"Baking thumbnail into video: {thumbnail_path}")
+            try:
+                # 1. Prepare Thumbnail Clip
+                # Use _create_cinematic_frame to ensure it fits resolution beautifully
+                baked_thumb_path = self._create_cinematic_frame(thumbnail_path, resolution)
+                temp_files.append(baked_thumb_path)
+                
+                thumb_clip = ImageClip(baked_thumb_path).set_duration(0.1) # 0.1s duration
+                
+                # 2. Concatenate [Thumb] + [Main Video]
+                # Note: Concatenating CompositeVideoClip with ImageClip works.
+                # Use 'compose' method to ensure format consistency
+                video = concatenate_videoclips([thumb_clip, video], method="compose")
+                
+                # Update Audio: The thumb has no audio. 
+                # concatenate handles audio automatically (silence for thumb).
+                
+            except Exception as e:
+                print(f"Thumbnail baking failed: {e}")
 
         # [NEW] 단일 패스 자막 합성 (Single-pass Subtitle Overlay)
         if subtitles:
@@ -286,11 +363,30 @@ class VideoService:
                         custom_y_pct = s_settings.get("position_y") 
                         
                         if custom_y_pct is not None:
-                            # User defined position (Center of text box at Y%)
-                            # But ImageClip set_position uses top-left usually, or we calculate top-left
-                            # Let's align center-y to the percentage
-                            center_y = int(video.h * (float(custom_y_pct) / 100.0))
-                            y_pos = center_y - (txt_clip.h // 2)
+                            # [FIX] Handle pixels vs percent
+                            # If string contains 'px', treat as absolute pixels from Top
+                            y_pos = None
+                            if isinstance(custom_y_pct, str) and 'px' in custom_y_pct:
+                                try:
+                                    y_pos = int(float(custom_y_pct.replace('px', '')))
+                                except:
+                                    y_pos = None
+                            
+                            if y_pos is None:
+                                # Treat as Percentage (Center of text box at Y%)
+                                # But let's assume if user gives 90%, they mean 90% from top.
+                                try:
+                                    pct = float(custom_y_pct)
+                                    center_y = int(video.h * (pct / 100.0))
+                                    y_pos = center_y - (txt_clip.h // 2)
+                                except:
+                                    # Default if parse fails
+                                    y_pos = None
+
+                            if y_pos is None:
+                                 # Fallback
+                                 margin_bottom = int(video.h * 0.15)
+                                 y_pos = video.h - txt_clip.h - margin_bottom
                         else:
                             # Default: Bottom Safe Area (15% margin)
                             margin_bottom = int(video.h * 0.15)
@@ -377,7 +473,7 @@ class VideoService:
 
         return output_path
 
-    def _create_cinematic_frame(self, image_path: str, target_size: tuple) -> str:
+    def _create_cinematic_frame(self, image_path: str, target_size: tuple, template_path: str = None) -> str:
         """
         이미지를 처리하여 시네마틱 프레임 생성 (블러 배경 + 중앙정렬)
         """
@@ -418,15 +514,31 @@ class VideoService:
         bg = enhancer.enhance(0.6) # 40% 어둡게
         
         # 2. 전경 생성 (비율 유지하며 중앙 배치)
-        # 꽉 채우지 않고 여백을 둠 (너비의 90% 정도)
-        fg_max_w = int(target_w * 0.90)
-        fg_max_h = int(target_h * 0.80) # 상하 여백 확보
+        # [Request] 좌우 여백 없이 꽉 채우기 (Fit Width), 하단 잘림 방지
+        fg_max_w = target_w # 100% Width
+        fg_max_h = target_h # 100% Height constraint (Aspect Ratio preserved by thumbnail)
         
         fg = img.copy()
         fg.thumbnail((fg_max_w, fg_max_h), Image.Resampling.LANCZOS)
         
-        # 배경 중앙에 합성
-        bg.paste(fg, ((target_w - fg.width) // 2, (target_h - fg.height) // 2), fg)
+        # 배경 중앙에 합성 (위로 10% 정도 올림 - 하단 UI 공간 확보)
+        center_x = (target_w - fg.width) // 2
+        center_y = (target_h - fg.height) // 2
+        offset_y = int(target_h * 0.10) # 10% 상단 이동
+        
+        # 상단이 너무 잘리지 않도록 체크 (옵션)
+        # if center_y - offset_y < 0: offset_y = center_y # 상단 딱 맞춤
+        
+        bg.paste(fg, (center_x, center_y - offset_y), fg)
+
+        # [NEW] Template Overlay
+        if template_path and os.path.exists(template_path):
+            try:
+                template = Image.open(template_path).convert("RGBA")
+                template = template.resize((target_w, target_h), Image.Resampling.LANCZOS)
+                bg.paste(template, (0, 0), template) # Alpha composite
+            except Exception as e:
+                print(f"Template Overlay Error: {e}")
         
         # [FIX] MoviePy 호환성을 위해 RGB로 변환 (알파 채널 제거)
         bg = bg.convert("RGB")
@@ -752,63 +864,7 @@ class VideoService:
                 
         return aligned_pre
 
-    def _create_cinematic_frame(self, image_path: str, target_size: tuple) -> str:
-        """
-        이미지를 처리하여 시네마틱 프레임 생성 (블러 배경 + 중앙정렬)
-        """
-        from PIL import Image, ImageFilter, ImageEnhance
-        import uuid
-        
-        target_w, target_h = target_size
-        
-        # 원본 열기
-        img = Image.open(image_path).convert("RGBA")
-        
-        # 1. 배경 생성 (꽉 차게 리사이즈 + 블러 + 어둡게)
-        bg = img.copy()
-        
-        # 비율 계산하여 꽉 차게 크롭/리사이즈 (Aspect Fill)
-        bg_ratio = target_w / target_h
-        img_ratio = img.width / img.height
-        
-        if img_ratio > bg_ratio:
-            # 이미지가 더 납작함 -> 높이에 맞춤
-            new_h = target_h
-            new_w = int(new_h * img_ratio)
-        else:
-            # 이미지가 더 길쭉함 -> 너비에 맞춤
-            new_w = target_w
-            new_h = int(new_w / img_ratio)
-            
-        bg = bg.resize((new_w, new_h), Image.Resampling.LANCZOS)
-        
-        # 중앙 크롭
-        left = (new_w - target_w) // 2
-        top = (new_h - target_h) // 2
-        bg = bg.crop((left, top, left + target_w, top + target_h))
-        
-        # 블러 및 밝기 조절
-        bg = bg.filter(ImageFilter.GaussianBlur(radius=30))
-        enhancer = ImageEnhance.Brightness(bg)
-        bg = enhancer.enhance(0.6) # 40% 어둡게
-        
-        # 2. 전경 생성 (비율 유지하며 중앙 배치)
-        # 꽉 채우지 않고 여백을 둠 (너비의 90% 정도)
-        fg_max_w = int(target_w * 0.90)
-        fg_max_h = int(target_h * 0.80) # 상하 여백 확보
-        
-        fg = img.copy()
-        fg.thumbnail((fg_max_w, fg_max_h), Image.Resampling.LANCZOS)
-        
-        # 배경 중앙에 합성
-        bg.paste(fg, ((target_w - fg.width) // 2, (target_h - fg.height) // 2), fg)
-        
-        # 저장
-        temp_filename = f"frame_{uuid.uuid4()}.png"
-        output_path = os.path.join(self.output_dir, temp_filename)
-        bg.save(output_path)
-        
-        return output_path
+
 
     def generate_simple_subtitles(self, script: str, duration: float) -> List[dict]:
         """
@@ -1018,6 +1074,8 @@ class VideoService:
             "G마켓 산스 (Bold)": "GmarketSansTTFBold.ttf",
             "Gmarket Sans (Bold)": "GmarketSansTTFBold.ttf",
             "GmarketSansBold": "GmarketSansTTFBold.ttf",
+            "GmarketSansMedium": "GmarketSansTTFMedium.ttf",
+            "GmarketSansLight": "GmarketSansTTFLight.ttf",
             
             "나눔명조": "NanumMyeongjo.ttf",
             "NanumMyeongjo": "NanumMyeongjo.ttf",
@@ -1027,15 +1085,16 @@ class VideoService:
             
             "맑은 고딕": "malgun.ttf",
             "Malgun Gothic": "malgun.ttf",
+            "GmarketSans": "GmarketSansTTFBold.ttf", # Fallback
         }
         
         target_font_file = font_mapping.get(font_name, font_name)
         if not target_font_file.lower().endswith(".ttf"):
             target_font_file += ".ttf"
 
-        # 검색 경로: 1. 프로젝트 assets/fonts  2. 윈도우 폰트  3. 현재 폴더
         search_paths = [
             os.path.join(os.path.dirname(__file__), "..", "assets", "fonts"),
+            os.path.join(os.path.dirname(__file__), "..", "static", "fonts"), # [FIX] Add static fonts
             "C:/Windows/Fonts",
             os.path.dirname(__file__)
         ]

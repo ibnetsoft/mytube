@@ -136,6 +136,10 @@
                         uploadedVideoPath = res.path;
                         showVideoPreview(file, res);
                         Utils.showToast('업로드 완료', 'success');
+
+                        // [NEW] Update Progress Stepper
+                        if (window.updateStepStatus) window.updateStepStatus('upload', true);
+
                     } else Utils.showToast(res.error, 'error');
                 } else Utils.showToast('업로드 실패', 'error');
                 document.getElementById('uploadProgress').classList.add('hidden');

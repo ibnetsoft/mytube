@@ -193,6 +193,18 @@
         if (speedSlider && speedValue) {
             speedSlider.addEventListener('input', (e) => speedValue.textContent = e.target.value);
         }
+
+        // [NEW] App Mode Check for default speed
+        try {
+            const res = await fetch('/api/settings');
+            const settings = await res.json();
+            const mode = settings.app_mode || 'longform';
+            if (mode === 'shorts' && speedSlider && speedValue) {
+                speedSlider.value = 1.2;
+                speedValue.textContent = "1.2";
+                console.log("Shorts mode detected: TTS speed set to 1.2");
+            }
+        } catch (e) { console.error(e); }
     });
 
     // Script Status Check (Same logic as image_gen)
@@ -496,6 +508,9 @@
                 document.getElementById('resultSection').classList.remove('hidden');
                 Utils.showToast('생성 완료', 'success');
                 Utils.storage.set('ttsAudio', { url: result.url, timestamp: Date.now() });
+
+                // [NEW] Update Stepper
+                if (window.updateStepStatus) window.updateStepStatus('tts', true);
             } else {
                 Utils.showToast(result.error || '생성 실패', 'error');
             }
@@ -543,7 +558,11 @@
                 document.getElementById('resultSection').classList.remove('hidden');
 
                 // Save to storage
+                // Save to storage
                 Utils.storage.set('ttsAudio', { url: result.url, timestamp: Date.now() });
+
+                // [NEW] Update Stepper
+                if (window.updateStepStatus) window.updateStepStatus('tts', true);
 
             } else {
                 Utils.showToast('업로드 실패: ' + (result.error || 'Unknown'), 'error');

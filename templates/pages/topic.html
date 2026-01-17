@@ -221,6 +221,7 @@
 <script>
     let currentVideos = [];
     let currentVideoForAnalysis = null;
+    let currentAnalysisResult = null; // [NEW] State persistence
 
     // 주제 설정
     function setSearchTopic(topic) {
@@ -330,6 +331,8 @@
             document.getElementById('loadingSection').classList.add('hidden');
             document.getElementById('resultsSection').classList.remove('hidden');
             document.getElementById('resultCount').textContent = `(${currentVideos.length}개)`;
+
+            savePageState(); // [NEW] Save State
 
         } catch (error) {
             console.error('검색 오류:', error);
@@ -544,6 +547,7 @@
             if (result.status === 'ok' && result.analysis) {
                 currentAnalysisResult = result.analysis;
                 renderAnalysisResult(result.analysis, result.comment_count, !!transcriptText);
+                savePageState(); // [NEW] Save Analysis State
             } else {
                 modalContent.innerHTML = `
                     <div class="text-center py-8">
@@ -753,7 +757,13 @@
         try {
             await API.project.saveAnalysis(projectId, currentVideoForAnalysis, currentAnalysisResult);
             Utils.showToast('분석 결과가 저장되었습니다', 'success');
-            window.location.href = '/script-plan?auto=true';
+
+            // [MODIFIED] Check App Mode for Redirection
+            if (window.APP_MODE === 'shorts') {
+                window.location.href = '/script-plan?mode=shorts&auto=true';
+            } else {
+                window.location.href = '/script-plan?auto=true';
+            }
         } catch (e) {
             console.error('저장 실패:', e);
             Utils.showToast('저장 중 오류가 발생했습니다', 'error');
@@ -975,7 +985,7 @@
         loadTrendKeywords('ko');
     });
 
-    let currentAnalysisResult = null;
+
 
     // 모달 닫기
     function closeModal() {
@@ -987,5 +997,75 @@
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') closeModal();
     });
+    // [NEW] Page State Management (SessionStorage)
+    function savePageState() {
+        const state = {
+            query: document.getElementById('searchInput').value,
+            order: document.getElementById('searchOrder').value,
+            period: document.getElementById('searchPeriod').value,
+            language: document.getElementById('searchLanguage').value,
+            videos: currentVideos,
+            videoForAnalysis: currentVideoForAnalysis,
+            analysisResult: currentAnalysisResult,
+            isModalOpen: !document.getElementById('analysisModal').classList.contains('hidden'),
+            timestamp: Date.now()
+        };
+        sessionStorage.setItem('topicPageState', JSON.stringify(state));
+    }
+
+    function restorePageState() {
+        try {
+            const raw = sessionStorage.getItem('topicPageState');
+            if (!raw) return;
+            const state = JSON.parse(raw);
+
+            // 1. Restore Inputs
+            if (state.query) document.getElementById('searchInput').value = state.query;
+            if (state.order) document.getElementById('searchOrder').value = state.order;
+            if (state.period) document.getElementById('searchPeriod').value = state.period;
+            if (state.language) document.getElementById('searchLanguage').value = state.language;
+
+            // 2. Restore Results
+            if (state.videos && state.videos.length > 0) {
+                currentVideos = state.videos;
+                renderVideos();
+                document.getElementById('emptySection').classList.add('hidden');
+                document.getElementById('loadingSection').classList.add('hidden');
+                document.getElementById('resultsSection').classList.remove('hidden');
+                document.getElementById('resultCount').textContent = `(${currentVideos.length}개)`;
+            }
+
+            // 3. Restore Analysis Modal
+            if (state.isModalOpen && state.videoForAnalysis && state.analysisResult) {
+                currentVideoForAnalysis = state.videoForAnalysis;
+                currentAnalysisResult = state.analysisResult;
+
+                // Re-open modal
+                openAnalysisModal(currentVideoForAnalysis.id);
+                // Re-render analysis content
+                // Note: openAnalysisModal resets content, so we need to wait/override
+                setTimeout(() => {
+                    renderAnalysisResult(currentAnalysisResult, "?", !!currentVideoForAnalysis.transcript);
+                }, 100);
+            }
+        } catch (e) {
+            console.error("State restore failed:", e);
+        }
+    }
+
+    // Modal Close Logic Update
+    const originalCloseModal = window.closeModal;
+    window.closeModal = function () {
+        if (originalCloseModal) originalCloseModal(); // call existing logic if any (usually in base.html)
+        else {
+            document.getElementById('analysisModal').classList.add('hidden');
+            document.getElementById('analysisModal').classList.remove('flex');
+        }
+        savePageState(); // Save closed state
+    };
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', restorePageState);
+
 </script>
 {% endblock %}
