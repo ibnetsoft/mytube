@@ -44,6 +44,13 @@
                     </label>
                 </div>
 
+                <!-- Character Analysis Button (Moved here) -->
+                <button onclick="analyzeCharacters()" id="analyzeCharacterBtn"
+                    class="btn-secondary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-sm hover:scale-105 transition-transform bg-white border border-gray-300 dark:bg-gray-700 dark:border-gray-600">
+                    <span>🧙‍♂️</span>
+                    <span class="hidden sm:inline">캐릭터 분석</span>
+                </button>
+
                 <!-- Generate Prompt Button -->
                 <button onclick="generatePrompts()" id="generateBtn"
                     class="btn-primary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-md hover:scale-105 transition-transform bg-gradient-to-r from-blue-600 to-indigo-600">
@@ -139,7 +146,21 @@
                 Generated)</label>
             <textarea id="globalPrompt"
                 class="input-field w-full text-sm p-3 h-24 bg-yellow-50 dark:bg-yellow-900/10 border-yellow-200 dark:border-yellow-800 focus:border-yellow-400 focus:ring-yellow-400"
-                placeholder="위 '이미지 분석' 버튼을 누르면 캐릭터 외형 묘사가 여기에 자동으로 입력됩니다. 직접 수정하셔도 됩니다."></textarea>
+                placeholder="상단 '캐릭터 분석' 버튼을 누르면 캐릭터 외형 묘사가 여기에 자동으로 입력됩니다. 직접 수정하셔도 됩니다."></textarea>
+
+            <!-- [MOVED] 캐릭터 분석 결과 -->
+            <div id="characterResultContainer"
+                class="hidden mt-4 bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+                <div id="characterList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+            </div>
+
+            <!-- [MOVED] 로딩 인디케이터 -->
+            <div id="characterLoading" class="hidden mt-4 text-center py-4">
+                <div
+                    class="inline-block animate-spin rounded-full h-6 w-6 border-4 border-indigo-500 border-t-transparent">
+                </div>
+                <p class="mt-2 text-xs text-indigo-600 font-medium">분석 중...</p>
+            </div>
         </div>
     </div>
 
@@ -296,13 +317,154 @@
 <script>
     let prompts = [];
 
+    // [NEW] 캐릭터 분석 함수
+    async function analyzeCharacters() {
+        // [Fix] 스크립트 데이터 안전하게 가져오기 (객체일 경우 처리)
+        const scriptData = Utils.storage.get('fullScript');
+        let script = "";
+
+        if (scriptData && typeof scriptData === 'object') {
+            // 만약 객체라면 텍스트 필드를 찾거나 전체를 문자열화
+            script = scriptData.content || scriptData.text || scriptData.script || JSON.stringify(scriptData);
+        } else {
+            script = String(scriptData || "");
+        }
+
+        if (!script || script === "null" || script.length < 10) {
+            alert("저장된 대본이 없거나 너무 짧습니다. 먼저 대본을 생성해주세요.");
+            return;
+        }
+
+        const btn = document.getElementById('analyzeCharacterBtn');
+        const loader = document.getElementById('characterLoading');
+        const container = document.getElementById('characterResultContainer');
+        const list = document.getElementById('characterList');
+
+        // UI 상태 업데이트
+        btn.disabled = true;
+        btn.classList.add('opacity-50', 'cursor-not-allowed');
+        loader.classList.remove('hidden');
+        container.classList.add('hidden');
+        list.innerHTML = '';
+
+        try {
+            // [Fix] PROJECT_ID 전역 변수 대신 함수 사용
+            const pid = (typeof getCurrentProject === 'function') ? getCurrentProject() : null;
+
+            const response = await fetch('/api/image/character-prompts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    script: script,
+                    project_id: pid
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'ok' && result.characters) {
+                // [NEW] Save to local storage for persistence
+                Utils.storage.set('characterPrompts', result.characters);
+
+                renderCharacters(result.characters);
+                container.classList.remove('hidden');
+
+                // 결과 스크롤 이동
+                container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } else {
+                alert('캐릭터 분석 실패:\n' + (result.error || JSON.stringify(result, null, 2)));
+            }
+
+        } catch (error) {
+            console.error('Error analyzing characters:', error);
+            alert('서버 통신 오류가 발생했습니다.');
+        } finally {
+            btn.disabled = false;
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            loader.classList.add('hidden');
+        }
+    }
+
+    // 캐릭터 카드 렌더링
+    function renderCharacters(characters) {
+        const list = document.getElementById('characterList');
+
+        if (characters.length === 0) {
+            list.innerHTML = '<p class="col-span-full text-center text-gray-500 py-4">분석된 등장인물이 없습니다. (대본에 인물 묘사가 부족할 수 있습니다)</p>';
+            return;
+        }
+
+        characters.forEach((char, index) => {
+            const card = document.createElement('div');
+            card.className = "bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 shadow-sm hover:shadow-md transition-shadow relative group";
+
+            // 역할에 따른 배지 색상
+            let roleBadgeColor = "bg-gray-100 text-gray-600";
+            if (char.role && char.role.includes("주인공")) roleBadgeColor = "bg-blue-100 text-blue-700";
+            else if (char.role && char.role.includes("조연")) roleBadgeColor = "bg-green-100 text-green-700";
+
+            card.innerHTML = `
+                <div class="flex justify-between items-start mb-2">
+                    <h4 class="font-bold text-gray-800 dark:text-white">${char.name || 'Unknown'}</h4>
+                    <span class="text-xs px-2 py-1 rounded-full ${roleBadgeColor} font-medium">${char.role || 'Character'}</span>
+                </div>
+                
+                <p class="text-xs text-gray-500 mb-3 border-b border-gray-100 pb-2 min-h-[3em] line-clamp-2" title="${char.description_ko}">
+                    ${char.description_ko || '설명 없음'}
+                </p>
+
+                <div class="bg-gray-50 dark:bg-gray-900/50 p-2 rounded text-xs text-gray-600 dark:text-gray-400 font-mono break-words mb-3 h-20 overflow-y-auto scrollbar-thin">
+                    ${char.prompt_en}
+                </div>
+
+                <div class="flex gap-2">
+                    <button onclick="applyCharacterPrompt('${char.prompt_en.replace(/'/g, "\\'")}')" 
+                        class="flex-1 btn-secondary text-xs py-1.5 flex items-center justify-center gap-1 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200">
+                        <span>⬇️</span> 적용하기
+                    </button>
+                    <button onclick="Utils.copyToClipboard('${char.prompt_en.replace(/'/g, "\\'")}')" 
+                        class="px-3 py-1.5 border border-gray-200 rounded text-gray-500 hover:bg-gray-50 hover:text-gray-800 transition-colors" title="문구 복사">
+                        📋
+                    </button>
+                </div>
+            `;
+            list.appendChild(card);
+        });
+    }
+
+    // 캐릭터 프롬프트 적용 (Global Textarea)
+    function applyCharacterPrompt(promptText) {
+        const globalTextarea = document.getElementById('globalPrompt');
+        const currentVal = globalTextarea.value.trim();
+
+        if (currentVal) {
+            globalTextarea.value = currentVal + "\n\n" + promptText;
+        } else {
+            globalTextarea.value = promptText;
+        }
+
+        // 효과: 깜빡임
+        globalTextarea.classList.add('ring-2', 'ring-indigo-400');
+        setTimeout(() => globalTextarea.classList.remove('ring-2', 'ring-indigo-400'), 500);
+
+        // 토스트 메시지 (혹은 간단한 알림)
+        // alert("일관성 프롬프트에 추가되었습니다."); // 너무 방해되므로 생략하거나 토스트 사용
+    }
+
     async function generatePrompts() {
         const scriptData = Utils.storage.get('fullScript');
         let script = "";
 
-        if (scriptData && scriptData.script) {
-            script = scriptData.script;
-        } else {
+        if (scriptData) {
+            if (typeof scriptData === 'object') {
+                script = scriptData.content || scriptData.text || scriptData.script || JSON.stringify(scriptData);
+            } else {
+                script = String(scriptData);
+            }
+        }
+
+        // 기존 로직 유지 (DB Fallback 등)
+        if (!script) {
             // [NEW] 로컬 스토리지에 없으면 DB에서 가져오기 시도
             const projectId = getCurrentProject();
             if (projectId) {
@@ -363,18 +525,28 @@
         container.className = 'space-y-4';
 
         container.innerHTML = data.map((p, i) => {
-            // Extract first and last portions of scene_text
-            const sceneText = p.scene_text || '';
-            const words = sceneText.split(/\s+/);
+            // [Fix] 키 값 호환성 처리 (scene vs scene_text, prompt vs prompt_en)
+            // 대본 텍스트를 최대한 찾아내기 위해 prompt_ko와 scene_title까지 확인
+            const rawSceneText = p.scene_text || p.scene || p.scene_title || p.prompt_ko || '';
+            const rawPromptKo = p.prompt_ko || p.scene || '';
+            const rawPromptEn = p.prompt_en || p.prompt_content || p.prompt || '';
+            // [NEW] Script segment info
+            const scriptStart = p.script_start || '';
+            const scriptEnd = p.script_end || '';
+
+            // Extract first and last portions (Visual only)
+            const words = rawSceneText.split(/\s+/);
             const firstText = words.slice(0, 10).join(' ') + (words.length > 10 ? '...' : '');
             const lastText = words.length > 20 ? '...' + words.slice(-10).join(' ') : '';
 
             // Build JSON object for display
             const jsonData = {
                 scene_number: i + 1,
-                scene_text: p.scene_text || '',
-                prompt_ko: p.prompt_ko || '',
-                prompt_en: p.prompt_en || p.prompt_content || ''
+                scene_text: rawSceneText,
+                prompt_ko: rawPromptKo,
+                prompt_en: rawPromptEn,
+                ...(scriptStart && { script_start: scriptStart }),
+                ...(scriptEnd && { script_end: scriptEnd })
             };
             const jsonString = JSON.stringify(jsonData, null, 2);
 
@@ -415,29 +587,43 @@
                             </div>
                             
                             <!-- Image Container -->
-                            <div class="image-container relative">
+                            <div class="image-container relative flex justify-center"> <!-- [FIX] Center align -->
                                 ${p.image_url ? `
-                                <div class="aspect-video bg-black rounded-lg overflow-hidden border border-gray-600">
+                                <div class="aspect-video bg-black rounded-lg overflow-hidden border border-gray-600 w-[60%]"> <!-- [FIX] 60% width -->
                                     <img src="${p.image_url}" class="w-full h-full object-contain" alt="Scene ${i + 1}">
                                     <div class="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded">✓ Generated</div>
                                 </div>
                                 ` : `
-                                <div class="aspect-video bg-gray-900 rounded-lg border border-dashed border-gray-600 flex items-center justify-center">
+                                <div class="aspect-video bg-gray-900 rounded-lg border border-dashed border-gray-600 flex items-center justify-center w-[60%]"> <!-- [FIX] 60% width -->
                                     <span class="text-gray-500 text-sm">🖼️ 이미지 미생성</span>
                                 </div>
                                 `}
                             </div>
                         </div>
                         
-                        <!-- Right: JSON Prompt -->
+                        <!-- Right: JSON Prompt (Editable) -->
                         <div class="space-y-2">
                             <div class="flex items-center justify-between">
-                                <span class="text-xs font-bold text-gray-400">📝 JSON 프롬프트</span>
+                                <span class="text-xs font-bold text-gray-400">📝 JSON 프롬프트 (수정 가능)</span>
                                 <button onclick="copyPromptJson(${i})" class="text-xs text-blue-400 hover:text-blue-300">복사</button>
                             </div>
-                            <div class="bg-gray-900 rounded-lg p-3 h-64 overflow-auto border border-gray-700">
-                                <pre class="text-xs text-green-400 font-mono whitespace-pre-wrap">${escapeHtml(jsonString)}</pre>
+                            <div class="bg-gray-900 rounded-lg h-64 border border-gray-700 overflow-hidden relative">
+                                <textarea 
+                                    id="prompt-json-${i}"
+                                    class="w-full h-full bg-gray-900 text-xs text-green-400 font-mono p-3 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    oninput="updatePromptData(${i}, this.value)"
+                                    spellcheck="false"
+                                >${escapeHtml(jsonString)}</textarea>
                             </div>
+                            <!-- [NEW] Script Segments Info -->
+                            ${scriptStart || scriptEnd ? `
+                            <div class="bg-gray-800 rounded px-3 py-2 text-xs border border-gray-700">
+                                <div class="flex gap-4 text-gray-400">
+                                    ${scriptStart ? `<span>🔵 시작: <span class="text-gray-300">${scriptStart}</span></span>` : ''}
+                                    ${scriptEnd ? `<span>🔴 끝: <span class="text-gray-300">${scriptEnd}</span></span>` : ''}
+                                </div>
+                            </div>
+                            ` : ''}
                         </div>
                     </div>
                 </div>
@@ -447,6 +633,34 @@
             </div>
             `;
         }).join('');
+    }
+
+    // [NEW] Update prompt data from JSON editor
+    function updatePromptData(index, jsonStr) {
+        try {
+            const newData = JSON.parse(jsonStr);
+            if (prompts[index]) {
+                const p = prompts[index];
+                // Update editable fields
+                if (newData.prompt_en) p.prompt_en = newData.prompt_en;
+                if (newData.prompt_ko) p.prompt_ko = newData.prompt_ko;
+                if (newData.scene_text) p.scene_text = newData.scene_text;
+                // Update script info if edited
+                if (newData.script_start) p.script_start = newData.script_start;
+                if (newData.script_end) p.script_end = newData.script_end;
+
+                // Clear validation error
+                const textarea = document.getElementById(`prompt-json-${index}`);
+                if (textarea) textarea.classList.remove('border-red-500', 'border-2');
+
+                // Save to storage
+                Utils.storage.set('imagePrompts', prompts);
+            }
+        } catch (e) {
+            // Show validation error
+            const textarea = document.getElementById(`prompt-json-${index}`);
+            if (textarea) textarea.classList.add('border-red-500', 'border-2');
+        }
     }
 
     // Helper function to escape HTML
@@ -461,9 +675,9 @@
         const p = prompts[index];
         const jsonData = {
             scene_number: index + 1,
-            scene_text: p.scene_text || '',
-            prompt_ko: p.prompt_ko || '',
-            prompt_en: p.prompt_en || p.prompt_content || ''
+            scene_text: p.scene_text || p.scene || p.prompt_ko || '',
+            prompt_ko: p.prompt_ko || p.scene || '',
+            prompt_en: p.prompt_en || p.prompt_content || p.prompt || ''
         };
         Utils.copyToClipboard(JSON.stringify(jsonData, null, 2));
         Utils.showToast('JSON이 복사되었습니다', 'success');
@@ -487,7 +701,8 @@
         statusDiv.textContent = '⏳ 이미지 생성 중... (10~20초 소요)';
 
         try {
-            const fullPrompt = p.prompt_en || p.prompt_content || '';
+            // [Fix] 키 값 호환성 처리
+            const fullPrompt = p.prompt_en || p.prompt_content || p.prompt || '';
             const aspectRatio = document.querySelector('input[name="aspectRatio"]:checked')?.value || '16:9';
 
             const result = await API.image.generate(fullPrompt, projectId, index + 1, document.getElementById('imageStyle').value, aspectRatio);
@@ -496,19 +711,12 @@
                 prompts[index].image_url = result.image_url;
                 Utils.storage.set('imagePrompts', prompts);
 
-                // Update image container
-                const imgContainer = card.querySelector('.image-container');
-                if (imgContainer) {
-                    imgContainer.innerHTML = `
-                        <div class="aspect-video bg-black rounded-lg overflow-hidden border border-gray-600">
-                            <img src="${result.image_url}" class="w-full h-full object-contain" alt="Scene ${index + 1}">
-                            <div class="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded">✓ Generated</div>
-                        </div>
-                    `;
-                }
+                // [Fix] UI 강제 업데이트 (이미지 미표시 문제 해결)
+                const scrollY = window.scrollY;
+                drawPromptsUI(prompts);
+                window.scrollTo(0, scrollY);
 
-                statusDiv.className = 'status-indicator px-4 py-2 bg-green-900/30 border-t border-gray-700 text-sm text-green-400';
-                statusDiv.textContent = '✅ 생성 완료!';
+                Utils.showToast('이미지가 생성되었습니다', 'success');
 
                 if (window.updateStepStatus) window.updateStepStatus('image', true);
             } else {
@@ -523,13 +731,13 @@
 
     function copyPrompt(index) {
         const p = prompts[index];
-        const content = p.prompt_en || p.prompt_content || '';
+        const content = p.prompt_en || p.prompt_content || p.prompt || '';
         Utils.copyToClipboard(content);
         Utils.showToast('복사되었습니다', 'success');
     }
 
     function copyAllPrompts() {
-        const text = prompts.map((p, i) => `[장면 ${i + 1}] ${p.scene_text || ''}\n${p.prompt_en || p.prompt_content || ''}`).join('\n\n');
+        const text = prompts.map((p, i) => `[장면 ${i + 1}] ${p.scene_text || p.scene || ''}\n${p.prompt_en || p.prompt_content || p.prompt || ''}`).join('\n\n');
         Utils.copyToClipboard(text);
         Utils.showToast('전체 복사되었습니다', 'success');
     }
@@ -1014,6 +1222,16 @@
     // Initialize on load
     document.addEventListener('DOMContentLoaded', () => {
         applyAppMode();
+
+        // [NEW] Load preserved character prompts
+        const savedChars = Utils.storage.get('characterPrompts');
+        if (savedChars && Array.isArray(savedChars) && savedChars.length > 0) {
+            const container = document.getElementById('characterResultContainer');
+            if (container) {
+                renderCharacters(savedChars);
+                container.classList.remove('hidden');
+            }
+        }
     });
 </script>
 {% endblock %}

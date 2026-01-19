@@ -152,6 +152,42 @@ JSON만 반환하세요."""
         RETURN ONLY JSON.
     """
 
+    GEMINI_CHARACTER_PROMPTS = """당신은 영상 캐릭터 디자인 전문가입니다.
+아래 대본을 분석하여 등장인물(캐릭터)을 추출하고, 각 캐릭터별로 이미지 생성에 사용할 수 있는 상세한 외형 프롬프트를 작성해주세요.
+
+[대본]
+{script}
+
+**분석 지침:**
+1. 대본에 언급되거나 암시된 모든 등장인물을 식별하세요.
+2. 각 캐릭터의 역할(주인공/조연/배경인물)을 파악하세요.
+3. 대본의 맥락에서 유추할 수 있는 외형적 특징을 상세히 묘사하세요.
+4. 이미지 생성 AI가 이해할 수 있는 구체적인 영어 프롬프트를 작성하세요.
+
+**외형 묘사 포함 요소:**
+- 성별, 예상 연령대
+- 얼굴 특징 (이목구비, 표정)
+- 헤어스타일 및 색상
+- 체형
+- 의상 및 액세서리
+- 전체적인 분위기/인상
+
+다음 JSON 형식으로 출력해주세요:
+{{
+    "characters": [
+        {{
+            "name": "캐릭터 이름 또는 역할",
+            "role": "주인공/조연/배경인물",
+            "description_ko": "외형 묘사 (한글, 2-3문장)",
+            "prompt_en": "Detailed English prompt for image generation, including gender, age, facial features, hairstyle, clothing, expression, atmosphere. Use comma-separated descriptors suitable for AI image generation."
+        }}
+    ]
+}}
+
+- 최대 5명의 주요 캐릭터만 추출하세요.
+- prompt_en은 영어로, 이미지 생성 AI에 바로 사용할 수 있는 형식으로 작성하세요.
+- JSON만 반환하세요."""
+
     GEMINI_IMAGE_PROMPTS = """당신은 유튜브 영상 연출 전문가입니다.
 아래 대본을 {num_scenes}개의 장면(Scene)으로 나누고, 각 장면에 어울리는 이미지 프롬프트 작성해주세요.
 

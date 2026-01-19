@@ -246,7 +246,7 @@ const API = {
 
         // 프로젝트 전체 데이터 조회
         async getFull(projectId) {
-            const response = await fetch(`/api/projects/${projectId}/full`);
+            const response = await fetch(`/api/projects/${projectId}/full?t=${new Date().getTime()}`);
             return response.json();
         },
 

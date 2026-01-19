@@ -649,13 +649,37 @@ def save_script(project_id: int, script: str, word_count: int, duration: int):
     conn.close()
 
 def get_script(project_id: int) -> Optional[Dict]:
-    """대본 조회"""
+    """대본 조회 (scripts 테이블 우선, 없으면 project_settings 확인)"""
+    print(f"[DB_DEBUG] get_script called for project_id: {project_id}")
     conn = get_db()
     cursor = conn.cursor()
+    
+    # 1. scripts 테이블 조회
     cursor.execute("SELECT * FROM scripts WHERE project_id = ?", (project_id,))
     row = cursor.fetchone()
+    
+    if row:
+        conn.close()
+        data = dict(row)
+        print(f"[DB_DEBUG] Found in scripts table. Content len: {len(data.get('full_script') or '')}")
+        return data
+        
+    # 2. Fallback: project_settings 테이블 조회
+    cursor.execute("SELECT script FROM project_settings WHERE project_id = ?", (project_id,))
+    setting_row = cursor.fetchone()
     conn.close()
-    return dict(row) if row else None
+    
+    if setting_row and setting_row['script']:
+        print(f"[DB_DEBUG] Found in project_settings. Content len: {len(setting_row['script'])}")
+        return {
+            'project_id': project_id,
+            'full_script': setting_row['script'],
+            'word_count': len(setting_row['script']),
+            'estimated_duration': 60
+        }
+        
+    print(f"[DB_DEBUG] Script NOT FOUND for project_id: {project_id}")
+    return None
 
 # ============ 이미지 프롬프트 ============
 
@@ -994,7 +1018,7 @@ def get_image_prompts(project_id: int) -> List[Dict]:
 
 # ============ 프로젝트 전체 데이터 ============
 
-def get_project_full_data(project_id: int) -> Optional[Dict]:
+def get_project_full_data_v2(project_id: int) -> Optional[Dict]:
     """프로젝트의 모든 데이터 조회"""
     project = get_project(project_id)
     if not project:

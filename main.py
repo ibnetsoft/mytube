@@ -427,60 +427,6 @@ async def get_project(project_id: int):
         raise HTTPException(404, "프로젝트를 찾을 수 없습니다")
     return project
 
-@app.get("/api/projects/{project_id}/full")
-async def get_project_full(project_id: int):
-    """프로젝트 전체 데이터 조회 (통합 & Fallback 적용)"""
-    try:
-        # 1. 기본 정보
-        project = db.get_project(project_id)
-        if not project:
-             raise HTTPException(404, "Project not found")
-        
-        # 2. 설정, 대본, 이미지 프롬프트 등 모두 조회
-        settings = db.get_project_settings(project_id)
-        script_structure = db.get_script_structure(project_id)
-        script_data = db.get_script(project_id)
-        image_prompts = db.get_image_prompts(project_id) # List[Dict]
-        shorts_data = db.get_shorts(project_id) # [NEW]
-
-        tts_data = db.get_tts(project_id) # [FIX] Add TTS fetch
-
-        # [NEW] Thumbnail URL Fallback
-        # If thumbnail_path exists but URL missing (legacy data), compute it.
-        if settings and not settings.get('thumbnail_url') and settings.get('thumbnail_path'):
-            path = settings.get('thumbnail_path')
-            # Check if path is in OUTPUT_DIR or STATIC_DIR
-            if path and os.path.exists(path):
-                if path.startswith(config.OUTPUT_DIR):
-                     rel = os.path.relpath(path, config.OUTPUT_DIR).replace("\\", "/")
-                     web_url = f"/output/{rel}"
-                elif path.startswith(config.STATIC_DIR):
-                     rel = os.path.relpath(path, config.STATIC_DIR).replace("\\", "/")
-                     web_url = f"/static/{rel}"
-                else:
-                    web_url = None
-
-                if web_url:
-                     settings['thumbnail_url'] = web_url
-                     # Update DB for future
-                     try:
-                         db.update_project_setting(project_id, 'thumbnail_url', web_url)
-                         print(f"Restored missing thumbnail_url: {web_url}")
-                     except: pass
-
-        return {
-            "project": dict(project) if project else None,
-            "settings": settings,
-            "script_structure": script_structure,
-            "full_script": script_data['full_script'] if script_data else None,
-            "shorts": shorts_data, # [NEW]
-            "image_prompts": image_prompts,
-            "tts": tts_data # [FIX] Include TTS data
-        }
-    except Exception as e:
-        print(f"Full Data Load Error: {e}")
-        raise HTTPException(500, str(e))
-
 @app.put("/api/projects/{project_id}")
 async def update_project(project_id: int, req: ProjectUpdate):
     """프로젝트 업데이트"""
@@ -604,10 +550,10 @@ async def get_script(project_id: int):
     """대본 조회"""
     return db.get_script(project_id) or {}
 
-@app.get("/api/projects/{project_id}/script")
-async def get_script(project_id: int):
-    """대본 조회"""
-    return db.get_script(project_id) or {}
+@app.get("/api/projects/{project_id}/full")
+async def get_project_full(project_id: int):
+    """프로젝트 전체 데이터 조회 (Context Restoration용)"""
+    return db.get_project_full_data_v2(project_id) or {}
 
 
 @app.post("/api/projects/{project_id}/image-prompts/auto")
@@ -2758,6 +2704,26 @@ async def analyze_character(
         print(f"Analyze character failed: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+class CharacterPromptRequest(BaseModel):
+    script: str
+    project_id: Optional[int] = None
+
+@app.post("/api/image/character-prompts")
+async def generate_character_prompts(req: CharacterPromptRequest):
+    """대본 기반 캐릭터 프롬프트 생성"""
+    try:
+        characters = await gemini_service.generate_character_prompts_from_script(req.script)
+        
+        # [NEW] DB 저장 (옵션) - 현재는 별도 테이블이 없으므로 setting에 저장하거나 생략
+        # 추후 필요시 project_settings의 character_ref_text에 자동 반영 가능
+        
+        return {"status": "ok", "characters": characters}
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"Character prompts generation failed: {e}\n{error_trace}")
+        return {"status": "error", "error": f"{str(e)}", "trace": error_trace}
+
 @app.post("/api/image/generate-prompts")
 async def generate_image_prompts(req: PromptsGenerateRequest):
     """대본 기반 이미지 프롬프트 생성 (POST Body 사용)"""
@@ -2829,7 +2795,7 @@ You have a specific character reference:
 JSON 형식으로 반환:
 {{
     "prompts": [
-        {{"scene": "장면 설명 (한국어)", "prompt": "{style}, 영어 프롬프트", "style_tags": "--ar 1:1"}}
+        {{"scene": "장면 설명 (한국어)", "prompt": "{style}, 영어 프롬프트", "script_start": "대본 시작 부분 (15자)", "script_end": "대본 끝 부분 (15자)", "style_tags": "--ar 1:1"}}
     ]
 }}
 

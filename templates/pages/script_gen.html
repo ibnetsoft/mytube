@@ -114,7 +114,10 @@
                         <div class="flex gap-2">
                             <button onclick="translateScript()" id="translateBtn"
                                 class="btn-secondary text-xs hidden">🌐 번역</button>
-                            <button onclick="copyScript()" class="btn-secondary text-xs">📋 복사</button>
+                            <button onclick="copyScript()"
+                                class="btn-primary text-xs flex items-center gap-1 bg-blue-600 hover:bg-blue-500 text-white px-3">
+                                📋 <span class="font-bold">전체 복사</span>
+                            </button>
                             <button onclick="saveCurrentScript()" class="btn-primary text-xs">💾 저장</button>
                         </div>
                     </div>
@@ -270,21 +273,39 @@
         }
 
         return `
-            <div class="file-item flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer group transition-colors
+        <div id="fileItem_${file.id}" class="file-item flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer group transition-colors
                         ${isActive ? 'bg-blue-900/50 border border-blue-700' : 'hover:bg-gray-800'}"
-                 onclick="openFile(${file.id})"
-                 draggable="true"
-                 ondragstart="dragFile(event, ${file.id})">
-                <span class="${statusColor}">${statusIcon}</span>
-                <div class="flex-1 min-w-0">
-                    <p class="text-sm text-gray-200 truncate">${file.name}</p>
-                    <p class="text-[10px] text-gray-500 truncate">${file.topic || '주제 없음'}</p>
-                </div>
-                <span class="text-[10px] ${statusColor}">${statusText}</span>
-                <button onclick="event.stopPropagation(); deleteProject(${file.id}, '${file.name.replace(/'/g, "\\'")}')"
-                        class="opacity-0 group-hover:opacity-100 text-xs text-red-400 hover:text-red-300 ml-1" title="삭제">🗑️</button>
+            onclick="selectFile('${file.id}')"
+            ondblclick="openFile('${file.id}')"
+            draggable="true"
+            ondragstart="dragFile(event, '${file.id}')">
+            <span class="${statusColor}">${statusIcon}</span>
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-gray-200 truncate select-none">${file.name}</p>
+                <p class="text-[10px] text-gray-500 truncate select-none">${file.topic || '주제 없음'}</p>
             </div>
-        `;
+            <span class="text-[10px] ${statusColor} select-none">${statusText}</span>
+            <button onclick="event.stopPropagation(); deleteProject(${file.id}, '${file.name.replace(/'/g, "\\'")}')"
+                        class="opacity-0 group-hover:opacity-100 text-xs text-red-400 hover:text-red-300 ml-1" title="삭제">🗑️</button>
+            </div >
+            `;
+    }
+
+    function selectFile(fileId) {
+        currentFileId = fileId;
+
+        // Remove active class from all items
+        document.querySelectorAll('.file-item').forEach(el => {
+            el.classList.remove('bg-blue-900/50', 'border', 'border-blue-700');
+            el.classList.add('hover:bg-gray-800');
+        });
+
+        // Add active class to selected item
+        const selected = document.getElementById(`fileItem_${fileId}`);
+        if (selected) {
+            selected.classList.remove('hover:bg-gray-800');
+            selected.classList.add('bg-blue-900/50', 'border', 'border-blue-700');
+        }
     }
 
     function toggleFolder(folderId) {
@@ -300,28 +321,73 @@
     }
 
     async function openFile(projectId) {
+        console.log("openFile called with:", projectId);
         try {
             currentFileId = projectId;
             setCurrentProject(projectId);
 
             const full = await API.project.getFull(projectId);
-            if (full && full.script && full.script.full_script) {
-                currentScript = full.script.full_script;
-                document.getElementById('scriptContent').value = currentScript;
-                document.getElementById('resultSection').classList.remove('hidden');
-                document.getElementById('currentFileIndicator').textContent = full.project?.name || '대본';
-                updateStats();
 
-                // Update structure data if exists
-                if (full.script_structure) {
-                    Utils.storage.set('scriptStructure', full.script_structure);
-                    document.getElementById('analysisInfo').classList.remove('hidden');
-                    document.getElementById('structureTopic').value = full.project?.topic || '';
+            // Always prepare to show the editor
+            document.getElementById('resultSection').classList.remove('hidden');
+            document.getElementById('currentFileIndicator').textContent = full?.project?.name || '대본';
+
+            console.log("Full Data loaded:", full);
+
+            let scriptContent = '';
+            if (full && full.script) {
+                console.log("Script Data Structure:", full.script); // For debugging
+                if (typeof full.script === 'string') {
+                    scriptContent = full.script;
+                } else {
+                    // Try all possible keys including camelCase and common names
+                    scriptContent = full.script.full_script ||
+                        full.script.script ||
+                        full.script.content ||
+                        full.script.fullScript ||
+                        full.script.text ||
+                        full.script.body ||
+                        '';
+                }
+            }
+
+            currentScript = scriptContent;
+            document.getElementById('scriptContent').value = currentScript;
+
+            if (scriptContent) {
+                Utils.showToast(`"${full.project?.name}" 대본 열림`, 'success');
+            } else {
+                // REVERTED TO FULL DUMP TO CHECK DEBUG KEY
+                console.warn("Script loading failed, dumping FULL object");
+
+                // Check if our debug key exists
+                const hasDebugKey = full && full.debug_script_chk;
+                let debugMsg = "=== DEBUG MODE: FULL DATA DUMP ===\n";
+                if (hasDebugKey) {
+                    debugMsg += `[FOUND TRACKING TAG] status: ${full.debug_script_chk.status}, has_script: ${full.debug_script_chk.has_script}\n`;
+                } else {
+                    debugMsg += "[WARNING] TRACKING TAG NOT FOUND (Server code might be outdated)\n";
                 }
 
-                Utils.showToast(`"${full.project?.name}" 열림`, 'success');
-                renderExplorer(); // Refresh to show active state
+                scriptContent = debugMsg + JSON.stringify(full, null, 2);
+                document.getElementById('scriptContent').value = scriptContent;
+
+                Utils.showToast('디버그 모드: 전체 구조 확인 (캡처해주세요)', 'warning');
             }
+
+            updateStats();
+
+            // Update structure data if exists
+            if (full && full.script_structure) {
+                Utils.storage.set('scriptStructure', full.script_structure);
+                document.getElementById('analysisInfo').classList.remove('hidden');
+                document.getElementById('structureTopic').value = full.project?.topic || '';
+            } else {
+                document.getElementById('analysisInfo').classList.add('hidden');
+            }
+
+            renderExplorer(); // Refresh to show active state
+
         } catch (e) {
             console.error(e);
             Utils.showToast('파일 열기 실패', 'error');
@@ -386,7 +452,7 @@
         // Move files to root
         explorerData.files.forEach(f => {
             if (f.folderId === folderId) {
-                localStorage.removeItem(`script_folder_${f.id}`);
+                localStorage.removeItem(`script_folder_${f.id} `);
             }
         });
 
@@ -407,7 +473,7 @@
         if (!fileId) return;
 
         // Save folder assignment to localStorage
-        localStorage.setItem(`script_folder_${fileId}`, folderId);
+        localStorage.setItem(`script_folder_${fileId} `, folderId);
 
         // Update local data
         const file = explorerData.files.find(f => f.id == fileId);
@@ -421,7 +487,7 @@
 
     // Remove file from folder (move to root)
     function removeFromFolder(fileId) {
-        localStorage.removeItem(`script_folder_${fileId}`);
+        localStorage.removeItem(`script_folder_${fileId} `);
         const file = explorerData.files.find(f => f.id == fileId);
         if (file) {
             file.folderId = null;
@@ -432,18 +498,18 @@
 
     // Delete project
     async function deleteProject(projectId, projectName) {
-        if (!confirm(`"${projectName}" 프로젝트를 삭제하시겠습니까?\n\n⚠️ 이 작업은 되돌릴 수 없습니다!`)) {
+        if (!confirm(`"${projectName}" 프로젝트를 삭제하시겠습니까 ?\n\n⚠️ 이 작업은 되돌릴 수 없습니다!`)) {
             return;
         }
 
         try {
-            const response = await fetch(`/api/projects/${projectId}`, {
+            const response = await fetch(`/ api / projects / ${projectId} `, {
                 method: 'DELETE'
             });
 
             if (response.ok) {
                 // Remove from local storage
-                localStorage.removeItem(`script_folder_${projectId}`);
+                localStorage.removeItem(`script_folder_${projectId} `);
 
                 // Update explorer
                 explorerData.files = explorerData.files.filter(f => f.id !== projectId);
@@ -523,16 +589,20 @@
         const charCount = text.length;
         const readTime = Math.ceil(charCount / 415);
 
-        document.getElementById('charCount').textContent = `${charCount.toLocaleString()}자`;
-        document.getElementById('readTime').textContent = `읽기 시간: ${readTime}분`;
+        document.getElementById('charCount').textContent = `${charCount.toLocaleString()} 자`;
+        document.getElementById('readTime').textContent = `읽기 시간: ${readTime} 분`;
     }
 
     document.getElementById('scriptContent')?.addEventListener('input', updateStats);
 
     function copyScript() {
         const text = document.getElementById('scriptContent').value;
+        if (!text) {
+            Utils.showToast('복사할 대본이 없습니다.', 'warning');
+            return;
+        }
         Utils.copyToClipboard(text);
-        Utils.showToast('복사되었습니다', 'success');
+        Utils.showToast('대본 전체가 복사되었습니다! 📋', 'success');
     }
 
     function goToImageGen() { window.location.href = '/image-gen'; }
@@ -626,36 +696,36 @@
                 const section = sections[i];
                 const keyPoints = section.key_points || [];
                 Utils.setLoading(btn, true, `생성 중... (${i + 1}/${sections.length}: ${section.title})`);
-                console.log(`Generating section ${i + 1}: ${section.title}`);
+                console.log(`Generating section ${i + 1}: ${section.title} `);
 
-                const prompt = `당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "${section.title}" 파트를 작성해주세요.
+                const prompt = `당신은 유튜브 대본 작가입니다.아래 주제에 대한 "${section.title}" 파트를 작성해주세요.
 
 [영상 주제]
 ${topic}
 
-[현재 섹션]
-- 제목: ${section.title}
-- 주요 내용: ${keyPoints.length > 0 ? keyPoints.join(', ') : '자유롭게 작성'}
+        [현재 섹션]
+            - 제목: ${section.title}
+        - 주요 내용: ${keyPoints.length > 0 ? keyPoints.join(', ') : '자유롭게 작성'}
 
-[작성 지침]
-1. 자연스럽고 몰입감 있는 한국어 대본을 작성하세요.
+        [작성 지침]
+        1. 자연스럽고 몰입감 있는 한국어 대본을 작성하세요.
 2. 섹션 제목은 출력하지 말고, 본문만 작성하세요.
 3. 약 500~800자 분량으로 작성하세요.
 
-본문만 출력하세요:`;
+본문만 출력하세요: `;
 
                 try {
                     const result = await API.gemini.generate(prompt, { temperature: 0.7, maxTokens: 2048 });
-                    console.log(`Section ${i + 1} result:`, result.status);
+                    console.log(`Section ${i + 1} result: `, result.status);
 
                     if (result.status === 'ok' && result.text) {
-                        finalScript += `\n\n**[${section.title}]**\n${result.text.trim()}`;
+                        finalScript += `\n\n ** [${section.title}] **\n${result.text.trim()} `;
                     } else {
-                        finalScript += `\n\n**[${section.title}]**\n(이 섹션 생성 실패: ${result.error || '알 수 없는 오류'})\n`;
+                        finalScript += `\n\n ** [${section.title}] **\n(이 섹션 생성 실패: ${result.error || '알 수 없는 오류'}) \n`;
                     }
                 } catch (sectionErr) {
-                    console.error(`Section ${i + 1} error:`, sectionErr);
-                    finalScript += `\n\n**[${section.title}]**\n(생성 오류: ${sectionErr.message})\n`;
+                    console.error(`Section ${i + 1} error: `, sectionErr);
+                    finalScript += `\n\n ** [${section.title}] **\n(생성 오류: ${sectionErr.message}) \n`;
                 }
 
                 // Show progress

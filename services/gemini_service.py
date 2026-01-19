@@ -82,7 +82,7 @@ class GeminiService:
         num_images: int = 1
     ) -> List[bytes]:
         """이미지 생성 (Imagen 3)"""
-        url = f"{self.base_url}/models/imagen-4.0-generate-001:predict?key={self.api_key}"
+        url = f"{self.base_url}/models/imagen-3.0-generate-001:predict?key={self.api_key}"
         print(f"DEBUG: Image Gen URL: {url}") # DEBUGGING
 
         payload = {
@@ -96,6 +96,12 @@ class GeminiService:
 
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(url, json=payload)
+            
+            if response.status_code != 200:
+                error_info = response.text
+                print(f"Image Gen Error ({response.status_code}): {error_info}")
+                raise Exception(f"API Error ({response.status_code}): {error_info}")
+
             result = response.json()
 
             images = []
@@ -104,6 +110,11 @@ class GeminiService:
                     if "bytesBase64Encoded" in pred:
                         img_bytes = base64.b64decode(pred["bytesBase64Encoded"])
                         images.append(img_bytes)
+            else:
+                # 에러 응답 처리
+                error_msg = result.get('error', {}).get('message', str(result))
+                print(f"Image Gen Failed (No predictions): {result}")
+                raise Exception(f"Image Gen Failed: {error_msg}")
 
             return images
 
@@ -338,6 +349,24 @@ class GeminiService:
         except Exception as e:
             print(f"Trend keywords generation failed: {e}")
             return []
+
+    async def generate_character_prompts_from_script(self, script: str) -> List[dict]:
+        """대본을 분석하여 등장인물 정보 및 이미지 프롬프트 생성"""
+        
+        prompt = prompts.GEMINI_CHARACTER_PROMPTS.format(script=script[:8000])  # 토큰 제한 고려
+        
+        text = await self.generate_text(prompt, temperature=0.5)
+        
+        # JSON 파싱
+        json_match = re.search(r'\{[\s\S]*\}', text)
+        if json_match:
+            try:
+                data = json.loads(json_match.group())
+                return data.get("characters", [])
+            except Exception as e:
+                print(f"Character prompt JSON parse error: {e}")
+                pass
+        return []
 
     async def generate_image_prompts_from_script(self, script: str, duration_seconds: int, style_prompt: str = None) -> List[dict]:
         """대본을 분석하여 장면별 이미지 프롬프트 생성 (가변 페이싱 적용)"""
