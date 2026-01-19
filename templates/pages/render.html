@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="h-[calc(100vh-140px)] flex flex-col gap-3 p-2">
+<div class="flex flex-col gap-3 p-2">
     <!-- 1. Top Control Bar -->
     <div
         class="flex items-center gap-3 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 shrink-0 flex-wrap">
@@ -28,10 +28,10 @@
     </div>
 
     <!-- 2. Main Workspace (Grid) -->
-    <div class="grid grid-cols-12 gap-3 flex-1 min-h-0">
+    <div class="grid grid-cols-12 gap-3">
 
         <!-- Left Panel: Status & Logs (Col-4) -->
-        <div class="col-span-12 md:col-span-4 flex flex-col gap-3 min-h-0">
+        <div class="col-span-12 md:col-span-4 flex flex-col gap-3">
             <!-- Project Status Summary -->
             <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shrink-0">
                 <h4 class="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">Project Status</h4>
@@ -67,7 +67,7 @@
 
             <!-- Render Log / Console -->
             <div
-                class="flex-1 bg-gray-900 rounded-lg border border-gray-800 p-3 overflow-hidden flex flex-col font-mono text-xs text-green-400">
+                class="bg-gray-900 rounded-lg border border-gray-800 p-3 overflow-hidden flex flex-col font-mono text-xs text-green-400 h-[300px]">
                 <div class="flex justify-between border-b border-gray-800 pb-1 mb-2">
                     <span>>_ Render Log</span>
                     <span id="renderTimer" class="text-yellow-400">00:00</span>
@@ -86,11 +86,13 @@
 
         <!-- Right Panel: Preview & Downloads (Col-8) -->
         <div
-            class="col-span-12 md:col-span-8 flex flex-col bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm relative min-h-0">
+            class="col-span-12 md:col-span-8 flex flex-col bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm relative min-h-[500px]">
 
             <!-- Video Player Area -->
-            <div class="flex-1 bg-black relative flex items-center justify-center group">
-                <video id="mainVideoPlayer" controls class="max-w-full max-h-full w-auto h-auto shadow-2xl"></video>
+            <div class="flex-1 bg-black relative flex items-center justify-center group rounded-t-lg overflow-hidden">
+                <!-- Removed max-h-full to allow natural height but constrain max to viewport-ish logic via CSS if needed. 
+                     Keeping max-h-[80vh] is safer. -->
+                <video id="mainVideoPlayer" controls class="max-w-full max-h-[80vh] w-auto h-auto shadow-2xl"></video>
 
                 <!-- Placeholder / Loading State -->
                 <div id="videoPlaceholder"
@@ -102,7 +104,7 @@
 
             <!-- Action Footer -->
             <div
-                class="p-3 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-600 flex justify-between items-center shrink-0">
+                class="p-3 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-600 flex justify-between items-center shrink-0 rounded-b-lg">
                 <div class="flex gap-2">
                     <button onclick="downloadScript()" class="text-xs btn-secondary px-2">📝 대본</button>
                     <button onclick="downloadPrompts()" class="text-xs btn-secondary px-2">🖼️ 프롬프트</button>
@@ -138,6 +140,26 @@
         try {
             const data = await API.project.getFull(projectId);
             updateStatusUI(data);
+
+            // [NEW] Aspect Ratio Check
+            const ratio = data.settings?.aspect_ratio || '16:9';
+            if (ratio === '9:16') {
+                // Adjust Intro Preview
+                const introBox = document.getElementById('introPreview');
+                introBox.classList.remove('aspect-video');
+                introBox.style.aspectRatio = '9/16';
+                introBox.classList.add('max-w-[150px]', 'mx-auto');
+
+                // Adjust Main Player
+                const player = document.getElementById('mainVideoPlayer');
+                // Force 9:16 and constrain width to mimic mobile view
+                player.style.setProperty('aspect-ratio', '9/16', 'important');
+                player.classList.add('max-w-[360px]', 'mx-auto');
+
+                // Adjust Wrapper to not be full width black logic if possible, or just let player center
+                const wrapper = player.parentElement;
+                // wrapper is flex items-center justify-center, so mx-auto on player works.
+            }
 
             // Check for existing video
             const vPath = data.settings?.video_path || data.project?.video_path;
@@ -261,6 +283,9 @@
 
         // Update Video Status Indicator
         document.getElementById('videoStatus').classList.add('done');
+
+        // [NEW] Update Stepper
+        if (window.updateStepStatus) window.updateStepStatus('render', true);
     }
 
     function failRendering() {

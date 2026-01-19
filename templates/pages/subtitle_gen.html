@@ -1330,7 +1330,7 @@
     // Let's keep it simple. The hover (dragover) effect might stick if not careful, 
     // but the `renderSubtitles()` call will clear everything instantly on drop.
 
-    function handleDrop(ev, subIdx) {
+    function handleCombinedDrop(ev, subIdx) {
         ev.preventDefault();
         const srcIdx = ev.dataTransfer.getData("text/plain");
         if (srcIdx === "" || isNaN(srcIdx)) return;

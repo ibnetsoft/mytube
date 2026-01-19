@@ -25,6 +25,14 @@
             class="btn-primary py-1.5 px-4 text-sm font-medium rounded-md shadow-sm hover:shadow active:scale-95 transition-all flex items-center gap-2 whitespace-nowrap">
             <span>✨ 배경음악 생성</span>
         </button>
+
+        <div class="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
+
+        <a href="https://suno.com/" target="_blank"
+            class="btn-secondary py-1.5 px-3 text-xs flex items-center gap-1 text-gray-600 dark:text-gray-300 hover:text-primary whitespace-nowrap">
+            <span>🎵 Suno</span>
+            <span class="text-[10px]">↗</span>
+        </a>
     </div>
 
     <!-- 2. Main Workspace (Grid) -->
@@ -209,6 +217,10 @@
                 document.getElementById('resultSection').classList.remove('hidden');
 
                 Utils.showToast('배경음악 생성 완료!', 'success');
+
+                // [NEW] Update Stepper
+                if (window.updateStepStatus) window.updateStepStatus('bgm', true);
+
                 player.play().catch(e => { });
             } else {
                 Utils.showToast('생성 실패: ' + (result.error || '오류'), 'error');

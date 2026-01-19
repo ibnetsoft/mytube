@@ -1,42 +1,24 @@
-import sys
+
+import json
 import os
+import database as db
 
-# 백엔드 경로 추가
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+PID = 15
 
-from services.video_service import video_service
-from moviepy.editor import ColorClip
+print("--- Simulating get_subtitles logic ---")
+try:
+    s = db.get_project_settings(PID)
+    path = s.get('subtitle_path')
+    print(f"Path: {path}")
 
-def test_subtitle_generation():
-    print("Testing subtitle generation...")
-    
-    # 1. create dummy video (5 seconds, black background)
-    dummy_video_path = "dummy_video.mp4"
-    clip = ColorClip(size=(500, 500), color=(0,0,0), duration=5)
-    clip.fps = 24
-    clip.write_videofile(dummy_video_path, fps=24)
-    
-    # 2. create dummy subtitles
-    subtitles = [
-        {"start": 0, "end": 2, "text": "테스트 자막입니다 1"},
-        {"start": 2, "end": 4, "text": "Testing Subtitles 2"},
-    ]
-    
-    # 3. Add subtitles
-    try:
-        output = video_service.add_subtitles(
-            video_path=dummy_video_path,
-            subtitles=subtitles,
-            output_filename="test_output_subs.mp4",
-            font_size=50,
-            font_color="yellow", # High contrast
-            font="malgun.ttf"
-        )
-        print(f"Success! Output at: {output}")
-    except Exception as e:
-        print(f"Failed: {e}")
-        import traceback
-        traceback.print_exc()
-
-if __name__ == "__main__":
-    test_subtitle_generation()
+    if path and os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            print(f"Data Type: {type(data)}")
+            print(f"Data Length: {len(data) if isinstance(data, list) else 'Not List'}")
+            if isinstance(data, list) and len(data) > 0:
+                print(f"First Item: {data[0]}")
+    else:
+        print("Path does not exist")
+except Exception as e:
+    print(f"Error: {e}")

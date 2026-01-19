@@ -224,6 +224,24 @@
 
                     <!-- Script Prompts -->
                     <div class="space-y-4">
+                        <!-- [NEW] Main Script Writing Prompt -->
+                        <div
+                            class="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 border border-purple-200 dark:border-purple-800">
+                            <label
+                                class="text-xs font-bold text-purple-700 dark:text-purple-300 mb-2 flex items-center gap-2">
+                                <span>✍️ 대본 작성 마스터 프롬프트</span>
+                                <span class="text-[10px] text-purple-500 dark:text-purple-400 font-normal">대본 생성 시 AI에게
+                                    전달되는 핵심 지침</span>
+                            </label>
+                            <textarea id="promptScriptMaster" class="input-field w-full text-xs font-mono" rows="8"
+                                placeholder="대본 작성 시 AI에게 전달할 마스터 프롬프트를 입력하세요..."></textarea>
+                            <div class="flex justify-between items-center mt-2">
+                                <p class="text-[10px] text-purple-500">* 이 프롬프트는 모든 대본 생성에 적용됩니다.</p>
+                                <button onclick="resetMasterPrompt()"
+                                    class="text-[10px] text-purple-600 hover:underline">기본값으로 초기화</button>
+                            </div>
+                        </div>
+
                         <div>
                             <label class="text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 block">📜 시니어 사연 스타일
                                 프롬프트 (New)</label>
@@ -267,6 +285,34 @@
         "it-IT", "pt-BR", "ru-RU", "nl-NL", "pl-PL", "th-TH", "tr-TR", "vi-VN",
         "ro-RO", "uk-UA", "bn-BD", "en-IN", "mr-IN", "ta-IN", "te-IN", "ar-EG"
     ];
+
+    // [NEW] Default Master Prompt for Script Writing
+    const DEFAULT_SCRIPT_MASTER_PROMPT = `최종 확정: '딥-다이브' 대본 빌드업 4단계 프로세스 (Ver. 4.0)
+
+[1단계] 대본 정밀 해부 및 흥행 잠재력 진단
+임무: 대본을 문장 단위로 정밀 분석하고, '흥행 심리 지도(5070 타겟 제목 리스트)'와 '전문 드라마 기법'을 사용하여 잠재력과 개선점에 대한 '대본 정밀 해부 리포트'를 발행합니다.
+
+실행 원칙:
+- [종합 진단] 작품의 가장 매력적인 설정과 개선 필요 지점 명확하게 요약
+- [톤앤매너 분석] 나레이션은 시청자에게 정중한 '존댓말' 원칙 (5070 시청자 정서적 유대감)
+- [대사 현미경 분석] 감정 설명 대사를 '극적 아이러니(Dramatic Irony)'가 담긴 상황으로 개선
+- [장면 구조 분석] 도입부는 '인 미디어스 레스(In medias res)' + '체호프의 총(Chekhov's Gun)' 기법 적용
+- [인물 매력도 분석] 주인공에게 '복선(Foreshadowing)'을 통한 숨겨진 능력 암시
+
+[2단계] '감독판 샘플' 제작 및 공동 창작 방향 확정
+임무: 지정된 장면을 드라마 기법 + 흥행 코드 + 존댓말 나레이션에 따라 '원본 vs 감독 수정본' 형태로 제공
+
+[3단계] 감독판 대본 전체 집필
+임무: 합의된 개선 방향과 스타일을 대본 전체에 일관되게 적용하여 최종 [감독판 대본] 완성
+
+[4단계] 최종 마케팅 에셋 시화
+임무: 완성된 대본의 핵심 컨셉을 보여줄 썸네일 비주얼을 구체적으로 묘사`;
+
+    // Reset Master Prompt to Default
+    function resetMasterPrompt() {
+        document.getElementById('promptScriptMaster').value = DEFAULT_SCRIPT_MASTER_PROMPT;
+        Utils.showToast('마스터 프롬프트가 기본값으로 초기화되었습니다', 'success');
+    }
 
     // App Mode Toggle
     function setAppMode(mode) {
@@ -313,6 +359,7 @@
             if (data.script_styles) {
                 document.getElementById('promptNews').value = data.script_styles.news || '';
                 document.getElementById('promptStory').value = data.script_styles.story || '';
+                document.getElementById('promptScriptMaster').value = data.script_styles.script_master || DEFAULT_SCRIPT_MASTER_PROMPT;
                 // [NEW]
                 document.getElementById('promptSeniorStory').value = data.script_styles.senior_story || '';
             }
@@ -343,6 +390,7 @@
             script_styles: {
                 news: document.getElementById('promptNews').value,
                 story: document.getElementById('promptStory').value,
+                script_master: document.getElementById('promptScriptMaster').value,
                 senior_story: document.getElementById('promptSeniorStory').value // [NEW]
             }
         };

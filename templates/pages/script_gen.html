@@ -2,682 +2,529 @@
 
 {% block content %}
 
+<!-- Main 1:2 Split Layout -->
+<div class="flex gap-4 h-[calc(100vh-140px)]">
 
-<!-- Flex Container -->
-<div class="flex flex-col lg:flex-row gap-6 section-spacing">
-
-    <!-- Left Column: Context (Topic & Data) -->
-    <div class="w-full lg:w-1/3 space-y-4">
-        <!-- 분석 데이터 표시 -->
-        <div id="analysisInfo" class="card hidden">
-            <div class="flex justify-between items-center mb-2">
-                <h3 class="card-title mb-0">📋 대본 구조 기반</h3>
-                <button onclick="window.location.href='/script-plan'"
-                    class="text-xs bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 px-2 py-1 rounded text-gray-700 dark:text-gray-300 transition-colors">
-                    🔄 구조 다시 짜기
+    <!-- LEFT: File Explorer (1/3) -->
+    <div class="w-1/3 flex flex-col bg-gray-900 rounded-xl border border-gray-700 overflow-hidden">
+        <!-- Explorer Header -->
+        <div class="flex items-center justify-between px-3 py-2 bg-gray-800 border-b border-gray-700">
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                📁 대본 탐색기
+            </h3>
+            <div class="flex gap-1">
+                <button onclick="createNewFolder()"
+                    class="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-2 py-1 rounded transition-colors"
+                    title="새 폴더">
+                    📁+
+                </button>
+                <button onclick="refreshExplorer()"
+                    class="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-2 py-1 rounded transition-colors"
+                    title="새로고침">
+                    🔄
                 </button>
             </div>
-            <input type="text" id="structureTopic" class="input-field mt-1 text-sm" placeholder="영상 주제">
-            <p class="text-xs text-gray-500 mt-2 leading-relaxed">
-                💡 주제가 다르다면 직접 수정해주세요. AI는 이 주제를 바탕으로 대본을 작성합니다.
-            </p>
         </div>
 
-        <!-- Structure Data Preview (Collapsed) -->
-        <details class="bg-gray-900 rounded-lg p-2 border border-gray-700">
-            <summary
-                class="text-xs font-medium text-blue-400 cursor-pointer select-none hover:text-blue-300 transition-colors">
-                🔍 AI 전달 데이터 확인하기
-            </summary>
-            <pre id="previewContent"
-                class="mt-2 text-[10px] text-gray-400 font-mono whitespace-pre-wrap overflow-x-auto max-h-60 p-2 bg-black/50 rounded border border-gray-800">(데이터 로딩 중...)</pre>
-        </details>
+        <!-- Explorer Tree -->
+        <div id="explorerTree" class="flex-1 overflow-y-auto p-2 custom-scrollbar">
+            <div class="text-center py-10 text-gray-500 text-sm">
+                불러오는 중...
+            </div>
+        </div>
     </div>
 
-    <!-- Right Column: Actions (Tabs & Generation) -->
-    <div class="w-full lg:w-2/3 flex-1">
+    <!-- RIGHT: Content Area (2/3) -->
+    <div class="w-2/3 flex flex-col overflow-hidden">
 
-        <!-- 탭 네비게이션 -->
-        <div class="flex mb-4 border-b border-gray-200 dark:border-gray-700">
+        <!-- Tab Bar -->
+        <div class="flex gap-1 bg-gray-800 rounded-t-xl p-1.5 border-b border-gray-700">
             <button onclick="setScriptMode('ai')" id="tabAI"
-                class="px-6 py-3 font-bold border-b-2 border-blue-500 text-blue-600 dark:text-blue-400 transition-all text-sm">
+                class="px-4 py-2 rounded-lg text-xs font-bold transition-all bg-gray-700 text-white">
                 🤖 AI 자동 생성
             </button>
             <button onclick="setScriptMode('manual')" id="tabManual"
-                class="px-6 py-3 font-bold border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-all text-sm">
+                class="px-4 py-2 rounded-lg text-xs font-medium text-gray-400 hover:text-gray-200">
                 📝 직접 입력
             </button>
+            <div class="flex-1"></div>
+            <span id="currentFileIndicator" class="text-xs text-gray-500 self-center px-2">새 대본</span>
         </div>
 
-        <!-- AI 생성 모드 -->
-        <div id="aiGenSection">
-            <!-- 옵션 패널 -->
-            <div
-                class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
-                <h3 class="text-sm font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
-                    ⚙️ 대본 옵션 설정
-                </h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label
-                            class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">스타일</label>
-                        <input type="text" id="scriptStyleDisplay"
-                            class="input-field bg-gray-50 text-gray-700 cursor-not-allowed dark:bg-gray-900 dark:text-gray-300 text-sm py-2 font-medium"
-                            readonly value="불러오는 중...">
-                        <input type="hidden" id="scriptStyle" value="news">
+        <!-- Scrollable Content -->
+        <div class="flex-1 overflow-y-auto bg-gray-900/50 rounded-b-xl p-4 custom-scrollbar">
+
+            <!-- AI Generation Mode -->
+            <div id="aiGenSection">
+                <!-- Topic & Structure Info -->
+                <div id="analysisInfo" class="card mb-4 hidden">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-sm font-bold text-white">📋 대본 구조 기반</h3>
+                        <button onclick="window.location.href='/script-plan'"
+                            class="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-gray-300 transition-colors">
+                            🔄 구조 다시 짜기
+                        </button>
                     </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">포함
-                            요소</label>
-                        <div class="flex gap-4 mt-2">
-                            <label class="flex items-center gap-2 cursor-pointer group">
-                                <div class="relative flex items-center">
-                                    <input type="checkbox" id="includeHooks" checked
-                                        class="peer h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 transition-all">
-                                </div>
-                                <span
-                                    class="text-sm text-gray-700 dark:text-gray-300 group-hover:text-blue-500 transition-colors">후킹
-                                    멘트</span>
-                            </label>
-                            <label class="flex items-center gap-2 cursor-pointer group">
-                                <div class="relative flex items-center">
-                                    <input type="checkbox" id="includeCTA" checked
-                                        class="peer h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 transition-all">
-                                </div>
-                                <span
-                                    class="text-sm text-gray-700 dark:text-gray-300 group-hover:text-blue-500 transition-colors">CTA</span>
-                            </label>
+                    <input type="text" id="structureTopic" class="input-field text-sm" placeholder="영상 주제">
+                </div>
+
+
+                <!-- Options Panel removed as per user request -->
+
+                <!-- Generate Button -->
+                <div class="flex justify-end gap-2 mb-4">
+                    <button onclick="stopAndSave()" id="stopBtn"
+                        class="hidden btn-secondary bg-red-900/50 text-red-400 py-2 px-4 rounded-lg text-sm">
+                        ⏹️ 멈춤 & 저장
+                    </button>
+                    <button onclick="generateScript()" id="generateBtn"
+                        class="btn-primary py-2.5 px-6 rounded-lg text-sm font-bold">
+                        ✍️ 대본 생성 시작
+                    </button>
+                </div>
+
+                <!-- AI Data Preview (Collapsed) -->
+                <details class="bg-gray-900 rounded-lg p-2 border border-gray-700 mb-4">
+                    <summary class="text-xs text-blue-400 cursor-pointer">🔍 AI 전달 데이터 확인</summary>
+                    <pre id="previewContent"
+                        class="mt-2 text-[10px] text-gray-400 font-mono whitespace-pre-wrap max-h-40 overflow-auto">(데이터 로딩 중...)</pre>
+                </details>
+            </div>
+
+            <!-- Manual Input Mode (Hidden by default) -->
+            <div id="manualInputSection" class="hidden">
+                <div class="bg-yellow-900/20 border border-yellow-800 rounded-lg p-4 mb-4">
+                    <h3 class="text-sm font-bold text-white mb-2">📝 외부 대본 붙여넣기</h3>
+                    <p class="text-xs text-gray-400 mb-3">AI 생성을 건너뛰고 준비된 대본을 바로 사용합니다.</p>
+                    <textarea id="manualScriptInput" class="input-field font-mono text-sm" rows="10"
+                        placeholder="여기에 대본을 붙여넣으세요..."></textarea>
+                </div>
+                <div class="flex justify-end">
+                    <button onclick="registerManualScript()" class="btn-primary py-2 px-6 rounded-lg text-sm font-bold">
+                        💾 작성 완료
+                    </button>
+                </div>
+            </div>
+
+            <!-- Result Section -->
+            <div id="resultSection" class="hidden">
+                <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-bold text-white">📝 생성된 대본</h3>
+                        <div class="flex gap-2">
+                            <button onclick="translateScript()" id="translateBtn"
+                                class="btn-secondary text-xs hidden">🌐 번역</button>
+                            <button onclick="copyScript()" class="btn-secondary text-xs">📋 복사</button>
+                            <button onclick="saveCurrentScript()" class="btn-primary text-xs">💾 저장</button>
                         </div>
+                    </div>
+
+                    <div class="flex gap-3 text-xs text-gray-400 mb-3">
+                        <span id="charCount" class="bg-gray-700 px-2 py-0.5 rounded">0자</span>
+                        <span id="readTime" class="bg-gray-700 px-2 py-0.5 rounded">읽기 시간: 0분</span>
+                    </div>
+
+                    <textarea id="scriptContent" class="input-field font-mono text-sm" rows="15"></textarea>
+
+                    <div class="flex justify-center gap-3 mt-4 pt-4 border-t border-gray-700">
+                        <button onclick="goToImageGen()" class="btn-primary py-2 px-4 rounded-lg text-sm">
+                            🖼️ 이미지 생성 →
+                        </button>
+                        <button onclick="goToTTS()" class="btn-secondary py-2 px-4 rounded-lg text-sm">
+                            🔊 TTS 생성 →
+                        </button>
                     </div>
                 </div>
             </div>
 
-            <!-- 생성 버튼 그룹 -->
-            <div class="flex justify-end gap-3">
-                <button onclick="stopAndSave()" id="stopBtn"
-                    class="hidden btn-secondary bg-red-50 text-red-600 hover:bg-red-100 py-2.5 px-4 rounded-lg flex items-center gap-2 text-sm font-medium transition-colors">
-                    <span>⏹️</span>
-                    <span>멈춤 & 저장</span>
-                </button>
-                <button onclick="generateScript()" id="generateBtn"
-                    class="btn-primary py-2.5 px-6 rounded-lg flex items-center gap-2 text-sm font-semibold shadow-sm hover:shadow-md transition-all">
-                    <span>✍️</span>
-                    <span>대본 생성 시작</span>
-                </button>
-            </div>
-        </div>
-
-        <!-- 직접 입력 모드 -->
-        <div id="manualInputSection" class="hidden">
-            <div
-                class="bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-100 dark:border-yellow-900/30 rounded-xl p-5 mb-4">
-                <h3 class="text-sm font-bold text-gray-800 dark:text-white mb-2">📝 외부 대본 붙여넣기</h3>
-                <p class="text-xs text-gray-600 dark:text-gray-400 mb-4 leading-relaxed">
-                    AI 생성을 건너뛰고 준비된 대본을 바로 사용합니다.
-                </p>
-                <textarea id="manualScriptInput" class="input-field font-mono text-sm leading-relaxed" rows="12"
-                    placeholder="여기에 대본을 붙여넣으세요..."></textarea>
-            </div>
-
-            <div class="flex justify-end">
-                <button onclick="registerManualScript()"
-                    class="btn-primary py-2.5 px-6 rounded-lg flex items-center gap-2 text-sm font-semibold shadow-sm hover:shadow-md transition-all">
-                    <span>💾</span>
-                    <span>작성 완료</span>
-                </button>
-            </div>
         </div>
     </div>
 </div>
-</div>
-</div>
-</div>
 
-<!-- 결과 영역 -->
-<div id="resultSection" class="hidden">
-    <div class="card container-lg section-spacing">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="card-title mb-0">📝 생성된 대본</h3>
-            <div class="btn-group">
-                <button onclick="translateScript()" id="translateBtn" class="btn-secondary hidden">🌐 번역하기</button>
-                <button onclick="copyScript()" class="btn-secondary">📋 복사</button>
-                <button onclick="downloadScript()" class="btn-secondary">💾 다운로드</button>
-            </div>
-        </div>
-
-        <div class="mb-4 flex gap-4 text-sm text-gray-500">
-            <span id="charCount" class="badge badge-primary">0자</span>
-            <span id="readTime" class="badge badge-primary">예상 읽기 시간: 0분</span>
-        </div>
-
-        <textarea id="scriptContent" class="input-field font-mono" rows="20"></textarea>
-
-        <div class="btn-group btn-group-center mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-            <button onclick="goToImageGen()" class="btn-primary" style="min-width: 200px;">
-                <span>🖼️</span>
-                <span>이미지 프롬프트 생성</span>
-                <span>→</span>
-            </button>
-            <button onclick="goToTTS()" class="btn-secondary" style="min-width: 200px;">
-                <span>🔊</span>
-                <span>TTS 생성</span>
-                <span>→</span>
-            </button>
+<!-- Folder Creation Modal -->
+<div id="folderModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+    <div class="bg-gray-800 rounded-xl p-6 w-80 border border-gray-600">
+        <h3 class="text-lg font-bold text-white mb-4">📁 새 폴더 만들기</h3>
+        <input type="text" id="newFolderName" class="input-field w-full mb-4" placeholder="폴더 이름">
+        <div class="flex gap-2 justify-end">
+            <button onclick="closeFolderModal()" class="btn-secondary py-2 px-4 text-sm">취소</button>
+            <button onclick="confirmCreateFolder()" class="btn-primary py-2 px-4 text-sm">생성</button>
         </div>
     </div>
 </div>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
     let currentScript = '';
+    let currentFileId = null;
+    let explorerData = { folders: [], files: [] };
 
-    // [NEW] Global App Mode
-    window.APP_MODE = 'longform';
+    // ========== EXPLORER FUNCTIONS ==========
 
-    // 페이지 로드 시 데이터 로딩
-    document.addEventListener('DOMContentLoaded', async () => {
-        // 0. App Mode Check
+    async function refreshExplorer() {
+        const container = document.getElementById('explorerTree');
+        container.innerHTML = '<div class="text-center py-8 text-gray-500 text-sm">불러오는 중...</div>';
+
         try {
-            const res = await fetch('/api/settings');
-            const settings = await res.json();
-            window.APP_MODE = settings.app_mode || 'longform';
-            console.log("App Mode:", window.APP_MODE);
+            // Load folders from localStorage (simple approach)
+            const savedFolders = JSON.parse(localStorage.getItem('scriptFolders') || '[]');
 
-            // UI Indication
-            if (window.APP_MODE === 'shorts') {
-                const tabContainer = document.querySelector('.flex.mb-4.border-b');
-                if (tabContainer) {
-                    const badge = document.createElement('span');
-                    badge.className = "ml-auto text-xs px-3 py-1 bg-purple-100 text-purple-700 font-bold rounded-full flex items-center";
-                    badge.innerText = "📱 쇼츠 모드";
-                    tabContainer.appendChild(badge);
-                }
-            }
-        } catch (e) { console.error(e); }
+            // Load ALL projects (not just those with scripts)
+            const data = await API.project.list();
+            const projects = data.projects || [];
 
-        const projectId = getCurrentProject();
-        console.log("Current Project ID:", projectId);
+            // Filter to only show projects with script planning done (status !== 'created')
+            // Status progression: created -> structured -> scripted -> image_prompted -> completed
+            const plannedProjects = projects.filter(p =>
+                p.status && p.status !== 'created' && p.status !== ''
+            );
 
-        // 1. 프리뷰 초기화
-        const previewEl = document.getElementById('previewContent');
-        if (previewEl) previewEl.textContent = "데이터 로딩 중...";
+            // Show planned projects in the explorer
+            const allProjectFiles = plannedProjects.map(p => ({
+                id: p.id,
+                name: p.name,
+                topic: p.topic,
+                status: p.status,
+                hasScript: p.status === 'scripted' || p.status === 'image_prompted' || p.status === 'completed',
+                hasStructure: p.status === 'structured' || p.status === 'scripted' || p.status === 'image_prompted' || p.status === 'completed',
+                folderId: localStorage.getItem(`script_folder_${p.id}`) || null
+            }));
 
-        // 2. 데이터 가져오기 (로컬 -> 서버)
-        let structureData = Utils.storage.get('scriptStructure');
+            explorerData.folders = savedFolders;
+            explorerData.files = allProjectFiles;
 
-        // [중요] 프로젝트 ID 불일치 시 데이터를 폐기하고 서버에서 다시 가져옴
-        if (structureData && structureData.project_id && structureData.project_id != projectId) {
-            console.log("Mismatching validation: Storage ID", structureData.project_id, "Current ID", projectId);
-            structureData = null; // Force reload
-            Utils.storage.remove('scriptStructure');
+            renderExplorer();
+        } catch (e) {
+            console.error('Explorer load failed:', e);
+            container.innerHTML = '<div class="text-center py-8 text-red-400 text-sm">불러오기 실패</div>';
         }
+    }
 
-        if (!structureData && projectId) {
-            try {
-                // 서버에서 조회
-                const projectFull = await API.project.getFull(projectId);
-                console.log("Projects Full Data:", projectFull);
+    function renderExplorer() {
+        const container = document.getElementById('explorerTree');
 
-                if (projectFull && projectFull.script_structure) {
-                    structureData = projectFull.script_structure;
-                    // topic이 필요하면 projectFull.project.topic 또는 script_structure 내부 확인
-                    if (!structureData.topic && projectFull.project) {
-                        structureData.topic = projectFull.project.topic || projectFull.project.name;
-                    }
-
-                    // project_id가 없으면 주입 (클라이언트 사이드 검증용)
-                    if (!structureData.project_id) {
-                        structureData.project_id = projectId;
-                    }
-
-                    // [NEW] DB Settings에서 스타일 가져오기 (Fallback)
-                    if (projectFull.settings && projectFull.settings.script_style) {
-                        structureData.script_style = projectFull.settings.script_style;
-                    }
-
-                    Utils.storage.set('scriptStructure', structureData);
-                    Utils.showToast('기획 데이터를 server에서 불러왔습니다', 'success');
-                }
-            } catch (e) {
-                console.error("Failed to fetch project data:", e);
-                if (previewEl) previewEl.textContent = "❌ 서버 데이터 조회 실패";
-            }
-        }
-
-        // 3. UI 업데이트
-        if (structureData) {
-            const infoEl = document.getElementById('analysisInfo'); // Corrected ID from 'structureInfo' to 'analysisInfo'
-            if (infoEl) infoEl.classList.remove('hidden');
-
-            const topicEl = document.getElementById('structureTopic');
-            const topic = structureData.topic || structureData.hook || '주제 미상';
-            if (topicEl) topicEl.value = topic;
-
-            if (previewEl) {
-                previewEl.textContent = JSON.stringify(structureData, null, 2);
-                previewEl.classList.remove('text-red-600');
-            }
-
-            // [NEW] Set Style Code and Display Name from Structure Data
-            const styleCode = structureData.script_style || 'news';
-            const styleEl = document.getElementById('scriptStyle');
-            const displayEl = document.getElementById('scriptStyleDisplay');
-
-            if (styleEl) styleEl.value = styleCode;
-
-            const styleNames = {
-                'story': '옛날 이야기 (Old Story)',
-                'news': '뉴스 보도 (News Delivery)',
-                'senior_story': '시니어 사연 (Senior Story)',
-                'narration': '나레이션형 (설명 위주)',
-                'conversational': '대화형 (친근한 말투)',
-                'storytelling': '스토리텔링형 (이야기 전개)'
-            };
-            if (displayEl) displayEl.value = styleNames[styleCode] || styleCode;
-
-        } else {
-            if (previewEl) {
-                if (window.APP_MODE === 'shorts') {
-                    // [NEW] Shorts Quick Start Button
-                    previewEl.innerHTML = `
-                        <div class="text-center py-4">
-                            <p class="text-yellow-500 font-bold mb-2">⚠ 구조 데이터가 없습니다</p>
-                            <button onclick="window.location.href='/script-plan?mode=shorts&auto=true'" 
-                                class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg text-xs transition-colors shadow-lg animate-pulse">
-                                ⚡ 쇼츠 기획 바로 시작하기 (Auto)
-                            </button>
-                        </div>
-                    `;
-                    previewEl.classList.remove('text-red-600');
-                } else {
-                    previewEl.textContent = "❌ 구조 데이터가 없습니다! 대본 기획 단계 완료 여부를 확인해주세요.";
-                    previewEl.classList.add('text-red-600', 'font-bold');
-                }
-            }
-        }
-    });
-
-    async function generateScript() {
-        const projectId = getCurrentProject();
-        // 1. 데이터 가져오기 (로컬 -> 서버)
-        let structureData = Utils.storage.get('scriptStructure');
-
-        // 데이터가 없거나, 프로젝트 ID가 다르면 새로고침 시도
-        if (!structureData || (structureData.project_id && structureData.project_id != projectId)) {
-            console.log("Refreshing data in generateScript due to mismatch or missing");
-            try {
-                const projectFull = await API.project.getFull(projectId);
-                if (projectFull && projectFull.script_structure) {
-                    structureData = projectFull.script_structure;
-                    if (!structureData.topic && projectFull.project) {
-                        structureData.topic = projectFull.project.topic || projectFull.project.name;
-                    }
-                    if (!structureData.project_id) structureData.project_id = projectId;
-
-                    // [NEW] DB Settings에서 스타일 가져오기 (Fallback)
-                    if (projectFull.settings && projectFull.settings.script_style) {
-                        structureData.script_style = projectFull.settings.script_style;
-                    }
-                    Utils.storage.set('scriptStructure', structureData);
-                }
-            } catch (e) { console.error(e); }
-        }
-
-        if (!structureData) {
-            // [NEW] Shorts Auto Redirect Prompt
-            if (window.APP_MODE === 'shorts') {
-                if (confirm('쇼츠 대본을 만들기 위해 기획 데이터가 필요합니다.\n자동으로 생성하시겠습니까? (기획 페이지로 이동)')) {
-                    window.location.href = '/script-plan?mode=shorts&auto=true';
-                    return;
-                }
-            }
-            Utils.showToast('대본 구조 데이터가 없습니다. 기획 단계부터 진행해주세요.', 'error');
+        if (explorerData.folders.length === 0 && explorerData.files.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-10 text-gray-500">
+                    <div class="text-3xl mb-2">📭</div>
+                    <p class="text-sm">저장된 대본이 없습니다</p>
+                    <p class="text-xs mt-1 text-gray-600">AI로 대본을 생성해보세요</p>
+                </div>
+            `;
             return;
         }
 
-        // UI 프리뷰 강제 업데이트 (싱크 맞추기)
-        const previewEl = document.getElementById('previewContent');
-        if (previewEl) previewEl.textContent = JSON.stringify(structureData, null, 2);
+        let html = '';
 
-        // 2. 구조 데이터를 문자열로 변환 (버그 수정)
-        let structureText = '';
-        if (typeof structureData === 'string') {
-            structureText = structureData;
-        } else if (typeof structureData === 'object') {
-            // "structure" 키가 있으면 사용, 없으면 전체 객체 변환
-            structureText = structureData.structure || JSON.stringify(structureData, null, 2);
+        // Render folders
+        explorerData.folders.forEach(folder => {
+            const filesInFolder = explorerData.files.filter(f => f.folderId === folder.id);
+            html += `
+                <div class="folder-item mb-1"
+                     ondragover="event.preventDefault(); event.currentTarget.classList.add('bg-yellow-900/30');"
+                     ondragleave="event.currentTarget.classList.remove('bg-yellow-900/30');"
+                     ondrop="dropFileToFolder(event, '${folder.id}')">
+                    <div class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-800 cursor-pointer group" 
+                         onclick="toggleFolder('${folder.id}')">
+                        <span class="text-yellow-500" id="folderIcon_${folder.id}">📁</span>
+                        <span class="text-sm text-gray-300 flex-1" ondblclick="event.stopPropagation(); renameFolder('${folder.id}')">${folder.name}</span>
+                        <span class="text-xs text-gray-600">${filesInFolder.length}</span>
+                        <button onclick="event.stopPropagation(); deleteFolder('${folder.id}')" 
+                                class="opacity-0 group-hover:opacity-100 text-xs text-red-400 hover:text-red-300">✕</button>
+                    </div>
+                    <div id="folderContent_${folder.id}" class="hidden pl-4">
+                        ${filesInFolder.map(f => renderFileItem(f)).join('')}
+                    </div>
+                </div>
+            `;
+        });
+
+        // Render files without folder (root level)
+        const rootFiles = explorerData.files.filter(f => !f.folderId);
+        rootFiles.forEach(f => {
+            html += renderFileItem(f);
+        });
+
+        container.innerHTML = html;
+    }
+
+    function renderFileItem(file) {
+        const isActive = currentFileId === file.id;
+
+        // Determine status display
+        let statusIcon, statusColor, statusText;
+        if (file.hasScript) {
+            statusIcon = '📄';
+            statusColor = 'text-green-400';
+            statusText = '대본있음';
+        } else if (file.hasStructure) {
+            statusIcon = '📋';
+            statusColor = 'text-yellow-400';
+            statusText = '기획완료';
+        } else {
+            statusIcon = '📝';
+            statusColor = 'text-gray-500';
+            statusText = '기획중';
         }
 
-        // 주제정보 보강
-        const topic = document.getElementById('structureTopic').value || structureData.topic || structureData.hook || '유튜브 영상';
+        return `
+            <div class="file-item flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer group transition-colors
+                        ${isActive ? 'bg-blue-900/50 border border-blue-700' : 'hover:bg-gray-800'}"
+                 onclick="openFile(${file.id})"
+                 draggable="true"
+                 ondragstart="dragFile(event, ${file.id})">
+                <span class="${statusColor}">${statusIcon}</span>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm text-gray-200 truncate">${file.name}</p>
+                    <p class="text-[10px] text-gray-500 truncate">${file.topic || '주제 없음'}</p>
+                </div>
+                <span class="text-[10px] ${statusColor}">${statusText}</span>
+                <button onclick="event.stopPropagation(); deleteProject(${file.id}, '${file.name.replace(/'/g, "\\'")}')"
+                        class="opacity-0 group-hover:opacity-100 text-xs text-red-400 hover:text-red-300 ml-1" title="삭제">🗑️</button>
+            </div>
+        `;
+    }
 
-        // 길이 정보 보강 (기본값 60초 / 쇼츠는 30초)
-        let duration = structureData.duration || 60;
-
-        // [NEW] Shorts Mode Constraint
-        if (window.APP_MODE === 'shorts') {
-            duration = 30; // Default to 30s for shorts
-            // 만약 구조 데이터에 명시된 길이가 있어도 쇼츠라면 60초 미만으로 강제
-            if (structureData.duration && structureData.duration > 60) {
-                console.warn("Override duration for shorts mode to 59s");
-                duration = 59;
-            }
+    function toggleFolder(folderId) {
+        const content = document.getElementById(`folderContent_${folderId}`);
+        const icon = document.getElementById(`folderIcon_${folderId}`);
+        if (content.classList.contains('hidden')) {
+            content.classList.remove('hidden');
+            icon.textContent = '📂';
+        } else {
+            content.classList.add('hidden');
+            icon.textContent = '📁';
         }
+    }
 
-        // 한국어 말하기 속도: 초당 약 2.5~3음절 (여유있게 계산)
-        // 30초 -> 90~120자, 60초 -> 200~250자
-        // 너무 짧으면 AI가 내용을 못 채우므로 초당 4.5자 정도로 넉넉히 잡고 제한
-        // [NEW] 쇼츠는 좀 더 빠른 호흡을 위해 기준 조정
-        const charRate = (window.APP_MODE === 'shorts') ? 5 : 5;
-        const maxChars = duration * charRate;
-        const targetLenMsg = `${duration}초 영상 (약 ${Math.round(duration * 2.5)} ~ ${maxChars}자 내외)`;
-
-        const style = document.getElementById('scriptStyle').value;
-        const includeHooks = document.getElementById('includeHooks').checked;
-        const includeCTA = document.getElementById('includeCTA').checked;
-
-        const btn = document.getElementById('generateBtn');
-        Utils.setLoading(btn, true, '대본 생성 중...');
-
-        // 언어 설정 조회
-        let targetLanguage = 'ko'; // 기본값
+    async function openFile(projectId) {
         try {
-            const projectFull = await API.project.getFull(projectId);
-            if (projectFull && projectFull.settings && projectFull.settings.target_language) {
-                targetLanguage = projectFull.settings.target_language;
+            currentFileId = projectId;
+            setCurrentProject(projectId);
+
+            const full = await API.project.getFull(projectId);
+            if (full && full.script && full.script.full_script) {
+                currentScript = full.script.full_script;
+                document.getElementById('scriptContent').value = currentScript;
+                document.getElementById('resultSection').classList.remove('hidden');
+                document.getElementById('currentFileIndicator').textContent = full.project?.name || '대본';
+                updateStats();
+
+                // Update structure data if exists
+                if (full.script_structure) {
+                    Utils.storage.set('scriptStructure', full.script_structure);
+                    document.getElementById('analysisInfo').classList.remove('hidden');
+                    document.getElementById('structureTopic').value = full.project?.topic || '';
+                }
+
+                Utils.showToast(`"${full.project?.name}" 열림`, 'success');
+                renderExplorer(); // Refresh to show active state
             }
         } catch (e) {
-            console.error("Failed to fetch project settings for language:", e);
+            console.error(e);
+            Utils.showToast('파일 열기 실패', 'error');
+        }
+    }
+
+    // ========== FOLDER MANAGEMENT ==========
+
+    function createNewFolder() {
+        document.getElementById('folderModal').classList.remove('hidden');
+        document.getElementById('folderModal').classList.add('flex');
+        document.getElementById('newFolderName').focus();
+    }
+
+    function closeFolderModal() {
+        document.getElementById('folderModal').classList.add('hidden');
+        document.getElementById('folderModal').classList.remove('flex');
+        document.getElementById('newFolderName').value = '';
+    }
+
+    function confirmCreateFolder() {
+        const name = document.getElementById('newFolderName').value.trim();
+        if (!name) {
+            Utils.showToast('폴더 이름을 입력하세요', 'warning');
+            return;
         }
 
-        // 언어 이름 매핑
-        const langMap = {
-            'ko': '한국어',
-            'en': 'English',
-            'ja': 'Japanese',
-            'es': 'Spanish'
-        };
-        const langName = langMap[targetLanguage] || targetLanguage;
+        const folders = JSON.parse(localStorage.getItem('scriptFolders') || '[]');
+        folders.push({
+            id: 'folder_' + Date.now(),
+            name: name,
+            created: new Date().toISOString()
+        });
+        localStorage.setItem('scriptFolders', JSON.stringify(folders));
 
-        // 섹션별 순차 생성 (긴 영상 대응)
-        let finalScript = "";
-        const sections = structureData.sections || [];
+        closeFolderModal();
+        refreshExplorer();
+        Utils.showToast(`폴더 "${name}" 생성됨`, 'success');
+    }
 
-        // [NEW] Shorts Mode Structure Validation
-        if (window.APP_MODE === 'shorts' && sections.length > 8) {
-            const confirmFix = confirm(
-                `현재 대본 구조가 롱폼용으로 생성되어 있습니다 (${sections.length}개 섹션).\n` +
-                "이대로 진행하면 내용이 너무 길어집니다.\n\n" +
-                "'확인'을 누르면 [기획 단계]로 이동하여 쇼츠용으로 다시 구성합니다.\n" +
-                "'취소'를 누르면 강제로 진행합니다."
-            );
-            if (confirmFix) {
-                window.location.href = '/script-plan?auto=true&mode=shorts';
-                return;
+    function renameFolder(folderId) {
+        const newName = prompt('새 폴더 이름:');
+        if (!newName) return;
+
+        const folders = JSON.parse(localStorage.getItem('scriptFolders') || '[]');
+        const folder = folders.find(f => f.id === folderId);
+        if (folder) {
+            folder.name = newName;
+            localStorage.setItem('scriptFolders', JSON.stringify(folders));
+            refreshExplorer();
+            Utils.showToast('이름 변경됨', 'success');
+        }
+    }
+
+    function deleteFolder(folderId) {
+        if (!confirm('이 폴더를 삭제하시겠습니까? (파일은 삭제되지 않습니다)')) return;
+
+        let folders = JSON.parse(localStorage.getItem('scriptFolders') || '[]');
+        folders = folders.filter(f => f.id !== folderId);
+        localStorage.setItem('scriptFolders', JSON.stringify(folders));
+
+        // Move files to root
+        explorerData.files.forEach(f => {
+            if (f.folderId === folderId) {
+                localStorage.removeItem(`script_folder_${f.id}`);
             }
+        });
+
+        refreshExplorer();
+        Utils.showToast('폴더 삭제됨', 'success');
+    }
+
+    // Drag & Drop
+    function dragFile(event, fileId) {
+        event.dataTransfer.setData('fileId', fileId);
+    }
+
+    function dropFileToFolder(event, folderId) {
+        event.preventDefault();
+        event.currentTarget.classList.remove('bg-yellow-900/30');
+
+        const fileId = event.dataTransfer.getData('fileId');
+        if (!fileId) return;
+
+        // Save folder assignment to localStorage
+        localStorage.setItem(`script_folder_${fileId}`, folderId);
+
+        // Update local data
+        const file = explorerData.files.find(f => f.id == fileId);
+        if (file) {
+            file.folderId = folderId;
         }
 
-        // 전체 구조 텍스트 (문맥 유지용)
-        const fullStructureSummary = sections.map((s, i) => `${i + 1}. ${s.title}: ${s.key_points.join(', ')}`).join('\n');
+        renderExplorer();
+        Utils.showToast('파일이 폴더로 이동되었습니다', 'success');
+    }
 
-        // 스타일별 상세 지침 매핑
-        const styleInstructionMap = {
-            'narration': `
-                - **전문적이고 신뢰감 있는 톤**을 유지하되, 지루하지 않게 작성하세요.
-                - 복잡한 개념은 쉽고 명확한 비유를 들어 설명하세요.
-                - "자, 여기를 보시죠", "이것이 왜 중요할까요?" 같은 문구로 시청자의 주의를 환기하세요.
-                - 논리적인 흐름(A이므로 B이다)을 명확히 하세요.`,
-            'conversational': `
-                - **옆집 친구에게 말하듯 편안하고 친근한 반말**(~해, ~했어)을 사용하세요.
-                - 무거운 주제도 가볍고 위트 있게 풀어내세요.
-                - "있잖아, 그거 알아?", "진짜 대박이지 않아?" 같은 구어체 추임새를 적절히 섞으세요.
-                - 시청자의 공감을 이끌어내는 문장을 자주 사용하세요.`,
-            'storytelling': `
-                - **훌륭한 이야기꾼(Storyteller)**이 되어, 듣는 이가 다음 내용이 궁금해 미치도록 만드세요.
-                - **"도대체 왜 그랬을까요?", "하지만 여기서 반전이 일어납니다."**와 같은 **호기심 유발 질문(Curiosity Gap)**을 지속적으로 던지세요.
-                - 단순한 사실 나열을 멈추고, 눈앞에 그려지는 듯한 **생생하고 감각적인 묘사**를 사용하세요.
-                - 문장과 문장 사이를 매끄럽게 잇는 **연결 고리(Bridge)**를 사용하여 몰입감을 깨뜨리지 마세요.
-                - 긴장감을 조성했다가 해소하는 방식을 사용하여 드라마틱한 전개를 만드세요.`,
-            'senior_story': `
-                - **인생의 지혜와 깊이가 느껴지는 따뜻하고 차분한 어조**로 작성하세요.
-                - 마치 **오랜 친구나 인생 선배가 옆에서 조곤조곤 이야기해주는 듯한 느낌**을 주세요.
-                - 너무 빠르거나 가벼운 유행어는 피하고, **이해하기 쉬운 순우리말이나 익숙한 표현**을 사용하세요.
-                - **"참 기가 막힌 일이죠.", "그때 마음이 어땠겠습니까."** 같은 **공감과 감탄**을 자아내는 표현을 적절히 섞으세요.
-                - 듣는 이의 마음을 어루만지는 **위로와 공감, 그리고 감동**을 주는 이야기를 만드세요.`,
-            'bgm': `
-                - **배경음악(BGM)이 주인공인 영상**입니다. 내레이션은 최소화하고 음악의 감동을 극대화하세요.
-                - 구구절절한 설명보다는 **짧고 강렬한 감성적인 문구**나 **명언**, **시적인 표현**을 사용하세요.
-                - 음악의 비트나 분위기에 맞춰 **호흡이 긴 여운 있는 문장**을 배치하세요.
-                - 청각적 요소(빗소리, 파도 소리 등)나 시각적 묘사를 글에 담아 듣는 이가 상상하게 만드세요.
-                - "마음을 편안하게 하세요", "잠시 눈을 감아보세요" 같은 **청유형 문장**으로 힐링을 유도하세요.`
-        };
-
-        // [NEW] 글로벌 설정에서 커스텀 프롬프트 가져오기
-        let selectedStyleInstruction = styleInstructionMap[style] || styleInstructionMap['narration'];
-
-        if (style === 'news' || style === 'story' || style === 'senior_story') {
-            try {
-                const settingsRes = await fetch('/api/settings');
-                const settingsData = await settingsRes.json();
-                if (settingsData.script_styles && settingsData.script_styles[style]) {
-                    selectedStyleInstruction = `- **${style === 'news' ? '뉴스 보도' : '옛날 이야기'} 스타일 지침:**\n${settingsData.script_styles[style]}`;
-                }
-            } catch (e) {
-                console.error("Failed to fetch custom style prompts:", e);
-            }
+    // Remove file from folder (move to root)
+    function removeFromFolder(fileId) {
+        localStorage.removeItem(`script_folder_${fileId}`);
+        const file = explorerData.files.find(f => f.id == fileId);
+        if (file) {
+            file.folderId = null;
         }
+        renderExplorer();
+        Utils.showToast('폴더에서 제거됨', 'info');
+    }
 
-        // 섹션이 없으면 기존 방식(통생성)으로 처리
-        if (sections.length === 0) {
-            // Fallback: 섹션이 없을 경우 처리 로직이 필요하지만, 현재는 구조화된 데이터를 기본으로 가정합니다.
-            console.warn("No sections found in structure data.");
+    // Delete project
+    async function deleteProject(projectId, projectName) {
+        if (!confirm(`"${projectName}" 프로젝트를 삭제하시겠습니까?\n\n⚠️ 이 작업은 되돌릴 수 없습니다!`)) {
+            return;
         }
-
-        Utils.setLoading(btn, true, `대본 생성 중... (0 / ${sections.length})`);
-        document.getElementById('resultSection').classList.remove('hidden'); // 미리 보여줌
-
-        // [NEW] Stop Button Logic
-        document.getElementById('stopBtn').classList.remove('hidden');
 
         try {
-            console.log(`Starting generation for ${sections.length} sections.`);
-            for (let i = 0; i < sections.length; i++) {
-                if (window.stopGeneration) {
-                    console.log("Generation stopped by user.");
-                    Utils.showToast('생성이 중단되었습니다. 현재까지의 내용을 저장합니다.', 'warning');
-                    break;
-                }
-
-                const section = sections[i];
-                console.log(`Processing section ${i + 1}/${sections.length}: ${section.title}`);
-                Utils.setLoading(btn, true, `대본 생성 중... (${i + 1}/${sections.length} - ${section.title})`);
-
-                // 섹션별 예상 길이 계산 (초 단위)
-                const sectionDuration = Math.floor(duration / sections.length);
-                // 한국어 말하기 속도: 초당 약 2.5~3음절. 넉넉하게 2.5~5자 범위로 가이드.
-                const minChars = Math.floor(sectionDuration * 2.5);
-                const maxChars = Math.floor(sectionDuration * 5);
-                const sectionTargetMsg = `${sectionDuration}초 분량 (최소 ${minChars}자 ~ 최대 ${maxChars}자 내외)`;
-
-                const sectionPrompt = `당신은 ${duration}초 분량의 ${window.APP_MODE === 'shorts' ? '유튜브 쇼츠(Shorts)' : '유튜브 장편 영상'} 대본 작가입니다.
-전체 기획된 대본 구조 중 ** "${section.title}" ** 파트를 작성해주세요.
-
-[전체 대본 구조]
-${fullStructureSummary}
-
-        [현재 작성할 파트]
-            - 섹션: ${section.title}
-        - 주요 내용: ${section.key_points.join(', ')}
-        - 목표 길이: ${sectionTargetMsg} (이 섹션만 충실하게 작성)
-
-        [작성 지침]
-        1. 앞뒤 문맥('이전 섹션 요약' 참고)을 고려하여 자연스럽게 이어지도록 쓰세요.
-        2. ** 스타일 지침(매우 중요):**
-            ${selectedStyleInstruction}
-
-         3. ** 분량을 충분히 뽑아주세요. (단, 목표 길이 준수)**
-            - 현재 섹션의 목표 분량은 **${minChars}자 이상**입니다. 
-            ${window.APP_MODE === 'shorts' ?
-                        `- **[쇼츠 필독]**: 군더더기 없이 **핵심만 타격감 있게** 전달하세요. 서론을 길게 빼지 말고 바로 본론으로 들어가야 합니다. 불필요한 수식어를 제거하고 호흡을 짧게 가져가세요. 전체 60초를 절대 넘기면 안 됩니다.`
-                        :
-                        `- 내용이 부족하다면 구체적인 사례, 통계, 전문가의 견해, 관련 비하인드 스토리 등을 추가하여 내용을 대폭 보강하세요.
-            - 핵심 키포인트를 하나하나 심도 있게 다루십시오.`}
-            
-        4. 섹션 제목(예: [서론])은 출력하지 말고, 오직 대본 본문만 작성하세요.
-        5. ** 반드시 한국어로 작성하세요.** (1차 생성은 무조건 한국어)
-        6. **현재 섹션의 내용만 작성하고, 절대 다음 섹션(결론 등)이나 마무리 멘트를 미리 작성하지 마세요.**
-
-        [이전까지 내용 요약(문맥 참고용)]
-${finalScript.length > 500 ? finalScript.substring(finalScript.length - 500) : finalScript} ... (직전 내용)
-
-오직 대본 본문만 작성하세요.`;
-
-                try {
-                    // 60초 타임아웃 레이스
-                    const fetchPromise = API.gemini.generate(sectionPrompt, { temperature: 0.7, maxTokens: 4096 });
-                    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 90000));
-
-                    const result = await Promise.race([fetchPromise, timeoutPromise]);
-
-                    if (result.status === 'ok') {
-                        const sectionText = result.text.trim();
-                        // 중복 방지: 이미 내용이 포함된 경우 건너뛰기
-                        if (!finalScript.includes(sectionText.substring(0, 20))) {
-                            finalScript += `\n\n ** [${section.title}] **\n${sectionText} `;
-                        }
-
-                        // [NEW] 중간 결과 저장 (매 섹션마다)
-                        Utils.storage.set('fullScript', {
-                            topic: structureData?.topic || '영상',
-                            script: finalScript,
-                            timestamp: Date.now()
-                        });
-                        if (projectId) {
-                            API.project.saveScript(projectId, finalScript, finalScript.length, Math.ceil(finalScript.length / 415)).catch(e => console.error("Auto-save failed:", e));
-                        }
-
-                        // 중간 결과 표시
-                        const textArea = document.getElementById('scriptContent');
-                        if (textArea) textArea.value = finalScript;
-                        updateStats();
-                        console.log(`Section ${i + 1} complete.`);
-                    } else {
-                        console.error(`Section ${i + 1} failed`, result);
-                        finalScript += `\n\n[${section.title} 파트 생성 실패]\n`;
-                    }
-                } catch (innerErr) {
-                    console.error(`Error generating section ${i + 1}:`, innerErr);
-                    finalScript += `\n\n[${section.title} 파트 생성 중 오류 발생]\n`;
-                }
-
-                // API Rate Limit 방지용 대기 (마지막 섹션 제외)
-                if (i < sections.length - 1) {
-                    console.log(`Waiting before next section...`);
-                    await new Promise(r => setTimeout(r, 1000));
-                }
-            }
-
-            console.log("All sections completed.");
-
-            // 최종 완료
-            currentScript = finalScript;
-            Utils.storage.set('fullScript', {
-                topic: structureData?.topic || '영상',
-                script: currentScript,
-                timestamp: Date.now()
+            const response = await fetch(`/api/projects/${projectId}`, {
+                method: 'DELETE'
             });
 
-            // [FIX] DB에 대본 저장 (중요: 그래야 진행상태가 업데이트됨)
-            if (projectId) {
-                try {
-                    const charCount = currentScript.length;
-                    const readTime = Math.ceil(charCount / 415);
-                    await API.project.saveScript(projectId, currentScript, charCount, readTime);
-                    console.log("Script saved to DB successfully.");
-                    // [NEW] Update Stepper
-                    if (window.updateStepStatus) window.updateStepStatus('script', true);
-                } catch (dbErr) {
-                    console.error("Failed to save script to DB:", dbErr);
+            if (response.ok) {
+                // Remove from local storage
+                localStorage.removeItem(`script_folder_${projectId}`);
+
+                // Update explorer
+                explorerData.files = explorerData.files.filter(f => f.id !== projectId);
+                renderExplorer();
+
+                // Clear editor if this was the active file
+                if (currentFileId === projectId) {
+                    currentFileId = null;
+                    document.getElementById('scriptContent').value = '';
+                    document.getElementById('resultSection').classList.add('hidden');
+                    document.getElementById('currentFileIndicator').textContent = '새 대본';
                 }
-            }
 
-            Utils.showToast('전체 대본 생성이 완료되었습니다', 'success');
-
-            // 번역 버튼 표시 여부 체크
-            checkTranslationAvailability(targetLanguage);
-
-            // [NEW] 대본 기반 제목 자동 생성 및 저장
-            if (!window.stopGeneration) {
-                await autoGenerateTitle(projectId, currentScript);
-            }
-
-        } catch (error) {
-            console.error('생성 오류:', error);
-            Utils.showToast('생성 중 오류가 발생했습니다: ' + error.message, 'error');
-        } finally {
-            console.log("Process finished, resetting button.");
-            Utils.setLoading(btn, false);
-            document.getElementById('stopBtn').classList.add('hidden');
-            window.stopGeneration = false;
-        }
-    }
-
-    // 제목 자동 생성 및 저장 함수
-    async function autoGenerateTitle(projectId, script) {
-        try {
-            Utils.showToast('AI가 최적의 제목을 선정하고 있습니다...', 'info');
-
-            const prompt = `당신은 유튜브 썸네일/제목 어그로 장인입니다.
-다음 대본 내용을 바탕으로 클릭률(CTR)을 극대화할 수 있는 **가장 강력한 후킹성 제목 1개**를 작성해주세요.
-
-[대본 요약]
-${script.substring(0, 2000)}...
-
-[조건]
-1. 따옴표 없이 제목 텍스트만 출력하세요.
-2. 30자 이내로 짧고 강렬하게 작성하세요.
-3. 호기심을 자극하거나 이득을 강조하는 스타일이어야 합니다.
-4. 예시: "이것만 알면 인생이 바뀝니다", "99%가 모르는 충격적인 사실"
-5. **오직 제목 1줄만 반환하세요.**`;
-
-            const result = await API.gemini.generate(prompt, { temperature: 0.8 });
-
-            if (result.status === 'ok') {
-                let newTitle = result.text.trim().replace(/^["']|["']$/g, ''); // 따옴표 제거
-                console.log("Auto-generated Title:", newTitle);
-
-                // 프로젝트 정보 업데이트
-                await API.project.update(projectId, { video_title: newTitle });
-
-                Utils.showToast(`제목이 자동 설정되었습니다: ${newTitle}`, 'success');
-
-                // (선택) 상단 헤더 업데이트가 가능하다면 수행 (헤더에 제목 표시 기능이 있다면)
-                // const titleEl = document.getElementById('projectTitleDisplay');
-                // if(titleEl) titleEl.textContent = newTitle;
+                Utils.showToast(`"${projectName}" 삭제됨`, 'success');
+            } else {
+                throw new Error('삭제 실패');
             }
         } catch (e) {
-            console.error("Auto title generation failed:", e);
-            // 제목 생성 실패는 크리티컬하지 않으므로 조용히 넘어감 (로그만 남김)
+            console.error('Delete error:', e);
+            Utils.showToast('삭제 중 오류 발생', 'error');
         }
     }
 
-    function stopAndSave() {
-        if (window.confirm('대본 생성을 강제로 중단하고 현재까지의 내용을 저장하시겠습니까?\n(마지막 섹션 생성 작업은 완료될 때까지 기다릴 수 있습니다.)')) {
-            window.stopGeneration = true;
-            const btn = document.getElementById('stopBtn');
-            btn.innerHTML = '🛑 중단 중...';
-            btn.disabled = true;
+    // ========== SCRIPT FUNCTIONS ==========
+
+    function setScriptMode(mode) {
+        const tabAI = document.getElementById('tabAI');
+        const tabManual = document.getElementById('tabManual');
+        const sectionAI = document.getElementById('aiGenSection');
+        const sectionManual = document.getElementById('manualInputSection');
+
+        if (mode === 'ai') {
+            tabAI.classList.add('bg-gray-700', 'text-white', 'font-bold');
+            tabAI.classList.remove('text-gray-400');
+            tabManual.classList.remove('bg-gray-700', 'text-white', 'font-bold');
+            tabManual.classList.add('text-gray-400');
+            sectionAI.classList.remove('hidden');
+            sectionManual.classList.add('hidden');
+        } else {
+            tabManual.classList.add('bg-gray-700', 'text-white', 'font-bold');
+            tabManual.classList.remove('text-gray-400');
+            tabAI.classList.remove('bg-gray-700', 'text-white', 'font-bold');
+            tabAI.classList.add('text-gray-400');
+            sectionAI.classList.add('hidden');
+            sectionManual.classList.remove('hidden');
+        }
+    }
+
+    async function saveCurrentScript() {
+        const projectId = getCurrentProject();
+        const script = document.getElementById('scriptContent').value;
+
+        if (!script.trim()) {
+            Utils.showToast('저장할 내용이 없습니다', 'warning');
+            return;
+        }
+
+        if (!projectId) {
+            Utils.showToast('프로젝트를 먼저 선택해주세요', 'warning');
+            return;
+        }
+
+        try {
+            const charCount = script.length;
+            const readTime = Math.ceil(charCount / 415);
+            await API.project.saveScript(projectId, script, charCount, readTime);
+            Utils.showToast('저장되었습니다', 'success');
+            refreshExplorer();
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('저장 실패', 'error');
         }
     }
 
     function updateStats() {
         const text = document.getElementById('scriptContent').value;
         const charCount = text.length;
-        const readTime = Math.ceil(charCount / 415); // 분당 415자 기준 (Edge TTS 1.0 속도 최적화)
+        const readTime = Math.ceil(charCount / 415);
 
-        document.getElementById('charCount').textContent = `${charCount.toLocaleString()} 자`;
-        document.getElementById('readTime').textContent = `예상 읽기 시간: ${readTime} 분`;
+        document.getElementById('charCount').textContent = `${charCount.toLocaleString()}자`;
+        document.getElementById('readTime').textContent = `읽기 시간: ${readTime}분`;
     }
 
     document.getElementById('scriptContent')?.addEventListener('input', updateStats);
@@ -688,223 +535,190 @@ ${script.substring(0, 2000)}...
         Utils.showToast('복사되었습니다', 'success');
     }
 
-    function downloadScript() {
-        const text = document.getElementById('scriptContent').value;
-        const topic = Utils.storage.get('scriptStructure')?.topic || '대본';
-        Utils.downloadFile(text, `${topic} _대본.txt`);
-    }
+    function goToImageGen() { window.location.href = '/image-gen'; }
+    function goToTTS() { window.location.href = '/tts'; }
 
-    function goToImageGen() {
-        window.location.href = '/image-gen';
-    }
+    // ========== INITIALIZATION ==========
 
-    function goToTTS() {
-        window.location.href = '/tts';
-    }
+    document.addEventListener('DOMContentLoaded', async () => {
+        // Load explorer
+        await refreshExplorer();
 
-    // 프로젝트 상태 복구 이벤트 수신
-    window.addEventListener('projectStateRestored', (e) => {
-        const data = e.detail;
+        // Load structure data
+        const projectId = getCurrentProject();
+        if (projectId) {
+            try {
+                const projectFull = await API.project.getFull(projectId);
+                if (projectFull && projectFull.script_structure) {
+                    Utils.storage.set('scriptStructure', projectFull.script_structure);
+                    document.getElementById('analysisInfo').classList.remove('hidden');
+                    document.getElementById('structureTopic').value = projectFull.project?.topic || '';
 
-        // 1. 대본 데이터 복구
-        if (data.script && data.script.full_script) {
-            currentScript = data.script.full_script;
-            const textarea = document.getElementById('scriptContent');
-            if (textarea) textarea.value = currentScript;
+                    const styleCode = projectFull.script_structure.script_style || 'news';
+                    document.getElementById('scriptStyle').value = styleCode;
+                    document.getElementById('scriptStyleDisplay').value = styleCode;
+                }
 
-            document.getElementById('resultSection').classList.remove('hidden');
-            if (window.updateStats) updateStats();
-
-            // 로컬 스토리지 동기화
-            Utils.storage.set('fullScript', {
-                topic: data.project?.topic || '영상',
-                script: currentScript,
-                timestamp: Date.now()
-            });
-        }
-
-        // 2. 구조 데이터 복구 (필요시)
-        if (data.script_structure) {
-            Utils.storage.set('scriptStructure', data.script_structure);
+                if (projectFull && projectFull.script && projectFull.script.full_script) {
+                    currentScript = projectFull.script.full_script;
+                    currentFileId = projectId;
+                    document.getElementById('scriptContent').value = currentScript;
+                    document.getElementById('resultSection').classList.remove('hidden');
+                    document.getElementById('currentFileIndicator').textContent = projectFull.project?.name || '대본';
+                    updateStats();
+                }
+            } catch (e) {
+                console.error(e);
+            }
         }
     });
 
-    // 초기 로드 시 로컬 스토리지 확인
-    document.addEventListener('DOMContentLoaded', () => {
-        const savedScript = Utils.storage.get('fullScript');
-        if (savedScript && savedScript.script) {
-            currentScript = savedScript.script;
-            const textarea = document.getElementById('scriptContent');
-            if (textarea) textarea.value = currentScript;
-            document.getElementById('resultSection').classList.remove('hidden');
-            if (window.updateStats) updateStats();
+    // ========== GENERATION ==========
+
+    async function generateScript() {
+        const projectId = getCurrentProject();
+        if (!projectId) {
+            Utils.showToast('프로젝트를 먼저 선택해주세요', 'warning');
+            return;
         }
-    });
-    function checkTranslationAvailability(targetLang) {
-        if (targetLang && targetLang !== 'ko') {
-            const btn = document.getElementById('translateBtn');
-            btn.classList.remove('hidden');
-            btn.textContent = `🌐 ${targetLang === 'en' ? '영어' : targetLang === 'ja' ? '일본어' : '외국어'}로 번역하기`;
-            btn.dataset.lang = targetLang;
+
+        // Try to get structure data from storage or fetch from server
+        let structureData = Utils.storage.get('scriptStructure');
+
+        if (!structureData || !structureData.sections || structureData.sections.length === 0) {
+            console.log("No local structure, fetching from server...");
+            try {
+                const projectFull = await API.project.getFull(projectId);
+                if (projectFull && projectFull.script_structure) {
+                    structureData = projectFull.script_structure;
+                    Utils.storage.set('scriptStructure', structureData);
+                }
+            } catch (e) {
+                console.error("Failed to fetch structure:", e);
+            }
         }
-    }
 
-    async function translateScript() {
-        const btn = document.getElementById('translateBtn');
-        const targetLang = btn.dataset.lang;
-        const script = document.getElementById('scriptContent').value;
+        if (!structureData || !structureData.sections || structureData.sections.length === 0) {
+            Utils.showToast('대본 구조 데이터가 없습니다. "대본 기획" 단계를 먼저 진행해주세요.', 'error');
+            return;
+        }
 
-        if (!script) return;
+        const btn = document.getElementById('generateBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        Utils.setLoading(btn, true, '생성 준비 중...');
+        stopBtn.classList.remove('hidden');
+        window.stopGeneration = false;
 
-        if (!confirm('현재 대본을 번역하시겠습니까? (기존 내용은 덮어씌워집니다)')) return;
+        const sections = structureData.sections;
+        const topic = document.getElementById('structureTopic')?.value || structureData.topic || '영상';
+        let finalScript = '';
 
-        const originalText = btn.innerHTML;
-        Utils.setLoading(btn, true, '번역 중...');
+        console.log(`Starting generation: ${sections.length} sections`);
 
         try {
-            const response = await fetch('/api/gemini/translate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    text: script,
-                    target_language: targetLang
-                })
-            });
+            for (let i = 0; i < sections.length; i++) {
+                if (window.stopGeneration) {
+                    console.log("Stopped by user");
+                    Utils.showToast('사용자에 의해 중단됨', 'warning');
+                    break;
+                }
 
-            const result = await response.json();
+                const section = sections[i];
+                const keyPoints = section.key_points || [];
+                Utils.setLoading(btn, true, `생성 중... (${i + 1}/${sections.length}: ${section.title})`);
+                console.log(`Generating section ${i + 1}: ${section.title}`);
 
-            if (result.status === 'ok') {
-                const translated = result.translated_text;
-                document.getElementById('scriptContent').value = translated;
-                currentScript = translated;
-                updateStats(); // 글자수 업데이트
+                const prompt = `당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "${section.title}" 파트를 작성해주세요.
 
-                // 저장
-                const topic = document.getElementById('structureTopic').value || '영상';
-                Utils.storage.set('fullScript', {
-                    topic: topic,
-                    script: translated,
-                    timestamp: Date.now()
-                });
+[영상 주제]
+${topic}
 
-                // DB 저장 (선택 사항, 유저가 원할 때 저장하게 놔둘 수도 있지만 일단 자동 저장이 없으므로)
+[현재 섹션]
+- 제목: ${section.title}
+- 주요 내용: ${keyPoints.length > 0 ? keyPoints.join(', ') : '자유롭게 작성'}
 
-                Utils.showToast('번역이 완료되었습니다', 'success');
-            } else {
-                throw new Error(result.error);
+[작성 지침]
+1. 자연스럽고 몰입감 있는 한국어 대본을 작성하세요.
+2. 섹션 제목은 출력하지 말고, 본문만 작성하세요.
+3. 약 500~800자 분량으로 작성하세요.
+
+본문만 출력하세요:`;
+
+                try {
+                    const result = await API.gemini.generate(prompt, { temperature: 0.7, maxTokens: 2048 });
+                    console.log(`Section ${i + 1} result:`, result.status);
+
+                    if (result.status === 'ok' && result.text) {
+                        finalScript += `\n\n**[${section.title}]**\n${result.text.trim()}`;
+                    } else {
+                        finalScript += `\n\n**[${section.title}]**\n(이 섹션 생성 실패: ${result.error || '알 수 없는 오류'})\n`;
+                    }
+                } catch (sectionErr) {
+                    console.error(`Section ${i + 1} error:`, sectionErr);
+                    finalScript += `\n\n**[${section.title}]**\n(생성 오류: ${sectionErr.message})\n`;
+                }
+
+                // Show progress
+                document.getElementById('scriptContent').value = finalScript.trim();
+                document.getElementById('resultSection').classList.remove('hidden');
+                updateStats();
+
+                // Small delay between sections to avoid rate limiting
+                if (i < sections.length - 1 && !window.stopGeneration) {
+                    await new Promise(r => setTimeout(r, 500));
+                }
             }
+
+            currentScript = finalScript.trim();
+
+            // Save to DB
+            if (currentScript) {
+                const charCount = currentScript.length;
+                const readTime = Math.ceil(charCount / 415);
+                await API.project.saveScript(projectId, currentScript, charCount, readTime);
+                console.log("Script saved to DB");
+            }
+
+            Utils.showToast('대본 생성 완료!', 'success');
+            refreshExplorer();
+
         } catch (e) {
-            console.error(e);
-            Utils.showToast('번역 실패: ' + e.message, 'error');
+            console.error('Generation error:', e);
+            Utils.showToast('생성 오류: ' + e.message, 'error');
         } finally {
             Utils.setLoading(btn, false);
-            btn.innerHTML = originalText;
+            stopBtn.classList.add('hidden');
+            window.stopGeneration = false;
         }
     }
 
-    // 프로젝트 로드 시에도 언어 체크
-    window.addEventListener('projectChanged', async (e) => {
-        const projectId = e.detail.projectId;
-        try {
-            const projectFull = await API.project.getFull(projectId);
-            if (projectFull && projectFull.settings && projectFull.settings.target_language) {
-                checkTranslationAvailability(projectFull.settings.target_language);
-            }
-        } catch (e) { }
-    });
-
-    // [NEW] 탭 전환 및 수동 등록 로직
-    function setScriptMode(mode) {
-        const tabAI = document.getElementById('tabAI');
-        const tabManual = document.getElementById('tabManual');
-        const sectionAI = document.getElementById('aiGenSection');
-        const sectionManual = document.getElementById('manualInputSection');
-
-        if (mode === 'ai') {
-            // Activate AI Tab
-            tabAI.classList.add('border-blue-500', 'text-blue-600', 'dark:text-blue-400');
-            tabAI.classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
-
-            // Deactivate Manual Tab
-            tabManual.classList.remove('border-blue-500', 'text-blue-600', 'dark:text-blue-400');
-            tabManual.classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
-
-            sectionAI.classList.remove('hidden');
-            sectionManual.classList.add('hidden');
-        } else {
-            // Activate Manual Tab
-            tabManual.classList.add('border-blue-500', 'text-blue-600', 'dark:text-blue-400');
-            tabManual.classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
-
-            // Deactivate AI Tab
-            tabAI.classList.remove('border-blue-500', 'text-blue-600', 'dark:text-blue-400');
-            tabAI.classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
-
-            sectionAI.classList.add('hidden');
-            sectionManual.classList.remove('hidden');
-        }
+    function stopAndSave() {
+        window.stopGeneration = true;
+        Utils.showToast('생성 중단됨', 'warning');
     }
 
     async function registerManualScript() {
-        const scriptInput = document.getElementById('manualScriptInput');
-        const scriptText = scriptInput.value.trim();
-
-        if (!scriptText) {
-            Utils.showToast('대본 내용을 입력해주세요', 'warning');
+        const text = document.getElementById('manualScriptInput').value.trim();
+        if (!text) {
+            Utils.showToast('대본을 입력해주세요', 'warning');
             return;
         }
 
         const projectId = getCurrentProject();
-        // 기획 데이터에서 주제 가져오기
-        const structureData = Utils.storage.get('scriptStructure') || {};
-        const topic = structureData.topic || '외부 대본';
-
-        // 1. UI 및 변수 업데이트
-        currentScript = scriptText;
-        const textArea = document.getElementById('scriptContent');
-        if (textArea) textArea.value = currentScript;
-
+        currentScript = text;
+        document.getElementById('scriptContent').value = text;
         document.getElementById('resultSection').classList.remove('hidden');
         updateStats();
 
-        // 2. 저장 (로컬 + DB)
-        Utils.storage.set('fullScript', {
-            topic: topic,
-            script: currentScript,
-            timestamp: Date.now()
-        });
-
         if (projectId) {
             try {
-                const charCount = currentScript.length;
-                const readTime = Math.ceil(charCount / 415);
-                await API.project.saveScript(projectId, currentScript, charCount, readTime);
-                Utils.showToast('대본이 성공적으로 등록되었습니다', 'success');
-                // [NEW] Update Stepper
-                if (window.updateStepStatus) window.updateStepStatus('script', true);
-
-                // 제목 자동 생성 (선택 사항)
-                // await autoGenerateTitle(projectId, currentScript); 
-
-                // 스크롤 이동
-                document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth' });
-
-                // 탭을 AI 모드로 복귀? 아니면 그대로? -> 그대로 둠.
-
+                await API.project.saveScript(projectId, text, text.length, Math.ceil(text.length / 415));
+                Utils.showToast('대본이 저장되었습니다', 'success');
+                refreshExplorer();
             } catch (e) {
-                console.error("Manual save failed:", e);
-                Utils.showToast('저장 중 오류가 발생했습니다', 'error');
+                console.error(e);
             }
-        } else {
-            Utils.showToast('로컬에 저장되었습니다 (프로젝트 미선택)', 'info');
-            document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth' });
         }
-    }
-
-    function copyStructurePreview() {
-        const text = document.getElementById('previewContent').textContent;
-        Utils.copyToClipboard(text);
-        Utils.showToast('구조 데이터가 복사되었습니다', 'success');
     }
 </script>
 {% endblock %}

@@ -566,7 +566,9 @@ async def save_script_structure(project_id: int, req: ScriptStructureSave):
 @app.get("/api/projects/{project_id}/script-structure")
 async def get_script_structure(project_id: int):
     """대본 구조 조회"""
-    return db.get_script_structure(project_id) or {}
+    data = db.get_script_structure(project_id)
+    print(f"[DEBUG] get_script_structure({project_id}): sections={len(data.get('sections', [])) if data else 'None'}")
+    return data or {}
 
 
 @app.post("/api/projects/{project_id}/script-structure/auto")
@@ -1107,6 +1109,169 @@ async def youtube_channel(channel_id: str):
             params=params
         )
         return response.json()
+
+# [NEW] Batch Analysis Request Model
+class BatchAnalysisRequest(BaseModel):
+    folder_name: str
+    videos: List[dict] # {id, title, channelTitle, viewCount...}
+
+@app.post("/api/topic/analyze-batch")
+async def analyze_batch_videos(req: BatchAnalysisRequest):
+    """선택한 영상 일괄 분석 및 시트 생성"""
+    if not req.folder_name or not req.videos:
+        raise HTTPException(400, "폴더명과 영상 목록은 필수입니다.")
+
+    # 1. 폴더 생성
+    sanitized_folder = "".join([c for c in req.folder_name if c.isalnum() or c in (' ', '-', '_')]).strip()
+    target_dir = os.path.join(config.OUTPUT_DIR, "analysis", sanitized_folder)
+    os.makedirs(target_dir, exist_ok=True)
+    
+    print(f"Batch Analysis Started: {len(req.videos)} videos -> {target_dir}")
+
+    results = []
+    
+    # 2. 각 영상 분석 (병렬 처리 권장되지만, Rate Limit 고려하여 순차 or 세마포어)
+    # 일단 순차 처리로 안정성 확보 (Gemini Rate Limit)
+    from services.gemini_service import gemini_service
+    
+    for idx, vid in enumerate(req.videos):
+        print(f"Analyzing {idx+1}/{len(req.videos)}: {vid.get('title')}")
+        
+        # 분석 요청
+        analysis = await gemini_service.analyze_success_and_creation(vid)
+        
+        # 결과 정리
+        row = {
+            "No": idx + 1,
+            "Video ID": vid.get('id'),
+            "Original Title": vid.get('title'),
+            "Channel": vid.get('channelTitle'),
+            "Views": vid.get('viewCount'),
+            "Success Factor": analysis.get('success_factor', '분석 실패'),
+            "Benchmarked Title": analysis.get('benchmarked_title', ''),
+            "Synopsis": analysis.get('synopsis', ''),
+            "Upload Date": vid.get('publishedAt', '')[:10]
+        }
+        results.append(row)
+
+    # 3. CSV/Excel 저장
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # Try using Pandas for Excel if available
+    file_url = ""
+    try:
+        import pandas as pd
+        df = pd.DataFrame(results)
+        filename = f"analysis_result_{timestamp}.xlsx"
+        filepath = os.path.join(target_dir, filename)
+        df.to_excel(filepath, index=False)
+        print(f"Saved Excel: {filepath}")
+        
+        # 웹 접근 경로 (static serving 설정 필요, 현재 output_dir가 static인지 확인)
+        # config.OUTPUT_DIR usually maps to /output/
+        file_url = f"/output/analysis/{sanitized_folder}/{filename}"
+        
+    except ImportError:
+        # Fallback to CSV
+        import csv
+        filename = f"analysis_result_{timestamp}.csv"
+        filepath = os.path.join(target_dir, filename)
+        
+        keys = results[0].keys() if results else []
+        with open(filepath, 'w', newline='', encoding='utf-8-sig') as f:
+            if keys:
+                writer = csv.DictWriter(f, fieldnames=keys)
+                writer.writeheader()
+                writer.writerows(results)
+        
+        print(f"Saved CSV (Pandas not found): {filepath}")
+        file_url = f"/output/analysis/{sanitized_folder}/{filename}"
+
+    return {
+        "status": "ok",
+        "file_url": file_url,
+        "count": len(results),
+        "folder_path": target_dir
+    }
+
+# [NEW] Repository Page Route
+@app.get("/repository", response_class=HTMLResponse)
+async def repository_page(request: Request):
+    return templates.TemplateResponse("pages/repository.html", {
+        "request": request, 
+        "title": "분석 저장소", 
+        "page": "repository"
+    })
+
+# [NEW] Repository APIs
+@app.get("/api/repository/folders")
+async def list_repository_folders():
+    """output/analysis 폴더 내의 하위 폴더 목록 반환"""
+    base_path = os.path.join(config.OUTPUT_DIR, "analysis")
+    if not os.path.exists(base_path):
+        return {"folders": []}
+    
+    folders = []
+    for d in os.listdir(base_path):
+        full_path = os.path.join(base_path, d)
+        if os.path.isdir(full_path):
+            # Creation time
+            ctime = os.path.getctime(full_path)
+            date_str = datetime.datetime.fromtimestamp(ctime).strftime('%Y-%m-%d %H:%M')
+            folders.append({"name": d, "date": date_str, "timestamp": ctime})
+            
+    # Sort by new
+    folders.sort(key=lambda x: x['timestamp'], reverse=True)
+    return {"folders": folders}
+
+@app.get("/api/repository/{folder_name}/content")
+async def get_repository_content(folder_name: str):
+    """폴더 내의 첫 번째 엑셀/CSV 파일 내용을 파싱하여 반환"""
+    folder_path = os.path.join(config.OUTPUT_DIR, "analysis", folder_name)
+    if not os.path.exists(folder_path):
+        return {"error": "폴더를 찾을 수 없습니다."}
+    
+    # Find xlsx or csv
+    files = os.listdir(folder_path)
+    target_file = None
+    for f in files:
+        if f.endswith(".xlsx") or f.endswith(".csv"):
+            target_file = os.path.join(folder_path, f)
+            break
+            
+    if not target_file:
+        return {"error": "분석 파일이 없습니다.", "data": []}
+        
+    try:
+        data = []
+        if target_file.endswith(".xlsx"):
+            # Try parsing Excel (Needs pandas + openpyxl)
+            try:
+                import pandas as pd
+                df = pd.read_excel(target_file)
+                df = df.fillna("")
+                data = df.to_dict(orient='records')
+            except ImportError:
+                # Fallback: Can't read Excel without pandas
+                return {"error": "Excel 파일을 읽으려면 pandas 모듈이 필요합니다."}
+        else:
+            # Parse CSV (Use standard csv module if pandas missing)
+            try:
+                import pandas as pd
+                df = pd.read_csv(target_file)
+                df = df.fillna("")
+                data = df.to_dict(orient='records')
+            except ImportError:
+                import csv
+                with open(target_file, 'r', encoding='utf-8-sig') as f:
+                    reader = csv.DictReader(f)
+                    data = [row for row in reader]
+
+        return {"status": "ok", "data": data, "file_name": os.path.basename(target_file)}
+        
+    except Exception as e:
+        print(f"Repository Read Error: {e}")
+        return {"error": f"파일 읽기 실패: {str(e)}"}
 
 
 # ===========================================
@@ -3225,26 +3390,63 @@ async def render_project_video(
         
         # 이미지 경로 리스트 추출 (순서대로)
         # 이미지 URL이 /output/ 으로 시작하므로 실제 파일 경로로 변환
+        # [FIX] Load Timeline Images from Config if available (User Edited Order)
+        p_settings = db.get_project_settings(project_id)
+        timeline_path = p_settings.get('timeline_images_path') if p_settings else None
+        
         images = []
-        for img in images_data:
-            if img.get("image_url"):
-                # URL: /static/images/1/filename.png
-                # Path: config.STATIC_DIR / images / 1 / filename.png
-                if img["image_url"].startswith("/static/"):
-                    relative_path = img["image_url"].replace("/static/", "", 1)
-                    # Windows 경로 구분자로 변경 (필요 시)
-                    relative_path = relative_path.replace("/", os.sep)
-                    fpath = os.path.join(config.STATIC_DIR, relative_path)
-                elif img["image_url"].startswith("/output/"):
-                     # 썸네일 등 output 폴더에 있는 경우
-                     relative_path = img["image_url"].replace("/output/", "", 1)
-                     fpath = os.path.join(config.OUTPUT_DIR, relative_path)
-                else:
-                     # 기타?
-                     continue
+        loaded_from_timeline = False
+        
+        if timeline_path and os.path.exists(timeline_path):
+             import json
+             try:
+                 with open(timeline_path, "r", encoding="utf-8") as f:
+                     timeline_urls = json.load(f)
+                 
+                 print(f"DEBUG: Loading images from timeline path: {timeline_path} ({len(timeline_urls)} images)")
+                 
+                 # Convert URLs to Paths
+                 for url in timeline_urls:
+                     if not url: continue
+                     if url.startswith("/static/"):
+                        rel = url.replace("/static/", "", 1).replace("/", os.sep)
+                        fpath = os.path.join(config.STATIC_DIR, rel)
+                     elif url.startswith("/output/"):
+                        rel = url.replace("/output/", "", 1).replace("/", os.sep)
+                        fpath = os.path.join(config.OUTPUT_DIR, rel)
+                     else:
+                        continue
+                     
+                     if os.path.exists(fpath):
+                         images.append(fpath)
+                         
+                 if images:
+                     loaded_from_timeline = True
+             except Exception as e:
+                 print(f"Failed to load timeline images: {e}")
+                 
+        # Fallback to DB if no timeline
+        if not loaded_from_timeline:
+            print("DEBUG: No timeline found, loading from DB prompts (Default Order)")
+            for img in images_data:
+                if img.get("image_url"):
+                    # URL: /static/images/1/filename.png
+                    # Path: config.STATIC_DIR / images / 1 / filename.png
+                    if img["image_url"].startswith("/static/"):
+                        relative_path = img["image_url"].replace("/static/", "", 1)
+                        # Windows 경로 구분자로 변경 (필요 시)
+                        relative_path = relative_path.replace("/", os.sep)
+                        fpath = os.path.join(config.STATIC_DIR, relative_path)
+                    elif img["image_url"].startswith("/output/"):
+                        # 썸네일 등 output 폴더에 있는 경우
+                        relative_path = img["image_url"].replace("/output/", "", 1)
+                        fpath = os.path.join(config.OUTPUT_DIR, relative_path)
+                    else:
+                        # 기타?
+                        continue
 
-                if os.path.exists(fpath):
-                    images.append(fpath)
+                    if os.path.exists(fpath):
+                        images.append(fpath)
         
         if not images:
              # [NEW] Check if Background Video is set
@@ -3390,10 +3592,27 @@ async def render_project_video(
                         # ...
                         durations = []
                         
-                        if forced_timings and len(forced_timings) == num_img:
-                             # Use forced timings
-                             print("DEBUG_RENDER: Using FORCED timings from database.")
-                             current_start_times = forced_timings
+                        if forced_timings and len(forced_timings) > 0:
+                             # Use forced timings (User Edited)
+                             print(f"DEBUG_RENDER: Using FORCED timings from database. (Timings: {len(forced_timings)}, Images: {num_img})")
+                             
+                             # Adjust length mismatch if necessary
+                             if len(forced_timings) > num_img:
+                                 # More timings than images? Ignore extra timings or cycle images?
+                                 # Usually, images list should have been loaded from timeline_images which matches timings.
+                                 # But if they differ, truncate timings.
+                                 current_start_times = forced_timings[:num_img]
+                             elif len(forced_timings) < num_img:
+                                 # More images than timings?
+                                 # Append last known time or just extend evenly?
+                                 # Let's keep existing timings and let the loop handle the rest (likely 0 duration or error?).
+                                 # Better to pad with valid times.
+                                 current_start_times = forced_timings[:]
+                                 last_t = forced_timings[-1]
+                                 for _ in range(num_img - len(forced_timings)):
+                                     current_start_times.append(last_t + 5.0) # Arbitrary +5s
+                             else:
+                                 current_start_times = forced_timings
                         else:
                              # Calculate start times for each image (Dynamic Pacing)
                              print(f"DEBUG_RENDER: Using Dynamic Pacing (Images: {num_img}, Subs: {num_sub})")
@@ -3414,15 +3633,24 @@ async def render_project_video(
                                 duration = end_t - start_t
                             else:
                                 # Last image
-                                duration = audio_duration - start_t
+                                duration = max(0.1, audio_duration - start_t)
                             
                             if duration < 0.1: duration = 0.1 # Min duration safety
                             durations.append(duration)
-                        # (Redundant OLD logic removed)
-                        pass
+                        
+                        # [DEBUG] Validate Lengths
+                        if len(durations) != len(images):
+                            print(f"CRITICAL WARNING: Duration count ({len(durations)}) != Image count ({len(images)})")
+                            # Force match
+                            if len(durations) > len(images):
+                                durations = durations[:len(images)]
+                            else:
+                                while len(durations) < len(images):
+                                    durations.append(5.0)
                         
                         duration_per_image = durations
-                        print(f"DEBUG_RENDER: Dynamic Durations: {durations}")
+                        print(f"DEBUG_RENDER: Final Durations (Count {len(durations)}): {durations}")
+                        print(f"DEBUG_RENDER: Images (Count {len(images)}): {[os.path.basename(i) for i in images]}")
                     else:
                         # Fallback to equal spacing
                         duration_per_image = audio_duration / num_img
@@ -4286,6 +4514,56 @@ async def generate_background_music(req: MusicGenRequest):
     except Exception as e:
         print(f"Music generation error: {e}")
         raise HTTPException(500, f"음악 생성 중 오류가 발생했습니다: {str(e)}")
+
+# ===========================================
+# API: Repository to Script Plan
+# ===========================================
+
+class RepositoryPlanRequest(BaseModel):
+    title: str
+    synopsis: str
+    success_factor: str
+
+@app.post("/api/repository/create-plan")
+async def create_plan_from_repository(req: RepositoryPlanRequest):
+    """
+    저장소(Repository)의 분석 결과를 바탕으로
+    1. 새 프로젝트 생성
+    2. 대본 기획(Structure) 자동 생성
+    """
+    # 1. Create Project
+    try:
+        project_id = db.create_project(req.title, req.synopsis)
+        print(f"Created Project for Plan: {req.title} ({project_id})")
+    except Exception as e:
+        raise HTTPException(500, f"프로젝트 생성 실패: {str(e)}")
+
+    # 2. Prepare Mock Analysis Data for Gemini
+    # Repository data provides minimal context, so we adapt it.
+    analysis_simulation = {
+        "topic": req.synopsis, # Use synopsis as the core topic
+        "user_notes": f"Original Motivation (Success Factor): {req.success_factor}\nTarget Title: {req.title}",
+        "duration": 600, # Default ~10 min
+        "script_style": "story" # Default style
+    }
+
+    # 3. Generate Structure
+    from services.gemini_service import gemini_service
+    try:
+        structure = await gemini_service.generate_script_structure(analysis_simulation)
+        
+        if "error" in structure:
+            print(f"Structure Gen Warning: {structure['error']}")
+        else:
+            db.save_script_structure(project_id, structure)
+            db.update_project(project_id, status="planned")
+            
+    except Exception as e:
+        print(f"Structure Gen Error: {e}")
+    
+    return {"status": "ok", "project_id": project_id}
+
+
 if __name__ == "__main__":
     import uvicorn
 
@@ -4512,6 +4790,60 @@ async def upload_external_to_youtube(project_id: int):
         print(f"YouTube upload error: {e}")
         raise HTTPException(500, f"YouTube 업로드 중 오류가 발생했습니다: {str(e)}")
 
+
+
+
+# ===========================================
+# API: Repository to Script Plan
+# ===========================================
+
+class RepositoryPlanRequest(BaseModel):
+    title: str
+    synopsis: str
+    success_factor: str
+
+@app.post("/api/repository/create-plan")
+async def create_plan_from_repository(req: RepositoryPlanRequest):
+    """
+    저장소(Repository)의 분석 결과를 바탕으로
+    1. 새 프로젝트 생성
+    2. 대본 기획(Structure) 자동 생성
+    """
+    # 1. Create Project
+    try:
+        project_id = db.create_project(req.title, req.synopsis)
+        print(f"Created Project for Plan: {req.title} ({project_id})")
+    except Exception as e:
+        raise HTTPException(500, f"프로젝트 생성 실패: {str(e)}")
+
+    # 2. Prepare Mock Analysis Data for Gemini
+    # Repository data provides minimal context, so we adapt it.
+    analysis_simulation = {
+        "topic": req.synopsis, # Use synopsis as the core topic
+        "user_notes": f"Original Motivation (Success Factor): {req.success_factor}\nTarget Title: {req.title}",
+        "duration": 600, # Default ~10 min
+        "script_style": "story" # Default style
+    }
+
+    # 3. Generate Structure
+    from services.gemini_service import gemini_service
+    try:
+        structure = await gemini_service.generate_script_structure(analysis_simulation)
+        
+        if "error" in structure:
+            print(f"Structure Gen Warning: {structure['error']}")
+            return {"status": "error", "error": f"대본 구조 생성 실패: {structure['error']}", "project_id": project_id}
+        else:
+            db.save_script_structure(project_id, structure)
+            db.update_project(project_id, status="planned")
+            # Update Project Topic to match, just in case
+            db.update_project(project_id, topic=req.synopsis)
+            
+    except Exception as e:
+        print(f"Structure Gen Error: {e}")
+        return {"status": "error", "error": f"AI 생성 중 오류: {str(e)}", "project_id": project_id}
+    
+    return {"status": "ok", "project_id": project_id}
 
 
 if __name__ == "__main__":

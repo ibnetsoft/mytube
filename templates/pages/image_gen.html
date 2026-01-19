@@ -358,26 +358,167 @@
         console.log("Drawing UI with items:", data.length);
 
         const container = document.getElementById('promptsList');
-        container.innerHTML = data.map((p, i) => `
-            <div id="prompt-card-${i}" class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 flex flex-col h-full border border-gray-200 dark:border-gray-600 shadow-sm hover:shadow-md transition-shadow">
-                <div class="flex items-center justify-between mb-2">
-                    <span class="font-bold text-sm text-gray-800 dark:text-white truncate" title="${p.scene_title || ''}">#${i + 1} ${p.scene_title ? (p.scene_title.length > 20 ? p.scene_title.substring(0, 20) + '...' : p.scene_title) : ('Scene ' + (i + 1))}</span>
-                    <button onclick="copyPrompt(${i})" class="btn-secondary text-[10px] px-2 py-1 shrink-0">복사</button>
-                </div>
-                <div class="relative group mt-auto">
-                    ${p.image_url ? `
-                    <div class="mb-2 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 aspect-video bg-black relative">
-                         <img src="${p.image_url}" class="w-full h-full object-contain" alt="Scene ${i + 1}">
-                         <div class="absolute top-1 right-1 bg-green-500 text-white text-[10px] px-1 rounded">Generated</div>
-                    </div>` : ''}
-                    <div class="h-20 bg-gray-900 rounded overflow-hidden relative">
-                         <div class="absolute inset-0 p-2 text-xs text-green-400 font-mono overflow-y-auto" style="scrollbar-width: thin;">
-                            ${p.prompt_en || p.prompt_content || ''}
-                         </div>
+
+        // Change to vertical list layout
+        container.className = 'space-y-4';
+
+        container.innerHTML = data.map((p, i) => {
+            // Extract first and last portions of scene_text
+            const sceneText = p.scene_text || '';
+            const words = sceneText.split(/\s+/);
+            const firstText = words.slice(0, 10).join(' ') + (words.length > 10 ? '...' : '');
+            const lastText = words.length > 20 ? '...' + words.slice(-10).join(' ') : '';
+
+            // Build JSON object for display
+            const jsonData = {
+                scene_number: i + 1,
+                scene_text: p.scene_text || '',
+                prompt_ko: p.prompt_ko || '',
+                prompt_en: p.prompt_en || p.prompt_content || ''
+            };
+            const jsonString = JSON.stringify(jsonData, null, 2);
+
+            return `
+            <div id="prompt-card-${i}" class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden shadow-md hover:shadow-lg transition-shadow">
+                <!-- Header -->
+                <div class="flex items-center justify-between px-4 py-3 bg-gray-900 border-b border-gray-700">
+                    <div class="flex items-center gap-3">
+                        <span class="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-sm">${i + 1}</span>
+                        <div>
+                            <span class="font-bold text-white">Scene ${i + 1}</span>
+                            <span class="text-xs text-gray-400 ml-2">${p.scene_title || ''}</span>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="copyPromptJson(${i})" class="btn-secondary text-xs px-3 py-1">📋 JSON 복사</button>
+                        <button onclick="generateSingleImage(${i})" class="btn-primary text-xs px-3 py-1 bg-purple-600 hover:bg-purple-700">🎨 이미지 생성</button>
                     </div>
                 </div>
+                
+                <!-- Content -->
+                <div class="p-4">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <!-- Left: Script Info + Image -->
+                        <div class="space-y-3">
+                            <!-- Script Text Info -->
+                            <div class="bg-gray-900 rounded-lg p-3 space-y-2">
+                                <div class="flex items-start gap-2">
+                                    <span class="text-xs text-gray-500 shrink-0 w-16">🎬 첫 대본:</span>
+                                    <p class="text-sm text-gray-300 flex-1">${firstText || '(대본 없음)'}</p>
+                                </div>
+                                ${lastText ? `
+                                <div class="flex items-start gap-2">
+                                    <span class="text-xs text-gray-500 shrink-0 w-16">📍 끝 대본:</span>
+                                    <p class="text-sm text-gray-300 flex-1">${lastText}</p>
+                                </div>
+                                ` : ''}
+                            </div>
+                            
+                            <!-- Image Container -->
+                            <div class="image-container relative">
+                                ${p.image_url ? `
+                                <div class="aspect-video bg-black rounded-lg overflow-hidden border border-gray-600">
+                                    <img src="${p.image_url}" class="w-full h-full object-contain" alt="Scene ${i + 1}">
+                                    <div class="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded">✓ Generated</div>
+                                </div>
+                                ` : `
+                                <div class="aspect-video bg-gray-900 rounded-lg border border-dashed border-gray-600 flex items-center justify-center">
+                                    <span class="text-gray-500 text-sm">🖼️ 이미지 미생성</span>
+                                </div>
+                                `}
+                            </div>
+                        </div>
+                        
+                        <!-- Right: JSON Prompt -->
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold text-gray-400">📝 JSON 프롬프트</span>
+                                <button onclick="copyPromptJson(${i})" class="text-xs text-blue-400 hover:text-blue-300">복사</button>
+                            </div>
+                            <div class="bg-gray-900 rounded-lg p-3 h-64 overflow-auto border border-gray-700">
+                                <pre class="text-xs text-green-400 font-mono whitespace-pre-wrap">${escapeHtml(jsonString)}</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Status Indicator (for generation progress) -->
+                <div class="status-indicator hidden px-4 py-2 bg-gray-900 border-t border-gray-700 text-sm"></div>
             </div>
-        `).join('');
+            `;
+        }).join('');
+    }
+
+    // Helper function to escape HTML
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Copy JSON prompt
+    function copyPromptJson(index) {
+        const p = prompts[index];
+        const jsonData = {
+            scene_number: index + 1,
+            scene_text: p.scene_text || '',
+            prompt_ko: p.prompt_ko || '',
+            prompt_en: p.prompt_en || p.prompt_content || ''
+        };
+        Utils.copyToClipboard(JSON.stringify(jsonData, null, 2));
+        Utils.showToast('JSON이 복사되었습니다', 'success');
+    }
+
+    // Generate single image
+    async function generateSingleImage(index) {
+        const projectId = getCurrentProject();
+        if (!projectId) {
+            Utils.showToast('프로젝트를 찾을 수 없습니다', 'error');
+            return;
+        }
+
+        const p = prompts[index];
+        const card = document.getElementById(`prompt-card-${index}`);
+        if (!card) return;
+
+        const statusDiv = card.querySelector('.status-indicator');
+        statusDiv.classList.remove('hidden');
+        statusDiv.className = 'status-indicator px-4 py-2 bg-yellow-900/30 border-t border-gray-700 text-sm text-yellow-400';
+        statusDiv.textContent = '⏳ 이미지 생성 중... (10~20초 소요)';
+
+        try {
+            const fullPrompt = p.prompt_en || p.prompt_content || '';
+            const aspectRatio = document.querySelector('input[name="aspectRatio"]:checked')?.value || '16:9';
+
+            const result = await API.image.generate(fullPrompt, projectId, index + 1, document.getElementById('imageStyle').value, aspectRatio);
+
+            if (result.status === 'ok') {
+                prompts[index].image_url = result.image_url;
+                Utils.storage.set('imagePrompts', prompts);
+
+                // Update image container
+                const imgContainer = card.querySelector('.image-container');
+                if (imgContainer) {
+                    imgContainer.innerHTML = `
+                        <div class="aspect-video bg-black rounded-lg overflow-hidden border border-gray-600">
+                            <img src="${result.image_url}" class="w-full h-full object-contain" alt="Scene ${index + 1}">
+                            <div class="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded">✓ Generated</div>
+                        </div>
+                    `;
+                }
+
+                statusDiv.className = 'status-indicator px-4 py-2 bg-green-900/30 border-t border-gray-700 text-sm text-green-400';
+                statusDiv.textContent = '✅ 생성 완료!';
+
+                if (window.updateStepStatus) window.updateStepStatus('image', true);
+            } else {
+                throw new Error(result.error || '생성 실패');
+            }
+        } catch (e) {
+            console.error(e);
+            statusDiv.className = 'status-indicator px-4 py-2 bg-red-900/30 border-t border-gray-700 text-sm text-red-400';
+            statusDiv.textContent = '❌ 생성 실패: ' + e.message;
+        }
     }
 
     function copyPrompt(index) {

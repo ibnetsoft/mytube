@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="flex h-full">
+    <!-- Left: Folder List -->
+    <div class="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+        <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                <span>📁</span> 분석 폴더
+            </h2>
+        </div>
+        <div class="flex-1 overflow-y-auto p-2 space-y-1" id="folderList">
+            <!-- Folders will be injected here -->
+            <div class="text-center text-gray-500 text-sm mt-4">로딩 중...</div>
+        </div>
+    </div>
+
+    <!-- Right: Content Area -->
+    <div class="flex-1 flex flex-col h-full overflow-hidden bg-gray-50 dark:bg-gray-900">
+        <!-- Header -->
+        <div
+            class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between shadow-sm z-10">
+            <div>
+                <h1 id="currentFolderName" class="text-xl font-bold text-gray-800 dark:text-white">폴더를 선택하세요</h1>
+                <p id="currentFolderDate" class="text-xs text-gray-500 dark:text-gray-400 mt-1"></p>
+            </div>
+            <div id="actionButtons" class="hidden gap-2">
+                <button onclick="createPlanFromSelection()"
+                    class="btn-primary text-sm flex items-center gap-1 bg-purple-600 hover:bg-purple-700">
+                    <span>✨</span> 대본 기획
+                </button>
+                <button onclick="downloadCurrentSheet()" class="btn-secondary text-sm flex items-center gap-1">
+                    <span>⬇️</span> 엑셀 다운로드
+                </button>
+            </div>
+        </div>
+
+        <!-- Table Container -->
+        <div class="flex-1 overflow-auto p-6" id="tableContainer">
+            <div class="flex flex-col items-center justify-center h-full text-gray-400">
+                <span class="text-4xl mb-4">👈</span>
+                <p>왼쪽 목록에서 폴더를 선택해주세요.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentFolderData = null;
+    let currentFolderName = "";
+
+    // 1. Load Folder List
+    async function loadFolders() {
+        try {
+            const res = await fetch('/api/repository/folders');
+            const data = await res.json();
+
+            const listEl = document.getElementById('folderList');
+            listEl.innerHTML = '';
+
+            if (data.folders.length === 0) {
+                listEl.innerHTML = '<div class="text-center text-gray-500 text-sm mt-4">저장된 분석이 없습니다.</div>';
+                return;
+            }
+
+            data.folders.forEach(folder => {
+                const item = document.createElement('div');
+                item.className = 'p-3 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition flex items-center gap-2 group';
+                item.onclick = () => loadFolderContent(folder.name);
+
+                item.innerHTML = `
+                    <span class="text-xl">📂</span>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm font-medium text-gray-800 dark:text-white truncate group-hover:text-blue-600">${folder.name}</div>
+                        <div class="text-xs text-gray-400 truncate">${folder.date}</div>
+                    </div>
+                `;
+                listEl.appendChild(item);
+            });
+        } catch (e) {
+            console.error(e);
+            Utils.showToast("폴더 목록 로드 실패", "error");
+        }
+    }
+
+    // 2. Load Folder Content
+    async function loadFolderContent(folderName) {
+        currentFolderName = folderName;
+        const container = document.getElementById('tableContainer');
+        container.innerHTML = '<div class="flex items-center justify-center h-full"><div class="loader"></div></div>';
+
+        // Update Header
+        document.getElementById('currentFolderName').textContent = folderName;
+        document.getElementById('actionButtons').classList.add('hidden');
+
+        // Highlight Sidebar
+        const listEl = document.getElementById('folderList');
+        Array.from(listEl.children).forEach(child => {
+            if (child.textContent.includes(folderName)) {
+                child.classList.add('bg-blue-50', 'dark:bg-blue-900/30', 'border', 'border-blue-200', 'dark:border-blue-800');
+            } else {
+                child.className = 'p-3 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition flex items-center gap-2 group';
+            }
+        });
+
+        try {
+            const res = await fetch(`/api/repository/${folderName}/content`);
+            const data = await res.json();
+
+            if (data.error) throw new Error(data.error);
+
+            currentFolderData = data.data; // Array of dicts
+
+            renderTable(data.data);
+            document.getElementById('actionButtons').classList.remove('hidden');
+
+        } catch (e) {
+            console.error(e);
+            container.innerHTML = `<div class="text-center text-red-500 mt-10">데이터 로드 실패: ${e.message}</div>`;
+        }
+    }
+
+    // 3. Render Table
+    function renderTable(rows) {
+        if (!rows || rows.length === 0) {
+            document.getElementById('tableContainer').innerHTML = '<div class="text-center text-gray-500 mt-10">데이터가 비어있습니다.</div>';
+            return;
+        }
+
+        const headers = Object.keys(rows[0]);
+        // Priority Headers: No, Original Title, Success Factor, Benchmarked Title, Synopsis
+        // Hidden/Less Priority: Video ID, Views, Channel...
+
+        let html = `
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead class="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                            <th class="px-6 py-3 text-left w-10">
+                                <input type="checkbox" onclick="toggleAllRepoCheckboxes(this)" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-16">No</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-1/4">Video Info</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Analysis Result</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+        `;
+
+        rows.forEach(row => {
+            // Encode data for checkbox
+            const safeTitle = (row['Benchmarked Title'] || "").replace(/"/g, '&quot;');
+            const safeSynopsis = (row['Synopsis'] || "").replace(/"/g, '&quot;');
+            const safeFactor = (row['Success Factor'] || "").replace(/"/g, '&quot;');
+
+            html += `
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                    <td class="px-6 py-4">
+                        <input type="checkbox" class="repo-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            data-title="${safeTitle}"
+                            data-synopsis="${safeSynopsis}"
+                            data-factor="${safeFactor}">
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">${row['No']}</td>
+                    <td class="px-6 py-4 text-sm text-gray-900 dark:text-white align-top">
+                        <div class="font-bold mb-1 line-clamp-2" title="${row['Original Title']}">${row['Original Title']}</div>
+                        <div class="text-xs text-gray-500 flex items-center gap-2">
+                            <span>${row['Channel']}</span>
+                            <span>•</span>
+                            <span>👁️ ${parseInt(row['Views'] || 0).toLocaleString()}</span>
+                            <span>•</span>
+                            <span>${row['Upload Date']}</span>
+                        </div>
+                        <a href="https://www.youtube.com/watch?v=${row['Video ID']}" target="_blank" class="text-xs text-blue-500 hover:underline mt-1 inline-block">Watch Video ↗</a>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-300 align-top">
+                        <div class="mb-3">
+                            <span class="px-2 py-0.5 rounded textxs font-bold bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">성공 요인</span>
+                            <div class="mt-1">${row['Success Factor']}</div>
+                        </div>
+                        <div class="mb-3">
+                            <span class="px-2 py-0.5 rounded textxs font-bold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">벤치마킹 제목</span>
+                            <div class="mt-1 font-medium text-blue-600 dark:text-blue-300">${row['Benchmarked Title']}</div>
+                        </div>
+                        <div>
+                            <span class="px-2 py-0.5 rounded textxs font-bold bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">기획 의도 (시놉시스)</span>
+                            <div class="mt-1 text-xs opacity-80">${row['Synopsis']}</div>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+
+        html += `</tbody></table></div>`;
+        document.getElementById('tableContainer').innerHTML = html;
+    }
+
+    function toggleAllRepoCheckboxes(source) {
+        document.querySelectorAll('.repo-checkbox').forEach(c => c.checked = source.checked);
+    }
+
+    async function createPlanFromSelection() {
+        const checkboxes = document.querySelectorAll('.repo-checkbox:checked');
+        if (checkboxes.length === 0) {
+            Utils.showToast("기획할 항목을 선택해주세요.", "warning");
+            return;
+        }
+        if (checkboxes.length > 1) {
+            Utils.showToast("한 번에 하나의 항목만 기획할 수 있습니다.", "warning");
+            return;
+        }
+
+        const el = checkboxes[0];
+        const title = el.dataset.title;
+        const synopsis = el.dataset.synopsis;
+        const factor = el.dataset.factor;
+
+        if (!title || !synopsis) {
+            Utils.showToast("제목이나 시놉시스 정보가 부족합니다.", "error");
+            return;
+        }
+
+        if (!confirm(`'${title}'\n이 주제로 대본 기획을 시작하시겠습니까?`)) return;
+
+        Utils.showToast("대본 구조를 생성 중입니다... (약 10-20초)", "info");
+
+        try {
+            const res = await fetch('/api/repository/create-plan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, synopsis, success_factor: factor })
+            });
+            const data = await res.json();
+
+            if (data.status === 'ok') {
+                Utils.showToast("기획 생성 완료! 이동합니다.", "success");
+                setTimeout(() => {
+                    window.location.href = `/script-plan?project_id=${data.project_id}`;
+                }, 1000);
+            } else {
+                throw new Error(data.error || "Unknown Error");
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast(`오류 발생: ${e.message}`, "error");
+        }
+    }
+
+
+    function downloadCurrentSheet() {
+        if (!currentFolderName) return;
+        // Re-use logic or direct link if available. 
+        // For simplicity, link to the file if we can guess the name, OR verify file existence via API.
+        // Or finding the file in data response.
+        // Actually, let's just use window.open if backend provides URL.
+        // Ideally backend `content` endpoint should return file_url too.
+        Utils.showToast("파일 다운로드는 현재 폴더 경로에서 직접 가능합니다.", "info");
+    }
+
+    // Init
+    loadFolders();
+
+</script>
+{% endblock %}

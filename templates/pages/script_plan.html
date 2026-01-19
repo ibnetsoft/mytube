@@ -31,12 +31,41 @@
             <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">대본 스타일</label>
                 <select id="scriptStyleSelect" class="input-field">
-                    <option value="news" selected>뉴스 보도 (News Delivery)</option>
-                    <option value="story">옛날 이야기 (Old Story)</option>
-                    <option value="senior_story">시니어 사연 (Senior Story)</option>
-                    <option value="bgm">배경음악 중심 (BGM Focus)</option>
+                    <optgroup label="📹 기본 스타일">
+                        <option value="default" selected>기본 설정 (자연스럽고 선명한 스타일)</option>
+                        <option value="news">뉴스 보도 (News Delivery)</option>
+                        <option value="story">옛날 이야기 (Old Story)</option>
+                        <option value="senior_story">시니어 사연 (Senior Story)</option>
+                        <option value="bgm">배경음악 중심 (BGM Focus)</option>
+                    </optgroup>
+                    <optgroup label="🎬 시대별 영화 스타일">
+                        <option value="classic_50s">50년대 클래식영화 (테크니컬러, 부드러운 조명)</option>
+                        <option value="joseon_sageuk">조선시대 사극 (전통 건축/의복, 자연광)</option>
+                        <option value="north_korean_drama">북한 드라마 (빈티지 영화, 강렬한 색감)</option>
+                        <option value="silent_20s">20년대 무성영화 (흑백, 높은 콘트라스트, 빈티지 그레인)</option>
+                        <option value="camcorder_90s">90년대 캠코더 (VHS 화질, 낮은 프레임)</option>
+                        <option value="modern_drama">현대 드라마 (자글자글한 화질, 자연스러운 색감)</option>
+                    </optgroup>
+                    <optgroup label="🎭 장르별 스타일">
+                        <option value="mystery_thriller">미스터리 스릴러 (저조도, 영사기 톤, 음영 그림자)</option>
+                        <option value="horror_suspense">공포-서스펜스 (어두운 조명, 음침 분위기)</option>
+                        <option value="melodrama">멜로드라마 (부드러운 콘트라스트, 따뜻하고 화사함)</option>
+                        <option value="crime_drama">범죄 드라마 (차갑고 어두운 화질, 낮은 채도)</option>
+                        <option value="cyberpunk_neon">사이버펑크 네온 (네온 색상, 비, 미래적 분위기)</option>
+                    </optgroup>
+                    <optgroup label="🎨 일러스트/애니메이션 스타일">
+                        <option value="watercolor_analog">수채화풍 아날로그 일러스트 (감성적 수채화 텍스처)</option>
+                        <option value="digital_webtoon">디지털 웹툰 (선명한 라인, 화려한 색감)</option>
+                        <option value="graphite_sketch">흑연 드로잉 스케치 (거친 연필선 스케치)</option>
+                        <option value="joseon_2d_anime">조선시대 풍속화 2D 애니 (조선 웹툰 스타일)</option>
+                        <option value="oriental_ink">동양 수묵화 모노크롬 (여백의 미, 먹물 그림)</option>
+                        <option value="neonsign_citypop">네온사인 시티팝 (80년대 레트로 퓨처, 화려한 야경)</option>
+                        <option value="buddhist_minimal">불교 미니멀리즘 (한국 사찰, 불상, 포토리얼리즘)</option>
+                        <option value="renaissance_sacred">르네상스 성화 (성경 인물 성화풍, 현대인 실사풍)</option>
+                        <option value="cute_animal_char">귀여운 동물 캐릭터 (의인화된 동물 웹툰 일러스트)</option>
+                    </optgroup>
                 </select>
-                <p class="text-xs text-gray-500 mt-1">기본값: 뉴스 보도</p>
+                <p class="text-xs text-gray-500 mt-1">기본값: 자연스럽고 선명한 기본 스타일</p>
             </div>
         </div>
         <div>
@@ -90,8 +119,18 @@
         // 프로젝트 변경 이벤트 리스너 -> data reloading
         window.addEventListener('projectChanged', (e) => loadProjectData(e.detail.projectId));
 
-        // 초기 로드
-        const projectId = getCurrentProject();
+        // [MODIFIED] Check URL for project_id override
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlProjectId = urlParams.get('project_id');
+
+        let projectId = null;
+        if (urlProjectId) {
+            projectId = parseInt(urlProjectId);
+            setCurrentProject(projectId); // Update global state/localStorage
+        } else {
+            projectId = getCurrentProject();
+        }
+
         if (projectId) {
             await loadProjectData(projectId);
         }
@@ -120,7 +159,6 @@
         } catch (e) { console.error(e); }
 
         // 자동 생성 요청 확인
-        const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('auto') === 'true') {
             // 데이터 로드가 완료된 후 실행되어야 함 (위 await loadProjectData로 보장)
             // 약간의 딜레이를 주어 UI가 안정된 후 실행
@@ -181,12 +219,17 @@
             // Load existing structure (Separate fetch as per legacy logic, usually structure is large)
             try {
                 const structData = await API.project.getScriptStructure(projectId);
-                if (structData && structData.sections) {
-                    console.log("Loaded saved structure:", structData);
+                console.log("[DEBUG] structData from API:", structData);
+
+                // Show result section if we have ANY data (hook, sections, cta, etc.)
+                // Even if sections is empty, we want to show the placeholder message
+                if (structData && (structData.sections || structData.hook)) {
                     currentStructure = structData;
                     renderStructure(structData);
                     document.getElementById('resultSection').classList.remove('hidden');
                     Utils.storage.set('scriptStructure', structData);
+                } else {
+                    console.log("[DEBUG] No structure found or empty response");
                 }
             } catch (e) {
                 console.error("Failed to load script structure:", e);
@@ -370,7 +413,16 @@
 
     function renderStructure(data) {
         const container = document.getElementById('structureContent');
-        if (!data) return;
+        if (!data || !data.sections || data.sections.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-10 text-gray-400">
+                    <div class="text-4xl mb-3">📭</div>
+                    <p>생성된 대본 구조가 없습니다.</p>
+                    <p class="text-sm mt-1">우측 상단의 [🔄 다시 생성] 버튼을 눌러보세요.</p>
+                </div>
+            `;
+            return;
+        }
 
         let html = `<div class="space-y-6">`;
 
@@ -378,7 +430,7 @@
         html += `
             <div class="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-100 dark:border-red-900/50">
                 <h4 class="font-bold text-red-600 dark:text-red-400 mb-2">🪝 후킹 (Hook)</h4>
-                <p class="text-gray-800 dark:text-gray-200 text-lg font-medium">"${data.hook}"</p>
+                <p class="text-gray-800 dark:text-gray-200 text-lg font-medium">"${data.hook || '내용 없음'}"</p>
             </div>
         `;
 

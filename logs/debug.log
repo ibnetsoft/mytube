@@ -9,3 +9,165 @@ ModuleNotFoundError: No module named 'moviepy.editor'
 [2026-01-07 12:19:50.394236] Starting Single-pass render for project 10
 [2026-01-07 12:19:50.394249] Images: 34, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\등산_20260106\tts_20260106_182429.mp3
 [2026-01-07 12:20:06.247199] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-15 14:18:06.278198] Starting Single-pass render for project 15
+[2026-01-15 14:18:06.278217] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115\tts_20260115_140616.mp3
+[2026-01-15 14:18:39.461168] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-15 15:26:52.054686] Starting Single-pass render for project 15
+[2026-01-15 15:26:52.054704] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115\tts_20260115_140616.mp3
+[2026-01-15 15:26:59.420074] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-15 15:40:16.018689] Starting Single-pass render for project 15
+[2026-01-15 15:40:16.018712] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115\tts_20260115_140616.mp3
+[2026-01-15 15:40:23.577701] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-15 16:31:00.868553] Starting Single-pass render for project 15
+[2026-01-15 16:31:00.868586] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115\tts_20260115_140616.mp3
+[2026-01-15 16:31:12.005242] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-15 16:38:02.049317] Starting Single-pass render for project 15
+[2026-01-15 16:38:02.049333] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115\tts_20260115_140616.mp3
+[2026-01-15 16:38:09.235302] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-15 16:52:54.852304] Starting Single-pass render for project 15
+[2026-01-15 16:52:54.852350] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115\tts_20260115_140616.mp3
+[2026-01-15 16:53:07.371274] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-15 19:42:06.398856] Starting Single-pass render for project 15
+[2026-01-15 19:42:06.398867] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115\tts_20260115_140616.mp3
+[2026-01-15 19:42:20.367822] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-16 10:02:45.157333] Starting Single-pass render for project 15
+[2026-01-16 10:02:45.157349] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115\tts_20260115_140616.mp3
+[2026-01-16 10:02:49.835025] Render Error: VideoService._create_cinematic_frame() got an unexpected keyword argument 'template_path'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 3115, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<6 lines>...
+        thumbnail_path=thumbnail_path_arg  # [NEW] Pass thumbnail
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 154, in create_slideshow
+    processed_img_path = self._create_cinematic_frame(img_path, resolution, template_path=template_path)
+TypeError: VideoService._create_cinematic_frame() got an unexpected keyword argument 'template_path'
+
+[2026-01-16 10:02:55.025134] Starting Single-pass render for project 15
+[2026-01-16 10:02:55.025146] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115\tts_20260115_140616.mp3
+[2026-01-16 10:02:59.104327] Render Error: VideoService._create_cinematic_frame() got an unexpected keyword argument 'template_path'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 3115, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<6 lines>...
+        thumbnail_path=thumbnail_path_arg  # [NEW] Pass thumbnail
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 154, in create_slideshow
+    processed_img_path = self._create_cinematic_frame(img_path, resolution, template_path=template_path)
+TypeError: VideoService._create_cinematic_frame() got an unexpected keyword argument 'template_path'
+
+[2026-01-16 10:05:51.102659] Starting Single-pass render for project 15
+[2026-01-16 10:05:51.102669] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115\tts_20260115_140616.mp3
+[2026-01-16 10:06:03.213716] Render Error: module 'config' has no attribute 'DEFAULT_FONT_PATH'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 3115, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<6 lines>...
+        thumbnail_path=thumbnail_path_arg  # [NEW] Pass thumbnail
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 338, in create_slideshow
+    f_name = s_settings.get("font", config.DEFAULT_FONT_PATH)
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'config' has no attribute 'DEFAULT_FONT_PATH'
+
+[2026-01-16 10:08:49.825143] Starting Single-pass render for project 15
+[2026-01-16 10:08:49.825153] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115\tts_20260115_140616.mp3
+[2026-01-16 10:09:00.921048] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-16 10:24:32.460021] Starting Single-pass render for project 15
+[2026-01-16 10:24:32.460032] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115\tts_20260115_140616.mp3
+[2026-01-16 10:24:43.467554] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-16 10:40:08.847525] Starting Single-pass render for project 15
+[2026-01-16 10:40:08.847537] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115\tts_20260115_140616.mp3
+[2026-01-16 10:40:16.272362] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-16 11:19:49.128958] Starting Single-pass render for project 15
+[2026-01-16 11:19:49.129020] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115\tts_20260115_140616.mp3
+[2026-01-16 11:19:56.717380] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-16 11:56:53.061077] Starting Single-pass render for project 15
+[2026-01-16 11:56:53.061096] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115\tts_20260115_140616.mp3
+[2026-01-16 11:56:57.622604] DEBUG_RENDER: num_img=8, num_sub=9
+[2026-01-16 11:56:57.623227] DEBUG_RENDER: Using Dynamic Pacing
+[2026-01-16 11:57:00.066112] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-16 12:28:07.848440] API get_subtitles: num_img=8, num_sub=9, urls=8
+[2026-01-16 12:36:38.011939] API get_subtitles: num_img=8, num_sub=9, urls=8
+[2026-01-16 12:36:57.630167] API get_subtitles: num_img=8, num_sub=9, urls=8
+[2026-01-16 12:45:35.737943] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 12:45:40.846062] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 12:51:02.674283] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 12:57:41.988758] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 12:57:51.263088] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 13:05:47.219316] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 13:12:08.761141] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 13:16:52.871349] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 13:27:31.120465] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 13:30:31.899180] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 13:32:14.374052] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 13:33:27.008251] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 13:33:31.473110] Starting Single-pass render for project 15
+[2026-01-16 13:33:31.473120] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115\tts_20260115_140616.mp3
+[2026-01-16 13:33:36.368881] DEBUG_RENDER: num_img=8, num_sub=9
+[2026-01-16 13:33:36.369569] DEBUG_RENDER: Using Dynamic Pacing
+[2026-01-16 13:33:38.847842] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-16 13:36:27.703956] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 13:37:25.746570] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 13:53:44.320972] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 14:01:37.556185] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 14:04:50.123435] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 14:10:05.537376] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 14:16:15.502806] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 14:17:43.976431] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 14:22:16.205803] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 14:32:51.643824] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 14:35:49.303816] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 14:45:55.306385] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 15:28:43.482021] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 15:31:04.552173] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 16:45:01.021645] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 16:58:50.494989] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 17:03:21.028054] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 17:09:37.021817] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 17:15:46.038218] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 17:29:34.211966] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 20:04:39.144624] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 20:09:57.831301] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 20:15:45.931953] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 20:16:34.103109] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-16 20:38:24.015769] API get_subtitles(PID=15): num_img=8, num_sub=9, urls=8, ex_url=/output/🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115/p15_s1_1768453481.png
+[2026-01-17 11:22:45.232112] Starting Single-pass render for project 15
+[2026-01-17 11:22:45.232127] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115\tts_20260115_140616.mp3
+[2026-01-17 11:22:45.513674] DEBUG_RENDER: num_img=8, num_sub=10
+[2026-01-17 11:22:50.023759] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-17 12:12:48.148456] Starting Single-pass render for project 15
+[2026-01-17 12:12:48.148469] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115\tts_20260115_140616.mp3
+[2026-01-17 12:12:48.974241] DEBUG_RENDER: num_img=8, num_sub=10
+[2026-01-17 12:12:53.240939] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-17 12:23:30.443102] Starting Single-pass render for project 15
+[2026-01-17 12:23:30.443116] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115\tts_20260115_140616.mp3
+[2026-01-17 12:23:30.609943] DEBUG_RENDER: num_img=8, num_sub=10
+[2026-01-17 12:23:34.784302] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-17 12:39:26.213183] Starting Single-pass render for project 15
+[2026-01-17 12:39:26.213199] Images: 8, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115\tts_20260115_140616.mp3
+[2026-01-17 12:39:26.398354] DEBUG_RENDER: num_img=8, num_sub=10
+[2026-01-17 12:39:30.614203] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-17 12:57:02.354684] Starting Single-pass render for project 15
+[2026-01-17 12:57:02.354700] Images: 10, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115\tts_20260115_140616.mp3
+[2026-01-17 12:57:02.505868] DEBUG_RENDER: num_img=10, num_sub=10
+[2026-01-17 12:57:07.900066] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-17 13:05:55.655804] Starting Single-pass render for project 15
+[2026-01-17 13:05:55.655815] Images: 12, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115\tts_20260115_140616.mp3
+[2026-01-17 13:05:55.830112] DEBUG_RENDER: num_img=12, num_sub=10
+[2026-01-17 13:06:02.019837] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-17 13:10:53.260061] Starting Single-pass render for project 15
+[2026-01-17 13:10:53.260082] Images: 12, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115\tts_20260115_140616.mp3
+[2026-01-17 13:10:53.413034] DEBUG_RENDER: num_img=12, num_sub=10
+[2026-01-17 13:10:59.274602] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-17 13:42:05.871842] Starting Single-pass render for project 15
+[2026-01-17 13:42:05.871853] Images: 12, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115\tts_20260115_140616.mp3
+[2026-01-17 13:42:06.522866] DEBUG_RENDER: num_img=12, num_sub=10
+[2026-01-17 13:42:12.748918] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-17 14:25:16.304645] Starting Single-pass render for project 15
+[2026-01-17 14:25:16.304656] Images: 12, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\🌊해외_아님_주의❌비현실적인_풍경을_만나게_되는_이색..._20260115\tts_20260115_140616.mp3
+[2026-01-17 14:25:16.459088] DEBUG_RENDER: num_img=12, num_sub=10
+[2026-01-17 14:25:22.906873] calling writes_videofile code in video_service (720p safe mode)

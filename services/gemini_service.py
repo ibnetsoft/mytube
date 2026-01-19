@@ -685,5 +685,39 @@ class GeminiService:
             print(f"Image-Subtitle Match Failed: {e}")
             return {"assignments": []}
 
+    async def analyze_success_and_creation(self, video_info: dict) -> dict:
+        """
+        영상의 성공 요인을 분석하고 벤치마킹 콘텐츠를 생성
+        """
+        title = video_info.get('title', '')
+        channel = video_info.get('channelTitle', '')
+        # Stats might be inside 'statistics' dict or direct keys depending on how it's passed
+        views = video_info.get('statistics', {}).get('viewCount', video_info.get('viewCount', 0))
+        likes = video_info.get('statistics', {}).get('likeCount', video_info.get('likeCount', 0))
+        
+        # Optional: Top comment if available
+        top_comment = video_info.get('top_comment', '정보 없음')
+
+        prompt = prompts.GEMINI_SUCCESS_ANALYSIS.format(
+            title=title,
+            channel=channel,
+            views=views,
+            likes=likes,
+            top_comment=top_comment
+        )
+
+        try:
+            text = await self.generate_text(prompt, temperature=0.7)
+            
+            import json
+            import re
+            json_match = re.search(r'\{[\s\S]*\}', text)
+            if json_match:
+                return json.loads(json_match.group())
+            else:
+                return {"error": "JSON Parsing Failed", "raw": text}
+        except Exception as e:
+            return {"error": str(e)}
+
 # 싱글톤 인스턴스
 gemini_service = GeminiService()
