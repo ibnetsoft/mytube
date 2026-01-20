@@ -51,19 +51,22 @@
                     <span class="hidden sm:inline">캐릭터 분석</span>
                 </button>
 
+                <!-- Scene Analysis Button -->
+                <button onclick="analyzeScenes()" id="analyzeSceneBtn"
+                    class="btn-secondary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-sm hover:scale-105 transition-transform bg-white border border-gray-300 dark:bg-gray-700 dark:border-gray-600">
+                    <span>🔍</span>
+                    <span class="hidden sm:inline">Scene 분석</span>
+                </button>
+                <span id="sceneCountBadge"
+                    class="hidden text-xs font-bold bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-3 py-2 rounded-lg">
+                    0 Scenes
+                </span>
+
                 <!-- Generate Prompt Button -->
                 <button onclick="generatePrompts()" id="generateBtn"
                     class="btn-primary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-md hover:scale-105 transition-transform bg-gradient-to-r from-blue-600 to-indigo-600">
                     <span>🪄</span>
                     <span>프롬프트 생성</span>
-                </button>
-
-                <!-- Auto Image Generate Button -->
-                <button onclick="generateAllImages()" id="autoGenBtn"
-                    class="btn-primary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-md hover:scale-105 transition-transform bg-gradient-to-r from-purple-600 to-indigo-600 opacity-50 cursor-not-allowed"
-                    disabled>
-                    <span>🚀</span>
-                    <span>이미지 자동 생성</span>
                 </button>
             </div>
         </div>
@@ -284,7 +287,21 @@
             <h3 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
                 <span>🎨</span> 생성된 프롬프트
             </h3>
-            <button onclick="copyAllPrompts()" class="btn-secondary text-sm px-4">📋 전체 복사</button>
+            <div class="flex gap-2">
+                <button onclick="toggleSelectAll()" id="selectAllBtn"
+                    class="btn-secondary text-sm px-4 flex items-center gap-2">
+                    <span id="selectAllIcon">☐</span> 전체 선택
+                </button>
+                <button onclick="downloadAllImages()" class="btn-secondary text-sm px-4 flex items-center gap-2">
+                    📥 이미지 다운로드
+                </button>
+                <button onclick="copyAllPrompts()" class="btn-secondary text-sm px-4">📋 전체 복사</button>
+                <button onclick="generateSelectedImages()" id="autoGenBtn"
+                    class="btn-primary text-sm px-4 flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled>
+                    <span>🚀</span> 이미지 생성
+                </button>
+            </div>
         </div>
 
         <div id="promptsList" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
@@ -487,7 +504,8 @@
 
         const styleVal = document.getElementById('imageStyle').value;
         const globalPrompt = document.getElementById('globalPrompt').value;
-        const count = 0; // AI 자동 판단 고정
+        // Use analyzed scene count if available, otherwise let AI decide (0)
+        const count = analyzedSceneCount || 0;
 
         const btn = document.getElementById('generateBtn');
         Utils.setLoading(btn, true, '생성 중...');
@@ -555,10 +573,14 @@
                 <!-- Header -->
                 <div class="flex items-center justify-between px-4 py-3 bg-gray-900 border-b border-gray-700">
                     <div class="flex items-center gap-3">
+                        <input type="checkbox" 
+                               id="scene-checkbox-${i}" 
+                               class="scene-checkbox w-5 h-5 rounded border-gray-500 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                               onchange="handleSceneSelection()">
                         <span class="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-sm">${i + 1}</span>
                         <div>
                             <span class="font-bold text-white">Scene ${i + 1}</span>
-                            <span class="text-xs text-gray-400 ml-2">${p.scene_title || ''}</span>
+                            <span class="text-xs text-gray-400 ml-2">🎬 ${firstText || '(대본 없음)'}</span>
                         </div>
                     </div>
                     <div class="flex gap-2">
@@ -569,49 +591,31 @@
                 
                 <!-- Content -->
                 <div class="p-4">
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        <!-- Left: Script Info + Image -->
-                        <div class="space-y-3">
-                            <!-- Script Text Info -->
-                            <div class="bg-gray-900 rounded-lg p-3 space-y-2">
-                                <div class="flex items-start gap-2">
-                                    <span class="text-xs text-gray-500 shrink-0 w-16">🎬 첫 대본:</span>
-                                    <p class="text-sm text-gray-300 flex-1">${firstText || '(대본 없음)'}</p>
-                                </div>
-                                ${lastText ? `
-                                <div class="flex items-start gap-2">
-                                    <span class="text-xs text-gray-500 shrink-0 w-16">📍 끝 대본:</span>
-                                    <p class="text-sm text-gray-300 flex-1">${lastText}</p>
-                                </div>
-                                ` : ''}
-                            </div>
-                            
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                        <!-- Left: Image (2 columns) -->
+                        <div class="lg:col-span-2 space-y-3">
                             <!-- Image Container -->
                             <div class="image-container relative flex justify-center"> <!-- [FIX] Center align -->
                                 ${p.image_url ? `
-                                <div class="aspect-video bg-black rounded-lg overflow-hidden border border-gray-600 w-[60%]"> <!-- [FIX] 60% width -->
+                                <div class="aspect-video bg-black rounded-lg overflow-hidden border border-gray-600 w-[90%]"> <!-- Larger image size -->
                                     <img src="${p.image_url}" class="w-full h-full object-contain" alt="Scene ${i + 1}">
-                                    <div class="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded">✓ Generated</div>
+                                    <div class="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded">✓</div>
                                 </div>
                                 ` : `
-                                <div class="aspect-video bg-gray-900 rounded-lg border border-dashed border-gray-600 flex items-center justify-center w-[60%]"> <!-- [FIX] 60% width -->
+                                <div class="aspect-video bg-gray-900 rounded-lg border border-dashed border-gray-600 flex items-center justify-center w-[90%]"> <!-- Larger image size -->
                                     <span class="text-gray-500 text-sm">🖼️ 이미지 미생성</span>
                                 </div>
                                 `}
                             </div>
                         </div>
                         
-                        <!-- Right: JSON Prompt (Editable) -->
-                        <div class="space-y-2">
-                            <div class="flex items-center justify-between">
-                                <span class="text-xs font-bold text-gray-400">📝 JSON 프롬프트 (수정 가능)</span>
-                                <button onclick="copyPromptJson(${i})" class="text-xs text-blue-400 hover:text-blue-300">복사</button>
-                            </div>
-                            <div class="bg-gray-900 rounded-lg h-64 border border-gray-700 overflow-hidden relative">
+                        <!-- Right: JSON Prompt (10 columns) -->
+                        <div class="lg:col-span-10 space-y-2">
+                            <div class="bg-gray-900 rounded-lg min-h-32 max-h-96 border border-gray-700 overflow-hidden relative">
                                 <textarea 
                                     id="prompt-json-${i}"
-                                    class="w-full h-full bg-gray-900 text-xs text-green-400 font-mono p-3 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                    oninput="updatePromptData(${i}, this.value)"
+                                    class="w-full h-auto min-h-32 bg-gray-900 text-xs text-green-400 font-mono p-3 resize-y focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    oninput="updatePromptData(${i}, this.value); this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px'"
                                     spellcheck="false"
                                 >${escapeHtml(jsonString)}</textarea>
                             </div>
@@ -633,6 +637,17 @@
             </div>
             `;
         }).join('');
+
+        // Auto-adjust textarea heights after rendering
+        setTimeout(() => {
+            data.forEach((p, i) => {
+                const textarea = document.getElementById(`prompt-json-${i}`);
+                if (textarea) {
+                    textarea.style.height = 'auto';
+                    textarea.style.height = textarea.scrollHeight + 'px';
+                }
+            });
+        }, 100);
     }
 
     // [NEW] Update prompt data from JSON editor
@@ -742,6 +757,45 @@
         Utils.showToast('전체 복사되었습니다', 'success');
     }
 
+    async function downloadAllImages() {
+        const imagesToDownload = prompts.filter(p => p.image_url);
+
+        if (imagesToDownload.length === 0) {
+            Utils.showToast('다운로드할 이미지가 없습니다', 'warning');
+            return;
+        }
+
+        Utils.showToast(`${imagesToDownload.length}개 이미지 다운로드 중...`, 'info');
+
+        for (let i = 0; i < imagesToDownload.length; i++) {
+            const p = imagesToDownload[i];
+            const sceneNum = prompts.indexOf(p) + 1;
+
+            try {
+                // Fetch image as blob
+                const response = await fetch(p.image_url);
+                const blob = await response.blob();
+
+                // Create download link
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Scene_${sceneNum}.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+
+                // Small delay between downloads to avoid browser blocking
+                await new Promise(resolve => setTimeout(resolve, 300));
+            } catch (e) {
+                console.error(`Failed to download scene ${sceneNum}:`, e);
+            }
+        }
+
+        Utils.showToast(`${imagesToDownload.length}개 이미지 다운로드 완료!`, 'success');
+    }
+
     async function generateAllImages() {
         const projectId = getCurrentProject();
         if (!projectId) {
@@ -832,6 +886,176 @@
             Utils.setLoading(btn, false);
         }
     }
+
+    // ========== Scene Selection Functions ==========
+
+    // 전체 선택/해제 토글
+    function toggleSelectAll() {
+        const checkboxes = document.querySelectorAll('.scene-checkbox');
+        const selectAllBtn = document.getElementById('selectAllBtn');
+        const selectAllIcon = document.getElementById('selectAllIcon');
+        const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+
+        checkboxes.forEach(cb => {
+            cb.checked = !allChecked;
+        });
+
+        // Update button state
+        if (!allChecked) {
+            selectAllIcon.textContent = '☑';
+        } else {
+            selectAllIcon.textContent = '☐';
+        }
+
+        handleSceneSelection();
+    }
+
+    // Scene 선택 시 버튼 활성화 상태 업데이트
+    function handleSceneSelection() {
+        const checkboxes = document.querySelectorAll('.scene-checkbox');
+        const anySelected = Array.from(checkboxes).some(cb => cb.checked);
+        const btn = document.getElementById('autoGenBtn');
+
+        if (anySelected) {
+            btn.disabled = false;
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else {
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+
+        // Update select-all button icon
+        const selectAllIcon = document.getElementById('selectAllIcon');
+        const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+        selectAllIcon.textContent = allChecked ? '☑' : '☐';
+    }
+
+    // 선택된 Scene만 이미지 생성
+    async function generateSelectedImages() {
+        const projectId = getCurrentProject();
+        if (!projectId) {
+            Utils.showToast('프로젝트를 찾을 수 없습니다', 'error');
+            return;
+        }
+
+        const checkboxes = document.querySelectorAll('.scene-checkbox:checked');
+        if (checkboxes.length === 0) {
+            Utils.showToast('먼저 Scene을 선택해주세요', 'warning');
+            return;
+        }
+
+        const btn = document.getElementById('autoGenBtn');
+        Utils.setLoading(btn, true, `이미지 생성 중... (${checkboxes.length}개)`);
+
+        try {
+            let successCount = 0;
+            for (let i = 0; i < checkboxes.length; i++) {
+                const checkbox = checkboxes[i];
+                const sceneIndex = parseInt(checkbox.id.replace('scene-checkbox-', ''));
+                const p = prompts[sceneIndex];
+
+                if (!p) continue;
+
+                const card = document.getElementById(`prompt-card-${sceneIndex}`);
+                if (!card) continue;
+
+                // Status indicator
+                let statusDiv = card.querySelector('.status-indicator');
+                if (statusDiv) {
+                    statusDiv.classList.remove('hidden');
+                } else {
+                    statusDiv = document.createElement('div');
+                    statusDiv.className = 'status-indicator px-4 py-2 bg-gray-900 border-t border-gray-700 text-sm';
+                    card.appendChild(statusDiv);
+                }
+                statusDiv.textContent = `⏳ 이미지 생성 중... (${i + 1}/${checkboxes.length})`;
+
+                // API call
+                const fullPrompt = p.prompt_en || p.prompt_content || '';
+                const aspectRatio = document.querySelector('input[name="aspectRatio"]:checked').value || '16:9';
+
+                const result = await API.image.generate(fullPrompt, projectId, sceneIndex + 1, document.getElementById('imageStyle').value, aspectRatio);
+
+                if (result.status === 'ok') {
+                    // Update image in card
+                    const imageContainer = card.querySelector('.image-container');
+                    if (imageContainer) {
+                        imageContainer.innerHTML = `
+                            <div class="aspect-video bg-black rounded-lg overflow-hidden border border-gray-600 w-[90%] relative">
+                                <img src="${result.image_url}" class="w-full h-full object-contain" alt="Scene ${sceneIndex + 1}">
+                                <div class="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded">✓ Generated</div>
+                            </div>
+                        `;
+                    }
+
+                    statusDiv.textContent = '✅ 생성 완료';
+                    statusDiv.className = 'status-indicator px-4 py-2 bg-green-900 border-t border-green-700 text-sm text-green-300';
+
+                    // Store result
+                    prompts[sceneIndex].image_url = result.image_url;
+                    Utils.storage.set('imagePrompts', prompts);
+
+                    successCount++;
+                } else {
+                    statusDiv.textContent = '❌ 생성 실패';
+                    statusDiv.className = 'status-indicator px-4 py-2 bg-red-900 border-t border-red-700 text-sm text-red-300';
+                }
+            }
+
+            Utils.showToast(`${successCount}개 Scene의 이미지 생성이 완료되었습니다!`, 'success');
+        } catch (e) {
+            console.error('Image generation error:', e);
+            Utils.showToast(`이미지 생성 실패: ${e.message}`, 'error');
+        } finally {
+            Utils.setLoading(btn, false);
+        }
+    }
+
+    // ========== Scene Analysis ==========
+
+    let analyzedSceneCount = null; // Store analyzed scene count
+
+    async function analyzeScenes() {
+        const projectId = getCurrentProject();
+        if (!projectId) {
+            Utils.showToast('프로젝트를 찾을 수 없습니다', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('analyzeSceneBtn');
+        Utils.setLoading(btn, true, 'Scene 분석 중...');
+
+        try {
+            const response = await fetch(`/api/projects/${projectId}/analyze-scenes`, {
+                method: 'POST'
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const result = await response.json();
+
+            if (result.scene_count) {
+                analyzedSceneCount = result.scene_count;
+
+                // Display result next to button
+                const resultBadge = document.getElementById('sceneCountBadge');
+                if (resultBadge) {
+                    resultBadge.textContent = `${result.scene_count} Scenes`;
+                    resultBadge.classList.remove('hidden');
+                }
+
+                Utils.showToast(`AI 분석 완료: ${result.scene_count}개 Scene으로 나눌 수 있습니다`, 'success');
+            }
+        } catch (e) {
+            console.error('Scene analysis error:', e);
+            Utils.showToast(`Scene 분석 실패: ${e.message}`, 'error');
+        } finally {
+            Utils.setLoading(btn, false);
+        }
+    }
+
 
     // 스타일 선택 함수
     function selectStyle(style, element) {

@@ -556,6 +556,85 @@ async def get_project_full(project_id: int):
     return db.get_project_full_data_v2(project_id) or {}
 
 
+@app.post("/api/projects/{project_id}/analyze-scenes")
+async def analyze_scenes(project_id: int):
+    """AI를 사용하여 대본을 분석하고 적절한 Scene 개수 결정"""
+    # Get script
+    script_data = db.get_script(project_id)
+    script = ""
+    
+    if script_data and script_data.get("full_script"):
+        script = script_data["full_script"]
+    else:
+        # Fallback to shorts
+        shorts_data = db.get_shorts(project_id)
+        if shorts_data and shorts_data.get("shorts_data"):
+            try:
+                scenes = shorts_data.get("shorts_data", {}).get("scenes", [])
+                if not scenes and isinstance(shorts_data.get("shorts_data"), list):
+                    scenes = shorts_data.get("shorts_data")
+                
+                script_parts = []
+                for scene in scenes:
+                    if isinstance(scene, dict):
+                        text = scene.get("narration") or scene.get("dialogue") or scene.get("text", "")
+                        if text:
+                            script_parts.append(text)
+                
+                script = " ".join(script_parts)
+            except Exception as e:
+                print(f"Error extracting shorts script: {e}")
+    
+    if not script:
+        raise HTTPException(400, "대본을 찾을 수 없습니다")
+    
+    # Analyze with Gemini
+    try:
+        analysis_prompt = f"""다음 대본을 분석하여 이미지 생성을 위한 적절한 Scene 개수를 결정해주세요.
+
+대본:
+{script}
+
+지침:
+- 대본의 내용 흐름을 고려하여 자연스럽게 나눌 수 있는 Scene 개수를 결정하세요
+- 너무 적으면 (1-2개) 시각적 다양성이 부족하고, 너무 많으면 (50개 이상) 중복이 많아집니다
+- 일반적으로 5-20개 사이가 적절합니다
+- 대본 길이, 주제 전환, 내용 변화를 고려하세요
+
+응답 형식 (JSON만 출력):
+{{"scene_count": 숫자, "reason": "간단한 이유"}}"""
+
+        response_text = await gemini_service.generate_text(analysis_prompt, temperature=0.3)
+        
+        # Extract JSON from response
+        import json
+        import re
+        
+        # Try to find JSON in response
+        json_match = re.search(r'\{.*?\}', response_text, re.DOTALL)
+        if json_match:
+            result = json.loads(json_match.group())
+            scene_count = result.get("scene_count")
+            reason = result.get("reason", "")
+            
+            if scene_count and isinstance(scene_count, int) and 1 <= scene_count <= 100:
+                return {"scene_count": scene_count, "reason": reason}
+        
+        # Fallback: try to extract number
+        numbers = re.findall(r'\b(\d+)\b', response_text)
+        if numbers:
+            scene_count = int(numbers[0])
+            if 1 <= scene_count <= 100:
+                return {"scene_count": scene_count, "reason": "AI 자동 분석"}
+        
+        # Default fallback
+        return {"scene_count": 10, "reason": "기본값"}
+        
+    except Exception as e:
+        print(f"Scene analysis error: {e}")
+        raise HTTPException(500, f"분석 실패: {str(e)}")
+
+
 @app.post("/api/projects/{project_id}/image-prompts/auto")
 async def auto_generate_images(project_id: int):
     """대본 기반 이미지 프롬프트 생성 및 일괄 이미지 생성 (Longform & Shorts)"""
@@ -2846,6 +2925,19 @@ async def generate_image(
 ):
     """이미지를 생성하고 저장"""
     try:
+        # Validate prompt
+        if not prompt or not prompt.strip():
+            print(f"❌ [Image Generation] Empty prompt for project {project_id}, scene {scene_number}")
+            return {"status": "error", "error": "프롬프트가 비어있습니다. 먼저 프롬프트를 생성해주세요."}
+        
+        if len(prompt) > 5000:
+            print(f"⚠️ [Image Generation] Prompt too long ({len(prompt)} chars), truncating...")
+            prompt = prompt[:5000]
+        
+        print(f"🎨 [Image Generation] Starting for project {project_id}, scene {scene_number}")
+        print(f"   Prompt: {prompt[:100]}...")
+        print(f"   Aspect ratio: {aspect_ratio}")
+        
         # 이미지 생성 (Gemini Imagen)
         images_bytes = await gemini_service.generate_image(
             prompt=prompt,
@@ -2854,7 +2946,12 @@ async def generate_image(
         )
 
         if not images_bytes:
-            return {"status": "error", "error": "이미지가 생성되지 않았습니다."}
+            error_msg = "이미지가 생성되지 않았습니다. 가능한 원인: Safety filter, API 오류, 또는 프롬프트 문제"
+            print(f"❌ [Image Generation] {error_msg}")
+            print(f"   Prompt was: {prompt[:200]}...")
+            return {"status": "error", "error": error_msg}
+        
+        print(f"✅ [Image Generation] Successfully generated image, size: {len(images_bytes[0])} bytes")
         
         # 프로젝트별 폴더 경로 가져오기
         output_dir, web_dir = get_project_output_dir(project_id)
@@ -2865,11 +2962,13 @@ async def generate_image(
         # 파일 저장
         with open(output_path, "wb") as f:
             f.write(images_bytes[0])
+        
+        print(f"💾 [Image Generation] Saved to: {output_path}")
             
         image_url = f"{web_dir}/{filename}"
         
         # DB 업데이트 (이미지 URL 저장)
-        print(f"DEBUG: Updating DB for Project {project_id}, Scene {scene_number} with URL {image_url}")
+        print(f"💿 [Image Generation] Updating DB for Project {project_id}, Scene {scene_number} with URL {image_url}")
         db.update_image_prompt_url(project_id, scene_number, image_url)
         
         return {
@@ -2878,10 +2977,11 @@ async def generate_image(
         }
 
     except Exception as e:
-        print(f"이미지 생성 실패: {e}")
+        error_details = f"이미지 생성 실패: {str(e)}"
+        print(f"❌ [Image Generation] {error_details}")
         import traceback
         traceback.print_exc()
-        return {"status": "error", "error": str(e)}
+        return {"status": "error", "error": error_details}
 
 @app.post("/api/projects/{project_id}/thumbnail/save")
 async def save_project_thumbnail(

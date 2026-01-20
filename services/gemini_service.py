@@ -81,42 +81,101 @@ class GeminiService:
         aspect_ratio: str = "16:9",
         num_images: int = 1
     ) -> List[bytes]:
-        """이미지 생성 (Imagen 3)"""
-        url = f"{self.base_url}/models/imagen-3.0-generate-001:predict?key={self.api_key}"
-        print(f"DEBUG: Image Gen URL: {url}") # DEBUGGING
+        """이미지 생성 (Imagen 3 우선, 실패 시 Imagen 2로 폴백)"""
+        
+        # Only use verified working models (confirmed by test_imagen.py)
+        models = [
+            "imagen-4.0-generate-001",      # Imagen 4 (Verified Working)
+            "imagen-4.0-fast-generate-001", # Imagen 4 Fast (Available in API)
+        ]
+        
+        last_error = None
+        
+        for model_name in models:
+            try:
+                url = f"{self.base_url}/models/{model_name}:predict?key={self.api_key}"
+                print(f"🎨 [Imagen] Trying model: {model_name}")
+                
+                payload = {
+                    "instances": [{"prompt": prompt}],
+                    "parameters": {
+                        "sampleCount": num_images,
+                        "aspectRatio": aspect_ratio,
+                        "safetySetting": "block_low_and_above"
+                    }
+                }
+                
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    response = await client.post(url, json=payload)
+                    
+                    # 404 에러면 다음 모델 시도
+                    if response.status_code == 404:
+                        print(f"⚠️ [Imagen] Model {model_name} not found (404), trying next...")
+                        last_error = f"Model {model_name} not found"
+                        continue
+                    
+                    # 다른 에러는 즉시 실패
+                    if response.status_code != 200:
+                        error_info = response.text
+                        print(f"❌ [Imagen] Error ({response.status_code}): {error_info}")
+                        raise Exception(f"API Error ({response.status_code}): {error_info}")
+                    
+                    result = response.json()
+                    print(f"🔍 [Imagen] Response from {model_name}:")
+                    print(f"   Keys: {list(result.keys())}")
+                    
+                    images = []
+                    if "predictions" in result:
+                        print(f"   Predictions count: {len(result['predictions'])}")
+                        for idx, pred in enumerate(result["predictions"]):
+                            print(f"   Prediction {idx} keys: {list(pred.keys())}")
+                            if "bytesBase64Encoded" in pred:
+                                img_bytes = base64.b64decode(pred["bytesBase64Encoded"])
+                                images.append(img_bytes)
+                                print(f"   ✅ Decoded image {idx}, size: {len(img_bytes)} bytes")
+                            # Add check for other formats if needed
+                            elif "mimeType" in pred and "bytesBase64Encoded" in pred: # Some versions
+                                 img_bytes = base64.b64decode(pred["bytesBase64Encoded"])
+                                 images.append(img_bytes)
+                                 print(f"   ✅ Decoded image {idx} (alt format), size: {len(img_bytes)} bytes")
+                            else:
+                                print(f"⚠️ [Imagen] Unknown prediction format: {pred.keys()}")
+                                print(f"   Full prediction content: {pred}")
+                                # Check if there's a safety/filter reason
+                                if "error" in pred:
+                                    print(f"   ❌ Error in prediction: {pred['error']}")
+                                if "safetyRatings" in pred:
+                                    print(f"   🚫 Safety ratings: {pred['safetyRatings']}")
+                    else:
+                        print(f"⚠️ [Imagen] No 'predictions' key in response. Keys: {result.keys()}")
+                        print(f"   Full response: {str(result)[:500]}")
 
-        payload = {
-            "instances": [{"prompt": prompt}],
-            "parameters": {
-                "sampleCount": num_images,
-                "aspectRatio": aspect_ratio,
-                "safetySetting": "block_low_and_above"
-            }
-        }
+                    # Check if we got images (MOVED OUTSIDE else block!)
+                    if images:
+                        print(f"✅ [Imagen] Successfully generated {len(images)} image(s) with {model_name}")
+                        return images
+                    
+                    # No images generated - try next model or fail
+                    error_msg = result.get('error', {}).get('message', 'No image data in response')
+                    print(f"⚠️ [Imagen] No images from {model_name}: {error_msg}")
+                    last_error = f"No images: {error_msg}"
+                    continue
+                    
+            except httpx.TimeoutException:
+                print(f"⏱️ [Imagen] Timeout with {model_name}, trying next...")
+                last_error = f"Timeout with {model_name}"
+                continue
+            except Exception as e:
+                # 404가 아닌 다른 에러는 즉시 실패
+                if "404" not in str(e):
+                    raise
+                print(f"⚠️ [Imagen] Error with {model_name}: {e}, trying next...")
+                last_error = str(e)
+                continue
+        
+        # 모든 모델 시도 실패
+        raise Exception(f"All Imagen models failed. Last error: {last_error}")
 
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(url, json=payload)
-            
-            if response.status_code != 200:
-                error_info = response.text
-                print(f"Image Gen Error ({response.status_code}): {error_info}")
-                raise Exception(f"API Error ({response.status_code}): {error_info}")
-
-            result = response.json()
-
-            images = []
-            if "predictions" in result:
-                for pred in result["predictions"]:
-                    if "bytesBase64Encoded" in pred:
-                        img_bytes = base64.b64decode(pred["bytesBase64Encoded"])
-                        images.append(img_bytes)
-            else:
-                # 에러 응답 처리
-                error_msg = result.get('error', {}).get('message', str(result))
-                print(f"Image Gen Failed (No predictions): {result}")
-                raise Exception(f"Image Gen Failed: {error_msg}")
-
-            return images
 
     async def generate_video(
         self,
