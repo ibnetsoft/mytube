@@ -834,25 +834,40 @@
         // Show Loading
         const container = document.getElementById('bubbleChart');
         const loading = document.getElementById('bubbleLoading');
+
+        if (!container || !loading) {
+            console.error('Container or loading element not found');
+            return;
+        }
+
         loading.style.display = 'flex';
-        // Clear ALL previous SVG charts to prevent duplicates -> MOVED to renderBubbleChart
-        // d3.select("#bubbleChart").selectAll("svg").remove();
+        console.log('Loading trend keywords...', { currentLang, period, age });
 
         try {
             // Fetch with filters
             const response = await fetch(`/api/trends/keywords?language=${currentLang}&period=${period}&age=${age}`);
+            console.log('API Response status:', response.status);
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
             const data = await response.json();
+            console.log('Trend data received:', data);
 
             loading.style.display = 'none';
 
-            if (data.status === 'ok' && data.keywords.length > 0) {
+            if (data.status === 'ok' && data.keywords && data.keywords.length > 0) {
+                console.log('Rendering', data.keywords.length, 'keywords');
                 renderBubbleChart(data.keywords);
             } else {
-                container.innerHTML += `<div class="text-gray-500 absolute">데이터가 없습니다</div>`;
+                console.warn('No keywords or invalid data');
+                container.innerHTML = '<div class="text-gray-500 text-center py-20">데이터가 없습니다</div>';
             }
         } catch (e) {
-            console.error(e);
+            console.error('Trend keywords loading error:', e);
             loading.style.display = 'none';
+            container.innerHTML = `<div class="text-red-500 text-center py-20">로딩 오류: ${e.message}</div>`;
         }
     }
 
@@ -941,297 +956,260 @@
         // Empty
     }
 
+
     /* Old functions commented out or replaced above */
     // function startBatchAnalysis()... [REPLACED]
 
+    function renderBubbleChart(data) {
+        const container = document.getElementById('bubbleChart');
+        const width = container.clientWidth;
+        const height = 800;
 
-    // UI Loading
-    const btn = document.getElementById('btnStartBatch');
-    const originalText = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = `<div class="loader-sm"></div> 분석 중...`;
+        // Clear ALL previous SVGs immediately before rendering a new one
+        // This solves race conditions where multiple fetches might return and stack charts
+        d3.select("#bubbleChart").selectAll("svg").remove();
 
-    try {
-        const res = await fetch('/api/topic/analyze-batch', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                folder_name: folderName,
-                videos: selectedVideos
+        // 1. Color palette
+        const colorScale = d3.scaleLinear()
+            .domain([0, 100])
+            .range(["#E0E7FF", "#4F46E5"]);
+
+        // 2. Prepare Data (calculate Radius)
+        // Adjust exponent for visual variance (User request: make variance clear)
+        // Use Power 2.5 for variance
+        const radiusScale = d3.scalePow().exponent(0.5) // Sqrt scale is properly area-proportional, but we want exaggerated
+            .domain([0, 100])
+            .range([15, 60]); // Min 15px, Max 60px size
+
+        const nodes = data.map(d => ({
+            ...d,
+            r: radiusScale(d.volume) * (d.volume > 80 ? 1.2 : 1), // Boost high volume
+            x: Math.random() * width,
+            y: Math.random() * height
+        }));
+
+        const svg = d3.select("#bubbleChart")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .attr("viewBox", [0, 0, width, height])
+            .attr("style", "max-width: 100%; height: auto;");
+
+        // 3. Force Simulation (Wide Spread)
+        const simulation = d3.forceSimulation(nodes)
+            .force("x", d3.forceX(width / 2).strength(0.05)) // Weak horizontal pull -> Spread wide
+            .force("y", d3.forceY(height / 2).strength(0.1)) // Stronger vertical pull -> Keep in band
+            .force("collide", d3.forceCollide(d => d.r * 1.5).strength(0.8)) // Prevent overlap (adjusted for rectangle)
+            .force("charge", d3.forceManyBody().strength(-10)); // Slight repulsion
+
+        // 4. Render Elements
+        const node = svg.append("g")
+            .selectAll("g")
+            .data(nodes)
+            .join("g")
+            .attr("class", "bubble")
+            .call(drag(simulation)) // Optional: dragging
+            .on("click", (event, d) => {
+                document.getElementById('searchInput').value = d.data ? d.data.keyword : d.keyword;
+                searchVideos();
             })
-        });
+            .on("mouseover", function (event, d) {
+                // 1. Bring to front
+                d3.select(this).raise();
 
-        const data = await res.json();
-        if (data.status === 'ok') {
-            Utils.showToast(`분석 완료! ${data.count}개 영상`, "success");
-            closeBatchModal();
+                // 2. Scale up rect and change color
+                d3.select(this).select("rect")
+                    .transition().duration(200)
+                    .attr("width", d.r * 4.4)        // Scale up (Horizontal)
+                    .attr("height", d.r * 2.2)      // Scale up
+                    .attr("x", -d.r * 2.2)           // Recenter
+                    .attr("y", -d.r * 1.1)
+                    .attr("fill", "#60A5FA"); // Sky Blue (Tailwind blue-400)
 
-            // [MODIFIED] Repository Notification
-            Utils.showToast('저장소에 분석 결과가 저장되었습니다.', 'info');
-            setTimeout(() => {
-                if (confirm('저장소로 이동하여 결과를 확인하시겠습니까?')) {
-                    window.location.href = '/repository';
-                }
-            }, 500);
-        } else {
-            throw new Error(data.error || 'Unknown error');
-        }
-    } catch (e) {
+                // 3. Scale up text
+                d3.select(this).select("text")
+                    .transition().duration(200)
+                    .style("font-size", (Math.min(d.r / 1.5, 16) * 1.2) + "px")
+                    .style("fill", "#fff");
+            })
+            .on("mouseout", function (event, d) {
+                // Restore logic
+                d3.select(this).select("rect")
+                    .transition().duration(200)
+                    .attr("width", d.r * 4)
+                    .attr("height", d.r * 2)
+                    .attr("x", -d.r * 2)
+                    .attr("y", -d.r)
+                    .attr("fill", d => colorScale(d.volume));
 
-        console.error(e);
-        Utils.showToast(`오류 발생: ${e.message}`, 'error');
-    }
-    }
-        function renderBubbleChart(data) {
-            const container = document.getElementById('bubbleChart');
-            const width = container.clientWidth;
-            const height = 800;
-
-            // Clear ALL previous SVGs immediately before rendering a new one
-            // This solves race conditions where multiple fetches might return and stack charts
-            d3.select("#bubbleChart").selectAll("svg").remove();
-
-            // 1. Color palette
-            const colorScale = d3.scaleLinear()
-                .domain([0, 100])
-                .range(["#E0E7FF", "#4F46E5"]);
-
-            // 2. Prepare Data (calculate Radius)
-            // Adjust exponent for visual variance (User request: make variance clear)
-            // Use Power 2.5 for variance
-            const radiusScale = d3.scalePow().exponent(0.5) // Sqrt scale is properly area-proportional, but we want exaggerated
-                .domain([0, 100])
-                .range([15, 60]); // Min 15px, Max 60px size
-
-            const nodes = data.map(d => ({
-                ...d,
-                r: radiusScale(d.volume) * (d.volume > 80 ? 1.2 : 1), // Boost high volume
-                x: Math.random() * width,
-                y: Math.random() * height
-            }));
-
-            const svg = d3.select("#bubbleChart")
-                .append("svg")
-                .attr("width", width)
-                .attr("height", height)
-                .attr("viewBox", [0, 0, width, height])
-                .attr("style", "max-width: 100%; height: auto;");
-
-            // 3. Force Simulation (Wide Spread)
-            const simulation = d3.forceSimulation(nodes)
-                .force("x", d3.forceX(width / 2).strength(0.05)) // Weak horizontal pull -> Spread wide
-                .force("y", d3.forceY(height / 2).strength(0.1)) // Stronger vertical pull -> Keep in band
-                .force("collide", d3.forceCollide(d => d.r * 1.5).strength(0.8)) // Prevent overlap (adjusted for rectangle)
-                .force("charge", d3.forceManyBody().strength(-10)); // Slight repulsion
-
-            // 4. Render Elements
-            const node = svg.append("g")
-                .selectAll("g")
-                .data(nodes)
-                .join("g")
-                .attr("class", "bubble")
-                .call(drag(simulation)) // Optional: dragging
-                .on("click", (event, d) => {
-                    document.getElementById('searchInput').value = d.data ? d.data.keyword : d.keyword;
-                    searchVideos();
-                })
-                .on("mouseover", function (event, d) {
-                    // 1. Bring to front
-                    d3.select(this).raise();
-
-                    // 2. Scale up rect and change color
-                    d3.select(this).select("rect")
-                        .transition().duration(200)
-                        .attr("width", d.r * 4.4)        // Scale up (Horizontal)
-                        .attr("height", d.r * 2.2)      // Scale up
-                        .attr("x", -d.r * 2.2)           // Recenter
-                        .attr("y", -d.r * 1.1)
-                        .attr("fill", "#60A5FA"); // Sky Blue (Tailwind blue-400)
-
-                    // 3. Scale up text
-                    d3.select(this).select("text")
-                        .transition().duration(200)
-                        .style("font-size", (Math.min(d.r / 1.5, 16) * 1.2) + "px")
-                        .style("fill", "#fff");
-                })
-                .on("mouseout", function (event, d) {
-                    // Restore logic
-                    d3.select(this).select("rect")
-                        .transition().duration(200)
-                        .attr("width", d.r * 4)
-                        .attr("height", d.r * 2)
-                        .attr("x", -d.r * 2)
-                        .attr("y", -d.r)
-                        .attr("fill", d => colorScale(d.volume));
-
-                    d3.select(this).select("text")
-                        .transition().duration(200)
-                        .style("font-size", Math.min(d.r / 1.5, 16) + "px")
-                        .style("fill", d.volume > 60 ? "#fff" : "#333");
-                });
-
-            // Use Rect instead of Circle
-            const rects = node.append("rect")
-                .attr("width", 0)
-                .attr("height", 0)
-                .attr("x", 0)
-                .attr("y", 0)
-                .attr("rx", 15) // Rounded corners (Soft Square)
-                .attr("ry", 15)
-                .attr("fill", d => colorScale(d.volume))
-                .attr("fill-opacity", 0.9)
-                .attr("stroke", "#fff")
-                .attr("stroke-width", 2);
-
-            // Transition rect size
-            rects.transition().duration(800).ease(d3.easeBackOut)
-                .attr("width", d => d.r * 4)
-                .attr("height", d => d.r * 2)
-                .attr("x", d => -d.r * 2) // Center properly
-                .attr("y", d => -d.r);
-
-            const labels = node.append("text")
-                .style("text-anchor", "middle")
-                .style("pointer-events", "none")
-                // .attr("dy", "0.3em") // Removed in favor of tspan positioning
-                .style("fill", d => d.volume > 60 ? "#fff" : "#333");
-
-            // Main Keyword
-            labels.append("tspan")
-                .attr("x", 0)
-                .attr("dy", d => d.translation ? "-0.2em" : "0.3em") // Adjust vertical center based on content
-                .style("font-size", d => Math.min(d.r / 1.5, 16) + "px")
-                .style("font-weight", "bold")
-                .text(d => d.keyword.substring(0, d.r / 2.5)); // Truncate longer text
-
-            // Translation (if distinct)
-            labels.append("tspan")
-                .attr("x", 0)
-                .attr("dy", "1.2em")
-                .style("font-size", d => Math.min(d.r / 2.5, 12) + "px") // Smaller font
-                .style("font-weight", "normal")
-                .style("opacity", 0.9)
-                .text(d => (d.translation && d.translation !== d.keyword) ? d.translation : "");
-
-            // 5. Simulation Tick
-            simulation.on("tick", () => {
-                node.attr("transform", d => `translate(${d.x},${d.y})`);
+                d3.select(this).select("text")
+                    .transition().duration(200)
+                    .style("font-size", Math.min(d.r / 1.5, 16) + "px")
+                    .style("fill", d.volume > 60 ? "#fff" : "#333");
             });
 
-            // Helper: Dragging
-            function drag(simulation) {
-                function dragstarted(event) {
-                    if (!event.active) simulation.alphaTarget(0.3).restart();
-                    event.subject.fx = event.subject.x;
-                    event.subject.fy = event.subject.y;
-                }
+        // Use Rect instead of Circle
+        const rects = node.append("rect")
+            .attr("width", 0)
+            .attr("height", 0)
+            .attr("x", 0)
+            .attr("y", 0)
+            .attr("rx", 15) // Rounded corners (Soft Square)
+            .attr("ry", 15)
+            .attr("fill", d => colorScale(d.volume))
+            .attr("fill-opacity", 0.9)
+            .attr("stroke", "#fff")
+            .attr("stroke-width", 2);
 
-                function dragged(event) {
-                    event.subject.fx = event.x;
-                    event.subject.fy = event.y;
-                }
+        // Transition rect size
+        rects.transition().duration(800).ease(d3.easeBackOut)
+            .attr("width", d => d.r * 4)
+            .attr("height", d => d.r * 2)
+            .attr("x", d => -d.r * 2) // Center properly
+            .attr("y", d => -d.r);
 
-                function dragended(event) {
-                    if (!event.active) simulation.alphaTarget(0);
-                    event.subject.fx = null;
-                    event.subject.fy = null;
-                }
+        const labels = node.append("text")
+            .style("text-anchor", "middle")
+            .style("pointer-events", "none")
+            // .attr("dy", "0.3em") // Removed in favor of tspan positioning
+            .style("fill", d => d.volume > 60 ? "#fff" : "#333");
 
-                return d3.drag()
-                    .on("start", dragstarted)
-                    .on("drag", dragged)
-                    .on("end", dragended);
-            }
-        }
+        // Main Keyword
+        labels.append("tspan")
+            .attr("x", 0)
+            .attr("dy", d => d.translation ? "-0.2em" : "0.3em") // Adjust vertical center based on content
+            .style("font-size", d => Math.min(d.r / 1.5, 16) + "px")
+            .style("font-weight", "bold")
+            .text(d => d.keyword.substring(0, d.r / 2.5)); // Truncate longer text
 
-        // Auto load on mount
-        document.addEventListener('DOMContentLoaded', () => {
-            // 기존 DOMContentLoaded 로직이 있다면 그 안에 넣어야 함. 
-            // 여기서는 별도로 추가해도 무방함 (독립 기능)
-            loadTrendKeywords('ko');
+        // Translation (if distinct)
+        labels.append("tspan")
+            .attr("x", 0)
+            .attr("dy", "1.2em")
+            .style("font-size", d => Math.min(d.r / 2.5, 12) + "px") // Smaller font
+            .style("font-weight", "normal")
+            .style("opacity", 0.9)
+            .text(d => (d.translation && d.translation !== d.keyword) ? d.translation : "");
+
+        // 5. Simulation Tick
+        simulation.on("tick", () => {
+            node.attr("transform", d => `translate(${d.x},${d.y})`);
         });
 
+        // Helper: Dragging
+        function drag(simulation) {
+            function dragstarted(event) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                event.subject.fx = event.subject.x;
+                event.subject.fy = event.subject.y;
+            }
+
+            function dragged(event) {
+                event.subject.fx = event.x;
+                event.subject.fy = event.y;
+            }
+
+            function dragended(event) {
+                if (!event.active) simulation.alphaTarget(0);
+                event.subject.fx = null;
+                event.subject.fy = null;
+            }
+
+            return d3.drag()
+                .on("start", dragstarted)
+                .on("drag", dragged)
+                .on("end", dragended);
+        }
+    }
+
+    // Auto load on mount
+    document.addEventListener('DOMContentLoaded', () => {
+        // 기존 DOMContentLoaded 로직이 있다면 그 안에 넣어야 함. 
+        // 여기서는 별도로 추가해도 무방함 (독립 기능)
+        loadTrendKeywords('ko');
+    });
 
 
-        // 모달 닫기
-        function closeModal() {
+
+    // 모달 닫기
+    function closeModal() {
+        document.getElementById('analysisModal').classList.add('hidden');
+        document.getElementById('analysisModal').classList.remove('flex');
+    }
+
+    // ESC 키로 모달 닫기
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeModal();
+    });
+    // [NEW] Page State Management (SessionStorage)
+    function savePageState() {
+        const state = {
+            query: document.getElementById('searchInput').value,
+            order: document.getElementById('searchOrder').value,
+            period: document.getElementById('searchPeriod').value,
+            language: document.getElementById('searchLanguage').value,
+            videos: currentVideos,
+            videoForAnalysis: currentVideoForAnalysis,
+            analysisResult: currentAnalysisResult,
+            isModalOpen: !document.getElementById('analysisModal').classList.contains('hidden'),
+            timestamp: Date.now()
+        };
+        sessionStorage.setItem('topicPageState', JSON.stringify(state));
+    }
+
+    function restorePageState() {
+        try {
+            const raw = sessionStorage.getItem('topicPageState');
+            if (!raw) return;
+            const state = JSON.parse(raw);
+
+            // 1. Restore Inputs
+            if (state.query) document.getElementById('searchInput').value = state.query;
+            if (state.order) document.getElementById('searchOrder').value = state.order;
+            if (state.period) document.getElementById('searchPeriod').value = state.period;
+            if (state.language) document.getElementById('searchLanguage').value = state.language;
+
+            // 2. Restore Results
+            if (state.videos && state.videos.length > 0) {
+                currentVideos = state.videos;
+                renderVideos();
+                document.getElementById('emptySection').classList.add('hidden');
+                document.getElementById('loadingSection').classList.add('hidden');
+                document.getElementById('resultsSection').classList.remove('hidden');
+                document.getElementById('resultCount').textContent = `(${currentVideos.length}개)`;
+            }
+
+            // 3. Restore Analysis Modal
+            if (state.isModalOpen && state.videoForAnalysis && state.analysisResult) {
+                currentVideoForAnalysis = state.videoForAnalysis;
+                currentAnalysisResult = state.analysisResult;
+
+                // Re-open modal
+                openAnalysisModal(currentVideoForAnalysis.id);
+                // Re-render analysis content
+                // Note: openAnalysisModal resets content, so we need to wait/override
+                setTimeout(() => {
+                    renderAnalysisResult(currentAnalysisResult, "?", !!currentVideoForAnalysis.transcript);
+                }, 100);
+            }
+        } catch (e) {
+            console.error("State restore failed:", e);
+        }
+    }
+
+    // Modal Close Logic Update
+    const originalCloseModal = window.closeModal;
+    window.closeModal = function () {
+        if (originalCloseModal) originalCloseModal(); // call existing logic if any (usually in base.html)
+        else {
             document.getElementById('analysisModal').classList.add('hidden');
             document.getElementById('analysisModal').classList.remove('flex');
         }
+        savePageState(); // Save closed state
+    };
 
-        // ESC 키로 모달 닫기
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') closeModal();
-        });
-        // [NEW] Page State Management (SessionStorage)
-        function savePageState() {
-            const state = {
-                query: document.getElementById('searchInput').value,
-                order: document.getElementById('searchOrder').value,
-                period: document.getElementById('searchPeriod').value,
-                language: document.getElementById('searchLanguage').value,
-                videos: currentVideos,
-                videoForAnalysis: currentVideoForAnalysis,
-                analysisResult: currentAnalysisResult,
-                isModalOpen: !document.getElementById('analysisModal').classList.contains('hidden'),
-                timestamp: Date.now()
-            };
-            sessionStorage.setItem('topicPageState', JSON.stringify(state));
-        }
-
-        function restorePageState() {
-            try {
-                const raw = sessionStorage.getItem('topicPageState');
-                if (!raw) return;
-                const state = JSON.parse(raw);
-
-                // 1. Restore Inputs
-                if (state.query) document.getElementById('searchInput').value = state.query;
-                if (state.order) document.getElementById('searchOrder').value = state.order;
-                if (state.period) document.getElementById('searchPeriod').value = state.period;
-                if (state.language) document.getElementById('searchLanguage').value = state.language;
-
-                // 2. Restore Results
-                if (state.videos && state.videos.length > 0) {
-                    currentVideos = state.videos;
-                    renderVideos();
-                    document.getElementById('emptySection').classList.add('hidden');
-                    document.getElementById('loadingSection').classList.add('hidden');
-                    document.getElementById('resultsSection').classList.remove('hidden');
-                    document.getElementById('resultCount').textContent = `(${currentVideos.length}개)`;
-                }
-
-                // 3. Restore Analysis Modal
-                if (state.isModalOpen && state.videoForAnalysis && state.analysisResult) {
-                    currentVideoForAnalysis = state.videoForAnalysis;
-                    currentAnalysisResult = state.analysisResult;
-
-                    // Re-open modal
-                    openAnalysisModal(currentVideoForAnalysis.id);
-                    // Re-render analysis content
-                    // Note: openAnalysisModal resets content, so we need to wait/override
-                    setTimeout(() => {
-                        renderAnalysisResult(currentAnalysisResult, "?", !!currentVideoForAnalysis.transcript);
-                    }, 100);
-                }
-            } catch (e) {
-                console.error("State restore failed:", e);
-            }
-        }
-
-        // Modal Close Logic Update
-        const originalCloseModal = window.closeModal;
-        window.closeModal = function () {
-            if (originalCloseModal) originalCloseModal(); // call existing logic if any (usually in base.html)
-            else {
-                document.getElementById('analysisModal').classList.add('hidden');
-                document.getElementById('analysisModal').classList.remove('flex');
-            }
-            savePageState(); // Save closed state
-        };
-
-        // Initialize
-        document.addEventListener('DOMContentLoaded', restorePageState);
+    // Initialize
+    document.addEventListener('DOMContentLoaded', restorePageState);
 
 </script>
 {% endblock %}
