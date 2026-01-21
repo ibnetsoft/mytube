@@ -263,6 +263,21 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Rendered Video Section (New) -->
+            <div id="renderedVideoSection"
+                class="hidden bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300">🎬 렌더링된 영상</h3>
+                    <button onclick="closeRenderedVideo()"
+                        class="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                        ✕ 닫기
+                    </button>
+                </div>
+                <div id="renderedVideoPlayer" class="bg-black rounded-lg overflow-hidden" style="aspect-ratio: 16/9;">
+                    <!-- Video player will be inserted here -->
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -1295,28 +1310,40 @@
         btn.disabled = false;
         btn.innerHTML = originalText;
 
-        // Replace Preview with Video Player
-        const previewBox = document.getElementById('mainPreviewBox');
-        if (previewBox) {
-            // Normalize Path: /output/ is mapped to static or direct?
-            // Usually /static/output/... or direct /output/ if app mounts it.
-            // videoPath from DB is usually /output/project/video.mp4
-            // Let's assume the backend mounted /output or returned a web-friendly path.
-            // Based on create_slideshow, it returns a web_path.
+        // Display video in separate section (Don't replace preview)
+        const renderedSection = document.getElementById('renderedVideoSection');
+        const videoPlayer = document.getElementById('renderedVideoPlayer');
 
-            // Just in case, ensure it starts with /
+        if (renderedSection && videoPlayer) {
+            // Normalize Path
             const webPath = videoPath.startsWith('/') ? videoPath : '/' + videoPath;
 
-            previewBox.innerHTML = `
+            // Insert video player
+            videoPlayer.innerHTML = `
                 <video controls autoplay class="w-full h-full object-contain bg-black">
                     <source src="${webPath}" type="video/mp4">
-                    釉뚮씪?곗?媛 鍮꾨뵒영상?쒓렇를吏?먰븯吏 ?딆뒿니다.
+                    브라우저가 비디오 태그를 지원하지 않습니다.
                 </video>
             `;
 
-            // Remove overlays if needed
-            const subtitleOverlay = document.getElementById('subtitlePreviewBox');
-            if (subtitleOverlay) subtitleOverlay.style.display = 'none';
+            // Show the section
+            renderedSection.classList.remove('hidden');
+
+            // Scroll to the video section
+            renderedSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }
+
+    function closeRenderedVideo() {
+        const renderedSection = document.getElementById('renderedVideoSection');
+        const videoPlayer = document.getElementById('renderedVideoPlayer');
+
+        if (renderedSection) {
+            renderedSection.classList.add('hidden');
+        }
+
+        if (videoPlayer) {
+            videoPlayer.innerHTML = ''; // Clear video to stop playback
         }
     }
 
