@@ -3408,12 +3408,35 @@ async def generate_subtitle_api(
         print(f"Subtitle gen failed: {e}")
         return {"status": "error", "error": str(e)}
 
-    # Check how save is handled in existing code (need to view main.py more)
-    # The view_file showed up to 1400. I need to see subtitle APIs.
-    return {"status": "ok", "subtitles": subtitles}
+    # Get images data for the response
+    try:
+        images_data = db.get_image_prompts(project_id)
+        timeline_images = []
+        image_timings = [0.0]
+        
+        if images_data and images_data.get('prompts'):
+            for prompt in images_data['prompts']:
+                if prompt.get('image_path'):
+                    timeline_images.append(prompt['image_path'])
+        
+        # Simple distribution if we have images
+        if timeline_images and subtitles and len(subtitles) > 1:
+            image_timings = [0.0]
+            step = len(subtitles) / len(timeline_images)
+            for i in range(1, len(timeline_images)):
+                idx = min(int(i * step), len(subtitles) - 1)
+                image_timings.append(subtitles[idx]['start'])
+    except Exception as e:
+        print(f"Failed to load images: {e}")
+        timeline_images = []
+        image_timings = [0.0]
 
-    class Config:
-        extra = "ignore"
+    return {
+        "status": "ok", 
+        "subtitles": subtitles,
+        "images": timeline_images,
+        "image_timings": image_timings
+    }
 
 @app.post("/api/projects/{project_id}/render")
 async def render_project_video(
