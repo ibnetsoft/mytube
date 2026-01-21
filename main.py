@@ -735,8 +735,8 @@ async def save_external_tts(project_id: int, file: UploadFile = File(...)):
             f.write(content)
             
         # 4. DB 업데이트 (TTS 결과로 등록)
-        # TTS 테이블 구조에 맞게 저장 (provider='external', voice_id='upload')
-        db.save_tts_result(project_id, file_path, "external", "upload", "ko", 1.0)
+        # save_tts(project_id, voice_id, voice_name, audio_path, duration)
+        db.save_tts(project_id, "external_upload", "External Upload", file_path, 0.0)
         
         return {"status": "ok", "url": web_url, "path": file_path}
     except Exception as e:
