@@ -552,6 +552,44 @@ class VideoService:
         bg.save(output_path, quality=95)
         
         return output_path
+    
+    def _resize_image_to_fill(self,image_path: str, target_size: tuple) -> str:
+        """
+        이미지를 화면에 꽉 차게 리사이즈 (블러 배경 없이)
+        """
+        from PIL import Image
+        import uuid
+        
+        target_w, target_h = target_size
+        
+        # 원본 열기
+        img = Image.open(image_path).convert("RGB")
+        
+        # 비율 계산하여 꽉 차게 크롭/리사이즈 (Aspect Fill)
+        img_ratio = img.width / img.height
+        target_ratio = target_w / target_h
+        
+        if img_ratio > target_ratio:
+            # 이미지가 더 납작함 -> 높이에 맞춤 후 좌우 크롭
+            new_h = target_h
+            new_w = int(new_h * img_ratio)
+        else:
+            # 이미지가 더 길쭉함 -> 너비에 맞춤 후 상하 크롭
+            new_w = target_w
+            new_h = int(new_w / img_ratio)
+            
+        img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        
+        # 중앙 크롭
+        left = (new_w - target_w) // 2
+        top = (new_h - target_h) // 2
+        img = img.crop((left, top, left + target_w, top + target_h))
+        
+        # 저장
+        output_path = os.path.join(self.output_dir, f"filled_{uuid.uuid4()}.jpg")
+        img.save(output_path, quality=95)
+        
+        return output_path
 
     def generate_aligned_subtitles(self, audio_path: str, script_text: str = None) -> List[dict]:
         """
