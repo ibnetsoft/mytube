@@ -163,13 +163,11 @@
         <div class="col-span-12 md:col-span-8 flex flex-col gap-3 min-h-0">
 
             <!-- Preview Area (Top) -->
-            <div class="relative bg-black rounded-lg border border-gray-800 shadow-sm overflow-hidden group shrink-0"
-                style="aspect-ratio: 16/9;">
+            <div class="relative bg-black rounded-lg border border-gray-800 shadow-sm overflow-hidden group h-auto">
                 <!-- Preview Container -->
-                <div class="bg-black/50 rounded-lg flex items-center justify-center p-4 h-full">
+                <div class="bg-black/50 rounded-lg flex items-center justify-center p-0">
                     <div id="mainPreviewBox"
-                        class="relative w-full max-w-2xl bg-black shadow-2xl overflow-hidden transition-all duration-300"
-                        style="aspect-ratio: 16/9;">
+                        class="relative w-full max-w-2xl bg-black shadow-2xl overflow-hidden transition-all duration-300">
                         <!-- Background Image/Video -->
                         <div id="previewContainer"
                             class="absolute inset-0 flex items-start justify-center bg-gray-900 pt-4">
@@ -257,8 +255,7 @@
                         placeholder="리스트에서 자막을 선택하세요."></textarea>
 
                     <!-- DEBUG OVERLAY -->
-                    <div id="debug-overlay"
-                        class="p-2 bg-red-100 text-red-600 text-xs font-bold border border-red-300 rounded mt-2">
+                    <div id="debug-overlay" class="hidden">
                         DEBUG: Initializing...
                     </div>
                 </div>
