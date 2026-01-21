@@ -3768,6 +3768,17 @@ async def render_project_video(
                         if t_path and os.path.exists(t_path):
                             thumbnail_path_arg = t_path
 
+                # [NEW] Load fade-in settings from database
+                fade_in_flags = []
+                try:
+                    prompts_data = db.get_image_prompts(project_id)
+                    if prompts_data and prompts_data.get('prompts'):
+                        fade_in_flags = [p.get('fade_in', False) for p in prompts_data['prompts']]
+                        print(f"DEBUG: Loaded {len(fade_in_flags)} fade-in flags: {fade_in_flags}")
+                except Exception as e:
+                    print(f"Failed to load fade-in settings: {e}")
+                    fade_in_flags = []
+
                 # 3. 단일 패스 영상 생성 (이미지 + 오디오 + 자막 통합)
                 video_path = video_service.create_slideshow(
                     images=images,
@@ -3778,7 +3789,8 @@ async def render_project_video(
                     subtitle_settings=s_settings,      # 자막 스타일 전달
                     background_video_url=bg_video_url_arg,
                     thumbnail_path=thumbnail_path_arg,  # [NEW] Pass thumbnail
-                    duration_per_image=duration_per_image # [FIX] Pass calculated durations
+                    duration_per_image=duration_per_image, # [FIX] Pass calculated durations
+                    fade_in_flags=fade_in_flags  # [NEW] Pass fade-in settings
                 )
 
                 

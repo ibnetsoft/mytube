@@ -25,7 +25,8 @@ class VideoService:
         subtitle_settings: Optional[dict] = None,
 
         background_video_url: Optional[str] = None,
-        thumbnail_path: Optional[str] = None  # [NEW] Baked-in Thumbnail
+        thumbnail_path: Optional[str] = None,  # [NEW] Baked-in Thumbnail
+        fade_in_flags: Optional[List[bool]] = None  # [NEW] Fade-in effect per image
     ) -> str:
         """
         이미지 슬라이드쇼 영상 생성 (시네마틱 프레임 적용)
@@ -210,6 +211,12 @@ class VideoService:
                     else:
                         # 30초 이후 -> 정지 화상 (또는 줌인 계속? 일단 정지)
                         clip = ImageClip(processed_img_path).set_duration(dur)
+
+                # [NEW] Apply fade-in effect if requested
+                if fade_in_flags and i < len(fade_in_flags) and fade_in_flags[i]:
+                    fade_duration = min(1.0, dur * 0.3)  # Max 1초 또는 클립 길이의 30%
+                    clip = clip.fadein(fade_duration)
+                    print(f"  → Fade-in applied to image #{i+1} ({fade_duration:.2f}s)")
 
                 clips.append(clip)
                 current_duration += dur

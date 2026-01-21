@@ -582,6 +582,15 @@
                             <span class="font-bold text-white">Scene ${i + 1}</span>
                             <span class="text-xs text-gray-400 ml-2">🎬 ${firstText || '(대본 없음)'}</span>
                         </div>
+                        <!-- Fade-in Checkbox -->
+                        <div class="flex items-center gap-1 ml-4 px-2 py-1 bg-gray-800/50 rounded border border-gray-600">
+                            <input type="checkbox" 
+                                   id="fadein-checkbox-${i}" 
+                                   class="fadein-checkbox w-4 h-4 rounded border-gray-500 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                                   ${prompt.fade_in ? 'checked' : ''}
+                                   onchange="updateFadeInSetting(${i}, this.checked)">
+                            <label for="fadein-checkbox-${i}" class="text-xs text-gray-300 cursor-pointer select-none">✨ 페이드인</label>
+                        </div>
                     </div>
                     <div class="flex gap-2">
                         <button onclick="copyPromptJson(${i})" class="btn-secondary text-xs px-3 py-1">📋 JSON 복사</button>
@@ -929,6 +938,36 @@
         const allChecked = Array.from(checkboxes).every(cb => cb.checked);
         selectAllIcon.textContent = allChecked ? '☑' : '☐';
     }
+
+    // [NEW] 페이드인 설정 업데이트
+    async function updateFadeInSetting(sceneIndex, fadeIn) {
+        if (!currentProjectId) return;
+
+        try {
+            // Update local prompts data
+            if (currentPrompts && currentPrompts.prompts && currentPrompts.prompts[sceneIndex]) {
+                currentPrompts.prompts[sceneIndex].fade_in = fadeIn;
+
+                // Save to backend
+                const res = await fetch(`/api/projects/${currentProjectId}/image-prompts`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompts: currentPrompts.prompts })
+                });
+
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    console.log(`페이드인 설정 저장: Scene ${sceneIndex + 1} = ${fadeIn}`);
+                } else {
+                    throw new Error(data.error || '저장 실패');
+                }
+            }
+        } catch (e) {
+            console.error('페이드인 설정 저장 실패:', e);
+            Utils.showToast(`페이드인 설정 저장 실패: ${e.message}`, 'error');
+        }
+    }
+
 
     // 선택된 Scene만 이미지 생성
     async function generateSelectedImages() {
