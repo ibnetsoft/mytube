@@ -947,7 +947,8 @@ def update_project_setting(project_id: int, key: str, value: Any):
                     'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum',
                     'subtitle_font_size', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'youtube_video_id', 'is_published', 'background_video_url',
                     'character_ref_text', 'character_ref_image_path', 'script_style',
-                    'subtitle_path', 'image_timings_path', 'timeline_images_path', 'app_mode'] # [FIX] Added app_mode
+                    'subtitle_path', 'image_timings_path', 'timeline_images_path', 'app_mode',
+                    'subtitle_base_color', 'subtitle_pos_y', 'subtitle_pos_x'] # [FIX] Added missing subtitle keys
 
 
     if key not in allowed_keys:
