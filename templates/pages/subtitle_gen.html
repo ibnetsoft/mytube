@@ -1300,34 +1300,16 @@
     }
 
     function onRenderComplete(videoPath, btn, originalText) {
-        Utils.showToast("렌더링 완료!", "success");
+        Utils.showToast("렌더링 완료! 렌더링 페이지로 이동합니다.", "success");
 
         // Reset Button
         btn.disabled = false;
         btn.innerHTML = originalText;
 
-        // Display video in separate section (Don't replace preview)
-        const renderedSection = document.getElementById('renderedVideoSection');
-        const videoPlayer = document.getElementById('renderedVideoPlayer');
-
-        if (renderedSection && videoPlayer) {
-            // Normalize Path
-            const webPath = videoPath.startsWith('/') ? videoPath : '/' + videoPath;
-
-            // Insert video player
-            videoPlayer.innerHTML = `
-                <video controls autoplay class="w-full h-full object-contain bg-black">
-                    <source src="${webPath}" type="video/mp4">
-                    브라우저가 비디오 태그를 지원하지 않습니다.
-                </video>
-            `;
-
-            // Show the section
-            renderedSection.classList.remove('hidden');
-
-            // Scroll to the video section
-            renderedSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
+        // [CHANGED] Redirect to render page instead of showing video here
+        setTimeout(() => {
+            window.location.href = `/render?project_id=${currentProjectId}`;
+        }, 1000); // 1초 후 이동 (토스트 메시지를 볼 수 있도록)
     }
 
     function closeRenderedVideo() {
