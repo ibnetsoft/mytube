@@ -3372,6 +3372,7 @@ async def generate_subtitle_api(
         # 3. 최후의 수단 (Last Resort): 빈 자막 1개 생성 (사용자가 편집할 수 있도록)
         if not subtitles:
              print("DEBUG: All generation methods failed. Creating empty placeholder.")
+             subtitles = []  # Initialize empty list if None
              duration = tts_data.get('duration', 10)
              if duration == 0 and os.path.exists(audio_path):
                  try:
