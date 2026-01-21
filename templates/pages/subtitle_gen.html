@@ -172,8 +172,8 @@
                         style="aspect-ratio: 16/9;">
                         <!-- Background Image/Video -->
                         <div id="previewContainer"
-                            class="absolute inset-0 flex items-center justify-center bg-gray-900">
-                            <p class="text-gray-600 text-xs">자막을 선택하면 미리보기媛 표시?⑸땲영상/p>
+                            class="absolute inset-0 flex items-start justify-center bg-gray-900 pt-4">
+                            <p class="text-gray-600 text-xs">자막을 선택하면 미리보기가 표시됩니다</p>
                         </div>
                     </div>
                 </div>
@@ -454,7 +454,7 @@
 
         // Find rough image match
         if (sub.preview_url) {
-            if (container) container.innerHTML = `<img src="${sub.preview_url}" class="w-full h-full object-cover opacity-50">`;
+            if (container) container.innerHTML = `<img src="${sub.preview_url}" class="w-4/5 h-4/5 object-contain opacity-50">`;
         } else if (images.length > 0) {
             const durationPerImg = audioDuration / images.length;
             // Find active image index based on time
@@ -471,7 +471,7 @@
             }
 
             if (imgIdx !== -1 && images[imgIdx]) {
-                if (container) container.innerHTML = `<img src="${images[imgIdx]}" class="w-full h-full object-cover opacity-50">`;
+                if (container) container.innerHTML = `<img src="${images[imgIdx]}" class="w-4/5 h-4/5 object-contain opacity-50">`;
             }
         }
     }
@@ -574,7 +574,7 @@
             // ... (existing preview update logic if any)
             const previewBg = document.getElementById('previewContainer');
             if (previewBg && images[actualIndex]) {
-                previewBg.innerHTML = `<img src="${images[actualIndex]}" class="w-full h-full object-cover opacity-50">`;
+                previewBg.innerHTML = `<img src="${images[actualIndex]}" class="w-4/5 h-4/5 object-contain opacity-50">`;
             }
 
         } else {
@@ -1125,7 +1125,7 @@
     function previewImage(idx) {
         if (idx < 0 || idx >= sourceImages.length) return;
         const container = document.getElementById('previewContainer');
-        if (container) container.innerHTML = `<img src="${sourceImages[idx]}" class="w-full h-full object-cover opacity-80">`;
+        if (container) container.innerHTML = `<img src="${sourceImages[idx]}" class="w-4/5 h-4/5 object-contain opacity-80">`;
         Utils.showToast(`?대?吏 #${idx + 1} 미리보기`, 'info');
     }
 
