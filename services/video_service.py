@@ -200,14 +200,9 @@ class VideoService:
                 # Get specific duration for this image
                 dur = duration_per_image[i] if isinstance(duration_per_image, list) else duration_per_image
 
-                # Veo 실패하거나 30초 이후면 줌인 효과 (Ken Burns) 사용
+                # [CHANGED] Use static images (no zoom effect)
                 if clip is None:
-                    if current_duration < 30.0:
-                        # 30초 내인데 실패 시 -> 줌인
-                         clip = self._create_zoom_clip(processed_img_path, dur, resolution)
-                    else:
-                        # 30초 이후 -> 정지 화상 (또는 줌인 계속? 일단 정지)
-                        clip = ImageClip(processed_img_path).set_duration(dur)
+                    clip = ImageClip(processed_img_path).set_duration(dur)
 
                 # [NEW] Apply fade-in effect if requested
                 if fade_in_flags and i < len(fade_in_flags) and fade_in_flags[i]:
