@@ -150,16 +150,13 @@ class VideoService:
 
         for i, img_path in enumerate(images):
             if os.path.exists(img_path):
-                # 시네마틱 프레임 생성 (이미지 필터링) - 일단 프레임은 생성 (fallback 및 video input용)
-                processed_img_path = self._create_cinematic_frame(img_path, resolution, template_path=template_path)
+                # [CHANGED] Resize image to fill screen (no blur background)
+                processed_img_path = self._resize_image_to_fill(img_path, resolution)
                 temp_files.append(processed_img_path)
                 
                 clip = None
                 
                 # 초반 30초는 AI Video (Veo) 생성 시도 (비활성화)
-                # if current_duration < 30.0:
-                #     print(f"Generating AI Video for segment at {current_duration}s...")
-                #     try:
                 #         # 짧은 3~5초 영상 생성 요청 (Image-to-Video)
                 #         video_bytes = run_async(gemini_service.generate_video(
                 #             prompt="cinematic movement, slow motion", # 구체적인 프롬프트가 없으므로 일반적인 것 사용
@@ -551,12 +548,9 @@ class VideoService:
         bg = bg.convert("RGB")
 
         # 저장
-        temp_filename = f"frame_{uuid.uuid4()}.png"
-        output_path = os.path.join(self.output_dir, temp_filename)
-        bg.save(output_path)
+        output_path = os.path.join(self.output_dir, f"cinematic_{uuid.uuid4()}.jpg")
+        bg.save(output_path, quality=95)
         
-        return output_path
-
         return output_path
 
     def generate_aligned_subtitles(self, audio_path: str, script_text: str = None) -> List[dict]:
