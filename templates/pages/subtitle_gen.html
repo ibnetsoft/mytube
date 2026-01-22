@@ -319,9 +319,6 @@
         // Draggable Preview
         const previewEl = document.getElementById('previewTextMain');
         if (previewEl) makeDraggable(previewEl);
-
-        // [NEW] Initialize audio sync
-        initAudioSync();
     });
 
     // (Deleted legacy duplicate function)
@@ -1084,33 +1081,6 @@
         audio.currentTime = sub.start;
         audio.play();
         setTimeout(() => audio.pause(), (sub.end - sub.start) * 1000);
-    }
-
-    // [NEW] Audio Sync - Auto-update subtitle and image during playback
-    function initAudioSync() {
-        const audio = document.getElementById('audioPlayer');
-        if (!audio) return;
-
-        // Timeupdate event - fires as audio plays
-        audio.addEventListener('timeupdate', () => {
-            const currentTime = audio.currentTime;
-
-            // Find active subtitle
-            const activeIdx = subtitles.findIndex(sub =>
-                currentTime >= sub.start && currentTime < sub.end
-            );
-
-            if (activeIdx !== -1 && activeIdx !== selectedIndex) {
-                // Auto-select and highlight
-                selectedIndex = activeIdx;
-                selectSubtitle(activeIdx);
-            }
-        });
-
-        // Ended event - reset
-        audio.addEventListener('ended', () => {
-            console.log('Playback ended');
-        });
     }
 
     // Draggable Functionality
