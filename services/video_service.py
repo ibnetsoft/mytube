@@ -401,13 +401,6 @@ class VideoService:
                             # [CHANGED] Default to 75% (match preview) instead of 15% margin
                             txt_clip = txt_clip.set_position(("center", 0.75), relative=True)
 
-                        # Screen Boundary Safety (Don't go off screen)
-                        # Top limit
-                        y_pos = max(0, y_pos)
-                        # Bottom limit
-                        y_pos = min(video.h - txt_clip.h, y_pos)
-
-                        txt_clip = txt_clip.set_position(("center", y_pos))
                         txt_clip = txt_clip.set_start(sub["start"])
                         txt_clip = txt_clip.set_duration(sub["end"] - sub["start"])
                         subtitle_clips.append(txt_clip)
