@@ -1234,12 +1234,16 @@ class VideoService:
         pad_y = style.get("bg_padding_y", padding_default)
 
         # 이미지 크기는 텍스트 박스 + Y패딩만큼만 (add_subtitles에서 위치 잡음)
-        # [FIX] 2줄 이상 자막 잘림 방지: 줄 수에 비례한 여유 공간 추가
+        # [FIX] 높이 계산 - 줄 수에 비례하여 충분한 공간 확보 + Stroke 공간 추가
         line_count = wrapped_text.count('\n') + 1
-        vertical_margin = int(font_size * 0.3 * line_count)  # 줄마다 폰트 크기의 30% 추가
+        line_height = font.getbbox('A')[3] * 1.5  # 줄 간격 (1.5배)
+        
+        # [CHANGED] Add 2% bottom padding to prevent clipping
+        bottom_padding_pct = 0.02  # 2% of width as bottom padding
+        extra_bottom = int(width * bottom_padding_pct)
         
         img_w = width
-        img_h = text_h + (pad_y * 2) + vertical_margin
+        img_h = int(text_h + (pad_y * 2) + (line_count * font_size * 0.3) + final_stroke_width * 4 + extra_bottom)
         
         img = Image.new('RGBA', (img_w, img_h), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
@@ -1266,16 +1270,12 @@ class VideoService:
         text_y = center_y - (text_h // 2)
         
         if stroke_color and final_stroke_width > 0:
-            # Step 1: Draw stroke outline with DOUBLE width (to expand outward)
-            # PIL stroke expands from center: width=10 → 5px in + 5px out
-            # We want 10px out only, so use width=20 → 10px in + 10px out
-            double_stroke = final_stroke_width * 2
-            print(f"[STROKE_DEBUG] Original: {final_stroke_width}, Doubled: {double_stroke}, Color: {stroke_color}")
-            # [FIX] Must use align="center" for BOTH calls to ensure alignment
-            draw.text((text_x, text_y), wrapped_text, font=font, fill=stroke_color, 
-                      stroke_width=double_stroke, stroke_fill=stroke_color, align="center")
-            # Step 2: Overlay with text color (no stroke, covers inner half)
-            draw.text((text_x, text_y), wrapped_text, font=font, fill=final_font_color, align="center")
+            # Single-pass rendering with normal stroke
+            # PIL will handle stroke expansion (half in, half out)
+            # To get outward-only effect, we need different approach
+            print(f"[STROKE_DEBUG] Using stroke_width: {final_stroke_width}, Color: {stroke_color}")
+            draw.text((text_x, text_y), wrapped_text, font=font, fill=final_font_color, 
+                      stroke_width=final_stroke_width, stroke_fill=stroke_color, align="center")
         else:
             draw.text((text_x, text_y), wrapped_text, font=font, fill=final_font_color, align="center")
 
