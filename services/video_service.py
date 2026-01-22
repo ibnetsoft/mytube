@@ -398,8 +398,8 @@ class VideoService:
                                 # Fallback to 75% if parsing failed
                                 txt_clip = txt_clip.set_position(("center", 0.75), relative=True)
                         else:
-                            margin_bottom = int(video.h * 0.15)
-                            y_pos = video.h - txt_clip.h - margin_bottom
+                            # [CHANGED] Default to 75% (match preview) instead of 15% margin
+                            txt_clip = txt_clip.set_position(("center", 0.75), relative=True)
 
                         # Screen Boundary Safety (Don't go off screen)
                         # Top limit
