@@ -711,12 +711,19 @@
         // 비율값 → 실제 픽셀 (미리보기)
         const actualSize = Math.round(videoHeight * (fontSizePercent / 100) * scaleFactor);
 
+        // [NEW] 컨테이너 너비도 스케일링 (비디오의 90% 사용, 렌더링과 동일)
+        const videoWidth = previewWidth; // 실제 영상 너비
+        const containerWidth = Math.round(videoWidth * scaleFactor * 0.9);
+
         text.style.fontFamily = font;
         text.style.fontSize = actualSize + 'px';
         text.style.color = color;
         text.style.webkitTextStroke = `${strokeWidth / 2}px ${strokeColor}`;
+        text.style.maxWidth = containerWidth + 'px'; // 컨테이너 너비 제한
+        text.style.wordWrap = 'break-word';
+        text.style.whiteSpace = 'pre-wrap';
 
-        console.log(`Preview: ${fontSizePercent}% of ${videoHeight}px = ${actualSize}px (scale: ${scaleFactor.toFixed(2)})`);
+        console.log(`Preview: ${fontSizePercent}% of ${videoHeight}px = ${actualSize}px (scale: ${scaleFactor.toFixed(2)}), width: ${containerWidth}px`);;
     }
 
     function setupStyleListeners() {
