@@ -696,13 +696,14 @@
 
         // [CHANGED] 비율 기반 폰트 크기 계산
         const previewBox = document.getElementById('mainPreviewBox');
-        if (!previewBox) return;
+        const previewContainer = document.getElementById('previewContainer'); // 실제 이미지 영역
+        if (!previewBox || !previewContainer) return;
 
         // 현재 aspect ratio에서 영상 높이 계산
         const aspectRatio = styleSettings.aspect_ratio || '9:16';
         const [w, h] = aspectRatio.split(':').map(Number);
-        const previewWidth = previewBox.clientWidth;
-        const videoHeight = (previewWidth * h) / w; // 실제 영상 높이
+        const imageWidth = previewContainer.clientWidth; // 실제 이미지 영역 너비
+        const videoHeight = (imageWidth * h) / w; // 실제 영상 높이
 
         // 미리보기 창 높이 기준 스케일
         const previewHeight = previewBox.clientHeight;
@@ -711,8 +712,8 @@
         // 비율값 → 실제 픽셀 (미리보기)
         const actualSize = Math.round(videoHeight * (fontSizePercent / 100) * scaleFactor);
 
-        // [FIX] 컨테이너 너비 = 미리보기 너비의 100% (최대 너비)
-        const containerWidth = Math.round(previewWidth);
+        // [FIX] 컨테이너 너비 = 실제 이미지 영역의 90%
+        const containerWidth = Math.round(imageWidth * 0.9);
 
         text.style.fontFamily = font;
         text.style.fontSize = actualSize + 'px';
