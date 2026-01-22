@@ -386,6 +386,27 @@ def migrate_db():
     except sqlite3.OperationalError:
         pass
 
+    # [FIX] Missing subtitle columns migration
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN subtitle_font_size INTEGER DEFAULT 5")
+    except sqlite3.OperationalError:
+        pass
+        
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN subtitle_base_color TEXT DEFAULT 'white'")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN subtitle_pos_x TEXT DEFAULT 'center'")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN subtitle_pos_y TEXT")
+    except sqlite3.OperationalError:
+        pass
+
     conn.commit()
     print("[DB] Migration completed")
 

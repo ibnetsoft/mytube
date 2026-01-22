@@ -334,14 +334,24 @@ class VideoService:
             
             # [CHANGED] 비율 기반 폰트 크기 (영상 높이의 %)
             font_size_percent = s_settings.get("font_size", 5.0)  # 기본 5%
-            # [FIX] Percentage system: treat all values 1-100 as percent
-            # Only very small values (< 1) would be treated as pixels (deprecated)
-            if font_size_percent >= 1:
-                # Percentage mode (normal usage)
+            # [FIX] Percentage system with Safety Gap
+            # UI Slider is 1.0 ~ 15.0 (Percent)
+            # DB might have 30 (Legacy Pixel? or Error?) -> Treat > 20 as Pixel
+            if 0.1 <= font_size_percent <= 20:
+                # Percentage mode (normal usage, 0.1% ~ 20%)
                 f_size = int(video.h * (font_size_percent / 100))
             else:
-                # Legacy pixel mode (deprecated, only for < 1 values)
+                # Pixel mode (Legacy or explicit large pixel values)
+                # e.g. 30 -> 30px (Tiny, but safe)
                 f_size = int(font_size_percent)
+            
+            # [DEBUG] Force Log to file to confirm actual value
+            try:
+                with open("debug_font_size.txt", "a", encoding="utf-8") as df:
+                    df.write(f"Timestamp: {datetime.datetime.now()}, Pct: {font_size_percent}, CalcSize: {f_size}, VideoH: {video.h}, Settings: {s_settings}\n")
+            except:
+                pass
+            
             print(f"DEBUG_RENDER: Font size: {font_size_percent}% → {f_size}px (video height: {video.h}px)")
             
             f_color = s_settings.get("font_color", "white")
@@ -369,40 +379,15 @@ class VideoService:
                         
                         txt_clip = ImageClip(txt_img_path)
                         
-                        # [FIX] Position Logic (Custom Y or Default Safe Area)
-                        # position_y: 0~100 (Top to Bottom %). If None, use default safe margin.
-                        custom_y_pct = s_settings.get("position_y") 
+                        # [FIX] Force Absolute Pixel Positioning (Anchored to Bottom)
+                        # Ignoring custom_y_pct for now to solve the "floating / disappearing" issue definitively.
+                        # Always placed at bottom with margin.
                         
-                        if custom_y_pct is not None:
-                            # [FIX] Handle pixels vs percent
-                            # If string contains 'px', treat as absolute pixels from Top
-                            y_pos = None
-                            if isinstance(custom_y_pct, str) and 'px' in custom_y_pct:
-                                try:
-                                    y_pos = int(float(custom_y_pct.replace('px', '')))
-                                except:
-                                    pass
-                            else:
-                                # Percent: 0-100
-                                try:
-                                    pct_val = float(custom_y_pct) / 100.0  # 0.0 ~ 1.0
-                                    y_pos = pct_val  # Use relative positioning
-                                except:
-                                    pass
-                            
-                            if y_pos is not None:
-                                if isinstance(y_pos, float):
-                                    # Relative position (0.0 - 1.0)
-                                    txt_clip = txt_clip.set_position(("center", y_pos), relative=True)
-                                else:
-                                    # Absolute position in pixels
-                                    txt_clip = txt_clip.set_position(("center", y_pos))
-                            else:
-                                # Fallback to 85% if parsing failed
-                                txt_clip = txt_clip.set_position(("center", 0.85), relative=True)
-                        else:
-                            # [CHANGED] Default to 85% (bottom position)
-                            txt_clip = txt_clip.set_position(("center", 0.85), relative=True)
+                        # Margin from bottom: 8% of video height
+                        bottom_margin = int(video.h * 0.08)
+                        y_pos = video.h - txt_clip.h - bottom_margin
+                        
+                        txt_clip = txt_clip.set_position(("center", y_pos))
 
                         txt_clip = txt_clip.set_start(sub["start"])
                         txt_clip = txt_clip.set_duration(sub["end"] - sub["start"])
@@ -984,10 +969,18 @@ class VideoService:
                 
                 if txt_img_path:
                     txt_clip = ImageClip(txt_img_path)
-                    # [FIX] Use 85% position (bottom)
-                    txt_clip = txt_clip.set_position(("center", 0.85), relative=True)
-                    txt_clip = txt_clip.set_start(sub["start"])
-                    txt_clip = txt_clip.set_duration(sub["end"] - sub["start"])
+                    # [FIX] Force Absolute Bottom Positioning
+                    # Ensure video object is available or passed correctly.
+                    # If 'video' is a filepath string, we can't get .h from it directly.
+                    # But add_subtitles is called with 'video' being a VideoFileClip usually.
+                    if hasattr(video, 'h'):
+                        bottom_margin = int(video.h * 0.08)
+                        y_pos = video.h - txt_clip.h - bottom_margin
+                        txt_clip = txt_clip.set_position(("center", y_pos))
+                    else:
+                        # Fallback if video is not a clip object
+                        txt_clip = txt_clip.set_position(("center", 0.90), relative=True)
+                    
                     subtitle_clips.append(txt_clip)
                     
                     # 클립이 닫힐 때 임시 파일 삭제는 어려우므로, 
