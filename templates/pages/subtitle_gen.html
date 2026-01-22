@@ -715,10 +715,18 @@
         // [FIX] 컨테이너 너비 = 실제 이미지 영역의 90%
         const containerWidth = Math.round(imageWidth * 0.9);
 
-        text.style.fontFamily = font;
-        text.style.fontSize = actualSize + 'px';
         text.style.color = color;
-        text.style.webkitTextStroke = `${strokeWidth / 2}px ${strokeColor}`;
+        text.style.fontSize = `${actualSize}px`;
+        text.style.fontFamily = font;
+        text.style.fontWeight = 'bold';
+
+        // [FIX] CSS text-stroke also expands from center (in + out)
+        // Double the stroke width, then use paint-order to overlay fill on top
+        // This makes stroke visible only on the outside
+        const doubledStroke = strokeWidth * 2;
+        text.style.webkitTextStroke = `${doubledStroke}px ${strokeColor}`;
+        text.style.paintOrder = 'stroke fill';  // Draw stroke first, then fill on top
+        text.style.webkitTextFillColor = color; // Ensure fill color is applied
         text.style.width = containerWidth + 'px'; // 이미지 너비의 90%
         text.style.maxWidth = containerWidth + 'px';
         text.style.wordWrap = 'break-word';

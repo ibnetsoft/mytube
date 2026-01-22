@@ -1275,6 +1275,7 @@ class VideoService:
             # PIL stroke expands from center: width=10 → 5px in + 5px out
             # We want 10px out only, so use width=20 → 10px in + 10px out
             double_stroke = final_stroke_width * 2
+            print(f"[STROKE_DEBUG] Original: {final_stroke_width}, Doubled: {double_stroke}, Color: {stroke_color}")
             draw.text((text_x, text_y), wrapped_text, font=font, fill=stroke_color, 
                       stroke_width=double_stroke, stroke_fill=stroke_color, align="center")
             # Step 2: Overlay with text color (no stroke, covers inner half)
