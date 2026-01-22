@@ -1271,8 +1271,11 @@ class VideoService:
         text_y = center_y - (text_h // 2)
         
         if stroke_color and final_stroke_width > 0:
-            draw.text((text_x, text_y), wrapped_text, font=font, fill=final_font_color, 
+            # Step 1: Draw stroke outline (fill with stroke color too)
+            draw.text((text_x, text_y), wrapped_text, font=font, fill=stroke_color, 
                       stroke_width=final_stroke_width, stroke_fill=stroke_color, align="center")
+            # Step 2: Overlay with text color (no stroke, keeps stroke outside only)
+            draw.text((text_x, text_y), wrapped_text, font=font, fill=final_font_color, align="center")
         else:
             draw.text((text_x, text_y), wrapped_text, font=font, fill=final_font_color, align="center")
 
