@@ -56,8 +56,13 @@
                 <option value="NanumMyeongjo">나눔명조</option>
                 <option value="Black Han Sans">검은고딕</option>
             </select>
-            <input type="number" id="fontSizeInput" value="60" min="10" max="200" class="input-compact w-12 text-center"
-                title="크기">
+            <!-- 폰트 크기 (비율 기반) -->
+            <div class="flex items-center gap-1">
+                <input type="range" id="fontSizeSlider" value="5.0" min="1.0" max="15.0" step="0.5"
+                    class="w-20 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+                    title="영상 높이의 %">
+                <span id="fontSizeValue" class="text-xs font-mono w-10 text-right">5.0%</span>
+            </div>
         </div>
 
         <!-- Color Settings -->
@@ -478,8 +483,16 @@
             if (el) el.value = s.subtitle_font;
         }
         if (s.subtitle_font_size) {
-            const el = document.getElementById('fontSizeInput');
-            if (el) el.value = s.subtitle_font_size;
+            const el = document.getElementById('fontSizeSlider');
+            const valueEl = document.getElementById('fontSizeValue');
+            if (el) {
+                const percent = parseFloat(s.subtitle_font_size);
+                // Legacy support: >15 means pixels, convert to %
+                const finalPercent = percent > 15 ? 5.0 : percent;
+                el.value = final Percent;
+                if (valueEl) valueEl.textContent = finalPercent.toFixed(1) + '%';
+                styleSettings.font_size = finalPercent;
+            }
         }
         if (s.subtitle_base_color) {
             const el = document.getElementById('textColorInput');
@@ -676,15 +689,34 @@
         if (!text) return;
 
         const font = document.getElementById('fontFamilySelect').value;
-        const size = document.getElementById('fontSizeInput').value;
+        const fontSizePercent = parseFloat(document.getElementById('fontSizeSlider').value); // 비율
         const color = document.getElementById('textColorInput').value;
         const strokeColor = document.getElementById('strokeColorInput').value;
         const strokeWidth = document.getElementById('strokeWidthSlider').value;
 
+        // [CHANGED] 비율 기반 폰트 크기 계산
+        const previewBox = document.getElementById('mainPreviewBox');
+        if (!previewBox) return;
+
+        // 현재 aspect ratio에서 영상 높이 계산
+        const aspectRatio = styleSettings.aspect_ratio || '9:16';
+        const [w, h] = aspectRatio.split(':').map(Number);
+        const previewWidth = previewBox.clientWidth;
+        const videoHeight = (previewWidth * h) / w; // 실제 영상 높이
+
+        // 미리보기 창 높이 기준 스케일
+        const previewHeight = previewBox.clientHeight;
+        const scaleFactor = previewHeight / videoHeight;
+
+        // 비율값 → 실제 픽셀 (미리보기)
+        const actualSize = Math.round(videoHeight * (fontSizePercent / 100) * scaleFactor);
+
         text.style.fontFamily = font;
-        text.style.fontSize = size + 'px';
+        text.style.fontSize = actualSize + 'px';
         text.style.color = color;
         text.style.webkitTextStroke = `${strokeWidth / 2}px ${strokeColor}`;
+
+        console.log(`Preview: ${fontSizePercent}% of ${videoHeight}px = ${actualSize}px (scale: ${scaleFactor.toFixed(2)})`);
     }
 
     function setupStyleListeners() {
@@ -698,8 +730,17 @@
         const fontEl = document.getElementById('fontFamilySelect');
         if (fontEl) fontEl.addEventListener('change', e => update('subtitle_font', e.target.value));
 
-        const sizeEl = document.getElementById('fontSizeInput');
-        if (sizeEl) sizeEl.addEventListener('change', e => update('subtitle_font_size', parseInt(e.target.value)));
+        const sizeSlider = document.getElementById('fontSizeSlider');
+        if (sizeSlider) {
+            sizeSlider.addEventListener('input', e => {
+                const percent = parseFloat(e.target.value);
+                document.getElementById('fontSizeValue').textContent = percent.toFixed(1) + '%';
+                updateSubtitlePreview();
+            });
+            sizeSlider.addEventListener('change', e => {
+                update('subtitle_font_size', parseFloat(e.target.value));
+            });
+        }
 
         const colorEl = document.getElementById('textColorInput');
         if (colorEl) colorEl.addEventListener('change', e => update('subtitle_base_color', e.target.value));
