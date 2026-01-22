@@ -715,11 +715,12 @@
         const scaleFactor = previewHeight / videoHeight;
 
         // 비율값 → 실제 픽셀 (미리보기)
-        // [FIX] Apply 1.8x correction to match MoviePy rendering size
-        const actualSize = Math.round(videoHeight * (fontSizePercent / 100) * scaleFactor * 1.8);
+        // [FIX] Apply 1.7x correction (tuned down from 1.8) and wider container
+        const actualSize = Math.round(videoHeight * (fontSizePercent / 100) * scaleFactor * 1.7);
 
-        // [FIX] 컨테이너 너비 = 실제 이미지 영역의 90%
-        const containerWidth = Math.round(imageWidth * 0.9);
+        // [FIX] Increase container width to 98% to prevent unnecessary wrapping
+        // The actual video renderer uses almost full width with small padding
+        const containerWidth = Math.round(imageWidth * 0.98);
 
         text.style.color = color;
         text.style.fontSize = `${actualSize}px`;
