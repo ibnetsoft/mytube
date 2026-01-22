@@ -711,8 +711,8 @@
         // 비율값 → 실제 픽셀 (미리보기)
         const actualSize = Math.round(videoHeight * (fontSizePercent / 100) * scaleFactor);
 
-        // [FIX] 컨테이너 너비 = 미리보기 너비의 90% (렌더링도 영상 너비의 90% 사용)
-        const containerWidth = Math.round(previewWidth * 0.9);
+        // [FIX] 컨테이너 너비 = 미리보기 너비의 100% (최대 너비)
+        const containerWidth = Math.round(previewWidth);
 
         text.style.fontFamily = font;
         text.style.fontSize = actualSize + 'px';
