@@ -718,9 +718,12 @@
         text.style.fontSize = actualSize + 'px';
         text.style.color = color;
         text.style.webkitTextStroke = `${strokeWidth / 2}px ${strokeColor}`;
-        text.style.maxWidth = containerWidth + 'px'; // 컨테이너 너비 제한
+        text.style.width = '100%'; // 전체 너비 사용
+        text.style.maxWidth = 'none'; // 최대 너비 제한 제거
         text.style.wordWrap = 'break-word';
         text.style.whiteSpace = 'pre-wrap';
+        text.style.textAlign = 'center';
+        text.style.boxSizing = 'border-box';
 
         console.log(`Preview: ${fontSizePercent}% of ${videoHeight}px = ${actualSize}px (scale: ${scaleFactor.toFixed(2)}), width: ${containerWidth}px`);;
     }
