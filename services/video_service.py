@@ -1271,10 +1271,13 @@ class VideoService:
         text_y = center_y - (text_h // 2)
         
         if stroke_color and final_stroke_width > 0:
-            # Step 1: Draw stroke outline (fill with stroke color too)
+            # Step 1: Draw stroke outline with DOUBLE width (to expand outward)
+            # PIL stroke expands from center: width=10 → 5px in + 5px out
+            # We want 10px out only, so use width=20 → 10px in + 10px out
+            double_stroke = final_stroke_width * 2
             draw.text((text_x, text_y), wrapped_text, font=font, fill=stroke_color, 
-                      stroke_width=final_stroke_width, stroke_fill=stroke_color, align="center")
-            # Step 2: Overlay with text color (no stroke, keeps stroke outside only)
+                      stroke_width=double_stroke, stroke_fill=stroke_color, align="center")
+            # Step 2: Overlay with text color (no stroke, covers inner half)
             draw.text((text_x, text_y), wrapped_text, font=font, fill=final_font_color, align="center")
         else:
             draw.text((text_x, text_y), wrapped_text, font=font, fill=final_font_color, align="center")
