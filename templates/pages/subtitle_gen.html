@@ -489,7 +489,7 @@
                 const percent = parseFloat(s.subtitle_font_size);
                 // Legacy support: >15 means pixels, convert to %
                 const finalPercent = percent > 15 ? 5.0 : percent;
-                el.value = final Percent;
+                el.value = finalPercent;
                 if (valueEl) valueEl.textContent = finalPercent.toFixed(1) + '%';
                 styleSettings.font_size = finalPercent;
             }
