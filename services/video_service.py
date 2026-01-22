@@ -983,12 +983,13 @@ class VideoService:
                     font_name=font,
                     style_name=style_name,
                     stroke_color=stroke_color,
-                    stroke_width_ratio=stroke_width
+                    stroke_width=stroke_width  # [FIX] Use stroke_width not stroke_width_ratio
                 )
                 
                 if txt_img_path:
                     txt_clip = ImageClip(txt_img_path)
-                    txt_clip = txt_clip.set_position(("center", "bottom")) # 하단 배치 (여백은 이미지 생성시 처리)
+                    # [FIX] Use 75% position to match preview (not "bottom")
+                    txt_clip = txt_clip.set_position(("center", 0.75), relative=True)
                     txt_clip = txt_clip.set_start(sub["start"])
                     txt_clip = txt_clip.set_duration(sub["end"] - sub["start"])
                     subtitle_clips.append(txt_clip)
