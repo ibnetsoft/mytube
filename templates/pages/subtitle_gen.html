@@ -352,6 +352,11 @@
             }
         }
 
+        // [NEW] Dynamic sizing for Left Column (Thumbnail)
+        const isShorts = (window.currentAppMode === 'shorts');
+        const colWidthClass = isShorts ? 'w-10' : 'w-28'; // Container width
+        const imgClass = isShorts ? 'w-8 h-[3.5rem]' : 'w-24 aspect-video'; // Image size
+
         const html = subtitles.map((sub, index) => {
             const isActive = index === selectedIndex ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-gray-800' : 'hover:bg-gray-50 dark:hover:bg-gray-800';
             const imgIdx = assignments[index];
@@ -365,20 +370,20 @@
                 const actualIndex = Math.min(imgIdx, images.length - 1);
                 const imgUrl = images[actualIndex];
                 leftCol = `
-                <div class="flex flex-col items-center mr-2 w-10 shrink-0 relative group/thumb">
+                <div class="flex flex-col items-center mr-2 ${colWidthClass} shrink-0 relative group/thumb">
                     <!-- Move Up (Merge with prev) -->
-                    ${index > 0 ? `<button onclick="event.stopPropagation(); moveImageStart(${imgIdx}, -1)" class="absolute -top-3 z-10 w-full h-4 bg-gray-200 hover:bg-blue-100 text-[9px] flex items-center justify-center rounded-t border border-b-0 border-gray-300 opacity-0 group-hover/thumb:opacity-100 transition-opacity" title="이미지를 이전 자막부터 시작 (앞으로 확장)">▲</button>` : ''}
+                    ${index > 0 ? `<button onclick="event.stopPropagation(); moveImageStart(${imgIdx}, -1)" class="absolute -top-3 z-10 w-full h-4 bg-gray-200 hover:bg-blue-100 text-[9px] flex items-center justify-center rounded-t border border-b-0 border-gray-300 opacity-0 group-hover/thumb:opacity-100 transition-opacity" title="이전 자막부터 시작">▲</button>` : ''}
                     
-                    <img src="${imgUrl}" class="w-8 h-[3.5rem] rounded-sm object-cover border-2 border-blue-400 z-0 bg-gray-100" alt="Scene">
+                    <img src="${imgUrl}" class="${imgClass} rounded-sm object-cover border-2 border-blue-400 z-0 bg-gray-100" alt="Scene">
                     <div class="absolute bottom-0 right-0 bg-blue-500 text-white text-[9px] px-1 rounded-tl font-bold shadow-sm">${actualIndex + 1}</div>
 
                     <!-- Move Down (Start later) -->
-                    ${index < subtitles.length - 1 ? `<button onclick="event.stopPropagation(); moveImageStart(${imgIdx}, 1)" class="absolute -bottom-3 z-10 w-full h-4 bg-gray-200 hover:bg-blue-100 text-[9px] flex items-center justify-center rounded-b border border-t-0 border-gray-300 opacity-0 group-hover/thumb:opacity-100 transition-opacity" title="이미지를 다음 자막부터 시작 (아래로 축소)">▼</button>` : ''}
+                    ${index < subtitles.length - 1 ? `<button onclick="event.stopPropagation(); moveImageStart(${imgIdx}, 1)" class="absolute -bottom-3 z-10 w-full h-4 bg-gray-200 hover:bg-blue-100 text-[9px] flex items-center justify-center rounded-b border border-t-0 border-gray-300 opacity-0 group-hover/thumb:opacity-100 transition-opacity" title="다음 자막부터 시작">▼</button>` : ''}
                 </div>`;
             } else {
                 // Continuation
                 leftCol = `
-                <div class="flex flex-col items-center mr-2 w-10 shrink-0">
+                <div class="flex flex-col items-center mr-2 ${colWidthClass} shrink-0">
                     <div class="w-0.5 h-full bg-gray-200 dark:bg-gray-700 min-h-[3.5rem]"></div>
                 </div>`;
             }
@@ -710,7 +715,8 @@
         const scaleFactor = previewHeight / videoHeight;
 
         // 비율값 → 실제 픽셀 (미리보기)
-        const actualSize = Math.round(videoHeight * (fontSizePercent / 100) * scaleFactor);
+        // [FIX] Apply 1.8x correction to match MoviePy rendering size
+        const actualSize = Math.round(videoHeight * (fontSizePercent / 100) * scaleFactor * 1.8);
 
         // [FIX] 컨테이너 너비 = 실제 이미지 영역의 90%
         const containerWidth = Math.round(imageWidth * 0.9);
@@ -1156,8 +1162,13 @@
             const borderClass = isActive ? 'border-2 border-green-500 ring-1 ring-green-500' : 'border border-gray-200 dark:border-gray-600';
             const opacityClass = isActive ? 'opacity-100' : 'opacity-80 hover:opacity-100';
 
+            // [NEW] Dynamic Aspect Ratio
+            // Default to 'aspect-video' (16:9) for Longform, 'aspect-[9/16]' for Shorts
+            const isShorts = (window.currentAppMode === 'shorts');
+            const aspectClass = isShorts ? 'aspect-[9/16]' : 'aspect-video';
+
             return `
-            <div class="relative w-full aspect-[9/16] group cursor-pointer rounded overflow-hidden transition-all ${borderClass} ${opacityClass} mb-2"
+            <div class="relative w-full ${aspectClass} group cursor-pointer rounded overflow-hidden transition-all ${borderClass} ${opacityClass} mb-2"
                  draggable="true"
                  ondragstart="handleDragStart(event, ${idx})"
                  onclick="previewImage(${idx})"
@@ -1508,6 +1519,10 @@
                         strokeWidth: data.settings.subtitle_stroke_width || 5
                     };
 
+                    // [NEW] Store App Mode for UI Logic
+                    window.currentAppMode = data.settings.app_mode || 'longform';
+                    console.log("App Mode:", window.currentAppMode);
+
                     // Apply UI
                     const fontEl = document.getElementById('fontFamilySelect');
                     if (fontEl) fontEl.value = styleSettings.font;
@@ -1542,6 +1557,10 @@
                     }
                     else if (data.settings.app_mode === 'shorts') {
                         setAspectRatio('9:16');
+                    }
+                    else {
+                        // Default for Longform
+                        setAspectRatio('16:9');
                     }
                 }
 
