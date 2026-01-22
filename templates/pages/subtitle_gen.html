@@ -719,8 +719,8 @@
         text.style.fontSize = actualSize + 'px';
         text.style.color = color;
         text.style.webkitTextStroke = `${strokeWidth / 2}px ${strokeColor}`;
-        text.style.width = '100%'; // 전체 너비 사용
-        text.style.maxWidth = 'none'; // 최대 너비 제한 제거
+        text.style.width = containerWidth + 'px'; // 이미지 너비의 90%
+        text.style.maxWidth = containerWidth + 'px';
         text.style.wordWrap = 'break-word';
         text.style.whiteSpace = 'pre-wrap';
         text.style.textAlign = 'center';
