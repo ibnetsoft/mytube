@@ -454,27 +454,26 @@
         const container = document.getElementById('previewContainer');
 
         // Find rough image match
-        if (sub.preview_url) {
-            if (container) container.innerHTML = `<img src="${sub.preview_url}" class="w-4/5 h-4/5 object-contain opacity-50">`;
-        } else if (images.length > 0) {
-            const durationPerImg = audioDuration / images.length;
-            // Find active image index based on time
-            let imgIdx = -1;
-            if (imageTimings && imageTimings.length > 0) {
-                for (let i = 0; i < imageTimings.length; i++) {
-                    if (sub.start >= imageTimings[i] - 0.05) imgIdx = i;
-                    else break;
-                }
-            } else {
-                // Fallback if no timings
-                const mid = (sub.start + sub.end) / 2;
-                imgIdx = Math.min(Math.floor(mid / durationPerImg), images.length - 1);
+        if (container) container.innerHTML = `<img src="${sub.preview_url}" style="width: 100%; height: 100%; object-fit: cover; object-position: center;" class="w-full h-full">`;
+    } else if (images.length > 0) {
+        const durationPerImg = audioDuration / images.length;
+        // Find active image index based on time
+        let imgIdx = -1;
+        if (imageTimings && imageTimings.length > 0) {
+            for (let i = 0; i < imageTimings.length; i++) {
+                if (sub.start >= imageTimings[i] - 0.05) imgIdx = i;
+                else break;
             }
-
-            if (imgIdx !== -1 && images[imgIdx]) {
-                if (container) container.innerHTML = `<img src="${images[imgIdx]}" class="w-4/5 h-4/5 object-contain opacity-50">`;
-            }
+        } else {
+            // Fallback if no timings
+            const mid = (sub.start + sub.end) / 2;
+            imgIdx = Math.min(Math.floor(mid / durationPerImg), images.length - 1);
         }
+
+        if (imgIdx !== -1 && images[imgIdx]) {
+            if (container) container.innerHTML = `<img src="${images[imgIdx]}" style="width: 100%; height: 100%; object-fit: cover; object-position: center;" class="w-full h-full">`;
+        }
+    }
     }
 
     function applySettings(s) {
@@ -583,7 +582,7 @@
             // ... (existing preview update logic if any)
             const previewBg = document.getElementById('previewContainer');
             if (previewBg && images[actualIndex]) {
-                previewBg.innerHTML = `<img src="${images[actualIndex]}" class="w-4/5 h-4/5 object-contain opacity-50">`;
+                previewBg.innerHTML = `<img src="${images[actualIndex]}" style="width: 100%; height: 100%; object-fit: cover; object-position: center;" class="w-full h-full">`;
             }
 
         } else {
