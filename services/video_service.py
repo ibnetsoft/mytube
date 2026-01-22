@@ -334,11 +334,14 @@ class VideoService:
             
             # [CHANGED] 비율 기반 폰트 크기 (영상 높이의 %)
             font_size_percent = s_settings.get("font_size", 5.0)  # 기본 5%
-            # 레거시 지원: 15보다 크면 절대값(픽셀)으로 간주
-            if font_size_percent > 15:
-                f_size = int(font_size_percent)
-            else:
+            # [FIX] Percentage system: treat all values 1-100 as percent
+            # Only very small values (< 1) would be treated as pixels (deprecated)
+            if font_size_percent >= 1:
+                # Percentage mode (normal usage)
                 f_size = int(video.h * (font_size_percent / 100))
+            else:
+                # Legacy pixel mode (deprecated, only for < 1 values)
+                f_size = int(font_size_percent)
             print(f"DEBUG_RENDER: Font size: {font_size_percent}% → {f_size}px (video height: {video.h}px)")
             
             f_color = s_settings.get("font_color", "white")
