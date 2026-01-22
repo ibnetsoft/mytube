@@ -395,11 +395,11 @@ class VideoService:
                                     # Absolute position in pixels
                                     txt_clip = txt_clip.set_position(("center", y_pos))
                             else:
-                                # Fallback to 30% if parsing failed
-                                txt_clip = txt_clip.set_position(("center", 0.30), relative=True)
+                                # Fallback to 85% if parsing failed
+                                txt_clip = txt_clip.set_position(("center", 0.85), relative=True)
                         else:
-                            # [CHANGED] Default to 30% instead of 75%
-                            txt_clip = txt_clip.set_position(("center", 0.30), relative=True)
+                            # [CHANGED] Default to 85% (bottom position)
+                            txt_clip = txt_clip.set_position(("center", 0.85), relative=True)
 
                         txt_clip = txt_clip.set_start(sub["start"])
                         txt_clip = txt_clip.set_duration(sub["end"] - sub["start"])
@@ -981,8 +981,8 @@ class VideoService:
                 
                 if txt_img_path:
                     txt_clip = ImageClip(txt_img_path)
-                    # [FIX] Use 30% position
-                    txt_clip = txt_clip.set_position(("center", 0.30), relative=True)
+                    # [FIX] Use 85% position (bottom)
+                    txt_clip = txt_clip.set_position(("center", 0.85), relative=True)
                     txt_clip = txt_clip.set_start(sub["start"])
                     txt_clip = txt_clip.set_duration(sub["end"] - sub["start"])
                     subtitle_clips.append(txt_clip)
