@@ -1099,12 +1099,12 @@ def get_global_setting(key: str, default: Any = None) -> Any:
 def get_subtitle_defaults() -> Dict:
     """자막 기본값 조회 (프로젝트 생성용)"""
     return get_global_setting("subtitle_default_style", {
-        "subtitle_font": "GmarketSansBold",
-        "subtitle_font_size": 40,
+        "subtitle_font": "GmarketSansBold",  # [CHANGED] User request
+        "subtitle_font_size": 5,             # [CHANGED] 5%
         "subtitle_color": "white",
         "subtitle_style_enum": "Basic_White",
         "subtitle_stroke_color": "black",
-        "subtitle_stroke_width": 0.15
+        "subtitle_stroke_width": 1           # [CHANGED] 1px (User request)
     })
 
 # ============ 성공 전략 지식 베이스 (학습 시스템) ============

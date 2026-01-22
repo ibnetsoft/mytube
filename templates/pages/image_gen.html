@@ -995,6 +995,12 @@
 
                 if (!p) continue;
 
+                // [NEW] Skip already generated images in batch mode to prevent errors/waste
+                if (p.image_url) {
+                    console.log(`Skipping Scene ${sceneIndex + 1} (Image exists)`);
+                    continue;
+                }
+
                 const card = document.getElementById(`prompt-card-${sceneIndex}`);
                 if (!card) continue;
 
@@ -1009,42 +1015,48 @@
                 }
                 statusDiv.textContent = `⏳ 이미지 생성 중... (${i + 1}/${checkboxes.length})`;
 
-                // API call
-                const fullPrompt = p.prompt_en || p.prompt_content || '';
-                const aspectRatio = document.querySelector('input[name="aspectRatio"]:checked').value || '16:9';
+                // [FIX] Per-item Try-Catch to continue loop even if one fails
+                try {
+                    // API call
+                    const fullPrompt = p.prompt_en || p.prompt_content || '';
+                    const aspectRatio = document.querySelector('input[name="aspectRatio"]:checked').value || '16:9';
 
-                const result = await API.image.generate(fullPrompt, projectId, sceneIndex + 1, document.getElementById('imageStyle').value, aspectRatio);
+                    const result = await API.image.generate(fullPrompt, projectId, sceneIndex + 1, document.getElementById('imageStyle').value, aspectRatio);
 
-                if (result.status === 'ok') {
-                    // Update image in card
-                    const imageContainer = card.querySelector('.image-container');
-                    if (imageContainer) {
-                        imageContainer.innerHTML = `
-                            <div class="aspect-video bg-black rounded-lg overflow-hidden border border-gray-600 w-[90%] relative">
-                                <img src="${result.image_url}" class="w-full h-full object-contain" alt="Scene ${sceneIndex + 1}">
-                                <div class="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded">✓ Generated</div>
-                            </div>
-                        `;
+                    if (result.status === 'ok') {
+                        // Update image in card
+                        const imageContainer = card.querySelector('.image-container');
+                        if (imageContainer) {
+                            imageContainer.innerHTML = `
+                                <div class="aspect-video bg-black rounded-lg overflow-hidden border border-gray-600 w-[90%] relative">
+                                    <img src="${result.image_url}" class="w-full h-full object-contain" alt="Scene ${sceneIndex + 1}">
+                                    <div class="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded">✓ Generated</div>
+                                </div>
+                            `;
+                        }
+
+                        statusDiv.textContent = '✅ 생성 완료';
+                        statusDiv.className = 'status-indicator px-4 py-2 bg-green-900 border-t border-green-700 text-sm text-green-300';
+
+                        // Store result
+                        prompts[sceneIndex].image_url = result.image_url;
+                        Utils.storage.set('imagePrompts', prompts);
+
+                        successCount++;
+                    } else {
+                        throw new Error(result.error || 'Unknown Error');
                     }
-
-                    statusDiv.textContent = '✅ 생성 완료';
-                    statusDiv.className = 'status-indicator px-4 py-2 bg-green-900 border-t border-green-700 text-sm text-green-300';
-
-                    // Store result
-                    prompts[sceneIndex].image_url = result.image_url;
-                    Utils.storage.set('imagePrompts', prompts);
-
-                    successCount++;
-                } else {
-                    statusDiv.textContent = '❌ 생성 실패';
+                } catch (innerError) {
+                    console.error(`Failed Scene ${sceneIndex + 1}:`, innerError);
+                    statusDiv.textContent = '❌ 생성 실패: ' + innerError.message;
                     statusDiv.className = 'status-indicator px-4 py-2 bg-red-900 border-t border-red-700 text-sm text-red-300';
                 }
             }
 
             Utils.showToast(`${successCount}개 Scene의 이미지 생성이 완료되었습니다!`, 'success');
         } catch (e) {
-            console.error('Image generation error:', e);
-            Utils.showToast(`이미지 생성 실패: ${e.message}`, 'error');
+            console.error('Image generation critical error:', e);
+            Utils.showToast(`이미지 생성 중 오류 발생: ${e.message}`, 'error');
         } finally {
             Utils.setLoading(btn, false);
         }
