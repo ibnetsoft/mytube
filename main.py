@@ -3585,7 +3585,7 @@ async def render_project_video(
                         "font": s_settings.get("subtitle_font", config.DEFAULT_FONT_PATH),
                         "font_color": s_settings.get("subtitle_base_color", "white"), # [FIX] Key match
                         "style_name": s_settings.get("subtitle_style_enum", "Basic_White"),
-                        "font_size": int(s_settings.get("subtitle_font_size", 80)),
+                        "font_size": float(s_settings.get("subtitle_font_size", 5.0)),  # [CHANGED] Float for %
                         "stroke_color": s_settings.get("subtitle_stroke_color", "black"),
                         "stroke_width": int(s_settings.get("subtitle_stroke_width", 5)),
                         "position_y": s_settings.get("subtitle_pos_y") # [FIX] Key match

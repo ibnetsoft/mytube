@@ -331,7 +331,16 @@ class VideoService:
             # 스타일 설정 추출
             s_settings = subtitle_settings or {}
             print(f"DEBUG_RENDER: video_service received s_settings: {s_settings}")
-            f_size = s_settings.get("font_size", 80)
+            
+            # [CHANGED] 비율 기반 폰트 크기 (영상 높이의 %)
+            font_size_percent = s_settings.get("font_size", 5.0)  # 기본 5%
+            # 레거시 지원: 15보다 크면 절대값(픽셀)으로 간주
+            if font_size_percent > 15:
+                f_size = int(font_size_percent)
+            else:
+                f_size = int(video.h * (font_size_percent / 100))
+            print(f"DEBUG_RENDER: Font size: {font_size_percent}% → {f_size}px (video height: {video.h}px)")
+            
             f_color = s_settings.get("font_color", "white")
             f_name = s_settings.get("font", config.DEFAULT_FONT_PATH)
             s_style = s_settings.get("style_name", "Basic_White")
@@ -1230,8 +1239,12 @@ class VideoService:
         pad_y = style.get("bg_padding_y", padding_default)
 
         # 이미지 크기는 텍스트 박스 + Y패딩만큼만 (add_subtitles에서 위치 잡음)
+        # [FIX] 2줄 이상 자막 잘림 방지: 줄 수에 비례한 여유 공간 추가
+        line_count = wrapped_text.count('\n') + 1
+        vertical_margin = int(font_size * 0.3 * line_count)  # 줄마다 폰트 크기의 30% 추가
+        
         img_w = width
-        img_h = text_h + (pad_y * 2) + 10 # 약간의 여유 10px
+        img_h = text_h + (pad_y * 2) + vertical_margin
         
         img = Image.new('RGBA', (img_w, img_h), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
