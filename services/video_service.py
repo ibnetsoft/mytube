@@ -378,25 +378,26 @@ class VideoService:
                                 try:
                                     y_pos = int(float(custom_y_pct.replace('px', '')))
                                 except:
-                                    y_pos = None
-                            
-                            if y_pos is None:
-                                # Treat as Percentage (Center of text box at Y%)
-                                # But let's assume if user gives 90%, they mean 90% from top.
+                                    pass
+                            else:
+                                # Percent: 0-100
                                 try:
-                                    pct = float(custom_y_pct)
-                                    center_y = int(video.h * (pct / 100.0))
-                                    y_pos = center_y - (txt_clip.h // 2)
+                                    pct_val = float(custom_y_pct) / 100.0  # 0.0 ~ 1.0
+                                    y_pos = pct_val  # Use relative positioning
                                 except:
-                                    # Default if parse fails
-                                    y_pos = None
-
-                            if y_pos is None:
-                                 # Fallback
-                                 margin_bottom = int(video.h * 0.15)
-                                 y_pos = video.h - txt_clip.h - margin_bottom
+                                    pass
+                            
+                            if y_pos is not None:
+                                if isinstance(y_pos, float):
+                                    # Relative position (0.0 - 1.0)
+                                    txt_clip = txt_clip.set_position(("center", y_pos), relative=True)
+                                else:
+                                    # Absolute position in pixels
+                                    txt_clip = txt_clip.set_position(("center", y_pos))
+                            else:
+                                # Fallback to 75% if parsing failed
+                                txt_clip = txt_clip.set_position(("center", 0.75), relative=True)
                         else:
-                            # Default: Bottom Safe Area (15% margin)
                             margin_bottom = int(video.h * 0.15)
                             y_pos = video.h - txt_clip.h - margin_bottom
 
