@@ -111,7 +111,13 @@
 
         <!-- Actions -->
         <div class="flex items-center gap-2">
-            <button onclick="distributeImages()"
+            <!-- [NEW] Reset Button -->
+            <button onclick="resetAndReload(this)"
+                class="px-3 py-1 text-xs bg-gray-500 hover:bg-gray-600 text-white rounded shadow transition flex items-center gap-1 border border-gray-600">
+                <span>🔄 초기화 및 최신 데이터 로드</span>
+            </button>
+
+            <button onclick="distributeImages(this)"
                 class="px-3 py-1 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded shadow transition flex items-center gap-1">
                 <span>AI 이미지 싱크 맞추기</span>
             </button>
@@ -299,6 +305,8 @@
     let audioDuration = 0;
     let selectedIndex = -1;
     let imageTimings = []; // [NEW] Image Start Times based on backend Pacing
+    let imageEffects = []; // [NEW] Zoom/Pan Effects (1:1 with images)
+
 
     // --- Initialization ---
     document.addEventListener('DOMContentLoaded', async () => {
@@ -348,6 +356,8 @@
                     if (start >= imageTimings[k] - 0.05) bestImgIdx = k;
                     else break;
                 }
+                // [Fix] Fallback to first image if subtitle starts before any timing (e.g. 0.0s vs 0.1s)
+                if (bestImgIdx === -1 && imageTimings.length > 0) bestImgIdx = 0;
                 assignments[i] = bestImgIdx;
             }
         }
@@ -376,6 +386,18 @@
                     
                     <img src="${imgUrl}" class="${imgClass} rounded-sm object-cover border-2 border-blue-400 z-0 bg-gray-100" alt="Scene">
                     <div class="absolute bottom-0 right-0 bg-blue-500 text-white text-[9px] px-1 rounded-tl font-bold shadow-sm">${actualIndex + 1}</div>
+
+                    <!-- [NEW] Effect Selector -->
+                    <select onchange="event.stopPropagation(); updateImageEffect(${actualIndex}, this.value)" 
+                            class="mt-1 w-full text-[9px] p-0 border-gray-300 rounded bg-white dark:bg-gray-700 dark:text-white dark:border-gray-600 focus:ring-0 focus:border-blue-500 h-4 leading-none text-center"
+                            title="이미지 효과 선택">
+                        <option value="random" ${imageEffects[actualIndex] === 'random' ? 'selected' : ''}>Random</option>
+                        <option value="zoom_in" ${imageEffects[actualIndex] === 'zoom_in' ? 'selected' : ''}>Zoom In</option>
+                        <option value="zoom_out" ${imageEffects[actualIndex] === 'zoom_out' ? 'selected' : ''}>Zoom Out</option>
+                        <option value="pan_left" ${imageEffects[actualIndex] === 'pan_left' ? 'selected' : ''}>Pan Left</option>
+                        <option value="pan_right" ${imageEffects[actualIndex] === 'pan_right' ? 'selected' : ''}>Pan Right</option>
+                        <option value="none" ${imageEffects[actualIndex] === 'none' ? 'selected' : ''}>None</option>
+                    </select>
 
                     <!-- Move Down (Start later) -->
                     ${index < subtitles.length - 1 ? `<button onclick="event.stopPropagation(); moveImageStart(${imgIdx}, 1)" class="absolute -bottom-3 z-10 w-full h-4 bg-gray-200 hover:bg-blue-100 text-[9px] flex items-center justify-center rounded-b border border-t-0 border-gray-300 opacity-0 group-hover/thumb:opacity-100 transition-opacity" title="다음 자막부터 시작">▼</button>` : ''}
@@ -416,6 +438,27 @@
         }).join('');
         list.innerHTML = html;
         renderImageStrip(); // [NEW] Sync strip with render
+    }
+
+    // [NEW] Update Image Effect
+    function updateImageEffect(imgIndex, effect) {
+        if (!imageEffects) imageEffects = [];
+
+        // Ensure array size
+        if (imgIndex >= imageEffects.length) {
+            // Fill gaps with 'random' or 'none'
+            for (let k = imageEffects.length; k <= imgIndex; k++) {
+                imageEffects[k] = 'random';
+            }
+        }
+
+        imageEffects[imgIndex] = effect;
+        console.log(`Image #${imgIndex + 1} effect set to: ${effect}`);
+        updateDebug(`[UI] Updated Img #${imgIndex + 1} -> ${effect}. Effects: ${JSON.stringify(imageEffects)}`);
+
+        // Optional: Auto-save or visual feedback?
+        // Just log for now. The Save button sends this array.
+        Utils.showToast(`이미지 #${imgIndex + 1} 효과: ${effect}`, 'info');
     }
 
     function selectSubtitle(index) {
@@ -588,7 +631,24 @@
             // ... (existing preview update logic if any)
             const previewBg = document.getElementById('previewContainer');
             if (actualIndex >= 0 && actualIndex < images.length) {
-                previewBg.innerHTML = `<img src="${images[actualIndex]}" style="width: 100%; height: 100%; object-fit: cover; object-position: center;" class="w-full h-full">`;
+                // [CHANGED] Shorts Mode support: Cinematic Fit Preview
+                const isShorts = (window.currentAppMode === 'shorts');
+                if (isShorts) {
+                    // Simulate "Cinematic Frame": Blurred Background + Centered Image (Fit)
+                    previewBg.innerHTML = `
+                        <div class="relative w-full h-full overflow-hidden bg-black">
+                            <!-- Blurry Background -->
+                            <img src="${images[actualIndex]}" 
+                                 class="absolute inset-0 w-full h-full object-cover blur-md opacity-50 scale-110">
+                            <!-- Main Image (Fit) -->
+                            <img src="${images[actualIndex]}" 
+                                 class="relative z-10 w-full h-full object-contain">
+                        </div>
+                    `;
+                } else {
+                    // Normal Longform (Fill)
+                    previewBg.innerHTML = `<img src="${images[actualIndex]}" style="width: 100%; height: 100%; object-fit: cover; object-position: center;" class="w-full h-full">`;
+                }
             }
 
         } else {
@@ -796,9 +856,9 @@
     }
 
     // --- Action Functions ---
-    async function saveSubtitles() {
+    async function saveSubtitles(isAutoSave = false) {
         const btn = document.getElementById('saveBtn');
-        Utils.setLoading(btn, true, '저장..');
+        if (!isAutoSave) Utils.setLoading(btn, true, '저장..');
         try {
             // Update Position before save
             const preview = document.getElementById('previewTextMain');
@@ -814,12 +874,16 @@
                     project_id: projectId,
                     subtitles: subtitles,
                     image_timings: imageTimings,
-                    images: images // [NEW] Save custom image order
+                    images: images,
+                    image_effects: imageEffects
                 })
             });
+            console.log("[Save] Sending Image Effects:", imageEffects);
+            // alert(`[DEBUG] Saving Effects: ${JSON.stringify(imageEffects)}`); // Explicit User Feedback
+            updateDebug(`[Save] Effects Sent: ${JSON.stringify(imageEffects)}`);
             const data = await res.json();
             if (data.status === 'ok') {
-                Utils.showToast("자막 및 이미지 저장 완료", "success");
+                if (!isAutoSave) Utils.showToast("자막 및 이미지 저장 완료", "success");
                 if (window.updateStepStatus) window.updateStepStatus('subtitle', true);
 
                 if (data.subtitles) {
@@ -829,9 +893,10 @@
                 }
             } else throw new Error(data.error);
         } catch (e) {
-            Utils.showToast('저장 실패: ' + e.message, 'error');
+            if (!isAutoSave) Utils.showToast('저장 실패: ' + e.message, 'error');
+            else console.error("AutoSave Failed:", e);
         } finally {
-            Utils.setLoading(btn, false);
+            if (!isAutoSave) Utils.setLoading(btn, false);
         }
     }
 
@@ -874,55 +939,13 @@
         } catch (e) { Utils.showToast('실패: ' + e.message, 'error'); }
     }
 
-    // [NEW] Distribute Images based on CURRENT subtitles (WYSIWYG)
-    function distributeImages() {
-        if (!images || images.length === 0) {
-            Utils.showToast('프로젝트 선택 필요', 'warning');
-            return;
-        }
-        if (!subtitles || subtitles.length === 0) {
-            Utils.showToast('프로젝트 선택 필요', 'warning');
-            return;
-        }
 
-        const num_img = images.length;
-        const num_sub = subtitles.length;
 
-        imageTimings = [0.0]; // First image always starts at 0
 
-        if (num_sub >= num_img) {
-            const step = num_sub / num_img;
-            for (let i = 1; i < num_img; i++) {
-                let sub_idx = Math.floor(i * step);
-                sub_idx = Math.min(sub_idx, num_sub - 1);
 
-                let t_start = subtitles[sub_idx].start;
 
-                // Ensure monotony
-                if (t_start < imageTimings[imageTimings.length - 1]) {
-                    t_start = imageTimings[imageTimings.length - 1];
-                }
-                imageTimings.push(t_start);
-            }
-        } else {
-            // More images than subtitles - logic not defined in Python effectively or just linear?
-            // Python logic does 'else: pass'. So we keep existing logic or just mapping 1:1?
-            // If we just mapped 1:1, leftover images are ignored.
-            // Let's stick to 1:1 for the first N.
-            for (let i = 1; i < num_sub; i++) {
-                imageTimings.push(subtitles[i].start);
-            }
-            // Fill rest with infinity? Python passed so timings remains [0.0]. 
-            // We'll mimic Python 'pass' behavior (timings not added).
-        }
 
-        renderSubtitles();
-        renderImageStrip(); // [NEW] Update Strip
-        // Update indicator for current selection
-        if (subtitles[selectedIndex]) updateImageMatchIndicator(subtitles[selectedIndex].start);
-
-        Utils.showToast('?대?吏 ?깊겕媛 ?꾩옱 자막 시간영상留욎떠 ?ъ꽕?뺣릺?덉뒿니다.', 'success');
-    }
+    Utils.showToast('?대?吏 ?깊겕媛 ?꾩옱 자막 시간영상留욎떠 ?ъ꽕?뺣릺?덉뒿니다.', 'success');
 
     // [NEW] Adjust Time -> Sync Images -> Save
     async function saveAndSync() {
@@ -1022,6 +1045,21 @@
             renderSubtitles();
             selectSubtitle(selectedIndex); // Refresh right panel display
         }
+    }
+
+    // [NEW] Update Image Effect
+    function updateImageEffect(index, value) {
+        if (!imageEffects) imageEffects = [];
+        // Ensure array size
+        if (index >= imageEffects.length) {
+            // Fill gaps
+            while (imageEffects.length <= index) imageEffects.push('random');
+        }
+        imageEffects[index] = value;
+        // Auto-save logic? Or just wait for manual save. 
+        // User might expect auto-save or explicit save.
+        // Let's rely on global Save button or enable auto save if consistent with other UI.
+        // Current UI has explicit Save button for subtitles.
     }
 
     // [NEW] Move Image Boundary (Start Time)
@@ -1202,37 +1240,7 @@
         ev.dataTransfer.effectAllowed = "copy"; // Use copy visual
     }
 
-    async function distributeImages() {
-        if (!confirm('AI가 자막 내용을 분석하여 이미지를 자동으로 배치합니다.\n기존 이미지 배치는 덮어씌워집니다. 진행하시겠습니까?')) return;
 
-        Utils.setLoading(true, "AI가 이미지 싱크를 맞추는 중입니다...");
-
-        try {
-            const res = await fetch('/api/subtitle/auto_sync_images', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ project_id: projectId })
-            });
-            const data = await res.json();
-
-            if (data.status === 'ok') {
-                images = data.timeline_images;
-                imageTimings = data.image_timings;
-
-                renderSubtitles();
-                renderImageStrip();
-                Utils.showToast(data.message, 'success');
-                // Auto-save inferred by API update, but good to refresh UI state
-            } else {
-                throw new Error(data.error);
-            }
-        } catch (e) {
-            console.error(e);
-            Utils.showToast("이미지 싱크 실패: " + e.message, 'error');
-        } finally {
-            Utils.setLoading(false);
-        }
-    }
 
     function handleSubtitleDragStart(ev, index) {
         ev.dataTransfer.effectAllowed = "move";
@@ -1310,9 +1318,12 @@
 
         // UI Loading State
         btn.disabled = true;
-        btn.innerHTML = `<svg class="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> 렌더링 중...`;
+        btn.innerHTML = `<svg class="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> 저장 및 렌더링 중...`;
 
         try {
+            // [FIX] Ensure current state is saved before rendering
+            await saveSubtitles(true);
+
             // 1. Request Render
             // Note: API expects resolution, use_subtitles, etc. Defaulting for now.
             const res = await fetch(`/api/projects/${projectId}/render`, {
@@ -1368,6 +1379,68 @@
                 btn.innerHTML = originalText;
             }
         }, pollInterval);
+    } // Close pollRenderStatus
+
+    // [NEW] Call Auto Sync API
+    async function distributeImages(btn) {
+        if (!confirm("AI를 사용하여 이미지를 자막에 자동으로 배치하시겠습니까?\n이전의 수동 배치는 덮어씌워집니다.")) {
+            return;
+        }
+
+        // Fallback if btn not passed
+        if (!btn) btn = document.querySelector('button[onclick*="distributeImages"]');
+
+        const originalText = btn ? btn.innerHTML : "AI 이미지 싱크 맞추기";
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = `<span class="animate-spin">🔄</span> 처리중...`;
+        }
+
+        try {
+            // [FIX] Current backend expects POST to /api/subtitle/auto_sync_images
+            const response = await fetch(`/api/subtitle/auto_sync_images`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ project_id: projectId })
+            });
+
+            const data = await response.json();
+
+            if (data.status === 'ok') {
+                const count = data.timeline_images ? data.timeline_images.length : (data.matched_count || 0);
+                Utils.showToast(`${count}개의 이미지가 자동으로 배치되었습니다.`, 'success');
+                // Reload data to reflect changes
+                await loadProjectAndSubtitles();
+            } else {
+                throw new Error(data.error || "Unknown Error");
+            }
+
+        } catch (e) {
+            console.error(e);
+            Utils.showToast(`이미지 자동 배치 실패: ${e.message}`, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+
+    // [NEW] Reset and Reload Function
+    async function resetAndReload(btn) {
+        if (!confirm("모든 데이터를 다시 불러오시겠습니까? 저장하지 않은 내용은 사라질 수 있습니다.")) return;
+
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="animate-spin">🔄</span> 로딩중...`;
+
+        try {
+            await loadProjectAndSubtitles();
+            Utils.showToast("데이터가 새로고침되었습니다.", "success");
+        } catch (e) {
+            Utils.showToast("데이터 로드 실패: " + e.message, "error");
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
     }
 
     function onRenderComplete(videoPath, btn, originalText) {
@@ -1492,8 +1565,9 @@
 
 
             updateDebug('[Func] Fetching data...');
-            // [NEW] Use the dedicated endpoint
-            const res = await fetch(`/api/projects/${projectId}/subtitles`);
+            updateDebug('[Func] Fetching data...');
+            // [NEW] Use the dedicated endpoint with cache-busting
+            const res = await fetch(`/api/projects/${projectId}/subtitles?t=${new Date().getTime()}`);
             updateDebug(`[Func] Fetch Res: ${res.status}`);
             const data = await res.json();
             updateDebug(`[Func] Data JSON parsed. Status: ${data.status}`);
@@ -1501,9 +1575,28 @@
             if (data.status === 'ok') {
                 // 1. Set Data
                 subtitles = data.subtitles || [];
-                imageTimings = data.image_timings || [0.0];
+                imageTimings = (data.image_timings || [0.0]).map(Number);
                 images = data.timeline_images || [];
                 sourceImages = data.source_images || [];
+                // [NEW] Load Effects
+                imageEffects = data.image_effects || [];
+                console.log("[Load] Received Image Effects:", imageEffects);
+                updateDebug(`[Load] Effects Raw: ${JSON.stringify(imageEffects)}`);
+
+                // Ensure imageEffects matches images length
+                // If loaded effects are fewer than images, pad with 'random'
+                // If more, truncate or keep? Keep is safer.
+                while (imageEffects.length < images.length) {
+                    imageEffects.push('random');
+                }
+
+                // Also validate that each item is valid string
+                for (let i = 0; i < imageEffects.length; i++) {
+                    if (!imageEffects[i]) imageEffects[i] = 'random';
+                }
+
+                updateDebug(`[Data] Effects Loaded: ${imageEffects.length} items.`);
+
 
                 updateDebug(`[Data] Subtitles: ${subtitles.length}, Images: ${images.length}, Timings: ${imageTimings.length}, Source: ${sourceImages.length}`);
                 console.log("[Data Detail]", { imageTimings, images, sourceImages });
@@ -1514,7 +1607,7 @@
                 if (data.settings) {
                     styleSettings = {
                         font: data.settings.subtitle_font || 'Pretendard',
-                        fontSize: data.settings.subtitle_font_size || 60,
+                        fontSize: data.settings.subtitle_font_size || 4.5, // [CHANGED] Default 4.5%
                         color: data.settings.subtitle_base_color || '#ffffff',
                         strokeColor: data.settings.subtitle_stroke_color || '#000000',
                         strokeWidth: data.settings.subtitle_stroke_width || 5
@@ -1549,6 +1642,18 @@
                         if (preview) {
                             preview.style.left = data.settings.subtitle_pos_x;
                             preview.style.top = data.settings.subtitle_pos_y;
+                        }
+                    } else if (window.currentAppMode === 'shorts') {
+                        // [NEW] Default Position for Shorts (11/16ths down)
+                        const preview = document.getElementById('previewTextMain');
+                        if (preview) {
+                            // 11/16 = 68.75%
+                            preview.style.top = '68.75%';
+                            // Ensure centered horizontally if not set
+                            if (!data.settings.subtitle_pos_x) preview.style.left = '50%';
+
+                            // Save this default so it persists? 
+                            // Or just visual default. Let's apply visually.
                         }
                     }
 
@@ -1588,9 +1693,12 @@
             console.error(e);
             Utils.showToast("?곗씠영상濡쒕뵫 실패: " + e.message, 'error');
         } finally {
-            Utils.setLoading(false);
+
         }
     }
+
+
+
 
     // [DEBUG] Helper
     function updateDebug(msg) {

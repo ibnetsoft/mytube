@@ -431,30 +431,7 @@ const API = {
         }
     },
 
-    // Video API
-    video: {
-        async search(script, style, query = null) {
-            const response = await fetch('/api/video/search', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    script,
-                    style,
-                    query
-                })
-            });
-            return response.json();
-        },
 
-        async generateVeo(prompt) {
-            const response = await fetch('/api/video/generate-veo', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt })
-            });
-            return response.json();
-        }
-    },
 
     // 상태 확인
     async health() {

@@ -26,7 +26,8 @@ class VideoService:
 
         background_video_url: Optional[str] = None,
         thumbnail_path: Optional[str] = None,  # [NEW] Baked-in Thumbnail
-        fade_in_flags: Optional[List[bool]] = None  # [NEW] Fade-in effect per image
+        fade_in_flags: Optional[List[bool]] = None,  # [NEW] Fade-in effect per image
+        image_effects: Optional[List[str]] = None   # [NEW] Ken Burns Effects
     ) -> str:
         """
         이미지 슬라이드쇼 영상 생성 (시네마틱 프레임 적용)
@@ -42,6 +43,12 @@ class VideoService:
             raise ImportError("moviepy 또는 requests가 설치되지 않았습니다.")
 
         clips = []
+        # DEBUG: Log incoming effects
+        import datetime
+        try:
+            with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
+                 df.write(f"[{datetime.datetime.now()}] create_slideshow(PROJ={project_id}) Effects: {image_effects}\n")
+        except: pass
         temp_files = [] # 나중에 삭제할 임시 파일들
 
         current_duration = 0.0
@@ -150,8 +157,16 @@ class VideoService:
 
         for i, img_path in enumerate(images):
             if os.path.exists(img_path):
-                # [CHANGED] Resize image to fill screen (no blur background)
-                processed_img_path = self._resize_image_to_fill(img_path, resolution)
+                # [CHANGED] Logic to switch between Fill (Crop) and Fit (Cinematic/Blur) based on Aspect Ratio
+                target_w, target_h = resolution
+                is_vertical = target_h > target_w
+
+                if is_vertical:
+                    # For Shorts/Vertical: Use Cinematic Frame (Fit + Blur BG) to avoid aggressive cropping of landscape images
+                    processed_img_path = self._create_cinematic_frame(img_path, resolution)
+                else:
+                    # For Landscape: Use Fill (Crop) as before
+                    processed_img_path = self._resize_image_to_fill(img_path, resolution)
                 temp_files.append(processed_img_path)
                 
                 clip = None
@@ -200,15 +215,116 @@ class VideoService:
                 # Get specific duration for this image
                 dur = duration_per_image[i] if isinstance(duration_per_image, list) else duration_per_image
 
-                # [CHANGED] Use static images (no zoom effect)
+                # [CHANGED] Enable FPS for effects
                 if clip is None:
-                    clip = ImageClip(processed_img_path).set_duration(dur)
+                    clip = ImageClip(processed_img_path).set_duration(dur).set_fps(fps)
 
                 # [NEW] Apply fade-in effect if requested
                 if fade_in_flags and i < len(fade_in_flags) and fade_in_flags[i]:
                     fade_duration = min(1.0, dur * 0.3)  # Max 1초 또는 클립 길이의 30%
                     clip = clip.fadein(fade_duration)
                     print(f"  → Fade-in applied to image #{i+1} ({fade_duration:.2f}s)")
+
+                # [NEW] Apply Ken Burns Effects (Zoom/Pan)
+                # Check mapping
+                # Fix: image_effects length might be different from images/durations loop index `i`
+                # If images were split/duplicated, `i` in loop logic is just the index of `images` list.
+                # `image_effects` should correspond to `images` list 1:1 if handled correctly in frontend/backend.
+                
+                safe_effect = 'none'
+                if image_effects and i < len(image_effects):
+                    safe_effect = str(image_effects[i]).lower() # Normalize
+                
+                # DEBUG: Log per image
+                try:
+                    with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
+                         df.write(f"[{datetime.datetime.now()}] Processing Image #{i+1}, Effect: {safe_effect}\n")
+                except: pass
+
+                effect = None
+                if safe_effect == 'random':
+                    import random
+                    effect = random.choice(['zoom_in', 'zoom_out', 'pan_left', 'pan_right'])
+                    print(f"DEBUG_RENDER: Random Effect Selected -> '{effect}'")
+                elif safe_effect and safe_effect != 'none':
+                    effect = safe_effect
+
+                if effect:
+                    print(f"DEBUG_RENDER: Applying Effect '{effect}' (FPS={fps})")
+
+                    try:
+                        # Base scale factors
+                        zoom_scale = 1.5 # Max zoom level (Increased)
+                        
+                        w, h = clip.size
+                        
+                        if effect == 'zoom_in':
+                            # Center Zoom In: 1.0 -> 1.3
+                            clip = clip.resize(lambda t: 1 + (zoom_scale - 1) * t / dur)
+                            # Keep centered safely by using CompositeVideoClip as container later?
+                            # Actually, resizing changes size. CompositeVideoClip(..., size=(w,h)).
+                            # We need to center it on a canvas of original size.
+                            clip = CompositeVideoClip([clip.set_position('center')], size=(w,h)).set_duration(dur)
+                            
+                        elif effect == 'zoom_out':
+                            # Center Zoom Out: 1.3 -> 1.0
+                            # Start at 1.3, end at 1.0
+                            clip = clip.resize(lambda t: zoom_scale - (zoom_scale - 1) * t / dur)
+                            clip = CompositeVideoClip([clip.set_position('center')], size=(w,h)).set_duration(dur)
+                            
+                        elif effect.startswith('pan_'):
+                            # For Panning, we need start/end positions.
+                            # Pre-zoom to allow movement without black bars.
+                            pan_zoom = 1.2
+                            clip = clip.resize(pan_zoom)
+                            new_w, new_h = clip.w, clip.h
+                            
+                            # Max offsets (positive values)
+                            max_x = new_w - w
+                            max_y = new_h - h
+                            
+                            # Helper for linear interpolation
+                            def get_pos(t, start_x, start_y, end_x, end_y):
+                                curr_x = start_x + (end_x - start_x) * t / dur
+                                curr_y = start_y + (end_y - start_y) * t / dur
+                                return (int(curr_x), int(curr_y))
+
+                            # Calculate Start/End (Top-Left coordinate)
+                            # Center is -max_x/2, -max_y/2
+                            center_x = -max_x / 2
+                            center_y = -max_y / 2
+                            
+                            # Coordinates: 0 is left align (showing left), -max_x is right align (showing right)
+                            
+                            if effect == 'pan_left':
+                                # Move Left: Show Right side -> Show Left side (Camera moves right? No, standard Pan Left means Camera moves Left)
+                                # Camera moves Left = View moves Left = Image contents move Right.
+                                # Let's assume standard "Pan Left" = Reveal Left side.
+                                # Start: Right aligned (x = -max_x) -> End: Left aligned (x = 0)
+                                clip = clip.set_position(lambda t: (int(-max_x + max_x * t / dur), center_y))
+                                
+                            elif effect == 'pan_right':
+                                # Reveal Right side
+                                # Start: Left aligned (x = 0) -> End: Right aligned (x = -max_x)
+                                clip = clip.set_position(lambda t: (int(0 - max_x * t / dur), center_y))
+                                
+                            elif effect == 'pan_up':
+                                # Reveal Top
+                                # Start: Bottom aligned (y = -max_y) -> End: Top aligned (y = 0)
+                                clip = clip.set_position(lambda t: (center_x, int(-max_y + max_y * t / dur)))
+                                
+                            elif effect == 'pan_down':
+                                # Reveal Bottom
+                                # Start: Top aligned (y = 0) -> End: Bottom aligned (y = -max_y)
+                                clip = clip.set_position(lambda t: (center_x, int(0 - max_y * t / dur)))
+                                
+                            # Crop to original size
+                            clip = CompositeVideoClip([clip], size=(w,h)).set_duration(dur)
+
+                    except Exception as e:
+                        print(f"Effect Error: {e}")
+                        # Fallback to static
+                        pass
 
                 clips.append(clip)
                 current_duration += dur
@@ -339,7 +455,8 @@ class VideoService:
             # DB might have 30 (Legacy Pixel? or Error?) -> Treat > 20 as Pixel
             if 0.1 <= font_size_percent <= 20:
                 # Percentage mode (normal usage, 0.1% ~ 20%)
-                f_size = int(video.h * (font_size_percent / 100))
+                # [FIX] Apply 1.7x scaling to match HTML Preview (WYSIWYG)
+                f_size = int(video.h * (font_size_percent / 100) * 1.7)
             else:
                 # Pixel mode (Legacy or explicit large pixel values)
                 # e.g. 30 -> 30px (Tiny, but safe)
@@ -379,14 +496,37 @@ class VideoService:
                         
                         txt_clip = ImageClip(txt_img_path)
                         
-                        # [FIX] Force Absolute Pixel Positioning (Anchored to Bottom)
-                        # Ignoring custom_y_pct for now to solve the "floating / disappearing" issue definitively.
-                        # Always placed at bottom with margin.
+                        # [FIX] Position Logic
+                        # 1. Check for custom position in settings
+                        # settings usually store 'subtitle_pos_y' as "123px" or "10%" string
+                        custom_y = s_settings.get('subtitle_pos_y') 
                         
-                        # Margin from bottom: 8% of video height
-                        bottom_margin = int(video.h * 0.08)
-                        y_pos = video.h - txt_clip.h - bottom_margin
+                        y_pos = None
                         
+                        if custom_y:
+                            try:
+                                if "px" in str(custom_y):
+                                    y_pos = int(float(str(custom_y).replace("px", "")))
+                                elif "%" in str(custom_y):
+                                    pct = float(str(custom_y).replace("%", ""))
+                                    y_pos = int(video.h * (pct / 100))
+                                else:
+                                    y_pos = int(float(custom_y))
+                            except:
+                                y_pos = None
+
+                        # 2. If no custom pos, use Default (11/16ths rule for Shorts, or Bottom Margin for others)
+                        if y_pos is None:
+                            # 11/16 is approx 0.6875.
+                            # Standard Lower Third is often around 70-80%.
+                            # User requested 11/16ths specifically.
+                            target_ratio = video.h * (11/16)
+                            y_pos = int(target_ratio)
+
+                        # Ensure it stays on screen (bottom padding)
+                        if y_pos + txt_clip.h > video.h:
+                             y_pos = video.h - txt_clip.h - 50 # Safety buffer
+
                         txt_clip = txt_clip.set_position(("center", y_pos))
 
                         txt_clip = txt_clip.set_start(sub["start"])

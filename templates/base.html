@@ -57,8 +57,8 @@
             <div class="px-3 py-1.5 border-b border-gray-200 dark:border-gray-700">
                 <div class="flex items-center justify-between mb-1">
                     <span class="text-[10px] font-medium text-gray-500 dark:text-gray-400">현재 프로젝트</span>
-                    <button onclick="openProjectModal()" class="text-[10px] text-blue-500 hover:text-blue-600">+
-                        새</button>
+                    <button onclick="openProjectModal()"
+                        class="text-[10px] text-blue-500 hover:text-blue-600 font-bold">+ New</button>
                 </div>
                 <select id="projectSelect" onchange="onProjectChange(this.value)"
                     class="w-full text-sm p-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-800 dark:text-white">
@@ -251,16 +251,7 @@
                                 <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">주제</span>
                             </a>
 
-                            <!-- Step 2: Thumbnail -->
-                            <a href="/thumbnail"
-                                class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
-                                data-step="thumbnail">
-                                <div
-                                    class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
-                                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
-                                </div>
-                                <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">썸네일</span>
-                            </a>
+
 
                             <!-- Step 3: Plan -->
                             <a href="/script-plan"
@@ -283,6 +274,19 @@
                                 </div>
                                 <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">대본</span>
                             </a>
+
+                            <!-- Step 5: Thumbnail -->
+                            <a href="/thumbnail"
+                                class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                data-step="thumbnail">
+                                <div
+                                    class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                </div>
+                                <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">썸네일</span>
+                            </a>
+
+
 
                             <!-- Step 5: Intro -->
                             <a href="/video-gen"
@@ -500,7 +504,7 @@
                         const settings = fullData.settings || {};
                         const steps = {
                             'topic': !!fullData.project.topic,
-                            'thumbnail': !!settings.thumbnail_url || !!settings.thumbnail_path, // URL or Path
+                            'thumbnail': !!(settings.thumbnail_url || settings.thumbnail_path || fullData.project?.thumbnail_url || fullData.project?.thumbnail_path), // Check all possible paths
                             'plan': !!fullData.script_structure, // 기획 데이터가 있어야만 Green
                             'script': !!fullData.full_script || (fullData.shorts && Object.keys(fullData.shorts).length > 0), // Longform OR Shorts
                             'intro': !!settings.intro_video_path || !!settings.background_video_url, // 인트로 비디오 유무
@@ -589,6 +593,13 @@
             }
 
             try {
+                // [CLEANUP] Clear existing project data from local storage to ensure clean state
+                Utils.storage.remove('scriptStructure');
+                Utils.storage.remove('fullScript');
+                Utils.storage.remove('imagePrompts');
+                // Also clear any other potential leftovers
+                localStorage.removeItem('latestScriptStyle'); // Optional: reset style preference
+
                 const result = await API.project.create(name, topic || null);
                 if (result.project_id) {
                     setCurrentProject(result.project_id);

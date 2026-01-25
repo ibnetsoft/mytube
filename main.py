@@ -1799,6 +1799,48 @@ async def delete_template_api():
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
+@app.get("/api/settings/api-keys")
+async def get_api_keys_status():
+    """API 키 설정 상태 조회"""
+    return config.get_api_keys_status()
+
+@app.post("/api/settings/api-keys")
+async def save_api_keys(keys: dict = Body(...)):
+    """API 키 저장"""
+    try:
+        # Update keys if provided
+        if "youtube" in keys:
+             config.update_api_key("YOUTUBE_API_KEY", keys["youtube"])
+             
+        if "gemini" in keys:
+             config.update_api_key("GEMINI_API_KEY", keys["gemini"])
+             
+        if "elevenlabs" in keys:
+             config.update_api_key("ELEVENLABS_API_KEY", keys["elevenlabs"])
+             
+        if "replicate" in keys:
+             config.update_api_key("REPLICATE_API_TOKEN", keys["replicate"])
+             
+        return {"status": "ok", "keys": config.get_api_keys_status()}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+@app.get("/api/health")
+async def health_check():
+    """서버 상태 및 API 연결 확인"""
+    # Simple check based on key existence
+    # In a real app, you might want to make a lightweight request to each service
+    status = {
+        "status": "ok",
+        "apis": {
+            "youtube": bool(config.YOUTUBE_API_KEY),
+            "gemini": bool(config.GEMINI_API_KEY),
+            "elevenlabs": bool(config.ELEVENLABS_API_KEY),
+            "replicate": bool(config.REPLICATE_API_TOKEN)
+        }
+    }
+    return status
+
 @app.get("/api/settings")
 async def get_settings_api():
     """전체 설정 로드 (기본 프로젝트 ID=1 기준)"""
@@ -2012,6 +2054,20 @@ async def get_subtitles(project_id: int):
             except Exception as e:
                 print(f"Error calc timings in get_subtitles: {e}")
 
+        # [NEW] Load Image Effects (Zoom/Pan)
+        image_effects = []
+        effects_path = settings.get('image_effects_path')
+        if effects_path and os.path.exists(effects_path):
+            try:
+                with open(effects_path, "r", encoding="utf-8") as f:
+                    image_effects = json.load(f)
+                print(f"DEBUG: Loaded {len(image_effects)} image effects from {effects_path}: {image_effects}")
+            except Exception as e:
+                print(f"DEBUG: Failed to load image effects from {effects_path}: {e}")
+        else:
+            print(f"DEBUG: No image effects found (Path: {effects_path})")
+
+
         return {
             "status": "ok",
             "subtitles": subtitles,
@@ -2019,8 +2075,10 @@ async def get_subtitles(project_id: int):
             "audio_duration": audio_duration,
             "images": source_images, # Palette
             "timeline_images": timeline_images, # Actual Timeline
-            "image_timings": image_timings
+            "image_timings": image_timings,
+            "image_effects": image_effects
         }
+
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -2147,7 +2205,19 @@ async def save_subtitles_api(req: dict = Body(...)):
                  json.dump(timeline_images, f, indent=2)
              db.update_project_setting(project_id, 'timeline_images_path', tl_path)
 
-        return {"status": "ok", "subtitles": subtitles, "image_timings": image_timings, "images": timeline_images}
+        # [NEW] Save Image Effects
+        image_effects = req.get("image_effects")
+        if image_effects:
+             ef_filename = f"image_effects_{project_id}_{int(time.time())}.json"
+             ef_path = os.path.join(config.OUTPUT_DIR, ef_filename)
+             with open(ef_path, "w", encoding="utf-8") as f:
+                 json.dump(image_effects, f, indent=2)
+             db.update_project_setting(project_id, 'image_effects_path', ef_path)
+             print(f"DEBUG: Saved {len(image_effects)} image effects to {ef_path}")
+        else:
+             print("DEBUG: No image_effects received in save request")
+
+        return {"status": "ok", "subtitles": subtitles, "image_timings": image_timings, "images": timeline_images, "image_effects": image_effects}
     except Exception as e:
         print(f"Save Subtitles Error: {e}")
         return {"status": "error", "error": str(e)}
@@ -2180,45 +2250,94 @@ async def auto_sync_images_api(req: dict = Body(...)):
         if not valid_images:
              return {"status": "error", "error": "생성된 이미지가 없습니다."}
 
-        # 2. Call Gemini Service
-        result = await gemini_service.match_images_to_subtitles(subtitles, valid_images)
-        assignments = result.get('assignments', [])
-        
-        # 3. Construct Timeline
-        # We need to build `timeline_images` (ordered list of URLs) and `image_timings` (start times)
-        # Default: If no assignment, what do we do?
-        # Strategy:
-        # - Create a timeline based on assignments.
-        # - Sort assignments by subtitle_index.
-        
-        # Sort assignments by subtitle ID
-        assignments.sort(key=lambda x: x.get('subtitle_id', 0))
-        
+        # 2. Hybrid Sync Logic
         new_timeline_images = []
         new_image_timings = []
         
-        for assign in assignments:
-            img_id = assign.get('image_id')
-            sub_id = assign.get('subtitle_id')
+        # Strategy A: Use 'script_start' tags (Deterministic)
+        # Check if we have script tags in the images
+        has_tags = any(img.get('script_start') and img.get('script_start').strip() for img in valid_images)
+        
+        matched_count = 0
+        if has_tags:
+            print("[AutoSync] 'script_start' tags found. Attempting deterministic sync.")
             
-            if img_id is not None and sub_id is not None:
-                if 0 <= img_id < len(valid_images) and 0 <= sub_id < len(subtitles):
-                    img_url = valid_images[img_id]['image_url']
-                    start_time = subtitles[sub_id]['start']
+            # Sort images by scene number to ensure order
+            valid_images.sort(key=lambda x: x.get('scene_number', 0))
+            
+            current_sub_idx = 0
+            
+            for img in valid_images:
+                tag = img.get('script_start', '').strip()
+                if not tag:
+                    # If tag missing, maybe just append after previous? Or skip?
+                    # Let's Skip and let gaps be filled or just use previous timing + offset?
+                    # Better: Fill with "approximate" or skip. Let's skip for now.
+                    continue
                     
-                    # Add to timeline
-                    new_timeline_images.append(img_url)
-                    new_image_timings.append(start_time)
-
-        # Fallback if AI fails completely
+                # Search for tag in subtitles starting from current_sub_idx
+                found_idx = -1
+                
+                # 1. Forward search from current position (Scene order assumption)
+                for i in range(current_sub_idx, len(subtitles)):
+                    # Remove punctuation/spaces for robust match
+                    sub_clean = re.sub(r'\s+', '', subtitles[i]['text'])
+                    tag_clean = re.sub(r'\s+', '', tag)
+                    
+                    if tag_clean in sub_clean or sub_clean in tag_clean:
+                        found_idx = i
+                        break
+                
+                # 2. If not found, full search (in case of disorder) - Optional, but might break flow.
+                # Let's stick to forward search to prevent jumping back.
+                
+                if found_idx != -1:
+                    new_timeline_images.append(img['image_url'])
+                    new_image_timings.append(subtitles[found_idx]['start'])
+                    current_sub_idx = found_idx # Advance cursor
+                    matched_count += 1
+                else:
+                    print(f"[AutoSync] Could not match tag: '{tag}'")
+                    
+        # Strategy B: Gemini AI Match (Fallback)
+        # Use if tag matching failed significantly (e.g. < 30% images matched)
+        # or if no tags existed.
+        if matched_count < len(valid_images) * 0.3:
+            print(f"[AutoSync] Tag match rate low ({matched_count}/{len(valid_images)}). Falling back to Gemini.")
+            
+            # Clear partial results
+            new_timeline_images = []
+            new_image_timings = []
+            
+            result = await gemini_service.match_images_to_subtitles(subtitles, valid_images)
+            assignments = result.get('assignments', [])
+            assignments.sort(key=lambda x: x.get('subtitle_id', 0))
+            
+            for assign in assignments:
+                img_id = assign.get('image_id')
+                sub_id = assign.get('subtitle_id')
+                
+                if img_id is not None and sub_id is not None:
+                    if 0 <= img_id < len(valid_images) and 0 <= sub_id < len(subtitles):
+                        img_url = valid_images[img_id]['image_url']
+                        start_time = subtitles[sub_id]['start']
+                        new_timeline_images.append(img_url)
+                        new_image_timings.append(start_time)
+            
+            # [Check] If Gemini missed too many images, fallback to Even Distribution
+            if len(new_timeline_images) < len(valid_images) * 0.8:
+                print(f"[AutoSync] Low coverage ({len(new_timeline_images)}/{len(valid_images)}). Fallback to Even Distribution.")
+                new_timeline_images = []
+                new_image_timings = []
+        
+        # Strategy C: Even Distribution (Final Fallback)
         if not new_timeline_images:
-             print("AI returned no assignments, falling back to even distribution")
+             print("[AutoSync] AI/Tag sync failed. Falling back to even distribution.")
              new_timeline_images = [p['image_url'] for p in valid_images]
-             # Recalculate default timings (handled by frontend or get_subtitles usually, but let's do it here)
-             # Simple even split
              duration = subtitles[-1]['end'] if subtitles else 60
-             step = duration / len(new_timeline_images)
+             step = duration / len(new_timeline_images) if new_timeline_images else 5
              new_image_timings = [i * step for i in range(len(new_timeline_images))]
+
 
         # 4. Save Results
         # Save Timeline Images
@@ -2252,6 +2371,31 @@ async def auto_sync_images_api(req: dict = Body(...)):
 async def regenerate_subtitles_api(project_id: int):
     """자막 강제 재생성"""
     return await generate_subtitles_api({"project_id": project_id})
+
+# [NEW] Reset Timeline to Latest Generated State
+@app.post("/api/projects/{project_id}/subtitle/reset")
+async def reset_subtitle_timeline(project_id: int):
+    """
+    타임라인 이미지/타이밍/효과 설정을 초기화하여 
+    최신 생성된 자막 및 TTS 상태로 되돌립니다.
+    (수동 편집된 내용을 버리고 자동 생성 상태로 리셋)
+    """
+    try:
+        # Clear custom timeline paths
+        db.update_project_setting(project_id, 'timeline_images_path', None)
+        # Note: we do NOT clear 'subtitle_path' because we want to keep the latest Generated subtitles.
+        # If the user wants to re-generate subtitles from scratch, they use 'regenerate'.
+        # This reset is for "Layout/Sync" reset.
+        
+        # However, to ensure "Fresh Start", we should also clear saved timings and effects.
+        db.update_project_setting(project_id, 'image_timings_path', None)
+        db.update_project_setting(project_id, 'image_effects_path', None)
+        
+        return {"status": "ok", "message": "타임라인이 초기화되었습니다."}
+    except Exception as e:
+        print(f"Reset Error: {e}")
+        return {"status": "error", "error": str(e)}
+
 
 
 # ===========================================
@@ -2398,16 +2542,18 @@ async def save_project_thumbnail(project_id: int, file: UploadFile = File(...)):
             
         print(f"[Thumbnail] Saved successfully. Size: {len(content)} bytes")
 
-        # 4. DB 업데이트 (thumbnail_path & thumbnail_url)
+        # 4. URL 생성
+        # output 폴더는 /output 으로 마운트되어 있음
+        web_url = f"/output/thumbnails/{filename}"
+
+        # 5. DB 업데이트 (thumbnail_path & thumbnail_url)
         try:
              db.update_project_setting(project_id, 'thumbnail_path', filepath)
-             db.update_project_setting(project_id, 'thumbnail_url', web_url) # [NEW] URL 저장
+             db.update_project_setting(project_id, 'thumbnail_url', web_url)
         except Exception as db_e:
              print(f"[Thumbnail] DB Update Failed: {db_e}")
 
-        # 5. URL 반환
-        # output 폴더는 /output 으로 마운트되어 있음
-        web_url = f"/output/thumbnails/{filename}"
+        # 6. URL 반환
         return {
             "status": "ok",
             "url": web_url,
@@ -2897,8 +3043,9 @@ JSON만 반환하세요."""
                             "scene": item.get("scene", ""),
                             "prompt_ko": item.get("scene", ""), # 장면 설명을 한국어 프롬프트로 사용
                             "prompt_en": item.get("prompt") or item.get("prompt_content") or "",
-
-                            "image_url": item.get("image_url", "")
+                            "image_url": item.get("image_url", ""),
+                            "script_start": item.get("script_start", ""),
+                            "script_end": item.get("script_end", "")
                         })
                     try:
                         db.save_image_prompts(req.project_id, save_list)
@@ -3567,6 +3714,7 @@ async def render_project_video(
         def render_executor_func(target_dir_arg, use_subtitles_arg, target_resolution_arg, bg_video_url_arg):
             # 몽키패치: MoviePy 구버전 호환성 해결
             import PIL.Image
+            import datetime # [FIX] Ensure datetime is available locally to prevent UnboundLocalError
             if not hasattr(PIL.Image, 'ANTIALIAS'):
                 PIL.Image.ANTIALIAS = PIL.Image.LANCZOS
 
@@ -3748,10 +3896,17 @@ async def render_project_video(
                 
                 # [NEW] Thumbnail Path for Shorts Baking
                 thumbnail_path_arg = None
+                p_settings = db.get_project_settings(project_id) or {} # [FIX] Safe load
+                
+                # DEBUG p_settings
+                try:
+                     with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
+                         df.write(f"[{datetime.datetime.now()}] p_settings(ID={project_id}) found: {bool(p_settings)}\n")
+                except: pass
+
                 if app_mode == 'shorts':
                     # Find thumbnail
                     # Priority: Project Settings -> Project Table
-                    p_settings = db.get_project_settings(project_id)
                     thumb_url = p_settings.get("thumbnail_url")
                     
                     if thumb_url:
@@ -3770,14 +3925,34 @@ async def render_project_video(
 
                 # [NEW] Load fade-in settings from database
                 fade_in_flags = []
+                image_effects = []
+                # 1. Load Prompts (Fade In)
                 try:
                     prompts_data = db.get_image_prompts(project_id)
                     if prompts_data and prompts_data.get('prompts'):
                         fade_in_flags = [p.get('fade_in', False) for p in prompts_data['prompts']]
-                        print(f"DEBUG: Loaded {len(fade_in_flags)} fade-in flags: {fade_in_flags}")
                 except Exception as e:
-                    print(f"Failed to load fade-in settings: {e}")
+                    print(f"Failed to load prompts: {e}")
                     fade_in_flags = []
+
+                # 2. Load Image Effects (Ken Burns)
+                try:
+                    # Also load image effects from project settings (User assigned)
+                    ef_path = p_settings.get('image_effects_path')
+                    
+                    # DEBUG main.py load
+                    with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
+                         df.write(f"[{datetime.datetime.now()}] DEBUG_MAIN: p_settings keys: {list(p_settings.keys())}\n")
+                         df.write(f"[{datetime.datetime.now()}] DEBUG_MAIN: ef_path: {ef_path}\n")
+
+                    if ef_path and os.path.exists(ef_path):
+                        import json
+                        with open(ef_path, "r", encoding="utf-8") as f:
+                            image_effects = json.load(f)
+                            print(f"DEBUG: Loaded {len(image_effects)} image effects")
+                except Exception as e:
+                    print(f"Failed to load image effects: {e}")
+                    image_effects = []
 
                 # 3. 단일 패스 영상 생성 (이미지 + 오디오 + 자막 통합)
                 video_path = video_service.create_slideshow(
@@ -3790,7 +3965,9 @@ async def render_project_video(
                     background_video_url=bg_video_url_arg,
                     thumbnail_path=thumbnail_path_arg,  # [NEW] Pass thumbnail
                     duration_per_image=duration_per_image, # [FIX] Pass calculated durations
-                    fade_in_flags=fade_in_flags  # [NEW] Pass fade-in settings
+                    fade_in_flags=fade_in_flags,  # [NEW] Pass fade-in settings
+                    image_effects=image_effects,  # [NEW] Pass Ken Burns effects
+                    project_id=project_id         # [FIX] Pass Project ID for logging
                 )
 
                 
@@ -3809,6 +3986,11 @@ async def render_project_video(
                 print(error_msg)
                 traceback.print_exc()
                 
+                try:
+                    with open("error_log.txt", "a", encoding="utf-8") as ef:
+                        ef.write(f"ERROR: {e}\n{traceback.format_exc()}\n")
+                except: pass
+
                 try:
                     with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as rf:
                          rf.write(f"[{datetime.datetime.now()}] Render Error: {e}\n{traceback.format_exc()}\n")
@@ -3893,13 +4075,25 @@ async def get_project_subtitles(project_id: int):
              # No, let frontend decide or stay empty.
              pass
 
+        # [NEW] Load Image Effects
+        image_effects = []
+        effects_path = settings.get('image_effects_path')
+        if effects_path and os.path.exists(effects_path):
+             try:
+                 with open(effects_path, "r", encoding="utf-8") as f:
+                     image_effects = json.load(f)
+                 print(f"DEBUG(get_project_subtitles): Loaded effects from {effects_path}")
+             except Exception as e:
+                 print(f"DEBUG(get_project_subtitles): Error loading effects: {e}")
+
         return {
             "status": "ok",
             "subtitles": subtitles,
             "image_timings": image_timings,
             "timeline_images": timeline_images,
             "source_images": source_images,
-            "settings": settings # useful for styles
+            "image_effects": image_effects, # [FIX] Return loaded effects
+            "settings": settings 
         }
 
     except Exception as e:

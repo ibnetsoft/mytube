@@ -611,6 +611,14 @@
     // ========== INITIALIZATION ==========
 
     document.addEventListener('DOMContentLoaded', async () => {
+        // [NEW] Check URL for project_id override
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlProjectId = urlParams.get('project_id');
+
+        if (urlProjectId) {
+            setCurrentProject(parseInt(urlProjectId));
+        }
+
         // Load explorer
         await refreshExplorer();
 
@@ -624,9 +632,10 @@
                     document.getElementById('analysisInfo').classList.remove('hidden');
                     document.getElementById('structureTopic').value = projectFull.project?.topic || '';
 
-                    const styleCode = projectFull.script_structure.script_style || 'news';
-                    document.getElementById('scriptStyle').value = styleCode;
-                    document.getElementById('scriptStyleDisplay').value = styleCode;
+                    // Safe check for style
+                    if (projectFull.script_structure.script_style) {
+                        // UI update if style input exists (currently hidden/not present in HTML but good for data)
+                    }
                 }
 
                 if (projectFull && projectFull.script && projectFull.script.full_script) {
@@ -640,6 +649,17 @@
             } catch (e) {
                 console.error(e);
             }
+        }
+
+        // [NEW] Auto Start Check
+        if (urlParams.get('auto_start') === 'true') {
+            console.log("Auto-start generation triggered");
+            Utils.showToast('대본 생성을 자동으로 시작합니다...', 'info');
+            setTimeout(() => {
+                if (document.getElementById('generateBtn')) {
+                    generateScript();
+                }
+            }, 1000);
         }
     });
 

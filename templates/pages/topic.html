@@ -778,9 +778,11 @@
             // Let's check api.js location first? Usually in /static/js/api.js.
             // I'll take a safe bet and update the call assuming I'll fix the wrapper or it's flexible.
 
+            // [MODIFIED] Use Keyword for Topic, Fallback to Video Title
+            const keyword = document.getElementById('searchInput').value.trim();
             const result = await API.project.create(
                 `${title}...`,
-                currentVideoForAnalysis.snippet.title,
+                keyword || currentVideoForAnalysis.snippet.title,
                 language
             );
             if (result.project_id) {
@@ -798,12 +800,13 @@
             await API.project.saveAnalysis(projectId, currentVideoForAnalysis, currentAnalysisResult);
             Utils.showToast('분석 결과가 저장되었습니다', 'success');
 
-            // [MODIFIED] Check App Mode for Redirection
+            // [MODIFIED] Check App Mode for Redirection and Pass Project ID
+            const searchKeyword = document.getElementById('searchInput').value.trim();
+            let redirectUrl = `/script-plan?project_id=${projectId}&auto=true&topic=${encodeURIComponent(searchKeyword)}`;
             if (window.APP_MODE === 'shorts') {
-                window.location.href = '/script-plan?mode=shorts&auto=true';
-            } else {
-                window.location.href = '/script-plan?auto=true';
+                redirectUrl += '&mode=shorts';
             }
+            window.location.href = redirectUrl;
         } catch (e) {
             console.error('저장 실패:', e);
             Utils.showToast('저장 중 오류가 발생했습니다', 'error');

@@ -132,7 +132,7 @@
                     <label class="block text-xs font-medium text-gray-500 mb-2 w-full text-center">현재 프로젝트 썸네일
                         (Reference)</label>
                     <div id="thumbnailReferenceContainer"
-                        class="relative w-[30%] aspect-video bg-black rounded-lg overflow-hidden shadow-sm group border border-gray-200 dark:border-gray-700">
+                        class="relative w-[30%] aspect-video bg-gray-800 rounded-lg overflow-hidden shadow-sm group border border-gray-200 dark:border-gray-700">
                         <img id="currentProjectThumbnail" src=""
                             class="w-full h-full object-contain opacity-50 transition-opacity duration-300"
                             alt="Thumbnail" onerror="this.style.opacity=0">
@@ -437,16 +437,67 @@
                 <div class="flex gap-2">
                     <button onclick="applyCharacterPrompt('${char.prompt_en.replace(/'/g, "\\'")}')" 
                         class="flex-1 btn-secondary text-xs py-1.5 flex items-center justify-center gap-1 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200">
-                        <span>⬇️</span> 적용하기
+                        <span>⬇️</span> 적용
                     </button>
-                    <button onclick="Utils.copyToClipboard('${char.prompt_en.replace(/'/g, "\\'")}')" 
-                        class="px-3 py-1.5 border border-gray-200 rounded text-gray-500 hover:bg-gray-50 hover:text-gray-800 transition-colors" title="문구 복사">
-                        📋
+                    
+                    <button id="regen-btn-${index}" onclick="regenerateCharacter(${index})" 
+                        class="px-2 py-1.5 border border-gray-200 rounded text-gray-500 hover:bg-green-50 hover:text-green-600 transition-colors" title="프롬프트 AI 재생성">
+                        🔄
+                    </button>
+                    
+                    <button onclick="deleteCharacter(${index})" 
+                        class="px-2 py-1.5 border border-gray-200 rounded text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors" title="삭제">
+                        🗑️
                     </button>
                 </div>
             `;
             list.appendChild(card);
         });
+    }
+
+    // [NEW] Delete Character
+    async function deleteCharacter(index) {
+        if (!confirm('이 캐릭터 카드를 삭제하시겠습니까?')) return;
+
+        let chars = Utils.storage.get('characterPrompts') || [];
+        chars.splice(index, 1);
+        Utils.storage.set('characterPrompts', chars);
+        renderCharacters(chars);
+    }
+
+    // [NEW] Regenerate Character Prompt
+    async function regenerateCharacter(index) {
+        let chars = Utils.storage.get('characterPrompts') || [];
+        const char = chars[index];
+        if (!char) return;
+
+        const btn = document.getElementById(`regen-btn-${index}`);
+        if (btn) {
+            btn.innerHTML = `<div class="animate-spin h-3 w-3 border-2 border-green-500 border-t-transparent rounded-full"></div>`;
+            btn.disabled = true;
+        }
+
+        try {
+            const prompt = `Rewrite and improve this visual image generation prompt for a character. Keep strictly to the visual description in English. Output only the prompt text.\n\nDescription (Korean): ${char.description_ko}\nCurrent Prompt: ${char.prompt_en}`;
+            const res = await API.gemini.generate(prompt);
+
+            if (res.text || res.candidates?.[0]?.content?.parts?.[0]?.text) {
+                const newText = res.text || res.candidates[0].content.parts[0].text;
+                chars[index].prompt_en = newText.trim();
+                Utils.storage.set('characterPrompts', chars);
+                renderCharacters(chars);
+                Utils.showToast('캐릭터 프롬프트가 재생성되었습니다.', 'success');
+            } else {
+                throw new Error("No response text");
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('재생성 실패: ' + e.message, 'error');
+            if (btn) {
+                btn.innerHTML = '🔄';
+                btn.disabled = false;
+            }
+        }
     }
 
     // 캐릭터 프롬프트 적용 (Global Textarea)
@@ -1018,7 +1069,24 @@
                 // [FIX] Per-item Try-Catch to continue loop even if one fails
                 try {
                     // API call
-                    const fullPrompt = p.prompt_en || p.prompt_content || '';
+                    // [FIX] Force refresh prompt data from DOM to ensure sync (WYSIWYG)
+                    // Sometimes the global 'prompts' array might be stale or desynced
+                    let fullPrompt = '';
+                    try {
+                        const domJson = document.getElementById(`prompt-json-${sceneIndex}`);
+                        if (domJson && domJson.value) {
+                            const pData = JSON.parse(domJson.value);
+                            fullPrompt = pData.prompt_en || pData.prompt_content || '';
+                            // Update global array while we're at it
+                            prompts[sceneIndex] = { ...prompts[sceneIndex], ...pData };
+                        }
+                    } catch (e) {
+                        console.warn(`Failed to parse DOM JSON for scene ${sceneIndex}, using memory fallback`, e);
+                    }
+
+                    if (!fullPrompt) {
+                        fullPrompt = p.prompt_en || p.prompt_content || '';
+                    }
                     const aspectRatio = document.querySelector('input[name="aspectRatio"]:checked').value || '16:9';
 
                     const result = await API.image.generate(fullPrompt, projectId, sceneIndex + 1, document.getElementById('imageStyle').value, aspectRatio);
@@ -1136,11 +1204,50 @@
     // 프로젝트 상태 복구 이벤트 수신
     window.addEventListener('projectStateRestored', (e) => {
         const data = e.detail;
+
+        // [RESET] Clear previous project data
+        const gp = document.getElementById('globalPrompt');
+        if (gp) gp.value = '';
+
+        const preview = document.getElementById('charPreviewImg');
+        const placeholder = document.getElementById('charPlaceholder');
+        const charArea = document.getElementById('charPreviewArea');
+        if (preview && placeholder && charArea) {
+            preview.src = '';
+            preview.classList.add('hidden');
+            placeholder.classList.remove('hidden');
+            charArea.classList.add('hidden');
+        }
+
+        // Clear Prompts List
+        const promptsContainer = document.getElementById('promptsList');
+        if (promptsContainer) promptsContainer.innerHTML = '';
+        document.getElementById('resultSection').classList.add('hidden');
+        prompts = [];
+
+        // [NEW] Reload thumbnail reference explicitly when project context changes
+        if (data) loadProjectThumbnail(data);
+
+        // [RESTORE] Global Settings
+        if (data && data.settings) {
+            if (data.settings.character_ref_text && gp) {
+                gp.value = data.settings.character_ref_text;
+            }
+            if (data.settings.character_ref_image_path && preview) {
+                preview.src = data.settings.character_ref_image_path;
+                preview.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+                charArea.classList.remove('hidden');
+                charArea.classList.add('flex');
+            }
+        }
+
         if (data && data.image_prompts && data.image_prompts.length > 0) {
             prompts = data.image_prompts;
             // Map legacy format if needed
             if (prompts[0] && !prompts[0].scene_title) {
                 prompts = prompts.map(p => ({
+                    ...p, // [FIX] Preserve fields
                     scene_title: p.scene_text || p.prompt_ko || `Scene ${p.scene_number || ''}`,
                     prompt_content: p.prompt_en || '',
                     image_url: p.image_url,
@@ -1158,34 +1265,45 @@
         if (!badge) return;
 
         let hasScript = false;
+        let topicText = '';
 
-        // 1. Check Local Storage
-        const localData = Utils.storage.get('fullScript');
-        if (localData && localData.script) {
-            hasScript = true;
-        } else {
-            // 2. Check DB
-            const projectId = getCurrentProject();
-            if (projectId) {
-                try {
+        const projectId = getCurrentProject();
+
+        // 1. Check DB for Script & Topic
+        if (projectId) {
+            try {
+                // Fetch Project Details for Topic
+                const project = await API.project.get(projectId);
+                if (project && project.topic) {
+                    topicText = project.topic;
+                }
+
+                // Check Local Storage for script
+                const localData = Utils.storage.get('fullScript');
+                if (localData && localData.script) {
+                    hasScript = true;
+                } else {
+                    // Check DB for script
                     const result = await API.project.getScript(projectId);
                     if (result && result.full_script) {
                         hasScript = true;
-                        // Sync to local
                         Utils.storage.set('fullScript', { script: result.full_script });
                     }
-                } catch (e) {
-                    console.error("Script check failed:", e);
                 }
+            } catch (e) {
+                console.error("Script/Topic check failed:", e);
             }
         }
 
         if (hasScript) {
             badge.className = "text-[10px] items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 font-normal hidden md:flex";
-            badge.innerHTML = "<span>✅</span> 대본 준비됨";
+            // [Modified] Add topic text
+            const text = topicText ? `[${topicText}] 대본 준비됨` : '대본 준비됨';
+            badge.innerHTML = `<span>✅</span> ${text}`;
         } else {
             badge.className = "text-[10px] items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-normal hidden md:flex";
-            badge.innerHTML = "<span>🚫</span> 대본 없음";
+            const text = topicText ? `[${topicText}] 대본 없음` : '대본 없음';
+            badge.innerHTML = `<span>🚫</span> ${text}`;
         }
     }
 
@@ -1223,6 +1341,7 @@
                 if (fullData && fullData.image_prompts && fullData.image_prompts.length > 0) {
                     // DB 포맷 -> 프론트엔드 포맷 매핑
                     prompts = fullData.image_prompts.map(p => ({
+                        ...p, // [FIX] Preserve all DB fields (script_start, etc.)
                         scene_title: p.scene_text || p.prompt_ko || `Scene ${p.scene_number || ''}`,
                         prompt_content: p.prompt_en || '',
                         image_url: p.image_url,
@@ -1400,29 +1519,66 @@
             Utils.setLoading(btn, false);
         }
     }
-    async function loadProjectThumbnail() {
+    async function loadProjectThumbnail(providedData = null) {
         const pid = getCurrentProject();
         if (!pid) return;
 
         try {
-            const fullData = await API.project.getFull(pid);
-            const thumb = fullData.settings?.thumbnail_url || fullData.project?.thumbnail_url || fullData.project?.thumbnail_path;
+            let fullData = providedData;
+            if (!fullData) {
+                fullData = await API.project.getFull(pid);
+            }
+
+            let thumb = fullData.settings?.thumbnail_url || fullData.project?.thumbnail_url;
+            const thumbPath = fullData.settings?.thumbnail_path || fullData.project?.thumbnail_path;
+
+            // [Fallback] If URL is missing, try to construct likely path
+            if (!thumb) {
+                // 1. If path exists and contains 'static', use it
+                if (thumbPath && thumbPath.includes('static')) {
+                    const parts = thumbPath.split('static');
+                    // Handle regex slash/backslash safely
+                    const relativePath = parts[1].replace(/\\/g, '/');
+                    thumb = '/static' + relativePath;
+                }
+                // 2. Force Try Standard Path (Cache Busting) even if path is C:\... or missing
+                else {
+                    thumb = `/static/projects/${pid}/thumbnail.png`;
+                    console.log("Forcing standard thumbnail path:", thumb);
+                }
+            }
 
             const imgEl = document.getElementById('currentProjectThumbnail');
             const placeholder = document.getElementById('thumbPlaceholder');
 
             if (imgEl && thumb) {
                 // Cache busting
-                if (thumb.startsWith('http') || thumb.startsWith('/')) {
-                    imgEl.src = `${thumb}?t=${new Date().getTime()}`;
-                } else {
-                    imgEl.src = thumb;
-                }
+                const srcWithCache = thumb.startsWith('data:') ? thumb : `${thumb}?t=${new Date().getTime()}`;
+
+                imgEl.src = srcWithCache;
+
                 imgEl.classList.remove('opacity-50');
                 imgEl.style.opacity = 1;
                 if (placeholder) placeholder.classList.add('hidden');
+
+                // Error handler with JPG fallback
+                imgEl.onerror = function () {
+                    if (this.src.includes('.png') && !this.src.includes('retry')) {
+                        console.warn("Retrying with .jpg fallback...");
+                        this.src = this.src.replace('.png', '.jpg') + '&retry=1';
+                    } else {
+                        console.warn("Thumbnail failed to load at:", this.src);
+                        this.style.opacity = 0;
+                        if (placeholder) placeholder.classList.remove('hidden');
+                    }
+                };
             } else {
-                console.warn("Thumbnail URL not found in project data:", fullData);
+                console.warn("Thumbnail URL not found in project data.");
+                if (imgEl) {
+                    imgEl.style.opacity = 0;
+                    imgEl.src = '';
+                }
+                if (placeholder) placeholder.classList.remove('hidden');
             }
         } catch (e) {
             console.error("Failed to load thumbnail for reference UI", e);

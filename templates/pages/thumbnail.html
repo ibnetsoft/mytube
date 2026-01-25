@@ -290,8 +290,8 @@
 
             if (projectId) {
                 try {
-                    // Check local state first
-                    loadStateFromLocal();
+                    // 1. 로컬 상태 먼저 복구 (Session)
+                    await loadStateFromLocal();
 
                     // 프로젝트 정보 가져오기 (언어 설정)
                     const project = await API.project.get(projectId);
@@ -313,15 +313,35 @@
                     }
 
                     // 기존 저장된 썸네일 URL 로드
+                    // 기존 저장된 썸네일 URL 로드
                     const settings = await API.project.getSettings(projectId);
-                    if (settings?.thumbnail_url) {
+                    let thumbUrl = settings?.thumbnail_url;
+
+                    // [Fallback] URL 없으면 경로 기반 추적
+                    if (!thumbUrl && settings?.thumbnail_path) {
+                        const path = settings.thumbnail_path;
+                        if (path.includes('static')) {
+                            // Convert local path to static URL
+                            const parts = path.split('static');
+                            thumbUrl = '/static' + parts[1].replace(/\\/g, '/');
+                        } else {
+                            // Force standard path
+                            thumbUrl = `/static/projects/${projectId}/thumbnail.png`;
+                        }
+                    }
+
+                    if (thumbUrl) {
                         // 결과 섹션 표시
-                        document.getElementById('resultImage').src = settings.thumbnail_url;
-                        document.getElementById('downloadLink').href = settings.thumbnail_url;
+                        const img = document.getElementById('resultImage');
+                        img.src = `${thumbUrl}?t=${new Date().getTime()}`; // Cache bust
+
+                        document.getElementById('downloadLink').href = thumbUrl;
                         document.getElementById('resultSection').classList.remove('hidden');
-                        generatedHistory.unshift(settings.thumbnail_url);
-                        document.getElementById('resultSection').classList.remove('hidden');
-                        generatedHistory.unshift(settings.thumbnail_url);
+
+                        // 이력에 없으면 추가
+                        if (!generatedHistory.includes(thumbUrl)) {
+                            generatedHistory.unshift(thumbUrl);
+                        }
                         updateHistory();
                     }
                 } catch (e) {
@@ -340,8 +360,7 @@
                 }
             } catch (e) { }
 
-            // 로컬 상태 복구 (프로젝트 데이터보다 우선하거나 병합)
-            loadStateFromLocal();
+
         });
 
         // setAspectRatio implementation moved to line ~1506
@@ -1639,6 +1658,15 @@ ideas는 3개 생성하세요. prompt_en은 Imagen 4에서 최상의 결과가 �
                 if (state.generatedHistory) {
                     generatedHistory = state.generatedHistory;
                     updateHistory();
+
+                    // [NEW] If history exists, restore the most recent one as main result
+                    if (generatedHistory.length > 0) {
+                        const lastUrl = generatedHistory[0];
+                        const img = document.getElementById('resultImage');
+                        img.src = lastUrl;
+                        document.getElementById('downloadLink').href = lastUrl;
+                        document.getElementById('resultSection').classList.remove('hidden');
+                    }
                 }
 
                 renderLayers();

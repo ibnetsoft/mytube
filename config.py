@@ -18,6 +18,7 @@ class Config:
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "") # OpenAI TTS
     GOOGLE_APPLICATION_CREDENTIALS: str = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
     PEXELS_API_KEY: str = os.getenv("PEXELS_API_KEY", "") # Pexels Stock Video
+    REPLICATE_API_TOKEN: str = os.getenv("REPLICATE_API_TOKEN", "") # Replicate AI Video
 
     # 서버 설정
     HOST = os.getenv("HOST", "127.0.0.1")
@@ -65,7 +66,7 @@ class Config:
     @classmethod
     def update_api_key(cls, key_name: str, value: str):
         """API 키 런타임 업데이트 및 .env 파일 저장"""
-        valid_keys = ['YOUTUBE_API_KEY', 'GEMINI_API_KEY', 'ELEVENLABS_API_KEY', 'TYPECAST_API_KEY', 'GOOGLE_APPLICATION_CREDENTIALS', 'OPENAI_API_KEY', 'PEXELS_API_KEY']
+        valid_keys = ['YOUTUBE_API_KEY', 'GEMINI_API_KEY', 'ELEVENLABS_API_KEY', 'TYPECAST_API_KEY', 'GOOGLE_APPLICATION_CREDENTIALS', 'OPENAI_API_KEY', 'PEXELS_API_KEY', 'REPLICATE_API_TOKEN']
 
         if key_name not in valid_keys:
             return False
@@ -133,8 +134,13 @@ class Config:
             "openai": {
                 "set": bool(cls.OPENAI_API_KEY),
                 "masked": mask_key(cls.OPENAI_API_KEY)
+            },
+            "replicate": {
+                "set": bool(cls.REPLICATE_API_TOKEN),
+                "masked": mask_key(cls.REPLICATE_API_TOKEN)
             }
         }
+
 
     @classmethod
     def get_kst_time(cls):

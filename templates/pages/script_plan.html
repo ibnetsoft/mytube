@@ -3,107 +3,128 @@
 {% block content %}
 
 
-<!-- Flex Container for Analysis & Settings -->
-<div class="flex flex-col lg:flex-row gap-4 section-spacing">
+<!-- Grid Layout: Left (Analysis + Settings) / Right (Result) -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 section-spacing">
 
-    <!-- 분석 데이터 표시 (Left) -->
-    <div id="analysisInfo" class="card hidden lg:w-1/3 h-fit">
-        <h3 class="card-title">📊 분석 데이터 기반</h3>
-        <div id="analysisContent"></div>
-    </div>
+    <!-- LEFT COLUMN (Analysis & Settings) -->
+    <div class="lg:col-span-4 space-y-6">
 
-    <!-- 대본 설정 (Right, Expands) -->
-    <div class="card flex-1 h-fit">
-        <h3 class="card-title">⚙️ 대본 설정</h3>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">영상 주제</label>
-                <input type="text" id="topicInput" class="input-field" placeholder="예: 초보자를 위한 파이썬 강의">
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">영상 길이</label>
-                <div class="flex items-center gap-2">
-                    <input type="number" id="durationInput" class="input-field w-32" value="60" min="1" step="1">
-                    <span id="durationUnit" class="text-gray-700 dark:text-gray-300">분</span>
+        <!-- 1. Analysis Data (Moved here) -->
+        <div id="analysisInfo" class="card hidden w-full">
+            <h3 class="card-title">📊 분석 데이터 기반</h3>
+            <div id="analysisContent"></div>
+        </div>
+
+        <!-- 2. Script Settings (Moved to below Analysis used to be on right) -->
+        <div class="card w-full">
+            <h3 class="card-title">⚙️ 대본 설정</h3>
+            <!-- Changed grid to single column for narrower width -->
+            <div class="grid grid-cols-1 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">영상 주제</label>
+                    <input type="text" id="topicInput" class="input-field" placeholder="예: 초보자를 위한 파이썬 강의">
                 </div>
-                <p id="durationHelper" class="text-xs text-gray-500 mt-1">기본값: 60분</p>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">영상 길이</label>
+                    <div class="flex items-center gap-2">
+                        <input type="number" id="durationInput" class="input-field w-32" value="60" min="1" step="1">
+                        <span id="durationUnit" class="text-gray-700 dark:text-gray-300">분</span>
+                    </div>
+                    <p id="durationHelper" class="text-xs text-gray-500 mt-1">기본값: 60분</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">대본 스타일</label>
+                    <select id="scriptStyleSelect" class="input-field">
+                        <optgroup label="📹 기본 스타일">
+                            <option value="default" selected>기본 설정 (자연스럽고 선명한 스타일)</option>
+                            <option value="news">뉴스 보도 (News Delivery)</option>
+                            <option value="story">옛날 이야기 (Old Story)</option>
+                            <option value="senior_story">시니어 사연 (Senior Story)</option>
+                            <option value="bgm">배경음악 중심 (BGM Focus)</option>
+                        </optgroup>
+                        <optgroup label="🎬 시대별 영화 스타일">
+                            <option value="classic_50s">50년대 클래식영화 (테크니컬러, 부드러운 조명)</option>
+                            <option value="joseon_sageuk">조선시대 사극 (전통 건축/의복, 자연광)</option>
+                            <option value="north_korean_drama">북한 드라마 (빈티지 영화, 강렬한 색감)</option>
+                            <option value="silent_20s">20년대 무성영화 (흑백, 높은 콘트라스트, 빈티지 그레인)</option>
+                            <option value="camcorder_90s">90년대 캠코더 (VHS 화질, 낮은 프레임)</option>
+                            <option value="modern_drama">현대 드라마 (자글자글한 화질, 자연스러운 색감)</option>
+                        </optgroup>
+                        <optgroup label="🎭 장르별 스타일">
+                            <option value="mystery_thriller">미스터리 스릴러 (저조도, 영사기 톤, 음영 그림자)</option>
+                            <option value="horror_suspense">공포-서스펜스 (어두운 조명, 음침 분위기)</option>
+                            <option value="melodrama">멜로드라마 (부드러운 콘트라스트, 따뜻하고 화사함)</option>
+                            <option value="crime_drama">범죄 드라마 (차갑고 어두운 화질, 낮은 채도)</option>
+                            <option value="cyberpunk_neon">사이버펑크 네온 (네온 색상, 비, 미래적 분위기)</option>
+                        </optgroup>
+                        <optgroup label="🎨 일러스트/애니메이션 스타일">
+                            <option value="watercolor_analog">수채화풍 아날로그 일러스트 (감성적 수채화 텍스처)</option>
+                            <option value="digital_webtoon">디지털 웹툰 (선명한 라인, 화려한 색감)</option>
+                            <option value="graphite_sketch">흑연 드로잉 스케치 (거친 연필선 스케치)</option>
+                            <option value="joseon_2d_anime">조선시대 풍속화 2D 애니 (조선 웹툰 스타일)</option>
+                            <option value="oriental_ink">동양 수묵화 모노크롬 (여백의 미, 먹물 그림)</option>
+                            <option value="neonsign_citypop">네온사인 시티팝 (80년대 레트로 퓨처, 화려한 야경)</option>
+                            <option value="buddhist_minimal">불교 미니멀리즘 (한국 사찰, 불상, 포토리얼리즘)</option>
+                            <option value="renaissance_sacred">르네상스 성화 (성경 인물 성화풍, 현대인 실사풍)</option>
+                            <option value="cute_animal_char">귀여운 동물 캐릭터 (의인화된 동물 웹툰 일러스트)</option>
+                        </optgroup>
+                    </select>
+                </div>
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">대본 스타일</label>
-                <select id="scriptStyleSelect" class="input-field">
-                    <optgroup label="📹 기본 스타일">
-                        <option value="default" selected>기본 설정 (자연스럽고 선명한 스타일)</option>
-                        <option value="news">뉴스 보도 (News Delivery)</option>
-                        <option value="story">옛날 이야기 (Old Story)</option>
-                        <option value="senior_story">시니어 사연 (Senior Story)</option>
-                        <option value="bgm">배경음악 중심 (BGM Focus)</option>
-                    </optgroup>
-                    <optgroup label="🎬 시대별 영화 스타일">
-                        <option value="classic_50s">50년대 클래식영화 (테크니컬러, 부드러운 조명)</option>
-                        <option value="joseon_sageuk">조선시대 사극 (전통 건축/의복, 자연광)</option>
-                        <option value="north_korean_drama">북한 드라마 (빈티지 영화, 강렬한 색감)</option>
-                        <option value="silent_20s">20년대 무성영화 (흑백, 높은 콘트라스트, 빈티지 그레인)</option>
-                        <option value="camcorder_90s">90년대 캠코더 (VHS 화질, 낮은 프레임)</option>
-                        <option value="modern_drama">현대 드라마 (자글자글한 화질, 자연스러운 색감)</option>
-                    </optgroup>
-                    <optgroup label="🎭 장르별 스타일">
-                        <option value="mystery_thriller">미스터리 스릴러 (저조도, 영사기 톤, 음영 그림자)</option>
-                        <option value="horror_suspense">공포-서스펜스 (어두운 조명, 음침 분위기)</option>
-                        <option value="melodrama">멜로드라마 (부드러운 콘트라스트, 따뜻하고 화사함)</option>
-                        <option value="crime_drama">범죄 드라마 (차갑고 어두운 화질, 낮은 채도)</option>
-                        <option value="cyberpunk_neon">사이버펑크 네온 (네온 색상, 비, 미래적 분위기)</option>
-                    </optgroup>
-                    <optgroup label="🎨 일러스트/애니메이션 스타일">
-                        <option value="watercolor_analog">수채화풍 아날로그 일러스트 (감성적 수채화 텍스처)</option>
-                        <option value="digital_webtoon">디지털 웹툰 (선명한 라인, 화려한 색감)</option>
-                        <option value="graphite_sketch">흑연 드로잉 스케치 (거친 연필선 스케치)</option>
-                        <option value="joseon_2d_anime">조선시대 풍속화 2D 애니 (조선 웹툰 스타일)</option>
-                        <option value="oriental_ink">동양 수묵화 모노크롬 (여백의 미, 먹물 그림)</option>
-                        <option value="neonsign_citypop">네온사인 시티팝 (80년대 레트로 퓨처, 화려한 야경)</option>
-                        <option value="buddhist_minimal">불교 미니멀리즘 (한국 사찰, 불상, 포토리얼리즘)</option>
-                        <option value="renaissance_sacred">르네상스 성화 (성경 인물 성화풍, 현대인 실사풍)</option>
-                        <option value="cute_animal_char">귀여운 동물 캐릭터 (의인화된 동물 웹툰 일러스트)</option>
-                    </optgroup>
-                </select>
-                <p class="text-xs text-gray-500 mt-1">기본값: 자연스럽고 선명한 기본 스타일</p>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">추가 요청사항</label>
+                <textarea id="additionalNotes" class="input-field" rows="2"
+                    placeholder="특별히 포함하고 싶은 내용이나 스타일을 적어주세요"></textarea>
             </div>
-        </div>
-        <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">추가 요청사항</label>
-            <textarea id="additionalNotes" class="input-field" rows="2"
-                placeholder="특별히 포함하고 싶은 내용이나 스타일을 적어주세요"></textarea>
-        </div>
 
-        <!-- 생성 버튼 (Integrated) -->
-        <div class="flex justify-end mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-            <button onclick="generateStructure()" id="generateBtn"
-                class="btn-primary py-2.5 px-6 text-sm font-semibold shadow-sm hover:shadow-md transition-all rounded-lg flex items-center gap-2">
-                <span>🤖</span>
-                <span>대본 구조 생성</span>
-            </button>
+            <!-- 생성 버튼 -->
+            <div class="flex justify-end mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+                <button onclick="generateStructure()" id="generateBtn"
+                    class="btn-primary w-full py-3 text-sm font-semibold shadow-sm hover:shadow-md transition-all rounded-lg flex items-center justify-center gap-2">
+                    <span>🤖</span>
+                    <span>대본 구조 생성</span>
+                </button>
+            </div>
         </div>
     </div>
-</div>
 
-<!-- 결과 영역 -->
-<div id="resultSection" class="hidden">
-    <div class="card container-lg section-spacing">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="card-title mb-0">📝 생성된 대본 구조</h3>
-            <div class="btn-group">
-                <button onclick="copyStructure()" class="btn-secondary">📋 복사</button>
-                <button onclick="regenerate()" class="btn-secondary">🔄 다시 생성</button>
+    <!-- RIGHT COLUMN (Script Structure Result) -->
+    <div class="lg:col-span-8">
+        <!-- 결과 영역 (Initially Hidden) -->
+        <div id="resultSection" class="hidden">
+            <div class="card h-full">
+                <div class="flex items-center justify-between mb-4 border-b border-gray-100 dark:border-gray-700 pb-3">
+                    <h3 class="card-title mb-0">📝 생성된 대본 구조</h3>
+                    <!-- Buttons Group (Moved 'Generate Script' here) -->
+                    <div class="btn-group flex gap-2">
+                        <button onclick="copyStructure()"
+                            class="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1">
+                            <span>📋</span> 복사
+                        </button>
+                        <button onclick="regenerate()"
+                            class="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1">
+                            <span>🔄</span> 다시 생성
+                        </button>
+                        <!-- Moved Main Action Button Here -->
+                        <button onclick="goToScriptGen()"
+                            class="btn-primary text-xs px-4 py-1.5 font-bold shadow-sm hover:shadow-md transition-all rounded flex items-center gap-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+                            <span>✍️</span>
+                            <span>전체 대본 생성하기</span>
+                            <span>→</span>
+                        </button>
+                    </div>
+                </div>
+                <div id="structureContent" class="prose dark:prose-invert max-w-none"></div>
             </div>
         </div>
-        <div id="structureContent" class="prose dark:prose-invert max-w-none"></div>
 
-        <div class="flex justify-end mt-6 pt-4 border-t border-gray-100 dark:border-gray-700">
-            <button onclick="goToScriptGen()"
-                class="btn-primary py-2.5 px-6 text-sm font-semibold shadow-sm hover:shadow-md transition-all rounded-lg flex items-center gap-2">
-                <span>✍️</span>
-                <span>전체 대본 생성하기</span>
-                <span>→</span>
-            </button>
+        <!-- Placeholder when hidden (Optional, to keep layout structure if needed, or just let it be empty) -->
+        <div id="resultPlaceholder"
+            class="hidden h-full flex items-center justify-center p-10 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl text-gray-400">
+            <div class="text-center">
+                <span class="text-4xl block mb-2">👈</span>
+                <p>왼쪽에서 설정을 완료하고<br>'대본 구조 생성'을 눌러주세요</p>
+            </div>
         </div>
     </div>
 </div>
@@ -135,6 +156,14 @@
             await loadProjectData(projectId);
         }
 
+        // [STRONG OVERRIDE] URL에서 전달된 topic이 있다면 무조건 입력창에 적용 (DB 값보다 우선)
+        const urlTopic = urlParams.get('topic');
+        if (urlTopic) {
+            console.log("[Force Topic] URL Parameter found:", urlTopic);
+            document.getElementById('topicInput').value = decodeURIComponent(urlTopic);
+            // 만약 API로 프로젝트 내용을 불러왔더라도, 사용자가 방금 검색한 키워드가 더 중요하므로 덮어씀
+        }
+
         // [NEW] Check App Mode
         try {
             const res = await fetch('/api/settings');
@@ -160,11 +189,38 @@
 
         // 자동 생성 요청 확인
         if (urlParams.get('auto') === 'true') {
-            // 데이터 로드가 완료된 후 실행되어야 함 (위 await loadProjectData로 보장)
-            // 약간의 딜레이를 주어 UI가 안정된 후 실행
-            setTimeout(() => {
+            // [Fix] Remove 'auto' param immediately to prevent re-run on refresh
+            const newUrl = new URL(window.location.href);
+            newUrl.searchParams.delete('auto');
+            window.history.replaceState({}, document.title, newUrl.toString());
+
+            setTimeout(async () => {
                 Utils.showToast('대본 구조를 자동으로 생성합니다...', 'info');
-                generateStructure();
+
+                // [Robust] Ensure topic is passed
+                let topic = document.getElementById('topicInput').value;
+                if (!topic && projectId) {
+                    console.warn("[AutoStart] Topic input empty, attempting fetch from DB...");
+                    try {
+                        // 1. Try Simple Get
+                        let p = await API.project.get(projectId);
+                        if (p && p.topic) {
+                            topic = p.topic;
+                            console.log("[AutoStart] Topic recovered from SimpleGet:", topic);
+                        } else {
+                            // 2. Try Full Get
+                            const full = await API.project.getFull(projectId);
+                            if (full.project && full.project.topic) {
+                                topic = full.project.topic;
+                                console.log("[AutoStart] Topic recovered from FullGet:", topic);
+                            }
+                        }
+                    } catch (e) { console.error("Auto-start topic fetch failed:", e); }
+                } else {
+                    console.log("[AutoStart] Using topic from input:", topic);
+                }
+
+                generateStructure(topic);
             }, 500);
         }
     });
@@ -194,6 +250,9 @@
                 // 1. Set Topic
                 if (fullData.project && fullData.project.topic) {
                     document.getElementById('topicInput').value = fullData.project.topic;
+                    console.log("[LoadProjectData] Topic populated:", fullData.project.topic);
+                } else {
+                    console.warn("[LoadProjectData] Project has no topic data.");
                 }
 
                 // [NEW] Load preferred style if available (Fallback)
@@ -314,8 +373,25 @@
     // [NEW] 전역 변수로 타겟 언어 관리
     let currentTargetLanguage = 'ko';
 
-    async function generateStructure() {
-        const topic = document.getElementById('topicInput').value.trim();
+    async function generateStructure(passedTopic = null) {
+        let topic = passedTopic || document.getElementById('topicInput').value.trim();
+
+        // Update UI if passedTopic was used
+        if (passedTopic) {
+            document.getElementById('topicInput').value = passedTopic;
+        }
+
+        // [Safety Check] If topic is empty (e.g. auto start race condition), try fetching from DB directly
+        if (!topic && getCurrentProject()) {
+            try {
+                const p = await API.project.get(getCurrentProject());
+                if (p && p.topic) {
+                    topic = p.topic;
+                    document.getElementById('topicInput').value = topic;
+                }
+            } catch (e) { console.error("Topic fetch failed", e); }
+        }
+
         if (!topic) {
             Utils.showToast('영상 주제를 입력하세요', 'warning');
             return;
@@ -372,6 +448,9 @@
                 currentStructure = structureData;
                 renderStructure(structureData);
                 document.getElementById('resultSection').classList.remove('hidden');
+                // Hide placeholder
+                const placeholder = document.getElementById('resultPlaceholder');
+                if (placeholder) placeholder.classList.add('hidden');
 
                 // 로컬 스토리지 즉시 저장 (다음 단계 이동용)
                 // project_id 명시적 추가
@@ -520,7 +599,13 @@
     }
 
     function goToScriptGen() {
-        window.location.href = '/script-gen';
+        const projectId = getCurrentProject();
+        if (projectId) {
+            window.location.href = `/script-gen?project_id=${projectId}&auto_start=true`;
+        } else {
+            // 프로젝트 ID가 없을 경우 그냥 이동 (혹은 에러 처리)
+            window.location.href = '/script-gen';
+        }
     }
 </script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>

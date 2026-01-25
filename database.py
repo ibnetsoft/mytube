@@ -407,6 +407,36 @@ def migrate_db():
     except sqlite3.OperationalError:
         pass
 
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN subtitle_pos_y TEXT")
+    except sqlite3.OperationalError:
+        pass
+
+    # [FIX] Missing timeline/effects paths (Critical for Editor Persistence)
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN timeline_images_path TEXT")
+    except sqlite3.OperationalError: pass
+    
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN image_timings_path TEXT")
+    except sqlite3.OperationalError: pass
+
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN image_effects_path TEXT")
+    except sqlite3.OperationalError: pass
+
+    # 마이그레이션: image_prompts 테이블에 script_start, script_end 추가
+    cursor.execute("PRAGMA table_info(image_prompts)")
+    img_columns = [info[1] for info in cursor.fetchall()]
+    
+    if 'script_start' not in img_columns:
+        print("[Migration] Adding script_start to image_prompts...")
+        cursor.execute("ALTER TABLE image_prompts ADD COLUMN script_start TEXT")
+        
+    if 'script_end' not in img_columns:
+        print("[Migration] Adding script_end to image_prompts...")
+        cursor.execute("ALTER TABLE image_prompts ADD COLUMN script_end TEXT")
+
     conn.commit()
     print("[DB] Migration completed")
 
@@ -714,15 +744,17 @@ def save_image_prompts(project_id: int, prompts: List[Dict]):
     for i, prompt in enumerate(prompts):
         cursor.execute("""
             INSERT INTO image_prompts
-            (project_id, scene_number, scene_text, prompt_ko, prompt_en, image_url)
-            VALUES (?, ?, ?, ?, ?, ?)
+            (project_id, scene_number, scene_text, prompt_ko, prompt_en, image_url, script_start, script_end)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             project_id,
             i + 1,
             prompt.get('scene_text') or prompt.get('scene') or prompt.get('scene_title') or '',
             prompt.get('prompt_ko') or '',
             prompt.get('prompt_en') or prompt.get('prompt_content') or prompt.get('prompt') or '',
-            prompt.get('image_url')
+            prompt.get('image_url'),
+            prompt.get('script_start', ''),
+            prompt.get('script_end', '')
         ))
 
     conn.commit()
@@ -968,7 +1000,7 @@ def update_project_setting(project_id: int, key: str, value: Any):
                     'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum',
                     'subtitle_font_size', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'youtube_video_id', 'is_published', 'background_video_url',
                     'character_ref_text', 'character_ref_image_path', 'script_style',
-                    'subtitle_path', 'image_timings_path', 'timeline_images_path', 'app_mode',
+                    'subtitle_path', 'image_timings_path', 'timeline_images_path', 'image_effects_path', 'app_mode',
                     'subtitle_base_color', 'subtitle_pos_y', 'subtitle_pos_x'] # [FIX] Added missing subtitle keys
 
 
@@ -1100,7 +1132,7 @@ def get_subtitle_defaults() -> Dict:
     """자막 기본값 조회 (프로젝트 생성용)"""
     return get_global_setting("subtitle_default_style", {
         "subtitle_font": "GmarketSansBold",  # [CHANGED] User request
-        "subtitle_font_size": 5,             # [CHANGED] 5%
+        "subtitle_font_size": 4.5,           # [CHANGED] 4.5% (User request)
         "subtitle_color": "white",
         "subtitle_style_enum": "Basic_White",
         "subtitle_stroke_color": "black",
