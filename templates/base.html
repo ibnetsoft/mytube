@@ -107,13 +107,6 @@
                         </a>
                     </li>
                     <li>
-                        <a href="/thumbnail" id="nav-thumbnail"
-                            class="sidebar-item {% if page == 'thumbnail' %}active{% endif %}">
-                            <span class="sidebar-icon">🎨</span>
-                            <span>썸네일 생성</span>
-                        </a>
-                    </li>
-                    <li>
                         <a href="/video-gen" id="nav-intro"
                             class="sidebar-item {% if page == 'video-gen' %}active{% endif %}">
                             <span class="sidebar-icon">🎥</span>
@@ -125,6 +118,13 @@
                             class="sidebar-item {% if page == 'image-gen' %}active{% endif %}">
                             <span class="sidebar-icon">🖼️</span>
                             <span>이미지 생성</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/thumbnail" id="nav-thumbnail"
+                            class="sidebar-item {% if page == 'thumbnail' %}active{% endif %}">
+                            <span class="sidebar-icon">🎨</span>
+                            <span>썸네일 생성</span>
                         </a>
                     </li>
                     <li>
@@ -275,19 +275,6 @@
                                 <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">대본</span>
                             </a>
 
-                            <!-- Step 5: Thumbnail -->
-                            <a href="/thumbnail"
-                                class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
-                                data-step="thumbnail">
-                                <div
-                                    class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
-                                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
-                                </div>
-                                <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">썸네일</span>
-                            </a>
-
-
-
                             <!-- Step 5: Intro -->
                             <a href="/video-gen"
                                 class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
@@ -310,7 +297,18 @@
                                 <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">이미지</span>
                             </a>
 
-                            <!-- Step 7: TTS -->
+                            <!-- Step 7: Thumbnail -->
+                            <a href="/thumbnail"
+                                class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                data-step="thumbnail">
+                                <div
+                                    class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                </div>
+                                <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">썸네일</span>
+                            </a>
+
+                            <!-- Step 8: TTS -->
                             <a href="/tts"
                                 class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
                                 data-step="tts">
@@ -321,7 +319,7 @@
                                 <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">TTS</span>
                             </a>
 
-                            <!-- Step 8: BGM -->
+                            <!-- Step 9: BGM -->
                             <a href="/music-gen"
                                 class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
                                 data-step="bgm">
@@ -332,7 +330,7 @@
                                 <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">BGM</span>
                             </a>
 
-                            <!-- Step 9: Subtitles -->
+                            <!-- Step 10: Subtitles -->
                             <a href="/subtitle-gen"
                                 class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
                                 data-step="subtitle">
@@ -343,7 +341,7 @@
                                 <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">자막</span>
                             </a>
 
-                            <!-- Step 10: Render -->
+                            <!-- Step 11: Render -->
                             <a href="/render"
                                 class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
                                 data-step="render">
@@ -354,7 +352,7 @@
                                 <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">영상</span>
                             </a>
 
-                            <!-- Step 11: Upload -->
+                            <!-- Step 12: Upload -->
                             <a href="/video-upload"
                                 class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
                                 data-step="upload">

@@ -2441,6 +2441,13 @@ class ImageGenerateRequest(BaseModel):
     aspect_ratio: str = "9:16"  # 숏폼 전용 (9:16)
 
 
+class ThumbnailTextRequest(BaseModel):
+    """AI 썸네일 문구 생성 요청"""
+    project_id: int
+    thumbnail_style: str = "face"
+    target_language: str = "ko"
+
+
 class ThumbnailTextLayer(BaseModel):
     text: str
     position: str = "center" # top, center, bottom, custom
@@ -2492,6 +2499,63 @@ class ThumbnailGenerateRequest(BaseModel):
     language: str = "ko"
     background_path: Optional[str] = None
     aspect_ratio: Optional[str] = "16:9"  # [NEW] Aspect Ratio
+
+@app.post("/api/thumbnail/generate-text")
+async def generate_thumbnail_text(req: ThumbnailTextRequest):
+    """대본 기반 AI 썸네일 후킹 문구 자동 생성"""
+    try:
+        # 1. 프로젝트 데이터 가져오기
+        project = db.get_project(req.project_id)
+        if not project:
+            return {"status": "error", "error": "프로젝트를 찾을 수 없습니다"}
+        
+        # 2. 대본 가져오기
+        script = project.get('full_script') or project.get('script')
+        if not script:
+            return {"status": "error", "error": "대본이 없습니다. 먼저 대본을 작성해주세요."}
+        
+        # 3. 프로젝트 설정에서 이미지 스타일 가져오기 (연동)
+        settings = db.get_project_settings(req.project_id)
+        image_style = settings.get('image_style', '') if settings else ''
+        
+        # 4. AI 프롬프트 생성
+        from services.prompts import prompts
+        
+        # 대본이 너무 길면 앞부분만 사용 (토큰 절약)
+        script_preview = script[:2000] if len(script) > 2000 else script
+        
+        prompt = prompts.GEMINI_THUMBNAIL_HOOK_TEXT.format(
+            script=script_preview,
+            thumbnail_style=req.thumbnail_style,
+            image_style=image_style or '(없음)',
+            target_language=req.target_language
+        )
+        
+        # 5. Gemini 호출
+        result = await gemini_service.generate_text(prompt, temperature=0.8)
+        
+        # 6. JSON 파싱
+        import json, re
+        json_match = re.search(r'\{[\s\S]*\}', result)
+        if json_match:
+            data = json.loads(json_match.group())
+            texts = data.get("texts", [])
+            reasoning = data.get("reasoning", "")
+            
+            return {
+                "status": "ok", 
+                "texts": texts, 
+                "reasoning": reasoning
+            }
+        
+        return {"status": "error", "error": "AI 응답에서 JSON을 찾을 수 없습니다"}
+        
+    except Exception as e:
+        print(f"[Thumbnail Text Gen Error] {e}")
+        import traceback
+        traceback.print_exc()
+        return {"status": "error", "error": str(e)}
+
 @app.post("/api/image/generate-thumbnail-background")
 async def generate_thumbnail_background(req: ThumbnailBackgroundRequest):
     """썸네일 배경 이미지만 생성 (텍스트 없음)"""
