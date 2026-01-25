@@ -298,12 +298,27 @@
 
         try {
             // 1. 검색
-            const searchResult = await API.youtube.search(query, {
+            // [NEW] Check App Mode for Duration Filter
+            let appMode = 'longform';
+            try {
+                const stored = localStorage.getItem('app_mode') || localStorage.getItem('currentAppMode');
+                if (stored) appMode = stored;
+                console.log(`[Search] App Mode: ${appMode}`);
+            } catch (e) { }
+
+            const options = {
                 maxResults: 24,
                 order: order,
                 publishedAfter: getPublishedAfter(period),
                 relevance_language: language
-            });
+            };
+
+            // Server-side optimized filter for Shorts
+            if (appMode === 'shorts') {
+                options.videoDuration = 'short';
+            }
+
+            const searchResult = await API.youtube.search(query, options);
 
             if (!searchResult.items || searchResult.items.length === 0) {
                 document.getElementById('loadingSection').classList.add('hidden');
@@ -319,8 +334,6 @@
 
             // 3. 채널 상세 정보 가져오기 (구독자 수 등)
             const channelIds = [...new Set(detailData.items.map(v => v.snippet.channelId))];
-            // 50개씩 끊어서 요청 (YouTube API 제한 고려 - GET URL 길이 때문은 아니고, ID 갯수 제한은 50개)
-            // 여기서는 24개 maxResults이므로 한 번에 가능
             let channelsMap = {};
             if (channelIds.length > 0) {
                 try {
@@ -335,37 +348,60 @@
                 }
             }
 
-            // 4. 데이터 병합 및 스코어 계산
-            currentVideos = detailData.items.map(video => {
-                const channel = channelsMap[video.snippet.channelId] || {};
-                const subs = parseInt(channel.statistics?.subscriberCount || 0);
-                const channelViews = parseInt(channel.statistics?.viewCount || 0);
-                const channelVideoCount = parseInt(channel.statistics?.videoCount || 0);
+            // Duration Parser Helper
+            const parseDuration = (pt) => {
+                const match = pt.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
+                if (!match) return 0;
+                const h = (parseInt(match[1]) || 0);
+                const m = (parseInt(match[2]) || 0);
+                const s = (parseInt(match[3]) || 0);
+                return h * 3600 + m * 60 + s;
+            };
 
-                // 채널 평균 조회수 (단순 계산)
-                const channelAvgViews = channelVideoCount > 0 ? channelViews / channelVideoCount : 0;
+            // 4. 데이터 병합 및 스코어 계산 (+ Duration Filter)
+            currentVideos = detailData.items
+                .filter(video => {
+                    // [NEW] Client-side Duration Filter
+                    const durationSec = parseDuration(video.contentDetails.duration);
+                    if (appMode === 'shorts') {
+                        return durationSec < 180; // Shorts: < 3 min
+                    } else {
+                        return durationSec >= 60; // Longform: Exclude Shorts (< 1 min)
+                    }
+                })
+                .map(video => {
+                    const channel = channelsMap[video.snippet.channelId] || {};
+                    const subs = parseInt(channel.statistics?.subscriberCount || 0);
+                    const channelViews = parseInt(channel.statistics?.viewCount || 0);
+                    const channelVideoCount = parseInt(channel.statistics?.videoCount || 0);
 
-                const views = parseInt(video.statistics.viewCount || 0);
+                    // 채널 평균 조회수 (단순 계산)
+                    const channelAvgViews = channelVideoCount > 0 ? channelViews / channelVideoCount : 0;
 
-                // 채널 기여도: 평소보다 얼마나 더 잘 나왔나?
-                const contribution = channelAvgViews > 0 ? (views / channelAvgViews) * 100 : 0;
+                    const views = parseInt(video.statistics.viewCount || 0);
 
-                // 성과도 배율: 구독자 대비 조회수
-                const performance = subs > 0 ? (views / subs) : 0;
+                    // 채널 기여도: 평소보다 얼마나 더 잘 나왔나?
+                    const contribution = channelAvgViews > 0 ? (views / channelAvgViews) * 100 : 0;
 
-                return {
-                    ...video,
-                    channelData: channel,
-                    stats: {
-                        subs,
-                        contribution: contribution.toFixed(2),
-                        performance: performance.toFixed(2)
-                    },
-                    viralScore: Utils.calculateViralScore(video)
-                };
-            });
+                    // 성과도 배율: 구독자 대비 조회수
+                    const performance = subs > 0 ? (views / subs) : 0;
+
+                    return {
+                        ...video,
+                        channelData: channel,
+                        stats: {
+                            subs,
+                            contribution: contribution.toFixed(2),
+                            performance: performance.toFixed(2)
+                        },
+                        viralScore: Utils.calculateViralScore(video)
+                    };
+                });
 
             // 5. 렌더링
+            if (currentVideos.length === 0) {
+                Utils.showToast(`${appMode === 'shorts' ? '쇼츠' : '롱폼'} 조건에 맞는 영상이 없습니다.`, 'info');
+            }
             renderVideos();
 
             document.getElementById('loadingSection').classList.add('hidden');

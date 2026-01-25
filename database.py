@@ -598,6 +598,20 @@ def delete_project(project_id: int):
     conn.commit()
     conn.close()
 
+def get_top_analyses(limit: int = 10) -> List[Dict]:
+    """바이럴 점수가 높은 과거 분석 데이터 조회 (학습용)"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT analysis_result FROM analysis 
+        WHERE viral_score >= 80 
+        ORDER BY viral_score DESC, created_at DESC 
+        LIMIT ?
+    """, (limit,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
 # ============ 분석 데이터 ============
 
 def save_analysis(project_id: int, video_data: Dict, analysis_result: Dict):

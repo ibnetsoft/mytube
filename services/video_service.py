@@ -454,8 +454,9 @@ class VideoService:
             # DB might have 30 (Legacy Pixel? or Error?) -> Treat > 20 as Pixel
             if 0.1 <= font_size_percent <= 20:
                 # Percentage mode (normal usage, 0.1% ~ 20%)
-                # [FIX] Apply 1.7x scaling to match HTML Preview (WYSIWYG)
-                f_size = int(video.h * (font_size_percent / 100) * 1.7)
+                # [FIX] Apply 1.9x scaling (tuned from 2.5) to match HTML Preview (WYSIWYG)
+                # Browser CSS px vs PIL font size difference requires larger multiplier
+                f_size = int(video.h * (font_size_percent / 100) * 1.9)
             else:
                 # Pixel mode (Legacy or explicit large pixel values)
                 # e.g. 30 -> 30px (Tiny, but safe)
@@ -486,7 +487,8 @@ class VideoService:
                         font_name=f_name,
                         style_name=s_style,
                         stroke_color=s_stroke_color,
-                        stroke_width=s_stroke_width
+                        stroke_width=s_stroke_width,
+                        bg_color=(0, 0, 0, 128) if s_settings.get("bg_enabled") else None  # [NEW] Background strip option
                     )
                     
                     if txt_img_path:
@@ -1204,7 +1206,7 @@ class VideoService:
         }
     }
 
-    def _create_subtitle_image(self, text, width, font_size, font_color, font_name, style_name="Basic_White", stroke_color=None, stroke_width_ratio=None, stroke_width=None):
+    def _create_subtitle_image(self, text, width, font_size, font_color, font_name, style_name="Basic_White", stroke_color=None, stroke_width_ratio=None, stroke_width=None, bg_color=None):
         from PIL import Image, ImageDraw, ImageFont
         import textwrap
         import platform
@@ -1236,7 +1238,8 @@ class VideoService:
              ratio = stroke_width_ratio if stroke_width_ratio is not None else style.get("stroke_width_ratio", 0.1)
              final_stroke_width = max(1, int(font_size * ratio)) if ratio > 0 else 0
 
-        bg_color = style.get("bg_color", None)
+        # [FIX] Allow bg_color override
+        bg_color = bg_color if bg_color is not None else style.get("bg_color", None)
         
         # 폰트 로드
         font = None
@@ -1386,33 +1389,66 @@ class VideoService:
         center_x = img_w // 2
         center_y = img_h // 2
         
-        # 박스 그리기
-        if bg_color:
-            box_x0 = center_x - (text_w // 2) - pad_x
-            box_y0 = center_y - (text_h // 2) - pad_y
-            box_x1 = center_x + (text_w // 2) + pad_x
-            box_y1 = center_y + (text_h // 2) + pad_y
-            
-            # [Fix] 폰트 렌더링 오차 등으로 박스가 살짝 작아보일 수 있으므로 최소 높이 보정
-            if pad_y < 5: 
-                # Tight fit인 경우에도 폰트 baseline 고려하여 살짝 하단 보정
-                box_y1 += 5
-                
-            draw.rectangle([box_x0, box_y0, box_x1, box_y1], fill=bg_color)
-
-        # 텍스트 그리기
-        text_x = center_x - (text_w // 2)
-        text_y = center_y - (text_h // 2)
+        # [FIX] Multi-line Background Support
+        # Instead of one big box, draw per-line rounded strips
         
-        if stroke_color and final_stroke_width > 0:
-            # Single-pass rendering with normal stroke
-            # PIL will handle stroke expansion (half in, half out)
-            # To get outward-only effect, we need different approach
-            print(f"[STROKE_DEBUG] Using stroke_width: {final_stroke_width}, Color: {stroke_color}")
-            draw.text((text_x, text_y), wrapped_text, font=font, fill=final_font_color, 
-                      stroke_width=final_stroke_width, stroke_fill=stroke_color, align="center")
-        else:
-            draw.text((text_x, text_y), wrapped_text, font=font, fill=final_font_color, align="center")
+        # Calculate Starting Y (Top of Text Block)
+        current_y = center_y - (text_h // 2)
+        
+        # Font Metrics for consistent spacing
+        try:
+            ascent, descent = font.getmetrics()
+            line_height_font = ascent + descent
+        except:
+             # Fallback
+             line_height_font = font.getbbox('A')[3]
+        
+        line_spacing = 4 # Pillow default spacing
+        
+        # [FIX] Tighten Vertical Background
+        # User requested reducing height by ~15% or matching text height.
+        # Font metrics usually include significant whitespace.
+        # We will trim top and bottom.
+        
+        for line in wrapped_lines:
+            if not line:
+                current_y += line_height_font + line_spacing
+                continue
+                
+            # Measure width
+            line_w = dummy_draw.textlength(line, font=font)
+            
+            # Center X
+            line_x = center_x - (line_w / 2)
+            
+            # 1. Draw Background
+            if bg_color:
+                # [TUNING] Trim factors
+                # Shift top down by ~20% of line height (Remove ascender whitespace)
+                # Shift bottom up by ~10% (Remove descender whitespace)
+                top_trim = line_height_font * 0.20 
+                bottom_trim = line_height_font * 0.10
+                
+                bx0 = line_x - pad_x
+                by0 = current_y + top_trim 
+                bx1 = line_x + line_w + pad_x
+                by1 = current_y + line_height_font - bottom_trim
+                
+                # Ensure min height
+                if by1 - by0 < font_size:
+                     by1 = by0 + font_size
+                
+                draw.rounded_rectangle([bx0, by0, bx1, by1], radius=10, fill=bg_color)
+            
+            # 2. Draw Text
+            if stroke_color and final_stroke_width > 0:
+                draw.text((line_x, current_y), line, font=font, fill=final_font_color, 
+                          stroke_width=final_stroke_width, stroke_fill=stroke_color)
+            else:
+                draw.text((line_x, current_y), line, font=font, fill=final_font_color)
+                
+            # Next Line
+            current_y += line_height_font + line_spacing
 
         import uuid
         temp_filename = f"sub_{uuid.uuid4()}.png"

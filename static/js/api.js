@@ -13,7 +13,8 @@ const API = {
                     query,
                     max_results: options.maxResults || 10,
                     order: options.order || 'relevance',
-                    published_after: options.publishedAfter || null
+                    published_after: options.publishedAfter || null,
+                    video_duration: options.videoDuration || null
                 })
             });
             return response.json();

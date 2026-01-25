@@ -80,11 +80,22 @@
                 <span class="text-[10px] text-gray-400">Line</span>
             </div>
             <div class="flex items-center gap-1">
-                <input type="number" id="strokeWidthSlider" min="0.0" max="20.0" step="0.1" value="4.0"
+                <input type="number" id="strokeWidthSlider" min="0.0" max="20.0" step="0.1" value="1.0"
                     class="input-compact w-16 text-center text-white bg-gray-700 font-bold" title="테두리 두께 (px)">
                 <span class="text-xs font-bold text-gray-400">px</span>
                 <span id="strokeWidthValue" class="hidden">4</span> <!-- Hidden to prevent JS crash -->
             </div>
+        </div>
+
+        <!-- Background Strip Toggle -->
+        <div class="flex flex-col items-center gap-1 border-r border-gray-200 dark:border-gray-600 px-2">
+            <span class="text-xs font-bold text-gray-700 dark:text-gray-300">배경띠</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="bgStripToggle" class="sr-only peer" checked onchange="updateBgStrip(this)">
+                <div
+                    class="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600">
+                </div>
+            </label>
         </div>
 
         <!-- Presets -->
@@ -1611,7 +1622,8 @@
                         fontSize: data.settings.subtitle_font_size || 4.5, // [CHANGED] Default 4.5%
                         color: data.settings.subtitle_base_color || '#ffffff',
                         strokeColor: data.settings.subtitle_stroke_color || '#000000',
-                        strokeWidth: data.settings.subtitle_stroke_width || 5
+                        strokeWidth: data.settings.subtitle_stroke_width || 1, // [CHANGED] Default 1px
+                        bgEnabled: (data.settings.subtitle_bg_enabled !== undefined) ? !!data.settings.subtitle_bg_enabled : true // Default True
                     };
 
                     // [NEW] Store App Mode for UI Logic
@@ -1636,6 +1648,9 @@
                         widthEl.value = styleSettings.strokeWidth;
                         document.getElementById('strokeWidthValue').textContent = styleSettings.strokeWidth;
                     }
+
+                    const bgToggle = document.getElementById('bgStripToggle');
+                    if (bgToggle) bgToggle.checked = styleSettings.bgEnabled;
 
                     // Position
                     if (data.settings.subtitle_pos_x && data.settings.subtitle_pos_y) {
@@ -1734,6 +1749,15 @@
 
             if (typeof setupStyleListeners === 'function') {
                 setupStyleListeners();
+            }
+
+            // [NEW] Update Background Strip Setting
+            function updateBgStrip(el) {
+                if (!projectId) return;
+                const val = el.checked ? 1 : 0;
+                // Save to DB
+                API.project.updateSetting(projectId, 'subtitle_bg_enabled', val);
+                updateSubtitlePreview(); // Update preview if needed (Requires logic in updateSubtitlePreview)
             }
 
             // Draggable Preview Text

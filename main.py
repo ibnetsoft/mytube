@@ -117,7 +117,7 @@ class SearchRequest(BaseModel):
     max_results: int = 10
     order: str = "relevance"
     published_after: Optional[str] = None
-    video_duration: str = "short"  # any, long, medium, short (기본값: short)
+    video_duration: Optional[str] = None  # any, long, medium, short
     relevance_language: Optional[str] = None # ko, en, ja, etc.
 
 class GeminiRequest(BaseModel):
@@ -525,9 +525,33 @@ async def auto_generate_script_structure(project_id: int):
     if not analysis or not analysis.get("analysis_result"):
         raise HTTPException(400, "분석 데이터가 없습니다. 먼저 분석을 진행해주세요.")
 
-    # 2. Gemini를 사용하여 구조 생성
+    # [NEW] Accumulated Knowledge Load
+    knowledge = []
+    try:
+        past_analyses = db.get_top_analyses(limit=5)
+        import json
+        for pa in past_analyses:
+            try:
+                res = pa['analysis_result']
+                if isinstance(res, str): res = json.loads(res)
+                
+                # Extract Success Factors
+                if 'success_analysis' in res and 'success_factors' in res['success_analysis']:
+                    for factor in res['success_analysis']['success_factors']:
+                         knowledge.append({
+                             "category": "Viral Factor",
+                             "pattern": factor.get('factor', 'Insight'),
+                             "insight": factor.get('reason', '')
+                         })
+            except: continue
+        if knowledge:
+            print(f"DEBUG: Loaded {len(knowledge)} accumulated success insights from DB.")
+    except Exception as e:
+        print(f"Failed to load accumulated knowledge: {e}")
+
+    # 2. Gemini를 사용하여 구조 생성 (with Knowledge)
     from services.gemini_service import gemini_service
-    structure = await gemini_service.generate_script_structure(analysis["analysis_result"])
+    structure = await gemini_service.generate_script_structure(analysis["analysis_result"], accumulated_knowledge=knowledge)
     
     if "error" in structure:
         raise HTTPException(500, f"구조 생성 실패: {structure['error']}")
@@ -973,6 +997,9 @@ async def youtube_search(req: SearchRequest):
     if req.published_after:
         params["publishedAfter"] = req.published_after
 
+    if req.video_duration:
+        params["videoDuration"] = req.video_duration
+        
     if req.relevance_language:
         params["relevanceLanguage"] = req.relevance_language
 
@@ -2970,7 +2997,8 @@ async def generate_image_prompts(req: PromptsGenerateRequest):
         "cinematic": "Cinematic movie shot, dramatic lighting, shallow depth of field, anamorphic lens",
         "minimal": "Minimalist flat vector illustration, simple shapes, clean lines, white background",
         "3d": "3D render, Pixar style, soft studio lighting, octane render, 4k",
-        "webtoon": "Oriental fantasy webtoon style illustration of a character in traditional clothing lying on a bed in a dark room, dramatic lighting, detailed line art, manhwa aesthetics, high quality"
+        "webtoon": "Oriental fantasy webtoon style illustration of a character in traditional clothing lying on a bed in a dark room, dramatic lighting, detailed line art, manhwa aesthetics, high quality",
+        "ghibli": "Studio Ghibli style, cel shaded, vibrant colors, lush background, Hayao Miyazaki style, highly detailed"
     }
     
     # 선택된 스타일의 상세 프롬프트 가져오기 (없으면 입력값 그대로 사용)
@@ -3735,8 +3763,9 @@ async def render_project_video(
                         "style_name": s_settings.get("subtitle_style_enum", "Basic_White"),
                         "font_size": float(s_settings.get("subtitle_font_size", 5.0)),  # [CHANGED] Float for %
                         "stroke_color": s_settings.get("subtitle_stroke_color", "black"),
-                        "stroke_width": int(s_settings.get("subtitle_stroke_width", 5)),
-                        "position_y": s_settings.get("subtitle_pos_y") # [FIX] Key match
+                        "stroke_width": int(s_settings.get("subtitle_stroke_width", 1)), # [CHANGED] Default 1px
+                        "position_y": s_settings.get("subtitle_pos_y"), # [FIX] Key match
+                        "bg_enabled": int(s_settings.get("subtitle_bg_enabled", 1)) # [NEW] Default 1 (True)
                     }
                     print(f"DEBUG_RENDER: main.py prepared s_settings: {s_settings}") # [DEBUG] Logic Trace
 
