@@ -50,7 +50,7 @@
         <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-2">
             <span class="text-xs font-bold text-gray-700 dark:text-gray-300">서체</span>
             <select id="fontFamilySelect" class="input-compact w-24">
-                <option value="GmarketSansBold">G마켓산스</option>
+                <option value="GmarketSansBold" selected>G마켓산스</option>
                 <option value="Malgun Gothic">맑은고딕</option>
                 <option value="CookieRun">쿠키런</option>
                 <option value="NanumMyeongjo">나눔명조</option>
@@ -58,11 +58,11 @@
             </select>
             <!-- 폰트 크기 (비율 기반) -->
             <div class="flex items-center gap-1">
-                <input type="number" id="fontSizeSlider" value="5.0" min="3.0" max="7.0" step="0.1"
+                <input type="number" id="fontSizeSlider" value="5.4" min="3.0" max="7.0" step="0.1"
                     class="input-compact w-16 text-center text-white bg-gray-700 font-bold"
                     title="영상 높이의 % (3.0 ~ 7.0)">
                 <span class="text-xs font-bold text-gray-400">%</span>
-                <span id="fontSizeValue" class="hidden">5.0%</span> <!-- Hidden to prevent JS crash -->
+                <span id="fontSizeValue" class="hidden">5.4%</span> <!-- Hidden to prevent JS crash -->
             </div>
         </div>
 
@@ -80,10 +80,10 @@
                 <span class="text-[10px] text-gray-400">Line</span>
             </div>
             <div class="flex items-center gap-1">
-                <input type="number" id="strokeWidthSlider" min="0.0" max="20.0" step="0.1" value="1.0"
+                <input type="number" id="strokeWidthSlider" min="0.0" max="20.0" step="0.1" value="0.1"
                     class="input-compact w-16 text-center text-white bg-gray-700 font-bold" title="테두리 두께 (px)">
                 <span class="text-xs font-bold text-gray-400">px</span>
-                <span id="strokeWidthValue" class="hidden">4</span> <!-- Hidden to prevent JS crash -->
+                <span id="strokeWidthValue" class="hidden">0.1</span> <!-- Hidden to prevent JS crash -->
             </div>
         </div>
 
@@ -848,7 +848,7 @@
         const strokeWidthEl = document.getElementById('strokeWidthSlider');
         if (strokeWidthEl) strokeWidthEl.addEventListener('input', e => {
             document.getElementById('strokeWidthValue').textContent = e.target.value;
-            update('subtitle_stroke_width', parseInt(e.target.value));
+            update('subtitle_stroke_width', parseFloat(e.target.value));
         });
 
         // Text Input Listener
@@ -1618,11 +1618,11 @@
                 // Style Settings
                 if (data.settings) {
                     styleSettings = {
-                        font: data.settings.subtitle_font || 'Pretendard',
-                        fontSize: data.settings.subtitle_font_size || 4.5, // [CHANGED] Default 4.5%
+                        font: data.settings.subtitle_font || 'GmarketSansBold',
+                        fontSize: data.settings.subtitle_font_size || 5.4, // [CHANGED] Default 5.4%
                         color: data.settings.subtitle_base_color || '#ffffff',
                         strokeColor: data.settings.subtitle_stroke_color || '#000000',
-                        strokeWidth: data.settings.subtitle_stroke_width || 1, // [CHANGED] Default 1px
+                        strokeWidth: (data.settings.subtitle_stroke_width !== undefined) ? data.settings.subtitle_stroke_width : 0.1, // [CHANGED] Default 0.1px
                         bgEnabled: (data.settings.subtitle_bg_enabled !== undefined) ? !!data.settings.subtitle_bg_enabled : true // Default True
                     };
 
@@ -1634,8 +1634,12 @@
                     const fontEl = document.getElementById('fontFamilySelect');
                     if (fontEl) fontEl.value = styleSettings.font;
 
-                    const sizeEl = document.getElementById('fontSizeInput');
-                    if (sizeEl) sizeEl.value = styleSettings.fontSize;
+                    const sizeEl = document.getElementById('fontSizeSlider');
+                    if (sizeEl) {
+                        sizeEl.value = styleSettings.fontSize;
+                        const valueEl = document.getElementById('fontSizeValue');
+                        if (valueEl) valueEl.textContent = styleSettings.fontSize + '%';
+                    }
 
                     const colorEl = document.getElementById('textColorInput');
                     if (colorEl) colorEl.value = styleSettings.color;
