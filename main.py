@@ -2509,10 +2509,12 @@ async def generate_thumbnail_text(req: ThumbnailTextRequest):
         if not project:
             return {"status": "error", "error": "프로젝트를 찾을 수 없습니다"}
         
-        # 2. 대본 가져오기
-        script = project.get('full_script') or project.get('script')
+        # 2. 대본 가져오기 (scripts 테이블 및 project_settings 동시 확인)
+        script_data = db.get_script(req.project_id)
+        script = script_data.get('full_script') if script_data else None
+        
         if not script:
-            return {"status": "error", "error": "대본이 없습니다. 먼저 대본을 작성해주세요."}
+            return {"status": "error", "error": f"대본이 없습니다. 먼저 대본을 작성해주세요. (PID: {req.project_id})"}
         
         # 3. 프로젝트 설정에서 이미지 스타일 가져오기 (연동)
         settings = db.get_project_settings(req.project_id)
