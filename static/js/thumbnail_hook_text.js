@@ -13,7 +13,7 @@ async function generateHookTexts() {
 
     try {
         const style = document.getElementById('thumbnailStyle').value;
-        const targetLang = targetLang || 'ko';
+        const lang = window.targetLang || 'ko';
 
         const response = await fetch('/api/thumbnail/generate-text', {
             method: 'POST',
@@ -21,7 +21,7 @@ async function generateHookTexts() {
             body: JSON.stringify({
                 project_id: parseInt(projectId),
                 thumbnail_style: style,
-                target_language: targetLang
+                target_language: lang
             })
         });
 

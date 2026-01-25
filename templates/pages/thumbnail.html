@@ -270,13 +270,13 @@
     {% endblock %}
 
     {% block scripts %}
-    <script src="/static/js/thumbnail_hook_text.js"></script>
+    <script src="/static/js/thumbnail_hook_text.js?v=2"></script>
     <script>
+        window.targetLang = 'ko';
         let thumbnailData = null;
         let selectedPrompt = null;
         let selectedIdeaIndex = -1;
         let generatedHistory = [];
-        let targetLang = 'ko';
         let currentBackgroundPath = null; // 생성된 배경 이미지 경로 (백엔드용)
         let currentBackgroundUrl = null; // 생성된 배경 이미지 URL (프론트엔드용)
         let currentAspectRatio = '16:9'; // [NEW] Default AR
@@ -319,7 +319,7 @@
                     const project = await API.project.get(projectId);
                     if (project) {
                         if (project.target_language) {
-                            targetLang = project.target_language;
+                            window.targetLang = project.target_language;
                         }
                         const titleEl = document.getElementById('videoTitle');
                         // Only set title if empty (preserve local change)
@@ -476,8 +476,8 @@
             const btn = document.getElementById('ideaBtn');
             Utils.setLoading(btn, true, '생성 중...');
 
-            const langInstruction = targetLang === 'ja' ? '썸네일 텍스트 후보(texts)는 반드시 "일본어(Japanese)"로 작성하세요.' :
-                targetLang === 'en' ? '썸네일 텍스트 후보(texts)는 반드시 "영어(English)"로 작성하세요.' :
+            const langInstruction = window.targetLang === 'ja' ? '썸네일 텍스트 후보(texts)는 반드시 "일본어(Japanese)"로 작성하세요.' :
+                window.targetLang === 'en' ? '썸네일 텍스트 후보(texts)는 반드시 "영어(English)"로 작성하세요.' :
                     '썸네일 텍스트 후보(texts)는 "한국어"로 작성하세요.';
 
             const prompt = `유튜브 썸네일 디자인 전문가로서 다음 정보를 바탕으로 클릭률 높은 썸네일 아이디어를 생성해주세요.
