@@ -1343,6 +1343,10 @@
                     if (fullData.settings.character_ref_text) {
                         const gp = document.getElementById('globalPrompt');
                         if (gp) gp.value = fullData.settings.character_ref_text;
+                    } else {
+                        // [FIX] Clear UI if no character ref text (new project)
+                        const gp = document.getElementById('globalPrompt');
+                        if (gp) gp.value = '';
                     }
                     if (fullData.settings.character_ref_image_path) {
                         const preview = document.getElementById('charPreviewImg');
@@ -1351,6 +1355,15 @@
                             preview.src = fullData.settings.character_ref_image_path;
                             preview.classList.remove('hidden');
                             placeholder.classList.add('hidden');
+                        }
+                    } else {
+                        // [FIX] Clear image preview if no ref image
+                        const preview = document.getElementById('charPreviewImg');
+                        const placeholder = document.getElementById('charPlaceholder');
+                        if (preview && placeholder) {
+                            preview.src = '';
+                            preview.classList.add('hidden');
+                            placeholder.classList.remove('hidden');
                         }
                     }
                 }
