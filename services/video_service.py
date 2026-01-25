@@ -1390,13 +1390,10 @@ class VideoService:
              # Fallback
              line_height_font = font.getbbox('A')[3]
         
-        line_spacing = 4 # Pillow default spacing
+        line_spacing = 0 # [CHANGED] Reduced gap between lines for tighter look
         
-        # [FIX] Tighten Vertical Background
-        # User requested reducing height by ~15% or matching text height.
-        # Font metrics usually include significant whitespace.
-        # We will trim top and bottom.
-        
+        # [FIX] Better Vertical Alignment
+        # Each line's background and text should be centered correctly.
         for line in wrapped_lines:
             if not line:
                 current_y += line_height_font + line_spacing
@@ -1410,21 +1407,16 @@ class VideoService:
             
             # 1. Draw Background
             if bg_color:
-                # [TUNING] Trim factors
-                # Shift top down by ~20% of line height (Remove ascender whitespace)
-                # Shift bottom up by ~10% (Remove descender whitespace)
-                top_trim = line_height_font * 0.20 
-                bottom_trim = line_height_font * 0.10
+                # Use pad_y for vertical consistent padding instead of arbitrary trims
+                # and adjust by a small offset to account for font internal padding
+                vertical_offset = int(font_size * 0.1) # Offset for baseline alignment
                 
                 bx0 = line_x - pad_x
-                by0 = current_y + top_trim 
+                by0 = current_y + vertical_offset
                 bx1 = line_x + line_w + pad_x
-                by1 = current_y + line_height_font - bottom_trim
+                by1 = current_y + line_height_font - vertical_offset
                 
-                # Ensure min height
-                if by1 - by0 < font_size:
-                     by1 = by0 + font_size
-                
+                # Expand slightly for visibility
                 draw.rounded_rectangle([bx0, by0, bx1, by1], radius=10, fill=bg_color)
             
             # 2. Draw Text
