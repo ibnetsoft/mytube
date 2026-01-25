@@ -259,17 +259,14 @@ class VideoService:
                         w, h = clip.size
                         
                         if effect == 'zoom_in':
-                            # Center Zoom In: 1.0 -> 1.3
-                            clip = clip.resize(lambda t: 1 + (zoom_scale - 1) * t / dur)
-                            # Keep centered safely by using CompositeVideoClip as container later?
-                            # Actually, resizing changes size. CompositeVideoClip(..., size=(w,h)).
-                            # We need to center it on a canvas of original size.
+                            # Center Zoom In: 1.0 -> 1.5 (using captured variables to avoid closure bugs)
+                            clip = clip.resize(lambda t, d=dur, zs=zoom_scale: 1 + (zs - 1) * t / d)
+                            # Keep centered safely by using CompositeVideoClip as container
                             clip = CompositeVideoClip([clip.set_position('center')], size=(w,h)).set_duration(dur)
                             
                         elif effect == 'zoom_out':
-                            # Center Zoom Out: 1.3 -> 1.0
-                            # Start at 1.3, end at 1.0
-                            clip = clip.resize(lambda t: zoom_scale - (zoom_scale - 1) * t / dur)
+                            # Center Zoom Out: 1.5 -> 1.0
+                            clip = clip.resize(lambda t, d=dur, zs=zoom_scale: zs - (zs - 1) * t / d)
                             clip = CompositeVideoClip([clip.set_position('center')], size=(w,h)).set_duration(dur)
                             
                         elif effect.startswith('pan_'):
@@ -292,32 +289,22 @@ class VideoService:
                             default_x = -max_x / 2
 
                             if effect == 'pan_left':
-                                # Camera moves Left = Image moves Right relative to frame
-                                # But "Pan Left" usually means "Look towards Left".
-                                # If we look left, we see what is on the left.
-                                # To see left side of image, image must be positioned at x=0 (Left aligned).
-                                # Start: Right aligned (x = -max_x, seeing Right side) -> End: Left aligned (x = 0, seeing Left side)
-                                # Let's stick to: Reveal Image from Right to Left.
-                                clip = clip.set_position(lambda t: (int(-max_x + max_x * t / dur), int(default_y)))
+                                # Reveal Image from Right to Left (Start: Right aligned -> End: Left aligned)
+                                clip = clip.set_position(lambda t, mx=max_x, dy=default_y, d=dur: (int(-mx + mx * t / d), int(dy)))
                                 
                             elif effect == 'pan_right':
-                                # Reveal Image from Left to Right
-                                # Start: Left aligned (x = 0) -> End: Right aligned (x = -max_x)
-                                clip = clip.set_position(lambda t: (int(0 - max_x * t / dur), int(default_y)))
+                                # Reveal Image from Left to Right (Start: Left aligned -> End: Right aligned)
+                                clip = clip.set_position(lambda t, mx=max_x, dy=default_y, d=dur: (int(0 - mx * t / d), int(dy)))
                                 
                             elif effect == 'pan_up':
                                 # Reveal Top: Start Bottom aligned -> End Top aligned
-                                clip = clip.set_position(lambda t: (int(default_x), int(-max_y + max_y * t / dur)))
+                                clip = clip.set_position(lambda t, my=max_y, dx=default_x, d=dur: (int(dx), int(-my + my * t / d)))
                                 
                             elif effect == 'pan_down':
                                 # Reveal Bottom: Start Top aligen -> End Bottom aligned
-                                clip = clip.set_position(lambda t: (int(default_x), int(0 - max_y * t / dur)))
+                                clip = clip.set_position(lambda t, my=max_y, dx=default_x, d=dur: (int(dx), int(0 - my * t / d)))
 
                             # [CRITICAL FIX] Wrap in CompositeVideoClip of target size (w,h)
-                            # This simulates the "Camera Window" cropping the larger panning image.
-                            clip = CompositeVideoClip([clip], size=(w,h)).set_duration(dur)
-                                
-                            # Crop to original size
                             clip = CompositeVideoClip([clip], size=(w,h)).set_duration(dur)
 
                     except Exception as e:
