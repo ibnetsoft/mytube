@@ -1,0 +1,40 @@
+<!-- 
+  이 코드를 thumbnail.html에 추가하세요:
+  
+  1. 버튼 섹션 (line 119-125 교체):
+-->
+
+</div>
+
+<!-- 버튼 그리드 -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:col-span-3">
+    <button onclick="generateIdeas()" id="ideaBtn"
+        class="btn-primary h-full min-h-[100px] text-lg font-bold shadow-md hover:shadow-lg transition-all flex flex-col items-center justify-center gap-2">
+        <span class="text-2xl">💡</span>
+        <span>아이디어 생성하기</span>
+    </button>
+
+    <button onclick="generateHookTexts()" id="hookTextBtn"
+        class="btn-secondary h-full min-h-[100px] text-lg font-bold shadow-md hover:shadow-lg transition-all flex flex-col items-center justify-center gap-2">
+        <span class="text-2xl">🤖</span>
+        <span>AI 후킹 문구 생성</span>
+        <span class="text-xs opacity-75">(대본 기반)</span>
+    </button>
+</div>
+</div>
+
+<!-- AI 생성 문구 표시 영역 (line 126 다음에 추가) -->
+<div id="hookTextsSection" class="hidden card mb-4">
+    <h4 class="text-sm font-bold text-blue-800 dark:text-blue-300 mb-3 flex items-center gap-2">
+        <span>🎯</span>
+        <span>AI 추천 후킹 문구</span>
+    </h4>
+    <div id="hookTextsList" class="flex flex-wrap gap-2 mb-3"></div>
+    <p id="hookReasoning" class="text-xs text-blue-600 dark:text-blue-400 italic"></p>
+</div>
+
+<!-- 
+  2. Script 섹션에 추가 ({% block scripts %} 안, 파일 끝 부분):
+-->
+
+<script src="/static/js/thumbnail_hook_text.js"></script>
