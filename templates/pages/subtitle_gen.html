@@ -58,10 +58,11 @@
             </select>
             <!-- 폰트 크기 (비율 기반) -->
             <div class="flex items-center gap-1">
-                <input type="range" id="fontSizeSlider" value="5.0" min="1.0" max="15.0" step="0.5"
-                    class="w-20 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
-                    title="영상 높이의 %">
-                <span id="fontSizeValue" class="text-xs font-mono w-10 text-right">5.0%</span>
+                <input type="number" id="fontSizeSlider" value="5.0" min="3.0" max="7.0" step="0.1"
+                    class="input-compact w-16 text-center text-white bg-gray-700 font-bold"
+                    title="영상 높이의 % (3.0 ~ 7.0)">
+                <span class="text-xs font-bold text-gray-400">%</span>
+                <span id="fontSizeValue" class="hidden">5.0%</span> <!-- Hidden to prevent JS crash -->
             </div>
         </div>
 
@@ -78,11 +79,11 @@
                     class="w-6 h-4 p-0 border-0 rounded cursor-pointer" title="테두리색">
                 <span class="text-[10px] text-gray-400">Line</span>
             </div>
-            <div class="flex flex-col w-16">
-                <input type="range" id="strokeWidthSlider" min="0" max="20" value="4"
-                    class="h-1.5 w-full bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
-                    title="테두리 두께">
-                <span class="text-[10px] text-center text-gray-500"><span id="strokeWidthValue">4</span>px</span>
+            <div class="flex items-center gap-1">
+                <input type="number" id="strokeWidthSlider" min="0.0" max="20.0" step="0.1" value="4.0"
+                    class="input-compact w-16 text-center text-white bg-gray-700 font-bold" title="테두리 두께 (px)">
+                <span class="text-xs font-bold text-gray-400">px</span>
+                <span id="strokeWidthValue" class="hidden">4</span> <!-- Hidden to prevent JS crash -->
             </div>
         </div>
 

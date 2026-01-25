@@ -535,3 +535,27 @@ AttributeError: module 'config' has no attribute 'DEFAULT_FONT_PATH'
 [2026-01-25 16:47:33.255242] Processing Image #3, Effect: zoom_in
 [2026-01-25 16:47:33.457541] Processing Image #4, Effect: random
 [2026-01-25 16:47:34.000841] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-25 16:55:58.451981] Starting Single-pass render for project 26
+[2026-01-25 16:55:58.452000] Images: 4, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\경악!_파출부로_취직한_아내,_재벌_회장의_‘억대_유산’_상속녀로…_숨겨진_진실은_20260124\tts_20260124_204917.mp3
+[2026-01-25 16:55:58.624908] DEBUG_RENDER: num_img=4, num_sub=4
+[2026-01-25 16:55:58.629557] p_settings(ID=26) found: True
+[2026-01-25 16:55:58.631138] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path']
+[2026-01-25 16:55:58.631155] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_26_1769327758.json
+[2026-01-25 16:55:58.639527] create_slideshow(PROJ=26) Effects: ['random', 'pan_left', 'zoom_in', 'zoom_out']
+[2026-01-25 16:55:58.920194] Processing Image #1, Effect: random
+[2026-01-25 16:55:59.217755] Processing Image #2, Effect: pan_left
+[2026-01-25 16:55:59.485980] Processing Image #3, Effect: zoom_in
+[2026-01-25 16:55:59.685241] Processing Image #4, Effect: zoom_out
+[2026-01-25 16:56:00.317176] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-25 17:17:04.163253] Starting Single-pass render for project 26
+[2026-01-25 17:17:04.163267] Images: 4, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\경악!_파출부로_취직한_아내,_재벌_회장의_‘억대_유산’_상속녀로…_숨겨진_진실은_20260124\tts_20260124_204917.mp3
+[2026-01-25 17:17:04.354562] DEBUG_RENDER: num_img=4, num_sub=4
+[2026-01-25 17:17:04.358462] p_settings(ID=26) found: True
+[2026-01-25 17:17:04.360948] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path']
+[2026-01-25 17:17:04.360986] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_26_1769329024.json
+[2026-01-25 17:17:04.362947] create_slideshow(PROJ=26) Effects: ['random', 'pan_left', 'zoom_in', 'zoom_out']
+[2026-01-25 17:17:04.641675] Processing Image #1, Effect: random
+[2026-01-25 17:17:04.847459] Processing Image #2, Effect: pan_left
+[2026-01-25 17:17:05.124025] Processing Image #3, Effect: zoom_in
+[2026-01-25 17:17:05.309710] Processing Image #4, Effect: zoom_out
+[2026-01-25 17:17:05.909798] calling writes_videofile code in video_service (720p safe mode)

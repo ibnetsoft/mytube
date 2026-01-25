@@ -275,7 +275,7 @@ class VideoService:
                         elif effect.startswith('pan_'):
                             # For Panning, we need start/end positions.
                             # Pre-zoom to allow movement without black bars.
-                            pan_zoom = 1.2
+                            pan_zoom = 1.3 # [FIX] Increased from 1.2 to 1.3 for safety against black bars
                             clip = clip.resize(pan_zoom)
                             new_w, new_h = clip.w, clip.h
                             
@@ -283,40 +283,39 @@ class VideoService:
                             max_x = new_w - w
                             max_y = new_h - h
                             
-                            # Helper for linear interpolation
-                            def get_pos(t, start_x, start_y, end_x, end_y):
-                                curr_x = start_x + (end_x - start_x) * t / dur
-                                curr_y = start_y + (end_y - start_y) * t / dur
-                                return (int(curr_x), int(curr_y))
+                            # Center Y for horizontal pans, Center X for vertical pans
+                            # We need to center the *crop* window relative to the image.
+                            # Since 'clip' is the image, and we place it on a (w,h) canvas.
+                            # center_y calculation:
+                            # If we want to center the image vertically: y = (h - new_h) / 2 = -max_y / 2
+                            default_y = -max_y / 2
+                            default_x = -max_x / 2
 
-                            # Calculate Start/End (Top-Left coordinate)
-                            # Center is -max_x/2, -max_y/2
-                            center_x = -max_x / 2
-                            center_y = -max_y / 2
-                            
-                            # Coordinates: 0 is left align (showing left), -max_x is right align (showing right)
-                            
                             if effect == 'pan_left':
-                                # Move Left: Show Right side -> Show Left side (Camera moves right? No, standard Pan Left means Camera moves Left)
-                                # Camera moves Left = View moves Left = Image contents move Right.
-                                # Let's assume standard "Pan Left" = Reveal Left side.
-                                # Start: Right aligned (x = -max_x) -> End: Left aligned (x = 0)
-                                clip = clip.set_position(lambda t: (int(-max_x + max_x * t / dur), center_y))
+                                # Camera moves Left = Image moves Right relative to frame
+                                # But "Pan Left" usually means "Look towards Left".
+                                # If we look left, we see what is on the left.
+                                # To see left side of image, image must be positioned at x=0 (Left aligned).
+                                # Start: Right aligned (x = -max_x, seeing Right side) -> End: Left aligned (x = 0, seeing Left side)
+                                # Let's stick to: Reveal Image from Right to Left.
+                                clip = clip.set_position(lambda t: (int(-max_x + max_x * t / dur), int(default_y)))
                                 
                             elif effect == 'pan_right':
-                                # Reveal Right side
+                                # Reveal Image from Left to Right
                                 # Start: Left aligned (x = 0) -> End: Right aligned (x = -max_x)
-                                clip = clip.set_position(lambda t: (int(0 - max_x * t / dur), center_y))
+                                clip = clip.set_position(lambda t: (int(0 - max_x * t / dur), int(default_y)))
                                 
                             elif effect == 'pan_up':
-                                # Reveal Top
-                                # Start: Bottom aligned (y = -max_y) -> End: Top aligned (y = 0)
-                                clip = clip.set_position(lambda t: (center_x, int(-max_y + max_y * t / dur)))
+                                # Reveal Top: Start Bottom aligned -> End Top aligned
+                                clip = clip.set_position(lambda t: (int(default_x), int(-max_y + max_y * t / dur)))
                                 
                             elif effect == 'pan_down':
-                                # Reveal Bottom
-                                # Start: Top aligned (y = 0) -> End: Bottom aligned (y = -max_y)
-                                clip = clip.set_position(lambda t: (center_x, int(0 - max_y * t / dur)))
+                                # Reveal Bottom: Start Top aligen -> End Bottom aligned
+                                clip = clip.set_position(lambda t: (int(default_x), int(0 - max_y * t / dur)))
+
+                            # [CRITICAL FIX] Wrap in CompositeVideoClip of target size (w,h)
+                            # This simulates the "Camera Window" cropping the larger panning image.
+                            clip = CompositeVideoClip([clip], size=(w,h)).set_duration(dur)
                                 
                             # Crop to original size
                             clip = CompositeVideoClip([clip], size=(w,h)).set_duration(dur)

@@ -1,0 +1,2 @@
+Timestamp: 2026-01-25 16:55:59.975413, Pct: 7.0, CalcSize: 128, VideoH: 1080, Settings: {'font': 'GmarketSansBold', 'font_color': '#c8ff00', 'style_name': 'Custom', 'font_size': 7.0, 'stroke_color': '#000000', 'stroke_width': 0, 'position_y': '75%'}
+Timestamp: 2026-01-25 17:17:05.588097, Pct: 7.0, CalcSize: 128, VideoH: 1080, Settings: {'font': 'GmarketSansBold', 'font_color': '#c8ff00', 'style_name': 'Custom', 'font_size': 7.0, 'stroke_color': '#000000', 'stroke_width': 0, 'position_y': '75%'}
