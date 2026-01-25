@@ -3832,9 +3832,9 @@ async def render_project_video(
                         "font": s_settings.get("subtitle_font", config.DEFAULT_FONT_PATH),
                         "font_color": s_settings.get("subtitle_base_color", "white"), # [FIX] Key match
                         "style_name": s_settings.get("subtitle_style_enum", "Basic_White"),
-                        "font_size": float(s_settings.get("subtitle_font_size", 5.0)),  # [CHANGED] Float for %
+                        "font_size": float(s_settings.get("subtitle_font_size", 5.4)),  # [CHANGED] 5.4% Default
                         "stroke_color": s_settings.get("subtitle_stroke_color", "black"),
-                        "stroke_width": float(s_settings.get("subtitle_stroke_width", 0.1)), # [CHANGED] Float for px, default 0.1px
+                        "stroke_width": float(s_settings.get("subtitle_stroke_width", 0.0)), # [CHANGED] 0px Default
                         "position_y": s_settings.get("subtitle_pos_y"), # [FIX] Key match
                         "bg_enabled": int(s_settings.get("subtitle_bg_enabled", 1)) # [NEW] Default 1 (True)
                     }
