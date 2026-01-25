@@ -1399,30 +1399,29 @@ class VideoService:
                 current_y += line_height_font + line_spacing
                 continue
                 
-            # Measure Precise line dimensions
-            # textlength is good for width, but for height we use multiline_textbbox on single line
-            l_bbox = draw.textbbox((line_x, current_y), line, font=font, 
-                                 stroke_width=int(final_stroke_width) if final_stroke_width > 0.5 else 0)
+            # Measure Precise line dimensions using (0,0) as reference
+            s_width = int(final_stroke_width) if final_stroke_width > 0.5 else 0
+            l_bbox = draw.textbbox((0, 100), line, font=font, stroke_width=s_width)
             lw = l_bbox[2] - l_bbox[0]
             lh = l_bbox[3] - l_bbox[1]
             
-            # Center X
+            # Calculate actual line_x to center the text
             line_x = center_x - (lw / 2)
             
             # 1. Draw Background
             if bg_color:
-                # Use actual text bbox for the background, then apply padding
-                bx0 = l_bbox[0] - pad_x
-                by0 = l_bbox[1] - pad_y // 2 # Use half padding for tighter vertical look
-                bx1 = l_bbox[2] + pad_x
-                by1 = l_bbox[3] + pad_y // 2
+                # Map bbox to actual line_x/current_y position
+                bx0 = line_x - pad_x
+                by0 = current_y + (l_bbox[1] - 100) - (pad_y // 4) # Tight vertical
+                bx1 = line_x + lw + pad_x
+                by1 = current_y + (l_bbox[3] - 100) + (pad_y // 4)
                 
                 draw.rounded_rectangle([bx0, by0, bx1, by1], radius=10, fill=bg_color)
             
-            # 2. Draw Text (Re-using center_x calculation to be safe)
-            if final_stroke_width > 0.5:
+            # 2. Draw Text
+            if s_width > 0:
                 draw.text((line_x, current_y), line, font=font, fill=final_font_color, 
-                          stroke_width=int(final_stroke_width), stroke_fill=stroke_color)
+                          stroke_width=s_width, stroke_fill=stroke_color)
             else:
                 draw.text((line_x, current_y), line, font=font, fill=final_font_color)
                 
