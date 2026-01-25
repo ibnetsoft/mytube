@@ -1390,39 +1390,39 @@ class VideoService:
              # Fallback
              line_height_font = font.getbbox('A')[3]
         
-        line_spacing = 0 # [CHANGED] Reduced gap between lines for tighter look
+        line_spacing = -int(line_height_font * 0.15) # [CHANGED] Negative spacing to truly tighten lines
         
-        # [FIX] Better Vertical Alignment
-        # Each line's background and text should be centered correctly.
+        # [FIX] Precision Vertical Alignment
+        # Calculate background per line using actual text boundaries
         for line in wrapped_lines:
             if not line:
                 current_y += line_height_font + line_spacing
                 continue
                 
-            # Measure width
-            line_w = dummy_draw.textlength(line, font=font)
+            # Measure Precise line dimensions
+            # textlength is good for width, but for height we use multiline_textbbox on single line
+            l_bbox = draw.textbbox((line_x, current_y), line, font=font, 
+                                 stroke_width=int(final_stroke_width) if final_stroke_width > 0.5 else 0)
+            lw = l_bbox[2] - l_bbox[0]
+            lh = l_bbox[3] - l_bbox[1]
             
             # Center X
-            line_x = center_x - (line_w / 2)
+            line_x = center_x - (lw / 2)
             
             # 1. Draw Background
             if bg_color:
-                # Use pad_y for vertical consistent padding instead of arbitrary trims
-                # and adjust by a small offset to account for font internal padding
-                vertical_offset = int(font_size * 0.1) # Offset for baseline alignment
+                # Use actual text bbox for the background, then apply padding
+                bx0 = l_bbox[0] - pad_x
+                by0 = l_bbox[1] - pad_y // 2 # Use half padding for tighter vertical look
+                bx1 = l_bbox[2] + pad_x
+                by1 = l_bbox[3] + pad_y // 2
                 
-                bx0 = line_x - pad_x
-                by0 = current_y + vertical_offset
-                bx1 = line_x + line_w + pad_x
-                by1 = current_y + line_height_font - vertical_offset
-                
-                # Expand slightly for visibility
                 draw.rounded_rectangle([bx0, by0, bx1, by1], radius=10, fill=bg_color)
             
-            # 2. Draw Text
-            if stroke_color and final_stroke_width > 0:
+            # 2. Draw Text (Re-using center_x calculation to be safe)
+            if final_stroke_width > 0.5:
                 draw.text((line_x, current_y), line, font=font, fill=final_font_color, 
-                          stroke_width=final_stroke_width, stroke_fill=stroke_color)
+                          stroke_width=int(final_stroke_width), stroke_fill=stroke_color)
             else:
                 draw.text((line_x, current_y), line, font=font, fill=final_font_color)
                 
