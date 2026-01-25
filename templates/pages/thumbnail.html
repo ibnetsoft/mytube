@@ -1513,7 +1513,8 @@ ideas는 3개 생성하세요. prompt_en은 Imagen 4에서 최상의 결과가 �
                 currentBackgroundPath,
                 currentBackgroundUrl,
                 generatedHistory,
-                appMode: window.APP_MODE // [NEW] Save App Mode
+                appMode: window.APP_MODE,
+                projectId: getCurrentProject() // [NEW] Scope by Project ID
             };
             try {
                 sessionStorage.setItem('thumbnail_gen_state', JSON.stringify(state));
@@ -1581,6 +1582,15 @@ ideas는 3개 생성하세요. prompt_en은 Imagen 4에서 최상의 결과가 �
 
             try {
                 const state = JSON.parse(saved);
+                const currentProjectId = getCurrentProject();
+
+                // [NEW] Project ID Scope Check
+                // If saved state has no ID (legacy) or ID mismatch -> Reset
+                if (!state.projectId || state.projectId !== currentProjectId) {
+                    console.log(`Project ID mismatch or Legacy Data (Saved: ${state.projectId}, Current: ${currentProjectId}). Resetting state.`);
+                    sessionStorage.removeItem('thumbnail_gen_state');
+                    return;
+                }
 
                 // [NEW] Mode validation
                 // Only wipe if there is an explicit mismatch. Legacy state (undefined appMode) is allowed but migrated.

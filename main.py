@@ -1352,6 +1352,13 @@ async def generate_script_structure_api(req: StructureGenerateRequest):
         all_settings = settings_service.get_settings()
         style_prompts = all_settings.get("script_styles", {})
         style_prompt = style_prompts.get(req.script_style, "")
+        
+        # [FIX] Fallback: Use style name as instruction if no custom prompt
+        if not style_prompt and req.script_style:
+            # Convert style key to readable instruction
+            # e.g., "senior_story" -> "Write in a Senior Story style"
+            style_label = req.script_style.replace('_', ' ').title()
+            style_prompt = f"Write the script in '{style_label}' style. Adapt tone, pacing, and narrative structure to match this genre/format."
 
         # [NEW] 분석 데이터 구성 (영상 내용이 아닌 형식/스타일 학습용)
         # 프로젝트 ID가 있으면 DB에서 기존 분석 결과를 가져옴
