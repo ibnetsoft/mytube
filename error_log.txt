@@ -1,0 +1,47 @@
+ERROR: cannot identify image file 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\output\\브롤_20260126\\motion_p28_s1_1769432695.mp4'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 4283, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<10 lines>...
+        project_id=project_id         # [FIX] Pass Project ID for logging
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 169, in create_slideshow
+    processed_img_path = self._resize_image_to_fill(img_path, resolution)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 741, in _resize_image_to_fill
+    img = Image.open(image_path).convert("RGB")
+          ~~~~~~~~~~^^^^^^^^^^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\PIL\Image.py", line 3580, in open
+    raise UnidentifiedImageError(msg)
+PIL.UnidentifiedImageError: cannot identify image file 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\output\\브롤_20260126\\motion_p28_s1_1769432695.mp4'
+
+ERROR: cannot identify image file 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\output\\브롤_20260126\\motion_p28_s1_1769432695.mp4'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 4283, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<10 lines>...
+        project_id=project_id         # [FIX] Pass Project ID for logging
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 169, in create_slideshow
+    processed_img_path = self._resize_image_to_fill(img_path, resolution)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 741, in _resize_image_to_fill
+    img = Image.open(image_path).convert("RGB")
+          ~~~~~~~~~~^^^^^^^^^^^^
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\PIL\Image.py", line 3580, in open
+    raise UnidentifiedImageError(msg)
+PIL.UnidentifiedImageError: cannot identify image file 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\output\\브롤_20260126\\motion_p28_s1_1769432695.mp4'
+
+ERROR: cannot access local variable 'effect' where it is not associated with a value
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 4283, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<10 lines>...
+        project_id=project_id         # [FIX] Pass Project ID for logging
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 266, in create_slideshow
+    if effect:
+       ^^^^^^
+UnboundLocalError: cannot access local variable 'effect' where it is not associated with a value
+

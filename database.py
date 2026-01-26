@@ -352,6 +352,16 @@ def migrate_db():
     except sqlite3.OperationalError:
         pass
     
+    # 마이그레이션: image_prompts 테이블에 video_url 컬럼 추가 (Wan 2.2 Motion)
+    cursor.execute("PRAGMA table_info(image_prompts)")
+    image_prompts_columns = [info[1] for info in cursor.fetchall()]
+    if 'video_url' not in image_prompts_columns:
+        print("[Migration] Adding video_url column to image_prompts table...")
+        try:
+            cursor.execute("ALTER TABLE image_prompts ADD COLUMN video_url TEXT")
+        except sqlite3.OperationalError:
+            pass
+
     # Intro video path
     try:
         cursor.execute("ALTER TABLE project_settings ADD COLUMN intro_video_path TEXT")
@@ -834,6 +844,29 @@ def update_image_prompt_url(project_id: int, scene_number: int, image_url: str):
             INSERT INTO image_prompts (project_id, scene_number, image_url)
             VALUES (?, ?, ?)
         """, (project_id, scene_number, image_url))
+        
+    conn.commit()
+    conn.close()
+
+def update_image_prompt_video_url(project_id: int, scene_number: int, video_url: str):
+    """특정 장면의 비디오 URL 업데이트 (Wan 2.2 Motion)"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # 해당 프로젝트/장면이 있는지 확인
+    cursor.execute(
+        "SELECT id FROM image_prompts WHERE project_id = ? AND scene_number = ?",
+        (project_id, scene_number)
+    )
+    exists = cursor.fetchone()
+    
+    if exists:
+        # 업데이트
+        cursor.execute("""
+            UPDATE image_prompts 
+            SET video_url = ?, created_at = CURRENT_TIMESTAMP
+            WHERE project_id = ? AND scene_number = ?
+        """, (video_url, project_id, scene_number))
         
     conn.commit()
     conn.close()

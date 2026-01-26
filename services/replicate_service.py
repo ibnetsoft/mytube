@@ -51,10 +51,10 @@ class ReplicateService:
             raise e
 
     def _run_replicate(self, input_data):
-        # [NEW] 최신 Wan-Video 모델 적용
-        # wan-video/wan-2.1-i2v-720p 는 현재 가장 밸런스 좋은 모델
+        # [NEW] 최신 Wan 2.2 모델 적용 (User's request: 2.2)
+        # 1.3/1.4 대비 획기적 성능, Cinematic 퀄리티
         return replicate.run(
-            "wan-video/wan-2.1-i2v-720p",
+            "wan-video/wan-2.2-i2v-fast",
             input=input_data
         )
 

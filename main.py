@@ -38,6 +38,7 @@ except Exception as e:
 from config import config
 import database as db
 from services.gemini_service import gemini_service
+from services.replicate_service import replicate_service
 
 # Helper: 프로젝트별 출력 폴더 생성
 def get_project_output_dir(project_id: int):
@@ -777,6 +778,72 @@ async def save_image_prompts(project_id: int, req: ImagePromptsSave):
 async def get_image_prompts(project_id: int):
     """이미지 프롬프트 조회"""
     return {"prompts": db.get_image_prompts(project_id)}
+
+class AnimateRequest(BaseModel):
+    scene_number: int
+    prompt: str = "Cinematic slow motion, high quality"
+
+@app.post("/api/projects/{project_id}/scenes/animate")
+async def animate_scene(project_id: int, req: AnimateRequest):
+    """[Wan 2.2] 특정 장면을 비디오로 변환 (Motion)"""
+    # 1. API 키 확인
+    if not replicate_service.check_api_key():
+        raise HTTPException(400, "Replicate API Key가 설정되지 않았습니다.")
+
+    # 2. 이미지 프롬프트 정보 조회
+    prompts = db.get_image_prompts(project_id)
+    target_scene = next((p for p in prompts if p['scene_number'] == req.scene_number), None)
+    
+    if not target_scene or not target_scene.get('image_url'):
+        raise HTTPException(404, "해당 장면의 이미지를 찾을 수 없습니다.")
+
+    image_web_path = target_scene['image_url']
+    
+    # 3. 로컬 파일 경로 변환
+    # /output/... -> absolute path
+    if image_web_path.startswith("/output/"):
+        relative_path = image_web_path.replace("/output/", "").lstrip("/")
+        image_abs_path = os.path.join(config.OUTPUT_DIR, relative_path)
+    elif image_web_path.startswith("http"):
+         # 만약 외부 URL이라면 다운로드 필요할 수 있음. 
+         # 현재는 로컬 생성 이미지만 지원한다고 가정하되, 필요시 처리
+         raise HTTPException(400, "외부 URL 이미지는 아직 지원하지 않습니다.")
+    else:
+        # 혹시 모를 다른 경로
+         image_abs_path = os.path.join(config.BASE_DIR, image_web_path.lstrip("/"))
+
+    if not os.path.exists(image_abs_path):
+        raise HTTPException(404, f"이미지 파일을 찾을 수 없습니다: {image_abs_path}")
+
+    # 4. Replicate 호출 (비동기)
+    try:
+        # Prompt 보정
+        motion_prompt = f"{req.prompt}, {target_scene.get('prompt_en', '')}"
+        
+        # 비디오 생성
+        video_bytes = await replicate_service.generate_video_from_image(
+            image_path=image_abs_path,
+            prompt=motion_prompt[:1000] # 길이 제한 안전장치
+        )
+        
+        # 5. 결과 저장
+        output_dir, web_dir = get_project_output_dir(project_id)
+        filename = f"motion_p{project_id}_s{req.scene_number}_{int(time.time())}.mp4"
+        output_path = os.path.join(output_dir, filename)
+        
+        with open(output_path, "wb") as f:
+            f.write(video_bytes)
+            
+        video_web_url = f"{web_dir}/{filename}"
+        
+        # 6. DB 업데이트
+        db.update_image_prompt_video_url(project_id, req.scene_number, video_web_url)
+        
+        return {"status": "ok", "video_url": video_web_url}
+        
+    except Exception as e:
+        print(f"[Animate Error] {e}")
+        raise HTTPException(500, f"비디오 생성 실패: {str(e)}")
 
 @app.post("/api/projects/{project_id}/tts")
 async def save_tts_info(project_id: int, voice_id: str, voice_name: str, audio_path: str, duration: float):
@@ -2038,7 +2105,12 @@ async def get_subtitles(project_id: int):
         # 4. Images for preview
         # Source Images (Palette)
         image_prompts = db.get_image_prompts(project_id)
-        source_images = [p['image_url'] for p in image_prompts if p.get('image_url')]
+        source_images = []
+        for p in image_prompts:
+            if p.get('video_url'):
+                source_images.append(p['video_url'])
+            elif p.get('image_url'):
+                source_images.append(p['image_url'])
 
         # Timeline Images (Used in Video)
         timeline_images_path = settings.get('timeline_images_path')
@@ -2047,6 +2119,42 @@ async def get_subtitles(project_id: int):
             try:
                 with open(timeline_images_path, "r", encoding="utf-8") as f:
                     timeline_images = json.load(f)
+                
+                # [HOTFIX] Auto-update Timeline with Video URLs if available
+                # If the user generated a video (Motion), we want to use it instead of the static image
+                # even if the timeline was saved previously.
+                
+                # 1. Create mapping: Image URL -> Video URL
+                img_to_vid_map = {}
+                for p in image_prompts:
+                    if p.get('image_url') and p.get('video_url'):
+                        img_to_vid_map[p['image_url']] = p['video_url']
+                        # Also map filename just in case URL params differ or something
+                        img_to_vid_map[os.path.basename(p['image_url'])] = p['video_url']
+
+                # 2. Patch Timeline
+                patched = False
+                for idx, t_img in enumerate(timeline_images):
+                    # Direct Match
+                    if t_img in img_to_vid_map:
+                        print(f"[Timeline Patch] Replacing Image with Video: {t_img} -> {img_to_vid_map[t_img]}")
+                        timeline_images[idx] = img_to_vid_map[t_img]
+                        patched = True
+                    else:
+                        # Basename Match (For safe measure)
+                        base = os.path.basename(t_img)
+                        if base in img_to_vid_map:
+                             print(f"[Timeline Patch] Replacing Image with Video (Basename Match): {base} -> {img_to_vid_map[base]}")
+                             timeline_images[idx] = img_to_vid_map[base]
+                             patched = True
+                
+                if patched:
+                    # Optional: Auto-save back to file to persist? 
+                    # Yes, safer.
+                    try:
+                        with open(timeline_images_path, "w", encoding="utf-8") as f:
+                            json.dump(timeline_images, f, indent=2)
+                    except: pass
             except:
                 pass
         
@@ -2165,8 +2273,14 @@ async def generate_subtitles_api(req: dict = Body(...)):
              # Load images
              images_data = db.get_image_prompts(project_id)
              # Mock images list count
+             # Mock images list count
              if images_data:
-                 image_urls = [img.get('image_url') for img in images_data if img.get('image_url')]
+                 image_urls = []
+                 for img in images_data:
+                     if img.get('video_url'):
+                         image_urls.append(img['video_url'])
+                     elif img.get('image_url'):
+                         image_urls.append(img['image_url'])
              
              num_img = len(images_data) if images_data else 0
              num_sub = len(subtitles)
@@ -3476,6 +3590,107 @@ async def delete_intro_video(project_id: int):
     except Exception as e:
         conn.close()
         raise HTTPException(500, f"삭제 실패: {str(e)}")
+
+# ===========================================
+# API: Motion Generation (Wan 2.2)
+# ===========================================
+
+class AnimateRequest(BaseModel):
+    scene_number: int
+    prompt: Optional[str] = "Cinematic slow motion, high quality"
+
+@app.post("/api/projects/{project_id}/scenes/animate")
+async def animate_scene(project_id: int, req: AnimateRequest):
+    """
+    특정 씬(이미지)을 동영상(Motion)으로 변환 (Wan 2.2)
+    """
+    try:
+        from services.replicate_service import replicate_service
+        
+        # 1. 이미지 경로 조회
+        prompts = db.get_image_prompts(project_id)
+        target_prompt = None
+        for p in prompts:
+            if p['scene_number'] == req.scene_number:
+                target_prompt = p
+                break
+        
+        if not target_prompt or not target_prompt.get('image_path'):
+            raise HTTPException(404, "해당 씬의 이미지를 찾을 수 없습니다.")
+            
+        image_path = target_prompt['image_path']
+        if not os.path.exists(image_path):
+             # URL to Path conversion check
+             if target_prompt['image_url'].startswith("/static/"):
+                 rel = target_prompt['image_url'].replace("/static/", "", 1)
+                 image_path = os.path.join(config.STATIC_DIR, rel)
+             elif target_prompt['image_url'].startswith("/output/"):
+                 rel = target_prompt['image_url'].replace("/output/", "", 1)
+                 image_path = os.path.join(config.OUTPUT_DIR, rel)
+        
+        if not os.path.exists(image_path):
+            raise HTTPException(404, f"이미지 파일이 존재하지 않습니다: {image_path}")
+
+        # 2. 비디오 생성 요청
+        print(f"Generating motion for Scene {req.scene_number} (Project {project_id})...")
+        video_data = await replicate_service.generate_video_from_image(
+            image_path=image_path,
+            prompt=req.prompt or "Cinematic motion"
+        )
+        
+        # 3. 저장
+        output_dir, web_dir = get_project_output_dir(project_id)
+        filename = f"motion_{project_id}_{req.scene_number}_{int(time.time())}.mp4"
+        save_path = os.path.join(output_dir, filename)
+        
+        with open(save_path, "wb") as f:
+            f.write(video_data)
+            
+        web_url = f"{web_dir}/{filename}"
+        
+        # 4. DB Update (video_url)
+        conn = db.get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE image_prompts SET video_url = ? WHERE project_id = ? AND scene_number = ?", 
+            (web_url, project_id, req.scene_number)
+        )
+        conn.commit()
+        conn.close()
+        
+        # 5. [HOTFIX] Immediately Update Timeline if it uses this image
+        try:
+             settings = db.get_project_settings(project_id)
+             timeline_path = settings.get('timeline_images_path')
+             if timeline_path and os.path.exists(timeline_path):
+                 with open(timeline_path, "r", encoding="utf-8") as f:
+                     timeline = json.load(f)
+                 
+                 updated = False
+                 img_url = target_prompt.get('image_url')
+                 for i, item in enumerate(timeline):
+                     if item == img_url or os.path.basename(item) == os.path.basename(img_url or ''):
+                         timeline[i] = web_url
+                         updated = True
+                         print(f"Auto-updated timeline index {i} to video: {web_url}")
+                 
+                 if updated:
+                     with open(timeline_path, "w", encoding="utf-8") as f:
+                         json.dump(timeline, f, indent=2)
+        except Exception as e:
+            print(f"Failed to auto-update timeline json: {e}")
+
+        return {
+            "status": "ok",
+            "video_url": web_url,
+            "scene_number": req.scene_number
+        }
+        
+    except Exception as e:
+        print(f"Motion Gen Error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(500, f"모션 생성 실패: {str(e)}")
 
 # ===========================================
 # API: 영상 생성

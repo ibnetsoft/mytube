@@ -157,91 +157,106 @@ class VideoService:
 
         for i, img_path in enumerate(images):
             if os.path.exists(img_path):
-                # [CHANGED] Logic to switch between Fill (Crop) and Fit (Cinematic/Blur) based on Aspect Ratio
-                target_w, target_h = resolution
-                is_vertical = target_h > target_w
-
-                if is_vertical:
-                    # For Shorts/Vertical: Use Cinematic Frame (Fit + Blur BG) to avoid aggressive cropping of landscape images
-                    processed_img_path = self._create_cinematic_frame(img_path, resolution)
-                else:
-                    # For Landscape: Use Fill (Crop) as before
-                    processed_img_path = self._resize_image_to_fill(img_path, resolution)
-                temp_files.append(processed_img_path)
+                # [NEW] Check if it is a Video Asset (Motion)
+                is_video_asset = img_path.lower().endswith(".mp4")
                 
                 clip = None
                 
-                # 초반 30초는 AI Video (Veo) 생성 시도 (비활성화)
-                #         # 짧은 3~5초 영상 생성 요청 (Image-to-Video)
-                #         video_bytes = run_async(gemini_service.generate_video(
-                #             prompt="cinematic movement, slow motion", # 구체적인 프롬프트가 없으므로 일반적인 것 사용
-                #             image_path=processed_img_path,
-                #             duration_seconds=int(duration_per_image) # Veo는 보통 6초 고정이 많지만 요청 시도
-                #         ))
-                #         
-                #         if video_bytes:
-                #             # 임시 비디오 파일 저장
-                #             temp_video_path = os.path.join(self.output_dir, f"veo_{uuid.uuid4()}.mp4")
-                #             with open(temp_video_path, "wb") as f:
-                #                 f.write(video_bytes)
-                #             temp_files.append(temp_video_path)
-                #             
-                #             # 비디오 클립 로드 (소리 제거)
-                #             from moviepy.editor import VideoFileClip
-                #             veo_clip = VideoFileClip(temp_video_path).without_audio()
-                #             
-                #             # 길이 및 크기 조정
-                #             # Veo 영상이 16:9가 아닐 수 있으므로 resize/crop 필요할 수 있음
-                #             if resolution:
-                #                 # 비율 유지하여 리사이즈 후 중앙 크롭 (VideoService._create_cinematic_frame 로직과 유사하게 처리 필요하지만)
-                #                 # 여기서는 간단히 resize만 시도 (찌그러질 수 있음 - 개선 필요시 수정)
-                #                 veo_clip = veo_clip.resize(newsize=resolution)
-                #                 
-                #             # 속도/길이 맞추기
-                #             if veo_clip.duration < duration_per_image:
-                #                 # 너무 짧으면 루프 또는 마지막 프레임 정지? 일단은 속도 조절로 맞춤 (슬로우모션 효과)
-                #                 # speed = original_duration / target_duration (느리게) -> vfx.speedx
-                #                 # 하지만 복잡하므로, 일단 길이만 명시 (부족하면 검은화면 될 수 있음)
-                #                 pass 
-                #             else:
-                #                 veo_clip = veo_clip.subclip(0, duration_per_image)
-                #                 
-                #             clip = veo_clip.set_duration(duration_per_image)
-                #             print(" -> Veo Video Generated Successfully")
-                #     except Exception as e:
-                #         print(f"Veo Generation Failed: {e}")
-                #         clip = None
+                if is_video_asset:
+                    try:
+                        print(f"DEBUG_RENDER: Processing Video Asset: {img_path}")
+                        # Load Video (No Audio, as we overlay TTS)
+                        # Remove audio from source clip to avoid mixing with TTS
+                        clip = VideoFileClip(img_path).without_audio()
+                        
+                        # Target Duration
+                        dur = duration_per_image[i] if isinstance(duration_per_image, list) else duration_per_image
+                        
+                        # 1. Resize/Crop to Cover Resolution
+                        target_w, target_h = resolution
+                        
+                        # Resize logic (Cover)
+                        # If video is wider aspect than target
+                        if clip.h == 0 or clip.w == 0: raise ValueError("Invalid clip dimensions")
+                        
+                        clip_ratio = clip.w / clip.h
+                        target_ratio = target_w / target_h
+                        
+                        if clip_ratio > target_ratio:
+                            # Video is wider -> Fit Height, Crop Width
+                            clip = clip.resize(height=target_h)
+                        else:
+                            # Video is taller -> Fit Width, Crop Height
+                            clip = clip.resize(width=target_w)
+                            
+                        # Center Crop
+                        clip = clip.crop(x1=clip.w/2 - target_w/2, y1=clip.h/2 - target_h/2, width=target_w, height=target_h)
+                        
+                        # 2. Adjust Duration (Loop or Speed or Cut)
+                        # Motion videos are usually short (3-4s). TTS segments might be longer.
+                        # Strategy: Loop with crossfade? Or just Loop.
+                        # Wan 2.2 motion is usually seamless-ish or just movement. Loop is safest.
+                        if clip.duration < dur:
+                            # Loop to fill
+                            # Note: vfx.loop requires explicit duration or n
+                            clip = vfx.loop(clip, duration=dur)
+                        else:
+                            # Cut to fit
+                            clip = clip.subclip(0, dur)
+                            
+                        clip = clip.set_duration(dur)
+                        
+                        # Skip Ken Burns effects for videos (it moves already)
+                        image_effects[i] = 'none' if image_effects and i < len(image_effects) else 'none'
+                        
+                        # Add to temp files list? No, source file is persistent.
+                        
+                    except Exception as e:
+                        print(f"Failed to load video asset {img_path}: {e}")
+                        # Fallback to Image processing if failed (might crash if it's really not an image)
+                        # Try to find a thumbnail or just fail?
+                        # If it's really an MP4, Image.open might fail.
+                        pass
 
-                # Get specific duration for this image
-                dur = duration_per_image[i] if isinstance(duration_per_image, list) else duration_per_image
-
-                # [CHANGED] Enable FPS for effects
+                # If clip is still None (Not video or Failed), treat as Image
                 if clip is None:
+                    # [CHANGED] Logic to switch between Fill (Crop) and Fit (Cinematic/Blur) based on Aspect Ratio
+                    target_w, target_h = resolution
+                    is_vertical = target_h > target_w
+    
+                    if is_vertical:
+                        # For Shorts/Vertical: Use Cinematic Frame (Fit + Blur BG) to avoid aggressive cropping of landscape images
+                        processed_img_path = self._create_cinematic_frame(img_path, resolution)
+                    else:
+                        # For Landscape: Use Fill (Crop) as before
+                        processed_img_path = self._resize_image_to_fill(img_path, resolution)
+                    temp_files.append(processed_img_path)
+                    
+                    # Get specific duration for this image
+                    dur = duration_per_image[i] if isinstance(duration_per_image, list) else duration_per_image
+    
+                    # [CHANGED] Enable FPS for effects
                     clip = ImageClip(processed_img_path).set_duration(dur).set_fps(fps)
 
-                # [NEW] Apply fade-in effect if requested
+                # [NEW] Apply fade-in effect if requested (Works for both Video and Image)
                 if fade_in_flags and i < len(fade_in_flags) and fade_in_flags[i]:
+                    dur = clip.duration
                     fade_duration = min(1.0, dur * 0.3)  # Max 1초 또는 클립 길이의 30%
+                    try:
+                        clip = clip.parse_color_to_rgb() # Ensure RGB mode for fadein
+                    except: pass
                     clip = clip.fadein(fade_duration)
-                    print(f"  → Fade-in applied to image #{i+1} ({fade_duration:.2f}s)")
+                    print(f"  → Fade-in applied to item #{i+1} ({fade_duration:.2f}s)")
 
-                # [NEW] Apply Ken Burns Effects (Zoom/Pan)
-                # Check mapping
-                # Fix: image_effects length might be different from images/durations loop index `i`
-                # If images were split/duplicated, `i` in loop logic is just the index of `images` list.
-                # `image_effects` should correspond to `images` list 1:1 if handled correctly in frontend/backend.
-                
+                # [NEW] Apply Ken Burns Effects (Zoom/Pan) - Only for Images
+                effect = None  # [FIX] Initialize to prevent UnboundLocalError
                 safe_effect = 'none'
                 if image_effects and i < len(image_effects):
                     safe_effect = str(image_effects[i]).lower() # Normalize
                 
-                # DEBUG: Log per image
-                try:
-                    with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
-                         df.write(f"[{datetime.datetime.now()}] Processing Image #{i+1}, Effect: {safe_effect}\n")
-                except: pass
-
-                effect = None
+                # Force disable effect for Video clips (detected above) to avoid double movement
+                if is_video_asset and clip is not None:
+                     safe_effect = 'none'
                 if safe_effect == 'random':
                     import random
                     effect = random.choice(['zoom_in', 'zoom_out', 'pan_left', 'pan_right'])
