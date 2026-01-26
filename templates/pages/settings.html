@@ -39,7 +39,7 @@
                     <div
                         class="bg-gray-50 dark:bg-gray-800/50 rounded-md p-2 border border-gray-100 dark:border-gray-700">
                         <div class="flex items-center justify-between mb-1">
-                            <label class="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1">
+                            <label class="text-xs font-bold text-gray-700 dark:text-white flex items-center gap-1">
                                 <span>📺 YouTube Data API</span>
                                 <span id="youtubeStatus" class="text-[10px] font-normal text-gray-400"></span>
                             </label>
@@ -59,7 +59,7 @@
                     <div
                         class="bg-gray-50 dark:bg-gray-800/50 rounded-md p-2 border border-gray-100 dark:border-gray-700">
                         <div class="flex items-center justify-between mb-1">
-                            <label class="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1">
+                            <label class="text-xs font-bold text-gray-700 dark:text-white flex items-center gap-1">
                                 <span>🤖 Gemini API</span>
                                 <span id="geminiStatus" class="text-[10px] font-normal text-gray-400"></span>
                             </label>
@@ -79,7 +79,7 @@
                     <div
                         class="bg-gray-50 dark:bg-gray-800/50 rounded-md p-2 border border-gray-100 dark:border-gray-700">
                         <div class="flex items-center justify-between mb-1">
-                            <label class="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1">
+                            <label class="text-xs font-bold text-gray-700 dark:text-white flex items-center gap-1">
                                 <span>🔊 ElevenLabs API</span>
                                 <span class="text-[10px] text-gray-400 font-normal">(선택)</span>
                                 <span id="elevenlabsStatus" class="text-[10px] font-normal text-gray-400"></span>
@@ -100,7 +100,7 @@
                     <div
                         class="bg-gray-50 dark:bg-gray-800/50 rounded-md p-2 border border-gray-100 dark:border-gray-700">
                         <div class="flex items-center justify-between mb-1">
-                            <label class="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1">
+                            <label class="text-xs font-bold text-gray-700 dark:text-white flex items-center gap-1">
                                 <span>🚀 Replicate API</span>
                                 <span class="text-[10px] text-gray-400 font-normal">(AI영상)</span>
                                 <span id="replicateStatus" class="text-[10px] font-normal text-gray-400"></span>
@@ -180,7 +180,7 @@
 
                 <!-- Platform Mode -->
                 <div class="mb-5 border-b border-gray-100 dark:border-gray-700 pb-4">
-                    <label class="text-xs font-bold text-gray-700 dark:text-gray-300 mb-2 block">🖥️ 플랫폼 모드</label>
+                    <label class="text-xs font-bold text-gray-700 dark:text-white mb-2 block">🖥️ 플랫폼 모드</label>
                     <input type="hidden" id="appMode" value="longform">
                     <div class="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1 w-fit">
                         <button id="btnModeLong" onclick="setAppMode('longform')"
@@ -200,7 +200,7 @@
                 <!-- [NEW] Template Image (Overlay) -->
                 <div class="mb-5 border-b border-gray-100 dark:border-gray-700 pb-4">
                     <label
-                        class="text-xs font-bold text-gray-700 dark:text-gray-300 mb-2 flex justify-between items-center">
+                        class="text-xs font-bold text-gray-700 dark:text-white mb-2 flex justify-between items-center">
                         <span>🖼️ 템플릿 이미지 (9:16 오버레이)</span>
                         <span class="text-[10px] text-gray-400 font-normal">.png 투명 배경 권장</span>
                     </label>
@@ -237,7 +237,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <!-- Voice -->
                     <div>
-                        <label class="text-xs font-bold text-gray-700 dark:text-gray-300 mb-2 block">🗣️ 기본 목소리
+                        <label class="text-xs font-bold text-gray-700 dark:text-white mb-2 block">🗣️ 기본 목소리
                             (Gemini)</label>
                         <div class="grid grid-cols-2 gap-2 mb-2">
                             <select id="geminiVoice" class="input-field text-xs h-8"></select>
@@ -268,19 +268,19 @@
                         </div>
 
                         <div>
-                            <label class="text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 block">📜 시니어 사연 스타일
+                            <label class="text-xs font-bold text-gray-700 dark:text-white mb-1 block">📜 시니어 사연 스타일
                                 프롬프트 (New)</label>
                             <textarea id="promptSeniorStory" class="input-field w-full text-xs" rows="3"
                                 placeholder="중장년층 공감 사연 톤앤매너 지침..."></textarea>
                         </div>
                         <div>
-                            <label class="text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 block">📜 옛날 이야기 스타일
+                            <label class="text-xs font-bold text-gray-700 dark:text-white mb-1 block">📜 옛날 이야기 스타일
                                 프롬프트</label>
                             <textarea id="promptStory" class="input-field w-full text-xs" rows="2"
                                 placeholder="구연동화 톤앤매너 지침..."></textarea>
                         </div>
                         <div>
-                            <label class="text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 block">📜 뉴스 스타일
+                            <label class="text-xs font-bold text-gray-700 dark:text-white mb-1 block">📜 뉴스 스타일
                                 프롬프트</label>
                             <textarea id="promptNews" class="input-field w-full text-xs" rows="2"
                                 placeholder="뉴스 톤앤매너 지침..."></textarea>

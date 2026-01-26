@@ -2,7 +2,7 @@
 
 {% block content %}
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@700;800&family=Jua&family=Do+Hyeon&family=Black+Han+Sans&display=swap');
 
     @font-face {
         font-family: 'CookieRun-Regular';
@@ -12,6 +12,56 @@
     @font-face {
         font-family: 'GmarketSansBold';
         src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/GmarketSansBold.woff') format('woff');
+    }
+
+    @font-face {
+        font-family: 'TmonMonsori';
+        src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_two@1.0/TmonMonsori.woff') format('woff');
+    }
+
+    @font-face {
+        font-family: 'Jalnan';
+        src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_four@1.0/Jalnan.woff') format('woff');
+    }
+
+    @font-face {
+        font-family: 'Pretendard-Bold';
+        src: url('https://fastly.jsdelivr.net/gh/Project-Noonnu/noonfonts_2107@1.1/Pretendard-Bold.woff') format('woff');
+    }
+
+    @font-face {
+        font-family: 'NanumSquareExtraBold';
+        src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_seven@1.1/NanumSquareExtraBold.woff') format('woff');
+    }
+
+    @font-face {
+        font-family: 'BinggraeMelona-Bold';
+        src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_twelve@1.1/BinggraeMelona-Bold.woff') format('woff');
+    }
+
+    @font-face {
+        font-family: 'NetmarbleB';
+        src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_four@1.0/netmarbleB.woff') format('woff');
+    }
+
+    @font-face {
+        font-family: 'ChosunIlboMyungjo';
+        src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_one@1.0/ChosunIlboMyungjo.woff') format('woff');
+    }
+
+    @font-face {
+        font-family: 'MapoFlowerIsland';
+        src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/MapoFlowerIsland.woff') format('woff');
+    }
+
+    @font-face {
+        font-family: 'S-CoreDream-6Bold';
+        src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_six@1.2/S-CoreDream-6Bold.woff') format('woff');
+    }
+
+    @font-face {
+        font-family: 'Gungsuh';
+        src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_one@1.0/Gungsuh.woff') format('woff');
     }
 
     .custom-scrollbar::-webkit-scrollbar {
@@ -51,18 +101,39 @@
             <span class="text-xs font-bold text-gray-700 dark:text-gray-300">서체</span>
             <select id="fontFamilySelect" class="input-compact w-24">
                 <option value="GmarketSansBold" selected>G마켓산스</option>
-                <option value="Malgun Gothic">맑은고딕</option>
-                <option value="CookieRun">쿠키런</option>
-                <option value="NanumMyeongjo">나눔명조</option>
+                <option value="TmonMonsori">티몬몬소리</option>
+                <option value="Jalnan">여가잘난체</option>
                 <option value="Black Han Sans">검은고딕</option>
+                <option value="Pretendard-Bold">프리텐다드</option>
+                <option value="NanumSquareExtraBold">나눔스퀘어</option>
+                <option value="Jua">배민 주아</option>
+                <option value="Do Hyeon">배민 도현</option>
+                <option value="CookieRun-Regular">쿠키런</option>
+                <option value="BinggraeMelona-Bold">빙그레체</option>
+                <option value="NetmarbleB">넷마블체</option>
+                <option value="ChosunIlboMyungjo">조선일보명조</option>
+                <option value="MapoFlowerIsland">마포꽃섬</option>
+                <option value="S-CoreDream-6Bold">에스코어드림</option>
+                <option value="Gungsuh">궁서체</option>
+                <option value="NanumMyeongjo">나눔명조</option>
+                <option value="Malgun Gothic">맑은고딕</option>
             </select>
-            <!-- 폰트 크기 (비율 기반) -->
-            <div class="flex items-center gap-1">
-                <input type="number" id="fontSizeSlider" value="5.4" min="3.0" max="7.0" step="0.1"
-                    class="input-compact w-16 text-center text-white bg-gray-700 font-bold"
-                    title="영상 높이의 % (3.0 ~ 7.0)">
-                <span class="text-xs font-bold text-gray-400">%</span>
-                <span id="fontSizeValue" class="hidden">5.4%</span> <!-- Hidden to prevent JS crash -->
+            <!-- 폰트 크기 -->
+            <div class="flex flex-col items-center gap-0">
+                <span class="text-[10px] font-bold text-gray-400">크기</span>
+                <div class="flex items-center gap-1">
+                    <input type="number" id="fontSizeSlider" value="5.4" min="1" max="20" step="0.1"
+                        class="input-compact w-14 text-center text-xs text-white bg-gray-700" title="폰트 크기 (%)">
+                    <span class="text-[10px] text-gray-400">%</span>
+                </div>
+                <span id="fontSizeValue" class="hidden">5.4%</span>
+            </div>
+
+            <!-- 줄간격 -->
+            <div class="flex flex-col items-center gap-0">
+                <span class="text-[10px] font-bold text-gray-400">줄간격</span>
+                <input type="number" id="lineSpacingInput" value="0.1" min="-0.5" max="1.5" step="0.05"
+                    class="input-compact w-14 text-center text-xs text-white bg-gray-700" title="줄간격 비율">
             </div>
         </div>
 
@@ -72,30 +143,46 @@
             <div class="flex flex-col items-center">
                 <input type="color" id="textColorInput" value="#ffffff"
                     class="w-6 h-4 p-0 border-0 rounded cursor-pointer" title="글자색">
-                <span class="text-[10px] text-gray-400">Main</span>
+                <span class="text-[10px] text-gray-400">글자</span>
             </div>
             <div class="flex flex-col items-center">
                 <input type="color" id="strokeColorInput" value="#000000"
                     class="w-6 h-4 p-0 border-0 rounded cursor-pointer" title="테두리색">
-                <span class="text-[10px] text-gray-400">Line</span>
-            </div>
-            <div class="flex items-center gap-1">
-                <input type="number" id="strokeWidthSlider" min="0.0" max="20.0" step="0.1" value="0.1"
-                    class="input-compact w-16 text-center text-white bg-gray-700 font-bold" title="테두리 두께 (px)">
-                <span class="text-xs font-bold text-gray-400">px</span>
-                <span id="strokeWidthValue" class="hidden">0.1</span> <!-- Hidden to prevent JS crash -->
+                <span class="text-[10px] text-gray-400">테두리</span>
             </div>
         </div>
 
-        <!-- Background Strip Toggle -->
+        <!-- Stroke Width (Reverted to numeric) -->
         <div class="flex flex-col items-center gap-1 border-r border-gray-200 dark:border-gray-600 px-2">
-            <span class="text-xs font-bold text-gray-700 dark:text-gray-300">배경띠</span>
-            <label class="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" id="bgStripToggle" class="sr-only peer" checked onchange="updateBgStrip(this)">
-                <div
-                    class="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600">
-                </div>
-            </label>
+            <span class="text-xs font-bold text-gray-700 dark:text-gray-300">테두리두께</span>
+            <div class="flex items-center gap-1">
+                <input type="number" id="strokeWidthInput" value="0" min="0" max="15" step="0.5"
+                    class="input-compact w-12 text-center text-xs text-white bg-gray-700" title="테두리 두께 (px)">
+                <span class="text-[10px] text-gray-400">px</span>
+            </div>
+        </div>
+
+        <!-- Background Strip Settings -->
+        <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 px-2">
+            <div class="flex flex-col items-center gap-1">
+                <span class="text-xs font-bold text-gray-700 dark:text-gray-300">배경띠</span>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="bgStripToggle" class="sr-only peer" onchange="updateBgStrip(this)">
+                    <div
+                        class="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600">
+                    </div>
+                </label>
+            </div>
+            <div class="flex flex-col items-center">
+                <input type="color" id="bgColorInput" value="#000000"
+                    class="w-6 h-4 p-0 border-0 rounded cursor-pointer" title="배경색">
+                <span class="text-[10px] text-gray-400">배경색</span>
+            </div>
+            <div class="flex flex-col items-center gap-0">
+                <span class="text-[10px] font-bold text-gray-400">투명도</span>
+                <input type="number" id="bgOpacityInput" value="0.5" min="0" max="1" step="0.1"
+                    class="input-compact w-12 text-center text-xs text-white bg-gray-700" title="배경 투명도 (0~1)">
+            </div>
         </div>
 
         <!-- Presets -->
@@ -350,9 +437,9 @@
         if (subtitles.length === 0) {
             list.innerHTML = `
                 <div class='flex flex-col items-center justify-center h-40 text-gray-400 gap-3'>
-                    <p class="text-xs">자막영상?놁뒿니다.</p>
+                    <p class="text-xs">자막이 없습니다.</p>
                     <button onclick="generateSubtitles()" class="btn-primary py-1.5 px-4 text-xs">
-                        ?쨼 AI 자막 생성 (?먮룞)
+                        ✨ AI 자막 생성 (자동)
                     </button>
                 </div>`;
             return;
@@ -765,33 +852,36 @@
         const text = document.getElementById('previewTextMain');
         if (!text) return;
 
-        const font = document.getElementById('fontFamilySelect').value;
-        const fontSizePercent = parseFloat(document.getElementById('fontSizeSlider').value); // 비율
-        const color = document.getElementById('textColorInput').value;
-        const strokeColor = document.getElementById('strokeColorInput').value;
-        const strokeWidth = document.getElementById('strokeWidthSlider').value;
+        const fontEl = document.getElementById('fontFamilySelect');
+        const sizeEl = document.getElementById('fontSizeSlider');
+        const colorEl = document.getElementById('textColorInput');
+        const strokeColorEl = document.getElementById('strokeColorInput');
+        const strokeWidthEl = document.getElementById('strokeWidthInput');
 
-        // [CHANGED] 비율 기반 폰트 크기 계산
+        if (!fontEl || !sizeEl || !colorEl || !strokeColorEl || !strokeWidthEl) {
+            console.warn('One or more preview controls missing from DOM');
+            return;
+        }
+
+        const font = fontEl.value;
+        const fontSizePercent = parseFloat(sizeEl.value || 5.4);
+        const color = colorEl.value;
+        const strokeColor = strokeColorEl.value;
+        const strokeWidth = parseFloat(strokeWidthEl.value || 0);
+
         const previewBox = document.getElementById('mainPreviewBox');
-        const previewContainer = document.getElementById('previewContainer'); // 실제 이미지 영역
+        const previewContainer = document.getElementById('previewContainer');
         if (!previewBox || !previewContainer) return;
 
-        // 현재 aspect ratio에서 영상 높이 계산
         const aspectRatio = styleSettings.aspect_ratio || '9:16';
         const [w, h] = aspectRatio.split(':').map(Number);
-        const imageWidth = previewContainer.clientWidth; // 실제 이미지 영역 너비
-        const videoHeight = (imageWidth * h) / w; // 실제 영상 높이
+        const imageWidth = previewContainer.clientWidth;
+        const videoHeight = (imageWidth * h) / w;
 
-        // 미리보기 창 높이 기준 스케일
         const previewHeight = previewBox.clientHeight;
         const scaleFactor = previewHeight / videoHeight;
 
-        // 비율값 → 실제 픽셀 (미리보기)
-        // [FIX] Apply 1.7x correction (tuned down from 1.8) and wider container
         const actualSize = Math.round(videoHeight * (fontSizePercent / 100) * scaleFactor * 1.7);
-
-        // [FIX] Increase container width to 98% to prevent unnecessary wrapping
-        // The actual video renderer uses almost full width with small padding
         const containerWidth = Math.round(imageWidth * 0.98);
 
         text.style.color = color;
@@ -799,21 +889,45 @@
         text.style.fontFamily = font;
         text.style.fontWeight = 'bold';
 
-        // [FIX] CSS text-stroke also expands from center (in + out)
-        // Double the stroke width, then use paint-order to overlay fill on top
-        // This makes stroke visible only on the outside
-        const doubledStroke = strokeWidth * 2;
-        text.style.webkitTextStroke = `${doubledStroke}px ${strokeColor}`;
-        text.style.paintOrder = 'stroke fill';  // Draw stroke first, then fill on top
-        text.style.webkitTextFillColor = color; // Ensure fill color is applied
-        text.style.width = containerWidth + 'px'; // 이미지 너비의 90%
+        // Stroke
+        const doubledStroke = strokeWidth * 2 * scaleFactor;
+        text.style.webkitTextStroke = strokeWidth > 0 ? `${doubledStroke}px ${strokeColor}` : '0';
+        text.style.paintOrder = 'stroke fill';
+        text.style.webkitTextFillColor = color;
+
+        text.style.width = containerWidth + 'px';
         text.style.maxWidth = containerWidth + 'px';
         text.style.wordWrap = 'break-word';
         text.style.whiteSpace = 'pre-wrap';
         text.style.textAlign = 'center';
         text.style.boxSizing = 'border-box';
 
-        console.log(`Preview: ${fontSizePercent}% of ${videoHeight}px = ${actualSize}px (scale: ${scaleFactor.toFixed(2)}), width: ${containerWidth}px`);;
+        // Background Strip
+        const bgToggle = document.getElementById('bgStripToggle');
+        const bgColorEl = document.getElementById('bgColorInput');
+        const bgOpacityEl = document.getElementById('bgOpacityInput');
+
+        if (bgToggle && bgColorEl && bgOpacityEl) {
+            if (bgToggle.checked) {
+                const bgColor = bgColorEl.value;
+                const bgOpacity = parseFloat(bgOpacityEl.value || 0.5);
+                const r = parseInt(bgColor.slice(1, 3), 16);
+                const g = parseInt(bgColor.slice(3, 5), 16);
+                const b = parseInt(bgColor.slice(5, 7), 16);
+                text.style.backgroundColor = `rgba(${r},${g},${b},${bgOpacity})`;
+                text.style.padding = '10px 0';
+            } else {
+                text.style.backgroundColor = 'transparent';
+                text.style.padding = '0';
+            }
+        }
+
+        // Line Spacing
+        const spacingEl = document.getElementById('lineSpacingInput');
+        if (spacingEl) {
+            const lineSpacing = parseFloat(spacingEl.value || 0.1);
+            text.style.lineHeight = (1 + lineSpacing).toString();
+        }
     }
 
     function setupStyleListeners() {
@@ -842,14 +956,26 @@
         const colorEl = document.getElementById('textColorInput');
         if (colorEl) colorEl.addEventListener('change', e => update('subtitle_base_color', e.target.value));
 
-        const strokeColorEl = document.getElementById('strokeColorInput');
-        if (strokeColorEl) strokeColorEl.addEventListener('change', e => update('subtitle_stroke_color', e.target.value));
+        const strokeWidthInput = document.getElementById('strokeWidthInput');
+        if (strokeWidthInput) {
+            strokeWidthInput.addEventListener('input', e => updateSubtitlePreview());
+            strokeWidthInput.addEventListener('change', e => update('subtitle_stroke_width', parseFloat(e.target.value || 0)));
+        }
 
-        const strokeWidthEl = document.getElementById('strokeWidthSlider');
-        if (strokeWidthEl) strokeWidthEl.addEventListener('input', e => {
-            document.getElementById('strokeWidthValue').textContent = e.target.value;
-            update('subtitle_stroke_width', parseFloat(e.target.value));
-        });
+        const lineSpacingInput = document.getElementById('lineSpacingInput');
+        if (lineSpacingInput) {
+            lineSpacingInput.addEventListener('input', e => updateSubtitlePreview());
+            lineSpacingInput.addEventListener('change', e => update('subtitle_line_spacing', parseFloat(e.target.value || 0.1)));
+        }
+
+        const bgColorInput = document.getElementById('bgColorInput');
+        if (bgColorInput) bgColorInput.addEventListener('change', e => update('subtitle_bg_color', e.target.value));
+
+        const bgOpacityInput = document.getElementById('bgOpacityInput');
+        if (bgOpacityInput) {
+            bgOpacityInput.addEventListener('input', e => updateSubtitlePreview());
+            bgOpacityInput.addEventListener('change', e => update('subtitle_bg_opacity', parseFloat(e.target.value || 0.5)));
+        }
 
         // Text Input Listener
         const textInput = document.getElementById('currentSubtitleText');
@@ -1619,11 +1745,15 @@
                 if (data.settings) {
                     styleSettings = {
                         font: data.settings.subtitle_font || 'GmarketSansBold',
-                        fontSize: data.settings.subtitle_font_size || 5.4, // [CHANGED] Default 5.4%
+                        fontSize: parseFloat(data.settings.subtitle_font_size || 5.4),
                         color: data.settings.subtitle_base_color || '#ffffff',
                         strokeColor: data.settings.subtitle_stroke_color || '#000000',
-                        strokeWidth: (data.settings.subtitle_stroke_width !== undefined) ? data.settings.subtitle_stroke_width : 0.1, // [CHANGED] Default 0.1px
-                        bgEnabled: (data.settings.subtitle_bg_enabled !== undefined) ? !!data.settings.subtitle_bg_enabled : true // Default True
+                        strokeWidth: parseFloat(data.settings.subtitle_stroke_width || 0),
+                        bgEnabled: parseInt(data.settings.subtitle_bg_enabled || 0) === 1,
+                        lineSpacing: parseFloat(data.settings.subtitle_line_spacing || 0.1),
+                        bgColor: data.settings.subtitle_bg_color || '#000000',
+                        bgOpacity: parseFloat(data.settings.subtitle_bg_opacity || 0.5),
+                        aspect_ratio: data.settings.aspect_ratio || '9:16'
                     };
 
                     // [NEW] Store App Mode for UI Logic
@@ -1644,17 +1774,20 @@
                     const colorEl = document.getElementById('textColorInput');
                     if (colorEl) colorEl.value = styleSettings.color;
 
-                    const strokeEl = document.getElementById('strokeColorInput');
-                    if (strokeEl) strokeEl.value = styleSettings.strokeColor;
-
-                    const widthEl = document.getElementById('strokeWidthSlider');
-                    if (widthEl) {
-                        widthEl.value = styleSettings.strokeWidth;
-                        document.getElementById('strokeWidthValue').textContent = styleSettings.strokeWidth;
-                    }
+                    const strokeWidthInput = document.getElementById('strokeWidthInput');
+                    if (strokeWidthInput) strokeWidthInput.value = styleSettings.strokeWidth;
 
                     const bgToggle = document.getElementById('bgStripToggle');
                     if (bgToggle) bgToggle.checked = styleSettings.bgEnabled;
+
+                    const spacingEl = document.getElementById('lineSpacingInput');
+                    if (spacingEl) spacingEl.value = styleSettings.lineSpacing;
+
+                    const bgColorEl = document.getElementById('bgColorInput');
+                    if (bgColorEl) bgColorEl.value = styleSettings.bgColor;
+
+                    const bgOpacityEl = document.getElementById('bgOpacityInput');
+                    if (bgOpacityEl) bgOpacityEl.value = styleSettings.bgOpacity;
 
                     // Position
                     if (data.settings.subtitle_pos_x && data.settings.subtitle_pos_y) {
@@ -1711,7 +1844,7 @@
             }
         } catch (e) {
             console.error(e);
-            Utils.showToast("?곗씠영상濡쒕뵫 실패: " + e.message, 'error');
+            Utils.showToast("데이터 로딩 실패: " + e.message, 'error');
         } finally {
 
         }
@@ -1736,42 +1869,21 @@
         return false;
     };
 
-    // Initialize
-    document.addEventListener('DOMContentLoaded', function () {
-        try {
-            // Safe Project ID Access
-            const pid = (typeof projectId !== 'undefined') ? projectId : "{{ project_id }}";
-            console.log("Page Loaded. ProjectId:", pid);
-            updateDebug("DOM Content Loaded. Starting Init...");
+    // Global Setting Handlers for HTML onchange
+    function updateBgStrip(el) {
+        if (!projectId) return;
+        const val = el.checked ? 1 : 0;
+        styleSettings.bgEnabled = !!el.checked;
+        API.project.updateSetting(projectId, 'subtitle_bg_enabled', val);
+        updateSubtitlePreview();
+    }
 
-            if (typeof loadProjectAndSubtitles === 'function') {
-                loadProjectAndSubtitles();
-            } else {
-                updateDebug("CRITICAL: loadProjectAndSubtitles function missing!");
-                console.error("loadProjectAndSubtitles function not found");
-            }
-
-            if (typeof setupStyleListeners === 'function') {
-                setupStyleListeners();
-            }
-
-            // [NEW] Update Background Strip Setting
-            function updateBgStrip(el) {
-                if (!projectId) return;
-                const val = el.checked ? 1 : 0;
-                // Save to DB
-                API.project.updateSetting(projectId, 'subtitle_bg_enabled', val);
-                updateSubtitlePreview(); // Update preview if needed (Requires logic in updateSubtitlePreview)
-            }
-
-            // Draggable Preview Text
-            const previewText = document.getElementById('previewTextMain');
-            if (previewText) makeDraggable(previewText);
-        } catch (e) {
-            updateDebug(`INIT CRASH: ${e.message}`);
-            console.error(e);
-        }
-    });
-
+    function updateStrokeToggle(el) {
+        // Redundant with numeric input, but keeping for compatibility if referenced
+        if (!projectId) return;
+        const val = el.checked ? 1 : 0;
+        API.project.updateSetting(projectId, 'subtitle_stroke_enabled', val);
+        updateSubtitlePreview();
+    }
 </script>
 {% endblock %}

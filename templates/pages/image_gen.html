@@ -21,25 +21,25 @@
                     <label class="cursor-pointer" id="ratio-16-9">
                         <input type="radio" name="aspectRatio" value="16:9" checked class="peer sr-only">
                         <div
-                            class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-gray-300 transition-all">
+                            class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-white transition-all">
                             16:9</div>
                     </label>
                     <label class="cursor-pointer" id="ratio-1-1">
                         <input type="radio" name="aspectRatio" value="1:1" class="peer sr-only">
                         <div
-                            class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-gray-300 transition-all">
+                            class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-white transition-all">
                             1:1</div>
                     </label>
                     <label class="cursor-pointer" id="ratio-9-16">
                         <input type="radio" name="aspectRatio" value="9:16" class="peer sr-only">
                         <div
-                            class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-gray-300 transition-all">
+                            class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-white transition-all">
                             9:16</div>
                     </label>
                     <label class="cursor-pointer" id="ratio-3-4">
                         <input type="radio" name="aspectRatio" value="3:4" class="peer sr-only">
                         <div
-                            class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-gray-300 transition-all">
+                            class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-white transition-all">
                             3:4</div>
                     </label>
                 </div>
@@ -98,7 +98,7 @@
                                 class="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                                 <input type="checkbox" id="useThumbnailCheck"
                                     class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" checked>
-                                <span class="text-xs font-medium text-gray-700 dark:text-gray-300">현재 썸네일 이미지를 주인공으로
+                                <span class="text-xs font-medium text-gray-700 dark:text-white">현재 썸네일 이미지를 주인공으로
                                     사용</span>
                             </label>
                         </div>
@@ -145,7 +145,7 @@
         </div>
 
         <div class="w-full mt-3">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">🌍 캐릭터/배경 일관성 프롬프트 (Global
+            <label class="block text-sm font-medium text-gray-700 dark:text-white mb-1">🌍 캐릭터/배경 일관성 프롬프트 (Global
                 Generated)</label>
             <textarea id="globalPrompt"
                 class="input-field w-full text-sm p-3 h-24 bg-yellow-50 dark:bg-yellow-900/10 border-yellow-200 dark:border-yellow-800 focus:border-yellow-400 focus:ring-yellow-400"
@@ -169,7 +169,7 @@
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="col-span-1 md:col-span-2">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">스타일 선택</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">스타일 선택</label>
             <input type="hidden" id="imageStyle" value="realistic">
 
             <!-- [Modified] Grid density increased to reduce thumbnail size (cols-3/6 -> cols-6/12) -->
@@ -183,7 +183,7 @@
                             onerror="this.style.display='none'">
                     </div>
                     <div class="p-2 text-center bg-white dark:bg-gray-800">
-                        <span class="text-xs font-bold block">사실적인</span>
+                        <span class="text-xs font-bold block dark:text-white">사실적인</span>
                         <span class="text-[10px] text-gray-500">Realistic</span>
                     </div>
                     <div
@@ -200,7 +200,7 @@
                             onerror="this.style.display='none'">
                     </div>
                     <div class="p-2 text-center bg-white dark:bg-gray-800">
-                        <span class="text-xs font-bold block">웹툰/다크</span>
+                        <span class="text-xs font-bold block dark:text-white">웹툰/다크</span>
                         <span class="text-[10px] text-gray-500">Webtoon</span>
                     </div>
                     <div
@@ -217,7 +217,7 @@
                             onerror="this.style.display='none'">
                     </div>
                     <div class="p-2 text-center bg-white dark:bg-gray-800">
-                        <span class="text-xs font-bold block">애니메이션</span>
+                        <span class="text-xs font-bold block dark:text-white">애니메이션</span>
                         <span class="text-[10px] text-gray-500">Anime</span>
                     </div>
                     <div
@@ -230,12 +230,27 @@
                     onclick="selectStyle('ghibli', this)" data-value="ghibli">
                     <div class="aspect-square bg-gray-200 overflow-hidden">
                         <img src="/static/img/styles/style_ghibli.png"
-                            class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
-                            onerror="this.style.display='none'">
+                            class="w-full h-full object-cover transition-transform duration-500 hover:scale-110">
                     </div>
                     <div class="p-2 text-center bg-white dark:bg-gray-800">
-                        <span class="text-xs font-bold block">지브리</span>
+                        <span class="text-xs font-bold block dark:text-white">지브리</span>
                         <span class="text-[10px] text-gray-500">Ghibli</span>
+                    </div>
+                    <div
+                        class="check-icon absolute top-2 right-2 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-sm opacity-0">
+                        ✓</div>
+                </div>
+
+                <!-- Wimpy Kid (New) -->
+                <div class="style-card relative cursor-pointer border-2 border-transparent hover:border-blue-300 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all"
+                    onclick="selectStyle('wimpy', this)" data-value="wimpy">
+                    <div class="aspect-square bg-gray-200 overflow-hidden">
+                        <img src="/static/img/styles/style_wimpy.png"
+                            class="w-full h-full object-cover transition-transform duration-500 hover:scale-110">
+                    </div>
+                    <div class="p-2 text-center bg-white dark:bg-gray-800">
+                        <span class="text-xs font-bold block dark:text-white">윔피키드</span>
+                        <span class="text-[10px] text-gray-500">Wimpy Kid</span>
                     </div>
                     <div
                         class="check-icon absolute top-2 right-2 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-sm opacity-0">
@@ -251,7 +266,7 @@
                             onerror="this.style.display='none'">
                     </div>
                     <div class="p-2 text-center bg-white dark:bg-gray-800">
-                        <span class="text-xs font-bold block">시네마틱</span>
+                        <span class="text-xs font-bold block dark:text-white">시네마틱</span>
                         <span class="text-[10px] text-gray-500">Cinematic</span>
                     </div>
                     <div
@@ -268,7 +283,7 @@
                             onerror="this.style.display='none'">
                     </div>
                     <div class="p-2 text-center bg-white dark:bg-gray-800">
-                        <span class="text-xs font-bold block">미니멀</span>
+                        <span class="text-xs font-bold block dark:text-white">미니멀</span>
                         <span class="text-[10px] text-gray-500">Minimal</span>
                     </div>
                     <div
@@ -285,7 +300,7 @@
                             onerror="this.style.display='none'">
                     </div>
                     <div class="p-2 text-center bg-white dark:bg-gray-800">
-                        <span class="text-xs font-bold block">3D 렌더</span>
+                        <span class="text-xs font-bold block dark:text-white">3D 렌더</span>
                         <span class="text-[10px] text-gray-500">3D/Pixar</span>
                     </div>
                     <div

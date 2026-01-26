@@ -461,11 +461,31 @@ class VideoService:
             f_color = s_settings.get("font_color", "white")
             f_name = s_settings.get("font", config.DEFAULT_FONT_PATH)
             s_style = s_settings.get("style_name", "Basic_White")
-            s_stroke_color = s_settings.get("subtitle_stroke_color")
-            s_stroke_width = s_settings.get("subtitle_stroke_width")
+            s_stroke_color = s_settings.get("stroke_color", "black") 
+            s_stroke_enabled = int(s_settings.get("subtitle_stroke_enabled", 0))
+            s_stroke_width = 3.0 # [CHANGED] Increased to 3.0 for clear visibility on 1080p
+            if not s_stroke_enabled:
+                s_stroke_width = 0.0
+            
+            # [LOG] Log the settings being used for the render
+            try:
+                with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
+                    df.write(f"[{datetime.datetime.now()}] RENDER_SETTINGS: font='{f_name}', color='{f_color}', style='{s_style}', stroke_color='{s_stroke_color}', stroke_enabled={s_stroke_enabled}, stroke_width={s_stroke_width}, bg_enabled={s_settings.get('bg_enabled')}\n")
+            except: pass
 
             for sub in subtitles:
                 try:
+                    # [NEW] Enhanced Background Logic
+                    bg_enabled = bool(int(s_settings.get("bg_enabled", 1)) == 1)
+                    final_bg = False
+                    if bg_enabled:
+                         hex_color = s_settings.get("bg_color", "#000000")
+                         opacity = float(s_settings.get("bg_opacity", 0.5))
+                         # Convert Hex to RGB then add Opacity
+                         hex_color = hex_color.lstrip('#')
+                         rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+                         final_bg = (*rgb, int(opacity * 255))
+
                     txt_img_path = self._create_subtitle_image(
                         text=sub["text"],
                         width=video.w,
@@ -475,7 +495,8 @@ class VideoService:
                         style_name=s_style,
                         stroke_color=s_stroke_color,
                         stroke_width=s_stroke_width,
-                        bg_color=(0, 0, 0, 128) if s_settings.get("bg_enabled") else None  # [NEW] Background strip option
+                        bg_color=final_bg,
+                        line_spacing_ratio=float(s_settings.get("line_spacing", 0.1))
                     )
                     
                     if txt_img_path:
@@ -1193,7 +1214,7 @@ class VideoService:
         }
     }
 
-    def _create_subtitle_image(self, text, width, font_size, font_color, font_name, style_name="Basic_White", stroke_color=None, stroke_width_ratio=None, stroke_width=None, bg_color=None):
+    def _create_subtitle_image(self, text, width, font_size, font_color, font_name, style_name="Basic_White", stroke_color=None, stroke_width_ratio=None, stroke_width=None, bg_color=None, line_spacing_ratio=0.1):
         from PIL import Image, ImageDraw, ImageFont
         import textwrap
         import platform
@@ -1220,39 +1241,53 @@ class VideoService:
         
         # [FIX] Stroke Width Priority: Explicit(px) > Explicit(Ratio) > Style(Ratio)
         if stroke_width is not None:
-             final_stroke_width = int(stroke_width)
+             final_stroke_width = float(stroke_width)
         else:
              ratio = stroke_width_ratio if stroke_width_ratio is not None else style.get("stroke_width_ratio", 0.1)
              final_stroke_width = max(1, int(font_size * ratio)) if ratio > 0 else 0
 
-        # [FIX] Allow bg_color override
-        bg_color = bg_color if bg_color is not None else style.get("bg_color", None)
+        # [FIX] Allow bg_color override (Support explicit False to disable)
+        if bg_color is False:
+             bg_color = None
+        elif bg_color is None:
+             bg_color = style.get("bg_color", None)
+        # else: use the passed bg_color (e.g. from main.py)
         
         # 폰트 로드
         font = None
         
         # 폰트 매핑 (UI 이름 -> 실제 파일명)
         font_mapping = {
-            "G 마켓 산스 (Bold)": "GmarketSansTTFBold.ttf",
-            "G마켓 산스 (Bold)": "GmarketSansTTFBold.ttf",
-            "Gmarket Sans (Bold)": "GmarketSansTTFBold.ttf",
+            "GmarketSans": "GmarketSansTTFBold.ttf", # Fallback
             "GmarketSansBold": "GmarketSansTTFBold.ttf",
-            "GmarketSansMedium": "GmarketSansTTFMedium.ttf",
-            "GmarketSansLight": "GmarketSansTTFLight.ttf",
             
             "나눔명조": "NanumMyeongjo.ttf",
             "NanumMyeongjo": "NanumMyeongjo.ttf",
             
-            "쿠키런 (Regular)": "CookieRun Regular.ttf",
-            "CookieRun Regular": "CookieRun Regular.ttf",
+            "쿠키런": "CookieRun Regular.ttf",
+            "CookieRun-Regular": "CookieRun Regular.ttf",
             
             "맑은 고딕": "malgun.ttf",
             "Malgun Gothic": "malgun.ttf",
-            "GmarketSans": "GmarketSansTTFBold.ttf", # Fallback
+
+            # [NEW] 추가 서체 매핑
+            "TmonMonsori": "TmonMonsori.ttf",
+            "Jalnan": "Jalnan.ttf",
+            "Pretendard-Bold": "Pretendard-Bold.ttf",
+            "NanumSquareExtraBold": "NanumSquareExtraBold.ttf",
+            "BinggraeMelona-Bold": "BinggraeMelona-Bold.ttf",
+            "NetmarbleB": "NetmarbleB.ttf",
+            "ChosunIlboMyungjo": "ChosunIlboMyungjo.ttf",
+            "MapoFlowerIsland": "MapoFlowerIsland.ttf",
+            "S-CoreDream-6Bold": "S-CoreDream-6Bold.ttf",
+            "Gungsuh": "batang.ttc",
+            "gungsuh": "batang.ttc",
+            "궁서": "batang.ttc",
+            "궁서체": "batang.ttc"
         }
         
         target_font_file = font_mapping.get(font_name, font_name)
-        if not target_font_file.lower().endswith(".ttf"):
+        if not target_font_file.lower().endswith((".ttf", ".ttc")):
             target_font_file += ".ttf"
 
         search_paths = [
@@ -1269,6 +1304,12 @@ class VideoService:
                 font_path = candidate
                 break
         
+        # [DEBUG] Font Path Logging
+        try:
+             with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
+                 df.write(f"[{datetime.datetime.now()}] FONT_DEBUG: target='{target_font_file}', found_path='{font_path}', search_paths={search_paths}\n")
+        except: pass
+        
         # G마켓 산스 없으면 malgunbd.ttf (굵은 고딕) 시도
         if not font_path and "Gmarket" in font_name:
              font_path = "C:/Windows/Fonts/malgunbd.ttf"
@@ -1279,10 +1320,36 @@ class VideoService:
              
         try:
             if font_path and os.path.exists(font_path):
-                font = ImageFont.truetype(font_path, font_size)
+                # [FIX] TTC Index Handling (Gungsuh is index 2 in batang.ttc)
+                idx = 0
+                if "batang.ttc" in font_path.lower() and ("gungsuh" in font_name.lower() or "궁서" in font_name):
+                    idx = 2
+                
+                log_msg = f"DEBUG_FONT: Loading '{font_name}' from '{font_path}' with index {idx}"
+                print(log_msg)
+                try:
+                    with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
+                        df.write(f"[{datetime.datetime.now()}] {log_msg}\n")
+                except: pass
+
+                font = ImageFont.truetype(font_path, font_size, index=idx)
+                
+                success_msg = f"DEBUG_FONT: Successfully loaded {font.getname()}"
+                print(success_msg)
+                try:
+                    with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
+                        df.write(f"[{datetime.datetime.now()}] {success_msg}\n")
+                except: pass
             else:
+                fail_msg = f"DEBUG_FONT: Font path not found for '{font_name}'. Falling back."
+                print(fail_msg)
+                try:
+                    with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
+                        df.write(f"[{datetime.datetime.now()}] {fail_msg}\n")
+                except: pass
                 font = ImageFont.truetype("arial.ttf", font_size)
-        except:
+        except Exception as e:
+             print(f"DEBUG_FONT: Font loading FAILED for '{font_name}': {e}")
              try:
                  font = ImageFont.load_default()
              except:
@@ -1390,7 +1457,7 @@ class VideoService:
              # Fallback
              line_height_font = font.getbbox('A')[3]
         
-        line_spacing = -int(line_height_font * 0.15) # [CHANGED] Negative spacing to truly tighten lines
+        line_spacing = int(line_height_font * line_spacing_ratio) # [FIX] Use user-controlled ratio (Default 0.1)
         
         # [FIX] Precision Vertical Alignment
         # Calculate background per line using actual text boundaries
@@ -1400,7 +1467,12 @@ class VideoService:
                 continue
                 
             # Measure Precise line dimensions using (0,0) as reference
-            s_width = int(final_stroke_width) if final_stroke_width > 0.5 else 0
+            # [FIX] Stroke width visibility logic
+            # Gungsuh and other fonts need different stroke scaling.
+            # Convert user 'px' to internal draw width. 
+            # If user set 0.4, and it's a 1080p video, 0.4 is too small.
+            # We enforce a floor for visibility.
+            s_width = int(max(1, round(final_stroke_width))) if final_stroke_width > 0.01 else 0
             l_bbox = draw.textbbox((0, 100), line, font=font, stroke_width=s_width)
             lw = l_bbox[2] - l_bbox[0]
             lh = l_bbox[3] - l_bbox[1]
@@ -1420,6 +1492,12 @@ class VideoService:
             
             # 2. Draw Text
             if s_width > 0:
+                # [DEBUG] Log actual draw parameters
+                try:
+                    with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
+                        df.write(f"[{datetime.datetime.now()}] DRAW_TEXT: '{line}', color='{final_font_color}', stroke='{stroke_color}', sw={s_width}, y={current_y}\n")
+                except: pass
+                
                 draw.text((line_x, current_y), line, font=font, fill=final_font_color, 
                           stroke_width=s_width, stroke_fill=stroke_color)
             else:
@@ -1479,7 +1557,8 @@ class VideoService:
                 font_name=font_name,
                 style_name=style_name,
                 stroke_color=stroke_color,
-                stroke_width=stroke_width
+                stroke_width=stroke_width,
+                bg_color=False # [FIX] Explicitly disable bg strip for preview by default
             )
             
             if sub_img_path and os.path.exists(sub_img_path):

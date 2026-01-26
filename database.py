@@ -426,6 +426,27 @@ def migrate_db():
     except sqlite3.OperationalError: pass
 
     # 마이그레이션: image_prompts 테이블에 script_start, script_end 추가
+    # [NEW] Subtitle Toggle Columns
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN subtitle_bg_enabled INTEGER DEFAULT 1")
+    except sqlite3.OperationalError: pass
+
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN subtitle_stroke_enabled INTEGER DEFAULT 0")
+    except sqlite3.OperationalError: pass
+
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN subtitle_line_spacing REAL DEFAULT 0.1")
+    except sqlite3.OperationalError: pass
+
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN subtitle_bg_color TEXT DEFAULT '#000000'")
+    except sqlite3.OperationalError: pass
+
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN subtitle_bg_opacity REAL DEFAULT 0.5")
+    except sqlite3.OperationalError: pass
+
     cursor.execute("PRAGMA table_info(image_prompts)")
     img_columns = [info[1] for info in cursor.fetchall()]
     
@@ -464,13 +485,15 @@ def create_project(name: str, topic: str = None) -> int:
     cursor.execute(
         """INSERT INTO project_settings 
            (project_id, title, voice_name, voice_language, voice_style_prompt,
-            subtitle_font, subtitle_font_size, subtitle_color, subtitle_style_enum, subtitle_stroke_color, subtitle_stroke_width) 
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            subtitle_font, subtitle_font_size, subtitle_color, subtitle_style_enum, subtitle_stroke_color, subtitle_stroke_width,
+            subtitle_bg_enabled, subtitle_stroke_enabled) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (project_id, name, defaults.get("voice_name", "Puck"), 
          defaults.get("language_code", "ko-KR"), defaults.get("style_prompt", ""),
          sub_defaults.get("subtitle_font"), sub_defaults.get("subtitle_font_size"),
          sub_defaults.get("subtitle_color"), sub_defaults.get("subtitle_style_enum"),
-         sub_defaults.get("subtitle_stroke_color"), sub_defaults.get("subtitle_stroke_width"))
+         sub_defaults.get("subtitle_stroke_color"), sub_defaults.get("subtitle_stroke_width"),
+         1, 0) # Default: BG ON, Stroke OFF
     )
 
     conn.commit()
@@ -1015,7 +1038,8 @@ def update_project_setting(project_id: int, key: str, value: Any):
                     'subtitle_font_size', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'youtube_video_id', 'is_published', 'background_video_url',
                     'character_ref_text', 'character_ref_image_path', 'script_style',
                     'subtitle_path', 'image_timings_path', 'timeline_images_path', 'image_effects_path', 'app_mode',
-                    'subtitle_base_color', 'subtitle_pos_y', 'subtitle_pos_x'] # [FIX] Added missing subtitle keys
+                    'subtitle_base_color', 'subtitle_pos_y', 'subtitle_pos_x', 'subtitle_bg_enabled', 'subtitle_stroke_enabled',
+                    'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity'] # [FIX] Added missing subtitle keys
 
 
     if key not in allowed_keys:

@@ -47,7 +47,7 @@
     }
 
     .dark .style-label {
-        color: #d1d5db;
+        color: #ffffff;
     }
 
     .style-card-thumb.active .style-label {
@@ -62,11 +62,11 @@
     <h3 class="font-bold text-gray-800 dark:text-white mb-4">1️⃣ 썸네일 아이디어 생성</h3>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">영상 주제</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">영상 주제</label>
             <input type="text" id="videoTitle" class="input-field" placeholder="예: 삼국지 최강의 무장 TOP 5">
         </div>
         <div class="md:col-span-2">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">스타일 선택</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-white mb-3">스타일 선택</label>
             <input type="hidden" id="thumbnailStyle" value="face">
             <div class="style-grid">
                 <div class="style-card-thumb active" onclick="selectThumbnailStyle('face')" data-style="face">
@@ -98,10 +98,20 @@
                     <img src="/static/img/thumbs/japanese_viral.png" alt="Japanese" loading="lazy">
                     <div class="style-label">시니어 롱폼</div>
                 </div>
+                <!-- [NEW] Ghibli Style -->
+                <div class="style-card-thumb" onclick="selectThumbnailStyle('ghibli')" data-style="ghibli">
+                    <img src="/static/img/thumbs/ghibli.png" alt="Ghibli" loading="lazy">
+                    <div class="style-label">지브리 감성</div>
+                </div>
+                <!-- [NEW] Wimpy Kid Style -->
+                <div class="style-card-thumb" onclick="selectThumbnailStyle('wimpy')" data-style="wimpy">
+                    <img src="/static/img/thumbs/wimpy.png" alt="Wimpy" loading="lazy">
+                    <div class="style-label">윔피키드 스타일</div>
+                </div>
             </div>
         </div>
         <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">색상 톤</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">색상 톤</label>
             <select id="colorTone" class="input-field">
                 <option value="vibrant">비비드 (채도 높음)</option>
                 <option value="warm">따뜻한 톤</option>
@@ -110,7 +120,7 @@
                 <option value="neon">네온</option>
             </select>
             <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">화면 비율</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">화면 비율</label>
                 <select id="aspectRatio" class="input-field" onchange="setAspectRatio(this.value, true)">
                     <option value="16:9">16:9 (유튜브 썸네일)</option>
                     <option value="9:16">9:16 (쇼츠/릴스)</option>
@@ -158,7 +168,7 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">텍스트 후보 (클릭해서
+                    <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">텍스트 후보 (클릭해서
                         선택)</label>
                     <div id="textCandidates" class="flex flex-wrap gap-2 mb-3"></div>
                 </div>
@@ -197,7 +207,7 @@
 
             <div class="space-y-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">썸네일 레이아웃 미리보기</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">썸네일 레이아웃 미리보기</label>
                     <div id="previewContainer"
                         class="bg-gray-100 dark:bg-gray-700 rounded-lg p-2 relative overflow-hidden flex items-center justify-center transition-all duration-300 max-h-[600px] mx-auto">
                         <canvas id="thumbnailCanvas" width="1280" height="720"
@@ -217,7 +227,7 @@
                 </div>
 
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">도형 레이어 (배경 위)</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">도형 레이어 (배경 위)</label>
                     <div id="shapeLayersContainer" class="space-y-4 mb-4"></div>
                     <button onclick="addShapeLayer()" class="btn-secondary w-full text-sm">
                         ➕ 도형 레이어 추가

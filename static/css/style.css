@@ -167,7 +167,7 @@
 
 .dark .btn-secondary {
     background: #374151;
-    color: #E5E7EB;
+    color: #ffffff;
 }
 
 .btn-secondary:hover:not(:disabled) {
@@ -207,7 +207,7 @@
 
 .dark .btn-tertiary:hover:not(:disabled) {
     background: #374151;
-    color: #E5E7EB;
+    color: #ffffff;
 }
 
 /* Danger Button */

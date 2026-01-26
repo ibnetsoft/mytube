@@ -73,6 +73,7 @@ class Config:
 
         # 런타임 업데이트
         setattr(cls, key_name, value)
+        os.environ[key_name] = value  # [ADD] 업기 위해 환경변수도 즉시 업데이트
 
         # .env 파일 업데이트
         env_path = os.path.join(cls.BASE_DIR, '.env')

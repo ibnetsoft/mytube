@@ -14,34 +14,35 @@ class ReplicateService:
             self.api_key = os.getenv("REPLICATE_API_TOKEN")
         return bool(self.api_key)
 
-    async def generate_video_from_image(self, image_path: str, prompt: str = None, motion_bucket_id: int = 127):
+    async def generate_video_from_image(self, image_path: str, prompt: str = "Cinematic video, high quality, smooth motion", motion_bucket_id: int = 127):
         """
-        Replicate의 stability-ai/stable-video-diffusion 모델을 사용하여 이미지 -> 비디오 생성
+        Replicate의 wan-video 모델을 사용하여 이미지 -> 비디오 생성
         """
         if not self.check_api_key():
             raise Exception("Replicate API Key is missing. Please set REPLICATE_API_TOKEN.")
 
         try:
-            # 1. 파일 업로드 또는 URL 준비
-            # Replicate는 URL 또는 파일 객체를 받음
+            # [NEW] Wan-Video 파라미터 구성
             input_data = {
-                "input_image": open(image_path, "rb"),
-                "motion_bucket_id": motion_bucket_id, # 1-255, higher = more motion
-                "cond_aug": 0.02,
-                "decoding_t": 7,
+                "image": open(image_path, "rb"),
+                "prompt": prompt,
+                "go_fast": True,
+                "num_frames": 81, # 81 frames for ~3.3s at 24fps
+                "resolution": "720p",
+                "sample_shift": 12,
+                "optimize_prompt": False,
                 "frames_per_second": 24
             }
 
-            # 비동기적으로 실행하고 싶지만 replicate python 클라이언트는 동기 호출이 기본
-            # run_in_executor로 감싸서 실행
+            # 비동기 실행 (run_in_executor)
             loop = asyncio.get_event_loop()
             output = await loop.run_in_executor(None, self._run_replicate, input_data)
             
-            # output is usually a list of URLs, e.g. ["https://...mp4"]
+            # Replicate (Wan-Video) output은 보통 URL 리스트 또는 File object
             if output:
-                video_url = output
+                video_url = output[0] if isinstance(output, list) else output
                 # 다운로드
-                return await self._download_video(video_url)
+                return await self._download_video(str(video_url))
             else:
                 raise Exception("No output from Replicate")
 
@@ -50,15 +51,19 @@ class ReplicateService:
             raise e
 
     def _run_replicate(self, input_data):
-        # Model: stability-ai/stable-video-diffusion:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b
-        # Or luma/ray? SVD is safer/cheaper standard.
+        # [NEW] 최신 Wan-Video 모델 적용
+        # wan-video/wan-2.1-i2v-720p 는 현재 가장 밸런스 좋은 모델
         return replicate.run(
-            "stability-ai/stable-video-diffusion:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b",
+            "wan-video/wan-2.1-i2v-720p",
             input=input_data
         )
 
     async def _download_video(self, url):
         """URL에서 비디오 다운로드 후 로컬 저장"""
+        # [FIX] URL이 File object인 경우 처리
+        if not url.startswith("http"):
+             return url # 아마도 실제 데이터일 수 있음
+
         async with aiohttp.ClientSession() as session:
             async with session.get(str(url)) as resp:
                 if resp.status == 200:

@@ -877,9 +877,9 @@ async def get_project_settings(project_id: int):
 async def update_project_setting(project_id: int, key: str, value: str):
     """단일 설정 업데이트"""
     # 숫자 변환
-    if key in ['duration_seconds', 'is_uploaded', 'subtitle_font_size']:
+    if key in ['duration_seconds', 'is_uploaded', 'subtitle_font_size', 'subtitle_bg_enabled', 'subtitle_stroke_enabled']:
         value = int(value)
-    elif key in ['subtitle_stroke_width']:
+    elif key in ['subtitle_stroke_width', 'subtitle_line_spacing', 'subtitle_bg_opacity']:
         value = float(value)
     result = db.update_project_setting(project_id, key, value)
     if not result:
@@ -1857,6 +1857,9 @@ async def save_api_keys(keys: dict = Body(...)):
              
         return {"status": "ok", "keys": config.get_api_keys_status()}
     except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"[API_KEY_SAVE_ERROR] {e}")
         return {"status": "error", "error": str(e)}
 
 @app.get("/api/health")
@@ -3071,7 +3074,8 @@ async def generate_image_prompts(req: PromptsGenerateRequest):
         "minimal": "Minimalist flat vector illustration, simple shapes, clean lines, white background",
         "3d": "3D render, Pixar style, soft studio lighting, octane render, 4k",
         "webtoon": "Oriental fantasy webtoon style illustration of a character in traditional clothing lying on a bed in a dark room, dramatic lighting, detailed line art, manhwa aesthetics, high quality",
-        "ghibli": "Studio Ghibli style, cel shaded, vibrant colors, lush background, Hayao Miyazaki style, highly detailed"
+        "ghibli": "Studio Ghibli style, cel shaded, vibrant colors, lush background, Hayao Miyazaki style, highly detailed",
+        "wimpy": "Diary of a Wimpy Kid style, simple black and white line drawing, hand-drawn sketch, minimalist stick figure illustration, white background, high quality"
     }
     
     # 선택된 스타일의 상세 프롬프트 가져오기 (없으면 입력값 그대로 사용)
@@ -3836,9 +3840,13 @@ async def render_project_video(
                         "style_name": s_settings.get("subtitle_style_enum", "Basic_White"),
                         "font_size": float(s_settings.get("subtitle_font_size", 5.4)),  # [CHANGED] 5.4% Default
                         "stroke_color": s_settings.get("subtitle_stroke_color", "black"),
-                        "stroke_width": float(s_settings.get("subtitle_stroke_width", 0.0)), # [CHANGED] 0px Default
-                        "position_y": s_settings.get("subtitle_pos_y"), # [FIX] Key match
-                        "bg_enabled": int(s_settings.get("subtitle_bg_enabled", 1)) # [NEW] Default 1 (True)
+                        "stroke_width": float(s_settings.get("subtitle_stroke_width") or 0.0), # [FIX] Handle None properly
+                        "subtitle_stroke_enabled": int(s_settings.get("subtitle_stroke_enabled", 0)), 
+                        "position_y": s_settings.get("subtitle_pos_y"), 
+                        "bg_enabled": int(s_settings.get("subtitle_bg_enabled", 1)),
+                        "line_spacing": float(s_settings.get("subtitle_line_spacing", 0.1)),
+                        "bg_color": s_settings.get("subtitle_bg_color", "#000000"),
+                        "bg_opacity": float(s_settings.get("subtitle_bg_opacity", 0.5))
                     }
                     print(f"DEBUG_RENDER: main.py prepared s_settings: {s_settings}") # [DEBUG] Logic Trace
 
@@ -4513,9 +4521,10 @@ async def save_subtitle(
         font_size = settings.get('subtitle_font_size', 10)
         style_enum = settings.get('subtitle_style_enum', 'Basic_White')
         font_name = settings.get('subtitle_font', config.DEFAULT_FONT_PATH)
-        font_color = settings.get('subtitle_color', 'white')
-        stroke_color = settings.get('subtitle_stroke_color')
-        stroke_width = settings.get('subtitle_stroke_width')
+        font_color = settings.get('subtitle_base_color', 'white') # [FIX] Key mismatch
+        stroke_color = settings.get('subtitle_stroke_color', 'black')
+        stroke_enabled = int(settings.get('subtitle_stroke_enabled', 0))
+        stroke_width = 1.5 if stroke_enabled else 0.0 # [FIX] Use toggle instead of slider
 
         # 각 자막에 대해 미리보기 생성
         updated_subtitles = []

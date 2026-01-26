@@ -619,3 +619,326 @@ AttributeError: module 'config' has no attribute 'DEFAULT_FONT_PATH'
 [2026-01-25 19:14:21.915881] Processing Image #3, Effect: zoom_in
 [2026-01-25 19:14:22.112830] Processing Image #4, Effect: zoom_out
 [2026-01-25 19:14:22.707909] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-25 22:13:52.515012] API get_subtitles(PID=28): num_img=5, num_sub=8, urls=5, ex_url=/output/브롤_20260125/p28_s1_1769346681.png
+[2026-01-25 22:16:03.477723] Starting Single-pass render for project 28
+[2026-01-25 22:16:03.477743] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-25 22:16:03.651616] DEBUG_RENDER: num_img=5, num_sub=8
+[2026-01-25 22:16:03.665250] p_settings(ID=28) found: True
+[2026-01-25 22:16:03.666929] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path']
+[2026-01-25 22:16:03.666954] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769346963.json
+[2026-01-25 22:16:03.675680] create_slideshow(PROJ=28) Effects: ['zoom_in', 'zoom_out', 'zoom_out', 'pan_left', 'pan_right']
+[2026-01-25 22:16:03.970702] Processing Image #1, Effect: zoom_in
+[2026-01-25 22:16:04.106216] Processing Image #2, Effect: zoom_out
+[2026-01-25 22:16:04.360477] Processing Image #3, Effect: zoom_out
+[2026-01-25 22:16:04.611741] Processing Image #4, Effect: pan_left
+[2026-01-25 22:16:04.864289] Processing Image #5, Effect: pan_right
+[2026-01-25 22:16:05.460484] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-25 22:26:40.323481] Starting Single-pass render for project 28
+[2026-01-25 22:26:40.323498] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-25 22:26:40.485586] DEBUG_RENDER: num_img=5, num_sub=8
+[2026-01-25 22:26:40.490521] p_settings(ID=28) found: True
+[2026-01-25 22:26:40.492313] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path']
+[2026-01-25 22:26:40.492337] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769347600.json
+[2026-01-25 22:26:40.494228] create_slideshow(PROJ=28) Effects: ['zoom_in', 'zoom_out', 'zoom_out', 'pan_left', 'pan_right']
+[2026-01-25 22:26:40.706397] Processing Image #1, Effect: zoom_in
+[2026-01-25 22:26:40.845108] Processing Image #2, Effect: zoom_out
+[2026-01-25 22:26:41.089712] Processing Image #3, Effect: zoom_out
+[2026-01-25 22:26:41.319007] Processing Image #4, Effect: pan_left
+[2026-01-25 22:26:41.577939] Processing Image #5, Effect: pan_right
+[2026-01-25 22:26:42.342952] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-25 22:36:06.811074] Starting Single-pass render for project 28
+[2026-01-25 22:36:06.811095] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-25 22:36:06.976015] DEBUG_RENDER: num_img=5, num_sub=8
+[2026-01-25 22:36:06.988120] p_settings(ID=28) found: True
+[2026-01-25 22:36:06.990115] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path']
+[2026-01-25 22:36:06.990137] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769348166.json
+[2026-01-25 22:36:06.998407] create_slideshow(PROJ=28) Effects: ['zoom_in', 'zoom_out', 'zoom_out', 'pan_left', 'pan_right']
+[2026-01-25 22:36:07.253116] Processing Image #1, Effect: zoom_in
+[2026-01-25 22:36:07.411506] Processing Image #2, Effect: zoom_out
+[2026-01-25 22:36:07.656620] Processing Image #3, Effect: zoom_out
+[2026-01-25 22:36:07.885029] Processing Image #4, Effect: pan_left
+[2026-01-25 22:36:08.112626] Processing Image #5, Effect: pan_right
+[2026-01-25 22:36:08.867385] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-25 22:42:44.650384] Starting Single-pass render for project 28
+[2026-01-25 22:42:44.650397] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-25 22:42:44.812626] DEBUG_RENDER: num_img=5, num_sub=8
+[2026-01-25 22:42:44.817549] p_settings(ID=28) found: True
+[2026-01-25 22:42:44.819207] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path']
+[2026-01-25 22:42:44.819226] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769348564.json
+[2026-01-25 22:42:44.820844] create_slideshow(PROJ=28) Effects: ['zoom_in', 'zoom_out', 'zoom_out', 'pan_left', 'pan_right']
+[2026-01-25 22:42:45.029734] Processing Image #1, Effect: zoom_in
+[2026-01-25 22:42:45.168113] Processing Image #2, Effect: zoom_out
+[2026-01-25 22:42:45.408106] Processing Image #3, Effect: zoom_out
+[2026-01-25 22:42:45.657225] Processing Image #4, Effect: pan_left
+[2026-01-25 22:42:45.887724] Processing Image #5, Effect: pan_right
+[2026-01-25 22:42:46.512738] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-25 23:01:13.427813] Starting Single-pass render for project 28
+[2026-01-25 23:01:13.427836] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-25 23:01:13.592183] DEBUG_RENDER: num_img=5, num_sub=8
+[2026-01-25 23:01:13.596427] p_settings(ID=28) found: True
+[2026-01-25 23:01:13.598422] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path']
+[2026-01-25 23:01:13.598445] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769349673.json
+[2026-01-25 23:01:13.600220] create_slideshow(PROJ=28) Effects: ['zoom_in', 'zoom_out', 'zoom_out', 'pan_left', 'pan_right']
+[2026-01-25 23:01:13.819298] Processing Image #1, Effect: zoom_in
+[2026-01-25 23:01:14.029466] Processing Image #2, Effect: zoom_out
+[2026-01-25 23:01:14.292049] Processing Image #3, Effect: zoom_out
+[2026-01-25 23:01:14.524310] Processing Image #4, Effect: pan_left
+[2026-01-25 23:01:14.734136] Processing Image #5, Effect: pan_right
+[2026-01-25 23:01:15.376525] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-25 23:14:22.256320] Starting Single-pass render for project 28
+[2026-01-25 23:14:22.256336] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-25 23:14:22.426389] DEBUG_RENDER: num_img=5, num_sub=8
+[2026-01-25 23:14:22.438929] p_settings(ID=28) found: True
+[2026-01-25 23:14:22.440678] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path']
+[2026-01-25 23:14:22.440698] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769350462.json
+[2026-01-25 23:14:22.448542] create_slideshow(PROJ=28) Effects: ['zoom_in', 'zoom_out', 'zoom_out', 'pan_left', 'pan_right']
+[2026-01-25 23:14:22.681078] Processing Image #1, Effect: zoom_in
+[2026-01-25 23:14:22.833846] Processing Image #2, Effect: zoom_out
+[2026-01-25 23:14:23.086059] Processing Image #3, Effect: zoom_out
+[2026-01-25 23:14:23.311523] Processing Image #4, Effect: pan_left
+[2026-01-25 23:14:23.528950] Processing Image #5, Effect: pan_right
+[2026-01-25 23:14:23.847871] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-25 23:29:13.326158] Starting Single-pass render for project 28
+[2026-01-25 23:29:13.326171] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-25 23:29:13.504679] DEBUG_RENDER: num_img=5, num_sub=8
+[2026-01-25 23:29:13.508875] p_settings(ID=28) found: True
+[2026-01-25 23:29:13.511024] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path']
+[2026-01-25 23:29:13.511064] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769351353.json
+[2026-01-25 23:29:13.513011] create_slideshow(PROJ=28) Effects: ['zoom_in', 'zoom_out', 'zoom_out', 'pan_left', 'pan_right']
+[2026-01-25 23:29:13.784573] Processing Image #1, Effect: zoom_in
+[2026-01-25 23:29:13.946638] Processing Image #2, Effect: zoom_out
+[2026-01-25 23:29:14.204541] Processing Image #3, Effect: zoom_out
+[2026-01-25 23:29:14.472928] Processing Image #4, Effect: pan_left
+[2026-01-25 23:29:14.711449] Processing Image #5, Effect: pan_right
+[2026-01-25 23:29:15.430989] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-26 12:38:57.714245] Starting Single-pass render for project 28
+[2026-01-26 12:38:57.714262] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-26 12:38:58.584676] DEBUG_RENDER: num_img=5, num_sub=8
+[2026-01-26 12:38:58.589101] p_settings(ID=28) found: True
+[2026-01-26 12:38:58.590789] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path']
+[2026-01-26 12:38:58.590807] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769398737.json
+[2026-01-26 12:38:58.595688] create_slideshow(PROJ=28) Effects: ['zoom_in', 'zoom_out', 'zoom_out', 'pan_left', 'pan_right']
+[2026-01-26 12:38:59.058497] Processing Image #1, Effect: zoom_in
+[2026-01-26 12:38:59.201107] Processing Image #2, Effect: zoom_out
+[2026-01-26 12:38:59.430968] Processing Image #3, Effect: zoom_out
+[2026-01-26 12:38:59.651508] Processing Image #4, Effect: pan_left
+[2026-01-26 12:38:59.866241] Processing Image #5, Effect: pan_right
+[2026-01-26 12:39:00.526508] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-26 12:47:28.002154] Starting Single-pass render for project 28
+[2026-01-26 12:47:28.002171] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-26 12:47:28.149677] DEBUG_RENDER: num_img=5, num_sub=8
+[2026-01-26 12:47:28.153636] p_settings(ID=28) found: True
+[2026-01-26 12:47:28.155157] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path']
+[2026-01-26 12:47:28.155177] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769399247.json
+[2026-01-26 12:47:28.156692] create_slideshow(PROJ=28) Effects: ['zoom_in', 'zoom_out', 'zoom_out', 'pan_left', 'pan_right']
+[2026-01-26 12:47:28.368990] Processing Image #1, Effect: zoom_in
+[2026-01-26 12:47:28.510635] Processing Image #2, Effect: zoom_out
+[2026-01-26 12:47:28.751062] Processing Image #3, Effect: zoom_out
+[2026-01-26 12:47:28.999595] Processing Image #4, Effect: pan_left
+[2026-01-26 12:47:29.229908] Processing Image #5, Effect: pan_right
+[2026-01-26 12:47:29.887197] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-26 13:12:50.126969] Starting Single-pass render for project 28
+[2026-01-26 13:12:50.126981] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-26 13:12:50.901391] DEBUG_RENDER: num_img=5, num_sub=8
+[2026-01-26 13:12:50.906244] p_settings(ID=28) found: True
+[2026-01-26 13:12:50.907864] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path']
+[2026-01-26 13:12:50.907889] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769400770.json
+[2026-01-26 13:12:50.909445] create_slideshow(PROJ=28) Effects: ['zoom_in', 'zoom_out', 'zoom_out', 'pan_left', 'pan_right']
+[2026-01-26 13:12:51.165370] Processing Image #1, Effect: zoom_in
+[2026-01-26 13:12:51.306548] Processing Image #2, Effect: zoom_out
+[2026-01-26 13:12:51.544621] Processing Image #3, Effect: zoom_out
+[2026-01-26 13:12:51.775367] Processing Image #4, Effect: pan_left
+[2026-01-26 13:12:51.987664] Processing Image #5, Effect: pan_right
+[2026-01-26 13:12:52.515317] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-26 13:29:57.597402] Starting Single-pass render for project 28
+[2026-01-26 13:29:57.597448] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-26 13:29:57.768873] DEBUG_RENDER: num_img=5, num_sub=8
+[2026-01-26 13:29:57.773317] p_settings(ID=28) found: True
+[2026-01-26 13:29:57.775043] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path']
+[2026-01-26 13:29:57.775062] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769401797.json
+[2026-01-26 13:29:57.776893] create_slideshow(PROJ=28) Effects: ['zoom_in', 'zoom_out', 'zoom_out', 'pan_left', 'pan_right']
+[2026-01-26 13:29:58.002450] Processing Image #1, Effect: zoom_in
+[2026-01-26 13:29:58.147019] Processing Image #2, Effect: zoom_out
+[2026-01-26 13:29:58.385037] Processing Image #3, Effect: zoom_out
+[2026-01-26 13:29:58.618155] Processing Image #4, Effect: pan_left
+[2026-01-26 13:29:58.833397] Processing Image #5, Effect: pan_right
+[2026-01-26 13:29:59.384716] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-26 13:40:43.527679] Starting Single-pass render for project 28
+[2026-01-26 13:40:43.527692] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-26 13:40:43.682141] DEBUG_RENDER: num_img=5, num_sub=8
+[2026-01-26 13:40:43.686565] p_settings(ID=28) found: True
+[2026-01-26 13:40:43.688167] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path']
+[2026-01-26 13:40:43.688184] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769402443.json
+[2026-01-26 13:40:43.689636] create_slideshow(PROJ=28) Effects: ['zoom_in', 'zoom_out', 'zoom_out', 'pan_left', 'pan_right']
+[2026-01-26 13:40:43.902340] Processing Image #1, Effect: zoom_in
+[2026-01-26 13:40:44.039761] Processing Image #2, Effect: zoom_out
+[2026-01-26 13:40:44.278376] Processing Image #3, Effect: zoom_out
+[2026-01-26 13:40:44.504675] Processing Image #4, Effect: pan_left
+[2026-01-26 13:40:44.713668] Processing Image #5, Effect: pan_right
+[2026-01-26 13:40:45.253636] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-26 13:46:39.276255] Starting Single-pass render for project 28
+[2026-01-26 13:46:39.276277] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-26 13:46:39.439931] DEBUG_RENDER: num_img=5, num_sub=8
+[2026-01-26 13:46:39.444952] p_settings(ID=28) found: True
+[2026-01-26 13:46:39.446730] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path']
+[2026-01-26 13:46:39.446749] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769402799.json
+[2026-01-26 13:46:39.448511] create_slideshow(PROJ=28) Effects: ['zoom_in', 'zoom_out', 'zoom_out', 'pan_left', 'pan_right']
+[2026-01-26 13:46:39.704165] Processing Image #1, Effect: zoom_in
+[2026-01-26 13:46:39.849812] Processing Image #2, Effect: zoom_out
+[2026-01-26 13:46:40.093905] Processing Image #3, Effect: zoom_out
+[2026-01-26 13:46:40.341955] Processing Image #4, Effect: pan_left
+[2026-01-26 13:46:40.576360] Processing Image #5, Effect: pan_right
+[2026-01-26 13:46:41.167435] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-26 13:51:03.478588] Starting Single-pass render for project 28
+[2026-01-26 13:51:03.478600] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-26 13:51:03.620033] DEBUG_RENDER: num_img=5, num_sub=8
+[2026-01-26 13:51:03.624062] p_settings(ID=28) found: True
+[2026-01-26 13:51:03.626178] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path']
+[2026-01-26 13:51:03.626201] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769403063.json
+[2026-01-26 13:51:03.627733] create_slideshow(PROJ=28) Effects: ['zoom_in', 'zoom_out', 'zoom_out', 'pan_left', 'pan_right']
+[2026-01-26 13:51:03.835667] Processing Image #1, Effect: zoom_in
+[2026-01-26 13:51:03.971253] Processing Image #2, Effect: zoom_out
+[2026-01-26 13:51:04.207728] Processing Image #3, Effect: zoom_out
+[2026-01-26 13:51:04.448115] Processing Image #4, Effect: pan_left
+[2026-01-26 13:51:04.669662] Processing Image #5, Effect: pan_right
+[2026-01-26 13:51:05.358496] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-26 13:56:13.323578] Starting Single-pass render for project 28
+[2026-01-26 13:56:13.323590] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-26 13:56:13.515819] DEBUG_RENDER: num_img=5, num_sub=8
+[2026-01-26 13:56:13.521440] p_settings(ID=28) found: True
+[2026-01-26 13:56:13.524098] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path']
+[2026-01-26 13:56:13.524132] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769403373.json
+[2026-01-26 13:56:13.526944] create_slideshow(PROJ=28) Effects: ['zoom_in', 'zoom_out', 'zoom_out', 'pan_left', 'pan_right']
+[2026-01-26 13:56:13.808596] Processing Image #1, Effect: zoom_in
+[2026-01-26 13:56:13.966249] Processing Image #2, Effect: zoom_out
+[2026-01-26 13:56:14.218754] Processing Image #3, Effect: zoom_out
+[2026-01-26 13:56:14.467307] Processing Image #4, Effect: pan_left
+[2026-01-26 13:56:14.695987] Processing Image #5, Effect: pan_right
+[2026-01-26 13:56:14.974558] RENDER_SETTINGS: font='Gungsuh', color='#00ff62', style='Custom', stroke_color='#000000', stroke_width=1.0, bg_enabled=1
+[2026-01-26 13:56:15.316291] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-26 14:02:17.066933] Starting Single-pass render for project 28
+[2026-01-26 14:02:17.066944] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-26 14:02:17.206719] DEBUG_RENDER: num_img=5, num_sub=8
+[2026-01-26 14:02:17.210666] p_settings(ID=28) found: True
+[2026-01-26 14:02:17.212203] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path']
+[2026-01-26 14:02:17.212220] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769403737.json
+[2026-01-26 14:02:17.213899] create_slideshow(PROJ=28) Effects: ['zoom_in', 'zoom_out', 'zoom_out', 'pan_left', 'pan_right']
+[2026-01-26 14:02:17.439869] Processing Image #1, Effect: zoom_in
+[2026-01-26 14:02:17.578377] Processing Image #2, Effect: zoom_out
+[2026-01-26 14:02:17.839535] Processing Image #3, Effect: zoom_out
+[2026-01-26 14:02:18.068312] Processing Image #4, Effect: pan_left
+[2026-01-26 14:02:18.276286] Processing Image #5, Effect: pan_right
+[2026-01-26 14:02:18.514544] RENDER_SETTINGS: font='Gungsuh', color='#00ff62', style='Custom', stroke_color='#000000', stroke_width=2.0, bg_enabled=1
+[2026-01-26 14:02:18.829270] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-26 14:16:25.222883] Starting Single-pass render for project 28
+[2026-01-26 14:16:25.222895] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-26 14:16:25.389627] DEBUG_RENDER: num_img=5, num_sub=8
+[2026-01-26 14:16:25.393902] p_settings(ID=28) found: True
+[2026-01-26 14:16:25.395746] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path']
+[2026-01-26 14:16:25.395774] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769404585.json
+[2026-01-26 14:16:25.397556] create_slideshow(PROJ=28) Effects: ['zoom_in', 'zoom_out', 'zoom_out', 'pan_left', 'pan_right']
+[2026-01-26 14:16:25.622922] Processing Image #1, Effect: zoom_in
+[2026-01-26 14:16:25.762926] Processing Image #2, Effect: zoom_out
+[2026-01-26 14:16:26.001575] Processing Image #3, Effect: zoom_out
+[2026-01-26 14:16:26.232865] Processing Image #4, Effect: pan_left
+[2026-01-26 14:16:26.491678] Processing Image #5, Effect: pan_right
+[2026-01-26 14:16:26.747770] RENDER_SETTINGS: font='Gungsuh', color='#ff00f7', style='Custom', stroke_color='#000000', stroke_width=2.0, bg_enabled=1
+[2026-01-26 14:16:27.079230] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-26 14:29:00.009107] Starting Single-pass render for project 28
+[2026-01-26 14:29:00.009126] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-26 14:29:00.163028] DEBUG_RENDER: num_img=5, num_sub=8
+[2026-01-26 14:29:00.167754] p_settings(ID=28) found: True
+[2026-01-26 14:29:00.169437] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path']
+[2026-01-26 14:29:00.169457] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769405339.json
+[2026-01-26 14:29:00.171120] create_slideshow(PROJ=28) Effects: ['zoom_in', 'zoom_out', 'zoom_out', 'pan_left', 'pan_right']
+[2026-01-26 14:29:00.400971] Processing Image #1, Effect: zoom_in
+[2026-01-26 14:29:00.538651] Processing Image #2, Effect: zoom_out
+[2026-01-26 14:29:00.780038] Processing Image #3, Effect: zoom_out
+[2026-01-26 14:29:01.017334] Processing Image #4, Effect: pan_left
+[2026-01-26 14:29:01.242653] Processing Image #5, Effect: pan_right
+[2026-01-26 14:29:01.504373] RENDER_SETTINGS: font='Gungsuh', color='#00d5ff', style='Custom', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-01-26 14:29:01.869005] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-26 15:00:14.142803] Starting Single-pass render for project 28
+[2026-01-26 15:00:14.142816] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-26 15:00:14.379571] DEBUG_RENDER: num_img=5, num_sub=8
+[2026-01-26 15:00:14.383629] p_settings(ID=28) found: True
+[2026-01-26 15:00:14.385655] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path', 'subtitle_bg_enabled', 'subtitle_stroke_enabled']
+[2026-01-26 15:00:14.385689] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769407214.json
+[2026-01-26 15:00:14.387496] create_slideshow(PROJ=28) Effects: ['zoom_in', 'zoom_out', 'zoom_out', 'pan_left', 'pan_right']
+[2026-01-26 15:00:14.678326] Processing Image #1, Effect: zoom_in
+[2026-01-26 15:00:14.821058] Processing Image #2, Effect: zoom_out
+[2026-01-26 15:00:15.058484] Processing Image #3, Effect: zoom_out
+[2026-01-26 15:00:15.320263] Processing Image #4, Effect: pan_left
+[2026-01-26 15:00:15.572963] Processing Image #5, Effect: pan_right
+[2026-01-26 15:00:15.845470] RENDER_SETTINGS: font='Gungsuh', color='#1100ff', style='Custom', stroke_color='#000000', stroke_enabled=1, stroke_width=1.6, bg_enabled=1
+[2026-01-26 15:00:16.277897] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-26 15:20:53.519188] Starting Single-pass render for project 28
+[2026-01-26 15:20:53.519204] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-26 15:20:53.666065] DEBUG_RENDER: num_img=5, num_sub=8
+[2026-01-26 15:20:53.670949] p_settings(ID=28) found: True
+[2026-01-26 15:20:53.672778] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path', 'subtitle_bg_enabled', 'subtitle_stroke_enabled']
+[2026-01-26 15:20:53.672801] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769408453.json
+[2026-01-26 15:20:53.674317] create_slideshow(PROJ=28) Effects: ['zoom_in', 'zoom_out', 'zoom_out', 'pan_left', 'pan_right']
+[2026-01-26 15:20:53.915540] Processing Image #1, Effect: zoom_in
+[2026-01-26 15:20:54.060639] Processing Image #2, Effect: zoom_out
+[2026-01-26 15:20:54.341355] Processing Image #3, Effect: zoom_out
+[2026-01-26 15:20:54.594289] Processing Image #4, Effect: pan_left
+[2026-01-26 15:20:54.813036] Processing Image #5, Effect: pan_right
+[2026-01-26 15:20:55.083652] RENDER_SETTINGS: font='Do Hyeon', color='#1100ff', style='Custom', stroke_color='#000000', stroke_enabled=1, stroke_width=3.0, bg_enabled=1
+[2026-01-26 15:20:55.441429] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-26 15:28:07.713339] Starting Single-pass render for project 28
+[2026-01-26 15:28:07.713350] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-26 15:28:07.878939] DEBUG_RENDER: num_img=5, num_sub=8
+[2026-01-26 15:28:07.884033] p_settings(ID=28) found: True
+[2026-01-26 15:28:07.885880] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path', 'subtitle_bg_enabled', 'subtitle_stroke_enabled']
+[2026-01-26 15:28:07.885905] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769408887.json
+[2026-01-26 15:28:07.887586] create_slideshow(PROJ=28) Effects: ['zoom_in', 'zoom_out', 'zoom_out', 'pan_left', 'pan_right']
+[2026-01-26 15:28:08.106498] Processing Image #1, Effect: zoom_in
+[2026-01-26 15:28:08.246921] Processing Image #2, Effect: zoom_out
+[2026-01-26 15:28:08.492490] Processing Image #3, Effect: zoom_out
+[2026-01-26 15:28:08.743060] Processing Image #4, Effect: pan_left
+[2026-01-26 15:28:08.961672] Processing Image #5, Effect: pan_right
+[2026-01-26 15:28:09.225095] RENDER_SETTINGS: font='Do Hyeon', color='#1100ff', style='Custom', stroke_color='#000000', stroke_enabled=1, stroke_width=3.0, bg_enabled=1
+[2026-01-26 15:28:09.572024] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-26 15:33:51.290775] Starting Single-pass render for project 28
+[2026-01-26 15:33:51.290785] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-26 15:33:51.430915] DEBUG_RENDER: num_img=5, num_sub=8
+[2026-01-26 15:33:51.435059] p_settings(ID=28) found: True
+[2026-01-26 15:33:51.436605] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path', 'subtitle_bg_enabled', 'subtitle_stroke_enabled']
+[2026-01-26 15:33:51.436622] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769409231.json
+[2026-01-26 15:33:51.438027] create_slideshow(PROJ=28) Effects: ['zoom_in', 'zoom_out', 'zoom_out', 'pan_left', 'pan_right']
+[2026-01-26 15:33:51.662308] Processing Image #1, Effect: zoom_in
+[2026-01-26 15:33:51.801011] Processing Image #2, Effect: zoom_out
+[2026-01-26 15:33:52.031953] Processing Image #3, Effect: zoom_out
+[2026-01-26 15:33:52.250585] Processing Image #4, Effect: pan_left
+[2026-01-26 15:33:52.456993] Processing Image #5, Effect: pan_right
+[2026-01-26 15:33:52.697148] RENDER_SETTINGS: font='CookieRun-Regular', color='#ffffff', style='Custom', stroke_color='#000000', stroke_enabled=1, stroke_width=3.0, bg_enabled=1
+[2026-01-26 15:33:53.060460] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-26 15:38:18.824200] Starting Single-pass render for project 28
+[2026-01-26 15:38:18.824215] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-26 15:38:18.992564] DEBUG_RENDER: num_img=5, num_sub=8
+[2026-01-26 15:38:18.996858] p_settings(ID=28) found: True
+[2026-01-26 15:38:18.998462] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path', 'subtitle_bg_enabled', 'subtitle_stroke_enabled']
+[2026-01-26 15:38:18.998485] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769409498.json
+[2026-01-26 15:38:19.000612] create_slideshow(PROJ=28) Effects: ['zoom_in', 'zoom_out', 'zoom_out', 'pan_left', 'pan_right']
+[2026-01-26 15:38:19.213463] Processing Image #1, Effect: zoom_in
+[2026-01-26 15:38:19.358921] Processing Image #2, Effect: zoom_out
+[2026-01-26 15:38:19.593595] Processing Image #3, Effect: zoom_out
+[2026-01-26 15:38:19.822587] Processing Image #4, Effect: pan_left
+[2026-01-26 15:38:20.055980] Processing Image #5, Effect: pan_right
+[2026-01-26 15:38:20.317549] RENDER_SETTINGS: font='GmarketSansBold', color='#ffffff', style='Custom', stroke_color='#000000', stroke_enabled=1, stroke_width=3.0, bg_enabled=1
+[2026-01-26 15:38:20.660493] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-26 15:57:01.731078] Starting Single-pass render for project 28
+[2026-01-26 15:57:01.731097] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-26 15:57:01.896184] DEBUG_RENDER: num_img=5, num_sub=8
+[2026-01-26 15:57:01.900865] p_settings(ID=28) found: True
+[2026-01-26 15:57:01.902387] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path', 'subtitle_bg_enabled', 'subtitle_stroke_enabled', 'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity']
+[2026-01-26 15:57:01.902405] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769410621.json
+[2026-01-26 15:57:01.903918] create_slideshow(PROJ=28) Effects: ['zoom_in', 'zoom_out', 'zoom_out', 'pan_left', 'pan_right']
+[2026-01-26 15:57:02.143347] Processing Image #1, Effect: zoom_in
+[2026-01-26 15:57:02.299529] Processing Image #2, Effect: zoom_out
+[2026-01-26 15:57:02.596150] Processing Image #3, Effect: zoom_out
+[2026-01-26 15:57:02.841670] Processing Image #4, Effect: pan_left
+[2026-01-26 15:57:03.075064] Processing Image #5, Effect: pan_right
+[2026-01-26 15:57:03.340417] RENDER_SETTINGS: font='GmarketSansBold', color='#ffffff', style='Custom', stroke_color='#000000', stroke_enabled=1, stroke_width=3.0, bg_enabled=1
+[2026-01-26 15:57:03.703336] calling writes_videofile code in video_service (720p safe mode)
