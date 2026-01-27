@@ -220,6 +220,10 @@
                 class="px-3 py-1 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded shadow transition flex items-center gap-1">
                 <span>AI 이미지 싱크 맞추기</span>
             </button>
+            <button onclick="saveStyleSettings(this)"
+                class="px-3 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded shadow transition flex items-center gap-1">
+                <span>💾 세팅저장</span>
+            </button>
             <button id="saveBtn" onclick="saveSubtitles()"
                 class="px-3 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded shadow transition flex items-center gap-1">
                 <span>저장</span>
@@ -571,6 +575,9 @@
                     ${index > 0 ? `<button onclick="event.stopPropagation(); moveImageStart(${imgIdx}, -1)" class="absolute -top-3 z-10 w-full h-4 bg-gray-200 hover:bg-blue-100 text-[9px] flex items-center justify-center rounded-t border border-b-0 border-gray-300 opacity-0 group-hover/thumb:opacity-100 transition-opacity" title="이전 자막부터 시작">▲</button>` : ''}
                     
                     ${assetHtml}
+
+                    <!-- [NEW] Delete Button -->
+                    <button onclick="event.stopPropagation(); deleteImageStart(${imgIdx})" class="absolute top-1 right-1 z-10 w-5 h-5 bg-red-500/80 hover:bg-red-600 text-white text-[10px] flex items-center justify-center rounded shadow-sm opacity-0 group-hover/thumb:opacity-100 transition-opacity" title="이 자막구간에서 이미지 삭제">✕</button>
                     
                     <div class="absolute bottom-0 right-0 bg-blue-500 text-white text-[9px] px-1 rounded-tl font-bold shadow-sm">${actualIndex + 1}</div>
 
@@ -1115,6 +1122,64 @@
         }
     }
 
+    // [NEW] Save Style Settings Bulk
+    async function saveStyleSettings(btn) {
+        if (!projectId) return;
+        const originalText = btn ? btn.innerHTML : "세팅저장";
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = `<span>🔄</span> 저장중...`;
+        }
+
+        try {
+            const font = document.getElementById('fontFamilySelect').value;
+            const fontSize = parseFloat(document.getElementById('fontSizeSlider').value);
+            const color = document.getElementById('textColorInput').value;
+            const strokeColor = document.getElementById('strokeColorInput').value;
+            const strokeWidth = parseFloat(document.getElementById('strokeWidthInput').value || 0);
+            const lineSpacing = parseFloat(document.getElementById('lineSpacingInput').value || 0.1);
+            const bgEnabled = document.getElementById('bgStripToggle').checked ? 1 : 0;
+            const bgColor = document.getElementById('bgColorInput').value;
+            const bgOpacity = parseFloat(document.getElementById('bgOpacityInput').value || 0.5);
+
+            // Get current positions
+            const preview = document.getElementById('previewTextMain');
+            const posX = preview ? preview.style.left : '50%';
+            const posY = preview ? preview.style.top : '75%';
+            const ratio = (document.getElementById('ratioToggleBtn').textContent.includes('9:16')) ? '9:16' : '16:9';
+
+            const settings = {
+                subtitle_font: font,
+                subtitle_font_size: fontSize,
+                subtitle_base_color: color,
+                subtitle_stroke_color: strokeColor,
+                subtitle_stroke_width: strokeWidth,
+                subtitle_line_spacing: lineSpacing,
+                subtitle_bg_enabled: bgEnabled,
+                subtitle_bg_color: bgColor,
+                subtitle_bg_opacity: bgOpacity,
+                subtitle_pos_x: posX,
+                subtitle_pos_y: posY,
+                aspect_ratio: ratio
+            };
+
+            const result = await API.project.saveSettings(projectId, settings);
+            if (result.status === 'ok') {
+                Utils.showToast("스타일 설정이 영구 저장되었습니다.", "success");
+            } else {
+                throw new Error(result.error || "Unknown Error");
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast("설정 저장 실패: " + e.message, "error");
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+    }
+
     // --- Action Functions ---
     async function saveSubtitles(isAutoSave = false) {
         const btn = document.getElementById('saveBtn');
@@ -1320,6 +1385,28 @@
         // User might expect auto-save or explicit save.
         // Let's rely on global Save button or enable auto save if consistent with other UI.
         // Current UI has explicit Save button for subtitles.
+    }
+
+    // [NEW] Delete Image Timing
+    function deleteImageStart(imgIdx) {
+        if (imgIdx < 0 || imgIdx >= imageTimings.length) return;
+
+        // Optionally prevent deleting the very first image at 0.0
+        // if (imgIdx === 0 && imageTimings[imgIdx] === 0) return Utils.showToast("첫 번째 이미지는 삭제할 수 없습니다.", "warning");
+
+        if (!confirm("이 자막구간에서 썸네일을 삭제하시겠습니까? (이전 이미지가 계속 표시됩니다)")) return;
+
+        // Remove from parallel arrays
+        imageTimings.splice(imgIdx, 1);
+        images.splice(imgIdx, 1);
+        if (imageEffects && imageEffects.length > imgIdx) {
+            imageEffects.splice(imgIdx, 1);
+        }
+
+        renderSubtitles();
+        renderImageStrip();
+        saveSubtitles();
+        Utils.showToast("이미지가 삭제되었습니다.", "success");
     }
 
     // [NEW] Move Image Boundary (Start Time)

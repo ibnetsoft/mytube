@@ -60,6 +60,10 @@
         </label>
 
         <!-- Generate Button -->
+        <button onclick="saveTTSSettings(this)"
+            class="px-3 py-1.5 text-xs bg-green-600 hover:bg-green-700 text-white rounded shadow transition flex items-center gap-1">
+            <span>💾 세팅저장</span>
+        </button>
         <button onclick="generateTTS()" id="generateBtn"
             class="btn-primary py-1.5 px-4 text-sm font-medium rounded-md shadow-sm hover:shadow active:scale-95 transition-all flex items-center gap-2 whitespace-nowrap">
             <span>🔊 생성하기</span>
@@ -91,6 +95,18 @@
                         <span class="text-sm">🔑</span>
                         <span id="apiStatusText" class="text-xs text-gray-500">API 상태 확인 중...</span>
                     </div>
+                </div>
+            </div>
+
+            <!-- Voice Preview Section -->
+            <div id="voicePreviewSection"
+                class="hidden bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm border-l-4 border-l-blue-400">
+                <div class="flex items-center justify-between mb-2">
+                    <h4 class="text-xs font-bold text-gray-700 dark:text-gray-300">🎙️ 목소리 미리듣기</h4>
+                    <span id="previewVoiceLabel" class="text-[10px] text-blue-600 font-bold"></span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <audio id="voicePreviewPlayer" controls class="w-full h-8 flex-1"></audio>
                 </div>
             </div>
 
@@ -193,18 +209,6 @@
         if (speedSlider && speedValue) {
             speedSlider.addEventListener('input', (e) => speedValue.textContent = e.target.value);
         }
-
-        // [NEW] App Mode Check for default speed
-        try {
-            const res = await fetch('/api/settings');
-            const settings = await res.json();
-            const mode = settings.app_mode || 'longform';
-            if (mode === 'shorts' && speedSlider && speedValue) {
-                speedSlider.value = 1.2;
-                speedValue.textContent = "1.2";
-                console.log("Shorts mode detected: TTS speed set to 1.2");
-            }
-        } catch (e) { console.error(e); }
     });
 
     // Script Status Check (Same logic as image_gen)
@@ -249,12 +253,19 @@
     // 단, HTML 구조가 바뀌었으므로 classList 제어 부분 확인 필요
 
     // 상태 복구 이벤트 수신
-    window.addEventListener('projectStateRestored', (e) => {
+    window.addEventListener('projectStateRestored', async (e) => {
         const data = e.detail;
-        if (data.script && data.script.full_script) {
-            Utils.storage.set('fullScript', { script: data.script.full_script });
+
+        // 1. Script Restoration
+        if (data.full_script && data.full_script.full_script) {
+            Utils.storage.set('fullScript', { script: data.full_script.full_script });
+            loadScript();
+        } else if (data.settings && data.settings.script) {
+            Utils.storage.set('fullScript', { script: data.settings.script });
             loadScript();
         }
+
+        // 2. Audio Result Restoration
         if (data.tts) {
             if (!data.tts.url && data.tts.audio_path) {
                 const path = data.tts.audio_path.replace(/\\/g, '/');
@@ -272,6 +283,42 @@
                 if (resultSec) resultSec.classList.remove('hidden');
             }
         }
+
+        // 3. TTS Settings Restoration (Voice, Provider, Speed)
+        if (data.settings) {
+            const settings = data.settings;
+            if (settings.voice_provider) {
+                const prov = document.getElementById('providerSelect');
+                if (prov) prov.value = settings.voice_provider;
+            }
+
+            // Load voices for the provider
+            await loadVoices();
+
+            if (settings.voice_name) {
+                const vs = document.getElementById('voiceSelect');
+                if (vs) vs.value = settings.voice_name;
+            }
+            if (settings.voice_speed) {
+                const speed = document.getElementById('audioSpeed');
+                const val = document.getElementById('speedValue');
+                if (speed) speed.value = settings.voice_speed;
+                if (val) val.textContent = settings.voice_speed;
+            }
+            if (settings.voice_multi_enabled !== undefined) {
+                const toggle = document.getElementById('multiVoiceToggle');
+                if (toggle) {
+                    toggle.checked = !!settings.voice_multi_enabled;
+                    // Restore mapping
+                    if (settings.voice_mapping_json) {
+                        try {
+                            characterVoiceMap = JSON.parse(settings.voice_mapping_json);
+                        } catch (e) { }
+                    }
+                    toggle.dispatchEvent(new Event('change'));
+                }
+            }
+        }
     });
 
     async function checkAPIStatus() {
@@ -284,8 +331,52 @@
         if (!msg) msg = '<span class="text-blue-600">✨ Gemini</span>';
 
         statusText.innerHTML = msg;
-        handleProviderChange();
+        // handleProviderChange(); // [MOD] Removed to avoid redundant calls, will be handled by restoreTTSSettings or default
     }
+
+    // [NEW] Save TTS Settings Bulk
+    async function saveTTSSettings(btn) {
+        const projectId = getCurrentProject();
+        if (!projectId) return;
+
+        const originalText = btn ? btn.innerHTML : "세팅저장";
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = `<span>🔄</span> 저장중...`;
+        }
+
+        try {
+            const provider = document.getElementById('providerSelect').value;
+            const voiceId = document.getElementById('voiceSelect').value;
+            const speed = parseFloat(document.getElementById('audioSpeed').value) || 1.0;
+            const isMultiVoice = document.getElementById('multiVoiceToggle').checked ? 1 : 0;
+
+            const settings = {
+                voice_provider: provider,
+                voice_name: voiceId,
+                voice_speed: speed,
+                voice_multi_enabled: isMultiVoice,
+                voice_mapping_json: JSON.stringify(characterVoiceMap)
+            };
+
+            const result = await API.project.saveSettings(projectId, settings);
+            if (result.status === 'ok') {
+                Utils.showToast("TTS 설정이 영구 저장되었습니다.", "success");
+            } else {
+                throw new Error(result.error || "Save failed");
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast("설정 저장 실패: " + e.message, "error");
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+    }
+
+    // [NEW] Restore TTS Settings
 
     // 전역 변수
     let detectedCharacters = new Set();
@@ -422,7 +513,11 @@
             } else {
                 // ElevenLabs
                 const result = await API.tts.getVoices();
-                if (result.voices) voices = result.voices.map(v => ({ id: v.voice_id, name: v.name }));
+                if (result.voices) voices = result.voices.map(v => ({
+                    id: v.voice_id,
+                    name: v.name,
+                    preview_url: v.preview_url
+                }));
             }
         } catch (e) {
             console.error(e);
@@ -435,7 +530,30 @@
             select.innerHTML = '<option value="">음성 없음</option>';
         }
 
+        // Add event listener for preview
+        select.onchange = handleVoiceChange;
+        handleVoiceChange();
+
         if (document.getElementById('multiVoiceToggle').checked) renderCharacterMapping();
+    }
+
+    function handleVoiceChange() {
+        const select = document.getElementById('voiceSelect');
+        const voiceId = select.value;
+        const voice = availableVoices.find(v => v.id === voiceId);
+        const previewSection = document.getElementById('voicePreviewSection');
+        const player = document.getElementById('voicePreviewPlayer');
+        const label = document.getElementById('previewVoiceLabel');
+
+        if (voice && voice.preview_url) {
+            previewSection.classList.remove('hidden');
+            player.src = voice.preview_url;
+            label.textContent = voice.name;
+        } else {
+            previewSection.classList.add('hidden');
+            player.src = '';
+            label.textContent = '';
+        }
     }
 
     async function loadScript() {

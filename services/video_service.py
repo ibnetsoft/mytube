@@ -27,7 +27,8 @@ class VideoService:
         background_video_url: Optional[str] = None,
         thumbnail_path: Optional[str] = None,  # [NEW] Baked-in Thumbnail
         fade_in_flags: Optional[List[bool]] = None,  # [NEW] Fade-in effect per image
-        image_effects: Optional[List[str]] = None   # [NEW] Ken Burns Effects
+        image_effects: Optional[List[str]] = None,   # [NEW] Ken Burns Effects
+        intro_video_path: Optional[str] = None   # [NEW] Intro Video Prepend
     ) -> str:
         """
         이미지 슬라이드쇼 영상 생성 (시네마틱 프레임 적용)
@@ -580,6 +581,40 @@ class VideoService:
             import datetime
             with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
                 f.write(f"[{datetime.datetime.now()}] calling writes_videofile code in video_service (720p safe mode)\n")
+
+            # [NEW] Prepend Intro Video
+            if intro_video_path and os.path.exists(intro_video_path):
+                print(f"DEBUG: Prepending Intro Video: {intro_video_path}")
+                try:
+                    intro_clip = VideoFileClip(intro_video_path)
+                    
+                    # Resize/Crop to match main video resolution
+                    target_w, target_h = resolution
+                    
+                    # Aspect Ratio Match
+                    if abs((intro_clip.w / intro_clip.h) - (target_w / target_h)) > 0.01:
+                        # Ratio mismatch -> Use _create_cinematic_frame logic but for video?
+                        # Simplest: Resize & Crop
+                        intro_ratio = intro_clip.w / intro_clip.h
+                        target_ratio = target_w / target_h
+                        
+                        if intro_ratio > target_ratio:
+                            intro_clip = intro_clip.resize(height=target_h)
+                        else:
+                            intro_clip = intro_clip.resize(width=target_w)
+                        
+                        # Center Crop
+                        intro_clip = intro_clip.crop(x1=intro_clip.w/2 - target_w/2, y1=intro_clip.h/2 - target_h/2, width=target_w, height=target_h)
+                    else:
+                        # Direct Resize
+                        intro_clip = intro_clip.resize(newsize=(target_w, target_h))
+                    
+                    # Concatenate [Intro] + [Main Video]
+                    video = concatenate_videoclips([intro_clip, video], method="compose")
+                    print(f"Intro Video successfully prepended. New total duration: {video.duration:.2f}s")
+                    
+                except Exception as e:
+                    print(f"Intro Video failed to prepend: {e}")
 
             # [FIX] Unique temp audio path to avoid conflicts/locks
             import uuid

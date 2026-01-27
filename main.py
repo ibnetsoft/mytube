@@ -113,6 +113,18 @@ async def startup_event():
 # Pydantic 모델
 # ===========================================
 
+# 스타일 매핑 
+STYLE_PROMPTS = {
+    "realistic": "A highly realistic photo, 8k resolution, highly detailed photography, standard view",
+    "anime": "Anime style illustration, vibrant colors, detailed background, Makoto Shinkai style",
+    "cinematic": "Cinematic movie shot, dramatic lighting, shadow and light depth, highly detailed, 4k",
+    "minimal": "Minimalist flat vector illustration, simple shapes, clean lines, white background",
+    "3d": "3D render, Pixar style, soft studio lighting, octane render, 4k",
+    "webtoon": "Oriental fantasy webtoon style illustration of a character in traditional clothing lying on a bed in a dark room, dramatic lighting, detailed line art, manhwa aesthetics, high quality",
+    "ghibli": "Studio Ghibli style, cel shaded, vibrant colors, lush background, Hayao Miyazaki style, highly detailed",
+    "wimpy": "Diary of a Wimpy Kid style, simple black and white line drawing, hand-drawn sketch, minimalist stick figure illustration, white background, high quality"
+}
+
 class SearchRequest(BaseModel):
     query: str
     max_results: int = 10
@@ -147,6 +159,10 @@ class ProjectCreate(BaseModel):
     name: str
     topic: Optional[str] = None
     target_language: Optional[str] = "ko"
+
+class StylePreset(BaseModel):
+    style_key: str
+    prompt_value: str
 
 class ProjectUpdate(BaseModel):
     name: Optional[str] = None
@@ -195,7 +211,6 @@ class ThumbnailsSave(BaseModel):
 
 class ShortsSave(BaseModel):
     shorts_data: List[dict]
-
 class ProjectSettingsSave(BaseModel):
     title: Optional[str] = None
     thumbnail_text: Optional[str] = None
@@ -209,6 +224,44 @@ class ProjectSettingsSave(BaseModel):
     video_path: Optional[str] = None
     is_uploaded: Optional[int] = None
     subtitle_style_enum: Optional[str] = None
+    image_style_prompt: Optional[str] = None
+    character_ref_text: Optional[str] = None
+    character_ref_image_path: Optional[str] = None
+    voice_name: Optional[str] = None
+    voice_language: Optional[str] = None
+    voice_style_prompt: Optional[str] = None
+    voice_provider: Optional[str] = None
+    voice_speed: Optional[float] = None
+    voice_multi_enabled: Optional[int] = None
+    voice_mapping_json: Optional[str] = None
+    app_mode: Optional[str] = None
+    # Subtitle specific
+    subtitle_font: Optional[str] = None
+    subtitle_color: Optional[str] = None
+    subtitle_font_size: Optional[float] = None
+    subtitle_stroke_color: Optional[str] = None
+    subtitle_stroke_width: Optional[float] = None
+    subtitle_position_y: Optional[str] = None
+    subtitle_base_color: Optional[str] = None
+    subtitle_pos_y: Optional[str] = None
+    subtitle_pos_x: Optional[str] = None
+    subtitle_bg_enabled: Optional[int] = None
+    subtitle_stroke_enabled: Optional[int] = None
+    subtitle_line_spacing: Optional[float] = None
+    subtitle_bg_color: Optional[str] = None
+    subtitle_bg_opacity: Optional[float] = None
+    # Project status
+    target_language: Optional[str] = None
+    youtube_video_id: Optional[str] = None
+    is_published: Optional[int] = None
+    background_video_url: Optional[str] = None
+    script_style: Optional[str] = None
+    # Paths
+    subtitle_path: Optional[str] = None
+    image_timings_path: Optional[str] = None
+    timeline_images_path: Optional[str] = None
+    image_effects_path: Optional[str] = None
+    intro_video_path: Optional[str] = None
 class ChannelCreate(BaseModel):
     name: str
     handle: str
@@ -221,10 +274,6 @@ class ChannelResponse(BaseModel):
     description: Optional[str]
     created_at: Any
     credentials_path: Optional[str] = None # credentials_path 추가
-
-    subtitle_stroke_width: Optional[float] = None
-    subtitle_position_y: Optional[int] = None
-    background_video_url: Optional[str] = None # 루프 동영상 배경 URL
 
 class SubtitleDefaultSave(BaseModel):
     subtitle_font: str
@@ -436,18 +485,6 @@ async def update_project(project_id: int, req: ProjectUpdate):
         db.update_project(project_id, **updates)
     return {"status": "ok"}
 
-@app.post("/api/projects/{project_id}/settings")
-async def save_project_settings(project_id: int, req: ProjectSettingsSave):
-    """프로젝트 상세 설정 (자막, 비디오 등) 저장"""
-    settings = req.dict(exclude_unset=True)
-    if not settings:
-         return {"status": "ok", "message": "No changes"}
-         
-    for key, value in settings.items():
-        # Enum to string conversion if needed
-        db.update_project_setting(project_id, key, value)
-        
-    return {"status": "ok", "message": "Settings saved"}
 
 @app.delete("/api/projects/{project_id}")
 async def delete_project(project_id: int):
@@ -902,9 +939,9 @@ async def save_intro_video(project_id: int, file: UploadFile = File(...)):
             f.write(content)
             
         # 4. DB 업데이트 (background_video_url 설정을 사용하여 인트로/배경으로 지정)
-        # video_path 설정이 있으면 렌더링 시 그게 우선될 수 있으므로, 여기서도 초기화하거나 
-        # 명시적으로 background_video_url을 업데이트
+        # intro_video_path에도 저장하여 렌더링 시 앞쪽에 자동 삽입되도록 함
         db.update_project_setting(project_id, 'background_video_url', web_url)
+        db.update_project_setting(project_id, 'intro_video_path', file_path)
         # video_path는 '생성된' 결과물일 수 있으므로 null로 리셋하여 업로드된 영상을 우선시하게 둠
         db.update_project_setting(project_id, 'video_path', None)
         
@@ -931,9 +968,13 @@ async def get_shorts(project_id: int):
 @app.post("/api/projects/{project_id}/settings")
 async def save_project_settings(project_id: int, req: ProjectSettingsSave):
     """프로젝트 핵심 설정 저장"""
-    settings = {k: v for k, v in req.dict().items() if v is not None}
-    db.save_project_settings(project_id, settings)
-    return {"status": "ok"}
+    try:
+        settings = {k: v for k, v in req.dict().items() if v is not None}
+        db.save_project_settings(project_id, settings)
+        return {"status": "ok", "message": "Settings saved"}
+    except Exception as e:
+        print(f"Settings Save Error: {e}")
+        return {"status": "error", "error": str(e)}
 
 @app.get("/api/projects/{project_id}/settings")
 async def get_project_settings(project_id: int):
@@ -944,9 +985,9 @@ async def get_project_settings(project_id: int):
 async def update_project_setting(project_id: int, key: str, value: str):
     """단일 설정 업데이트"""
     # 숫자 변환
-    if key in ['duration_seconds', 'is_uploaded', 'subtitle_font_size', 'subtitle_bg_enabled', 'subtitle_stroke_enabled']:
+    if key in ['duration_seconds', 'is_uploaded', 'subtitle_bg_enabled', 'subtitle_stroke_enabled']:
         value = int(value)
-    elif key in ['subtitle_stroke_width', 'subtitle_line_spacing', 'subtitle_bg_opacity']:
+    elif key in ['subtitle_font_size', 'subtitle_stroke_width', 'subtitle_line_spacing', 'subtitle_bg_opacity']:
         value = float(value)
     result = db.update_project_setting(project_id, key, value)
     if not result:
@@ -2044,9 +2085,9 @@ async def tts_voices():
                     data = response.json()
                     for v in data.get("voices", []):
                         voices.append({
-                            "provider": "elevenlabs",
                             "voice_id": v["voice_id"],
                             "name": v["name"],
+                            "preview_url": v.get("preview_url"),
                             "labels": v.get("labels", {})
                         })
         except:
@@ -2603,6 +2644,7 @@ class ThumbnailGenerateRequest(BaseModel):
 class ThumbnailBackgroundRequest(BaseModel):
     prompt: str
     aspect_ratio: Optional[str] = "16:9"  # [NEW] Aspect Ratio
+    thumbnail_style: Optional[str] = None # [NEW] Style Reference
 
 class ThumbnailGenerateRequest(BaseModel):
     prompt: str
@@ -2616,6 +2658,41 @@ class ThumbnailGenerateRequest(BaseModel):
     language: str = "ko"
     background_path: Optional[str] = None
     aspect_ratio: Optional[str] = "16:9"  # [NEW] Aspect Ratio
+
+
+@app.post("/api/settings/thumbnail-style-sample/{style_key}")
+async def upload_thumbnail_style_sample(style_key: str, file: UploadFile = File(...)):
+    """썸네일 스타일 샘플 이미지 업로드"""
+    try:
+        # 디렉토리 생성
+        save_dir = "static/thumbnail_samples"
+        os.makedirs(save_dir, exist_ok=True)
+        
+        # 파일 저장 (확장자 유지 또는 png로 통일)
+        # 여러 확장자 지원을 위해 파일명에 확장자 포함해서 저장 추천하지만,
+        # 읽을 때 편의를 위해 png로 변환하거나 style_key.* 로 검색해야 함.
+        # 편의상 저장된 파일명을 {style_key}.png 로 고정 (프론트에서 변환해주거나 여기서 변환)
+        # 여기서는 원본 확장자를 사용하되, 읽을때 glob으로 찾는 방식 사용
+        
+        ext = file.filename.split('.')[-1] if '.' in file.filename else 'png'
+        filename = f"{style_key}.{ext}" # 덮어쓰기
+        filepath = os.path.join(save_dir, filename)
+        
+        # 기존 다른 확장자 파일 삭제 (중복 방지)
+        for f in os.listdir(save_dir):
+            if f.startswith(f"{style_key}."):
+                try:
+                    os.remove(os.path.join(save_dir, f))
+                except: pass
+
+        with open(filepath, "wb") as f:
+            content = await file.read()
+            f.write(content)
+            
+        return {"status": "ok", "url": f"/{save_dir}/{filename}"}
+    except Exception as e:
+        print(f"Sample Upload Error: {e}")
+        return {"status": "error", "error": str(e)}
 
 @app.post("/api/thumbnail/generate-text")
 async def generate_thumbnail_text(req: ThumbnailTextRequest):
@@ -2651,7 +2728,27 @@ async def generate_thumbnail_text(req: ThumbnailTextRequest):
         )
         
         # 5. Gemini 호출
-        result = await gemini_service.generate_text(prompt, temperature=0.8)
+        
+        # [NEW] Check for Style Sample Image
+        sample_img_dir = "static/thumbnail_samples"
+        sample_img_bytes = None
+        
+        if os.path.exists(sample_img_dir):
+            for f in os.listdir(sample_img_dir):
+                if f.startswith(f"{req.thumbnail_style}."):
+                    try:
+                        with open(os.path.join(sample_img_dir, f), "rb") as img_f:
+                            sample_img_bytes = img_f.read()
+                        break
+                    except: pass
+        
+        if sample_img_bytes:
+             print(f"[{req.thumbnail_style}] Using sample image for text generation")
+             # Add context about image
+             prompt += "\n\n[IMPORTANT] The attached image is a STYLE REFERENCE. Ensure the generated hook texts match the visual mood and intensity of this image."
+             result = await gemini_service.generate_text_from_image(prompt, sample_img_bytes)
+        else:
+             result = await gemini_service.generate_text(prompt, temperature=0.8)
         
         # 6. JSON 파싱
         import json, re
@@ -2690,11 +2787,37 @@ async def generate_thumbnail_background(req: ThumbnailBackgroundRequest):
 
         # 1. Imagen 4로 배경 이미지 생성
         clean_prompt = req.prompt
+        
+        # [NEW] Check for Style Sample Image and Analyze if exists
+        style_desc = ""
+        if req.thumbnail_style:
+            sample_img_dir = "static/thumbnail_samples"
+            if os.path.exists(sample_img_dir):
+                for f in os.listdir(sample_img_dir):
+                    if f.startswith(req.thumbnail_style + '.'): # Exact match prefix
+                        try:
+                            with open(os.path.join(sample_img_dir, f), "rb") as img_f:
+                                sample_img_bytes = img_f.read()
+                            
+                            # Analyze style using Gemini Vision
+                            print(f"[{req.thumbnail_style}] Analyzing sample image style for background generation...")
+                            analyze_prompt = "Describe the visual style, lighting, color palette, and composition of this image in 5 keywords for AI image generation. format: style1, style2, style3, ..."
+                            style_desc = await gemini_service.generate_text_from_image(analyze_prompt, sample_img_bytes)
+                            print(f"[{req.thumbnail_style}] Style keywords: {style_desc}")
+                            break
+                        except Exception as e:
+                            print(f"Style analysis failed: {e}")
+                            pass
+
+        final_prompt_prefix = ""
+        if style_desc:
+            final_prompt_prefix = f"Style Reference Keywords: {style_desc}. "
+
         # negative_constraints 강화 (CJK 포함)
         negative_constraints = "text, words, letters, alphabet, typography, watermark, signature, speech bubble, logo, brand name, writing, caption, chinese characters, japanese kanji, korean hangul, hanzi"
         
         # 프롬프트 앞뒤로 강력한 부정 명령 배치
-        final_prompt = f"ABSOLUTELY NO TEXT. NO CHINESE/JAPANESE/KOREAN CHARACTERS. {clean_prompt}. Background image only. High quality, 8k, detailed, YouTube thumbnail background, empty background, no watermark. DO NOT INCLUDE: {negative_constraints}. INVISIBLE TEXT."
+        final_prompt = f"ABSOLUTELY NO TEXT. NO CHINESE/JAPANESE/KOREAN CHARACTERS. {final_prompt_prefix}{clean_prompt}. Background image only. High quality, 8k, detailed, YouTube thumbnail background, empty background, no watermark. DO NOT INCLUDE: {negative_constraints}. INVISIBLE TEXT."
 
         response = client.models.generate_images(
             model="imagen-4.0-generate-001",
@@ -3177,23 +3300,11 @@ async def generate_image_prompts(req: PromptsGenerateRequest):
     # [NEW] 이미지 개수 처리 로직
     if count > 0:
         count_instruction = f"- {count}개의 이미지 프롬프트를 생성하세요 (지정된 개수 준수)"
-    else:
-        count_instruction = "- 대본의 흐름과 내용을 분석하여 **자연스러운 장면 전환에 필요한 적절한 수**의 이미지 프롬프트를 생성하세요 (개수는 AI가 판단)"
-
-    # [NEW] 스타일 매핑 로직
-    style_prompts = {
-        "realistic": "A highly realistic photo, 8k resolution, highly detailed photography, standard view",
-        "anime": "Anime style illustration, vibrant colors, detailed background, Makoto Shinkai style",
-        "cinematic": "Cinematic movie shot, dramatic lighting, shallow depth of field, anamorphic lens",
-        "minimal": "Minimalist flat vector illustration, simple shapes, clean lines, white background",
-        "3d": "3D render, Pixar style, soft studio lighting, octane render, 4k",
-        "webtoon": "Oriental fantasy webtoon style illustration of a character in traditional clothing lying on a bed in a dark room, dramatic lighting, detailed line art, manhwa aesthetics, high quality",
-        "ghibli": "Studio Ghibli style, cel shaded, vibrant colors, lush background, Hayao Miyazaki style, highly detailed",
-        "wimpy": "Diary of a Wimpy Kid style, simple black and white line drawing, hand-drawn sketch, minimalist stick figure illustration, white background, high quality"
-    }
+    # [NEW] 이미지 스타일 프리셋 조회 (DB 우선)
+    db_presets = db.get_style_presets()
     
-    # 선택된 스타일의 상세 프롬프트 가져오기 (없으면 입력값 그대로 사용)
-    detailed_style = style_prompts.get(style.lower(), style)
+    # 선택된 스타일의 상세 프롬프트 가져오기
+    detailed_style = db_presets.get(style.lower()) or STYLE_PROMPTS.get(style.lower(), style)
 
     # [NEW] Character Consistency Logic
     char_instruction = ""
@@ -3279,6 +3390,48 @@ JSON만 반환하세요."""
         return {"raw": result["text"]}
 
     return result
+
+
+@app.post("/api/image/generate-character")
+async def generate_character_image(
+    prompt: str = Body(...),
+    project_id: int = Body(...),
+    style: str = Body("realistic")
+):
+    """캐릭터 이미지를 생성하고 저장 (Character Reference용)"""
+    try:
+        # [NEW] DB 스타일 프리셋 조회
+        db_presets = db.get_style_presets()
+        detailed_style = db_presets.get(style.lower()) or STYLE_PROMPTS.get(style.lower(), style)
+        
+        full_prompt = f"{prompt}, {detailed_style}"
+        
+        print(f"👤 [Char Generation] Style: {style}, Prompt: {prompt[:100]}...")
+
+        # 이미지 생성
+        images_bytes = await gemini_service.generate_image(
+            prompt=full_prompt,
+            num_images=1,
+            aspect_ratio="1:1"
+        )
+
+        if not images_bytes:
+            return {"status": "error", "error": "이미지 생성 실패 (Imagen API)"}
+        
+        output_dir, web_dir = get_project_output_dir(project_id)
+        filename = f"char_{project_id}_{int(datetime.datetime.now().timestamp())}.png"
+        file_path = os.path.join(output_dir, filename)
+        web_url = f"{web_dir}/{filename}"
+
+        with open(file_path, "wb") as f:
+            f.write(images_bytes[0])
+            
+        print(f"✅ [Char Generation] Saved to {web_url}")
+        return {"status": "ok", "url": web_url, "path": file_path}
+    except Exception as e:
+        print(f"❌ [Char Generation] Error: {e}")
+        return {"status": "error", "error": str(e)}
+
 
 
 @app.post("/api/image/generate")
@@ -3411,17 +3564,6 @@ async def update_project_setting_api(project_id: int, req: ProjectSettingUpdate)
     except Exception as e:
          return {"status": "error", "error": str(e)}
 
-@app.post("/api/projects/{project_id}/settings")
-async def save_project_settings_api(project_id: int, settings: Dict[str, Any] = Body(...)):
-    """프로젝트 설정 일괄 업데이트 (Bulk)"""
-    try:
-        # DB 저장 (Upsert or Update)
-        db.save_project_settings(project_id, settings)
-        return {"status": "ok", "message": "Settings saved"}
-    except Exception as e:
-        print(f"Settings Save Error: {e}")
-        return {"status": "error", "error": str(e)}
-
 # [REMOVED] Duplicate full endpoint (Merged to line 418)
 
 @app.get("/api/debug/dump_image_prompts/{project_id}")
@@ -3535,9 +3677,9 @@ async def upload_intro_video(
         cursor = conn.cursor()
         cursor.execute("""
             UPDATE project_settings 
-            SET intro_video_path = ?, background_video_url = ?, updated_at = CURRENT_TIMESTAMP
+            SET intro_video_path = ?, updated_at = CURRENT_TIMESTAMP
             WHERE project_id = ?
-        """, (str(intro_path), web_url, project_id))
+        """, (str(intro_path), project_id))
         conn.commit()
         conn.close()
         
@@ -4031,7 +4173,7 @@ async def render_project_video(
         final_output_filename = f"final_{project_id}_{now_kst.strftime('%Y%m%d_%H%M%S')}.mp4"
         final_output_path = os.path.join(output_dir, final_output_filename)
 
-        def render_executor_func(target_dir_arg, use_subtitles_arg, target_resolution_arg, bg_video_url_arg):
+        def render_executor_func(target_dir_arg, use_subtitles_arg, target_resolution_arg, bg_video_url_arg, intro_video_path_arg):
             # 몽키패치: MoviePy 구버전 호환성 해결
             import PIL.Image
             import datetime # [FIX] Ensure datetime is available locally to prevent UnboundLocalError
@@ -4292,6 +4434,7 @@ async def render_project_video(
                     duration_per_image=duration_per_image, # [FIX] Pass calculated durations
                     fade_in_flags=fade_in_flags,  # [NEW] Pass fade-in settings
                     image_effects=image_effects,  # [NEW] Pass Ken Burns effects
+                    intro_video_path=intro_video_path_arg, # [NEW] Pass Intro Video
                     project_id=project_id         # [FIX] Pass Project ID for logging
                 )
 
@@ -4334,8 +4477,10 @@ async def render_project_video(
         db.update_project(project_id, status="rendering")
         db.update_project_setting(project_id, "video_path", "")
 
-        # background_tasks.add_task(render_executor_func, output_dir)
-        background_tasks.add_task(render_executor_func, target_dir_arg=output_dir, use_subtitles_arg=request.use_subtitles, target_resolution_arg=target_resolution, bg_video_url_arg=bg_video_url)
+        # [NEW] Intro Video Path
+        intro_v_path = project_settings.get("intro_video_path")
+
+        background_tasks.add_task(render_executor_func, output_dir, request.use_subtitles, target_resolution, bg_video_url, intro_v_path)
 
         return {
             "status": "processing",
@@ -5466,6 +5611,131 @@ async def create_plan_from_repository(req: RepositoryPlanRequest):
         return {"status": "error", "error": f"AI 생성 중 오류: {str(e)}", "project_id": project_id}
     
     return {"status": "ok", "project_id": project_id}
+
+
+
+# ===========================================
+# API: 스타일 프리셋 관리
+# ===========================================
+
+
+
+# ===========================================
+# API: 이미지 스타일 프리셋 관리
+# ===========================================
+
+@app.get("/api/settings/style-presets")
+async def get_style_presets_api():
+    """모든 이미지 스타일 프리셋 조회"""
+    presets = db.get_style_presets()
+    
+    # DB에 하나도 없으면 기본값으로 초기화
+    if not presets:
+        default_styles = {
+            "realistic": "photorealistic, 8k uhd, high quality, detailed",
+            "anime": "anime style, vibrant colors, studio ghibli inspired",
+            "cinematic": "cinematic lighting, dramatic, movie still, bokeh",
+            "cartoon": "cartoon style, cel shading, vibrant, playful",
+            "oil_painting": "oil painting, brush strokes, artistic, classic",
+            "watercolor": "watercolor painting, soft colors, artistic",
+            "sketch": "pencil sketch, hand drawn, artistic, detailed",
+            "pixel_art": "pixel art, 16-bit style, retro gaming"
+        }
+        for key, val in default_styles.items():
+            db.save_style_preset(key, val)
+        presets = default_styles
+        
+    return presets
+
+@app.post("/api/settings/style-presets")
+async def save_style_preset_api(preset: StylePreset):
+    """이미지 스타일 프리셋 저장"""
+    db.save_style_preset(preset.style_key, preset.prompt_value)
+    return {"status": "ok"}
+
+
+# ===========================================
+# API: 대본 스타일 프리셋 관리
+# ===========================================
+
+@app.get("/api/settings/script-style-presets")
+async def get_script_style_presets_api():
+    """모든 대본 스타일 프리셋 조회"""
+    presets = db.get_script_style_presets()
+    
+    # DB에 하나도 없으면 기본값으로 초기화
+    if not presets:
+        default_styles = {
+            "news": "뉴스 스타일: 객관적이고 신뢰감 있는 톤으로 작성",
+            "story": "옛날 이야기 스타일: 구연동화 방식으로 따듯하고 감성적으로 작성",
+            "senior_story": "시니어 사연 스타일: 중장년층 공감 사연으로 진솔하고 깊이 있게 작성",
+            "script_master": """최종 확정: '딥-다이브' 대본 빌드업 4단계 프로세스 (Ver. 4.0)
+
+[1단계] 대본 정밀 해부 및 흥행 잠재력 진단
+임무: 대본을 문장 단위로 정밀 분석하고, '흥행 심리 지도(5070 타겟 제목 리스트)'와 '전문 드라마 기법'을 사용하여 잠재력과 개선점에 대한 '대본 정밀 해부 리포트'를 발행합니다.
+
+실행 원칙:
+- [종합 진단] 작품의 가장 매력적인 설정과 개선 필요 지점 명확하게 요약
+- [톤앤매너 분석] 나레이션은 시청자에게 정중한 '존댓말' 원칙 (5070 시청자 정서적 유대감)
+- [대사 현미경 분석] 감정 설명 대사를 '극적 아이러니(Dramatic Irony)'가 담긴 상황으로 개선
+- [장면 구조 분석] 도입부는 '인 미디어스 레스(In medias res)' + '체호프의 총(Chekhov's Gun)' 기법 적용
+- [인물 매력도 분석] 주인공에게 '복선(Foreshadowing)'을 통한 숨겨진 능력 암시
+
+[2단계] '감독판 샘플' 제작 및 공동 창작 방향 확정
+임무: 지정된 장면을 드라마 기법 + 흥행 코드 + 존댓말 나레이션에 따라 '원본 vs 감독 수정본' 형태로 제공
+
+[3단계] 감독판 대본 전체 집필
+임무: 합의된 개선 방향과 스타일을 대본 전체에 일관되게 적용하여 최종 [감독판 대본] 완성
+
+[4단계] 최종 마케팅 에셋 시화
+임무: 완성된 대본의 핵심 컨셉을 보여줄 썸네일 비주얼을 구체적으로 묘사"""
+        }
+        for key, val in default_styles.items():
+            db.save_script_style_preset(key, val)
+        presets = default_styles
+        
+    return presets
+
+@app.post("/api/settings/script-style-presets")
+async def save_script_style_preset_api(preset: StylePreset):
+    """대본 스타일 프리셋 저장"""
+    db.save_script_style_preset(preset.style_key, preset.prompt_value)
+    return {"status": "ok"}
+
+
+# ===========================================
+# API: 썸네일 스타일 프리셋 관리
+# ===========================================
+
+@app.get("/api/settings/thumbnail-style-presets")
+async def get_thumbnail_style_presets_api():
+    """모든 썸네일 스타일 프리셋 조회"""
+    presets = db.get_thumbnail_style_presets()
+    
+    # DB에 하나도 없으면 기본값으로 초기화
+    if not presets:
+        default_styles = {
+            "face": "얼굴 강조형: 클로즈업된 인물 얼굴을 중심으로, 강렬한 표정과 시선을 유도하는 구도. 배경은 흐릿하게 처리하고 인물을 부각시킴.",
+            "text": "텍스트 중심형: 굵고 가독성 높은 폰트의 텍스트가 중앙을 차지하는 디자인. 배경은 단순하거나 텍스트를 방해하지 않는 패턴 사용.",
+            "contrast": "비포/애프터형: 화면을 분할하여 '전(Before)'과 '후(After)'를 명확하게 대비시키는 구도. 색상 대비를 강하게 주어 변화를 강조.",
+            "mystery": "미스터리형: 어두운 조명, 실루엣, 물음표 등을 활용하여 호기심을 자극하는 분위기. 중요한 정보는 가려져 있거나 흐릿하게 표현.",
+            "minimal": "미니멀형: 여백을 충분히 활용하고, 핵심 요소 1-2개만 배치하여 깔끔하고 세련된 느낌. 색상은 2-3가지로 제한.",
+            "dramatic": "드라마틱형: 역동적인 앵글, 강한 명암 대비, 영화 포스터 같은 극적인 연출. 채도가 높고 강렬한 색감 사용.",
+            "japanese_viral": "시니어 롱폼(일본풍): 일본 유튜브 스타일의 화려한 자막과 이펙트. 원색적인 색감 사용과 정보량이 많은 꽉 찬 화면 구성.",
+            "ghibli": "지브리 감성: 지브리 스튜디오 애니메이션 스타일. 부드러운 수채화풍 배경, 파스텔 톤 색감, 몽환적이고 감성적인 분위기.",
+            "wimpy": "윔피키드 스타일: 윔피키드(Wimpy Kid) 다이어리 스타일. 흑백의 단순한 선화, 손글씨 폰트, 공책 질감 배경, 유머러스한 낙서 느낌."
+        }
+        for key, val in default_styles.items():
+            db.save_thumbnail_style_preset(key, val)
+        presets = default_styles
+        
+    return presets
+
+@app.post("/api/settings/thumbnail-style-presets")
+async def save_thumbnail_style_preset_api(preset: StylePreset):
+    """썸네일 스타일 프리셋 저장"""
+    db.save_thumbnail_style_preset(preset.style_key, preset.prompt_value)
+    return {"status": "ok"}
 
 
 if __name__ == "__main__":

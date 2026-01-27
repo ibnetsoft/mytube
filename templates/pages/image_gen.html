@@ -62,6 +62,13 @@
                     0 Scenes
                 </span>
 
+                <!-- Save Settings Button -->
+                <button onclick="saveImageSettings(this)" id="saveSettingsBtn"
+                    class="btn-secondary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-sm hover:scale-105 transition-transform bg-white border border-gray-300 dark:bg-gray-700 dark:border-gray-600">
+                    <span>💾</span>
+                    <span>세팅저장</span>
+                </button>
+
                 <!-- Generate Prompt Button -->
                 <button onclick="generatePrompts()" id="generateBtn"
                     class="btn-primary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-md hover:scale-105 transition-transform bg-gradient-to-r from-blue-600 to-indigo-600">
@@ -458,27 +465,39 @@
                     <span class="text-xs px-2 py-1 rounded-full ${roleBadgeColor} font-medium">${char.role || 'Character'}</span>
                 </div>
                 
-                <p class="text-xs text-gray-500 mb-3 border-b border-gray-100 pb-2 min-h-[3em] line-clamp-2" title="${char.description_ko}">
+                <!-- Character Image Preview -->
+                <div class="mb-3 aspect-square bg-gray-100 dark:bg-gray-900 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 flex items-center justify-center relative group/char">
+                    <img id="char-img-${index}" src="${char.image_url || ''}" class="w-full h-full object-cover ${char.image_url ? '' : 'hidden'}" alt="${char.name}">
+                    <div id="char-placeholder-${index}" class="text-gray-400 text-[10px] ${char.image_url ? 'hidden' : ''}">이미지 미생성</div>
+                    
+                    <div class="absolute inset-0 bg-black/40 opacity-0 group-hover/char:opacity-100 transition-opacity flex items-center justify-center">
+                         <button onclick="generateCharacterImage(${index})" class="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold py-1.5 px-3 rounded-full shadow-lg transform hover:scale-105 transition-all">
+                             🎨 AI 생성
+                         </button>
+                    </div>
+                </div>
+
+                <p class="text-[11px] text-gray-500 mb-2 border-b border-gray-100 dark:border-gray-700 pb-2 min-h-[3em] line-clamp-2" title="${char.description_ko}">
                     ${char.description_ko || '설명 없음'}
                 </p>
 
-                <div class="bg-gray-50 dark:bg-gray-900/50 p-2 rounded text-xs text-gray-600 dark:text-gray-400 font-mono break-words mb-3 h-20 overflow-y-auto scrollbar-thin">
+                <div class="bg-gray-50 dark:bg-gray-900/50 p-2 rounded text-[10px] text-gray-600 dark:text-gray-400 font-mono break-words mb-3 h-16 overflow-y-auto scrollbar-thin">
                     ${char.prompt_en}
                 </div>
 
                 <div class="flex gap-2">
-                    <button onclick="applyCharacterPrompt('${char.prompt_en.replace(/'/g, "\\'")}')" 
+                    <button onclick="applyCharacter(${index})" 
                         class="flex-1 btn-secondary text-xs py-1.5 flex items-center justify-center gap-1 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200">
                         <span>⬇️</span> 적용
                     </button>
                     
                     <button id="regen-btn-${index}" onclick="regenerateCharacter(${index})" 
-                        class="px-2 py-1.5 border border-gray-200 rounded text-gray-500 hover:bg-green-50 hover:text-green-600 transition-colors" title="프롬프트 AI 재생성">
+                        class="px-2 py-1.5 border border-gray-200 dark:border-gray-700 rounded text-gray-500 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 transition-colors" title="프롬프트 AI 재생성">
                         🔄
                     </button>
                     
                     <button onclick="deleteCharacter(${index})" 
-                        class="px-2 py-1.5 border border-gray-200 rounded text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors" title="삭제">
+                        class="px-2 py-1.5 border border-gray-200 dark:border-gray-700 rounded text-gray-500 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 transition-colors" title="삭제">
                         🗑️
                     </button>
                 </div>
@@ -532,23 +551,100 @@
         }
     }
 
-    // 캐릭터 프롬프트 적용 (Global Textarea)
-    function applyCharacterPrompt(promptText) {
+    // [NEW] 캐릭터 이미지 개별 생성
+    async function generateCharacterImage(index) {
+        let chars = Utils.storage.get('characterPrompts') || [];
+        const char = chars[index];
+        if (!char) return;
+
+        const projectId = getCurrentProject();
+        if (!projectId) {
+            Utils.showToast('프로젝트를 먼저 선택해주세요.', 'warning');
+            return;
+        }
+
+        const style = document.getElementById('imageStyle').value;
+        const placeholder = document.getElementById(`char-placeholder-${index}`);
+        const img = document.getElementById(`char-img-${index}`);
+
+        // UI 상태 업데이트
+        placeholder.textContent = "생성 중...";
+        placeholder.classList.remove('hidden');
+        if (img) img.classList.add('hidden');
+
+        try {
+            const response = await fetch('/api/image/generate-character', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    prompt: char.prompt_en,
+                    project_id: projectId,
+                    style: style
+                })
+            });
+            const result = await response.json();
+
+            if (result.status === 'ok') {
+                char.image_url = result.url;
+                char.image_path = result.path;
+                chars[index] = char;
+                Utils.storage.set('characterPrompts', chars);
+
+                img.src = result.url;
+                img.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+                Utils.showToast('캐릭터 이미지가 생성되었습니다.', 'success');
+            } else {
+                throw new Error(result.error || '생성 실패');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('이미지 생성 실패: ' + e.message, 'error');
+            placeholder.textContent = "이미지 미생성";
+        }
+    }
+
+    // 캐릭터 프롬프트 및 이미지 적용
+    async function applyCharacter(index) {
+        let chars = Utils.storage.get('characterPrompts') || [];
+        const char = chars[index];
+        if (!char) return;
+
+        // 1. 프롬프트 적용
         const globalTextarea = document.getElementById('globalPrompt');
         const currentVal = globalTextarea.value.trim();
-
         if (currentVal) {
-            globalTextarea.value = currentVal + "\n\n" + promptText;
+            globalTextarea.value = currentVal + "\n\n" + char.prompt_en;
         } else {
-            globalTextarea.value = promptText;
+            globalTextarea.value = char.prompt_en;
+        }
+
+        // 2. 이미지 레퍼런스 적용 (있을 경우)
+        if (char.image_path) {
+            const projectId = getCurrentProject();
+            if (projectId) {
+                try {
+                    await API.project.updateSetting(projectId, 'character_ref_image_path', char.image_path);
+                    await API.project.updateSetting(projectId, 'character_ref_text', char.prompt_en);
+
+                    // UI 레퍼런스 이미지 업데이트
+                    const thumbImg = document.getElementById('currentProjectThumbnail');
+                    if (thumbImg) {
+                        thumbImg.src = char.image_url;
+                        thumbImg.style.opacity = 1;
+                        const placeholder = document.getElementById('thumbPlaceholder');
+                        if (placeholder) placeholder.classList.add('hidden');
+                    }
+                    Utils.showToast('캐릭터 이미지가 레퍼런스로 설정되었습니다.', 'success');
+                } catch (e) {
+                    console.error(e);
+                }
+            }
         }
 
         // 효과: 깜빡임
         globalTextarea.classList.add('ring-2', 'ring-indigo-400');
         setTimeout(() => globalTextarea.classList.remove('ring-2', 'ring-indigo-400'), 500);
-
-        // 토스트 메시지 (혹은 간단한 알림)
-        // alert("일관성 프롬프트에 추가되었습니다."); // 너무 방해되므로 생략하거나 토스트 사용
     }
 
     async function generatePrompts() {
@@ -1235,6 +1331,38 @@
 
 
     // 스타일 선택 함수
+    async function saveImageSettings(btn) {
+        const projectId = getCurrentProject();
+        if (!projectId) return;
+
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<span>🔄</span> 저장중...`;
+
+        try {
+            const style = document.getElementById('imageStyle').value;
+            const globalPrompt = document.getElementById('globalPrompt').value;
+
+            const settings = {
+                image_style_prompt: style,
+                character_ref_text: globalPrompt
+            };
+
+            const result = await API.project.saveSettings(projectId, settings);
+            if (result.status === 'ok') {
+                Utils.showToast("이미지 설정이 영구 저장되었습니다.", "success");
+            } else {
+                throw new Error(result.error || "저장 실패");
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast("설정 저장 실패: " + e.message, "error");
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    }
+
     function selectStyle(style, element) {
         // 1. Update Hidden Input
         document.getElementById('imageStyle').value = style;
@@ -1297,6 +1425,16 @@
                 placeholder.classList.add('hidden');
                 charArea.classList.remove('hidden');
                 charArea.classList.add('flex');
+            }
+
+            // [NEW] Restore Image Style
+            if (data.settings.image_style_prompt) {
+                const styleId = data.settings.image_style_prompt;
+                const element = document.querySelector(`.style-card[data-value="${styleId}"]`);
+                if (element) {
+                    selectStyle(styleId, element);
+                    console.log("[StyleRestored]", styleId);
+                }
             }
         }
 
@@ -1388,10 +1526,22 @@
                     if (fullData.settings.character_ref_image_path) {
                         const preview = document.getElementById('charPreviewImg');
                         const placeholder = document.getElementById('charPlaceholder');
-                        if (preview && placeholder) {
+                        if (preview) {
                             preview.src = fullData.settings.character_ref_image_path;
                             preview.classList.remove('hidden');
-                            placeholder.classList.add('hidden');
+                            if (placeholder) placeholder.classList.add('hidden');
+                            const area = document.getElementById('charPreviewArea');
+                            if (area) {
+                                area.classList.remove('hidden');
+                                area.classList.add('flex');
+                            }
+                        }
+                    }
+                    if (fullData.settings.image_style_prompt) {
+                        const styleId = fullData.settings.image_style_prompt;
+                        const element = document.querySelector(`.style-card[data-value="${styleId}"]`);
+                        if (element) {
+                            selectStyle(styleId, element);
                         }
                     }
                 }

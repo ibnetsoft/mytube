@@ -119,28 +119,23 @@
                 <option value="dark">다크 모드</option>
                 <option value="neon">네온</option>
             </select>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">화면 비율</label>
-                <select id="aspectRatio" class="input-field" onchange="setAspectRatio(this.value, true)">
-                    <option value="16:9">16:9 (유튜브 썸네일)</option>
-                    <option value="9:16">9:16 (쇼츠/릴스)</option>
-                </select>
-            </div>
         </div>
 
-        <!-- 버튼 그리드 -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:col-span-3">
+        <!-- 버튼 그리드 (Compact) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:col-span-3">
             <button onclick="generateIdeas()" id="ideaBtn"
-                class="btn-primary h-full min-h-[100px] text-lg font-bold shadow-md hover:shadow-lg transition-all flex flex-col items-center justify-center gap-2">
-                <span class="text-2xl">💡</span>
+                class="btn-primary py-3 text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2">
+                <span class="text-lg">💡</span>
                 <span>아이디어 생성하기</span>
             </button>
 
             <button onclick="generateHookTexts()" id="hookTextBtn"
-                class="btn-secondary h-full min-h-[100px] text-lg font-bold shadow-md hover:shadow-lg transition-all flex flex-col items-center justify-center gap-2">
-                <span class="text-2xl">🤖</span>
-                <span>AI 후킹 문구 생성</span>
-                <span class="text-xs opacity-75">(대본 기반)</span>
+                class="btn-secondary py-3 text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2">
+                <span class="text-lg">🤖</span>
+                <div class="flex flex-col items-center">
+                    <span>AI 후킹 문구 생성</span>
+                    <span class="text-[9px] opacity-75">(대본 기반)</span>
+                </div>
             </button>
         </div>
     </div>
@@ -376,23 +371,31 @@
                         }
                         updateHistory();
                     }
+                    // [NEW] Sync Thumbnail Style with Image Style
+                    if (settings?.image_style_prompt) {
+                        const styleMap = {
+                            'ghibli': 'ghibli', 'wimpy': 'wimpy', 'minimal': 'minimal',
+                            'cinematic': 'dramatic', 'realistic': 'face', 'webtoon': 'japanese_viral',
+                            'anime': 'japanese_viral', '3d': 'dramatic'
+                        };
+                        const targetStyle = styleMap[settings.image_style_prompt];
+                        if (targetStyle) {
+                            selectThumbnailStyle(targetStyle);
+                            console.log(`Synced thumbnail style to '${targetStyle}' from image style '${settings.image_style_prompt}'`);
+                        }
+                    }
+
+                    // [NEW] Auto Aspect Ratio based on Project Settings
+                    if (settings?.aspect_ratio) {
+                        setAspectRatio(settings.aspect_ratio);
+                        console.log(`Auto-set Aspect Ratio to ${settings.aspect_ratio} from project settings`);
+                    } else if (settings?.app_mode === 'shorts') {
+                        setAspectRatio('9:16');
+                    }
                 } catch (e) {
-                    console.log('프로젝트 데이터 로드 실패');
+                    console.log('프로젝트 데이터 로드 실패', e);
                 }
             }
-
-            // Check App Mode (Shorts vs Longform)
-            try {
-                const res = await fetch('/api/settings');
-                const settings = await res.json();
-                if (settings.app_mode === 'shorts') {
-                    setAspectRatio('9:16');
-                    document.getElementById('aspectRatio').value = '9:16';
-                    console.log("Shorts mode detected: Thumbnail AR set to 9:16");
-                }
-            } catch (e) { }
-
-
         });
 
         // setAspectRatio implementation moved to line ~1506

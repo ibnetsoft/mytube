@@ -121,35 +121,38 @@ JSON만 반환하세요."""
 JSON만 반환하세요."""
 
     GEMINI_TRENDING_KEYWORDS = """
-        Act as a YouTube Trend Analyst and SEO Expert.
-        Generate a list of 20-30 trending search keywords/topics on YouTube.
+        Act as a Local Trend Analyst and YouTube SEO Expert for the specific region: {lang_name}.
         
-        **Target Audience & Context:**
+        **OBJECTIVE:**
+        Generate a list of 20-30 CURRENT trending search keywords/topics on YouTube specifically for:
         - Region/Language: {lang_name}
         - Time Period: {period_text}
         - Target Age Group: {age_text}
 
-        Focus on broad, high-traffic topics relevant to this specific demographic and time.
+        **STRICT LANGUAGE RULES:**
+        1. **"keyword"**: MUST be in the target language ({language}). NOT English (unless it's an English region), NOT Korean.
+           - If target is Japanese (ja), keyword MUST be in Japanese (Kanji/Kana).
+           - If target is Spanish (es), keyword MUST be in Spanish.
+        2. **"translation"**: MUST be the meaning in KOREAN (Hangul).
 
-        Assign a 'volume' score (Search Volume Index) from 1 to 100 for each keyword.
-        **CRITICAL: Use a 'Power Law' distribution for volume scores.**
-        - Only 1-2 keywords should have 95-100 (Viral).
-        - 3-5 keywords should have 70-90.
-        - The majority should be between 20-60.
-        - Use this variance to make the bubble chart interesting.
+        **DISTRIBUTION RULES:**
+        - Assign a 'volume' score (1-100) using a Power Law distribution.
+        - 1-2 keywords: 95-100 (Viral)
+        - 3-5 keywords: 70-90 (High)
+        - Rest: 20-60 (Moderate)
 
-        The keywords must be in the TARGET LANGUAGE ({language}).
-        
-        Format as JSON list:
+        **OUTPUT FORMAT (JSON List):**
         [
-            {{"keyword": "Keyword in Target Language", "translation": "MEANING IN KOREAN (ONLY HANGUL - VERY IMPORTANT)", "volume": 98, "category": "Gaming"}},
+            {{"keyword": "Keyword in Target Language", "translation": "한국어 뜻 설명", "volume": 98, "category": "Gaming"}},
             ...
         ]
 
-        Example for Spanish (es):
-        {{"keyword": "Eurocopa 2024", "translation": "유로 2024", "volume": 95, "category": "Sports"}}
+        **EXAMPLES:**
+        - If lang=ja: {{"keyword": "猫", "translation": "고양이", "volume": 85, "category": "Pets"}}
+        - If lang=es: {{"keyword": "Fútbol", "translation": "축구", "volume": 92, "category": "Sports"}}
+        - If lang=en: {{"keyword": "Super Bowl", "translation": "슈퍼볼", "volume": 99, "category": "Sports"}}
         
-        RETURN ONLY JSON.
+        RETURN ONLY THE JSON LIST. NO MARKDOWN.
     """
 
     GEMINI_CHARACTER_PROMPTS = """당신은 영상 캐릭터 디자인 전문가입니다.

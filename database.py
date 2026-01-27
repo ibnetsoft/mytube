@@ -61,6 +61,10 @@ def init_db():
             voice_name TEXT DEFAULT 'Puck',
             voice_language TEXT DEFAULT 'ko-KR',
             voice_style_prompt TEXT,
+            voice_provider TEXT DEFAULT 'elevenlabs',
+            voice_speed REAL DEFAULT 1.0,
+            voice_multi_enabled INTEGER DEFAULT 0,
+            voice_mapping_json TEXT, -- 인물별 성우 매핑 (JSON)
             video_command TEXT,
             video_command TEXT,
             video_path TEXT,
@@ -203,16 +207,43 @@ def init_db():
         )
     """)
 
-    # [NEW] 성공 전략 지식 베이스
+    # [NEW] 이미지 스타일 프롬프트 프리셋
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS success_knowledge (
+        CREATE TABLE IF NOT EXISTS style_presets (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            category TEXT, -- hook, structure, emotion, thumbnail 등
-            pattern TEXT,  -- 일반화된 패턴 (예: "초반 3초 반전 후킹")
-            insight TEXT,  -- 상세 분석 내용
-            source_video_id TEXT,
-            script_style TEXT, -- story, informational 등
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            style_key TEXT UNIQUE,
+            prompt_value TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # [NEW] 이미지 스타일 프롬프트 프리셋
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS style_presets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            style_key TEXT UNIQUE,
+            prompt_value TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # [NEW] 대본 스타일 프롬프트 프리셋
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS script_style_presets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            style_key TEXT UNIQUE,
+            prompt_value TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # [NEW] 썸네일 스타일 프롬프트 프리셋
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS thumbnail_style_presets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            style_key TEXT UNIQUE,
+            prompt_value TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
 
@@ -468,6 +499,20 @@ def migrate_db():
         print("[Migration] Adding script_end to image_prompts...")
         cursor.execute("ALTER TABLE image_prompts ADD COLUMN script_end TEXT")
 
+    # [NEW] TTS Persistence Columns
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN voice_provider TEXT DEFAULT 'elevenlabs'")
+    except sqlite3.OperationalError: pass
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN voice_speed REAL DEFAULT 1.0")
+    except sqlite3.OperationalError: pass
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN voice_multi_enabled INTEGER DEFAULT 0")
+    except sqlite3.OperationalError: pass
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN voice_mapping_json TEXT")
+    except sqlite3.OperationalError: pass
+
     conn.commit()
     print("[DB] Migration completed")
 
@@ -496,14 +541,14 @@ def create_project(name: str, topic: str = None) -> int:
         """INSERT INTO project_settings 
            (project_id, title, voice_name, voice_language, voice_style_prompt,
             subtitle_font, subtitle_font_size, subtitle_color, subtitle_style_enum, subtitle_stroke_color, subtitle_stroke_width,
-            subtitle_bg_enabled, subtitle_stroke_enabled) 
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            subtitle_bg_enabled, subtitle_stroke_enabled, voice_provider, voice_speed, voice_multi_enabled) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (project_id, name, defaults.get("voice_name", "Puck"), 
          defaults.get("language_code", "ko-KR"), defaults.get("style_prompt", ""),
          sub_defaults.get("subtitle_font"), sub_defaults.get("subtitle_font_size"),
          sub_defaults.get("subtitle_color"), sub_defaults.get("subtitle_style_enum"),
          sub_defaults.get("subtitle_stroke_color"), sub_defaults.get("subtitle_stroke_width"),
-         1, 0) # Default: BG ON, Stroke OFF
+         1, 0, 'elevenlabs', 1.0, 0) # Default: BG ON, Stroke OFF
     )
 
     conn.commit()
@@ -993,7 +1038,10 @@ def save_project_settings(project_id: int, settings: Dict):
                     'video_command', 'video_path', 'is_uploaded',
                     'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum',
                     'subtitle_font_size', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url',
-                    'character_ref_text', 'character_ref_image_path', 'script_style']: # [NEW]
+                    'character_ref_text', 'character_ref_image_path', 'script_style',
+                    'subtitle_base_color', 'subtitle_pos_y', 'subtitle_pos_x', 'subtitle_bg_enabled', 'subtitle_stroke_enabled',
+                    'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity',
+                    'voice_provider', 'voice_speed', 'voice_multi_enabled', 'voice_mapping_json', 'app_mode', 'intro_video_path']: # [NEW]
             if key in settings:
                 fields.append(f"{key} = ?")
                 values.append(settings[key])
@@ -1012,8 +1060,10 @@ def save_project_settings(project_id: int, settings: Dict):
              (project_id, title, thumbnail_text, thumbnail_url, duration_seconds, aspect_ratio,
               script, hashtags, voice_tone, voice_name, voice_language, voice_style_prompt,
               video_command, video_path, is_uploaded,
-              image_style_prompt, subtitle_font, subtitle_color, target_language, subtitle_style_enum, subtitle_font_size, subtitle_stroke_color, subtitle_stroke_width, subtitle_position_y, background_video_url, character_ref_text, character_ref_image_path, script_style)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              image_style_prompt, subtitle_font, subtitle_color, target_language, subtitle_style_enum, subtitle_font_size, subtitle_stroke_color, subtitle_stroke_width, subtitle_position_y, background_video_url, character_ref_text, character_ref_image_path, script_style,
+              subtitle_base_color, subtitle_pos_y, subtitle_pos_x, subtitle_bg_enabled, subtitle_stroke_enabled, subtitle_line_spacing, subtitle_bg_color, subtitle_bg_opacity,
+              voice_provider, voice_speed, voice_multi_enabled, voice_mapping_json, app_mode, intro_video_path)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          """, (
             project_id,
             settings.get('title'),
@@ -1036,15 +1086,27 @@ def save_project_settings(project_id: int, settings: Dict):
             settings.get('target_language', 'ko'),
             settings.get('subtitle_style_enum', 'Basic_White'),
             settings.get('subtitle_font_size', 80),
-            settings.get('subtitle_font_size', 80),
             settings.get('subtitle_stroke_color', 'black'),
             settings.get('subtitle_stroke_width', 0.15),
             settings.get('subtitle_position_y'),
-             settings.get('subtitle_position_y'),
             settings.get('background_video_url'),
             settings.get('character_ref_text'),
             settings.get('character_ref_image_path'),
-            settings.get('script_style')
+            settings.get('script_style'),
+            settings.get('subtitle_base_color'),
+            settings.get('subtitle_pos_y'),
+            settings.get('subtitle_pos_x'),
+            settings.get('subtitle_bg_enabled', 1),
+            settings.get('subtitle_stroke_enabled', 0),
+            settings.get('subtitle_line_spacing', 0.1),
+            settings.get('subtitle_bg_color', '#000000'),
+            settings.get('subtitle_bg_opacity', 0.5),
+            settings.get('voice_provider', 'elevenlabs'),
+            settings.get('voice_speed', 1.0),
+            settings.get('voice_multi_enabled', 0),
+            settings.get('voice_mapping_json'),
+            settings.get('app_mode', 'longform'),
+            settings.get('intro_video_path'),
         ))
 
     conn.commit()
@@ -1072,7 +1134,8 @@ def update_project_setting(project_id: int, key: str, value: Any):
                     'character_ref_text', 'character_ref_image_path', 'script_style',
                     'subtitle_path', 'image_timings_path', 'timeline_images_path', 'image_effects_path', 'app_mode',
                     'subtitle_base_color', 'subtitle_pos_y', 'subtitle_pos_x', 'subtitle_bg_enabled', 'subtitle_stroke_enabled',
-                    'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity'] # [FIX] Added missing subtitle keys
+                    'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity',
+                    'voice_provider', 'voice_speed', 'voice_multi_enabled', 'voice_mapping_json', 'intro_video_path'] # [FIX] Added missing subtitle keys
 
 
     if key not in allowed_keys:
@@ -1270,3 +1333,85 @@ migrate_db()
 # 초기화
 init_db()
 migrate_db()
+# ===========================================
+# 이미지 스타일 프리셋 관리
+# ===========================================
+
+def get_style_presets() -> Dict[str, str]:
+    """모든 스타일 프리셋 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT style_key, prompt_value FROM style_presets")
+    rows = cursor.fetchall()
+    conn.close()
+    
+    return {row['style_key']: row['prompt_value'] for row in rows}
+
+def save_style_preset(style_key: str, prompt_value: str):
+    """스타일 프리셋 저장 또는 업데이트"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO style_presets (style_key, prompt_value, updated_at)
+        VALUES (?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(style_key) DO UPDATE SET
+            prompt_value = excluded.prompt_value,
+            updated_at = CURRENT_TIMESTAMP
+    """, (style_key, prompt_value))
+    conn.commit()
+    conn.close()
+# ===========================================
+# ?B??}1????%???a1u?
+# ===========================================
+
+def get_script_style_presets() -> Dict[str, str]:
+    """d$z ?B??}1????%??pv"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT style_key, prompt_value FROM script_style_presets")
+    rows = cursor.fetchall()
+    conn.close()
+    
+    return {row['style_key']: row['prompt_value'] for row in rows}
+
+def save_script_style_preset(style_key: str, prompt_value: str):
+    """?B??}1????%??????. ?2?ô"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO script_style_presets (style_key, prompt_value, updated_at)
+        VALUES (?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(style_key) DO UPDATE SET
+            prompt_value = excluded.prompt_value,
+            updated_at = CURRENT_TIMESTAMP
+    """, (style_key, prompt_value))
+    conn.commit()
+    conn.close()
+
+# ===========================================
+# 썸네일 스타일 프리셋 관리
+# ===========================================
+
+def get_thumbnail_style_presets() -> Dict[str, str]:
+    """썸네일 스타일 프리셋 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT style_key, prompt_value FROM thumbnail_style_presets")
+    rows = cursor.fetchall()
+    conn.close()
+    
+    return {row['style_key']: row['prompt_value'] for row in rows}
+
+def save_thumbnail_style_preset(style_key: str, prompt_value: str):
+    """썸네일 스타일 프리셋 저장"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO thumbnail_style_presets (style_key, prompt_value, updated_at)
+        VALUES (?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(style_key) DO UPDATE SET
+            prompt_value = excluded.prompt_value,
+            updated_at = CURRENT_TIMESTAMP
+    """, (style_key, prompt_value))
+    conn.commit()
+    conn.close()

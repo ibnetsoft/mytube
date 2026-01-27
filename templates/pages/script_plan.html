@@ -57,6 +57,9 @@
                             <option value="crime_drama">범죄 드라마 (차갑고 어두운 화질, 낮은 채도)</option>
                             <option value="cyberpunk_neon">사이버펑크 네온 (네온 색상, 비, 미래적 분위기)</option>
                         </optgroup>
+                        <optgroup label="📺 캐릭터/웹툰 시리즈">
+                            <option value="wimpy_kid">윔피키드 (초등학생 일기장 스타일)</option>
+                        </optgroup>
                         <optgroup label="🎨 일러스트/애니메이션 스타일">
                             <option value="watercolor_analog">수채화풍 아날로그 일러스트 (감성적 수채화 텍스처)</option>
                             <option value="digital_webtoon">디지털 웹툰 (선명한 라인, 화려한 색감)</option>
@@ -78,7 +81,12 @@
             </div>
 
             <!-- 생성 버튼 -->
-            <div class="flex justify-end mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+            <div class="flex flex-col gap-2 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+                <button onclick="saveScriptSettings(this)"
+                    class="btn-secondary w-full py-2 text-xs flex items-center justify-center gap-2">
+                    <span>💾</span>
+                    <span>세팅저장</span>
+                </button>
                 <button onclick="generateStructure()" id="generateBtn"
                     class="btn-primary w-full py-3 text-sm font-semibold shadow-sm hover:shadow-md transition-all rounded-lg flex items-center justify-center gap-2">
                     <span>🤖</span>
@@ -228,6 +236,21 @@
     // 상태 복구 완료 시 UI 업데이트
     window.addEventListener('projectStateRestored', (e) => {
         const data = e.detail;
+        if (data.project) {
+            if (data.project.topic) document.getElementById('topicInput').value = data.project.topic;
+        }
+
+        if (data.settings) {
+            const s = data.settings;
+            if (s.duration_seconds !== undefined && s.duration_seconds !== null) {
+                const val = (window.APP_MODE === 'shorts') ? s.duration_seconds : Math.floor(s.duration_seconds / 60);
+                document.getElementById('durationInput').value = val;
+            }
+            if (s.script_style) {
+                document.getElementById('scriptStyleSelect').value = s.script_style;
+            }
+        }
+
         if (data) {
             renderAnalysisSection(data);
         }
@@ -247,22 +270,19 @@
             console.log("Full Data:", fullData);
 
             if (fullData) {
-                // 1. Set Topic
                 if (fullData.project && fullData.project.topic) {
                     document.getElementById('topicInput').value = fullData.project.topic;
                     console.log("[LoadProjectData] Topic populated:", fullData.project.topic);
-                } else {
-                    console.warn("[LoadProjectData] Project has no topic data.");
                 }
 
-                // [NEW] Load preferred style if available (Fallback)
-                const savedStyle = localStorage.getItem('latestScriptStyle');
-                if (savedStyle) document.getElementById('scriptStyleSelect').value = savedStyle;
-
-                // [NEW] Persist style preference on change
-                document.getElementById('scriptStyleSelect').addEventListener('change', (e) => {
-                    localStorage.setItem('latestScriptStyle', e.target.value);
-                });
+                const s = fullData.settings || {};
+                if (s.duration_seconds) {
+                    const val = (window.APP_MODE === 'shorts') ? s.duration_seconds : Math.floor(s.duration_seconds / 60);
+                    document.getElementById('durationInput').value = val;
+                }
+                if (s.script_style) {
+                    document.getElementById('scriptStyleSelect').value = s.script_style;
+                }
 
                 renderAnalysisSection(fullData);
 
@@ -372,6 +392,42 @@
 
     // [NEW] 전역 변수로 타겟 언어 관리
     let currentTargetLanguage = 'ko';
+
+    async function saveScriptSettings(btn) {
+        const projectId = getCurrentProject();
+        if (!projectId) return;
+
+        const originalText = btn.innerHTML;
+        Utils.setLoading(btn, true, '저장 중...');
+
+        try {
+            const topic = document.getElementById('topicInput').value.trim();
+            const durationVal = parseInt(document.getElementById('durationInput').value) || 60;
+            let durationSeconds = (window.APP_MODE === 'shorts') ? durationVal : durationVal * 60;
+            const scriptStyle = document.getElementById('scriptStyleSelect').value;
+
+            // 1. Update project topic (projects table)
+            await API.project.update(projectId, { topic: topic });
+
+            // 2. Update settings (project_settings table)
+            const result = await API.project.saveSettings(projectId, {
+                duration_seconds: durationSeconds,
+                script_style: scriptStyle
+            });
+
+            if (result.status === 'ok') {
+                Utils.showToast('설정이 저장되었습니다.', 'success');
+            } else {
+                throw new Error(result.error || '저장 실패');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('설정 저장 실패: ' + e.message, 'error');
+        } finally {
+            Utils.setLoading(btn, false);
+            btn.innerHTML = originalText;
+        }
+    }
 
     async function generateStructure(passedTopic = null) {
         let topic = passedTopic || document.getElementById('topicInput').value.trim();
