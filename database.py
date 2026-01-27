@@ -247,6 +247,21 @@ def init_db():
         )
     """)
 
+    # [NEW] 캐릭터 프롬프트 및 이미지 관리
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS project_characters (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER,
+            name TEXT,
+            role TEXT,
+            description_ko TEXT,
+            prompt_en TEXT,
+            image_url TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (project_id) REFERENCES projects(id)
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -1177,7 +1192,6 @@ def save_shorts(project_id: int, shorts_data: List[Dict]):
         INSERT INTO shorts (project_id, shorts_data)
         VALUES (?, ?)
     """, (project_id, json.dumps(shorts_data, ensure_ascii=False)))
-    
     conn.commit()
     conn.close()
 
@@ -1195,6 +1209,31 @@ def get_shorts(project_id: int) -> List[Dict]:
 
 # ============ 이미지 프롬프트 ============
 
+def save_image_prompts(project_id: int, prompts: List[Dict]):
+    """이미지 프롬프트 저장 (기존 데이터 삭제 후 재저장)"""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM image_prompts WHERE project_id = ?", (project_id,))
+        for p in prompts:
+            cursor.execute("""
+                INSERT INTO image_prompts (project_id, scene_number, scene_text, prompt_ko, prompt_en, image_url)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                project_id,
+                p.get('scene_number') or p.get('scene', 0),
+                p.get('scene_text') or p.get('scene', ''),
+                p.get('prompt_ko', ''),
+                p.get('prompt_en', ''),
+                p.get('image_url', '')
+            ))
+        conn.commit()
+    except Exception as e:
+        print(f"[DB] save_image_prompts error: {e}")
+        raise e
+    finally:
+        conn.close()
+
 def get_image_prompts(project_id: int) -> List[Dict]:
     """이미지 프롬프트 조회"""
     conn = get_db()
@@ -1204,7 +1243,106 @@ def get_image_prompts(project_id: int) -> List[Dict]:
     conn.close()
     return [dict(row) for row in rows]
 
-# ============ 프로젝트 전체 데이터 ============
+# ============ 캐릭터 관리 ============
+
+def save_project_characters(project_id: int, characters: List[Dict]):
+    """캐릭터 목록 저장 (기존 데이터 삭제 후 재저장)"""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        # 기존 캐릭터 삭제 (단, 이미지는 유지하고 싶다면 업데이트 로직이 필요하지만, 여기선 리셋으로 처리)
+        # 이미지 URL 유지를 위해 기존 데이터 조회
+        existing_chars = {}
+        cursor.execute("SELECT name, image_url FROM project_characters WHERE project_id = ?", (project_id,))
+        for row in cursor.fetchall():
+            if row['name']:
+                existing_chars[row['name']] = row['image_url']
+
+        cursor.execute("DELETE FROM project_characters WHERE project_id = ?", (project_id,))
+        
+        for char in characters:
+            # 기존 이미지 URL 보존 시도
+            img_url = char.get('image_url') or existing_chars.get(char.get('name', ''), '')
+            
+            cursor.execute("""
+                INSERT INTO project_characters (project_id, name, role, description_ko, prompt_en, image_url)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                project_id, 
+                char.get('name', ''), 
+                char.get('role', ''), 
+                char.get('description_ko', ''), 
+                char.get('prompt_en', ''), 
+                img_url
+            ))
+        conn.commit()
+    except Exception as e:
+        print(f"[DB] save_project_characters error: {e}")
+        raise e
+    finally:
+        conn.close()
+
+def get_project_characters(project_id: int) -> List[Dict]:
+    """캐릭터 목록 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM project_characters WHERE project_id = ? ORDER BY id", (project_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+def update_character_image(project_id: int, name: str, image_url: str):
+    """특정 캐릭터 이미지 업데이트"""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            UPDATE project_characters 
+            SET image_url = ? 
+            WHERE project_id = ? AND name = ?
+        """, (image_url, project_id, name))
+        
+        if cursor.rowcount == 0:
+            print(f"[DB] Warning: No character found to update image for pid={project_id}, name='{name}'")
+        else:
+            print(f"[DB] Updated character image for pid={project_id}, name='{name}'. Rows: {cursor.rowcount}")
+        
+        conn.commit()
+    except Exception as e:
+        print(f"[DB] update_character_image error: {e}")
+    finally:
+        conn.close()
+
+# ============ 조회 함수 ============
+
+def get_projects() -> List[Dict]:
+    """모든 프로젝트 목록 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM projects ORDER BY created_at DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+def get_project(project_id: int) -> Optional[Dict]:
+    """특정 프로젝트 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM projects WHERE id = ?", (project_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return dict(row)
+    return None
+
+def get_recent_projects(limit: int = 5) -> List[Dict]:
+    """최근 프로젝트 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM projects ORDER BY updated_at DESC LIMIT ?", (limit,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
 
 def get_project_full_data_v2(project_id: int) -> Optional[Dict]:
     """프로젝트의 모든 데이터 조회"""
@@ -1222,7 +1360,8 @@ def get_project_full_data_v2(project_id: int) -> Optional[Dict]:
         'tts': get_tts(project_id),
         'metadata': get_metadata(project_id),
         'thumbnails': get_thumbnails(project_id),
-        'shorts': get_shorts(project_id)
+        'shorts': get_shorts(project_id),
+        'characters': get_project_characters(project_id) # [NEW] Added characters
     }
 
 # ============ 글로벌 설정 (기본값) ============

@@ -321,6 +321,15 @@ textarea.input-field {
     animation: spin 1s linear infinite;
 }
 
+.loader-sm {
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid var(--color-primary);
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    animation: spin 1s linear infinite;
+}
+
 @keyframes spin {
     0% {
         transform: rotate(0deg);
@@ -533,9 +542,6 @@ textarea.input-field {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
     z-index: 50;
     padding: var(--spacing-sm);
 }

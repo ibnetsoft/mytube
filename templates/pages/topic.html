@@ -94,6 +94,33 @@
         pointer-events: none;
         text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
     }
+
+    .loader-lg {
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #3498db;
+        border-radius: 50%;
+        width: 60px;
+        height: 60px;
+        animation: spin 2s linear infinite;
+    }
+
+    @keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(4px);
+        z-index: 1000;
+    }
 </style>
 <script src="https://d3js.org/d3.v7.min.js"></script>
 
@@ -219,23 +246,17 @@
     <p class="text-gray-500">인기 있는 주제를 찾아 콘텐츠 아이디어를 얻으세요</p>
 </div>
 
-<!-- 분석 모달 -->
-<div id="analysisModal" class="modal-overlay hidden">
-    <div class="modal-content">
-        <div class="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <h3 class="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                <span>🤖</span>
-                <span>AI 댓글 분석</span>
-            </h3>
-            <button onclick="closeModal()" class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition">
-                <span class="text-2xl">&times;</span>
-            </button>
+<!-- [REMOVED] Analysis Modal replaced by direct navigation to Script Plan -->
+<div id="loadingOverlay" class="modal-overlay hidden">
+    <div
+        class="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-4 max-w-sm w-full mx-4">
+        <div class="loader-lg"></div>
+        <div class="text-center">
+            <h4 class="text-lg font-bold text-gray-800 dark:text-white mb-1">AI 심층 분석 중...</h4>
+            <p class="text-sm text-gray-500 dark:text-gray-400">영상의 인기 비결과 시청자 니즈를 파악하여<br />최적의 기획안을 준비하고 있습니다.</p>
         </div>
-        <div id="modalContent" class="p-6 overflow-y-auto max-h-[70vh]">
-            <!-- 분석 결과가 여기에 렌더링됨 -->
-        </div>
+        <div id="loadingVideoTitle" class="text-xs text-indigo-500 font-medium truncate w-full text-center"></div>
     </div>
-</div>
 </div>
 
 <!-- [NEW] Batch Analysis Modal -->
@@ -560,248 +581,61 @@
         Utils.showToast(`${count}개의 영상을 보관함에 저장했습니다 (Demo)`, "success");
     }
 
-    // 분석 준비 모달 열기
-    function openAnalysisModal(videoId) {
+    // 분석 준비 및 실행 (이제 팝업 없이 바로 실행 후 이동)
+    async function openAnalysisModal(videoId) {
         const video = currentVideos.find(v => v.id === videoId);
         if (!video) return;
 
         currentVideoForAnalysis = video;
 
-        const modalContent = document.getElementById('modalContent');
-        modalContent.innerHTML = `
-            <div class="p-2">
-                <div class="flex gap-4 mb-6">
-                    <img src="${video.snippet.thumbnails.medium.url}" class="w-24 rounded-lg">
-                    <div>
-                        <h4 class="font-bold text-gray-800 dark:text-white line-clamp-2">${video.snippet.title}</h4>
-                        <p class="text-sm text-gray-500">${video.snippet.channelTitle}</p>
-                    </div>
-                </div>
-
-                <div class="mb-6">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        📜 스크립트(대본) 직접 입력 (선택사항)
-                    </label>
-                    <textarea id="manualScriptInput" 
-                        class="w-full h-40 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white text-sm"
-                        placeholder="여기에 대본을 붙여넣으세요.&#13;&#10;비워두면 자동으로 유튜브 자막을 추출하여 분석합니다."></textarea>
-                    <p class="text-xs text-gray-500 mt-1">※ 자막이 없는 영상일 경우, 직접 대본을 입력하면 심층 분석이 가능합니다.</p>
-                </div>
-
-                <button onclick="startAnalysis()" class="w-full btn-primary py-3 flex items-center justify-center gap-2">
-                    <span>✨</span>
-                    <span>분석 시작하기</span>
-                </button>
-            </div>
-        `;
-        document.getElementById('analysisModal').classList.remove('hidden');
-        document.getElementById('analysisModal').classList.add('flex');
-    }
-
-    // 분석 실행
-    async function startAnalysis() {
-        const video = currentVideoForAnalysis;
-        const manualScript = document.getElementById('manualScriptInput').value.trim();
-
-        const modalContent = document.getElementById('modalContent');
-        modalContent.innerHTML = `
-            <div class="text-center py-8">
-                <div class="loader mx-auto mb-4"></div>
-                <p class="text-gray-500">데이터를 분석하고 있습니다...</p>
-                <p class="text-sm text-gray-400 mt-2">${video.snippet.title}</p>
-            </div>
-        `;
+        // 로딩 오버레이 표시
+        const overlay = document.getElementById('loadingOverlay');
+        const titleEl = document.getElementById('loadingVideoTitle');
+        if (overlay) {
+            overlay.classList.remove('hidden');
+            overlay.classList.add('flex');
+        }
+        if (titleEl) titleEl.textContent = video.snippet.title;
 
         try {
-            // 1. 자막(스크립트) 준비
-            let transcriptText = manualScript; // 1순위: 사용자 입력
-
-            // 입력이 없으면 자동 추출 시도
-            if (!transcriptText) {
-                try {
-                    const transcriptRes = await fetch(`/api/youtube/transcript/${video.id}`);
-                    const transcriptData = await transcriptRes.json();
-                    if (transcriptData.status === 'ok') {
-                        transcriptText = transcriptData.transcript;
-                    }
-                } catch (e) {
-                    console.warn('자막 추출 실패:', e);
+            // 1. 자막 추출 시도
+            let transcriptText = "";
+            try {
+                const transcriptRes = await fetch(`/api/youtube/transcript/${video.id}`);
+                const transcriptData = await transcriptRes.json();
+                if (transcriptData.status === 'ok') {
+                    transcriptText = transcriptData.transcript;
                 }
-            }
+            } catch (e) { console.warn('자막 추출 실패:', e); }
 
-            // 최종적으로 사용할 스크립트 저장
             if (transcriptText) {
                 currentVideoForAnalysis.transcript = transcriptText;
             }
 
-            // 2. 종합 분석 요청 (댓글 + 스크립트)
+            // 2. AI 분석 실행
             const result = await API.gemini.analyzeComments(currentVideoForAnalysis);
 
             if (result.status === 'ok' && result.analysis) {
                 currentAnalysisResult = result.analysis;
-                renderAnalysisResult(result.analysis, result.comment_count, !!transcriptText);
-                savePageState(); // [NEW] Save Analysis State
+
+                // 3. 자동으로 대본 기획 페이지로 이동 (분석 결과 저장 포함)
+                await goToScriptPlan();
             } else {
-                modalContent.innerHTML = `
-                    <div class="text-center py-8">
-                        <div class="text-4xl mb-4">❌</div>
-                        <p class="text-red-500">${result.error || '분석에 실패했습니다'}</p>
-                    </div>
-                `;
+                throw new Error(result.error || '분석에 실패했습니다');
             }
         } catch (error) {
             console.error('분석 오류:', error);
-            modalContent.innerHTML = `
-                <div class="text-center py-8">
-                    <div class="text-4xl mb-4">❌</div>
-                    <p class="text-red-500">분석 중 오류가 발생했습니다</p>
-                </div>
-            `;
+            Utils.showToast('분석 중 오류가 발생했습니다: ' + error.message, 'error');
+            if (overlay) {
+                overlay.classList.add('hidden');
+                overlay.classList.remove('flex');
+            }
         }
     }
 
-    // 분석 결과 렌더링
-    function renderAnalysisResult(analysis, commentCount, hasTranscript) {
-        const modalContent = document.getElementById('modalContent');
-        const video = currentVideoForAnalysis;
-
-        // 스크립트 분석 섹션 HTML 생성
-        let scriptAnalysisHtml = '';
-        if (analysis.script_analysis) {
-            const sa = analysis.script_analysis;
-            scriptAnalysisHtml = `
-            <!-- 스크립트 분석 (New) -->
-            <div class="mb-6 bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-lg border border-indigo-100 dark:border-indigo-800">
-                <h5 class="font-bold text-indigo-800 dark:text-indigo-300 mb-3 flex items-center gap-2">
-                    <span>📝</span> 스크립트 심층 분석
-                </h5>
-                <div class="space-y-3 text-sm">
-                    <div>
-                        <span class="font-semibold text-gray-700 dark:text-gray-300">🏗️ 구조:</span>
-                        <p class="text-gray-600 dark:text-gray-400 mt-1">${sa.structure || '분석 불가'}</p>
-                    </div>
-                    <div>
-                        <span class="font-semibold text-gray-700 dark:text-gray-300">🪝 후킹 요소:</span>
-                        <p class="text-gray-600 dark:text-gray-400 mt-1">${sa.hooks || '분석 불가'}</p>
-                    </div>
-                    <div>
-                        <span class="font-semibold text-gray-700 dark:text-gray-300">⚡ 페이싱 & 톤:</span>
-                        <p class="text-gray-600 dark:text-gray-400 mt-1">${sa.pacing || '분석 불가'}</p>
-                    </div>
-                    <div>
-                        <span class="font-semibold text-gray-700 dark:text-gray-300">🔑 핵심 메시지:</span>
-                        <p class="text-gray-600 dark:text-gray-400 mt-1">${sa.key_message || '분석 불가'}</p>
-                    </div>
-                </div>
-            </div>
-            `;
-        } else if (hasTranscript) {
-            scriptAnalysisHtml = `
-            <div class="mb-6 p-4 bg-gray-50 rounded-lg text-center text-gray-500 text-sm">
-                자막은 추출했으나 분석 데이터가 없습니다.
-            </div>`;
-        } else {
-            scriptAnalysisHtml = `
-            <div class="mb-6 p-4 bg-gray-50 rounded-lg text-center text-gray-500 text-sm">
-                영상에 자막이 없어 스크립트 분석을 건너뛰었습니다.
-            </div>`;
-        }
-
-        modalContent.innerHTML = `
-            <!-- 영상 정보 -->
-            <div class="flex gap-4 mb-6">
-                <img src="${video.snippet.thumbnails.medium.url}" class="w-32 rounded-lg">
-                <div>
-                    <h4 class="font-bold text-gray-800 dark:text-white">${video.snippet.title}</h4>
-                    <p class="text-sm text-gray-500">${video.snippet.channelTitle}</p>
-                    <p class="text-sm text-gray-400 mt-1">분석된 댓글: ${commentCount}개 ${hasTranscript ? '+ 자막 포함' : ''}</p>
-                </div>
-            </div>
-
-            <!-- 감정 분석 -->
-            <div class="mb-6">
-                <h5 class="font-bold text-gray-800 dark:text-white mb-3">📊 감정 분석</h5>
-                <div class="flex gap-4">
-                    <div class="flex-1 bg-green-100 dark:bg-green-900/30 rounded-lg p-3 text-center">
-                        <div class="text-2xl font-bold text-green-600">${analysis.sentiment?.positive || 0}%</div>
-                        <div class="text-sm text-green-700 dark:text-green-400">긍정</div>
-                    </div>
-                    <div class="flex-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-3 text-center">
-                        <div class="text-2xl font-bold text-gray-600 dark:text-gray-300">${analysis.sentiment?.neutral || 0}%</div>
-                        <div class="text-sm text-gray-500">중립</div>
-                    </div>
-                    <div class="flex-1 bg-red-100 dark:bg-red-900/30 rounded-lg p-3 text-center">
-                        <div class="text-2xl font-bold text-red-600">${analysis.sentiment?.negative || 0}%</div>
-                        <div class="text-sm text-red-700 dark:text-red-400">부정</div>
-                    </div>
-                </div>
-            </div>
-            
-            ${scriptAnalysisHtml}
-
-            <!-- 주요 토픽 -->
-            <div class="mb-6">
-                <h5 class="font-bold text-gray-800 dark:text-white mb-3">🏷️ 주요 토픽</h5>
-                <div class="flex flex-wrap gap-2">
-                    ${(analysis.main_topics || []).map(topic => `
-                        <span class="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-sm">${topic}</span>
-                    `).join('')}
-                </div>
-            </div>
-
-            <!-- 시청자 니즈 -->
-            <div class="mb-6">
-                <h5 class="font-bold text-gray-800 dark:text-white mb-3">💡 시청자 니즈</h5>
-                <ul class="space-y-2">
-                    ${(analysis.viewer_needs || []).map(need => `
-                        <li class="flex items-start gap-2 text-gray-700 dark:text-gray-300">
-                            <span class="text-yellow-500">✦</span>
-                            <span>${need}</span>
-                        </li>
-                    `).join('')}
-                </ul>
-            </div>
-
-            <!-- 성공 요인 (New) -->
-            <div class="mb-6">
-                <h5 class="font-bold text-gray-800 dark:text-white mb-3">🏆 인기 비결 (Success Factors)</h5>
-                <ul class="space-y-2">
-                    ${(analysis.success_factors || []).map(factor => `
-                        <li class="flex items-start gap-2 text-gray-700 dark:text-gray-300">
-                            <span class="text-red-500">★</span>
-                            <span class="font-medium">${factor}</span>
-                        </li>
-                    `).join('')}
-                </ul>
-            </div>
-
-            <!-- 콘텐츠 제안 -->
-            <div class="mb-6">
-                <h5 class="font-bold text-gray-800 dark:text-white mb-3">🎯 콘텐츠 제안</h5>
-                <ul class="space-y-2">
-                    ${(analysis.content_suggestions || []).map(suggestion => `
-                        <li class="flex items-start gap-2 text-gray-700 dark:text-gray-300">
-                            <span class="text-green-500">→</span>
-                            <span>${suggestion}</span>
-                        </li>
-                    `).join('')}
-                </ul>
-            </div>
-
-            <!-- 요약 -->
-            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-6">
-                <h5 class="font-bold text-gray-800 dark:text-white mb-2">📝 요약</h5>
-                <p class="text-gray-700 dark:text-gray-300">${analysis.summary || ''}</p>
-            </div>
-
-            <!-- 액션 버튼 -->
-            <button onclick="goToScriptPlan()" class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg">
-                <span>🚀</span>
-                <span>대본 기획하기</span>
-                <span>→</span>
-            </button>
-        `;
-    }
+    // [REMOVED] Replaced by auto-navigation logic in openAnalysisModal
+    async function startAnalysis() { /* ... */ }
+    function renderAnalysisResult(analysis, commentCount, hasTranscript) { /* ... */ }
 
     // 대본 기획으로 이동 (프로젝트 저장)
     async function goToScriptPlan() {
@@ -816,20 +650,6 @@
         if (!projectId) {
             const title = currentVideoForAnalysis.snippet.title.substring(0, 30);
             const language = document.getElementById('searchLanguage').value || 'ko';
-
-            // create API calls automatically handle the object if changed to accept object
-            // But checking api.js wrapper might be needed. Alternatively pass as args if wrapper signature allows.
-            // Assuming API.project.create(name, topic, target_language) or object.
-            // Let's assume we need to update api.js or call fetch directly? 
-            // Looking at previous main.py change: ProjectCreate model.
-
-            // NOTE: I need to verify how API.project.create is implemented. 
-            // If it's a wrapper, I might need to update it.
-            // For now, let's assume I can pass an object or extra arg.
-            // Actually, let's pass a config object if supported or try to update API wrapper first.
-            // Wait, I can't see api.js. I'll stick to a direct fetch or update api.js if I see it.
-            // Let's check api.js location first? Usually in /static/js/api.js.
-            // I'll take a safe bet and update the call assuming I'll fix the wrapper or it's flexible.
 
             // [MODIFIED] Use Keyword for Topic, Fallback to Video Title
             const keyword = document.getElementById('searchInput').value.trim();
@@ -914,7 +734,7 @@
                     keywords: data.keywords,
                     timestamp: Date.now()
                 };
-                sessionStorage.setItem('trendKeywords', JSON.stringify(persistData));
+                localStorage.setItem('trendKeywords', JSON.stringify(persistData));
 
                 renderBubbleChart(data.keywords);
             } else {
@@ -950,7 +770,7 @@
     }
 
     function restoreTrendKeywords() {
-        const raw = sessionStorage.getItem('trendKeywords');
+        const raw = localStorage.getItem('trendKeywords');
         if (!raw) return false;
 
         try {
@@ -1236,16 +1056,7 @@
         }
     });
 
-    // 모달 닫기
-    function closeModal() {
-        document.getElementById('analysisModal').classList.add('hidden');
-        document.getElementById('analysisModal').classList.remove('flex');
-    }
-
-    // ESC 키로 모달 닫기
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') closeModal();
-    });
+    // ESC 키는 이제 필요 없음 (모달 제거됨)
 
     // [NEW] Page State Management (SessionStorage)
     function savePageState() {
@@ -1257,16 +1068,15 @@
             videos: currentVideos,
             videoForAnalysis: currentVideoForAnalysis,
             analysisResult: currentAnalysisResult,
-            isModalOpen: !document.getElementById('analysisModal').classList.contains('hidden'),
             timestamp: Date.now()
         };
-        sessionStorage.setItem('topicPageState', JSON.stringify(state));
+        localStorage.setItem('topicPageState', JSON.stringify(state));
     }
 
     function restorePageState() {
         try {
-            const raw = sessionStorage.getItem('topicPageState');
-            if (!raw) return;
+            const raw = localStorage.getItem('topicPageState');
+            if (!raw) return false;
             const state = JSON.parse(raw);
 
             // 1. Restore Inputs
@@ -1285,46 +1095,34 @@
                 document.getElementById('resultCount').textContent = `(${currentVideos.length}개)`;
             }
 
-            // 3. Restore Analysis Modal
-            if (state.isModalOpen && state.videoForAnalysis && state.analysisResult) {
-                currentVideoForAnalysis = state.videoForAnalysis;
-                currentAnalysisResult = state.analysisResult;
-
-                // Re-open modal
-                openAnalysisModal(currentVideoForAnalysis.id);
-                // Re-render analysis content
-                setTimeout(() => {
-                    renderAnalysisResult(currentAnalysisResult, "?", !!currentVideoForAnalysis.transcript);
-                }, 100);
-            }
+            // 3. Restore Analysis Modal (Legacy check removed as we now use direct navigation)
+            return true;
         } catch (e) {
             console.error("State restore failed:", e);
+            return false;
         }
     }
 
-    // Modal Close Logic Update
-    const originalCloseModal = window.closeModal;
-    window.closeModal = function () {
-        if (originalCloseModal) originalCloseModal();
-        else {
-            document.getElementById('analysisModal').classList.add('hidden');
-            document.getElementById('analysisModal').classList.remove('flex');
-        }
-        savePageState();
-    };
+    // Modal Close Logic (REMOVED)
+    // window.closeModal = ...
 
 
     // [NEW] Project State Sync
     window.addEventListener('projectStateRestored', (e) => {
-        // 프로젝트가 변경되었으므로 검색 결과 초기화
-        // base.html에서 새 프로젝트 생성 시 sessionStorage를 지웠으므로,
-        // 여기서는 메모리 상의 UI와 변수를 초기화해야 함.
-        clearTopicPage();
+        // [MODIFIED] Only clear if there's no state to restore (e.g. new project)
+        // If we have stored state, restorePageState will handle it.
+        const hasRestored = restorePageState();
 
-        // 만약 프로젝트에 저장된 주제가 있다면 검색창에 반영
+        if (!hasRestored) {
+            clearTopicPage();
+        }
+
+        // 만약 프로젝트에 저장된 주제가 있다면 검색창에 반영 (검색어 입력은 프로젝트 데이터 우선)
         const data = e.detail;
         if (data && data.project && data.project.topic) {
             document.getElementById('searchInput').value = data.project.topic;
+            // 주제가 바뀌었으므로 상태 다시 저장
+            savePageState();
         }
     });
 
@@ -1353,9 +1151,6 @@
         // State vars
         currentVideoForAnalysis = null;
         currentAnalysisResult = null;
-
-        // 모달 닫기
-        closeModal();
     }
 
 </script>

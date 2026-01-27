@@ -579,7 +579,8 @@
                 body: JSON.stringify({
                     prompt: char.prompt_en,
                     project_id: projectId,
-                    style: style
+                    style: style,
+                    name: char.name // [NEW] Pass name for DB update
                 })
             });
             const result = await response.json();
@@ -1452,6 +1453,20 @@
             }
             drawPromptsUI(prompts);
             document.getElementById('resultSection').classList.remove('hidden');
+        }
+
+        // [NEW] Restore Character Analysis
+        if (data && data.characters && data.characters.length > 0) {
+            Utils.storage.set('characterPrompts', data.characters);
+            renderCharacters(data.characters);
+            document.getElementById('characterResultContainer').classList.remove('hidden');
+        } else {
+            // Local fallback
+            const localChars = Utils.storage.get('characterPrompts');
+            if (localChars && localChars.length > 0) {
+                renderCharacters(localChars);
+                document.getElementById('characterResultContainer').classList.remove('hidden');
+            }
         }
     });
 

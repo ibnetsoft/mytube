@@ -703,7 +703,17 @@
         const topic = document.getElementById('structureTopic')?.value || structureData.topic || '영상';
         let finalScript = '';
 
-        console.log(`Starting generation: ${sections.length} sections`);
+        const projectFull = await API.project.getFull(projectId);
+        const settings = projectFull.settings || {};
+        const durationSeconds = settings.duration_seconds || 60;
+
+        // 한국어 대본 기준: 1분당 약 400~450자
+        const totalTargetChars = (durationSeconds / 60) * 450;
+        const charsPerSection = Math.round(totalTargetChars / sections.length);
+        const minChars = Math.max(50, Math.round(charsPerSection * 0.8));
+        const maxChars = Math.round(charsPerSection * 1.2);
+
+        console.log(`Target: ${durationSeconds}s, Total Chars: ${totalTargetChars}, Per Section: ${charsPerSection}`);
 
         try {
             for (let i = 0; i < sections.length; i++) {
@@ -718,19 +728,19 @@
                 Utils.setLoading(btn, true, `생성 중... (${i + 1}/${sections.length}: ${section.title})`);
                 console.log(`Generating section ${i + 1}: ${section.title} `);
 
-                const prompt = `당신은 유튜브 대본 작가입니다.아래 주제에 대한 "${section.title}" 파트를 작성해주세요.
+                const prompt = `당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "${section.title}" 파트를 작성해주세요.
 
 [영상 주제]
 ${topic}
 
-        [현재 섹션]
-            - 제목: ${section.title}
-        - 주요 내용: ${keyPoints.length > 0 ? keyPoints.join(', ') : '자유롭게 작성'}
+[현재 섹션]
+- 제목: ${section.title}
+- 주요 내용: ${keyPoints.length > 0 ? keyPoints.join(', ') : '자유롭게 작성'}
 
-        [작성 지침]
-        1. 자연스럽고 몰입감 있는 한국어 대본을 작성하세요.
+[작성 지침]
+1. 자연스럽고 몰입감 있는 한국어 대본을 작성하세요.
 2. 섹션 제목은 출력하지 말고, 본문만 작성하세요.
-3. 약 500~800자 분량으로 작성하세요.
+3. 이 파트의 분량은 **약 ${minChars}~${maxChars}자** 내외로 작성하세요. (전체 영상 길이 ${Math.floor(durationSeconds / 60)}분 조절용)
 
 본문만 출력하세요: `;
 

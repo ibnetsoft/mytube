@@ -9,13 +9,7 @@
     <!-- LEFT COLUMN (Analysis & Settings) -->
     <div class="lg:col-span-4 space-y-6">
 
-        <!-- 1. Analysis Data (Moved here) -->
-        <div id="analysisInfo" class="card hidden w-full">
-            <h3 class="card-title">📊 분석 데이터 기반</h3>
-            <div id="analysisContent"></div>
-        </div>
-
-        <!-- 2. Script Settings (Moved to below Analysis used to be on right) -->
+        <!-- 1. Script Settings -->
         <div class="card w-full">
             <h3 class="card-title">⚙️ 대본 설정</h3>
             <!-- Changed grid to single column for narrower width -->
@@ -94,6 +88,28 @@
                 </button>
             </div>
         </div>
+
+        <!-- [NEW] Title Recommendation Card -->
+        <div class="card w-full">
+            <h3 class="card-title">💡 추천 제목 생성 <span class="text-xs font-normal text-gray-500 ml-2">(프로젝트 제목 설정)</span>
+            </h3>
+
+            <!-- 자동 생성을 위해 입력 필드는 숨김 처리하거나 제거 -->
+            <input type="hidden" id="titleKeywordInput" />
+
+            <!-- 추천 제목 표시 영역 (단일 제목용으로 간소화) -->
+            <div id="recommendedTitlesList" class="hidden mb-4">
+                <!-- JS: Rendered single best title here -->
+            </div>
+
+            <p class="text-[10px] text-gray-500 dark:text-gray-400 mt-2 text-center">* 영상 주제와 프로젝트 제목으로 즉시 적용됩니다.</p>
+        </div>
+
+        <!-- 2. Analysis Data -->
+        <div id="analysisInfo" class="card hidden w-full">
+            <h3 class="card-title">📊 분석 데이터 기반</h3>
+            <div id="analysisContent"></div>
+        </div>
     </div>
 
     <!-- RIGHT COLUMN (Script Structure Result) -->
@@ -126,9 +142,9 @@
             </div>
         </div>
 
-        <!-- Placeholder when hidden (Optional, to keep layout structure if needed, or just let it be empty) -->
+        <!-- Placeholder when hidden -->
         <div id="resultPlaceholder"
-            class="hidden h-full flex items-center justify-center p-10 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl text-gray-400">
+            class="h-full flex items-center justify-center p-10 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl text-gray-400">
             <div class="text-center">
                 <span class="text-4xl block mb-2">👈</span>
                 <p>왼쪽에서 설정을 완료하고<br>'대본 구조 생성'을 눌러주세요</p>
@@ -168,8 +184,20 @@
         const urlTopic = urlParams.get('topic');
         if (urlTopic) {
             console.log("[Force Topic] URL Parameter found:", urlTopic);
-            document.getElementById('topicInput').value = decodeURIComponent(urlTopic);
+            const val = decodeURIComponent(urlTopic);
+            document.getElementById('topicInput').value = val;
+            const kwInput = document.getElementById('titleKeywordInput');
+            if (kwInput) kwInput.value = val;
             // 만약 API로 프로젝트 내용을 불러왔더라도, 사용자가 방금 검색한 키워드가 더 중요하므로 덮어씀
+        } else {
+            // URL 파라미터가 없더라도, 잠시 후 topicInput에 값이 들어오면 동기화 시도
+            setTimeout(() => {
+                const topicVal = document.getElementById('topicInput').value;
+                const kwInput = document.getElementById('titleKeywordInput');
+                if (topicVal && kwInput && !kwInput.value) {
+                    kwInput.value = topicVal;
+                }
+            }, 1000);
         }
 
         // [NEW] Check App Mode
@@ -195,49 +223,19 @@
             }
         } catch (e) { console.error(e); }
 
-        // 자동 생성 요청 확인
-        if (urlParams.get('auto') === 'true') {
-            // [Fix] Remove 'auto' param immediately to prevent re-run on refresh
-            const newUrl = new URL(window.location.href);
-            newUrl.searchParams.delete('auto');
-            window.history.replaceState({}, document.title, newUrl.toString());
 
-            setTimeout(async () => {
-                Utils.showToast('대본 구조를 자동으로 생성합니다...', 'info');
-
-                // [Robust] Ensure topic is passed
-                let topic = document.getElementById('topicInput').value;
-                if (!topic && projectId) {
-                    console.warn("[AutoStart] Topic input empty, attempting fetch from DB...");
-                    try {
-                        // 1. Try Simple Get
-                        let p = await API.project.get(projectId);
-                        if (p && p.topic) {
-                            topic = p.topic;
-                            console.log("[AutoStart] Topic recovered from SimpleGet:", topic);
-                        } else {
-                            // 2. Try Full Get
-                            const full = await API.project.getFull(projectId);
-                            if (full.project && full.project.topic) {
-                                topic = full.project.topic;
-                                console.log("[AutoStart] Topic recovered from FullGet:", topic);
-                            }
-                        }
-                    } catch (e) { console.error("Auto-start topic fetch failed:", e); }
-                } else {
-                    console.log("[AutoStart] Using topic from input:", topic);
-                }
-
-                generateStructure(topic);
-            }, 500);
-        }
     });
 
     // 상태 복구 완료 시 UI 업데이트
     window.addEventListener('projectStateRestored', (e) => {
         const data = e.detail;
         if (data.project) {
-            if (data.project.topic) document.getElementById('topicInput').value = data.project.topic;
+            if (data.project.topic) {
+                const topic = data.project.topic;
+                document.getElementById('topicInput').value = topic;
+                const kwInput = document.getElementById('titleKeywordInput');
+                if (kwInput && !kwInput.value) kwInput.value = topic;
+            }
         }
 
         if (data.settings) {
@@ -258,6 +256,27 @@
         if (data.script_structure) {
             currentStructure = data.script_structure;
             renderStructure(data.script_structure);
+            document.getElementById('resultSection').classList.remove('hidden');
+            const placeholder = document.getElementById('resultPlaceholder');
+            if (placeholder) placeholder.classList.add('hidden');
+        } else {
+            document.getElementById('resultSection').classList.add('hidden');
+            const placeholder = document.getElementById('resultPlaceholder');
+            if (placeholder) placeholder.classList.remove('hidden');
+        }
+
+        // [NEW] 추천 제목 복구 또는 자동 생성
+        if (data.metadata && data.metadata.titles && data.metadata.titles.length > 0) {
+            renderRecommendedTitles(data.metadata.titles);
+            const listContainer = document.getElementById('recommendedTitlesList');
+            if (listContainer) listContainer.classList.remove('hidden');
+        } else {
+            // 프로젝트 주제가 있으면 자동 추천 실행
+            const currentTopic = (data.project && data.project.topic) ? data.project.topic : document.getElementById('topicInput').value.trim();
+            if (currentTopic) {
+                console.log("No titles found, auto-generating recommended title...");
+                setTimeout(() => generateRecommendedTitles(), 500);
+            }
         }
     });
 
@@ -271,8 +290,16 @@
 
             if (fullData) {
                 if (fullData.project && fullData.project.topic) {
-                    document.getElementById('topicInput').value = fullData.project.topic;
-                    console.log("[LoadProjectData] Topic populated:", fullData.project.topic);
+                    const topic = fullData.project.topic;
+                    document.getElementById('topicInput').value = topic;
+                    const kwInput = document.getElementById('titleKeywordInput');
+                    if (kwInput && (!kwInput.value || kwInput.value === '')) {
+                        kwInput.value = topic;
+                    }
+                    console.log("[LoadProjectData] Topic populated:", topic);
+                } else if (fullData.analysis && fullData.analysis.video_title) {
+                    const kwInput = document.getElementById('titleKeywordInput');
+                    if (kwInput && !kwInput.value) kwInput.value = fullData.analysis.video_title;
                 }
 
                 const s = fullData.settings || {};
@@ -295,24 +322,42 @@
                 }
             }
 
-            // Load existing structure (Separate fetch as per legacy logic, usually structure is large)
+            // Load existing structure
             try {
                 const structData = await API.project.getScriptStructure(projectId);
                 console.log("[DEBUG] structData from API:", structData);
 
-                // Show result section if we have ANY data (hook, sections, cta, etc.)
-                // Even if sections is empty, we want to show the placeholder message
                 if (structData && (structData.sections || structData.hook)) {
                     currentStructure = structData;
                     renderStructure(structData);
                     document.getElementById('resultSection').classList.remove('hidden');
+                    const placeholder = document.getElementById('resultPlaceholder');
+                    if (placeholder) placeholder.classList.add('hidden');
                     Utils.storage.set('scriptStructure', structData);
                 } else {
-                    console.log("[DEBUG] No structure found or empty response");
+                    document.getElementById('resultSection').classList.add('hidden');
+                    const placeholder = document.getElementById('resultPlaceholder');
+                    if (placeholder) placeholder.classList.remove('hidden');
                 }
             } catch (e) {
                 console.error("Failed to load script structure:", e);
             }
+
+            // [NEW] 추천 제목 불러오기 로직 추가
+            try {
+                // Check if already rendered by projectStateRestored
+                const listContainer = document.getElementById('recommendedTitlesList');
+                if (listContainer && listContainer.innerHTML.trim() === '') {
+                    const metaRes = await fetch(`/api/projects/${projectId}/metadata`);
+                    if (metaRes.ok) {
+                        const metaData = await metaRes.json();
+                        if (metaData && metaData.titles && metaData.titles.length > 0) {
+                            renderRecommendedTitles(metaData.titles);
+                            // The new renderRecommendedTitles handles showing the container
+                        }
+                    }
+                }
+            } catch (e) { console.error("Failed to load saved titles:", e); }
 
         } catch (e) {
             console.error('데이터 로드 실패:', e);
@@ -324,69 +369,92 @@
         const analysis = fullData.analysis || {};
         const settings = fullData.settings || {};
 
-        const hasAnalysis = analysis.video_title;
-        const hasThumbnail = settings.thumbnail_url;
+        if (!analysis.video_id && !settings.thumbnail_url) return;
 
-        // Note: We check if there's ANYTHING to show. 
-        // If analysis is missing but we have thumbnail, we still show the section.
-        if (hasAnalysis || hasThumbnail) {
-            document.getElementById('analysisInfo').classList.remove('hidden');
+        const infoDiv = document.getElementById('analysisInfo');
+        infoDiv.classList.remove('hidden');
 
-            // If topic input is empty, maybe fill it from analysis? 
-            // Logic moved to loadProjectData to be safer (prefer project.topic)
-            if (analysis.video_title && !document.getElementById('topicInput').value) {
-                // document.getElementById('topicInput').value = analysis.video_title; 
-                // Kept commented out as per previous logic to strictly use project.topic
+        let analysisResult = {};
+        try {
+            if (typeof analysis.analysis_result === 'string') {
+                analysisResult = JSON.parse(analysis.analysis_result);
+            } else {
+                analysisResult = analysis.analysis_result || {};
             }
+        } catch (e) { console.error("Analysis Parse Error", e); }
 
-            let html = '<div class="flex flex-col md:flex-row gap-6">';
-
-            // Left: Analysis Data (Source)
-            if (hasAnalysis) {
-                html += `
-                    <div class="flex-1 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border border-gray-100 dark:border-gray-700">
-                        <h4 class="text-xs font-bold text-gray-500 mb-2">📺 원본 영상 분석</h4>
-                        <div class="flex gap-4 items-center">
-                            <img src="${analysis.thumbnail_url}" class="w-24 h-16 object-cover rounded bg-black">
-                            <div class="min-w-0">
-                                <p class="font-medium text-sm text-gray-800 dark:text-white truncate" title="${analysis.video_title}">${analysis.video_title}</p>
-                                <p class="text-xs text-gray-500">${analysis.channel_title}</p>
-                            </div>
+        let html = `
+            <div class="space-y-4">
+                <!-- 원본 영상 정보 -->
+                <div class="flex gap-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-700">
+                    <img src="${analysis.thumbnail_url}" class="w-28 h-16 object-cover rounded shadow-sm">
+                    <div class="min-w-0">
+                        <p class="font-bold text-sm text-gray-800 dark:text-white line-clamp-1">${analysis.video_title || '원본 영상'}</p>
+                        <p class="text-xs text-gray-500 mt-0.5">${analysis.channel_title || ''}</p>
+                        <div class="flex gap-3 mt-1.5">
+                            <span class="text-[10px] text-indigo-500 font-medium">👁️ ${Utils.formatNumber(analysis.view_count || 0)}</span>
+                            <span class="text-[10px] text-red-500 font-medium">🔥 스코어: ${analysis.viral_score || 0}</span>
                         </div>
                     </div>
-                `;
-            } else {
-                // Optional: Show empty state for analysis if needed, but usually we just skip.
-                // For balance, if we have thumbnail but no analysis (rare), we could leave left side empty?
-                // Let's just render what we have.
-            }
+                </div>
 
-            // Right: Generated Thumbnail (My Project)
-            if (hasThumbnail) {
-                html += `
-                    <div class="flex-1 bg-blue-50 dark:bg-blue-900/10 p-3 rounded-lg border border-blue-100 dark:border-blue-900/30">
-                        <h4 class="text-xs font-bold text-blue-600 dark:text-blue-400 mb-2">🎨 내 썸네일 (생성됨)</h4>
-                        <div class="flex gap-4 items-center">
-                            <img src="${settings.thumbnail_url}" class="w-24 h-16 object-cover rounded bg-black cursor-pointer hover:opacity-90" onclick="window.open('${settings.thumbnail_url}', '_blank')">
-                            <div class="min-w-0">
-                                <p class="font-medium text-sm text-gray-800 dark:text-white truncate">메인 썸네일</p>
-                                <p class="text-xs text-gray-500">클릭하여 크게 보기</p>
-                            </div>
+                <!-- AI 심층 분석 결과 -->
+                <div class="space-y-3">
+                    ${analysisResult.summary ? `
+                        <div class="p-3 bg-blue-50 dark:bg-blue-900/10 rounded-lg border border-blue-100 dark:border-blue-800">
+                            <h5 class="text-xs font-bold text-blue-600 dark:text-blue-400 mb-1 flex items-center gap-1">
+                                <span>📝</span> AI 분석 요약
+                            </h5>
+                            <p class="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">${analysisResult.summary}</p>
                         </div>
-                    </div>
-                `;
-            } else {
-                // Placeholder
-                html += `
-                    <div class="flex-1 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border border-gray-100 dark:border-gray-700 dashed-border flex items-center justify-center text-gray-400 text-xs">
-                        <span>썸네일이 아직 없습니다</span>
-                    </div>
-                `;
-            }
+                    ` : ''}
 
-            html += '</div>';
-            document.getElementById('analysisContent').innerHTML = html;
-        }
+                    ${analysisResult.success_factors && analysisResult.success_factors.length > 0 ? `
+                        <div>
+                            <h5 class="text-xs font-bold text-gray-800 dark:text-white mb-2 flex items-center gap-1">
+                                <span>🏆</span> 성공 요인 (Success Factors)
+                            </h5>
+                            <ul class="space-y-1.5">
+                                ${analysisResult.success_factors.map(f => `
+                                    <li class="flex items-start gap-2 text-[11px] text-gray-600 dark:text-gray-400">
+                                        <span class="text-blue-500 mt-0.5">•</span>
+                                        <span>${f}</span>
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+
+                    ${analysisResult.viewer_needs && analysisResult.viewer_needs.length > 0 ? `
+                        <div class="pt-2">
+                            <h5 class="text-xs font-bold text-gray-800 dark:text-white mb-2 flex items-center gap-1">
+                                <span>💡</span> 시청자 니즈 & 인사이트
+                            </h5>
+                            <ul class="space-y-1.5">
+                                ${analysisResult.viewer_needs.map(n => `
+                                    <li class="flex items-start gap-2 text-[11px] text-gray-600 dark:text-gray-400">
+                                        <span class="text-amber-500 mt-0.5">✦</span>
+                                        <span>${n}</span>
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                    
+                    ${analysisResult.script_analysis ? `
+                        <div class="pt-2 border-t border-gray-100 dark:border-gray-700 mt-2">
+                            <h5 class="text-xs font-bold text-indigo-600 dark:text-indigo-400 mb-2 flex items-center gap-1">
+                                <span>🏗️</span> 원본 구조 분석
+                            </h5>
+                            <p class="text-[11px] text-gray-600 dark:text-gray-400 leading-normal italic">
+                                ${analysisResult.script_analysis.structure || '구조 분석됨'}
+                            </p>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+        document.getElementById('analysisContent').innerHTML = html;
     }
 
 
@@ -649,6 +717,160 @@
 
         return text;
     }
+
+    // [NEW] Title Recommendation Logic
+    // currentTargetLanguage used from global scope
+
+    async function generateRecommendedTitles() {
+        const keywordInput = document.getElementById('titleKeywordInput');
+        let keyword = keywordInput ? keywordInput.value.trim() : "";
+        const currentTopic = document.getElementById('topicInput').value.trim();
+
+        // 키워드가 비어있으면 영상 주제(topicInput)를 기본값으로 사용
+        if (!keyword) {
+            keyword = currentTopic;
+            if (keyword && keywordInput) keywordInput.value = keyword; // UI 반영
+        }
+
+        if (!keyword) {
+            // 주제도 없으면 로그만 남기고 조용히 종료 (자동 생성 시 토스트 등 방해 방지)
+            console.warn('No keyword or topic for title recommendation');
+            return;
+        }
+
+        const btn = document.getElementById('btnRecTitle'); // 버튼이 없을 수 있으므로 체크
+        const listContainer = document.getElementById('recommendedTitlesList');
+
+        if (btn) Utils.setLoading(btn, true, '생성 중...');
+        listContainer.classList.add('hidden');
+        listContainer.innerHTML = `
+            <div class="flex flex-col items-center gap-2 py-4">
+                <div class="loader-sm"></div>
+                <p class="text-xs text-gray-500">AI 최적 제목 추천 중...</p>
+            </div>
+        `;
+        listContainer.classList.remove('hidden');
+
+        try {
+            const res = await fetch('/api/script/recommend-titles', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    keyword: keyword,
+                    topic: currentTopic, // 주제도 함께 보냄
+                    language: currentTargetLanguage || 'ko'
+                })
+            });
+            const data = await res.json();
+
+            if (data.titles && data.titles.length > 0) {
+                renderRecommendedTitles(data.titles);
+                // listContainer.classList.remove('hidden'); // This is now handled by renderRecommendedTitles
+
+                // [NEW] 생성된 제목들을 프로젝트 메타데이터에 즉시 저장 (새로고침 대비)
+                try {
+                    const projectId = getCurrentProject();
+                    if (projectId) {
+                        // 기존 메타데이터 가져오기 (설명, 태그 등 보존 목적)
+                        let description = "";
+                        let tags = [];
+                        let hashtags = [];
+
+                        try {
+                            const oldMetaRes = await fetch(`/api/projects/${projectId}/metadata`);
+                            if (oldMetaRes.ok) {
+                                const oldMeta = await oldMetaRes.json();
+                                if (oldMeta) {
+                                    description = oldMeta.description || "";
+                                    tags = oldMeta.tags || [];
+                                    hashtags = oldMeta.hashtags || [];
+                                }
+                            }
+                        } catch (e) { console.error("Error fetching old metadata", e); }
+
+                        await fetch(`/api/projects/${projectId}/metadata`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                titles: data.titles,
+                                description: description,
+                                tags: tags,
+                                hashtags: hashtags
+                            })
+                        });
+                        console.log("Titles saved to metadata safely.");
+                    }
+                } catch (saveErr) {
+                    console.error("Failed to save recommended titles:", saveErr);
+                }
+            } else {
+                Utils.showToast('추천 제목을 생성하지 못했습니다', 'error');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('오류가 발생했습니다', 'error');
+        } finally {
+            Utils.setLoading(btn, false);
+        }
+    }
+
+    function renderRecommendedTitles(titles) {
+        const container = document.getElementById('recommendedTitlesList');
+        if (!container) return;
+
+        // 5개 중 첫 번째 제목을 가장 좋은 제목으로 간주하여 하나만 표시
+        const bestTitle = titles[0];
+
+        container.innerHTML = `
+            <div class="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl mb-2 text-center">
+                <p class="text-xs text-blue-500 mb-1 font-bold">✨ AI 최적 추천 제목</p>
+                <h4 class="text-lg font-bold text-gray-800 dark:text-white mb-2">"${bestTitle}"</h4>
+                <div class="flex justify-center gap-2">
+                    <span class="text-xs px-2 py-1 bg-green-100 text-green-600 rounded-full font-medium">자동 적용됨</span>
+                    <button onclick="generateRecommendedTitles()" class="text-xs text-blue-500 hover:underline">다시 뽑기</button>
+                </div>
+            </div>
+        `;
+        container.classList.remove('hidden');
+
+        // 생성된 즉시 이 제목을 프로젝트에 적용 (유저가 선택한 것처럼)
+        applyTitle(bestTitle);
+    }
+
+    async function applyTitle(title) {
+        // 1. Update Project Title (via Metadata API or Patch)
+        const projectId = getCurrentProject();
+        if (!projectId) {
+            Utils.showToast('프로젝트가 선택되지 않았습니다', 'warning');
+            return;
+        }
+
+        try {
+            // Update Project Details (Title update)
+            // Using PATCH /api/projects/{id}
+            await fetch(`/api/projects/${projectId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ video_title: title })
+            });
+
+            // 2. Update UI Inputs
+            document.getElementById('topicInput').value = title; // 대본 구조 > 영상 주제
+
+            // 3. Highlight
+            Utils.showToast(`제목 적용 완료`, 'success');
+
+            // 시각적 피드백 (topic input 깜빡임)
+            const topicInput = document.getElementById('topicInput');
+            topicInput.classList.add('ring-2', 'ring-indigo-500', 'transition-all', 'duration-300');
+            setTimeout(() => topicInput.classList.remove('ring-2', 'ring-indigo-500'), 1000);
+
+        } catch (e) {
+            console.error("Title Update Failed:", e);
+            Utils.showToast('제목 적용 실패', 'error');
+        }
+    }
+
 
     function regenerate() {
         generateStructure();

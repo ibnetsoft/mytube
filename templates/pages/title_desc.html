@@ -24,6 +24,14 @@
             <input type="text" id="targetKeyword"
                 class="text-xs flex-1 border-gray-300 dark:border-gray-600 rounded-md py-1.5 px-3 focus:ring-primary focus:border-primary bg-gray-50 dark:bg-gray-700 dark:text-white"
                 placeholder="타겟 키워드 (선택사항)">
+
+            <!-- [NEW] Project Title Display -->
+            <div
+                class="hidden md:flex items-center gap-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 rounded border border-indigo-100 dark:border-indigo-800 ml-2 max-w-[200px] shrink-0">
+                <span class="text-xs font-bold text-indigo-700 dark:text-indigo-300 whitespace-nowrap">📌 제목:</span>
+                <span id="projectTitleDisplay" class="text-xs text-gray-600 dark:text-gray-300 truncate cursor-help"
+                    title="설정된 제목 없음">설정된 제목 없음</span>
+            </div>
         </div>
 
         <button onclick="generateMeta()" id="generateBtn"
@@ -151,6 +159,25 @@
                     keywordInput.value = projectRes.topic || projectRes.name;
                 }
             }
+
+            // [NEW] Load Title from Settings
+            try {
+                const fullRes = await fetch(`/api/projects/${projectId}/full`);
+                if (fullRes.ok) {
+                    const fullData = await fullRes.json();
+                    const title = fullData.settings?.title;
+                    if (title) {
+                        const disp = document.getElementById('projectTitleDisplay');
+                        if (disp) {
+                            disp.innerText = title;
+                            disp.title = title;
+                            // 부모 div의 hidden 클래스 제거 (혹시 모바일이 아니고 내용이 있을 때 보장)
+                            disp.parentElement.classList.remove('hidden');
+                            disp.parentElement.classList.add('flex');
+                        }
+                    }
+                }
+            } catch (e) { console.error("Title load failed", e); }
 
             const res = await fetch(`/api/projects/${projectId}/metadata`);
             const data = await res.json();

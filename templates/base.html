@@ -193,186 +193,193 @@
                     <span class="hidden dark:inline">🌙 다크</span>
                 </button>
             </div>
-    </div>
 
-    <!-- API 상태 -->
-    <div class="absolute bottom-0 left-0 right-0 p-4">
-        <div id="apiStatus" class="text-xs text-gray-500 dark:text-gray-400">
-            <div class="flex items-center gap-2 mb-1">
-                <span id="statusDot" class="w-2 h-2 rounded-full bg-gray-400"></span>
-                <span>API 상태 확인 중...</span>
-            </div>
-        </div>
-    </div>
-    </aside>
-
-
-    <!-- 메인 컨텐츠 영역 (헤더 포함) -->
-    <div class="flex-1 ml-64 flex flex-col h-screen overflow-hidden">
-
-        <!-- Top Fixed Header (Project Progress) -->
-        <header id="projectProgressHeader"
-            class="hidden shrink-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 z-30 transition-all duration-300">
-            <div class="px-6 py-3">
-                <!-- Top Row: Title & Actions -->
-                <div class="flex items-center justify-between mb-3">
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs font-bold text-gray-500 dark:text-gray-400">Project:</span>
-                        <h2 id="currentProjectNameDisplay" class="text-sm font-bold text-gray-800 dark:text-white">프로젝트명
-                        </h2>
+            <!-- API 상태 -->
+            <div class="absolute bottom-0 left-0 right-0 p-4">
+                <div id="apiStatus" class="text-xs text-gray-500 dark:text-gray-400">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span id="statusDot" class="w-2 h-2 rounded-full bg-gray-400"></span>
+                        <span>API 상태 확인 중...</span>
                     </div>
-                    <button onclick="closeProjectContext()"
-                        class="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-gray-400 transition-colors"
-                        title="프로젝트 닫기">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
-                    </button>
                 </div>
+            </div>
+        </aside>
 
-                <!-- Bottom Row: 11-Step Progress Stepper -->
-                <div class="relative">
-                    <!-- Scrollable Container -->
-                    <div class="overflow-x-auto no-scrollbar pb-1 -mx-6 px-6">
-                        <div class="flex items-center min-w-max gap-4 relative">
-                            <!-- Connecting Line (Background) -->
-                            <div class="absolute top-[9px] left-0 right-0 h-[2px] bg-gray-200 dark:bg-gray-700 -z-0">
+
+        <!-- 메인 컨텐츠 영역 (헤더 포함) -->
+        <div class="flex-1 ml-64 flex flex-col h-screen overflow-hidden">
+
+            <!-- Top Fixed Header (Project Progress) -->
+            <header id="projectProgressHeader"
+                class="hidden shrink-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 z-30 transition-all duration-300">
+                <div class="px-6 py-3">
+                    <!-- Top Row: Title & Actions -->
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold text-gray-500 dark:text-gray-400">Project:</span>
+                            <h2 id="currentProjectNameDisplay" class="text-sm font-bold text-gray-800 dark:text-white">
+                                프로젝트명
+                            </h2>
+                        </div>
+                        <button onclick="closeProjectContext()"
+                            class="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-gray-400 transition-colors"
+                            title="프로젝트 닫기">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- Bottom Row: 11-Step Progress Stepper -->
+                    <div class="relative">
+                        <!-- Scrollable Container -->
+                        <div class="overflow-x-auto no-scrollbar pb-1 -mx-6 px-6">
+                            <div class="flex items-center min-w-max gap-4 relative">
+                                <!-- Connecting Line (Background) -->
+                                <div
+                                    class="absolute top-[9px] left-0 right-0 h-[2px] bg-gray-200 dark:bg-gray-700 -z-0">
+                                </div>
+
+                                <!-- Step 1: Topic -->
+                                <a href="/"
+                                    class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                    data-step="topic">
+                                    <div
+                                        class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
+                                        <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                    </div>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">주제</span>
+                                </a>
+
+
+
+                                <!-- Step 3: Plan -->
+                                <a href="/script-plan"
+                                    class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                    data-step="plan">
+                                    <div
+                                        class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
+                                        <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                    </div>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">기획</span>
+                                </a>
+
+                                <!-- Step 4: Script -->
+                                <a href="/script-gen"
+                                    class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                    data-step="script">
+                                    <div
+                                        class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
+                                        <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                    </div>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">대본</span>
+                                </a>
+
+                                <!-- Step 5: Intro -->
+                                <a href="/video-gen"
+                                    class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                    data-step="intro">
+                                    <div
+                                        class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
+                                        <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                    </div>
+                                    <span
+                                        class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">인트로</span>
+                                </a>
+
+                                <!-- Step 6: Image -->
+                                <a href="/image-gen"
+                                    class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                    data-step="image">
+                                    <div
+                                        class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
+                                        <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                    </div>
+                                    <span
+                                        class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">이미지</span>
+                                </a>
+
+                                <!-- Step 7: Thumbnail -->
+                                <a href="/thumbnail"
+                                    class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                    data-step="thumbnail">
+                                    <div
+                                        class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
+                                        <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                    </div>
+                                    <span
+                                        class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">썸네일</span>
+                                </a>
+
+                                <!-- Step 8: TTS -->
+                                <a href="/tts"
+                                    class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                    data-step="tts">
+                                    <div
+                                        class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
+                                        <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                    </div>
+                                    <span
+                                        class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">TTS</span>
+                                </a>
+
+                                <!-- Step 9: BGM -->
+                                <a href="/music-gen"
+                                    class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                    data-step="bgm">
+                                    <div
+                                        class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
+                                        <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                    </div>
+                                    <span
+                                        class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">BGM</span>
+                                </a>
+
+                                <!-- Step 10: Subtitles -->
+                                <a href="/subtitle-gen"
+                                    class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                    data-step="subtitle">
+                                    <div
+                                        class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
+                                        <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                    </div>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">자막</span>
+                                </a>
+
+                                <!-- Step 11: Render -->
+                                <a href="/render"
+                                    class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                    data-step="render">
+                                    <div
+                                        class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
+                                        <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                    </div>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">영상</span>
+                                </a>
+
+                                <!-- Step 12: Upload -->
+                                <a href="/video-upload"
+                                    class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                    data-step="upload">
+                                    <div
+                                        class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
+                                        <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                    </div>
+                                    <span
+                                        class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">업로드</span>
+                                </a>
                             </div>
-
-                            <!-- Step 1: Topic -->
-                            <a href="/"
-                                class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
-                                data-step="topic">
-                                <div
-                                    class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
-                                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
-                                </div>
-                                <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">주제</span>
-                            </a>
-
-
-
-                            <!-- Step 3: Plan -->
-                            <a href="/script-plan"
-                                class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
-                                data-step="plan">
-                                <div
-                                    class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
-                                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
-                                </div>
-                                <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">기획</span>
-                            </a>
-
-                            <!-- Step 4: Script -->
-                            <a href="/script-gen"
-                                class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
-                                data-step="script">
-                                <div
-                                    class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
-                                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
-                                </div>
-                                <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">대본</span>
-                            </a>
-
-                            <!-- Step 5: Intro -->
-                            <a href="/video-gen"
-                                class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
-                                data-step="intro">
-                                <div
-                                    class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
-                                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
-                                </div>
-                                <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">인트로</span>
-                            </a>
-
-                            <!-- Step 6: Image -->
-                            <a href="/image-gen"
-                                class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
-                                data-step="image">
-                                <div
-                                    class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
-                                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
-                                </div>
-                                <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">이미지</span>
-                            </a>
-
-                            <!-- Step 7: Thumbnail -->
-                            <a href="/thumbnail"
-                                class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
-                                data-step="thumbnail">
-                                <div
-                                    class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
-                                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
-                                </div>
-                                <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">썸네일</span>
-                            </a>
-
-                            <!-- Step 8: TTS -->
-                            <a href="/tts"
-                                class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
-                                data-step="tts">
-                                <div
-                                    class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
-                                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
-                                </div>
-                                <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">TTS</span>
-                            </a>
-
-                            <!-- Step 9: BGM -->
-                            <a href="/music-gen"
-                                class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
-                                data-step="bgm">
-                                <div
-                                    class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
-                                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
-                                </div>
-                                <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">BGM</span>
-                            </a>
-
-                            <!-- Step 10: Subtitles -->
-                            <a href="/subtitle-gen"
-                                class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
-                                data-step="subtitle">
-                                <div
-                                    class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
-                                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
-                                </div>
-                                <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">자막</span>
-                            </a>
-
-                            <!-- Step 11: Render -->
-                            <a href="/render"
-                                class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
-                                data-step="render">
-                                <div
-                                    class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
-                                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
-                                </div>
-                                <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">영상</span>
-                            </a>
-
-                            <!-- Step 12: Upload -->
-                            <a href="/video-upload"
-                                class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
-                                data-step="upload">
-                                <div
-                                    class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
-                                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
-                                </div>
-                                <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">업로드</span>
-                            </a>
                         </div>
                     </div>
                 </div>
-            </div>
-        </header>
+            </header>
 
-        <!-- Main Content (Scrollable) -->
-        <main class="flex-1 overflow-y-auto p-6 scroll-smooth">
-            {% block content %}{% endblock %}
-        </main>
-    </div>
+            <!-- Main Content (Scrollable) -->
+            <main class="flex-1 overflow-y-auto p-6 scroll-smooth">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
     </div>
 
     <!-- 프로젝트 생성 모달 -->
@@ -596,9 +603,8 @@
                 Utils.storage.remove('fullScript');
                 Utils.storage.remove('imagePrompts');
                 Utils.storage.remove('characterPrompts'); // [NEW]
-                sessionStorage.removeItem('trendKeywords'); // [NEW]
-                sessionStorage.removeItem('topicPageState'); // [NEW]
-                // Also clear any other potential leftovers
+                localStorage.removeItem('trendKeywords'); // [NEW]
+                localStorage.removeItem('topicPageState'); // [NEW]
                 localStorage.removeItem('latestScriptStyle'); // Optional: reset style preference
 
                 const result = await API.project.create(name, topic || null);

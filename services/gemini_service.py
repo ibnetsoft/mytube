@@ -359,6 +359,39 @@ class GeminiService:
             except:
                 pass
         return {"error": "구조 생성 실패", "raw": text}
+    async def generate_title_recommendations(self, keyword: str, topic: str = "", language: str = "ko") -> List[str]:
+        """추천 제목 5개 생성"""
+        prompt = f"""
+        당신은 유튜브 콘텐츠 기획 전문가입니다.
+        다음 정보를 바탕으로 클릭률(CTR)이 높은 롱폼/쇼츠 유튜브 제목 5개를 제안해주세요.
+
+        [정보]
+        - 키워드: {keyword}
+        - 주제/설명: {topic}
+        - 언어: {language}
+
+        [요구사항]
+        1. 5개의 제목을 생성하세요.
+        2. 어그로성보다는 호기심을 유발하거나, 혜택을 명확히 하거나, 감정을 자극하는 제목을 만드세요.
+        3. 50자 이내로 짧고 강렬하게.
+        4. 번호 붙이지 말고 오직 JSON 배열로 반환하세요. 예: ["제목1", "제목2", ...]
+        """
+
+        try:
+            response_text = await self.generate_text(prompt, temperature=0.8)
+            cleaned_text = re.sub(r'```json\s*|\s*```', '', response_text).strip()
+            match = re.search(r'\[.*\]', cleaned_text, re.DOTALL)
+            
+            if match:
+                titles = json.loads(match.group(0))
+                return titles[:5]
+            else:
+                # Fallback
+                return [line.strip().lstrip('-').lstrip('1.').strip() for line in cleaned_text.split('\n') if line.strip()][:5]
+        except Exception as e:
+            print(f"Title Gen Error: {e}")
+            return []
+
 
     async def generate_trending_keywords(self, language: str = "ko", period: str = "now", age: str = "all") -> list:
         """

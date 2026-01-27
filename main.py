@@ -189,10 +189,10 @@ class ImagePromptsSave(BaseModel):
     prompts: List[dict]
 
 class MetadataSave(BaseModel):
-    titles: List[str]
-    description: str
-    tags: List[str]
-    hashtags: List[str]
+    titles: List[str] = []
+    description: Optional[str] = ""
+    tags: List[str] = []
+    hashtags: List[str] = []
 
 class PromptsGenerateRequest(BaseModel):
     script: str
@@ -597,8 +597,21 @@ async def auto_generate_script_structure(project_id: int):
     # 3. DB 저장
     db.save_script_structure(project_id, structure)
     db.update_project(project_id, status="planned")
-
+    
     return {"status": "ok", "structure": structure}
+
+@app.post("/api/script/recommend-titles")
+async def recommend_titles(
+    keyword: str = Body(..., embed=True),
+    topic: str = Body("", embed=True),
+    language: str = Body("ko", embed=True)
+):
+    """키워드 기반 제목 추천"""
+    titles = await gemini_service.generate_title_recommendations(keyword, topic, language)
+    return {"titles": titles}
+
+
+
 
 @app.post("/api/projects/{project_id}/script")
 async def save_script(project_id: int, req: ScriptSave):
@@ -3279,8 +3292,13 @@ async def generate_character_prompts(req: CharacterPromptRequest):
     try:
         characters = await gemini_service.generate_character_prompts_from_script(req.script)
         
-        # [NEW] DB 저장 (옵션) - 현재는 별도 테이블이 없으므로 setting에 저장하거나 생략
-        # 추후 필요시 project_settings의 character_ref_text에 자동 반영 가능
+        # [NEW] DB 저장
+        if req.project_id:
+            try:
+                db.save_project_characters(req.project_id, characters)
+                print(f"[Main] Saved {len(characters)} characters to DB for project {req.project_id}")
+            except Exception as db_err:
+                print(f"[Main] Failed to save characters: {db_err}")
         
         return {"status": "ok", "characters": characters}
     except Exception as e:
@@ -3298,6 +3316,7 @@ async def generate_image_prompts(req: PromptsGenerateRequest):
     character_reference = req.character_reference # [NEW]
 
     # [NEW] 이미지 개수 처리 로직
+    count_instruction = "- 적절한 개수의 이미지 프롬프트를 생성하세요"
     if count > 0:
         count_instruction = f"- {count}개의 이미지 프롬프트를 생성하세요 (지정된 개수 준수)"
     # [NEW] 이미지 스타일 프리셋 조회 (DB 우선)
@@ -3396,7 +3415,8 @@ JSON만 반환하세요."""
 async def generate_character_image(
     prompt: str = Body(...),
     project_id: int = Body(...),
-    style: str = Body("realistic")
+    style: str = Body("realistic"),
+    name: Optional[str] = Body(None)
 ):
     """캐릭터 이미지를 생성하고 저장 (Character Reference용)"""
     try:
@@ -3427,6 +3447,15 @@ async def generate_character_image(
             f.write(images_bytes[0])
             
         print(f"✅ [Char Generation] Saved to {web_url}")
+        
+        # [NEW] DB 업데이트
+        if name:
+            try:
+                db.update_character_image(project_id, name, web_url)
+                print(f"[DB] Updated character image for {name}")
+            except Exception as dbe:
+                print(f"[DB] Failed to update character image: {dbe}")
+        
         return {"status": "ok", "url": web_url, "path": file_path}
     except Exception as e:
         print(f"❌ [Char Generation] Error: {e}")
