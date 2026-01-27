@@ -1313,5 +1313,50 @@
         savePageState();
     };
 
+
+    // [NEW] Project State Sync
+    window.addEventListener('projectStateRestored', (e) => {
+        // 프로젝트가 변경되었으므로 검색 결과 초기화
+        // base.html에서 새 프로젝트 생성 시 sessionStorage를 지웠으므로,
+        // 여기서는 메모리 상의 UI와 변수를 초기화해야 함.
+        clearTopicPage();
+
+        // 만약 프로젝트에 저장된 주제가 있다면 검색창에 반영
+        const data = e.detail;
+        if (data && data.project && data.project.topic) {
+            document.getElementById('searchInput').value = data.project.topic;
+        }
+    });
+
+    function clearTopicPage() {
+        // Inputs
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) searchInput.value = '';
+
+        // Results
+        currentVideos = [];
+        const tbody = document.getElementById('videoTableBody');
+        if (tbody) tbody.innerHTML = '';
+
+        const resultsSection = document.getElementById('resultsSection');
+        if (resultsSection) resultsSection.classList.add('hidden');
+
+        const emptySection = document.getElementById('emptySection');
+        if (emptySection) emptySection.classList.remove('hidden');
+
+        const loadingSection = document.getElementById('loadingSection');
+        if (loadingSection) loadingSection.classList.add('hidden');
+
+        const resultCount = document.getElementById('resultCount');
+        if (resultCount) resultCount.textContent = '';
+
+        // State vars
+        currentVideoForAnalysis = null;
+        currentAnalysisResult = null;
+
+        // 모달 닫기
+        closeModal();
+    }
+
 </script>
 {% endblock %}

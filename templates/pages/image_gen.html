@@ -1861,16 +1861,7 @@
     // Initialize on load
     document.addEventListener('DOMContentLoaded', () => {
         applyAppMode();
-
-        // [NEW] Load preserved character prompts
-        const savedChars = Utils.storage.get('characterPrompts');
-        if (savedChars && Array.isArray(savedChars) && savedChars.length > 0) {
-            const container = document.getElementById('characterResultContainer');
-            if (container) {
-                renderCharacters(savedChars);
-                container.classList.remove('hidden');
-            }
-        }
+        // Removed auto-load of characterPrompts to prevent data leakage between projects
     });
 </script>
 {% endblock %}

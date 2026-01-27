@@ -595,6 +595,9 @@
                 Utils.storage.remove('scriptStructure');
                 Utils.storage.remove('fullScript');
                 Utils.storage.remove('imagePrompts');
+                Utils.storage.remove('characterPrompts'); // [NEW]
+                sessionStorage.removeItem('trendKeywords'); // [NEW]
+                sessionStorage.removeItem('topicPageState'); // [NEW]
                 // Also clear any other potential leftovers
                 localStorage.removeItem('latestScriptStyle'); // Optional: reset style preference
 
