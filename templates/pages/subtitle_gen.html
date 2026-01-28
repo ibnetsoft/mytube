@@ -1060,7 +1060,13 @@
         text.style.color = color;
         text.style.fontSize = `${actualSize}px`;
         text.style.fontFamily = font;
-        text.style.fontWeight = 'bold';
+
+        // [FIX] Gungsuh font breaks stroke when 'bold' is applied (Synthetic Bold issue)
+        if (font.includes('Gungsuh') || font.includes('궁서')) {
+            text.style.fontWeight = 'normal';
+        } else {
+            text.style.fontWeight = 'bold';
+        }
 
         // Stroke (Robust Text-Shadow Method)
         // [FIX] 'Gungsuh' font with 'Bold' often breaks SVG/Webkit strokes due to faux-bold rendering.
