@@ -557,23 +557,70 @@
     }
 
     async function loadScript() {
-        let scriptData = Utils.storage.get('fullScript');
-        if (!scriptData) {
-            const projectId = getCurrentProject();
-            if (projectId) {
-                try {
-                    const project = await API.project.getFull(projectId);
-                    if (project.target_language) currentLanguage = project.target_language;
-                    const fullScript = project.script?.full_script || project.script || "";
-                    if (fullScript) {
-                        scriptData = { script: fullScript };
-                        Utils.storage.set('fullScript', scriptData);
-                        Utils.showToast('대본 로드됨', 'success');
+        console.log("loadScript() called");
+        const projectId = getCurrentProject();
+        let scriptText = "";
+
+        if (projectId) {
+            try {
+                // 1. Try to fetch fresh data from server
+                const projectFull = await API.project.getFull(projectId);
+                console.log("Project Data:", projectFull);
+
+                if (projectFull.project && projectFull.project.target_language) {
+                    currentLanguage = projectFull.project.target_language;
+                }
+
+                // Strategy A: Longform Script (Check various possible keys)
+                if (projectFull.script) {
+                    if (typeof projectFull.script === 'string') {
+                        scriptText = projectFull.script;
+                    } else if (projectFull.script.full_script) {
+                        scriptText = projectFull.script.full_script;
                     }
-                } catch (e) { }
+                }
+
+                // Strategy B: Shorts Script (Fallback)
+                if (!scriptText && projectFull.shorts) {
+                    // Shorts data structure might vary. Typically { shorts: [...] } or just [...]
+                    let shortsList = [];
+                    if (Array.isArray(projectFull.shorts)) shortsList = projectFull.shorts;
+                    else if (projectFull.shorts.shorts && Array.isArray(projectFull.shorts.shorts)) shortsList = projectFull.shorts.shorts;
+                    else if (projectFull.shorts.shorts_data && Array.isArray(projectFull.shorts.shorts_data)) shortsList = projectFull.shorts.shorts_data;
+
+                    if (shortsList.length > 0) {
+                        console.log("Found Shorts script, using fallback.");
+                        // Combine shorts scripts
+                        scriptText = shortsList.map((s, i) => {
+                            const content = s.script || s.narration || s.text || "";
+                            return `[Shorts #${i + 1}] ${s.title || ''}\n${content}`;
+                        }).join('\n\n');
+                        Utils.showToast('쇼츠 대본을 불러왔습니다.', 'info');
+                    }
+                }
+
+                if (scriptText) {
+                    // Update Local Storage for consistency
+                    Utils.storage.set('fullScript', { script: scriptText });
+                    applyScriptToTextarea(scriptText);
+                    Utils.showToast('대본이 로드되었습니다.', 'success');
+                    return;
+                }
+
+            } catch (e) {
+                console.error("Server script load failed:", e);
+                Utils.showToast('서버에서 대본을 불러오지 못했습니다: ' + e.message, 'error');
             }
         }
-        if (scriptData?.script) applyScriptToTextarea(scriptData.script);
+
+        // 2. Fallback to Local Storage (if server fetch failed or yielded nothing)
+        const localData = Utils.storage.get('fullScript');
+        if (localData && localData.script) {
+            console.log("Loaded script from local storage");
+            applyScriptToTextarea(localData.script);
+        } else {
+            if (projectId && !scriptText) Utils.showToast('저장된 대본이 없습니다. 대본 생성을 먼저 진행해주세요.', 'warning');
+        }
     }
 
     function applyScriptToTextarea(text) {

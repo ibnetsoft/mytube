@@ -104,7 +104,13 @@ const API = {
             const response = await fetch('/api/image/generate-prompts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ script, style, count, character_reference: characterReference, project_id: projectId })
+                body: JSON.stringify({
+                    script,
+                    style,
+                    count,
+                    character_reference: characterReference,
+                    project_id: projectId ? parseInt(projectId) : null
+                })
             });
             return response.json();
         },

@@ -293,6 +293,14 @@ class GeminiService:
         success_strategy = analysis_data.get('success_analysis', {})
         script_style = analysis_data.get('script_style', 'story')
 
+
+        # [NEW] 목표 길이에 따른 최소 섹션 수 계산 (Moved Up)
+        duration_seconds = analysis_data.get('duration', 60)
+        if isinstance(analysis_data.get('duration_category'), str):
+            try:
+                duration_seconds = int(re.search(r'\d+', analysis_data['duration_category']).group())
+            except: pass
+
         # [NEW] 스타일별 특화 지침 (기존 코드 유지)
         specialized_instruction = ""
         if script_style == "story":
@@ -331,12 +339,7 @@ class GeminiService:
         if target_language == "ja": context_instruction = "Japanese context."
         elif target_language == "en": context_instruction = "Global context."
         
-        # [NEW] 목표 길이에 따른 최소 섹션 수 계산
-        duration_seconds = analysis_data.get('duration', 60)
-        if isinstance(analysis_data.get('duration_category'), str):
-            try:
-                duration_seconds = int(re.search(r'\d+', analysis_data['duration_category']).group())
-            except: pass
+
         
         min_sections = 4
         
@@ -541,14 +544,31 @@ class GeminiService:
         import json
         import re
 
-        json_match = re.search(r'\{[\s\S]*\}', text)
-        if json_match:
+        try:
+            # 1. Clean Markdown code blocks
+            cleaned_text = re.sub(r'```json\s*|\s*```', '', text).strip()
+            
+            # 2. Try parsing the cleaned text directly
             try:
-                data = json.loads(json_match.group())
+                data = json.loads(cleaned_text)
+            except json.JSONDecodeError:
+                # 3. If direct parse fails, try searching for JSON object or list
+                json_match = re.search(r'(\{[\s\S]*\}|\[[\s\S]*\])', cleaned_text)
+                if json_match:
+                    data = json.loads(json_match.group(0))
+                else:
+                    return []
+
+            # 4. Extract scenes list
+            if isinstance(data, dict):
                 return data.get("scenes", [])
-            except:
-                pass
-                pass
+            elif isinstance(data, list):
+                return data
+            
+        except Exception as e:
+            print(f"JSON Parse Error in generate_image_prompts: {e}")
+            pass
+            
         return []
 
     async def generate_video_search_keywords(self, script_segment: str, mood_style: str = "cinematic") -> str:

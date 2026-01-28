@@ -441,6 +441,25 @@ def migrate_db():
         cursor.execute("ALTER TABLE project_settings ADD COLUMN app_mode TEXT DEFAULT 'longform'")
     except sqlite3.OperationalError:
         pass
+        
+    # [NEW] Migration for script start/end in image_prompts
+    cursor.execute("PRAGMA table_info(image_prompts)")
+    image_prompts_columns = [info[1] for info in cursor.fetchall()]
+    
+    if 'script_start' not in image_prompts_columns:
+        print("[Migration] Adding script_start to image_prompts...")
+        try: cursor.execute("ALTER TABLE image_prompts ADD COLUMN script_start TEXT")
+        except: pass
+        
+    if 'script_end' not in image_prompts_columns:
+        print("[Migration] Adding script_end to image_prompts...")
+        try: cursor.execute("ALTER TABLE image_prompts ADD COLUMN script_end TEXT")
+        except: pass
+        
+    if 'scene_title' not in image_prompts_columns:
+        print("[Migration] Adding scene_title to image_prompts...")
+        try: cursor.execute("ALTER TABLE image_prompts ADD COLUMN scene_title TEXT")
+        except: pass
 
     # [FIX] Missing subtitle columns migration
     try:
@@ -853,17 +872,19 @@ def save_image_prompts(project_id: int, prompts: List[Dict]):
     for i, prompt in enumerate(prompts):
         cursor.execute("""
             INSERT INTO image_prompts
-            (project_id, scene_number, scene_text, prompt_ko, prompt_en, image_url, script_start, script_end)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (project_id, scene_number, scene_text, prompt_ko, prompt_en, image_url, script_start, script_end, scene_title, video_url)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             project_id,
             i + 1,
-            prompt.get('scene_text') or prompt.get('scene') or prompt.get('scene_title') or '',
+            prompt.get('scene_text') or prompt.get('scene') or '', # scene_text
             prompt.get('prompt_ko') or '',
             prompt.get('prompt_en') or prompt.get('prompt_content') or prompt.get('prompt') or '',
             prompt.get('image_url'),
-            prompt.get('script_start', ''),
-            prompt.get('script_end', '')
+            prompt.get('script_start') or '',
+            prompt.get('script_end') or '',
+            prompt.get('scene_title') or '', # scene_title
+            prompt.get('video_url') or '' # video_url
         ))
 
     conn.commit()
@@ -873,13 +894,34 @@ def get_image_prompts(project_id: int) -> List[Dict]:
     """이미지 프롬프트 조회"""
     conn = get_db()
     cursor = conn.cursor()
+    
+    # Check columns first (for safety during migration transition)
+    cursor.execute("PRAGMA table_info(image_prompts)")
+    cols = [info[1] for info in cursor.fetchall()]
+    
     cursor.execute(
         "SELECT * FROM image_prompts WHERE project_id = ? ORDER BY scene_number",
         (project_id,)
     )
     rows = cursor.fetchall()
     conn.close()
-    return [dict(row) for row in rows]
+    
+    prompts = []
+    for row in rows:
+        d = dict(row)
+        # Ensure new fields are present and not None
+        # ensure fields
+        d['script_start'] = d.get('script_start') or ''
+        d['script_end'] = d.get('script_end') or ''
+        d['scene_title'] = d.get('scene_title') or ''
+        d['video_url'] = d.get('video_url') or ''
+        
+        # [DEBUG] Check persistence matches
+        print(f"[DEBUG_DB] Scene {d.get('scene_number')}: Title='{d.get('scene_title')}' (Type: {type(d.get('scene_title'))})")
+        
+        prompts.append(d)
+        
+    return prompts
 
 def update_image_prompt_url(project_id: int, scene_number: int, image_url: str):
     """특정 장면의 이미지 URL 업데이트"""
@@ -1554,5 +1596,136 @@ def save_thumbnail_style_preset(style_key: str, prompt_value: str):
             prompt_value = excluded.prompt_value,
             updated_at = CURRENT_TIMESTAMP
     """, (style_key, prompt_value))
+    conn.commit()
+    conn.close()
+
+# [OVERRIDE] Redefine get_image_prompts to force update logic
+
+# [OVERRIDE] Redefine get_image_prompts to force update logic
+def get_image_prompts(project_id: int):
+    # Force reload checks
+    print(f"[DEBUG_OVERRIDE] get_image_prompts called for {project_id}")
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute(
+        "SELECT * FROM image_prompts WHERE project_id = ? ORDER BY scene_number",
+        (project_id,)
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    
+    prompts = []
+    for row in rows:
+        d = dict(row)
+        # Ensure new fields are present and not None
+        d['script_start'] = d.get('script_start') or ''
+        d['script_end'] = d.get('script_end') or ''
+        d['scene_title'] = d.get('scene_title') or ''
+        d['video_url'] = d.get('video_url') or ''
+        
+        prompts.append(d)
+        
+
+# [OVERRIDE] Redefine save_image_prompts to force update logic
+def save_image_prompts(project_id: int, prompts: list):
+    import json
+    # override
+    
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("DELETE FROM image_prompts WHERE project_id = ?", (project_id,))
+
+    for i, prompt in enumerate(prompts):
+        s_start = prompt.get('script_start') or ''
+        s_end = prompt.get('script_end') or ''
+        s_title = prompt.get('scene_title') or ''
+        
+        cursor.execute("""
+            INSERT INTO image_prompts
+            (project_id, scene_number, scene_text, prompt_ko, prompt_en, image_url, script_start, script_end, scene_title, video_url)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            project_id,
+            i + 1,
+            prompt.get('scene_text') or prompt.get('scene') or '', 
+            prompt.get('prompt_ko') or '',
+            prompt.get('prompt_en') or prompt.get('prompt_content') or prompt.get('prompt') or '',
+            prompt.get('image_url'),
+            s_start,
+            s_end,
+            s_title,
+            prompt.get('video_url', '')
+        ))
+
+    conn.commit()
+    conn.close()
+
+# [OVERRIDE] Redefine get_image_prompts to force update logic
+def get_image_prompts(project_id: int):
+    # Force reload checks
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute(
+        "SELECT * FROM image_prompts WHERE project_id = ? ORDER BY scene_number",
+        (project_id,)
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    
+    prompts = []
+    for row in rows:
+        d = dict(row)
+        # Ensure new fields are present and not None
+        d['script_start'] = d.get('script_start') or ''
+        d['script_end'] = d.get('script_end') or ''
+        d['scene_title'] = d.get('scene_title') or ''
+        d['video_url'] = d.get('video_url') or ''
+        
+        # print(f"[DEBUG_OVERRIDE] Scene {d.get('scene_number')}: '{d.get('scene_title')}'")
+        
+        prompts.append(d)
+        
+    return prompts
+
+# [OVERRIDE] Redefine save_image_prompts to force update logic
+def save_image_prompts(project_id: int, prompts: list):
+    import json
+    # override
+    print(f"[DEBUG_OVERRIDE] save_image_prompts called for {project_id} with {len(prompts)} items")
+    
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("DELETE FROM image_prompts WHERE project_id = ?", (project_id,))
+
+    for i, prompt in enumerate(prompts):
+        s_start = prompt.get('script_start') or ''
+        s_end = prompt.get('script_end') or ''
+        s_title = prompt.get('scene_title') or ''
+        
+        print(f"[DEBUG_OVERRIDE_SAVE] Saving Scene {i+1}: '{s_title}' Keys={list(prompt.keys())}")
+        
+        cursor.execute("""
+            INSERT INTO image_prompts
+            (project_id, scene_number, scene_text, prompt_ko, prompt_en, image_url, script_start, script_end, scene_title, video_url)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            project_id,
+            i + 1,
+            prompt.get('scene_text') or prompt.get('scene') or '', 
+            prompt.get('prompt_ko') or '',
+            prompt.get('prompt_en') or prompt.get('prompt_content') or prompt.get('prompt') or '',
+            prompt.get('image_url'),
+            s_start,
+            s_end,
+            s_title,
+            prompt.get('video_url', '')
+        ))
+
     conn.commit()
     conn.close()

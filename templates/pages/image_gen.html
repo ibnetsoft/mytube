@@ -705,6 +705,16 @@
                 autoBtn.disabled = false;
 
                 Utils.storage.set('imagePrompts', prompts);
+
+                // [FIX] Save to DB to ensure persistence of all fields (script_start/end, etc.)
+                const pid = getCurrentProject();
+                if (pid) {
+                    API.project.saveImagePrompts(pid, prompts).then(() => {
+                        console.log("Prompts saved to DB successfully");
+                    }).catch(err => {
+                        console.error("Failed to save prompts to DB:", err);
+                    });
+                }
             }
         } catch (error) {
             Utils.showToast('생성 중 오류가 발생했습니다', 'error');
@@ -1031,46 +1041,51 @@
                 const card = document.getElementById(`prompt-card-${i}`);
                 if (!card) continue;
 
-                // 상태 표시
+                // 상태 표시 업데이트
                 let statusDiv = card.querySelector('.status-indicator');
-                if (!statusDiv) {
-                    statusDiv = document.createElement('div');
-                    statusDiv.className = 'status-indicator mt-2 text-sm text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 p-2 rounded';
-                    card.appendChild(statusDiv);
+                if (statusDiv) {
+                    statusDiv.classList.remove('hidden');
+                    statusDiv.className = 'status-indicator px-4 py-2 bg-yellow-900/30 border-t border-gray-700 text-sm text-yellow-400';
+                    statusDiv.textContent = '⏳ 이미지 생성 중... (10~20초 소요)';
                 }
-                statusDiv.textContent = '⏳ 이미지 생성 중... (10~20초 소요)';
 
                 // API 호출
-                const fullPrompt = p.prompt_en || p.prompt_content || '';
-
-                // 비율 선택값 가져오기
-                const aspectRatio = document.querySelector('input[name="aspectRatio"]:checked').value || '16:9';
+                // [Fix] 키 값 호환성 처리
+                const fullPrompt = p.prompt_en || p.prompt_content || p.prompt || '';
+                const aspectRatio = document.querySelector('input[name="aspectRatio"]:checked')?.value || '16:9';
 
                 const result = await API.image.generate(fullPrompt, projectId, i + 1, document.getElementById('imageStyle').value, aspectRatio);
 
                 if (result.status === 'ok') {
-                    // 이미지 표시 (Clear previous if exists)
-                    const existingImg = card.querySelector('div.aspect-video');
-                    if (existingImg) existingImg.remove();
+                    // 성공 시 UI 업데이트: DOM 조작을 통해 이미지 컨테이너 교체
+                    const imageContainer = card.querySelector('.image-container');
 
-                    const imgDiv = document.createElement('div');
-                    imgDiv.className = 'mb-2 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 aspect-video bg-black relative';
-                    imgDiv.innerHTML = `<img src="${result.image_url}" class="w-full h-full object-contain" alt="Scene ${i + 1}"><div class="absolute top-1 right-1 bg-green-500 text-white text-[10px] px-1 rounded">Generated</div>`;
+                    if (imageContainer) {
+                        // 기존 내용(placeholder 또는 이전 이미지) 제거
+                        imageContainer.innerHTML = '';
 
-                    // Insert before text box (which is inside relative group mt-auto)
-                    // Actually promptsUI structure puts image inside "relative group".
-                    // Let's just re-render UI for simplicity or append correctly.
-                    // For now, reload data to be safe? 
-                    // Let's just update data object and re-render this card content or simpler logic.
-                    // Simple append for now as in original code.
+                        // 새 이미지 요소 생성
+                        const imgDiv = document.createElement('div');
+                        imgDiv.className = 'aspect-video bg-black rounded-lg overflow-hidden border border-gray-600 w-[90%] relative group/image';
+                        imgDiv.innerHTML = `
+                            <img src="${result.image_url}" class="w-full h-full object-contain" alt="Scene ${i + 1}">
+                            <div class="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded">✓ Image</div>
+                            
+                            <!-- Motion Button Overlay (Re-added) -->
+                            <div class="absolute inset-0 bg-black/50 opacity-0 group-hover/image:opacity-100 transition-opacity flex items-center justify-center">
+                                 <button id="motion-btn-${i}" onclick="generateMotion(${i})" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-full shadow-lg transform hover:scale-105 transition-all flex items-center gap-2">
+                                    <span>🎬 Motion (Wan 2.2)</span>
+                                 </button>
+                            </div>
+                        `;
 
-                    const containerGroup = card.querySelector('.group');
-                    if (containerGroup) {
-                        containerGroup.insertAdjacentElement('afterbegin', imgDiv); // Insert at top of group
+                        imageContainer.appendChild(imgDiv);
                     }
 
-                    statusDiv.textContent = '✅ 생성 완료';
-                    statusDiv.className = 'status-indicator mt-2 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 p-2 rounded';
+                    if (statusDiv) {
+                        statusDiv.textContent = '✅ 생성 완료';
+                        statusDiv.className = 'status-indicator px-4 py-2 bg-green-900/30 border-t border-gray-700 text-sm text-green-400';
+                    }
 
                     // 스토리지에 결과 저장 (새로고침 시 유지)
                     prompts[i].image_url = result.image_url;
@@ -1079,8 +1094,10 @@
                     // [NEW] Update Progress Stepper (If at least one image generated)
                     if (window.updateStepStatus) window.updateStepStatus('image', true);
                 } else {
-                    statusDiv.textContent = '❌ 생성 실패: ' + result.error;
-                    statusDiv.className = 'status-indicator mt-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-2 rounded';
+                    if (statusDiv) {
+                        statusDiv.textContent = '❌ 생성 실패: ' + result.error;
+                        statusDiv.className = 'status-indicator px-4 py-2 bg-red-900/30 border-t border-gray-700 text-sm text-red-400';
+                    }
                 }
             }
 
@@ -1176,65 +1193,7 @@
     }
 
 
-    // 선택된 Scene만 이미지 생성
-    async function generateSelectedImages() {
-        // ... (existing code, relying on being present, but I am replacing the function end to append new function)
-        const projectId = getCurrentProject();
-        // ... (truncated for brevity, assumes I am appending new function after this block)
-        // Since I cannot match strictly the whole function without text valid, I will use replace_file_content to append.
-        // Actually, I will insert generateMotion before analyzeScenes.
-    }
 
-    // [NEW] Motion Generation (Wan 2.2)
-    async function generateMotion(index) {
-        const projectId = getCurrentProject();
-        if (!projectId) return Utils.showToast('프로젝트를 찾을 수 없습니다', 'error');
-
-        const p = prompts[index];
-        if (!p || !p.image_url) return Utils.showToast('먼저 이미지를 생성해주세요', 'warning');
-
-        const card = document.getElementById(`prompt-card-${index}`);
-        const statusDiv = card.querySelector('.status-indicator');
-
-        // UI Update
-        const btn = document.getElementById(`motion-btn-${index}`);
-        if (btn) btn.disabled = true;
-
-        statusDiv.classList.remove('hidden');
-        statusDiv.className = 'status-indicator px-4 py-2 bg-purple-900/30 border-t border-gray-700 text-sm text-purple-300';
-        statusDiv.textContent = '🎬 Wan 2.2 모션 생성 중... (약 1~2분 소요)';
-
-        try {
-            const res = await fetch(`/api/projects/${projectId}/scenes/animate`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    scene_number: index + 1,
-                    prompt: "Cinematic slow motion, high quality, 4k" // Default prompt
-                })
-            });
-
-            const result = await res.json();
-
-            if (res.ok && result.status === 'ok') {
-                // Success
-                prompts[index].video_url = result.video_url;
-                Utils.storage.set('imagePrompts', prompts);
-
-                // Refresh UI (Card only)
-                drawPromptsUI(prompts);
-
-                Utils.showToast('모션 생성이 완료되었습니다!', 'success');
-            } else {
-                throw new Error(result.detail || '생성 실패');
-            }
-        } catch (e) {
-            console.error(e);
-            statusDiv.className = 'status-indicator px-4 py-2 bg-red-900/30 border-t border-gray-700 text-sm text-red-400';
-            statusDiv.textContent = '❌ 모션 생성 실패: ' + e.message;
-            if (btn) btn.disabled = false;
-        }
-    }
 
 
     // [NEW] Motion Generation (Wan 2.2)

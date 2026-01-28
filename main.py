@@ -715,6 +715,94 @@ async def analyze_scenes(project_id: int):
         raise HTTPException(500, f"분석 실패: {str(e)}")
 
 
+@app.post("/api/image/generate-prompts")
+async def generate_image_prompts_api(req: PromptsGenerateRequest):
+    """대본 기반 이미지 프롬프트 생성 (Only Prompts)"""
+    try:
+        # 1. Duration Estimation
+        duration = 60
+        if req.project_id:
+            p_data = db.get_script(req.project_id)
+            if p_data:
+                duration = p_data.get('estimated_duration', 60)
+        else:
+            # Estimate from word count (approx 3 words/sec implies 180 words/min? No, usually 150wpm -> 2.5 w/s)
+            # Simple estimation if not provided
+            duration = len(req.script) // 5 # very rough char count est
+
+        # 2. Call Gemini
+        print(f"[Prompts] Generating for Project {req.project_id}, Style: {req.style}, Duration: {duration}s")
+        
+        # [SAFETY] Truncate script to prevent Token Limit Exceeded / Timeout
+        safe_script = req.script
+        if len(safe_script) > 15000:
+            print(f"[Prompts] Script too long ({len(safe_script)} chars). Truncating to 15000 chars.")
+            safe_script = safe_script[:15000] + "...(truncated)"
+
+        prompts_list = await gemini_service.generate_image_prompts_from_script(
+            safe_script, 
+            duration, 
+            style_prompt=req.style
+        )
+        
+        if prompts_list:
+            print(f"[DEBUG] Gemini Response Keys: {list(prompts_list[0].keys())}")
+            # Ensure fields exist for DB safety and persistence
+            for p in prompts_list:
+                # 1. Ensure scene_text exists
+                s_text = p.get('scene_text') or p.get('scene') or p.get('narrative') or ''
+                p['scene_text'] = s_text
+
+                # 2. Derive Title if missing
+                if not p.get('scene_title'):
+                    if s_text:
+                        # Use first 15 chars as title
+                        p['scene_title'] = s_text[:15] + "..." if len(s_text) > 15 else s_text
+                    else:
+                        p['scene_title'] = f"Scene {p.get('scene_number', '?')}"
+
+                # 3. Derive Start/End if missing
+                if not p.get('script_start'):
+                    # First 2 words or 10 chars
+                    p['script_start'] = " ".join(s_text.split()[:2]) if s_text else ""
+                
+                if not p.get('script_end'):
+                    # Last 2 words or 10 chars
+                    p['script_end'] = " ".join(s_text.split()[-2:]) if s_text else ""
+
+        
+        if not prompts_list:
+             # Retry once if empty
+             print("[Prompts] Empty result, retrying...")
+             prompts_list = await gemini_service.generate_image_prompts_from_script(
+                req.script, 
+                duration, 
+                style_prompt=req.style
+            )
+
+        if not prompts_list:
+             raise HTTPException(500, "프롬프트 생성 실패 (Gemini returned empty)")
+
+        # 3. Handle Character Consistency (Global Prompt Injection)
+        # If character_reference is text (from UI), prepend it?
+        # Typically frontend sends 'globalPrompt' as 'style' or part of style.
+        # But req.character_reference is separate.
+        # Let's simple check if we need to post-process.
+        # Currently gemini_service handles style_prompt injection.
+        
+        # 4. Save to DB immediatelly if project_id is present
+        # This makes the "Prompt Gen" button robust against refresh even if frontend fails to valid save.
+        if req.project_id:
+            db.save_image_prompts(req.project_id, prompts_list)
+            print(f"[Prompts] Saved {len(prompts_list)} prompts to DB for Project {req.project_id}")
+
+        return {"status": "ok", "prompts": prompts_list}
+
+    except Exception as e:
+        print(f"Generate Prompts Error: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
 @app.post("/api/projects/{project_id}/image-prompts/auto")
 async def auto_generate_images(project_id: int):
     """대본 기반 이미지 프롬프트 생성 및 일괄 이미지 생성 (Longform & Shorts)"""

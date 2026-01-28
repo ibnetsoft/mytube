@@ -205,7 +205,10 @@ JSON만 반환하세요."""
     "scenes": [
         {{
             "scene_number": 1,
-            "scene_text": "해당 장면에서 나오는 대본의 일부",
+            "scene_title": "장면 요약 (짧은 제목, 예: '주인공의 등장')",
+            "scene_text": "해당 장면에서 나오는 대본의 전체 텍스트",
+            "script_start": "대본의 첫 어절 (예: '옛날')",
+            "script_end": "대본의 마지막 어절 (예: '있었습니다')",
             "prompt_ko": "이미지 묘사 (한글)",
             "prompt_en": "{style_prefix}, (영어 묘사)"
         }},

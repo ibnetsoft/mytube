@@ -120,6 +120,13 @@
                 <option value="neon">네온</option>
             </select>
         </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">비율 설정</label>
+            <select id="aspectRatio" class="input-field" onchange="setAspectRatio(this.value)">
+                <option value="16:9">16:9 (유튜브 롱폼)</option>
+                <option value="9:16">9:16 (쇼츠/릴스)</option>
+            </select>
+        </div>
 
         <!-- 버튼 그리드 (Compact) -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:col-span-3">

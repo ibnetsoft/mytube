@@ -511,7 +511,7 @@
                             'topic': !!fullData.project.topic,
                             'thumbnail': !!(settings.thumbnail_url || settings.thumbnail_path || fullData.project?.thumbnail_url || fullData.project?.thumbnail_path), // Check all possible paths
                             'plan': !!fullData.script_structure, // 기획 데이터가 있어야만 Green
-                            'script': !!fullData.full_script || (fullData.shorts && Object.keys(fullData.shorts).length > 0), // Longform OR Shorts
+                            'script': !!fullData.script || (fullData.shorts && Object.keys(fullData.shorts).length > 0), // Longform OR Shorts
                             'intro': !!settings.intro_video_path || !!settings.background_video_url, // 인트로 비디오 유무
                             'image': fullData.image_prompts && fullData.image_prompts.length > 0,
                             'tts': !!fullData.tts,
