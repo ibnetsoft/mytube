@@ -1056,6 +1056,9 @@
         text.style.textAlign = 'center';
         text.style.boxSizing = 'border-box';
 
+        // [FIX] Clear residues
+        text.style.textShadow = 'none';
+
         // Background Strip
         const bgToggle = document.getElementById('bgStripToggle');
         const bgColorEl = document.getElementById('bgColorInput');
