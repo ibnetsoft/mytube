@@ -66,7 +66,6 @@ def init_db():
             voice_multi_enabled INTEGER DEFAULT 0,
             voice_mapping_json TEXT, -- 인물별 성우 매핑 (JSON)
             video_command TEXT,
-            video_command TEXT,
             video_path TEXT,
             subtitle_style_enum TEXT DEFAULT 'Basic_White',
             subtitle_font_size INTEGER DEFAULT 10,

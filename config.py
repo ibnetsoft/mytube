@@ -31,9 +31,24 @@ class Config:
     PEXELS_BASE_URL = "https://api.pexels.com/videos"
 
     # 경로 설정
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
-    STATIC_DIR = os.path.join(BASE_DIR, "static")
+    import sys
+    
+    # [FIX] PyInstaller Support: Split Resource vs Data paths
+    if getattr(sys, 'frozen', False):
+        # Running as compiled EXE
+        # Resources (templates/static) are internally packed in _MEIPASS
+        RESOURCE_DIR = sys._MEIPASS
+        # Data (Output, DB, Env) should be in the folder where EXE is located
+        BASE_DIR = os.path.dirname(sys.executable)
+    else:
+        # Running as script
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        RESOURCE_DIR = BASE_DIR
+
+    TEMPLATES_DIR = os.path.join(RESOURCE_DIR, "templates")
+    STATIC_DIR = os.path.join(RESOURCE_DIR, "static")
+    
+    # Output/Logs/DB must live in BASE_DIR (Writeable)
     OUTPUT_DIR = os.path.join(BASE_DIR, "output")
     LOG_DIR = os.path.join(BASE_DIR, "logs")
     

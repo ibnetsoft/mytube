@@ -815,10 +815,19 @@
                                     </div>
                                 </div>
                                 ` : `
-                                <div class="aspect-video bg-gray-900 rounded-lg border border-dashed border-gray-600 flex items-center justify-center w-[90%]"> <!-- Larger image size -->
+                                <div class="aspect-video bg-gray-900 rounded-lg border border-dashed border-gray-600 flex flex-col items-center justify-center w-[90%] transition-colors hover:bg-gray-800">
                                     <span class="text-gray-500 text-sm">🖼️ 이미지 미생성</span>
                                 </div>
                                 `}
+                            </div>
+                            
+                            <!-- [NEW] Upload Button (Common for all states) -->
+                            <div class="w-[90%] mx-auto mt-2"> <!-- Center align with mx-auto -->
+                                <button onclick="document.getElementById('scene-upload-${i}').click()" 
+                                        class="w-full btn-secondary text-xs py-2 flex items-center justify-center gap-2 border border-dashed border-gray-600 hover:border-blue-500 hover:text-blue-500 transition-colors bg-gray-800/50">
+                                    <span>📂</span> 이미지 업로드/변경
+                                </button>
+                                <input type="file" id="scene-upload-${i}" class="hidden" accept="image/*" onchange="uploadSceneImage(${i}, this)">
                             </div>
                         </div>
                         
@@ -948,14 +957,78 @@
 
                 if (window.updateStepStatus) window.updateStepStatus('image', true);
             } else {
-                throw new Error(result.error || '생성 실패');
+                throw new Error(result.error);
+            }
+        } catch (error) {
+            console.error(error);
+            Utils.showToast('이미지 생성 실패: ' + error.message, 'error');
+            statusDiv.classList.add('hidden');
+        }
+    }
+
+    // [NEW] Upload Scene Image
+    async function uploadSceneImage(index, input) {
+        if (!input.files || input.files.length === 0) return;
+
+        const file = input.files[0];
+        const projectId = getCurrentProject();
+
+        if (!projectId) {
+            Utils.showToast('프로젝트를 찾을 수 없습니다.', 'error');
+            return;
+        }
+
+        // Show loading state
+        const btn = input.previousElementSibling;
+        const originalText = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.innerHTML = '<span>⏳</span> 업로드 중...';
+            btn.disabled = true;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('project_id', projectId);
+        formData.append('scene_index', index + 1);
+
+        try {
+            const response = await fetch('/api/image/upload-scene', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'ok') {
+                // Update prompts array
+                prompts[index].image_url = result.url;
+
+                // Save to Storage & DB to persist
+                Utils.storage.set('imagePrompts', prompts);
+                API.project.saveImagePrompts(projectId, prompts); // Async save
+
+                // Refresh UI (Keep scroll position)
+                const scrollY = window.scrollY;
+                drawPromptsUI(prompts);
+                window.scrollTo(0, scrollY);
+
+                Utils.showToast('이미지가 업로드되었습니다.', 'success');
+            } else {
+                throw new Error(result.error || 'Server Error');
             }
         } catch (e) {
             console.error(e);
-            statusDiv.className = 'status-indicator px-4 py-2 bg-red-900/30 border-t border-gray-700 text-sm text-red-400';
-            statusDiv.textContent = '❌ 생성 실패: ' + e.message;
+            Utils.showToast('업로드 실패: ' + e.message, 'error');
+            // Reset button text via redraw or manual reset
+            if (btn) {
+                btn.innerHTML = originalText || '<span>📂</span> 이미지 업로드/변경';
+                btn.disabled = false;
+            }
+        } finally {
+            input.value = ''; // Reset input
         }
     }
+
 
     function copyPrompt(index) {
         const p = prompts[index];
