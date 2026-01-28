@@ -447,8 +447,20 @@
     };
 
     document.addEventListener('DOMContentLoaded', async () => {
-        // Initialize Utils-dependent variables here to be safe
-        // [FIX] projectId is now injected server-side.
+        // [FIX] Wait for Utils to be ready
+        const waitForUtils = () => new Promise(resolve => {
+            if (typeof Utils !== 'undefined') return resolve();
+            const interval = setInterval(() => {
+                if (typeof Utils !== 'undefined') {
+                    clearInterval(interval);
+                    resolve();
+                }
+            }, 100);
+        });
+
+        await waitForUtils();
+
+        // Initialize Utils-dependent variables
         if (!projectId) {
             const storedId = Utils.storage.get('currentProjectId');
             if (storedId) projectId = parseInt(storedId);
@@ -459,7 +471,16 @@
         }
 
         setupStyleListeners();
+
+        // Load Data
         await loadProjectAndSubtitles();
+
+        // [New] Auto Generate if empty
+        if (!subtitles || subtitles.length === 0) {
+            console.log("[Auto] No subtitles found. Triggering Auto-Generation...");
+            Utils.showToast("자막 데이터 자동 생성 및 로딩 중...", "info");
+            await generateSubtitles();
+        }
 
         // Draggable Preview
         const previewEl = document.getElementById('previewTextMain');
