@@ -706,14 +706,28 @@
         const projectFull = await API.project.getFull(projectId);
         const settings = projectFull.settings || {};
         const durationSeconds = settings.duration_seconds || 60;
+        const isShorts = (window.APP_MODE === 'shorts') || (durationSeconds <= 60);
 
-        // 한국어 대본 기준: 1분당 약 400~450자
-        const totalTargetChars = (durationSeconds / 60) * 450;
+        // 글자 수 계산 (한국어 기준)
+        // 롱폼: 분당 450자 (빠름)
+        // 숏폼: 초당 7자 (매우 빠름) ~ 6자 (보통) -> 20초면 120~140자
+        let totalTargetChars = 0;
+        let lengthInstruction = "";
+
+        if (isShorts) {
+            totalTargetChars = durationSeconds * 7.5; // 숏폼은 말을 좀 더 빨리 함
+            lengthInstruction = `[매우 중요] 이 대본은 **${durationSeconds}초 숏폼(Shorts)** 영상용입니다. 전체 대본이 매우 짧아야 합니다. 군더더기 없이 핵심만 빠르게 전달하세요.`;
+        } else {
+            totalTargetChars = (durationSeconds / 60) * 450;
+            lengthInstruction = `이 영상은 약 ${Math.floor(durationSeconds / 60)}분 ${durationSeconds % 60}초 길이입니다.`;
+        }
+
         const charsPerSection = Math.round(totalTargetChars / sections.length);
-        const minChars = Math.max(50, Math.round(charsPerSection * 0.8));
+        // 숏폼일 경우 최소 글자 수 제한을 낮춤
+        const minChars = isShorts ? Math.max(20, Math.round(charsPerSection * 0.7)) : Math.max(50, Math.round(charsPerSection * 0.8));
         const maxChars = Math.round(charsPerSection * 1.2);
 
-        console.log(`Target: ${durationSeconds}s, Total Chars: ${totalTargetChars}, Per Section: ${charsPerSection}`);
+        console.log(`Target: ${durationSeconds}s (${isShorts ? 'Shorts' : 'Longform'}), Total Chars: ${totalTargetChars}, Per Section: ${charsPerSection}`);
 
         try {
             for (let i = 0; i < sections.length; i++) {
@@ -728,7 +742,7 @@
                 Utils.setLoading(btn, true, `생성 중... (${i + 1}/${sections.length}: ${section.title})`);
                 console.log(`Generating section ${i + 1}: ${section.title} `);
 
-                const prompt = `당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "${section.title}" 파트를 작성해주세요.
+                const prompt = `당신은 ${isShorts ? '유튜브 쇼츠(Shorts)' : '유튜브'} 대본 작가입니다. 아래 주제에 대한 "${section.title}" 파트를 작성해주세요.
 
 [영상 주제]
 ${topic}
@@ -738,9 +752,11 @@ ${topic}
 - 주요 내용: ${keyPoints.length > 0 ? keyPoints.join(', ') : '자유롭게 작성'}
 
 [작성 지침]
+0. ${lengthInstruction}
 1. 자연스럽고 몰입감 있는 한국어 대본을 작성하세요.
 2. 섹션 제목은 출력하지 말고, 본문만 작성하세요.
-3. 이 파트의 분량은 **약 ${minChars}~${maxChars}자** 내외로 작성하세요. (전체 영상 길이 ${Math.floor(durationSeconds / 60)}분 조절용)
+3. 이 파트의 분량은 **약 ${minChars}자 ~ ${maxChars}자** 내외로 작성하세요. (절대적으로 지킬 것)
+4. ${isShorts ? '문장을 짧고 간결하게 끊어주세요. 호흡을 짧게 가져가세요.' : '문장을 자연스럽게 이어주세요.'}
 
 본문만 출력하세요: `;
 

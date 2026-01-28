@@ -98,8 +98,17 @@
             <input type="hidden" id="titleKeywordInput" />
 
             <!-- 추천 제목 표시 영역 (단일 제목용으로 간소화) -->
+            <!-- 추천 제목 표시 영역 (단일 제목용으로 간소화) -->
             <div id="recommendedTitlesList" class="hidden mb-4">
                 <!-- JS: Rendered single best title here -->
+            </div>
+
+            <!-- [NEW] 수동 생성 버튼 (자동 생성이 안 되었을 때 표시) -->
+            <div id="manualTitleGenBtn" class="text-center py-4">
+                <button onclick="generateRecommendedTitles()"
+                    class="btn-secondary text-sm px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300">
+                    ✨ 제목 자동 생성하기
+                </button>
             </div>
 
             <p class="text-[10px] text-gray-500 dark:text-gray-400 mt-2 text-center">* 영상 주제와 프로젝트 제목으로 즉시 적용됩니다.</p>
@@ -832,6 +841,10 @@
             </div>
         `;
         container.classList.remove('hidden');
+
+        // [NEW] Hide Manual Button if exists
+        const btnManual = document.getElementById('manualTitleGenBtn');
+        if (btnManual) btnManual.classList.add('hidden');
 
         // 생성된 즉시 이 제목을 프로젝트에 적용 (유저가 선택한 것처럼)
         applyTitle(bestTitle);

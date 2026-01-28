@@ -535,7 +535,7 @@ def migrate_db():
 
 # ============ 프로젝트 CRUD ============
 
-def create_project(name: str, topic: str = None) -> int:
+def create_project(name: str, topic: str = None, app_mode: str = 'longform') -> int:
     """새 프로젝트 생성 + 기본 설정 초기화"""
     conn = get_db()
     cursor = conn.cursor()
@@ -556,14 +556,14 @@ def create_project(name: str, topic: str = None) -> int:
         """INSERT INTO project_settings 
            (project_id, title, voice_name, voice_language, voice_style_prompt,
             subtitle_font, subtitle_font_size, subtitle_color, subtitle_style_enum, subtitle_stroke_color, subtitle_stroke_width,
-            subtitle_bg_enabled, subtitle_stroke_enabled, voice_provider, voice_speed, voice_multi_enabled) 
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            subtitle_bg_enabled, subtitle_stroke_enabled, voice_provider, voice_speed, voice_multi_enabled, app_mode) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (project_id, name, defaults.get("voice_name", "Puck"), 
          defaults.get("language_code", "ko-KR"), defaults.get("style_prompt", ""),
          sub_defaults.get("subtitle_font"), sub_defaults.get("subtitle_font_size"),
          sub_defaults.get("subtitle_color"), sub_defaults.get("subtitle_style_enum"),
          sub_defaults.get("subtitle_stroke_color"), sub_defaults.get("subtitle_stroke_width"),
-         1, 0, 'elevenlabs', 1.0, 0) # Default: BG ON, Stroke OFF
+         1, 0, 'elevenlabs', 1.0, 0, app_mode) # Default: BG ON, Stroke OFF
     )
 
     conn.commit()
@@ -622,6 +622,7 @@ def get_projects_with_status() -> List[Dict]:
         ps.is_uploaded as is_uploaded,
         ps.is_published as is_published,
         (SELECT COUNT(*) FROM thumbnails WHERE project_id = p.id) as thumbnail_count,
+        ps.app_mode,
         m.description
     FROM projects p
     LEFT JOIN project_settings ps ON p.id = ps.project_id
@@ -648,6 +649,7 @@ def get_projects_with_status() -> List[Dict]:
             "updated_at": r["updated_at"],
             "video_title": r["video_title"],
             "status": r["project_status"], # String status
+            "app_mode": r["app_mode"], # [NEW]
             "progress": { # Detailed progress
                 "plan": bool(r["has_structure"]),     # 대본 기획
                 "script": bool(r["has_script"]),      # 대본 생성

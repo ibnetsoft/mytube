@@ -5,19 +5,7 @@
     <!-- 1. 상단 컨트롤 바 (높이 최소화) -->
     <div
         class="flex items-center gap-3 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 shrink-0">
-        <div class="flex items-center gap-2">
-            <span class="text-sm font-bold text-gray-700 dark:text-gray-300">⚙️ 옵션</span>
-            <select id="titleStyle"
-                class="text-xs border-gray-300 dark:border-gray-600 rounded-md py-1.5 pl-2 pr-8 focus:ring-primary focus:border-primary bg-gray-50 dark:bg-gray-700 dark:text-white w-56">
-                <option value="sleep" selected>수면/힐링형 (잠잘 때 듣는 영상)</option>
-                <option value="curiosity">호기심 유발형</option>
-                <option value="benefit">혜택 강조형</option>
-                <option value="number">숫자 포함형</option>
-                <option value="question">질문형</option>
-            </select>
-        </div>
 
-        <div class="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
 
         <div class="flex-1 flex items-center gap-2">
             <span class="text-sm font-bold text-gray-700 dark:text-gray-300 whitespace-nowrap">🎯 키워드</span>
@@ -258,7 +246,8 @@
 
         if (!scriptData) scriptData = Utils.storage.get('fullScript');
 
-        const style = document.getElementById('titleStyle').value;
+        const styleInput = document.getElementById('titleStyle');
+        const style = styleInput ? styleInput.value : 'basic';
         const keyword = document.getElementById('targetKeyword').value;
         const btn = document.getElementById('generateBtn');
 

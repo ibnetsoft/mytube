@@ -306,6 +306,16 @@ class GeminiService:
         else:
             specialized_instruction = f"[STYLE: INFORMATIONAL] Focus on '{topic_keyword}'."
 
+        # [NEW] 숏폼(Shorts) 강력 제약 추가
+        if duration_seconds <= 60:
+            specialized_instruction += f"""
+\n[CRITICAL SHORTFORM CONSTRAINT]
+- This is a {duration_seconds}-second SHORTFORM video.
+- **IGNORE** any minimum section requirements mentioned elsewhere.
+- You MUST generate **MAXIMUM 3 SECTIONS** (e.g., Hook -> Core -> Outro).
+- Keep descriptions concise and fast-paced.
+"""
+
         # [NEW] 누적 지식 활용 지침
         knowledge_instruction = ""
         if accumulated_knowledge:
@@ -329,7 +339,12 @@ class GeminiService:
             except: pass
         
         min_sections = 4
-        if duration_seconds > 300: min_sections = max(8, duration_seconds // 45)
+        
+        # [MODIFIED] 숏폼(60초 이하)일 경우 섹션 수 제한 (Intro, Body, Outro 최대 3개)
+        if duration_seconds <= 60:
+            min_sections = 3
+        elif duration_seconds > 300: 
+            min_sections = max(8, duration_seconds // 45)
         if duration_seconds > 1800: min_sections = max(20, duration_seconds // 60)
         if duration_seconds > 3600: min_sections = max(40, duration_seconds // 70)
 

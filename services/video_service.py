@@ -474,14 +474,32 @@ class VideoService:
             
             print(f"DEBUG_RENDER: Font size: {font_size_percent}% → {f_size}px (video height: {video.h}px)")
             
-            f_color = s_settings.get("font_color", "white")
-            f_name = s_settings.get("font", config.DEFAULT_FONT_PATH)
+            # [FIX] Enhanced Settings Retrieval (Support both 'subtitle_' prefix and shorthand)
+            f_color = s_settings.get("subtitle_base_color") or s_settings.get("font_color", "white")
+            f_name = s_settings.get("subtitle_font") or s_settings.get("font", config.DEFAULT_FONT_PATH)
             s_style = s_settings.get("style_name", "Basic_White")
-            s_stroke_color = s_settings.get("stroke_color", "black") 
+            
+            s_stroke_color = s_settings.get("subtitle_stroke_color") or s_settings.get("stroke_color", "black")
+            
+            # Stroke Width Logic
+            raw_stroke_width = s_settings.get("subtitle_stroke_width")
+            if raw_stroke_width is None:
+                raw_stroke_width = s_settings.get("stroke_width", 3.0) # Default if completely missing
+            s_stroke_width = float(raw_stroke_width)
+            
             s_stroke_enabled = int(s_settings.get("subtitle_stroke_enabled", 0))
-            s_stroke_width = 3.0 # [CHANGED] Increased to 3.0 for clear visibility on 1080p
+            if s_stroke_width > 0:
+                s_stroke_enabled = 1
+            
             if not s_stroke_enabled:
                 s_stroke_width = 0.0
+            else:
+                # [FIX] Scale stroke width based on resolution to match HTML Preview
+                # Preview box is approx 360-400px high. Render is 1080px+.
+                # Scale Factor = Video Height / 360
+                scale_factor = video.h / 360.0
+                s_stroke_width = s_stroke_width * scale_factor
+                print(f"DEBUG_RENDER: Scaled Stroke Width: {raw_stroke_width} -> {s_stroke_width:.2f} (Factor: {scale_factor:.2f})")
             
             # [LOG] Log the settings being used for the render
             try:
@@ -512,7 +530,7 @@ class VideoService:
                         stroke_color=s_stroke_color,
                         stroke_width=s_stroke_width,
                         bg_color=final_bg,
-                        line_spacing_ratio=float(s_settings.get("line_spacing", 0.1))
+                        line_spacing_ratio=float(s_settings.get("subtitle_line_spacing") or s_settings.get("line_spacing", 0.1))
                     )
                     
                     if txt_img_path:
@@ -524,7 +542,7 @@ class VideoService:
                         # [FIX] Position Logic
                         # 1. Check for custom position in settings
                         # settings usually store 'subtitle_pos_y' as "123px" or "10%" string
-                        custom_y = s_settings.get('subtitle_pos_y') 
+                        custom_y = s_settings.get('subtitle_pos_y') or s_settings.get('pos_y') 
                         
                         y_pos = None
                         
@@ -1155,6 +1173,16 @@ class VideoService:
         for sub in subtitles:
             try:
                 # PIL로 텍스트 이미지 생성
+                # [FIX] Scale Stroke Width for Add Subtitles (Post-processing)
+                current_stroke_width = stroke_width
+                if current_stroke_width is None:
+                     current_stroke_width = 0.0
+                else:
+                     # Scale if video object exists
+                     if hasattr(video, 'h'):
+                         scale_factor = video.h / 360.0 # Match create_slideshow logic
+                         current_stroke_width = float(current_stroke_width) * scale_factor
+                
                 txt_img_path = self._create_subtitle_image(
                     text=sub["text"],
                     width=video.w,
@@ -1163,7 +1191,7 @@ class VideoService:
                     font_name=font,
                     style_name=style_name,
                     stroke_color=stroke_color,
-                    stroke_width=stroke_width  # [FIX] Use stroke_width not stroke_width_ratio
+                    stroke_width=current_stroke_width  # [FIX] Use scaled width
                 )
                 
                 if txt_img_path:

@@ -665,8 +665,8 @@
                 const navTopic = document.getElementById('nav-topic');
 
                 if (mode === 'shorts') {
-                    // Shorts Mode: Hide Planner, Intro, BGM, Title, Shorts-Extraction
-                    if (navPlan) navPlan.parentElement.classList.add('hidden');
+                    // Shorts Mode: Show Planner (USER REQUEST), but Hide Intro, BGM, Title, Shorts-Extraction
+                    // if (navPlan) navPlan.parentElement.classList.add('hidden'); // [MODIFIED] Show planner for shorts
                     if (navIntro) navIntro.parentElement.classList.add('hidden');
                     if (navBgm) navBgm.parentElement.classList.add('hidden');
                     if (navTitle) navTitle.parentElement.classList.add('hidden');

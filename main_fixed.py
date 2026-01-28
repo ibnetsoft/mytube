@@ -189,10 +189,10 @@ class ImagePromptsSave(BaseModel):
     prompts: List[dict]
 
 class MetadataSave(BaseModel):
-    titles: List[str] = []
-    description: Optional[str] = ""
-    tags: List[str] = []
-    hashtags: List[str] = []
+    titles: List[str]
+    description: str
+    tags: List[str]
+    hashtags: List[str]
 
 class PromptsGenerateRequest(BaseModel):
     script: str
@@ -461,12 +461,7 @@ async def get_projects():
 @app.post("/api/projects")
 async def create_project(req: ProjectCreate):
     """새 프로젝트 생성"""
-    # [NEW] Check Global App Mode
-    from services.settings_service import settings_service
-    global_settings = settings_service.get_settings()
-    current_app_mode = global_settings.get("app_mode", "longform")
-    
-    project_id = db.create_project(req.name, req.topic, app_mode=current_app_mode)
+    project_id = db.create_project(req.name, req.topic)
     
     # 언어 설정 저장
     if req.target_language:
@@ -602,21 +597,8 @@ async def auto_generate_script_structure(project_id: int):
     # 3. DB 저장
     db.save_script_structure(project_id, structure)
     db.update_project(project_id, status="planned")
-    
+
     return {"status": "ok", "structure": structure}
-
-@app.post("/api/script/recommend-titles")
-async def recommend_titles(
-    keyword: str = Body(..., embed=True),
-    topic: str = Body("", embed=True),
-    language: str = Body("ko", embed=True)
-):
-    """키워드 기반 제목 추천"""
-    titles = await gemini_service.generate_title_recommendations(keyword, topic, language)
-    return {"titles": titles}
-
-
-
 
 @app.post("/api/projects/{project_id}/script")
 async def save_script(project_id: int, req: ScriptSave):
@@ -2662,7 +2644,6 @@ class ThumbnailGenerateRequest(BaseModel):
 class ThumbnailBackgroundRequest(BaseModel):
     prompt: str
     aspect_ratio: Optional[str] = "16:9"  # [NEW] Aspect Ratio
-    thumbnail_style: Optional[str] = None # [NEW] Style Reference
 
 class ThumbnailGenerateRequest(BaseModel):
     prompt: str
@@ -2676,41 +2657,6 @@ class ThumbnailGenerateRequest(BaseModel):
     language: str = "ko"
     background_path: Optional[str] = None
     aspect_ratio: Optional[str] = "16:9"  # [NEW] Aspect Ratio
-
-
-@app.post("/api/settings/thumbnail-style-sample/{style_key}")
-async def upload_thumbnail_style_sample(style_key: str, file: UploadFile = File(...)):
-    """썸네일 스타일 샘플 이미지 업로드"""
-    try:
-        # 디렉토리 생성
-        save_dir = "static/thumbnail_samples"
-        os.makedirs(save_dir, exist_ok=True)
-        
-        # 파일 저장 (확장자 유지 또는 png로 통일)
-        # 여러 확장자 지원을 위해 파일명에 확장자 포함해서 저장 추천하지만,
-        # 읽을 때 편의를 위해 png로 변환하거나 style_key.* 로 검색해야 함.
-        # 편의상 저장된 파일명을 {style_key}.png 로 고정 (프론트에서 변환해주거나 여기서 변환)
-        # 여기서는 원본 확장자를 사용하되, 읽을때 glob으로 찾는 방식 사용
-        
-        ext = file.filename.split('.')[-1] if '.' in file.filename else 'png'
-        filename = f"{style_key}.{ext}" # 덮어쓰기
-        filepath = os.path.join(save_dir, filename)
-        
-        # 기존 다른 확장자 파일 삭제 (중복 방지)
-        for f in os.listdir(save_dir):
-            if f.startswith(f"{style_key}."):
-                try:
-                    os.remove(os.path.join(save_dir, f))
-                except: pass
-
-        with open(filepath, "wb") as f:
-            content = await file.read()
-            f.write(content)
-            
-        return {"status": "ok", "url": f"/{save_dir}/{filename}"}
-    except Exception as e:
-        print(f"Sample Upload Error: {e}")
-        return {"status": "error", "error": str(e)}
 
 @app.post("/api/thumbnail/generate-text")
 async def generate_thumbnail_text(req: ThumbnailTextRequest):
@@ -2746,27 +2692,7 @@ async def generate_thumbnail_text(req: ThumbnailTextRequest):
         )
         
         # 5. Gemini 호출
-        
-        # [NEW] Check for Style Sample Image
-        sample_img_dir = "static/thumbnail_samples"
-        sample_img_bytes = None
-        
-        if os.path.exists(sample_img_dir):
-            for f in os.listdir(sample_img_dir):
-                if f.startswith(f"{req.thumbnail_style}."):
-                    try:
-                        with open(os.path.join(sample_img_dir, f), "rb") as img_f:
-                            sample_img_bytes = img_f.read()
-                        break
-                    except: pass
-        
-        if sample_img_bytes:
-             print(f"[{req.thumbnail_style}] Using sample image for text generation")
-             # Add context about image
-             prompt += "\n\n[IMPORTANT] The attached image is a STYLE REFERENCE. Ensure the generated hook texts match the visual mood and intensity of this image."
-             result = await gemini_service.generate_text_from_image(prompt, sample_img_bytes)
-        else:
-             result = await gemini_service.generate_text(prompt, temperature=0.8)
+        result = await gemini_service.generate_text(prompt, temperature=0.8)
         
         # 6. JSON 파싱
         import json, re
@@ -2805,37 +2731,11 @@ async def generate_thumbnail_background(req: ThumbnailBackgroundRequest):
 
         # 1. Imagen 4로 배경 이미지 생성
         clean_prompt = req.prompt
-        
-        # [NEW] Check for Style Sample Image and Analyze if exists
-        style_desc = ""
-        if req.thumbnail_style:
-            sample_img_dir = "static/thumbnail_samples"
-            if os.path.exists(sample_img_dir):
-                for f in os.listdir(sample_img_dir):
-                    if f.startswith(req.thumbnail_style + '.'): # Exact match prefix
-                        try:
-                            with open(os.path.join(sample_img_dir, f), "rb") as img_f:
-                                sample_img_bytes = img_f.read()
-                            
-                            # Analyze style using Gemini Vision
-                            print(f"[{req.thumbnail_style}] Analyzing sample image style for background generation...")
-                            analyze_prompt = "Describe the visual style, lighting, color palette, and composition of this image in 5 keywords for AI image generation. format: style1, style2, style3, ..."
-                            style_desc = await gemini_service.generate_text_from_image(analyze_prompt, sample_img_bytes)
-                            print(f"[{req.thumbnail_style}] Style keywords: {style_desc}")
-                            break
-                        except Exception as e:
-                            print(f"Style analysis failed: {e}")
-                            pass
-
-        final_prompt_prefix = ""
-        if style_desc:
-            final_prompt_prefix = f"Style Reference Keywords: {style_desc}. "
-
         # negative_constraints 강화 (CJK 포함)
         negative_constraints = "text, words, letters, alphabet, typography, watermark, signature, speech bubble, logo, brand name, writing, caption, chinese characters, japanese kanji, korean hangul, hanzi"
         
         # 프롬프트 앞뒤로 강력한 부정 명령 배치
-        final_prompt = f"ABSOLUTELY NO TEXT. NO CHINESE/JAPANESE/KOREAN CHARACTERS. {final_prompt_prefix}{clean_prompt}. Background image only. High quality, 8k, detailed, YouTube thumbnail background, empty background, no watermark. DO NOT INCLUDE: {negative_constraints}. INVISIBLE TEXT."
+        final_prompt = f"ABSOLUTELY NO TEXT. NO CHINESE/JAPANESE/KOREAN CHARACTERS. {clean_prompt}. Background image only. High quality, 8k, detailed, YouTube thumbnail background, empty background, no watermark. DO NOT INCLUDE: {negative_constraints}. INVISIBLE TEXT."
 
         response = client.models.generate_images(
             model="imagen-4.0-generate-001",
@@ -3297,13 +3197,8 @@ async def generate_character_prompts(req: CharacterPromptRequest):
     try:
         characters = await gemini_service.generate_character_prompts_from_script(req.script)
         
-        # [NEW] DB 저장
-        if req.project_id:
-            try:
-                db.save_project_characters(req.project_id, characters)
-                print(f"[Main] Saved {len(characters)} characters to DB for project {req.project_id}")
-            except Exception as db_err:
-                print(f"[Main] Failed to save characters: {db_err}")
+        # [NEW] DB 저장 (옵션) - 현재는 별도 테이블이 없으므로 setting에 저장하거나 생략
+        # 추후 필요시 project_settings의 character_ref_text에 자동 반영 가능
         
         return {"status": "ok", "characters": characters}
     except Exception as e:
@@ -3321,7 +3216,6 @@ async def generate_image_prompts(req: PromptsGenerateRequest):
     character_reference = req.character_reference # [NEW]
 
     # [NEW] 이미지 개수 처리 로직
-    count_instruction = "- 적절한 개수의 이미지 프롬프트를 생성하세요"
     if count > 0:
         count_instruction = f"- {count}개의 이미지 프롬프트를 생성하세요 (지정된 개수 준수)"
     # [NEW] 이미지 스타일 프리셋 조회 (DB 우선)
@@ -3420,8 +3314,7 @@ JSON만 반환하세요."""
 async def generate_character_image(
     prompt: str = Body(...),
     project_id: int = Body(...),
-    style: str = Body("realistic"),
-    name: Optional[str] = Body(None)
+    style: str = Body("realistic")
 ):
     """캐릭터 이미지를 생성하고 저장 (Character Reference용)"""
     try:
@@ -3452,15 +3345,6 @@ async def generate_character_image(
             f.write(images_bytes[0])
             
         print(f"✅ [Char Generation] Saved to {web_url}")
-        
-        # [NEW] DB 업데이트
-        if name:
-            try:
-                db.update_character_image(project_id, name, web_url)
-                print(f"[DB] Updated character image for {name}")
-            except Exception as dbe:
-                print(f"[DB] Failed to update character image: {dbe}")
-        
         return {"status": "ok", "url": web_url, "path": file_path}
     except Exception as e:
         print(f"❌ [Char Generation] Error: {e}")
@@ -5652,147 +5536,3 @@ async def create_plan_from_repository(req: RepositoryPlanRequest):
 # API: 스타일 프리셋 관리
 # ===========================================
 
-
-
-# ===========================================
-# API: 이미지 스타일 프리셋 관리
-# ===========================================
-
-@app.get("/api/settings/style-presets")
-async def get_style_presets_api():
-    """모든 이미지 스타일 프리셋 조회"""
-    presets = db.get_style_presets()
-    
-    # DB에 하나도 없으면 기본값으로 초기화
-    if not presets:
-        default_styles = {
-            "realistic": "photorealistic, 8k uhd, high quality, detailed",
-            "anime": "anime style, vibrant colors, studio ghibli inspired",
-            "cinematic": "cinematic lighting, dramatic, movie still, bokeh",
-            "cartoon": "cartoon style, cel shading, vibrant, playful",
-            "oil_painting": "oil painting, brush strokes, artistic, classic",
-            "watercolor": "watercolor painting, soft colors, artistic",
-            "sketch": "pencil sketch, hand drawn, artistic, detailed",
-            "pixel_art": "pixel art, 16-bit style, retro gaming"
-        }
-        for key, val in default_styles.items():
-            db.save_style_preset(key, val)
-        presets = default_styles
-        
-    return presets
-
-@app.post("/api/settings/style-presets")
-async def save_style_preset_api(preset: StylePreset):
-    """이미지 스타일 프리셋 저장"""
-    db.save_style_preset(preset.style_key, preset.prompt_value)
-    return {"status": "ok"}
-
-
-# ===========================================
-# API: 대본 스타일 프리셋 관리
-# ===========================================
-
-@app.get("/api/settings/script-style-presets")
-async def get_script_style_presets_api():
-    """모든 대본 스타일 프리셋 조회"""
-    presets = db.get_script_style_presets()
-    
-    # DB에 하나도 없으면 기본값으로 초기화
-    if not presets:
-        default_styles = {
-            "news": "뉴스 스타일: 객관적이고 신뢰감 있는 톤으로 작성",
-            "story": "옛날 이야기 스타일: 구연동화 방식으로 따듯하고 감성적으로 작성",
-            "senior_story": "시니어 사연 스타일: 중장년층 공감 사연으로 진솔하고 깊이 있게 작성",
-            "script_master": """최종 확정: '딥-다이브' 대본 빌드업 4단계 프로세스 (Ver. 4.0)
-
-[1단계] 대본 정밀 해부 및 흥행 잠재력 진단
-임무: 대본을 문장 단위로 정밀 분석하고, '흥행 심리 지도(5070 타겟 제목 리스트)'와 '전문 드라마 기법'을 사용하여 잠재력과 개선점에 대한 '대본 정밀 해부 리포트'를 발행합니다.
-
-실행 원칙:
-- [종합 진단] 작품의 가장 매력적인 설정과 개선 필요 지점 명확하게 요약
-- [톤앤매너 분석] 나레이션은 시청자에게 정중한 '존댓말' 원칙 (5070 시청자 정서적 유대감)
-- [대사 현미경 분석] 감정 설명 대사를 '극적 아이러니(Dramatic Irony)'가 담긴 상황으로 개선
-- [장면 구조 분석] 도입부는 '인 미디어스 레스(In medias res)' + '체호프의 총(Chekhov's Gun)' 기법 적용
-- [인물 매력도 분석] 주인공에게 '복선(Foreshadowing)'을 통한 숨겨진 능력 암시
-
-[2단계] '감독판 샘플' 제작 및 공동 창작 방향 확정
-임무: 지정된 장면을 드라마 기법 + 흥행 코드 + 존댓말 나레이션에 따라 '원본 vs 감독 수정본' 형태로 제공
-
-[3단계] 감독판 대본 전체 집필
-임무: 합의된 개선 방향과 스타일을 대본 전체에 일관되게 적용하여 최종 [감독판 대본] 완성
-
-[4단계] 최종 마케팅 에셋 시화
-임무: 완성된 대본의 핵심 컨셉을 보여줄 썸네일 비주얼을 구체적으로 묘사"""
-        }
-        for key, val in default_styles.items():
-            db.save_script_style_preset(key, val)
-        presets = default_styles
-        
-    return presets
-
-@app.post("/api/settings/script-style-presets")
-async def save_script_style_preset_api(preset: StylePreset):
-    """대본 스타일 프리셋 저장"""
-    db.save_script_style_preset(preset.style_key, preset.prompt_value)
-    return {"status": "ok"}
-
-
-# ===========================================
-# API: 썸네일 스타일 프리셋 관리
-# ===========================================
-
-@app.get("/api/settings/thumbnail-style-presets")
-async def get_thumbnail_style_presets_api():
-    """모든 썸네일 스타일 프리셋 조회"""
-    presets = db.get_thumbnail_style_presets()
-    
-    # DB에 하나도 없으면 기본값으로 초기화
-    if not presets:
-        default_styles = {
-            "face": "얼굴 강조형: 클로즈업된 인물 얼굴을 중심으로, 강렬한 표정과 시선을 유도하는 구도. 배경은 흐릿하게 처리하고 인물을 부각시킴.",
-            "text": "텍스트 중심형: 굵고 가독성 높은 폰트의 텍스트가 중앙을 차지하는 디자인. 배경은 단순하거나 텍스트를 방해하지 않는 패턴 사용.",
-            "contrast": "비포/애프터형: 화면을 분할하여 '전(Before)'과 '후(After)'를 명확하게 대비시키는 구도. 색상 대비를 강하게 주어 변화를 강조.",
-            "mystery": "미스터리형: 어두운 조명, 실루엣, 물음표 등을 활용하여 호기심을 자극하는 분위기. 중요한 정보는 가려져 있거나 흐릿하게 표현.",
-            "minimal": "미니멀형: 여백을 충분히 활용하고, 핵심 요소 1-2개만 배치하여 깔끔하고 세련된 느낌. 색상은 2-3가지로 제한.",
-            "dramatic": "드라마틱형: 역동적인 앵글, 강한 명암 대비, 영화 포스터 같은 극적인 연출. 채도가 높고 강렬한 색감 사용.",
-            "japanese_viral": "시니어 롱폼(일본풍): 일본 유튜브 스타일의 화려한 자막과 이펙트. 원색적인 색감 사용과 정보량이 많은 꽉 찬 화면 구성.",
-            "ghibli": "지브리 감성: 지브리 스튜디오 애니메이션 스타일. 부드러운 수채화풍 배경, 파스텔 톤 색감, 몽환적이고 감성적인 분위기.",
-            "wimpy": "윔피키드 스타일: 윔피키드(Wimpy Kid) 다이어리 스타일. 흑백의 단순한 선화, 손글씨 폰트, 공책 질감 배경, 유머러스한 낙서 느낌."
-        }
-        for key, val in default_styles.items():
-            db.save_thumbnail_style_preset(key, val)
-        presets = default_styles
-        
-    return presets
-
-@app.post("/api/settings/thumbnail-style-presets")
-async def save_thumbnail_style_preset_api(preset: StylePreset):
-    """썸네일 스타일 프리셋 저장"""
-    db.save_thumbnail_style_preset(preset.style_key, preset.prompt_value)
-    return {"status": "ok"}
-
-
-if __name__ == "__main__":
-    print("=" * 50)
-    print("🚀 피카디리스튜디오 v2.0 시작")
-    print("=" * 50)
-
-    config.validate()
-    
-    # Initialize & Migrate Database
-    db.init_db()
-    db.migrate_db()
-
-
-
-    now_kst = config.get_kst_time()
-    print(f"📍 서버 시간(KST): {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"📍 서버: http://{config.HOST}:{config.PORT}")
-    print("=" * 50)
-
-    uvicorn.run(
-        "main:app",
-        host=config.HOST,
-        port=config.PORT,
-        reload=config.DEBUG
-    )

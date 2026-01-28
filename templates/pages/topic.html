@@ -59,7 +59,7 @@
         </div>
 
         <!-- 차트 컨테이너 -->
-        <div id="bubbleChart" class="w-full h-[800px] flex items-center justify-center relative">
+        <div id="bubbleChart" class="w-full h-[500px] flex items-center justify-center relative">
             <!-- [NEW] Placeholder / Loading State Combined -->
             <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 gap-4"
                 id="bubbleLoading">
@@ -886,10 +886,9 @@
     function renderBubbleChart(data) {
         const container = document.getElementById('bubbleChart');
         const width = container.clientWidth;
-        const height = 800;
+        const height = 500; // Adjusted Compact Height
 
         // Clear ALL previous SVGs immediately before rendering a new one
-        // This solves race conditions where multiple fetches might return and stack charts
         d3.select("#bubbleChart").selectAll("svg").remove();
 
         // 1. Color palette
@@ -898,17 +897,15 @@
             .range(["#E0E7FF", "#4F46E5"]);
 
         // 2. Prepare Data (calculate Radius)
-        // Adjust exponent for visual variance (User request: make variance clear)
-        // Use Power 2.5 for variance
-        const radiusScale = d3.scalePow().exponent(0.5) // Sqrt scale is properly area-proportional, but we want exaggerated
+        const radiusScale = d3.scalePow().exponent(0.5)
             .domain([0, 100])
-            .range([15, 60]); // Min 15px, Max 60px size
+            .range([15, 60]);
 
         const nodes = data.map(d => ({
             ...d,
-            r: radiusScale(d.volume) * (d.volume > 80 ? 1.2 : 1), // Boost high volume
-            x: Math.random() * width,
-            y: Math.random() * height
+            r: radiusScale(d.volume) * (d.volume > 80 ? 1.2 : 1),
+            x: Math.random() * width, // Start randomly across full width
+            y: height / 2 + (Math.random() - 0.5) * 50 // Start near center vertically
         }));
 
         const svg = d3.select("#bubbleChart")
@@ -918,12 +915,12 @@
             .attr("viewBox", [0, 0, width, height])
             .attr("style", "max-width: 100%; height: auto;");
 
-        // 3. Force Simulation (Wide Spread)
+        // 3. Force Simulation (Flattened Wide Spread)
         const simulation = d3.forceSimulation(nodes)
-            .force("x", d3.forceX(width / 2).strength(0.05)) // Weak horizontal pull -> Spread wide
-            .force("y", d3.forceY(height / 2).strength(0.1)) // Stronger vertical pull -> Keep in band
-            .force("collide", d3.forceCollide(d => d.r * 1.5).strength(0.8)) // Prevent overlap (adjusted for rectangle)
-            .force("charge", d3.forceManyBody().strength(-10)); // Slight repulsion
+            .force("x", d3.forceX(width / 2).strength(0.01)) // Extremely weak X pull to allow spreading
+            .force("y", d3.forceY(height / 2).strength(0.4)) // Strong Y pull to keep flat
+            .force("collide", d3.forceCollide(d => d.r * 1.5).strength(0.8))
+            .force("charge", d3.forceManyBody().strength(-30)); // Stronger repulsion to separate
 
         // 4. Render Elements
         const node = svg.append("g")
@@ -931,11 +928,12 @@
             .data(nodes)
             .join("g")
             .attr("class", "bubble")
-            .call(drag(simulation)) // Optional: dragging
+            .call(drag(simulation))
             .on("click", (event, d) => {
                 document.getElementById('searchInput').value = d.data ? d.data.keyword : d.keyword;
                 searchVideos();
             })
+            // ... (rest of old event handlers logic preserved in mind, but simplified here for update)
             .on("mouseover", function (event, d) {
                 // 1. Bring to front
                 d3.select(this).raise();
@@ -943,11 +941,11 @@
                 // 2. Scale up rect and change color
                 d3.select(this).select("rect")
                     .transition().duration(200)
-                    .attr("width", d.r * 4.4)        // Scale up (Horizontal)
-                    .attr("height", d.r * 2.2)      // Scale up
-                    .attr("x", -d.r * 2.2)           // Recenter
+                    .attr("width", d.r * 4.4)
+                    .attr("height", d.r * 2.2)
+                    .attr("x", -d.r * 2.2)
                     .attr("y", -d.r * 1.1)
-                    .attr("fill", "#60A5FA"); // Sky Blue (Tailwind blue-400)
+                    .attr("fill", "#60A5FA");
 
                 // 3. Scale up text
                 d3.select(this).select("text")
@@ -956,7 +954,6 @@
                     .style("fill", "#fff");
             })
             .on("mouseout", function (event, d) {
-                // Restore logic
                 d3.select(this).select("rect")
                     .transition().duration(200)
                     .attr("width", d.r * 4)
@@ -977,7 +974,7 @@
             .attr("height", 0)
             .attr("x", 0)
             .attr("y", 0)
-            .attr("rx", 15) // Rounded corners (Soft Square)
+            .attr("rx", 15)
             .attr("ry", 15)
             .attr("fill", d => colorScale(d.volume))
             .attr("fill-opacity", 0.9)
@@ -988,7 +985,7 @@
         rects.transition().duration(800).ease(d3.easeBackOut)
             .attr("width", d => d.r * 4)
             .attr("height", d => d.r * 2)
-            .attr("x", d => -d.r * 2) // Center properly
+            .attr("x", d => -d.r * 2)
             .attr("y", d => -d.r);
 
         const labels = node.append("text")
@@ -1016,7 +1013,23 @@
 
         // 5. Simulation Tick
         simulation.on("tick", () => {
-            node.attr("transform", d => `translate(${d.x},${d.y})`);
+            // [Modified] Apply boundary constraints
+            node.attr("transform", d => {
+                // Rect dimensions: width = r*4, height = r*2
+                // Center is (0,0) of the group. 
+                // X boundary: radius * 2 (half width)
+                // Y boundary: radius (half height)
+
+                const halfW = d.r * 2.2; // slight margin
+                const halfH = d.r * 1.1;
+
+                // Clamp X
+                d.x = Math.max(halfW, Math.min(width - halfW, d.x));
+                // Clamp Y
+                d.y = Math.max(halfH, Math.min(height - halfH, d.y));
+
+                return `translate(${d.x},${d.y})`;
+            });
         });
 
         // Helper: Dragging

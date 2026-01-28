@@ -91,19 +91,45 @@
         document.getElementById('emptySection').classList.add('hidden');
 
         try {
+            // [NEW] Get Current Mode from Settings
+            let targetMode = 'longform';
+            try {
+                const res = await fetch('/api/settings');
+                const settings = await res.json();
+                targetMode = settings.app_mode || 'longform';
+            } catch (e) { console.error("Failed to load settings:", e); }
+
+            console.log("Filtering projects for mode:", targetMode);
+
             const data = await API.project.list();
 
             if (!data.projects || data.projects.length === 0) {
                 document.getElementById('loadingSection').classList.add('hidden');
                 document.getElementById('emptySection').classList.remove('hidden');
-                // 테이블 헤더도 숨길지 말지 결정. 일단 둠.
                 document.querySelector('.overflow-x-auto').classList.add('hidden');
+                return;
+            }
+
+            // [FIX] Filter by App Mode
+            // Legacy projects (app_mode is null/undefined) => treat as 'longform'
+            const filteredProjects = data.projects.filter(p => {
+                const pMode = p.app_mode || 'longform';
+                return pMode === targetMode;
+            });
+
+            if (filteredProjects.length === 0) {
+                document.getElementById('loadingSection').classList.add('hidden');
+                document.getElementById('emptySection').classList.remove('hidden');
+                document.querySelector('.overflow-x-auto').classList.add('hidden');
+                // Optional: Change Title
+                document.querySelector('#emptySection h3').textContent =
+                    targetMode === 'shorts' ? '쇼츠 프로젝트가 없습니다' : '롱폼 프로젝트가 없습니다';
                 return;
             } else {
                 document.querySelector('.overflow-x-auto').classList.remove('hidden');
             }
 
-            renderProjects(data.projects);
+            renderProjects(filteredProjects);
             document.getElementById('loadingSection').classList.add('hidden');
         } catch (e) {
             console.error('프로젝트 로드 실패:', e);

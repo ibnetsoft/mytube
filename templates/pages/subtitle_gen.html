@@ -262,7 +262,7 @@
             <div class="flex flex-1 min-h-0 overflow-hidden">
                 <!-- Vertical Image Strip -->
                 <div id="imageThumbnailStrip"
-                    class="w-20 flex flex-col gap-2 p-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 custom-scrollbar shrink-0 items-center">
+                    class="w-20 flex flex-col gap-2 p-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 custom-scrollbar shrink-0 items-center h-full min-h-0">
                     <!-- Thumbnails injected by JS -->
                 </div>
 
@@ -535,9 +535,11 @@
         }
 
         // [NEW] Dynamic sizing for Left Column (Thumbnail)
+        // User Request: Allow height to grow, keep natural ratio, no fixed squash.
         const isShorts = (window.currentAppMode === 'shorts');
         const colWidthClass = isShorts ? 'w-10' : 'w-28'; // Container width
-        const imgClass = isShorts ? 'w-8 h-[3.5rem]' : 'w-24 aspect-video'; // Image size
+        // [MODIFIED] Use h-auto to maintain aspect ratio, remove fixed height constraints
+        const imgClass = isShorts ? 'w-8 h-auto' : 'w-24 h-auto shadow-sm';
 
         const html = subtitles.map((sub, index) => {
             const isActive = index === selectedIndex ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-gray-800' : 'hover:bg-gray-50 dark:hover:bg-gray-800';
@@ -557,29 +559,31 @@
                 // Asset Element (Video or Image)
                 let assetHtml = '';
                 if (isVideo) {
+                    // Video: Maintain mostly ratio but limit max height if needed? 
+                    // User wants natural ratio.
                     assetHtml = `
-                        <video src="${imgUrl}" class="${imgClass} rounded-sm object-cover border-2 border-purple-500 z-0 bg-black" muted loop onmouseover="this.play()" onmouseout="this.pause();this.currentTime=0;" playsinline></video>
+                        <video src="${imgUrl}" class="${imgClass} rounded-sm object-contain border-2 border-purple-500 z-0 bg-black min-h-[2rem]" muted loop onmouseover="this.play()" onmouseout="this.pause();this.currentTime=0;" playsinline></video>
                         <div class="absolute top-1 right-1 bg-purple-600 text-white text-[8px] px-1 rounded shadow-md z-10 flex items-center gap-0.5">
                             <span>🎬</span>
                         </div>
                     `;
                 } else {
                     assetHtml = `
-                        <img src="${imgUrl}" class="${imgClass} rounded-sm object-cover border-2 border-blue-400 z-0 bg-gray-100" alt="Scene">
+                        <img src="${imgUrl}" class="${imgClass} rounded-sm object-contain border-2 border-blue-400 z-0 bg-gray-100 min-h-[2rem]" alt="Scene">
                     `;
                 }
 
                 leftCol = `
-                <div class="flex flex-col items-center mr-2 ${colWidthClass} shrink-0 relative group/thumb">
+                <div class="flex flex-col items-center mr-2 ${colWidthClass} shrink-0 relative group/thumb self-start pt-1">
                     <!-- Move Up (Merge with prev) -->
-                    ${index > 0 ? `<button onclick="event.stopPropagation(); moveImageStart(${imgIdx}, -1)" class="absolute -top-3 z-10 w-full h-4 bg-gray-200 hover:bg-blue-100 text-[9px] flex items-center justify-center rounded-t border border-b-0 border-gray-300 opacity-0 group-hover/thumb:opacity-100 transition-opacity" title="이전 자막부터 시작">▲</button>` : ''}
+                    ${index > 0 ? `<button onclick="event.stopPropagation(); moveImageStart(${imgIdx}, -1)" class="absolute -top-2 z-10 w-full h-3 bg-gray-200 hover:bg-blue-100 text-[8px] flex items-center justify-center rounded-t border border-b-0 border-gray-300 opacity-0 group-hover/thumb:opacity-100 transition-opacity" title="이전 자막부터 시작">▲</button>` : ''}
                     
                     ${assetHtml}
 
                     <!-- [NEW] Delete Button -->
                     <button onclick="event.stopPropagation(); deleteImageStart(${imgIdx})" class="absolute top-1 right-1 z-10 w-5 h-5 bg-red-500/80 hover:bg-red-600 text-white text-[10px] flex items-center justify-center rounded shadow-sm opacity-0 group-hover/thumb:opacity-100 transition-opacity" title="이 자막구간에서 이미지 삭제">✕</button>
                     
-                    <div class="absolute bottom-0 right-0 bg-blue-500 text-white text-[9px] px-1 rounded-tl font-bold shadow-sm">${actualIndex + 1}</div>
+                    <div class="absolute bottom-0 right-0 bg-blue-500 text-white text-[9px] px-1 rounded-tl font-bold shadow-sm opacity-80">${actualIndex + 1}</div>
 
                     <!-- [NEW] Effect Selector (For Motion, maybe disable? But user might want it.) -->
                     <!-- Currently user requested distinguishing icon. Keeping selector for now. -->
@@ -595,13 +599,13 @@
                     </select>
 
                     <!-- Move Down (Start later) -->
-                    ${index < subtitles.length - 1 ? `<button onclick="event.stopPropagation(); moveImageStart(${imgIdx}, 1)" class="absolute -bottom-3 z-10 w-full h-4 bg-gray-200 hover:bg-blue-100 text-[9px] flex items-center justify-center rounded-b border border-t-0 border-gray-300 opacity-0 group-hover/thumb:opacity-100 transition-opacity" title="다음 자막부터 시작">▼</button>` : ''}
+                    ${index < subtitles.length - 1 ? `<button onclick="event.stopPropagation(); moveImageStart(${imgIdx}, 1)" class="absolute -bottom-2 z-10 w-full h-3 bg-gray-200 hover:bg-blue-100 text-[8px] flex items-center justify-center rounded-b border border-t-0 border-gray-300 opacity-0 group-hover/thumb:opacity-100 transition-opacity" title="다음 자막부터 시작">▼</button>` : ''}
                 </div>`;
             } else {
                 // Continuation
                 leftCol = `
-                <div class="flex flex-col items-center mr-2 ${colWidthClass} shrink-0">
-                    <div class="w-0.5 h-full bg-gray-200 dark:bg-gray-700 min-h-[3.5rem]"></div>
+                <div class="flex flex-col items-center mr-2 ${colWidthClass} shrink-0 self-stretch">
+                    <div class="w-0.5 h-full bg-gray-200 dark:bg-gray-700 min-h-[2rem]"></div>
                 </div>`;
             }
 
@@ -1403,10 +1407,65 @@
             imageEffects.splice(imgIdx, 1);
         }
 
-        renderSubtitles();
         renderImageStrip();
         saveSubtitles();
         Utils.showToast("이미지가 삭제되었습니다.", "success");
+    }
+
+    // [NEW] Separate Image Strip Renderer (Global)
+    function renderImageStrip() {
+        const stripFn = document.getElementById('imageThumbnailStrip');
+        if (!stripFn) return;
+
+        if (!images || images.length === 0) {
+            stripFn.innerHTML = '<div class="text-[9px] text-gray-400 text-center p-2">이미지 없음</div>';
+            return;
+        }
+
+        const html = images.map((imgUrl, idx) => {
+            const webPath = Utils.convertToWebPath(imgUrl);
+            const isVideo = webPath.toLowerCase().endsWith('.mp4');
+            const startTime = imageTimings[idx] || 0;
+
+            // Find target subtitle
+            let targetSubIdx = 0;
+            for (let i = 0; i < subtitles.length; i++) {
+                if (subtitles[i].start >= startTime - 0.1) {
+                    targetSubIdx = i;
+                    break;
+                }
+            }
+
+            const isActive = (selectedIndex >= targetSubIdx && (idx === images.length - 1 || selectedIndex < getSubIdxForImg(idx + 1)));
+
+            function getSubIdxForImg(nextImgIdx) {
+                const t = imageTimings[nextImgIdx] || 99999;
+                for (let k = 0; k < subtitles.length; k++) {
+                    if (subtitles[k].start >= t - 0.1) return k;
+                }
+                return subtitles.length;
+            }
+
+            const activeClass = isActive ? 'ring-2 ring-blue-500 opacity-100 scale-[1.02]' : 'opacity-70 hover:opacity-100';
+
+            return `
+            <div onclick="selectSubtitle(${targetSubIdx})" 
+                 draggable="true"
+                 ondragstart="handleDragStart(event, ${idx})"
+                 class="relative w-full cursor-pointer transition-all duration-200 group mb-2 shrink-0 ${activeClass}"
+                 style="flex-shrink: 0;"
+                 title="이 이미지가 시작되는 자막으로 이동 (${startTime}s) (드래그하여 자막에 적용 가능)">
+                ${isVideo ?
+                    `<video src="${webPath}" class="w-full h-auto min-h-[40px] rounded bg-black border border-gray-600 object-contain" muted loop onmouseover="this.play()" onmouseout="this.pause()"></video>` :
+                    `<img src="${webPath}" class="w-full h-auto min-h-[40px] rounded bg-black border border-gray-600 object-contain" loading="lazy">`
+                }
+                <div class="absolute top-0.5 left-0.5 bg-black/60 text-white text-[8px] px-1 rounded backdrop-blur-sm z-10">
+                    ${idx + 1}
+                </div>
+            </div>`;
+        }).join('');
+
+        stripFn.innerHTML = html;
     }
 
     // [NEW] Move Image Boundary (Start Time)
@@ -1510,77 +1569,7 @@
         }
     }
 
-    // [NEW] Render Image Thumbnail Strip (Palette)
-    function renderImageStrip() {
-        const strip = document.getElementById('imageThumbnailStrip');
-        if (!strip) return;
-
-        // Use sourceImages for the strip (Palette)
-        if (!sourceImages || sourceImages.length === 0) {
-            strip.innerHTML = '<span class="text-xs text-gray-400 p-2">이미지 없음</span>';
-            return;
-        }
-
-        // Determine which image is currently active
-        let activeImgIdx = -1;
-        if (selectedIndex >= 0 && subtitles[selectedIndex]) {
-            const start = subtitles[selectedIndex].start;
-            if (imageTimings && imageTimings.length > 0) {
-                for (let i = 0; i < imageTimings.length; i++) {
-                    if (start >= imageTimings[i] - 0.05) activeImgIdx = i;
-                    else break;
-                }
-            }
-        }
-
-        strip.innerHTML = sourceImages.map((rawUrl, idx) => {
-            // [FIX] Convert path
-            const url = Utils.convertToWebPath(rawUrl);
-            const isVideo = url.toLowerCase().endsWith('.mp4');
-
-            // Check if this URL is used in the timeline
-            let isUsed = images.includes(rawUrl); // Check original raw path
-
-            // Highlight if this specific image URL is the one currently displayed based on time
-            let activeTimelineUrl = null;
-            if (activeImgIdx !== -1 && images[activeImgIdx]) {
-                activeTimelineUrl = images[activeImgIdx];
-            }
-            // If multiple same URLs exist in timeline, this highlights all of them in palette?
-            // Yes, that's acceptable for "Active" status in palette.
-            const isActive = (rawUrl === activeTimelineUrl);
-            const borderClass = isActive ? 'border-2 border-green-500 ring-1 ring-green-500' : 'border border-gray-200 dark:border-gray-600';
-            const opacityClass = isActive ? 'opacity-100' : 'opacity-80 hover:opacity-100';
-
-            // [NEW] Dynamic Aspect Ratio
-            // Default to 'aspect-video' (16:9) for Longform, 'aspect-[9/16]' for Shorts
-            const isShorts = (window.currentAppMode === 'shorts');
-            const aspectClass = isShorts ? 'aspect-[9/16]' : 'aspect-video';
-
-            const mediaTag = isVideo
-                ? `<video src="${url}" class="w-full h-full object-cover" muted onmouseover="this.play()" onmouseout="this.pause();this.currentTime=0;"></video>`
-                : `<img src="${url}" class="w-full h-full object-cover">`;
-
-            return `
-            <div class="relative w-full ${aspectClass} group cursor-pointer rounded overflow-hidden transition-all ${borderClass} ${opacityClass} mb-2"
-                 draggable="true"
-                 ondragstart="handleDragStart(event, ${idx})"
-                 onclick="previewImage(${idx})"
-                 title="이미지/비디오 #${idx + 1} (드래그하여 자막에 적용)">
-                ${mediaTag}
-                <div class="absolute top-0 left-0 bg-black/50 text-white text-[9px] px-1 rounded-br">
-                    #${idx + 1} ${isVideo ? '🎥' : ''}
-                </div>
-                ${isUsed ? `<div class="absolute bottom-0 right-0 bg-blue-500/80 text-white text-[8px] px-1">사용중</div>` : ''}
-            </div>`;
-        }).join('');
-
-        // Auto-scroll to active
-        if (activeImgIdx !== -1) {
-            const activeEl = strip.children[activeImgIdx];
-            if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); // block:center is better for vertical
-        }
-    }
+    N / A
 
     function previewImage(idx) {
         if (idx < 0 || idx >= sourceImages.length) return;

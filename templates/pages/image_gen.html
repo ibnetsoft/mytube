@@ -999,7 +999,7 @@
         Utils.showToast(`${imagesToDownload.length}개 이미지 다운로드 완료!`, 'success');
     }
 
-    async function generateAllImages() {
+    async function generateSelectedImages() {
         const projectId = getCurrentProject();
         if (!projectId) {
             Utils.showToast('프로젝트를 찾을 수 없습니다', 'error');
@@ -1014,11 +1014,19 @@
         const btn = document.getElementById('autoGenBtn');
         Utils.setLoading(btn, true, '이미지 생성 중...');
 
+        let processedCount = 0;
+
         try {
             for (let i = 0; i < prompts.length; i++) {
+                // Check selection
+                const checkbox = document.getElementById(`scene-checkbox-${i}`);
+                if (!checkbox || !checkbox.checked) continue;
+
+                processedCount++;
                 const p = prompts[i];
-                // Reuse existing checks
-                if (p.image_url) continue; // Skip already generated (optional, or force regen?) -> Let's regen if user clicked "Generate All"
+
+                // Skip if already generating (optional check, but good for safety)
+                // if (p.image_url) continue; // User might want to regenerate selected, so allow it.
 
                 const card = document.getElementById(`prompt-card-${i}`);
                 if (!card) continue;
@@ -1075,7 +1083,12 @@
                     statusDiv.className = 'status-indicator mt-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-2 rounded';
                 }
             }
-            Utils.showToast('모든 이미지가 처리되었습니다', 'success');
+
+            if (processedCount === 0) {
+                Utils.showToast('선택된 항목이 없습니다.', 'warning');
+            } else {
+                Utils.showToast(`${processedCount}개의 이미지가 처리되었습니다`, 'success');
+            }
 
             // 다음 단계 (수동 이동)
             const nextSection = document.getElementById('nextStepSection');
@@ -1461,12 +1474,12 @@
             renderCharacters(data.characters);
             document.getElementById('characterResultContainer').classList.remove('hidden');
         } else {
-            // Local fallback
-            const localChars = Utils.storage.get('characterPrompts');
-            if (localChars && localChars.length > 0) {
-                renderCharacters(localChars);
-                document.getElementById('characterResultContainer').classList.remove('hidden');
-            }
+            // [FIX] Clear data to prevent project cross-contamination
+            // Do NOT load from local storage fallback here
+            const container = document.getElementById('characterCards');
+            if (container) container.innerHTML = '';
+            document.getElementById('characterResultContainer').classList.add('hidden');
+            Utils.storage.remove('characterPrompts');
         }
     });
 
