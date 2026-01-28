@@ -290,9 +290,11 @@
                 </div>
 
                 <!-- SVG Filter for Outline -->
-                <svg width="0" height="0" class="absolute">
+                <!-- SVG Filter for Outline -->
+                <svg width="0" height="0" class="absolute"
+                    style="position: absolute; top:0; left:0; pointer-events: none;">
                     <defs>
-                        <filter id="outlineFilter">
+                        <filter id="outlineFilter" x="-50%" y="-50%" width="200%" height="200%">
                             <feMorphology in="SourceAlpha" result="DILATED" operator="dilate" radius="0"
                                 id="svgStokeWidth"></feMorphology>
                             <feFlood flood-color="#000000" flood-opacity="1" result="FLOOD" id="svgStrokeColor">
@@ -1068,6 +1070,10 @@
             // Dilate creates stroke. Radius = thickness/1?
             // Adjust multiplier to match visual expectation
             const radius = strokeWidth * scaleFactor * 0.6;
+
+            // [DEBUG]
+            console.log(`[Preview] Applying SVG Stroke. W:${strokeWidth} -> R:${radius.toFixed(2)}, Color:${strokeColor}`);
+
             svgStrokeW.setAttribute('radius', radius);
             svgStrokeC.setAttribute('flood-color', strokeColor);
 
