@@ -1062,26 +1062,31 @@
         text.style.fontFamily = font;
         text.style.fontWeight = 'bold';
 
-        // Stroke (SVG Filter Method)
-        const svgStrokeW = document.getElementById('svgStokeWidth');
-        const svgStrokeC = document.getElementById('svgStrokeColor');
+        // Stroke (Robust Text-Shadow Method)
+        // [FIX] 'Gungsuh' font with 'Bold' often breaks SVG/Webkit strokes due to faux-bold rendering.
+        // We use multi-layered text-shadow to simulate stroke perfectly.
 
-        if (strokeWidth > 0 && svgStrokeW && svgStrokeC) {
-            // Dilate creates stroke. Radius = thickness/1?
-            // Adjust multiplier to match visual expectation
-            const radius = strokeWidth * scaleFactor * 0.6;
+        if (strokeWidth > 0) {
+            const shadows = [];
+            const steps = 24; // 15 degree steps
+            const layers = Math.min(Math.ceil(strokeWidth * scaleFactor), 10); // Cap layers for perf
 
-            // [DEBUG]
-            console.log(`[Preview] Applying SVG Stroke. W:${strokeWidth} -> R:${radius.toFixed(2)}, Color:${strokeColor}`);
+            for (let r = 1; r <= layers; r++) {
+                for (let i = 0; i < steps; i++) {
+                    const angle = (i * (360 / steps)) * (Math.PI / 180);
+                    const x = (r * Math.cos(angle)).toFixed(1);
+                    const y = (r * Math.sin(angle)).toFixed(1);
+                    shadows.push(`${x}px ${y}px 0 ${strokeColor}`);
+                }
+            }
 
-            svgStrokeW.setAttribute('radius', radius);
-            svgStrokeC.setAttribute('flood-color', strokeColor);
-
-            text.style.filter = 'url(#outlineFilter)';
+            text.style.textShadow = shadows.join(',');
             text.style.webkitTextStroke = '0';
-        } else {
             text.style.filter = 'none';
+        } else {
+            text.style.textShadow = 'none';
             text.style.webkitTextStroke = '0';
+            text.style.filter = 'none';
         }
         text.style.webkitTextFillColor = color;
 
@@ -1092,8 +1097,7 @@
         text.style.textAlign = 'center';
         text.style.boxSizing = 'border-box';
 
-        // [FIX] Clear residues
-        text.style.textShadow = 'none';
+        // [Cleaned up] No extra textShadow clearing here
 
         // Background Strip
         const bgToggle = document.getElementById('bgStripToggle');
