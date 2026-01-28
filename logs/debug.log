@@ -1231,3 +1231,4 @@ UnboundLocalError: cannot access local variable 'effect' where it is not associa
 [2026-01-28 16:00:04.336779] create_slideshow(PROJ=30) Effects: ['pan_left', 'random']
 [2026-01-28 16:00:04.937023] RENDER_SETTINGS: font='Gungsuh', color='#ffffff', style='Custom', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
 [2026-01-28 16:00:05.006143] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-28 19:31:58.780677] API get_subtitles(PID=30): num_img=3, num_sub=1, urls=3, ex_url=/output/윔피키드_20260128/p30_s1_1769586528.png

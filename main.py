@@ -4661,7 +4661,7 @@ async def render_project_video(
 
 
 @app.get("/api/projects/{project_id}/subtitles")
-async def get_project_subtitles(project_id: int):
+async def get_project_subtitles(project_id: int, force_refresh: bool = False):
     """프로젝트 자막 및 이미지 싱크 데이터 조회"""
     try:
         # 1. 설정 및 경로 조회
@@ -4674,6 +4674,14 @@ async def get_project_subtitles(project_id: int):
         image_timings = []
         timeline_images = [] # Ordered images
 
+        # [NEW] Force Refresh Logic: Ignore saved timeline/timings if requested
+        if force_refresh:
+            print(f"DEBUG: Force Refresh requested for Project {project_id}. Ignoring saved timeline/timings.")
+            image_timings_path = None
+            timeline_images_path = None
+            # subtitle_path is usually kept unless full reset, but user wants to load NEW IMAGES.
+            # Keeping subtitles is safe.
+
         # 2. 자막 로드
         if subtitle_path and os.path.exists(subtitle_path):
              with open(subtitle_path, "r", encoding="utf-8") as f:
@@ -4684,27 +4692,32 @@ async def get_project_subtitles(project_id: int):
              with open(image_timings_path, "r", encoding="utf-8") as f:
                  image_timings = json.load(f)
         
-        # 4. 타임라인 이미지 로드 (없으면 기본 Prompt 이미지 사용?)
+        # 4. 타임라인 이미지 로드
         if timeline_images_path and os.path.exists(timeline_images_path):
              with open(timeline_images_path, "r", encoding="utf-8") as f:
                  timeline_images = json.load(f)
         
-        # Fallback: 타임라인 이미지가 없으면? (Subtitles exist but no timeline yet)
-        # Frontend handles empty timeline by showing palette.
-        # But we should probably send palette 'source_images' too here?
-        # Or frontend calls 'getImagePrompts'.
-        
-        # Let's return just what we have for timeline. 
-        # Source images are fetched via API.image.generatePrompts or similar usually? 
-        # No, `db.get_image_prompts`.
-        
+        # 5. 소스 이미지 (DB Truth)
         prompts = db.get_image_prompts(project_id)
         source_images = [p['image_url'] for p in prompts if p.get('image_url')]
 
-        if not timeline_images and source_images:
-             # Default: Use source images as timeline if empty? 
-             # No, let frontend decide or stay empty.
-             pass
+        # Fallback / Reset: 타임라인이 비어있거나 Force Refresh인 경우 소스 이미지 사용
+        if not timeline_images:
+             # Default: Use source images as timeline
+             timeline_images = source_images[:]
+             
+             # Reset timings to default distribution if timings are empty/mismatched
+             if not image_timings or len(image_timings) != len(timeline_images):
+                  image_timings = [0.0]
+                  if subtitles and len(timeline_images) > 0:
+                      if len(subtitles) > len(timeline_images):
+                          step = len(subtitles) / len(source_images)
+                          for i in range(1, len(source_images)):
+                              idx = min(int(i * step), len(subtitles) - 1)
+                              image_timings.append(subtitles[idx]['start'])
+                      else:
+                          # More images than subs? Just 0.0 or spaced?
+                          pass
 
         # [NEW] Load Image Effects
         image_effects = []

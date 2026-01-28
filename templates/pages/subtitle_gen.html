@@ -1862,8 +1862,9 @@
         btn.innerHTML = `<span class="animate-spin">🔄</span> 로딩중...`;
 
         try {
-            await loadProjectAndSubtitles();
-            Utils.showToast("데이터가 새로고침되었습니다.", "success");
+            // [FIX] Force Refetch with refresh flag
+            await loadProjectAndSubtitles(true);
+            Utils.showToast("데이터가 초기화되고 최신 상태로 로드되었습니다.", "success");
         } catch (e) {
             Utils.showToast("데이터 로드 실패: " + e.message, "error");
         } finally {
@@ -1970,8 +1971,8 @@
         saveSubtitles();
     }
 
-    async function loadProjectAndSubtitles() {
-        updateDebug(`[Func] loadProjectAndSubtitles START. Pid: ${projectId}`);
+    async function loadProjectAndSubtitles(forceRefresh = false) {
+        updateDebug(`[Func] loadProjectAndSubtitles START. Pid: ${projectId}, Force: ${forceRefresh}`);
         if (!projectId) {
             Utils.showToast('프로젝트 ID를 찾을 수 없습니다.', 'error');
             updateDebug('[Func] No Project ID');
@@ -1982,21 +1983,16 @@
             updateDebug('CRITICAL: Utils is undefined!');
             return;
         }
-        if (typeof Utils.setLoading !== 'function') {
-            updateDebug('CRITICAL: Utils.setLoading is not a function!');
-            console.error(Utils);
-            // Try to proceed without loading screen?
-        }
 
         try {
-            // [Fix] Utils.setLoading CRASHES (originalText undefined). Disabled.
-            // if (typeof Utils.setLoading === 'function') Utils.setLoading(true, "데이터 로딩 중..");
-
-
             updateDebug('[Func] Fetching data...');
-            updateDebug('[Func] Fetching data...');
-            // [NEW] Use the dedicated endpoint with cache-busting
-            const res = await fetch(`/api/projects/${projectId}/subtitles?t=${new Date().getTime()}`);
+
+            let url = `/api/projects/${projectId}/subtitles?t=${new Date().getTime()}`;
+            if (forceRefresh) {
+                url += '&force_refresh=true';
+            }
+
+            const res = await fetch(url);
             updateDebug(`[Func] Fetch Res: ${res.status}`);
             const data = await res.json();
             updateDebug(`[Func] Data JSON parsed. Status: ${data.status}`);

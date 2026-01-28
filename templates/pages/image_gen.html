@@ -948,6 +948,9 @@
                 prompts[index].image_url = result.image_url;
                 Utils.storage.set('imagePrompts', prompts);
 
+                // [FIX] Save to DB immediately so Subtitle page can see it
+                API.project.saveImagePrompts(projectId, prompts);
+
                 // [Fix] UI 강제 업데이트 (이미지 미표시 문제 해결)
                 const scrollY = window.scrollY;
                 drawPromptsUI(prompts);
