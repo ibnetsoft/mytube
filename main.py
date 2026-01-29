@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any, Union
 import uvicorn
 import os
+import sys
 import httpx
 import time
 import asyncio
@@ -2278,23 +2279,58 @@ async def get_subtitles(project_id: int):
                         img_to_vid_map[p['image_url']] = p['video_url']
                         # Also map filename just in case URL params differ or something
                         img_to_vid_map[os.path.basename(p['image_url'])] = p['video_url']
+                        # Map decoded URL just in case
+                        try:
+                            import urllib.parse
+                            decoded = urllib.parse.unquote(p['image_url'])
+                            img_to_vid_map[decoded] = p['video_url']
+                            img_to_vid_map[os.path.basename(decoded)] = p['video_url']
+                        except: pass
+
+                # DEBUG LOG
+                print(f"[Timeline Patch] Map Keys: {list(img_to_vid_map.keys())}")
+                print(f"[Timeline Patch] Current Timeline: {timeline_images}")
 
                 # 2. Patch Timeline
                 patched = False
                 for idx, t_img in enumerate(timeline_images):
+                    if not t_img: continue
+                    
+                    match_found = False
                     # Direct Match
                     if t_img in img_to_vid_map:
                         print(f"[Timeline Patch] Replacing Image with Video: {t_img} -> {img_to_vid_map[t_img]}")
                         timeline_images[idx] = img_to_vid_map[t_img]
                         patched = True
-                    else:
+                        match_found = True
+                    
+                    if not match_found:
                         # Basename Match (For safe measure)
                         base = os.path.basename(t_img)
                         if base in img_to_vid_map:
                              print(f"[Timeline Patch] Replacing Image with Video (Basename Match): {base} -> {img_to_vid_map[base]}")
                              timeline_images[idx] = img_to_vid_map[base]
                              patched = True
-                
+                             match_found = True
+                    
+                    if not match_found:
+                        # Decoded Match
+                        try:
+                            import urllib.parse
+                            decoded = urllib.parse.unquote(t_img)
+                            if decoded in img_to_vid_map:
+                                print(f"[Timeline Patch] Replacing Image with Video (Decoded Match): {decoded} -> {img_to_vid_map[decoded]}")
+                                timeline_images[idx] = img_to_vid_map[decoded]
+                                patched = True
+                                match_found = True
+                            elif os.path.basename(decoded) in img_to_vid_map:
+                                base_dec = os.path.basename(decoded)
+                                print(f"[Timeline Patch] Replacing Image with Video (Decoded Base Match): {base_dec} -> {img_to_vid_map[base_dec]}")
+                                timeline_images[idx] = img_to_vid_map[base_dec]
+                                patched = True
+                                match_found = True
+                        except: pass
+
                 if patched:
                     # Optional: Auto-save back to file to persist? 
                     # Yes, safer.
@@ -2302,7 +2338,8 @@ async def get_subtitles(project_id: int):
                         with open(timeline_images_path, "w", encoding="utf-8") as f:
                             json.dump(timeline_images, f, indent=2)
                     except: pass
-            except:
+            except Exception as e:
+                print(f"[Timeline Patch Error] {e}")
                 pass
         
         # Default to source if no timeline
@@ -4718,6 +4755,79 @@ async def get_project_subtitles(project_id: int, force_refresh: bool = False):
                       else:
                           # More images than subs? Just 0.0 or spaced?
                           pass
+
+        # [HOTFIX] Patch timeline images with Video URLs if available
+        # This logic ensures that if a user generated 'Motion' (video), it replaces the static image in the timeline
+        try:
+            img_to_vid_map = {}
+            for p in prompts:
+                # If both exist, map image -> video
+                if p.get('image_url') and p.get('video_url'):
+                    img_to_vid_map[p['image_url']] = p['video_url']
+                    img_to_vid_map[os.path.basename(p['image_url'])] = p['video_url']
+                    try:
+                        import urllib.parse
+                        dec = urllib.parse.unquote(p['image_url'])
+                        img_to_vid_map[dec] = p['video_url']
+                        img_to_vid_map[os.path.basename(dec)] = p['video_url']
+                    except: pass
+            
+            # Apply patch to timeline_images
+            patched = False
+            for idx, t_img in enumerate(timeline_images):
+                if not t_img: continue
+                match_found = False
+                
+                # 1. Direct URL Match
+                if t_img in img_to_vid_map:
+                    timeline_images[idx] = img_to_vid_map[t_img]
+                    patched = True
+                    match_found = True
+                
+                # 2. Basename Match (If path format differs)
+                if not match_found:
+                    base = os.path.basename(t_img)
+                    if base in img_to_vid_map:
+                        timeline_images[idx] = img_to_vid_map[base]
+                        patched = True
+                        match_found = True
+                
+                # 3. Decoded Match
+                if not match_found:
+                    try:
+                        import urllib.parse
+                        decoded_t = urllib.parse.unquote(t_img)
+                        if decoded_t in img_to_vid_map:
+                            timeline_images[idx] = img_to_vid_map[decoded_t]
+                            patched = True
+                        elif os.path.basename(decoded_t) in img_to_vid_map:
+                            timeline_images[idx] = img_to_vid_map[os.path.basename(decoded_t)]
+                            patched = True
+                    except: pass
+            
+            if patched:
+                print(f"DEBUG: Auto-patched timeline with video URLs for Project {project_id}")
+                # Optional: Save back to file?
+                # Usually better to save it so next time we don't need to patch.
+                if timeline_images_path:
+                    try:
+                        with open(timeline_images_path, "w", encoding="utf-8") as f:
+                            json.dump(timeline_images, f, indent=2)
+                    except: pass
+        except Exception as e:
+            print(f"Timeline Patch Error: {e}")
+            pass
+
+        # [FIX] Also update source_images to use video_url if available
+        # This ensures the 'Palette' on the left side also shows videos (or at least valid URLs)
+        # source_images is a list of strings.
+        # We need to rebuild it from prompts.
+        source_images = []
+        for p in prompts:
+            if p.get('video_url'):
+                source_images.append(p['video_url'])
+            elif p.get('image_url'):
+                source_images.append(p['image_url'])
 
         # [NEW] Load Image Effects
         image_effects = []

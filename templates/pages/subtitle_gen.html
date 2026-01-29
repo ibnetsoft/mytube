@@ -893,8 +893,8 @@
             const previewBg = document.getElementById('previewContainer');
             if (actualIndex >= 0 && actualIndex < images.length) {
                 const rawUrl = images[actualIndex];
-                const imgUrl = Utils.convertToWebPath(rawUrl); // [FIX] Convert path
-                const isVideo = imgUrl.toLowerCase().endsWith('.mp4');
+                const imgUrl = Utils.convertToWebPath(rawUrl);
+                const isVideo = imgUrl.toLowerCase().includes('.mp4'); // [FIX] Robust check
                 const isShorts = (window.currentAppMode === 'shorts');
 
                 if (isVideo) {
@@ -1344,7 +1344,7 @@
 
 
 
-    Utils.showToast('?대?吏 ?깊겕媛 ?꾩옱 자막 시간영상留욎떠 ?ъ꽕?뺣릺?덉뒿니다.', 'success');
+    Utils.showToast('자막-이미지 싱크가 로드되었습니다.', 'success');
 
     // [NEW] Adjust Time -> Sync Images -> Save
     async function saveAndSync() {
@@ -1494,7 +1494,7 @@
 
         const html = images.map((imgUrl, idx) => {
             const webPath = Utils.convertToWebPath(imgUrl);
-            const isVideo = webPath.toLowerCase().endsWith('.mp4');
+            const isVideo = webPath.toLowerCase().includes('.mp4'); // [FIX] Robust check for mp4 in URL
             const startTime = imageTimings[idx] || 0;
 
             // Find target subtitle
@@ -1525,7 +1525,7 @@
                  class="relative w-full cursor-pointer transition-all duration-200 group mb-2 shrink-0 ${activeClass}"
                  style="flex-shrink: 0;"
                  title="이 이미지가 시작되는 자막으로 이동 (${startTime}s) (드래그하여 자막에 적용 가능)">
-                ${isVideo ?
+                ${webPath.toLowerCase().includes('.mp4') ?
                     `<video src="${webPath}" class="w-full h-auto min-h-[40px] rounded bg-black border border-gray-600 object-contain" muted loop onmouseover="this.play()" onmouseout="this.pause()"></video>` :
                     `<img src="${webPath}" class="w-full h-auto min-h-[40px] rounded bg-black border border-gray-600 object-contain" loading="lazy">`
                 }
@@ -1578,10 +1578,10 @@
 
             // Validate: Must be > previous image start, < next image start
             if (imgIdx > 0 && newStart <= imageTimings[imgIdx - 1]) {
-                return Utils.showToast("?댁쟾 ?대?吏蹂대떎 ?욎꽕 영상?없습니다.", 'warning');
+                return Utils.showToast("다음 이미지보다 늦을 수 없습니다.", 'warning');
             }
             if (imgIdx < imageTimings.length - 1 && newStart >= imageTimings[imgIdx + 1]) {
-                return Utils.showToast("?ㅼ쓬 ?대?吏蹂대떎 ?ㅼ꽕 영상?없습니다.", 'warning');
+                return Utils.showToast("다음 이미지보다 앞설 수 없습니다.", 'warning');
             }
 
             // Update time
@@ -1639,7 +1639,7 @@
         }
     }
 
-    N / A
+
 
     function previewImage(idx) {
         if (idx < 0 || idx >= sourceImages.length) return;
@@ -1648,7 +1648,7 @@
         const container = document.getElementById('previewContainer');
 
         if (container) {
-            const isVideo = url.toLowerCase().endsWith('.mp4');
+            const isVideo = url.toLowerCase().includes('.mp4');
             if (isVideo) {
                 container.innerHTML = `
                     <video src="${url}" 
@@ -1734,7 +1734,7 @@
 
         renderSubtitles();
         renderImageStrip();
-        Utils.showToast(`?대?吏 #${imageIndex + 1} 적용 완료`, 'success');
+        Utils.showToast(`이미지 #${imageIndex + 1} 적용 완료`, 'success');
         saveSubtitles();
     }
 

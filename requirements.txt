@@ -28,3 +28,6 @@ google-auth-httplib2>=0.2.0
 
 # Scheduler
 apscheduler
+replicate>=0.30.0
+aiohttp
+pydub

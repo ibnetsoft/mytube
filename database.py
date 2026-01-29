@@ -1250,41 +1250,7 @@ def get_shorts(project_id: int) -> List[Dict]:
         return json.loads(row['shorts_data'])
     return []
 
-# ============ 이미지 프롬프트 ============
 
-def save_image_prompts(project_id: int, prompts: List[Dict]):
-    """이미지 프롬프트 저장 (기존 데이터 삭제 후 재저장)"""
-    conn = get_db()
-    cursor = conn.cursor()
-    try:
-        cursor.execute("DELETE FROM image_prompts WHERE project_id = ?", (project_id,))
-        for p in prompts:
-            cursor.execute("""
-                INSERT INTO image_prompts (project_id, scene_number, scene_text, prompt_ko, prompt_en, image_url)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (
-                project_id,
-                p.get('scene_number') or p.get('scene', 0),
-                p.get('scene_text') or p.get('scene', ''),
-                p.get('prompt_ko', ''),
-                p.get('prompt_en', ''),
-                p.get('image_url', '')
-            ))
-        conn.commit()
-    except Exception as e:
-        print(f"[DB] save_image_prompts error: {e}")
-        raise e
-    finally:
-        conn.close()
-
-def get_image_prompts(project_id: int) -> List[Dict]:
-    """이미지 프롬프트 조회"""
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM image_prompts WHERE project_id = ? ORDER BY scene_number ASC", (project_id,))
-    rows = cursor.fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
 
 # ============ 캐릭터 관리 ============
 
