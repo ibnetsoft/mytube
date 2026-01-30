@@ -275,13 +275,37 @@ async def upload_scene_image_api(
         
         # Allowed extensions
         image_exts = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff']
-        video_exts = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.m4v', '.wmv', '.flv', '.3gp', '.ts', '.mts']
+        video_exts = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.m4v', '.wmv', '.flv', '.3gp', '.ts', '.mts', '.mpeg', '.mpg']
         
         is_video = False
+        
+        # Check by extension
         if ext in video_exts:
             is_video = True
+            
+        # Check by Content-Type
         elif file.content_type and file.content_type.startswith("video/"):
             is_video = True
+            
+        # Check by File Header (Magic Numbers) - Robust fallback
+        try:
+            head = await file.read(12)
+            await file.seek(0)
+            print(f"[Upload Debug] Header Hex: {head.hex().upper()}")
+            
+            # MP4/MOV often have 'ftyp' at index 4
+            if len(head) >= 8 and head[4:8] == b'ftyp':
+                is_video = True
+            # MKV/WebM: 1A 45 DF A3
+            elif len(head) >= 4 and head.startswith(b'\x1a\x45\xdf\xa3'):
+                is_video = True
+            # AVI: RIFF ... AVI
+            elif len(head) >= 12 and head.startswith(b'RIFF') and head[8:12] == b'AVI ':
+                is_video = True
+        except Exception as e:
+            print(f"[Upload] Header check failed: {e}")
+
+        print(f"[Upload] File: {file.filename}, Content-Type: {file.content_type}, Ext: {ext}, IsVideo: {is_video}")
 
         if not is_video and ext not in image_exts and not (file.content_type and file.content_type.startswith("image/")):
             raise HTTPException(400, f"지원하지 않는 파일 형식입니다: {ext} ({file.content_type})")
