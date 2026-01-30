@@ -275,17 +275,16 @@ async def upload_scene_image_api(
         
         # Allowed extensions
         image_exts = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff']
-        video_exts = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.m4v']
+        video_exts = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.m4v', '.wmv', '.flv', '.3gp', '.ts', '.mts']
         
         is_video = False
         if ext in video_exts:
             is_video = True
-        elif ext not in image_exts:
-            # Fallback or error? Let's default to png if unknown but likely save with original ext if possible, 
-            # actually safe to just save extensions. If totally unknown, reject or treat as binary.
-            # But for safety, strict check is better.
-            # Let's reject unknown.
-            raise HTTPException(400, f"지원하지 않는 파일 형식입니다: {ext}")
+        elif file.content_type and file.content_type.startswith("video/"):
+            is_video = True
+
+        if not is_video and ext not in image_exts and not (file.content_type and file.content_type.startswith("image/")):
+            raise HTTPException(400, f"지원하지 않는 파일 형식입니다: {ext} ({file.content_type})")
             
         filename = f"scene_{scene_index}_upload_{int(time.time())}{ext}"
         filepath = os.path.join(output_dir, filename)
