@@ -264,7 +264,7 @@ async def upload_scene_image_api(
     project_id: int = Form(...),
     scene_index: int = Form(...)
 ):
-    """특정 Scene을 위한 이미지 직접 업로드"""
+    """특정 Scene을 위한 미디어(이미지/영상) 직접 업로드"""
     try:
         output_dir, web_dir = get_project_output_dir(project_id)
         
@@ -272,21 +272,56 @@ async def upload_scene_image_api(
             os.makedirs(output_dir, exist_ok=True)
         
         ext = os.path.splitext(file.filename)[1].lower()
-        if not ext in ['.jpg', '.jpeg', '.png', '.webp', '.gif']:
-            ext = ".png"
+        
+        # Allowed extensions
+        image_exts = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff']
+        video_exts = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.m4v']
+        
+        is_video = False
+        if ext in video_exts:
+            is_video = True
+        elif ext not in image_exts:
+            # Fallback or error? Let's default to png if unknown but likely save with original ext if possible, 
+            # actually safe to just save extensions. If totally unknown, reject or treat as binary.
+            # But for safety, strict check is better.
+            # Let's reject unknown.
+            raise HTTPException(400, f"지원하지 않는 파일 형식입니다: {ext}")
             
         filename = f"scene_{scene_index}_upload_{int(time.time())}{ext}"
         filepath = os.path.join(output_dir, filename)
+        web_url = f"{web_dir}/{filename}"
         
         with open(filepath, "wb") as f:
             content = await file.read()
             f.write(content)
             
-        return {
-            "status": "ok",
-            "url": f"{web_dir}/{filename}",
-            "path": filepath
-        }
+        # DB Update
+        conn = db.get_db()
+        cursor = conn.cursor()
+        
+        response_data = {"status": "ok", "path": filepath}
+        
+        if is_video:
+            # Update video_url and CLEAR image fields
+            cursor.execute(
+                "UPDATE image_prompts SET video_url = ?, image_url = NULL, image_path = NULL WHERE project_id = ? AND scene_number = ?", 
+                (web_url, project_id, scene_index)
+            )
+            response_data["video_url"] = web_url
+        else:
+            # Update image_url & image_path and CLEAR video_url
+            cursor.execute(
+                "UPDATE image_prompts SET image_url = ?, image_path = ?, video_url = NULL WHERE project_id = ? AND scene_number = ?", 
+                (web_url, filepath, project_id, scene_index)
+            )
+            response_data["image_url"] = web_url 
+            response_data["url"] = web_url
+            
+        conn.commit()
+        conn.close()
+            
+        return response_data
+
     except Exception as e:
         print(f"Scene Upload Error: {e}")
         return {"status": "error", "error": str(e)}

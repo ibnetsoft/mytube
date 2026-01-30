@@ -699,9 +699,9 @@
                             <div class="w-[90%] mx-auto mt-2"> <!-- Center align with mx-auto -->
                                 <button onclick="document.getElementById('scene-upload-${i}').click()" 
                                         class="w-full btn-secondary text-xs py-2 flex items-center justify-center gap-2 border border-dashed border-gray-600 hover:border-blue-500 hover:text-blue-500 transition-colors bg-gray-800/50">
-                                    <span>📂</span> 이미지 업로드/변경
+                                    <span>📂</span> 미디어(이미지/영상) 업로드
                                 </button>
-                                <input type="file" id="scene-upload-${i}" class="hidden" accept="image/*" onchange="uploadSceneImage(${i}, this)">
+                                <input type="file" id="scene-upload-${i}" class="hidden" accept="image/*,video/*,video/mp4,video/x-m4v" onchange="uploadSceneImage(${i}, this)">
                             </div>
                         </div>
                         
@@ -877,8 +877,14 @@
             const result = await response.json();
 
             if (result.status === 'ok') {
-                // Update prompts array
-                prompts[index].image_url = result.url;
+                // Update prompts array based on type
+                if (result.video_url) {
+                    prompts[index].video_url = result.video_url;
+                    prompts[index].image_url = null;
+                } else {
+                    prompts[index].image_url = result.image_url || result.url;
+                    prompts[index].video_url = null;
+                }
 
                 // Save to Storage & DB to persist
                 Utils.storage.set('imagePrompts', prompts);
@@ -898,7 +904,7 @@
             Utils.showToast('업로드 실패: ' + e.message, 'error');
             // Reset button text via redraw or manual reset
             if (btn) {
-                btn.innerHTML = originalText || '<span>📂</span> 이미지 업로드/변경';
+                btn.innerHTML = originalText || '<span>📂</span> 미디어 업로드';
                 btn.disabled = false;
             }
         } finally {
