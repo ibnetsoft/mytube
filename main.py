@@ -164,6 +164,7 @@ class ProjectCreate(BaseModel):
 class StylePreset(BaseModel):
     style_key: str
     prompt_value: str
+    image_url: Optional[str] = None
 
 class ProjectUpdate(BaseModel):
     name: Optional[str] = None
@@ -3938,6 +3939,7 @@ async def delete_intro_video(project_id: int):
 class AnimateRequest(BaseModel):
     scene_number: int
     prompt: Optional[str] = "Cinematic slow motion, high quality"
+    duration: Optional[float] = 3.3 # [NEW] duration (3.3s or 5.0s)
 
 @app.post("/api/projects/{project_id}/scenes/animate")
 async def animate_scene(project_id: int, req: AnimateRequest):
@@ -3972,10 +3974,11 @@ async def animate_scene(project_id: int, req: AnimateRequest):
             raise HTTPException(404, f"이미지 파일이 존재하지 않습니다: {image_path}")
 
         # 2. 비디오 생성 요청
-        print(f"Generating motion for Scene {req.scene_number} (Project {project_id})...")
+        print(f"Generating motion for Scene {req.scene_number} (Project {project_id}, Duration={req.duration})...")
         video_data = await replicate_service.generate_video_from_image(
             image_path=image_path,
-            prompt=req.prompt or "Cinematic motion"
+            prompt=req.prompt or "Cinematic motion",
+            duration=req.duration or 3.3
         )
         
         # 3. 저장
@@ -5499,72 +5502,6 @@ async def authenticate_channel(channel_id: int):
 # ===========================================
 # 서버 실행 (Direct Run)
 # ===========================================
-# ===========================================
-# API: 배경음악 생성 (MusicGen)
-# ===========================================
-
-# Pydantic 모델
-class MusicGenRequest(BaseModel):
-    prompt: str
-    duration: int = 10  # 5~30초
-    project_id: Optional[int] = None
-
-@app.get("/music-gen", response_class=HTMLResponse)
-async def music_gen_page(request: Request):
-    """배경음악 생성 페이지"""
-    return templates.TemplateResponse("pages/music_gen.html", {
-        "request": request,
-        "page": "music-gen",
-        "title": "배경음악 생성"
-    })
-
-@app.post("/api/music/generate")
-async def generate_background_music(req: MusicGenRequest):
-    """MusicGen으로 배경음악 생성"""
-    try:
-        from services.music_service import music_service
-        
-        # 프롬프트 검증
-        if not req.prompt or len(req.prompt.strip()) < 3:
-            raise HTTPException(400, "프롬프트를 입력해주세요 (최소 3자)")
-        
-        # 길이 검증
-        duration = max(5, min(30, req.duration))
-        
-        # 파일명 생성
-        import time
-        timestamp = int(time.time())
-        filename = f"bgm_{timestamp}.wav"
-        
-        # 음악 생성
-        file_path = await music_service.generate_music(
-            prompt=req.prompt,
-            duration_seconds=duration,
-            filename=filename,
-            project_id=req.project_id
-        )
-        
-        # 웹 접근 경로
-        rel_path = os.path.relpath(file_path, config.OUTPUT_DIR)
-        web_url = f"/output/{rel_path}".replace("\\", "/")
-        
-        # DB에 저장 (선택사항)
-        if req.project_id:
-            db.update_project_setting(req.project_id, 'background_music_path', file_path)
-        
-        return {
-            "status": "ok",
-            "path": file_path,
-            "url": web_url,
-            "duration": duration,
-            "prompt": req.prompt
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"Music generation error: {e}")
-        raise HTTPException(500, f"음악 생성 중 오류가 발생했습니다: {str(e)}")
 
 # ===========================================
 # API: Repository to Script Plan
@@ -5923,18 +5860,56 @@ async def get_style_presets_api():
             "oil_painting": "oil painting, brush strokes, artistic, classic",
             "watercolor": "watercolor painting, soft colors, artistic",
             "sketch": "pencil sketch, hand drawn, artistic, detailed",
-            "pixel_art": "pixel art, 16-bit style, retro gaming"
+            "pixel_art": "pixel art, 16-bit style, retro gaming",
+            "3d": "3d render, pixar style, 3d animation, cute, vibrant lighting"
         }
         for key, val in default_styles.items():
-            db.save_style_preset(key, val)
-        presets = default_styles
+            db.save_style_preset(key, val) # image_url=None implicitly
+        
+        # Reload to get the structured dict
+        presets = db.get_style_presets()
         
     return presets
 
 @app.post("/api/settings/style-presets")
 async def save_style_preset_api(preset: StylePreset):
     """이미지 스타일 프리셋 저장"""
-    db.save_style_preset(preset.style_key, preset.prompt_value)
+    db.save_style_preset(preset.style_key, preset.prompt_value, preset.image_url)
+    return {"status": "ok"}
+
+@app.post("/api/settings/style-presets/custom")
+async def save_custom_style_preset(
+    style_key: str = Form(...),
+    prompt_value: str = Form(...),
+    file: UploadFile = File(None)
+):
+    """커스텀 스타일 저장 (이미지 포함)"""
+    image_url = None
+    if file:
+        try:
+            filename = f"style_{style_key}_{int(time.time())}.png"
+            file_path = os.path.join(config.STATIC_DIR, "styles", filename)
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            
+            with open(file_path, "wb") as buffer:
+                content = await file.read()
+                buffer.write(content)
+                
+            image_url = f"/static/styles/{filename}"
+        except Exception as e:
+            raise HTTPException(500, f"이미지 업로드 실패: {e}")
+
+    db.save_style_preset(style_key, prompt_value, image_url)
+    return {"status": "ok", "image_url": image_url}
+
+@app.delete("/api/settings/style-presets/{style_key}")
+async def delete_style_preset(style_key: str):
+    """스타일 프리셋 삭제 (커스텀)"""
+    conn = db.get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM style_presets WHERE style_key = ?", (style_key,))
+    conn.commit()
+    conn.close()
     return {"status": "ok"}
 
 
@@ -6010,16 +5985,72 @@ async def get_thumbnail_style_presets_api():
             "wimpy": "윔피키드 스타일: 윔피키드(Wimpy Kid) 다이어리 스타일. 흑백의 단순한 선화, 손글씨 폰트, 공책 질감 배경, 유머러스한 낙서 느낌."
         }
         for key, val in default_styles.items():
-            db.save_thumbnail_style_preset(key, val)
-        presets = default_styles
+            db.save_thumbnail_style_preset(key, val, None) # image_url=None
+        
+        # Re-fetch formatted
+        presets = db.get_thumbnail_style_presets()
         
     return presets
 
 @app.post("/api/settings/thumbnail-style-presets")
 async def save_thumbnail_style_preset_api(preset: StylePreset):
     """썸네일 스타일 프리셋 저장"""
-    db.save_thumbnail_style_preset(preset.style_key, preset.prompt_value)
+    # If preset.image_url is None, db layer will preserve existing if any
+    db.save_thumbnail_style_preset(preset.style_key, preset.prompt_value, preset.image_url)
     return {"status": "ok"}
+
+@app.post("/api/settings/thumbnail-style-presets/custom")
+async def add_custom_thumbnail_style_preset(
+    style_key: str = Form(...),
+    prompt_value: str = Form(...),
+    file: UploadFile = File(...)
+):
+    """커스텀 썸네일 스타일 추가 (이미지 포함)"""
+    try:
+        # Validate file
+        if not file.filename:
+             raise HTTPException(400, "파일이 없습니다.")
+
+        # Ensure static/img/custom_styles dir exists
+        save_dir = os.path.join(config.STATIC_DIR, "img", "custom_styles")
+        os.makedirs(save_dir, exist_ok=True)
+        
+        # Generate filename
+        ext = os.path.splitext(file.filename)[1]
+        filename = f"thumb_{style_key}_{uuid.uuid4().hex[:8]}{ext}"
+        filepath = os.path.join(save_dir, filename)
+        
+        # Save file
+        with open(filepath, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        # URL path
+        image_url = f"/static/img/custom_styles/{filename}"
+        
+        # Save to DB
+        db.save_thumbnail_style_preset(style_key, prompt_value, image_url)
+        
+        return {"status": "ok", "image_url": image_url}
+        
+    except Exception as e:
+        print(f"Error saving custom thumbnail style: {e}")
+        raise HTTPException(500, f"스타일 저장 실패: {str(e)}")
+
+@app.delete("/api/settings/thumbnail-style-presets/{style_key}")
+async def delete_thumbnail_style_preset(style_key: str):
+    """썸네일 스타일 프리셋 삭제"""
+    # Default styles protection could be added here if needed, 
+    # but frontend handles hiding delete button. 
+    # Backend could enforce but for now let's allow flexibility or rely on frontend.
+    try:
+        conn = db.get_db()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM thumbnail_style_presets WHERE style_key = ?", (style_key,))
+        conn.commit()
+        conn.close()
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 
 if __name__ == "__main__":

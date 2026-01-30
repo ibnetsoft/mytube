@@ -332,6 +332,35 @@
                     <button onclick="loadStylePresets()" class="text-[10px] text-blue-500 hover:underline">🔄 서버
                         동기화</button>
                 </h3>
+
+                <!-- [NEW] Add Custom Style Form -->
+                <div
+                    class="bg-blue-50 dark:bg-blue-900/10 p-3 rounded-lg border border-blue-100 dark:border-blue-800 mb-4">
+                    <h4 class="text-xs font-bold text-blue-700 dark:text-blue-300 mb-2">➕ 새 스타일 추가 (사용자 정의)</h4>
+                    <div class="space-y-2">
+                        <div class="flex gap-2">
+                            <input type="text" id="customStyleName" class="input-field flex-1 text-xs"
+                                placeholder="스타일 이름 (예: my_sketch, dark_fantasy)">
+                            <button onclick="document.getElementById('customStyleImage').click()"
+                                class="btn-secondary px-3 py-1.5 text-xs whitespace-nowrap">
+                                🖼️ 이미지 업로드
+                            </button>
+                            <input type="file" id="customStyleImage" accept="image/*" class="hidden"
+                                onchange="document.getElementById('customStyleImgName').textContent = this.files[0]?.name || ''">
+                        </div>
+                        <p id="customStyleImgName" class="text-[10px] text-gray-500 pl-1 h-3 truncate"></p>
+
+                        <textarea id="customStylePrompt" class="input-field w-full text-xs h-16"
+                            placeholder="스타일 프롬프트 (예: highly detailed, cinematic lighting, 8k resolution)"></textarea>
+
+                        <div class="flex justify-end">
+                            <button onclick="addCustomStylePreset()"
+                                class="btn-primary px-4 py-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-700">
+                                추가하기
+                            </button>
+                        </div>
+                    </div>
+                </div>
                 <div id="stylePresetList" class="space-y-3">
                     <!-- Loaded via JS -->
                     <div class="text-center py-4 text-gray-400 text-xs">스타일을 불러오는 중...</div>
@@ -375,6 +404,39 @@
                         서버
                         동기화</button>
                 </h3>
+
+                <!-- [NEW] Add Custom Thumbnail Style -->
+                <div
+                    class="mb-4 p-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-lg border border-blue-100 dark:border-blue-800">
+                    <h4 class="text-xs font-bold text-blue-800 dark:text-blue-300 mb-2">➕ 커스텀 썸네일 스타일 추가</h4>
+                    <div class="space-y-2">
+                        <div class="flex gap-2">
+                            <input type="text" id="customThumbStyleName" placeholder="스타일 영문 코드명 (예: cinematic_thumb)"
+                                class="input-field flex-1 text-xs">
+                            <div class="relative w-8 h-8 flex-shrink-0">
+                                <label for="customThumbStyleImage"
+                                    class="w-full h-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded flex items-center justify-center cursor-pointer hover:border-blue-500 transition-colors"
+                                    title="참조 이미지 업로드">
+                                    <span class="text-gray-400 text-[10px]">📷</span>
+                                </label>
+                                <input type="file" id="customThumbStyleImage" class="hidden" accept="image/*"
+                                    onchange="document.getElementById('customThumbStyleImgName').textContent = this.files[0]?.name || ''">
+                            </div>
+                        </div>
+                        <p id="customThumbStyleImgName" class="text-[10px] text-gray-500 pl-1 h-3 truncate"></p>
+
+                        <textarea id="customThumbStylePrompt" class="input-field w-full text-xs h-16"
+                            placeholder="스타일 프롬프트 (예: highly detailed thumbnail, vibrant colors, text overlay)"></textarea>
+
+                        <div class="flex justify-end">
+                            <button onclick="addCustomThumbnailStylePreset()"
+                                class="btn-primary px-4 py-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-700">
+                                추가하기
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="thumbnailStylePresetList" class="space-y-3">
                     <!-- Loaded via JS -->
                     <div class="text-center py-4 text-gray-400 text-xs">썸네일 스타일을 불러오는 중...</div>
@@ -1017,14 +1079,20 @@
         }
     }
 
-    // [NEW] 이미지 스타일 프리셋 관리
+    // [NEW] 이미지 스타일 프리셋 관리 (Updated)
+    const DEFAULT_STYLE_KEYS = ['realistic', 'anime', 'cinematic', 'cartoon', 'oil_painting', 'watercolor', 'sketch', 'pixel_art', '3d'];
+
     async function loadStylePresets() {
         const list = document.getElementById('stylePresetList');
         try {
             const res = await fetch('/api/settings/style-presets');
             const presets = await res.json();
 
-            list.innerHTML = Object.entries(presets).map(([key, val]) => {
+            list.innerHTML = Object.entries(presets).map(([key, data]) => {
+                // Compatibility check: data might be string (old) or object (new)
+                const prompt = typeof data === 'string' ? data : (data.prompt || '');
+                const imageUrl = typeof data === 'object' ? data.image_url : null;
+
                 const displayName = {
                     'realistic': '리얼리스틱',
                     'anime': '애니메이션',
@@ -1036,13 +1104,36 @@
                     'pixel_art': '픽셀아트'
                 }[key] || key;
 
+                const isDefault = DEFAULT_STYLE_KEYS.includes(key);
+
                 return `
-                    <div class="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-md border border-gray-100 dark:border-gray-700">
-                        <div class="flex justify-between items-center mb-2">
-                            <label class="text-sm font-bold text-gray-700 dark:text-gray-200">${displayName}</label>
-                            <button onclick="saveOneStylePreset('${key}')" class="text-[10px] bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">💾 저장</button>
+                    <div class="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-md border border-gray-100 dark:border-gray-700 relative group">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="flex items-center gap-2">
+                                <div class="relative group/img cursor-pointer" onclick="document.getElementById('file_${key}').click()">
+                                    ${imageUrl ?
+                        `<img id="img_preview_${key}" src="${imageUrl}" class="w-10 h-10 rounded border border-gray-300 object-cover bg-white" title="이미지 변경 (클릭)">`
+                        : `<span id="img_preview_${key}" class="w-10 h-10 rounded bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] text-gray-500 hover:bg-gray-300 transition-colors" title="이미지 업로드 (클릭)">No Img</span>`
+                    }
+                                    <div class="absolute inset-0 bg-black/30 rounded flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity">
+                                        <span class="text-white text-[10px]">📷</span>
+                                    </div>
+                                    <input type="file" id="file_${key}" class="hidden" accept="image/*" onchange="previewStyleImage(this, '${key}')">
+                                </div>
+                                <div>
+                                    <label class="text-sm font-bold text-gray-700 dark:text-gray-200 block leading-none mb-1">${displayName}</label>
+                                    <span class="text-[10px] text-gray-400 font-mono">${key}</span>
+                                </div>
+                            </div>
+                            <div class="flex gap-1">
+                                <button onclick="saveOneStylePreset('${key}')" class="text-[10px] bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition-colors">💾 저장</button>
+                                ${!isDefault ?
+                        `<button onclick="deleteStylePreset('${key}')" class="text-[10px] bg-red-50 text-red-500 border border-red-200 px-2 py-1 rounded hover:bg-red-100 transition-colors" title="삭제">🗑️</button>`
+                        : ''
+                    }
+                            </div>
                         </div>
-                        <textarea id="preset_${key}" class="input-field w-full text-[11px] font-mono" rows="2">${val}</textarea>
+                        <textarea id="preset_${key}" class="input-field w-full text-[11px] font-mono" rows="2">${prompt}</textarea>
                     </div>
                 `;
             }).join('');
@@ -1052,23 +1143,141 @@
         }
     }
 
+    function previewStyleImage(input, key) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const preview = document.getElementById(`img_preview_${key}`);
+                const parent = preview.parentElement;
+
+                // Remove old preview (img or span)
+                preview.remove();
+
+                // Create new preview img
+                const img = document.createElement('img');
+                img.id = `img_preview_${key}`;
+                img.src = e.target.result;
+                img.className = "w-10 h-10 rounded border border-gray-300 object-cover bg-white";
+                img.title = "이미지 변경 (클릭)";
+
+                // Insert as first child of parent (.relative.group/img)
+                parent.prepend(img);
+            }
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
     async function saveOneStylePreset(key) {
         const val = document.getElementById(`preset_${key}`).value;
+        const fileInput = document.getElementById(`file_${key}`);
+        const file = fileInput && fileInput.files[0];
+
         try {
-            const res = await fetch('/api/settings/style-presets', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ style_key: key, prompt_value: val })
-            });
+            let res;
+            if (file) {
+                // If file exists, use multipart upload endpoint (upsert)
+                const formData = new FormData();
+                formData.append('style_key', key);
+                formData.append('prompt_value', val);
+                formData.append('file', file);
+
+                Utils.showToast('이미지 업로드 및 저장 중...', 'info');
+                res = await fetch('/api/settings/style-presets/custom', {
+                    method: 'POST',
+                    body: formData
+                });
+            } else {
+                // Normal JSON update
+                res = await fetch('/api/settings/style-presets', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        style_key: key,
+                        prompt_value: val,
+                        image_url: null // Backend will preserve if null
+                    })
+                });
+            }
 
             if (res.ok) {
-                Utils.showToast(`[${key}] 이미지 스타일이 저장되었습니다`, 'success');
+                if (file) {
+                    // Clear file input so next save doesn't re-upload unless changed
+                    fileInput.value = '';
+                }
+                Utils.showToast(`[${key}] 스타일이 저장되었습니다`, 'success');
             } else {
-                Utils.showToast('저장 실패', 'error');
+                const err = await res.json();
+                Utils.showToast(err.detail || '저장 실패', 'error');
             }
         } catch (e) {
             console.error(e);
             Utils.showToast('오류 발생', 'error');
+        }
+    }
+
+    // [NEW] Add Custom Style
+    async function addCustomStylePreset() {
+        const nameInput = document.getElementById('customStyleName');
+        const promptInput = document.getElementById('customStylePrompt');
+        const fileInput = document.getElementById('customStyleImage');
+        const name = nameInput.value.trim();
+        const prompt = promptInput.value.trim();
+        const file = fileInput.files[0];
+
+        if (!name || !prompt) {
+            Utils.showToast('이름과 프롬프트를 모두 입력해주세요.', 'warning');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('style_key', name);
+        formData.append('prompt_value', prompt);
+        if (file) {
+            formData.append('file', file);
+        }
+
+        Utils.showToast('스타일 추가 중...', 'info');
+
+        try {
+            const res = await fetch('/api/settings/style-presets/custom', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (res.ok) {
+                Utils.showToast('새 스타일이 추가되었습니다!', 'success');
+                // Clear inputs
+                nameInput.value = '';
+                promptInput.value = '';
+                fileInput.value = '';
+                document.getElementById('customStyleImgName').textContent = '';
+                // Reload list
+                loadStylePresets();
+            } else {
+                const err = await res.json();
+                Utils.showToast(err.detail || '추가 실패', 'error');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('서버 오류 발생', 'error');
+        }
+    }
+
+    // [NEW] Delete Style
+    async function deleteStylePreset(key) {
+        if (!confirm(`'${key}' 스타일을 정말 삭제하시겠습니까?`)) return;
+
+        try {
+            const res = await fetch(`/api/settings/style-presets/${key}`, { method: 'DELETE' });
+            if (res.ok) {
+                Utils.showToast('삭제되었습니다.', 'success');
+                loadStylePresets();
+            } else {
+                Utils.showToast('삭제 실패', 'error');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('서버 오류', 'error');
         }
     }
 
@@ -1149,13 +1358,19 @@
     }
 
     // [NEW] 썸네일 스타일 프리셋 관리
+    const DEFAULT_THUMB_KEYS = ['face', 'text', 'contrast', 'mystery', 'minimal', 'dramatic', 'japanese_viral', 'ghibli', 'wimpy'];
+
     async function loadThumbnailStylePresets() {
         const list = document.getElementById('thumbnailStylePresetList');
         try {
             const res = await fetch('/api/settings/thumbnail-style-presets');
             const presets = await res.json();
 
-            list.innerHTML = Object.entries(presets).map(([key, val]) => {
+            list.innerHTML = Object.entries(presets).map(([key, data]) => {
+                // Compatibility
+                const prompt = typeof data === 'string' ? data : (data.prompt || '');
+                const imageUrl = typeof data === 'object' ? data.image_url : null;
+
                 const displayName = {
                     'face': '얼굴 강조형',
                     'text': '텍스트 중심형',
@@ -1168,35 +1383,41 @@
                     'wimpy': '윔피키드 스타일'
                 }[key] || key;
 
-                // timestamp for cache busting
-                const ts = new Date().getTime();
-                const imgSrc = `/static/thumbnail_samples/${key}.png?v=${ts}`;
+                const isDefault = DEFAULT_THUMB_KEYS.includes(key);
+                // Fallback image url if none provided, old way (optional, but new way handles null)
+                // If imageUrl is null, we show placeholder. 
+                // Previously we had `/static/thumbnail_samples/${key}.png`. We can keep checking that if we want legacy support, 
+                // but for now let's rely on data.image_url. If user wants legacy images they need to migrate or we rely on 'No Img'
 
                 return `
-                    <div class="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-md border border-gray-100 dark:border-gray-700">
+                    <div class="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-md border border-gray-100 dark:border-gray-700 relative group">
                         <div class="flex justify-between items-start mb-2">
-                            <label class="text-sm font-bold text-gray-700 dark:text-gray-200 mt-1">${displayName}</label>
-                            
-                            <div class="flex flex-col items-end gap-2">
-                                <button onclick="saveOneThumbnailStylePreset('${key}')" class="text-[10px] bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 w-full mb-1">💾 저장</button>
-
-                                <div class="flex items-center gap-2">
-                                    <div class="relative w-16 h-12 bg-gray-200 rounded overflow-hidden border border-gray-300 group cursor-pointer hover:border-blue-400 transition-colors" onclick="document.getElementById('upload_${key}').click()">
-                                            <img src="${imgSrc}" 
-                                                class="w-full h-full object-cover" 
-                                                onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');"
-                                                alt="샘플" title="클릭하여 업로드">
-                                            <div class="absolute inset-0 flex items-center justify-center bg-gray-100 text-gray-400 text-[9px] hidden flex-col">
-                                                <span>📷</span>
-                                                <span class="text-[8px]">Upload</span>
-                                            </div>
-                                            <!-- Hidden File Input -->
-                                            <input type="file" id="upload_${key}" class="hidden" accept="image/*" onchange="uploadThumbnailSample('${key}', this)">
+                             <div class="flex items-center gap-2">
+                                <div class="relative group/img cursor-pointer" onclick="document.getElementById('thumb_file_${key}').click()">
+                                    ${imageUrl ?
+                        `<img id="thumb_img_preview_${key}" src="${imageUrl}" class="w-10 h-10 rounded border border-gray-300 object-cover bg-white" title="이미지 변경 (클릭)">`
+                        : `<span id="thumb_img_preview_${key}" class="w-10 h-10 rounded bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] text-gray-500 hover:bg-gray-300 transition-colors" title="이미지 업로드 (클릭)">No Img</span>`
+                    }
+                                    <div class="absolute inset-0 bg-black/30 rounded flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity">
+                                        <span class="text-white text-[10px]">📷</span>
                                     </div>
+                                    <input type="file" id="thumb_file_${key}" class="hidden" accept="image/*" onchange="previewThumbnailStyleImage(this, '${key}')">
+                                </div>
+                                <div>
+                                    <label class="text-sm font-bold text-gray-700 dark:text-gray-200 block leading-none mb-1">${displayName}</label>
+                                    <span class="text-[10px] text-gray-400 font-mono">${key}</span>
                                 </div>
                             </div>
+
+                            <div class="flex gap-1">
+                                <button onclick="saveOneThumbnailStylePreset('${key}')" class="text-[10px] bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition-colors">💾 저장</button>
+                                ${!isDefault ?
+                        `<button onclick="deleteThumbnailStylePreset('${key}')" class="text-[10px] bg-red-50 text-red-500 border border-red-200 px-2 py-1 rounded hover:bg-red-100 transition-colors" title="삭제">🗑️</button>`
+                        : ''
+                    }
+                            </div>
                         </div>
-                        <textarea id="thumbnail_preset_${key}" class="input-field w-full text-[11px] font-mono leading-tight mt-1" rows="3">${val}</textarea>
+                        <textarea id="thumbnail_preset_${key}" class="input-field w-full text-[11px] font-mono leading-tight mt-1" rows="3">${prompt}</textarea>
                     </div>
                 `;
             }).join('');
@@ -1206,16 +1427,58 @@
         }
     }
 
+    function previewThumbnailStyleImage(input, key) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const preview = document.getElementById(`thumb_img_preview_${key}`);
+                const parent = preview.parentElement;
+                preview.remove();
+
+                const img = document.createElement('img');
+                img.id = `thumb_img_preview_${key}`;
+                img.src = e.target.result;
+                img.className = "w-10 h-10 rounded border border-gray-300 object-cover bg-white";
+                img.title = "이미지 변경 (클릭)";
+
+                parent.prepend(img);
+            }
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
     async function saveOneThumbnailStylePreset(key) {
         const val = document.getElementById(`thumbnail_preset_${key}`).value;
+        const fileInput = document.getElementById(`thumb_file_${key}`);
+        const file = fileInput && fileInput.files[0];
+
         try {
-            const res = await fetch('/api/settings/thumbnail-style-presets', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ style_key: key, prompt_value: val })
-            });
+            let res;
+            if (file) {
+                const formData = new FormData();
+                formData.append('style_key', key);
+                formData.append('prompt_value', val);
+                formData.append('file', file);
+
+                Utils.showToast('썸네일 스타일 이미지 업로드 중...', 'info');
+                res = await fetch('/api/settings/thumbnail-style-presets/custom', {
+                    method: 'POST',
+                    body: formData
+                });
+            } else {
+                res = await fetch('/api/settings/thumbnail-style-presets', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        style_key: key,
+                        prompt_value: val,
+                        image_url: null
+                    })
+                });
+            }
 
             if (res.ok) {
+                if (file) fileInput.value = '';
                 Utils.showToast(`[${key}] 썸네일 스타일이 저장되었습니다`, 'success');
             } else {
                 Utils.showToast('저장 실패', 'error');
@@ -1226,32 +1489,80 @@
         }
     }
 
-    async function uploadThumbnailSample(key, input) {
-        if (!input.files || !input.files[0]) return;
+    async function addCustomThumbnailStylePreset() {
+        const nameInput = document.getElementById('customThumbStyleName');
+        const promptInput = document.getElementById('customThumbStylePrompt');
+        const fileInput = document.getElementById('customThumbStyleImage');
+        const name = nameInput.value.trim();
+        const prompt = promptInput.value.trim();
+        const file = fileInput.files[0];
 
-        const file = input.files[0];
+        if (!name || !prompt) {
+            Utils.showToast('이름과 프롬프트를 모두 입력해주세요.', 'warning');
+            return;
+        }
+
         const formData = new FormData();
-        formData.append('file', file);
-
-        Utils.showToast(`'${key}' 샘플 업로드 중...`, 'info');
+        formData.append('style_key', name);
+        formData.append('prompt_value', prompt);
+        if (file) {
+            formData.append('file', file);
+        } else {
+            // Even if no file, the API expects 'file' field for UploadFile. 
+            // We might need to split API or make file optional in `add_custom...`.
+            // The python endpoint: `file: UploadFile = File(...)` implies required.
+            // But we allow string-only create? 
+            // Wait, previous implementation of `custom` endpoint requires file.
+            // If user doesn't upload file, we should warn or support it. "Thumbnail must have image" is not strict rule but good for UI.
+            // Let's require file for now for Custom, or fallback to regular POST if no file.
+        }
 
         try {
-            const res = await fetch(`/api/settings/thumbnail-style-sample/${key}`, {
-                method: 'POST',
-                body: formData
-            });
-            const data = await res.json();
+            let res;
+            if (file) {
+                res = await fetch('/api/settings/thumbnail-style-presets/custom', {
+                    method: 'POST',
+                    body: formData
+                });
+            } else {
+                // Use normal endpoint creates entry with null image
+                res = await fetch('/api/settings/thumbnail-style-presets', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ style_key: name, prompt_value: prompt })
+                });
+            }
 
-            if (res.ok && data.status === 'ok') {
-                Utils.showToast('샘플 이미지가 등록되었습니다', 'success');
-                // Refresh list to update image
+            if (res.ok) {
+                Utils.showToast('새 썸네일 스타일이 추가되었습니다!', 'success');
+                nameInput.value = '';
+                promptInput.value = '';
+                fileInput.value = '';
+                document.getElementById('customThumbStyleImgName').textContent = '';
                 loadThumbnailStylePresets();
             } else {
-                Utils.showToast('업로드 실패: ' + (data.error || 'Unknown'), 'error');
+                const err = await res.json();
+                Utils.showToast(err.detail || '추가 실패', 'error');
             }
         } catch (e) {
             console.error(e);
-            Utils.showToast('업로드 중 오류 발생', 'error');
+            Utils.showToast('서버 오류 발생', 'error');
+        }
+    }
+
+    async function deleteThumbnailStylePreset(key) {
+        if (!confirm(`'${key}' 스타일을 정말 삭제하시겠습니까?`)) return;
+
+        try {
+            const res = await fetch(`/api/settings/thumbnail-style-presets/${key}`, { method: 'DELETE' });
+            if (res.ok) {
+                Utils.showToast('삭제되었습니다.', 'success');
+                loadThumbnailStylePresets();
+            } else {
+                Utils.showToast('삭제 실패', 'error');
+            }
+        } catch (e) {
+            Utils.showToast('서버 오류', 'error');
         }
     }
 

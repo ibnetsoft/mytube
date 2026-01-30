@@ -1232,3 +1232,133 @@ UnboundLocalError: cannot access local variable 'effect' where it is not associa
 [2026-01-28 16:00:04.937023] RENDER_SETTINGS: font='Gungsuh', color='#ffffff', style='Custom', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
 [2026-01-28 16:00:05.006143] calling writes_videofile code in video_service (720p safe mode)
 [2026-01-28 19:31:58.780677] API get_subtitles(PID=30): num_img=3, num_sub=1, urls=3, ex_url=/output/윔피키드_20260128/p30_s1_1769586528.png
+[2026-01-29 21:25:19.191687] Starting Single-pass render for project 28
+[2026-01-29 21:25:19.191706] Images: 6, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-29 21:25:19.229699] Render Error: No module named 'moviepy.editor'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\utils.py", line 14, in <module>
+    import audioop
+ModuleNotFoundError: No module named 'audioop'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 4410, in render_executor_func
+    import pydub
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\__init__.py", line 1, in <module>
+    from .audio_segment import AudioSegment
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\audio_segment.py", line 11, in <module>
+    from .utils import mediainfo_json, fsdecode
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\utils.py", line 16, in <module>
+    import pyaudioop as audioop
+ModuleNotFoundError: No module named 'pyaudioop'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 4417, in render_executor_func
+    from moviepy.editor import AudioFileClip
+ModuleNotFoundError: No module named 'moviepy.editor'
+
+[2026-01-29 21:25:29.829292] Starting Single-pass render for project 28
+[2026-01-29 21:25:29.829308] Images: 6, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-29 21:25:29.849491] Render Error: No module named 'moviepy.editor'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\utils.py", line 14, in <module>
+    import audioop
+ModuleNotFoundError: No module named 'audioop'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 4410, in render_executor_func
+    import pydub
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\__init__.py", line 1, in <module>
+    from .audio_segment import AudioSegment
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\audio_segment.py", line 11, in <module>
+    from .utils import mediainfo_json, fsdecode
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\utils.py", line 16, in <module>
+    import pyaudioop as audioop
+ModuleNotFoundError: No module named 'pyaudioop'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 4417, in render_executor_func
+    from moviepy.editor import AudioFileClip
+ModuleNotFoundError: No module named 'moviepy.editor'
+
+[2026-01-29 22:11:31.705706] Starting Single-pass render for project 28
+[2026-01-29 22:11:31.705721] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-29 22:11:31.734610] Render Error: No module named 'moviepy.editor'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\utils.py", line 14, in <module>
+    import audioop
+ModuleNotFoundError: No module named 'audioop'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 4446, in render_executor_func
+    import pydub
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\__init__.py", line 1, in <module>
+    from .audio_segment import AudioSegment
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\audio_segment.py", line 11, in <module>
+    from .utils import mediainfo_json, fsdecode
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\utils.py", line 16, in <module>
+    import pyaudioop as audioop
+ModuleNotFoundError: No module named 'pyaudioop'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 4453, in render_executor_func
+    from moviepy.editor import AudioFileClip
+ModuleNotFoundError: No module named 'moviepy.editor'
+
+[2026-01-29 22:12:53.215444] Starting Single-pass render for project 28
+[2026-01-29 22:12:53.215464] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-29 22:12:53.241371] Render Error: No module named 'moviepy.editor'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\utils.py", line 14, in <module>
+    import audioop
+ModuleNotFoundError: No module named 'audioop'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 4446, in render_executor_func
+    import pydub
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\__init__.py", line 1, in <module>
+    from .audio_segment import AudioSegment
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\audio_segment.py", line 11, in <module>
+    from .utils import mediainfo_json, fsdecode
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\utils.py", line 16, in <module>
+    import pyaudioop as audioop
+ModuleNotFoundError: No module named 'pyaudioop'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 4453, in render_executor_func
+    from moviepy.editor import AudioFileClip
+ModuleNotFoundError: No module named 'moviepy.editor'
+
+[2026-01-29 22:19:34.011977] Starting Single-pass render for project 28
+[2026-01-29 22:19:34.011998] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-29 22:19:34.303612] DEBUG_RENDER: num_img=5, num_sub=8
+[2026-01-29 22:19:34.308206] p_settings(ID=28) found: True
+[2026-01-29 22:19:34.310205] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path', 'subtitle_bg_enabled', 'subtitle_stroke_enabled', 'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity', 'voice_provider', 'voice_speed', 'voice_multi_enabled', 'voice_mapping_json']
+[2026-01-29 22:19:34.310230] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769692773.json
+[2026-01-29 22:19:34.311913] create_slideshow(PROJ=28) Effects: ['zoom_in', 'pan_left', 'random', 'random', 'random']
+[2026-01-29 22:19:36.162315] RENDER_SETTINGS: font='GmarketSansBold', color='#ffffff', style='Custom', stroke_color='#000000', stroke_enabled=1, stroke_width=0.0, bg_enabled=1
+[2026-01-29 22:19:36.552755] calling writes_videofile code in video_service (720p safe mode)
+[2026-01-29 22:24:57.745987] Starting Single-pass render for project 28
+[2026-01-29 22:24:57.745998] Images: 6, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-01-29 22:24:57.868363] DEBUG_RENDER: num_img=6, num_sub=8
+[2026-01-29 22:24:57.880606] p_settings(ID=28) found: True
+[2026-01-29 22:24:57.883189] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path', 'subtitle_bg_enabled', 'subtitle_stroke_enabled', 'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity', 'voice_provider', 'voice_speed', 'voice_multi_enabled', 'voice_mapping_json']
+[2026-01-29 22:24:57.883218] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769693097.json
+[2026-01-29 22:24:57.893275] create_slideshow(PROJ=28) Effects: ['none', 'none', 'none', 'zoom_out', 'random', 'zoom_in']
+[2026-01-29 22:24:59.782082] RENDER_SETTINGS: font='GmarketSansBold', color='#ffffff', style='Custom', stroke_color='#000000', stroke_enabled=1, stroke_width=0.0, bg_enabled=1
+[2026-01-29 22:25:00.108284] calling writes_videofile code in video_service (720p safe mode)

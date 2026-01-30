@@ -133,13 +133,7 @@
                             <span>TTS 생성</span>
                         </a>
                     </li>
-                    <li>
-                        <a href="/music-gen" id="nav-bgm"
-                            class="sidebar-item {% if page == 'music-gen' %}active{% endif %}">
-                            <span class="sidebar-icon">🎵</span>
-                            <span>배경음악 생성</span>
-                        </a>
-                    </li>
+
                     <li>
                         <a href="/subtitle-gen" id="nav-subtitle"
                             class="sidebar-item {% if page == 'subtitle-gen' %}active{% endif %}">
@@ -324,17 +318,7 @@
                                         class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">TTS</span>
                                 </a>
 
-                                <!-- Step 9: BGM -->
-                                <a href="/music-gen"
-                                    class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
-                                    data-step="bgm">
-                                    <div
-                                        class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
-                                        <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
-                                    </div>
-                                    <span
-                                        class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">BGM</span>
-                                </a>
+
 
                                 <!-- Step 10: Subtitles -->
                                 <a href="/subtitle-gen"
@@ -515,7 +499,7 @@
                             'intro': !!settings.intro_video_path || !!settings.background_video_url, // 인트로 비디오 유무
                             'image': fullData.image_prompts && fullData.image_prompts.length > 0,
                             'tts': !!fullData.tts,
-                            'bgm': !!settings.background_music_path,
+
                             'subtitle': !!settings.subtitle_path || (fullData.tts && !!settings.subtitle_style_enum),
                             'render': project.status === 'rendered' || project.status === 'completed' || !!settings.video_path,
                             'upload': !!settings.is_uploaded
@@ -658,7 +642,7 @@
                 // Elements to toggle
                 const navPlan = document.getElementById('nav-plan');
                 const navIntro = document.getElementById('nav-intro');
-                const navBgm = document.getElementById('nav-bgm');
+
                 const navTitle = document.getElementById('nav-title');
                 const navShorts = document.getElementById('nav-shorts');
                 const navScript = document.getElementById('nav-script');
@@ -668,7 +652,7 @@
                     // Shorts Mode: Show Planner (USER REQUEST), but Hide Intro, BGM, Title, Shorts-Extraction
                     // if (navPlan) navPlan.parentElement.classList.add('hidden'); // [MODIFIED] Show planner for shorts
                     if (navIntro) navIntro.parentElement.classList.add('hidden');
-                    if (navBgm) navBgm.parentElement.classList.add('hidden');
+
                     if (navTitle) navTitle.parentElement.classList.add('hidden');
 
                     // Hide the 'Shorts Extraction' tool because we are building shorts directly
@@ -682,7 +666,7 @@
                     // Longform Mode: Show everything (default)
                     if (navPlan) navPlan.parentElement.classList.remove('hidden');
                     if (navIntro) navIntro.parentElement.classList.remove('hidden');
-                    if (navBgm) navBgm.parentElement.classList.remove('hidden');
+
                     if (navTitle) navTitle.parentElement.classList.remove('hidden');
                     if (navShorts) navShorts.parentElement.classList.remove('hidden');
 

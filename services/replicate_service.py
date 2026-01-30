@@ -14,24 +14,43 @@ class ReplicateService:
             self.api_key = os.getenv("REPLICATE_API_TOKEN")
         return bool(self.api_key)
 
-    async def generate_video_from_image(self, image_path: str, prompt: str = "Cinematic video, high quality, smooth motion", motion_bucket_id: int = 127):
+    async def generate_video_from_image(self, image_path: str, prompt: str = "Cinematic video, high quality, smooth motion", motion_bucket_id: int = 127, duration: float = 3.3):
         """
         Replicate의 wan-video 모델을 사용하여 이미지 -> 비디오 생성
+        Wan 2.1 Limit: Max 81 frames usually.
+        Config:
+         - 3.3s @ 24fps (Standard) => ~81 frames
+         - 5.0s @ 16fps (Long)     => ~80 frames
         """
         if not self.check_api_key():
             raise Exception("Replicate API Key is missing. Please set REPLICATE_API_TOKEN.")
 
         try:
-            # [NEW] Wan-Video 파라미터 구성
+            # Calculate FPS based on duration to fit within ~81 frames limit of Wan 2.1
+            fps = 24
+            num_frames = int(duration * fps)
+            
+            if num_frames > 81:
+                # If requested duration exceeds capacity at 24fps, lower the FPS
+                # Max duration roughly 5s (81/16 = 5.06s)
+                fps = 16 
+                num_frames = int(duration * fps)
+                
+                # Cap at 81 if still exceeding
+                if num_frames > 81:
+                    num_frames = 81
+            
+            print(f"[Wan 2.1] Generating {duration}s video ({num_frames} frames @ {fps} fps)")
+
             input_data = {
                 "image": open(image_path, "rb"),
                 "prompt": prompt,
                 "go_fast": True,
-                "num_frames": 81, # 81 frames for ~3.3s at 24fps
+                "num_frames": num_frames,
                 "resolution": "720p",
                 "sample_shift": 12,
                 "optimize_prompt": False,
-                "frames_per_second": 24
+                "frames_per_second": fps
             }
 
             # 비동기 실행 (run_in_executor)

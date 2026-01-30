@@ -219,12 +219,21 @@ class VideoService:
                         # If it's really an MP4, Image.open might fail.
                         pass
 
-                # If clip is still None (Not video or Failed), treat as Image
-                if clip is None:
-                    # [CHANGED] Logic to switch between Fill (Crop) and Fit (Cinematic/Blur) based on Aspect Ratio
+                # [FIX] Logic to handle Video vs Image asset paths
+                processed_img_path = None
+                if is_video_asset:
+                    if clip is not None:
+                         # Video asset loaded successfully, no further image processing needed for 'processed_img_path'
+                         # The 'clip' variable already holds the VideoFileClip
+                         pass 
+                    else:
+                         print(f"ERROR: Video asset failed to load. Skipping: {img_path}")
+                         continue # Skip this frame entirely if video failed to load
+                else: 
+                    # Image Processing (Cinematic Frame or Fit)
                     target_w, target_h = resolution
                     is_vertical = target_h > target_w
-    
+
                     if is_vertical:
                         # For Shorts/Vertical: Use Cinematic Frame (Fit + Blur BG) to avoid aggressive cropping of landscape images
                         processed_img_path = self._create_cinematic_frame(img_path, resolution)

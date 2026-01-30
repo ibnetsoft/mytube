@@ -407,6 +407,26 @@ def migrate_db():
         except sqlite3.OperationalError:
             pass
 
+    # [NEW] 마이그레이션: style_presets 테이블에 image_url 컬럼 추가
+    cursor.execute("PRAGMA table_info(style_presets)")
+    style_presets_columns = [info[1] for info in cursor.fetchall()]
+    if 'image_url' not in style_presets_columns:
+        print("[Migration] Adding image_url column to style_presets table...")
+        try:
+           cursor.execute("ALTER TABLE style_presets ADD COLUMN image_url TEXT")
+        except sqlite3.OperationalError:
+           pass
+
+    # [NEW] 마이그레이션: thumbnail_style_presets 테이블에 image_url 컬럼 추가
+    cursor.execute("PRAGMA table_info(thumbnail_style_presets)")
+    thumb_style_presets_columns = [info[1] for info in cursor.fetchall()]
+    if 'image_url' not in thumb_style_presets_columns:
+        print("[Migration] Adding image_url column to thumbnail_style_presets table...")
+        try:
+           cursor.execute("ALTER TABLE thumbnail_style_presets ADD COLUMN image_url TEXT")
+        except sqlite3.OperationalError:
+           pass
+
     # Intro video path
     try:
         cursor.execute("ALTER TABLE project_settings ADD COLUMN intro_video_path TEXT")
@@ -544,6 +564,11 @@ def migrate_db():
     except sqlite3.OperationalError: pass
     try:
         cursor.execute("ALTER TABLE project_settings ADD COLUMN voice_mapping_json TEXT")
+    except sqlite3.OperationalError: pass
+
+    # [NEW] Thumbnail Style Persistence
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN thumbnail_style TEXT")
     except sqlite3.OperationalError: pass
 
     conn.commit()
@@ -1193,7 +1218,8 @@ def update_project_setting(project_id: int, key: str, value: Any):
                     'subtitle_path', 'image_timings_path', 'timeline_images_path', 'image_effects_path', 'app_mode',
                     'subtitle_base_color', 'subtitle_pos_y', 'subtitle_pos_x', 'subtitle_bg_enabled', 'subtitle_stroke_enabled',
                     'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity',
-                    'voice_provider', 'voice_speed', 'voice_multi_enabled', 'voice_mapping_json', 'intro_video_path'] # [FIX] Added missing subtitle keys
+                    'voice_provider', 'voice_speed', 'voice_multi_enabled', 'voice_mapping_json', 'intro_video_path',
+                    'thumbnail_style'] # [FIX] Added missing subtitle keys and thumbnail_style
 
 
     if key not in allowed_keys:
@@ -1485,27 +1511,43 @@ migrate_db()
 # 이미지 스타일 프리셋 관리
 # ===========================================
 
-def get_style_presets() -> Dict[str, str]:
+def get_style_presets() -> Dict[str, Dict[str, Any]]:
     """모든 스타일 프리셋 조회"""
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT style_key, prompt_value FROM style_presets")
+    cursor.execute("SELECT style_key, prompt_value, image_url FROM style_presets")
     rows = cursor.fetchall()
     conn.close()
     
-    return {row['style_key']: row['prompt_value'] for row in rows}
+    # Return structure: {key: {prompt: "...", image_url: "..."}}
+    return {
+        row['style_key']: {
+            "prompt": row['prompt_value'],
+            "image_url": row['image_url']
+        } 
+        for row in rows
+    }
 
-def save_style_preset(style_key: str, prompt_value: str):
+def save_style_preset(style_key: str, prompt_value: str, image_url: str = None):
     """스타일 프리셋 저장 또는 업데이트"""
     conn = get_db()
     cursor = conn.cursor()
+    
+    # Existing check to see if we need to preserve existing image_url if not provided
+    if image_url is None:
+        cursor.execute("SELECT image_url FROM style_presets WHERE style_key = ?", (style_key,))
+        row = cursor.fetchone()
+        if row:
+            image_url = row['image_url']
+
     cursor.execute("""
-        INSERT INTO style_presets (style_key, prompt_value, updated_at)
-        VALUES (?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO style_presets (style_key, prompt_value, image_url, updated_at)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(style_key) DO UPDATE SET
             prompt_value = excluded.prompt_value,
+            image_url = excluded.image_url,
             updated_at = CURRENT_TIMESTAMP
-    """, (style_key, prompt_value))
+    """, (style_key, prompt_value, image_url))
     conn.commit()
     conn.close()
 # ===========================================
@@ -1540,27 +1582,45 @@ def save_script_style_preset(style_key: str, prompt_value: str):
 # 썸네일 스타일 프리셋 관리
 # ===========================================
 
-def get_thumbnail_style_presets() -> Dict[str, str]:
+def get_thumbnail_style_presets() -> Dict[str, Dict[str, Any]]:
     """썸네일 스타일 프리셋 조회"""
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT style_key, prompt_value FROM thumbnail_style_presets")
+    cursor.execute("SELECT style_key, prompt_value, image_url FROM thumbnail_style_presets")
     rows = cursor.fetchall()
     conn.close()
     
-    return {row['style_key']: row['prompt_value'] for row in rows}
+    return {
+        row['style_key']: {
+            "prompt": row['prompt_value'],
+            "image_url": row['image_url']
+        } 
+        for row in rows
+    }
 
-def save_thumbnail_style_preset(style_key: str, prompt_value: str):
+def save_thumbnail_style_preset(style_key: str, prompt_value: str, image_url: str = None):
     """썸네일 스타일 프리셋 저장"""
     conn = get_db()
     cursor = conn.cursor()
+    
+    # Existing check to see if we need to preserve existing image_url if not provided
+    if image_url is None:
+        try:
+            cursor.execute("SELECT image_url FROM thumbnail_style_presets WHERE style_key = ?", (style_key,))
+            row = cursor.fetchone()
+            if row:
+                image_url = row['image_url']
+        except:
+             pass
+
     cursor.execute("""
-        INSERT INTO thumbnail_style_presets (style_key, prompt_value, updated_at)
-        VALUES (?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO thumbnail_style_presets (style_key, prompt_value, image_url, updated_at)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(style_key) DO UPDATE SET
             prompt_value = excluded.prompt_value,
+            image_url = excluded.image_url,
             updated_at = CURRENT_TIMESTAMP
-    """, (style_key, prompt_value))
+    """, (style_key, prompt_value, image_url))
     conn.commit()
     conn.close()
 

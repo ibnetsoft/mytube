@@ -179,142 +179,12 @@
             <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">스타일 선택</label>
             <input type="hidden" id="imageStyle" value="realistic">
 
-            <!-- [Modified] Grid density increased to reduce thumbnail size (cols-3/6 -> cols-6/12) -->
-            <div class="grid grid-cols-6 md:grid-cols-12 gap-3">
-                <!-- Realistic -->
-                <div class="style-card relative cursor-pointer border-2 border-blue-600 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all"
-                    onclick="selectStyle('realistic', this)" data-value="realistic">
-                    <div class="aspect-square bg-gray-200 overflow-hidden">
-                        <img src="/static/img/styles/style_realistic.png"
-                            class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
-                            onerror="this.style.display='none'">
-                    </div>
-                    <div class="p-2 text-center bg-white dark:bg-gray-800">
-                        <span class="text-xs font-bold block dark:text-white">사실적인</span>
-                        <span class="text-[10px] text-gray-500">Realistic</span>
-                    </div>
-                    <div
-                        class="check-icon absolute top-2 right-2 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-sm">
-                        ✓</div>
-                </div>
-
-                <!-- Webtoon (New) -->
-                <div class="style-card relative cursor-pointer border-2 border-transparent hover:border-blue-300 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all"
-                    onclick="selectStyle('webtoon', this)" data-value="webtoon">
-                    <div class="aspect-square bg-gray-200 overflow-hidden">
-                        <img src="/static/img/styles/style_webtoon.png"
-                            class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
-                            onerror="this.style.display='none'">
-                    </div>
-                    <div class="p-2 text-center bg-white dark:bg-gray-800">
-                        <span class="text-xs font-bold block dark:text-white">웹툰/다크</span>
-                        <span class="text-[10px] text-gray-500">Webtoon</span>
-                    </div>
-                    <div
-                        class="check-icon absolute top-2 right-2 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-sm opacity-0">
-                        ✓</div>
-                </div>
-
-                <!-- Anime -->
-                <div class="style-card relative cursor-pointer border-2 border-transparent hover:border-blue-300 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all"
-                    onclick="selectStyle('anime', this)" data-value="anime">
-                    <div class="aspect-square bg-gray-200 overflow-hidden">
-                        <img src="/static/img/styles/style_anime.png"
-                            class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
-                            onerror="this.style.display='none'">
-                    </div>
-                    <div class="p-2 text-center bg-white dark:bg-gray-800">
-                        <span class="text-xs font-bold block dark:text-white">애니메이션</span>
-                        <span class="text-[10px] text-gray-500">Anime</span>
-                    </div>
-                    <div
-                        class="check-icon absolute top-2 right-2 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-sm opacity-0">
-                        ✓</div>
-                </div>
-
-                <!-- Ghibli (New) -->
-                <div class="style-card relative cursor-pointer border-2 border-transparent hover:border-blue-300 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all"
-                    onclick="selectStyle('ghibli', this)" data-value="ghibli">
-                    <div class="aspect-square bg-gray-200 overflow-hidden">
-                        <img src="/static/img/styles/style_ghibli.png"
-                            class="w-full h-full object-cover transition-transform duration-500 hover:scale-110">
-                    </div>
-                    <div class="p-2 text-center bg-white dark:bg-gray-800">
-                        <span class="text-xs font-bold block dark:text-white">지브리</span>
-                        <span class="text-[10px] text-gray-500">Ghibli</span>
-                    </div>
-                    <div
-                        class="check-icon absolute top-2 right-2 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-sm opacity-0">
-                        ✓</div>
-                </div>
-
-                <!-- Wimpy Kid (New) -->
-                <div class="style-card relative cursor-pointer border-2 border-transparent hover:border-blue-300 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all"
-                    onclick="selectStyle('wimpy', this)" data-value="wimpy">
-                    <div class="aspect-square bg-gray-200 overflow-hidden">
-                        <img src="/static/img/styles/style_wimpy.png"
-                            class="w-full h-full object-cover transition-transform duration-500 hover:scale-110">
-                    </div>
-                    <div class="p-2 text-center bg-white dark:bg-gray-800">
-                        <span class="text-xs font-bold block dark:text-white">윔피키드</span>
-                        <span class="text-[10px] text-gray-500">Wimpy Kid</span>
-                    </div>
-                    <div
-                        class="check-icon absolute top-2 right-2 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-sm opacity-0">
-                        ✓</div>
-                </div>
-
-                <!-- Cinematic -->
-                <div class="style-card relative cursor-pointer border-2 border-transparent hover:border-blue-300 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all"
-                    onclick="selectStyle('cinematic', this)" data-value="cinematic">
-                    <div class="aspect-square bg-gray-200 overflow-hidden">
-                        <img src="/static/img/styles/style_cinematic.png"
-                            class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
-                            onerror="this.style.display='none'">
-                    </div>
-                    <div class="p-2 text-center bg-white dark:bg-gray-800">
-                        <span class="text-xs font-bold block dark:text-white">시네마틱</span>
-                        <span class="text-[10px] text-gray-500">Cinematic</span>
-                    </div>
-                    <div
-                        class="check-icon absolute top-2 right-2 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-sm opacity-0">
-                        ✓</div>
-                </div>
-
-                <!-- Minimal -->
-                <div class="style-card relative cursor-pointer border-2 border-transparent hover:border-blue-300 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all"
-                    onclick="selectStyle('minimal', this)" data-value="minimal">
-                    <div class="aspect-square bg-gray-200 overflow-hidden">
-                        <img src="/static/img/styles/style_minimal.png"
-                            class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
-                            onerror="this.style.display='none'">
-                    </div>
-                    <div class="p-2 text-center bg-white dark:bg-gray-800">
-                        <span class="text-xs font-bold block dark:text-white">미니멀</span>
-                        <span class="text-[10px] text-gray-500">Minimal</span>
-                    </div>
-                    <div
-                        class="check-icon absolute top-2 right-2 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-sm opacity-0">
-                        ✓</div>
-                </div>
-
-                <!-- 3D Render -->
-                <div class="style-card relative cursor-pointer border-2 border-transparent hover:border-blue-300 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all"
-                    onclick="selectStyle('3d', this)" data-value="3d">
-                    <div class="aspect-square bg-gray-200 overflow-hidden">
-                        <img src="/static/img/styles/style_3d.png"
-                            class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
-                            onerror="this.style.display='none'">
-                    </div>
-                    <div class="p-2 text-center bg-white dark:bg-gray-800">
-                        <span class="text-xs font-bold block dark:text-white">3D 렌더</span>
-                        <span class="text-[10px] text-gray-500">3D/Pixar</span>
-                    </div>
-                    <div
-                        class="check-icon absolute top-2 right-2 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-sm opacity-0">
-                        ✓</div>
-                </div>
+            <!-- [Modified] Styles loaded dynamically -->
+            <div id="styleSelectorGrid" class="grid grid-cols-6 md:grid-cols-12 gap-3">
+                <!-- Loaded via JS -->
             </div>
+
+
         </div>
     </div>
 </div>
@@ -808,10 +678,14 @@
                                     <div class="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded">✓ Image</div>
                                     
                                     <!-- Motion Button Overlay -->
-                                    <div class="absolute inset-0 bg-black/50 opacity-0 group-hover/image:opacity-100 transition-opacity flex items-center justify-center">
+                                    <div class="absolute inset-0 bg-black/50 opacity-0 group-hover/image:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
                                          <button id="motion-btn-${i}" onclick="generateMotion(${i})" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-full shadow-lg transform hover:scale-105 transition-all flex items-center gap-2">
                                             <span>🎬 Motion (Wan 2.2)</span>
                                          </button>
+                                         <select id="motion-dur-${i}" class="text-[10px] bg-black/80 text-white rounded px-2 py-1 border border-purple-500 cursor-pointer hover:bg-black" onclick="event.stopPropagation()">
+                                            <option value="3.3" selected>⚡ 3.3s (Standard)</option>
+                                            <option value="5.0">🐢 5.0s (Long/Slow)</option>
+                                         </select>
                                     </div>
                                 </div>
                                 ` : `
@@ -1148,10 +1022,14 @@
                             <div class="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded">✓ Image</div>
                             
                             <!-- Motion Button Overlay (Re-added) -->
-                            <div class="absolute inset-0 bg-black/50 opacity-0 group-hover/image:opacity-100 transition-opacity flex items-center justify-center">
+                            <div class="absolute inset-0 bg-black/50 opacity-0 group-hover/image:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
                                  <button id="motion-btn-${i}" onclick="generateMotion(${i})" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-full shadow-lg transform hover:scale-105 transition-all flex items-center gap-2">
                                     <span>🎬 Motion (Wan 2.2)</span>
                                  </button>
+                                 <select id="motion-dur-${i}" class="text-[10px] bg-black/80 text-white rounded px-2 py-1 border border-purple-500 cursor-pointer hover:bg-black" onclick="event.stopPropagation()">
+                                    <option value="3.3" selected>⚡ 3.3s (Standard)</option>
+                                    <option value="5.0">🐢 5.0s (Long/Slow)</option>
+                                 </select>
                             </div>
                         `;
 
@@ -1297,12 +1175,17 @@
         }
 
         try {
+            // [NEW] Use actual scene prompt for motion
+            const basePrompt = p.prompt_en || p.prompt_content || p.prompt || "Cinematic scene";
+            const motionPrompt = `${basePrompt}, cinematic slow motion, high quality, 4k`;
+
             const res = await fetch(`/api/projects/${projectId}/scenes/animate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     scene_number: index + 1,
-                    prompt: "Cinematic slow motion, high quality, 4k" // Default prompt
+                    prompt: motionPrompt,
+                    duration: document.getElementById(`motion-dur-${index}`)?.value ? parseFloat(document.getElementById(`motion-dur-${index}`).value) : 3.3
                 })
             });
 
@@ -1921,9 +1804,69 @@
         }
     }
 
+    // [NEW] Dynamically load styles
+    async function loadStyles() {
+        const grid = document.getElementById('styleSelectorGrid');
+        if (!grid) return;
+
+        try {
+            const res = await fetch('/api/settings/style-presets');
+            const presets = await res.json();
+
+            // Default mappings for display names
+            const displayNames = {
+                'realistic': '사실적인\n(Realistic)',
+                'anime': '애니메이션\n(Anime)',
+                'cinematic': '시네마틱\n(Cinematic)',
+                'cartoon': '카툰\n(Cartoon)',
+                'oil_painting': '유화\n(Oil Painting)',
+                'watercolor': '수채화\n(Watercolor)',
+                'sketch': '스케치\n(Sketch)',
+                'pixel_art': '픽셀아트\n(Pixel Art)',
+                '3d': '3D 렌더\n(3D Render)',
+                'webtoon': '웹툰\n(Webtoon)',
+                'ghibli': '지브리\n(Ghibli)',
+                'wimpy': '윔피키드\n(Wimpy Kid)',
+                'minimal': '미니멀\n(Minimal)'
+            };
+
+            grid.innerHTML = Object.entries(presets).map(([key, data]) => {
+                const imageUrl = (typeof data === 'object' && data.image_url) ? data.image_url : `/static/img/styles/style_${key}.png`;
+                const displayName = displayNames[key] || key;
+                const [krName, enName] = displayName.includes('\n') ? displayName.split('\n') : [displayName, key];
+
+                // Check if currently selected
+                const currentStyle = document.getElementById('imageStyle').value;
+                const isSelected = key === currentStyle;
+
+                return `
+                <div class="style-card relative cursor-pointer border-2 ${isSelected ? 'border-blue-600' : 'border-transparent'} hover:border-blue-300 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all"
+                    onclick="selectStyle('${key}', this)" data-value="${key}">
+                    <div class="aspect-square bg-gray-200 overflow-hidden">
+                        <img src="${imageUrl}"
+                            class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
+                            onerror="this.src='/static/img/no-image.png'; this.parentElement.classList.add('flex', 'items-center', 'justify-center', 'text-xs', 'text-gray-400'); this.style.display='none'; this.parentElement.innerHTML='<span>No Img</span>';">
+                    </div>
+                    <div class="p-2 text-center bg-white dark:bg-gray-800">
+                        <span class="text-xs font-bold block dark:text-white truncate">${krName}</span>
+                        <span class="text-[10px] text-gray-500 truncate">${enName.replace(/[()]/g, '')}</span>
+                    </div>
+                    <div
+                        class="check-icon absolute top-2 right-2 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-sm ${isSelected ? '' : 'opacity-0'}">
+                        ✓</div>
+                </div>
+                `;
+            }).join('');
+
+        } catch (e) {
+            console.error("Failed to load styles:", e);
+        }
+    }
+
     // Initialize on load
     document.addEventListener('DOMContentLoaded', () => {
         applyAppMode();
+        loadStyles(); // [NEW]
         // Removed auto-load of characterPrompts to prevent data leakage between projects
     });
 </script>

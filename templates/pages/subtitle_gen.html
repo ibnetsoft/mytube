@@ -1483,49 +1483,62 @@
     }
 
     // [NEW] Separate Image Strip Renderer (Global)
+    // [NEW] Separate Image Strip Renderer (Global) -> Renders SOURCE PALETTE (Fixed)
     function renderImageStrip() {
         const stripFn = document.getElementById('imageThumbnailStrip');
         if (!stripFn) return;
 
-        if (!images || images.length === 0) {
+        // Use sourceImages (Palette) instead of images (Timeline)
+        if (!sourceImages || sourceImages.length === 0) {
             stripFn.innerHTML = '<div class="text-[9px] text-gray-400 text-center p-2">이미지 없음</div>';
             return;
         }
 
-        const html = images.map((imgUrl, idx) => {
+        const html = sourceImages.map((imgUrl, idx) => {
             const webPath = Utils.convertToWebPath(imgUrl);
-            const isVideo = webPath.toLowerCase().includes('.mp4'); // [FIX] Robust check for mp4 in URL
-            const startTime = imageTimings[idx] || 0;
+            const isVideo = webPath.toLowerCase().includes('.mp4');
 
-            // Find target subtitle
-            let targetSubIdx = 0;
-            for (let i = 0; i < subtitles.length; i++) {
-                if (subtitles[i].start >= startTime - 0.1) {
-                    targetSubIdx = i;
-                    break;
+            // Check if this Source Image is currently active in the timeline
+            // We need to check if the current playing time falls into a timeline segment that uses THIS source image.
+            // 1. Find which timeline-image is active
+            let activeTimelineImgIdx = -1;
+            if (subtitleList && subtitles.length > 0) {
+                // But easier: We know 'selectedIndex' is the active subtitle.
+                // Which image does selectedIndex use?
+                const sub = subtitles[selectedIndex];
+                if (sub && imageTimings) {
+                    // Find active timeline segment
+                    for (let k = 0; k < imageTimings.length; k++) {
+                        if (sub.start >= imageTimings[k] - 0.05) activeTimelineImgIdx = k;
+                        else break;
+                    }
                 }
             }
 
-            const isActive = (selectedIndex >= targetSubIdx && (idx === images.length - 1 || selectedIndex < getSubIdxForImg(idx + 1)));
-
-            function getSubIdxForImg(nextImgIdx) {
-                const t = imageTimings[nextImgIdx] || 99999;
-                for (let k = 0; k < subtitles.length; k++) {
-                    if (subtitles[k].start >= t - 0.1) return k;
+            // 2. Does the active timeline segment use this source image?
+            let isActive = false;
+            // imageTimings aligns with 'images' array.
+            if (activeTimelineImgIdx >= 0 && activeTimelineImgIdx < images.length) {
+                // Compare URLs (robustly)
+                // We compare the raw URL or basename?
+                // images[activeTimelineImgIdx] vs imgUrl
+                const tImg = images[activeTimelineImgIdx];
+                // Simple string check or basename check
+                if (tImg === imgUrl || Utils.convertToWebPath(tImg) === webPath) {
+                    isActive = true;
                 }
-                return subtitles.length;
             }
 
             const activeClass = isActive ? 'ring-2 ring-blue-500 opacity-100 scale-[1.02]' : 'opacity-70 hover:opacity-100';
 
             return `
-            <div onclick="selectSubtitle(${targetSubIdx})" 
+            <div 
                  draggable="true"
                  ondragstart="handleDragStart(event, ${idx})"
                  class="relative w-full cursor-pointer transition-all duration-200 group mb-2 shrink-0 ${activeClass}"
                  style="flex-shrink: 0;"
-                 title="이 이미지가 시작되는 자막으로 이동 (${startTime}s) (드래그하여 자막에 적용 가능)">
-                ${webPath.toLowerCase().includes('.mp4') ?
+                 title="소스 이미지 #${idx + 1} (드래그하여 자막에 적용 가능)">
+                ${isVideo ?
                     `<video src="${webPath}" class="w-full h-auto min-h-[40px] rounded bg-black border border-gray-600 object-contain" muted loop onmouseover="this.play()" onmouseout="this.pause()"></video>` :
                     `<img src="${webPath}" class="w-full h-auto min-h-[40px] rounded bg-black border border-gray-600 object-contain" loading="lazy">`
                 }
@@ -1665,8 +1678,10 @@
 
     // [NEW] Drag & Drop Logic
     function handleDragStart(ev, idx) {
+        // Dragging from Palette (Source Images)
         ev.dataTransfer.setData("text/plain", idx);
-        ev.dataTransfer.effectAllowed = "copy"; // Use copy visual
+        ev.dataTransfer.setData("type", "palette_image"); // Explicit Type
+        ev.dataTransfer.effectAllowed = "copy"; // Palette items are COPIED, not MOVED
     }
 
 
@@ -1683,7 +1698,7 @@
 
         const type = ev.dataTransfer.getData("type");
 
-        // CASE 1: Subtitle Reordering
+        // CASE 1: Subtitle Reordering (Move)
         if (type === "subtitle") {
             const sourceIndexStr = ev.dataTransfer.getData("index");
             if (sourceIndexStr === "" || isNaN(sourceIndexStr)) return;
@@ -1701,41 +1716,48 @@
             return;
         }
 
-        // CASE 2: Image Assignment (Copied Logic from handleDrop)
-        const srcIdx = ev.dataTransfer.getData("text/plain");
-        if (srcIdx === "" || isNaN(srcIdx)) return;
+        // CASE 2: Image Assignment from Palette (Copy)
+        if (type === "palette_image") {
+            const srcIdx = ev.dataTransfer.getData("text/plain");
+            if (srcIdx === "" || isNaN(srcIdx)) return;
 
-        const imageIndex = parseInt(srcIdx);
-        // Validate against sourceImages (Palette)
-        if (imageIndex < 0 || imageIndex >= sourceImages.length) return;
+            const imageIndex = parseInt(srcIdx);
+            // Validate against sourceImages (Palette)
+            if (imageIndex < 0 || imageIndex >= sourceImages.length) return;
 
-        // Logic: Apply Image #imageIndex to start at Subtitle #subIdx
-        if (targetIndex < 0 || targetIndex >= subtitles.length) return;
+            // Logic: Apply Image #imageIndex to start at Subtitle #subIdx
+            if (targetIndex < 0 || targetIndex >= subtitles.length) return;
 
-        const targetTime = subtitles[targetIndex].start;
-        const targetUrl = sourceImages[imageIndex]; // Get from Palette
+            const targetTime = subtitles[targetIndex].start;
+            const targetUrl = sourceImages[imageIndex]; // Get from Palette (Copy Source)
 
-        if (!imageTimings) imageTimings = [];
+            if (!imageTimings) imageTimings = [];
 
-        // Insert/Overwrite Logic
-        let insertPos = 0;
-        while (insertPos < imageTimings.length && imageTimings[insertPos] < targetTime) {
-            insertPos++;
+            // Insert/Overwrite Logic for Timeline (Thumbnail 2)
+            let insertPos = 0;
+            while (insertPos < imageTimings.length && imageTimings[insertPos] < targetTime) {
+                insertPos++;
+            }
+
+            // Prevent duplicate time exact match (overwrite instead)
+            // This modifies 'images' (Timeline), NOT 'sourceImages' (Palette)
+            if (insertPos < imageTimings.length && Math.abs(imageTimings[insertPos] - targetTime) < 0.1) {
+                images[insertPos] = targetUrl;
+                imageTimings[insertPos] = targetTime;
+            } else {
+                imageTimings.splice(insertPos, 0, targetTime);
+                images.splice(insertPos, 0, targetUrl);
+            }
+
+            renderSubtitles();
+            renderImageStrip();
+            Utils.showToast(`이미지 #${imageIndex + 1} 적용 완료`, 'success');
+            saveSubtitles();
+            return;
         }
 
-        // Prevent duplicate time exact match (overwrite instead)
-        if (insertPos < imageTimings.length && Math.abs(imageTimings[insertPos] - targetTime) < 0.1) {
-            images[insertPos] = targetUrl;
-            imageTimings[insertPos] = targetTime;
-        } else {
-            imageTimings.splice(insertPos, 0, targetTime);
-            images.splice(insertPos, 0, targetUrl);
-        }
-
-        renderSubtitles();
-        renderImageStrip();
-        Utils.showToast(`이미지 #${imageIndex + 1} 적용 완료`, 'success');
-        saveSubtitles();
+        // Handle legacy/other types if necessary
+        // ...
     }
 
     // [NEW] In-Place Rendering Logic

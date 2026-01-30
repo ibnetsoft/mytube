@@ -45,3 +45,107 @@ Traceback (most recent call last):
        ^^^^^^
 UnboundLocalError: cannot access local variable 'effect' where it is not associated with a value
 
+ERROR: No module named 'moviepy.editor'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\utils.py", line 14, in <module>
+    import audioop
+ModuleNotFoundError: No module named 'audioop'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 4410, in render_executor_func
+    import pydub
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\__init__.py", line 1, in <module>
+    from .audio_segment import AudioSegment
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\audio_segment.py", line 11, in <module>
+    from .utils import mediainfo_json, fsdecode
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\utils.py", line 16, in <module>
+    import pyaudioop as audioop
+ModuleNotFoundError: No module named 'pyaudioop'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 4417, in render_executor_func
+    from moviepy.editor import AudioFileClip
+ModuleNotFoundError: No module named 'moviepy.editor'
+
+ERROR: No module named 'moviepy.editor'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\utils.py", line 14, in <module>
+    import audioop
+ModuleNotFoundError: No module named 'audioop'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 4410, in render_executor_func
+    import pydub
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\__init__.py", line 1, in <module>
+    from .audio_segment import AudioSegment
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\audio_segment.py", line 11, in <module>
+    from .utils import mediainfo_json, fsdecode
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\utils.py", line 16, in <module>
+    import pyaudioop as audioop
+ModuleNotFoundError: No module named 'pyaudioop'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 4417, in render_executor_func
+    from moviepy.editor import AudioFileClip
+ModuleNotFoundError: No module named 'moviepy.editor'
+
+ERROR: No module named 'moviepy.editor'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\utils.py", line 14, in <module>
+    import audioop
+ModuleNotFoundError: No module named 'audioop'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 4446, in render_executor_func
+    import pydub
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\__init__.py", line 1, in <module>
+    from .audio_segment import AudioSegment
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\audio_segment.py", line 11, in <module>
+    from .utils import mediainfo_json, fsdecode
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\utils.py", line 16, in <module>
+    import pyaudioop as audioop
+ModuleNotFoundError: No module named 'pyaudioop'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 4453, in render_executor_func
+    from moviepy.editor import AudioFileClip
+ModuleNotFoundError: No module named 'moviepy.editor'
+
+ERROR: No module named 'moviepy.editor'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\utils.py", line 14, in <module>
+    import audioop
+ModuleNotFoundError: No module named 'audioop'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 4446, in render_executor_func
+    import pydub
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\__init__.py", line 1, in <module>
+    from .audio_segment import AudioSegment
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\audio_segment.py", line 11, in <module>
+    from .utils import mediainfo_json, fsdecode
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\utils.py", line 16, in <module>
+    import pyaudioop as audioop
+ModuleNotFoundError: No module named 'pyaudioop'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 4453, in render_executor_func
+    from moviepy.editor import AudioFileClip
+ModuleNotFoundError: No module named 'moviepy.editor'
+
