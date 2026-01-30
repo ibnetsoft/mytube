@@ -594,7 +594,7 @@
                 const actualIndex = Math.min(imgIdx, images.length - 1);
                 const rawUrl = images[actualIndex];
                 const imgUrl = Utils.convertToWebPath(rawUrl); // [FIX] Convert path
-                const isVideo = imgUrl.toLowerCase().endsWith('.mp4');
+                const isVideo = imgUrl.toLowerCase().endsWith('.mp4') || (imgUrl.includes('upload') && !imgUrl.endsWith('.png') && !imgUrl.endsWith('.jpg'));
 
                 // Asset Element (Video or Image)
                 let assetHtml = '';
