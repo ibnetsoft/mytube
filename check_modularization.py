@@ -13,28 +13,41 @@ def check_endpoint(endpoint):
         if response.status_code == 200:
             print(f"✅ Success: {endpoint} returned 200")
             data = response.json()
-            # print(f"   Data keys: {list(data.keys()) if isinstance(data, dict) else len(data)}")
+            # print(f"   Data type: {type(data)}")
             return True
         else:
             print(f"❌ Failed: {endpoint} returned {response.status_code}")
+            try:
+                print(f"   Response: {response.text[:200]}")
+            except: pass
             return False
     except Exception as e:
         print(f"❌ Error connecting to {endpoint}: {e}")
         return False
 
 if __name__ == "__main__":
-    print(f"Waiting for server {BASE_URL}...")
-    time.sleep(2) # Wait a bit for server reload if needed
+    print("-" * 50)
+    print("Testing Modularization State...")
+    print("-" * 50)
+    time.sleep(2) # Wait for server
     
-    # Check Style Presets (Moved to app/routers/settings.py)
     success = True
+    
+    # 1. Projects Router (/api/projects)
+    print("\n[Testing Projects Router]")
+    success &= check_endpoint("/api/projects")
+    
+    # 2. Settings Router (/api/settings)
+    print("\n[Testing Settings Router]")
     success &= check_endpoint("/api/settings/style-presets")
     success &= check_endpoint("/api/settings/script-style-presets")
     
-    # Check if main server is still alive (Health check)
-    success &= check_endpoint("/api/health") # Assuming this exists or base path
+    # 3. Main Route (/api/health)
+    print("\n[Testing Main Router]")
+    success &= check_endpoint("/api/health") # Assuming this exists
     
+    print("-" * 50)
     if success:
-        print("\n🎉 Modularization Verification Passed!")
+        print("🎉 All Critical Endpoints Verified!")
     else:
-        print("\n⚠️  Modularization Verification Failed.")
+        print("⚠️  Some Endpoints Failed. Check logs.")
