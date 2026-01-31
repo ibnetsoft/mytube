@@ -623,6 +623,14 @@
                     <!-- [NEW] Delete Button -->
                     <button onclick="event.stopPropagation(); deleteImageStart(${imgIdx})" class="absolute top-1 right-1 z-10 w-5 h-5 bg-red-500/80 hover:bg-red-600 text-white text-[10px] flex items-center justify-center rounded shadow-sm opacity-0 group-hover/thumb:opacity-100 transition-opacity" title="이 자막구간에서 이미지 삭제">✕</button>
                     
+                    <!-- [NEW] Upload/Replace Media Button -->
+                    <button onclick="event.stopPropagation(); document.getElementById('upload-media-${actualIndex}').click()" 
+                            class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 w-8 h-8 bg-black/60 hover:bg-blue-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-all shadow-md backdrop-blur-sm" 
+                            title="소스 미디어 변경/업로드 (이미지 or 영상)">
+                        📂
+                    </button>
+                    <input type="file" id="upload-media-${actualIndex}" class="hidden" accept="image/*,video/*,video/mp4,video/x-m4v" onchange="uploadSourceMedia(${actualIndex}, this)">
+                    
                     <div class="absolute bottom-0 right-0 bg-blue-500 text-white text-[9px] px-1 rounded-tl font-bold shadow-sm opacity-80">${actualIndex + 1}</div>
 
                     <!-- [NEW] Effect Selector (For Motion, maybe disable? But user might want it.) -->
@@ -1411,6 +1419,73 @@
 
         // Re-call selectSubtitle to update specific UI parts
         selectSubtitle(selectedIndex);
+    }
+
+    // [NEW] Upload Source Media (Directly from Subtitle Page)
+    async function uploadSourceMedia(imageIndex, input) {
+        if (!input.files || input.files.length === 0) return;
+
+        const file = input.files[0];
+        if (!projectId) {
+            Utils.showToast('프로젝트 정보를 찾을 수 없습니다.', 'error');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('project_id', projectId);
+        formData.append('scene_index', imageIndex + 1); // 1-based index for backend
+
+        try {
+            Utils.showToast('미디어 업로드 중...', 'info');
+
+            const response = await fetch('/api/image/upload-scene', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'ok') {
+                // Update local image state
+                if (result.video_url) {
+                    images[imageIndex] = result.video_url;
+                    Utils.showToast('영상 업로드 완료!', 'success');
+                } else {
+                    images[imageIndex] = result.image_url || result.url || result.path; // Fallback
+                    Utils.showToast('이미지 업로드 완료!', 'success');
+                }
+
+                // Force Re-render to show new media
+                renderSubtitles();
+
+                // If currently selected row uses this image, refresh preview
+                if (selectedIndex >= 0) {
+                    const sub = subtitles[selectedIndex];
+                    // Check assignment
+                    // (Simple way: just re-select current)
+                    selectSubtitle(selectedIndex);
+                }
+
+                // IMPORTANT: Trigger Save to persist this change in Project JSON if needed?
+                // Actually `upload-scene` API updates DB `image_prompts`.
+                // But `images` array in `main.py` -> `project_data` might need refresh or it is loaded from DB?
+                // When we `saveSubtitles`, we send `subtitles`. We don't send `images`.
+                // Typically we reload `images` from DB on load. 
+                // To be safe, we might want to reload project data or ensure `images` is accurate.
+                // Since we updated `images[imageIndex]`, and usually `images` are derived from DB rows.
+                // Let's assume frontend update is enough for now, as DB is already updated by the upload API.
+
+            } else {
+                throw new Error(result.error || 'Server Error');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('업로드 실패: ' + e.message, 'error');
+        } finally {
+            // Reset input so same file can be selected again
+            input.value = '';
+        }
     }
 
     // [NEW] Adjust Image Time separately
