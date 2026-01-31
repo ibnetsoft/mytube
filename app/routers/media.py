@@ -12,6 +12,8 @@ from config import config
 from pydantic import BaseModel
 from services.replicate_service import replicate_service
 from services.gemini_service import gemini_service
+import shutil
+import time
 
 router = APIRouter(tags=["Media"])
 
@@ -289,23 +291,44 @@ async def upload_scene_image_api(
             
         # Check by File Header (Magic Numbers) - Robust fallback
         try:
-            head = await file.read(12)
+            head = await file.read(32) # Read more bytes
             await file.seek(0)
-            print(f"[Upload Debug] Header Hex: {head.hex().upper()}")
+            head_hex = head.hex().upper()
+            print(f"[Upload Debug] Header Hex: {head_hex}")
             
-            # MP4/MOV often have 'ftyp' at index 4
-            if len(head) >= 8 and head[4:8] == b'ftyp':
+            # Write to debug file (Absolute path test)
+            try:
+                debug_path = "C:/Users/kimse/Downloads/유튜브소재발굴기/롱폼생성기/debug_upload_v2.txt"
+                with open(debug_path, "a", encoding="utf-8") as df:
+                    df.write(f"Fill: {file.filename}, Type: {file.content_type}, Hex: {head_hex}\n")
+                    df.flush()
+            except Exception as e:
+                print(f"Failed to write debug log: {e}")
+
+            
+            # MP4/MOV: ftyp
+            if b'ftyp' in head:
                 is_video = True
             # MKV/WebM: 1A 45 DF A3
-            elif len(head) >= 4 and head.startswith(b'\x1a\x45\xdf\xa3'):
+            elif head.startswith(b'\x1a\x45\xdf\xa3'):
                 is_video = True
             # AVI: RIFF ... AVI
-            elif len(head) >= 12 and head.startswith(b'RIFF') and head[8:12] == b'AVI ':
+            elif head.startswith(b'RIFF') and b'AVI' in head:
+                is_video = True
+            # MPEG ts
+            elif head.startswith(b'\x47'):
                 is_video = True
         except Exception as e:
             print(f"[Upload] Header check failed: {e}")
+            with open("debug_upload.txt", "a", encoding="utf-8") as df:
+                df.write(f"Error checking header: {str(e)}\n")
 
         print(f"[Upload] File: {file.filename}, Content-Type: {file.content_type}, Ext: {ext}, IsVideo: {is_video}")
+
+        # [CRITICAL FIX] If detected as video but extension is wrong (e.g. .png), force .mp4
+        if is_video and ext not in video_exts:
+            print(f"[Upload] Correcting extension from {ext} to .mp4 based on content detection")
+            ext = ".mp4"
 
         if not is_video and ext not in image_exts and not (file.content_type and file.content_type.startswith("image/")):
             raise HTTPException(400, f"지원하지 않는 파일 형식입니다: {ext} ({file.content_type})")
@@ -325,17 +348,18 @@ async def upload_scene_image_api(
         response_data = {"status": "ok", "path": filepath}
         
         if is_video:
-            # Update video_url and CLEAR image fields
+            # Update image_url with video path (Frontend detects extension)
             cursor.execute(
-                "UPDATE image_prompts SET video_url = ?, image_url = NULL, image_path = NULL WHERE project_id = ? AND scene_number = ?", 
+                "UPDATE image_prompts SET image_url = ? WHERE project_id = ? AND scene_number = ?", 
                 (web_url, project_id, scene_index)
             )
-            response_data["video_url"] = web_url
+            response_data["video_url"] = web_url # Keep this for frontend logic if it uses it
+            response_data["image_url"] = web_url # Compatibility
         else:
-            # Update image_url & image_path and CLEAR video_url
+            # Update image_url
             cursor.execute(
-                "UPDATE image_prompts SET image_url = ?, image_path = ?, video_url = NULL WHERE project_id = ? AND scene_number = ?", 
-                (web_url, filepath, project_id, scene_index)
+                "UPDATE image_prompts SET image_url = ? WHERE project_id = ? AND scene_number = ?", 
+                (web_url, project_id, scene_index)
             )
             response_data["image_url"] = web_url 
             response_data["url"] = web_url

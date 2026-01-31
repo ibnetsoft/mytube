@@ -2264,44 +2264,7 @@ async def get_subtitles(project_id: int):
         traceback.print_exc()
         return {"status": "error", "error": str(e)}
 
-@app.post("/api/image/upload-scene")
-async def upload_scene_image_api(
-    file: UploadFile = File(...),
-    project_id: int = Form(...),
-    scene_index: int = Form(...)
-):
-    """특정 Scene을 위한 이미지 직접 업로드"""
-    try:
-        # 1. 경로 설정
-        # get_project_output_dir helper 사용 (line 1200 근처에 정의됨을 가정)
-        output_dir, web_dir = get_project_output_dir(project_id)
-        
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir, exist_ok=True)
-        
-        # 2. 파일 저장
-        # 확장자 유지 또는 .png로 통일? 원본 확장자 사용이 안전함.
-        ext = os.path.splitext(file.filename)[1].lower()
-        if not ext in ['.jpg', '.jpeg', '.png', '.webp', '.gif']:
-            ext = ".png"
-            
-        # 파일명: scene_{index}_uploaded_{timestamp}
-        filename = f"scene_{scene_index}_upload_{int(time.time())}{ext}"
-        filepath = os.path.join(output_dir, filename)
-        
-        with open(filepath, "wb") as f:
-            content = await file.read()
-            f.write(content)
-            
-        # 3. URL 반환
-        return {
-            "status": "ok",
-            "url": f"{web_dir}/{filename}",
-            "path": filepath
-        }
-    except Exception as e:
-        print(f"Scene Upload Error: {e}")
-        return {"status": "error", "error": str(e)}
+
 
 @app.post("/api/subtitle/generate")
 async def generate_subtitles_api(req: dict = Body(...)):
