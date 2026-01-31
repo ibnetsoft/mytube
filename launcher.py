@@ -7,13 +7,13 @@ import os
 import json
 
 # Configuration
-AUTH_URL = "http://localhost:3000"
+AUTH_URL = "https://mytube-ashy-seven.vercel.app"
 LICENSE_FILE = "license.key"
 
 class LauncherApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("MyTube Studio Launcher")
+        self.root.title("PICADIRI STUDIO Launcher")
         self.root.geometry("400x500")
         self.root.configure(bg="#1a1a1a")
         self.root.resizable(False, False)
@@ -38,7 +38,7 @@ class LauncherApp:
         main_frame.pack(fill=tk.BOTH, expand=True)
 
         # Logo / Title
-        title_label = ttk.Label(main_frame, text="MyTube Studio", style="Header.TLabel")
+        title_label = ttk.Label(main_frame, text="PICADIRI STUDIO", style="Header.TLabel")
         title_label.pack(pady=(0, 10))
 
         subtitle_label = ttk.Label(main_frame, text="AI Automated Video Creation Platform", foreground="#a0a0a0")

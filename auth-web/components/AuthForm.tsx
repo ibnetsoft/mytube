@@ -29,7 +29,8 @@ export default function AuthForm() {
 
     return (
         <div className="max-w-md w-full mx-auto p-6 bg-white/10 backdrop-blur-md rounded-xl shadow-2xl border border-white/20">
-            <h2 className="text-2xl font-bold text-center text-white mb-6">로그인 / 회원가입</h2>
+            <h1 className="text-3xl font-black text-center mb-2 bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent italic tracking-tighter">PICADIRI STUDIO</h1>
+            <h2 className="text-xl font-bold text-center text-white/90 mb-8">피카디리 스튜디오 로그인</h2>
             <AuthComponent
                 supabaseClient={supabase}
                 appearance={{

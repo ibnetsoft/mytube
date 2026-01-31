@@ -5,8 +5,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "MyTube Studio Auth",
-  description: "Authentication portal for MyTube Studio",
+  title: "PICADIRI STUDIO",
+  description: "AI Automated Video Creation Platform - PICADIRI STUDIO",
 };
 
 export default function RootLayout({

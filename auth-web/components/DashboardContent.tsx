@@ -37,7 +37,7 @@ export default function DashboardContent() {
             <nav className="border-b border-gray-800 bg-gray-950 p-4">
                 <div className="max-w-7xl mx-auto flex justify-between items-center">
                     <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-                        MyTube Studio Dashboard
+                        PICADIRI STUDIO
                     </h1>
                     <div className="flex gap-4 items-center">
                         <span className="text-sm text-gray-400">{user?.email}</span>
@@ -94,7 +94,7 @@ export default function DashboardContent() {
                             <span className="text-6xl">📥</span>
                         </div>
                         <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                            Download Program
+                            PICADIRI STUDIO 다운로드
                         </h3>
                         <p className="text-sm text-gray-400 mb-8 leading-relaxed">
                             윈도우용 실행 파일을 다운로드하여<br />
