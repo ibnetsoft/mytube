@@ -101,7 +101,7 @@ export default function DashboardContent() {
                             유튜브 영상 제작을 시작하세요.
                         </p>
                         <a
-                            href="YOUR_GOOGLE_DRIVE_DOWNLOAD_LINK_HERE"
+                            href="https://drive.google.com/file/d/12mIil732JSbj7yQwAiRDj2A2wHrZ51Qz/view?usp=sharing"
                             className="w-full py-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 rounded-2xl transition-all font-bold shadow-lg shadow-green-900/20 active:scale-[0.98] flex items-center justify-center gap-2"
                             target="_blank"
                         >
