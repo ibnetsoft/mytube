@@ -101,12 +101,9 @@ export default function DashboardContent() {
                             유튜브 영상 제작을 시작하세요.
                         </p>
                         <a
-                            href="#"
-                            onClick={(e) => {
-                                e.preventDefault()
-                                alert('준비 중입니다. 관리자에게 문의해 주세요.')
-                            }}
+                            href="YOUR_GOOGLE_DRIVE_DOWNLOAD_LINK_HERE"
                             className="w-full py-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 rounded-2xl transition-all font-bold shadow-lg shadow-green-900/20 active:scale-[0.98] flex items-center justify-center gap-2"
+                            target="_blank"
                         >
                             설치 파일 다운로드 (Win)
                         </a>
