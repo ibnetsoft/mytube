@@ -5,8 +5,12 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 
+import { useLanguage } from '@/lib/LanguageContext'
+import LanguageSelector from './LanguageSelector'
+
 export default function DashboardContent() {
     const router = useRouter()
+    const { t } = useLanguage()
     const [user, setUser] = useState<any>(null)
     const [loading, setLoading] = useState(true)
 
@@ -30,102 +34,124 @@ export default function DashboardContent() {
         router.push('/')
     }
 
-    if (loading) return <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">Loading...</div>
+    if (loading) return <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center font-bold tracking-widest animate-pulse">{t.loading}</div>
 
     return (
-        <div className="min-h-screen bg-gray-900 text-white font-sans">
-            <nav className="border-b border-gray-800 bg-gray-950 p-4">
+        <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-blue-500/30">
+            {/* Top Navigation */}
+            <nav className="sticky top-0 z-50 border-b border-white/5 bg-black/60 backdrop-blur-xl px-6 py-4">
                 <div className="max-w-7xl mx-auto flex justify-between items-center">
-                    <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-                        PICADIRI STUDIO
-                    </h1>
-                    <div className="flex gap-4 items-center">
-                        <span className="text-sm text-gray-400">{user?.email}</span>
+                    <div className="flex items-center gap-8">
+                        <h1 className="text-xl font-black bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent italic tracking-tighter">
+                            PICADIRI STUDIO
+                        </h1>
+                    </div>
+
+                    <div className="flex gap-6 items-center">
+                        <LanguageSelector />
+                        <div className="h-4 w-[1px] bg-white/10 hidden sm:block" />
+                        <div className="hidden md:flex flex-col items-end">
+                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-tighter leading-none mb-1">Authenticated as</span>
+                            <span className="text-xs font-medium text-blue-400 leading-none">{user?.email}</span>
+                        </div>
                         {user?.email === 'ejsh0519@naver.com' && (
-                            <button onClick={() => router.push('/admin')} className="px-3 py-1 text-sm bg-red-600 hover:bg-red-700 rounded transition font-bold">
-                                🛡️ 관리자 페이지
+                            <button onClick={() => router.push('/admin')} className="px-4 py-2 text-xs bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 rounded-xl transition-all font-bold">
+                                {t.adminPanel}
                             </button>
                         )}
-                        <button onClick={handleSignOut} className="px-3 py-1 text-sm bg-gray-700 hover:bg-gray-600 rounded transition">
-                            로그아웃
+                        <button onClick={handleSignOut} className="px-4 py-2 text-xs bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all font-bold text-gray-300">
+                            {t.logout}
                         </button>
                     </div>
                 </div>
             </nav>
 
             <main className="max-w-7xl mx-auto p-8">
-                <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
-                    <div>
-                        <h2 className="text-3xl font-bold mb-2 font-outfit tracking-tight">안녕하세요, 크리에이터님! 👋</h2>
-                        <p className="text-gray-400">현재 구독 중인 플랜: <span className="text-blue-400 font-extrabold px-2 py-0.5 bg-blue-500/10 rounded-md border border-blue-500/20">Pro Plan</span></p>
+                {/* Header Section */}
+                <div className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6 pt-4">
+                    <div className="space-y-2">
+                        <h2 className="text-4xl font-extrabold tracking-tight text-white/90">
+                            {t.helloCreator}
+                        </h2>
+                        <div className="flex items-center gap-2">
+                            <p className="text-gray-500 font-medium">{t.currentPlan}:</p>
+                            <span className="text-sm font-black text-blue-400 px-3 py-1 bg-blue-500/10 rounded-full border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.1)]">Pro Plan</span>
+                        </div>
                     </div>
-                    <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-lg backdrop-blur-sm">
-                        <span className="text-xs text-gray-500 block uppercase font-bold tracking-widest">Latest Version</span>
-                        <span className="text-sm font-mono text-green-400">v{latestVersion} Stable</span>
+                    <div className="bg-white/5 border border-white/10 p-5 rounded-3xl backdrop-blur-md shadow-2xl flex items-center gap-4 group hover:bg-white/10 transition-all cursor-default">
+                        <div className="w-10 h-10 rounded-2xl bg-green-500/20 flex items-center justify-center text-green-400 group-hover:scale-110 transition-transform">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </div>
+                        <div>
+                            <span className="text-[10px] text-gray-500 block uppercase font-black tracking-widest">{t.version}</span>
+                            <span className="text-sm font-mono font-bold text-green-400">v{latestVersion} Stable</span>
+                        </div>
                     </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {/* License Card */}
-                    <div className="bg-gray-800/50 p-8 rounded-3xl border border-gray-700/50 hover:border-blue-500/50 transition-all duration-500 shadow-2xl relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
-                            <span className="text-6xl">🔑</span>
+                    <div className="bg-[#111] p-10 rounded-[2.5rem] border border-white/5 hover:border-blue-500/30 transition-all duration-700 shadow-2xl relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-20 transition-all duration-700 transform group-hover:scale-125 group-hover:rotate-12">
+                            <span className="text-8xl">🔑</span>
                         </div>
-                        <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                            License Key
+                        <h3 className="text-xl font-black mb-8 flex items-center gap-3 text-white/90">
+                            {t.licenseKey}
                         </h3>
-                        <div className="bg-black/40 p-5 rounded-2xl font-mono text-yellow-500 mb-6 break-all border border-white/5 shadow-inner leading-relaxed">
+                        <div className="bg-black/60 p-6 rounded-3xl font-mono text-yellow-500 mb-8 break-all border border-white/5 shadow-inner leading-relaxed group-hover:text-yellow-400 transition-colors">
                             {user?.id}
                         </div>
                         <button
                             onClick={() => {
                                 navigator.clipboard.writeText(user?.id)
-                                alert('라이선스 키가 복사되었습니다!')
+                                alert(t.keyCopied)
                             }}
-                            className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 rounded-2xl transition-all font-bold shadow-lg shadow-blue-900/20 active:scale-[0.98]"
+                            className="w-full py-5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 rounded-[1.5rem] transition-all font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-900/20 active:scale-[0.98]"
                         >
-                            키 복사하기
+                            {t.copyKey}
                         </button>
                     </div>
 
                     {/* Download Card */}
-                    <div className="bg-gray-800/50 p-8 rounded-3xl border border-gray-700/50 hover:border-green-500/50 transition-all duration-500 shadow-2xl relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
-                            <span className="text-6xl">📥</span>
+                    <div className="bg-[#111] p-10 rounded-[2.5rem] border border-white/5 hover:border-green-500/30 transition-all duration-700 shadow-2xl relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-20 transition-all duration-700 transform group-hover:scale-125 group-hover:rotate-12">
+                            <span className="text-8xl">📥</span>
                         </div>
-                        <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                            PICADIRI STUDIO 다운로드
+                        <h3 className="text-xl font-black mb-8 flex items-center gap-3 text-white/90">
+                            {t.downloadTitle}
                         </h3>
-                        <p className="text-sm text-gray-400 mb-8 leading-relaxed">
-                            윈도우용 실행 파일을 다운로드하여<br />
-                            유튜브 영상 제작을 시작하세요.
+                        <p className="text-sm text-gray-500 mb-10 leading-relaxed font-medium">
+                            {t.downloadDesc}
                         </p>
                         <a
                             href="https://drive.google.com/file/d/12mIil732JSbj7yQwAiRDj2A2wHrZ51Qz/view?usp=sharing"
-                            className="w-full py-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 rounded-2xl transition-all font-bold shadow-lg shadow-green-900/20 active:scale-[0.98] flex items-center justify-center gap-2"
+                            className="w-full py-5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 rounded-[1.5rem] transition-all font-black text-sm uppercase tracking-widest shadow-xl shadow-green-900/20 active:scale-[0.98] flex items-center justify-center gap-3 text-center"
                             target="_blank"
                         >
-                            설치 파일 다운로드 (Win)
+                            {t.downloadBtn}
                         </a>
                     </div>
 
                     {/* Quick Guide Card */}
-                    <div className="bg-gray-800/50 p-8 rounded-3xl border border-gray-700/50 hover:border-purple-500/50 transition-all duration-500 shadow-2xl lg:col-span-1 md:col-span-2">
-                        <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-purple-400">
-                            Quick Start Guide
+                    <div className="bg-[#111] p-10 rounded-[2.5rem] border border-white/5 hover:border-purple-500/30 transition-all duration-700 shadow-2xl lg:col-span-1 md:col-span-2 relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-20 transition-all duration-700 transform group-hover:scale-125 group-hover:rotate-12">
+                            <span className="text-8xl">🚀</span>
+                        </div>
+                        <h3 className="text-xl font-black mb-10 flex items-center gap-3 text-purple-400 uppercase tracking-tighter">
+                            {t.guideTitle}
                         </h3>
-                        <ul className="space-y-4 text-sm text-gray-300">
-                            <li className="flex gap-3">
-                                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-[10px] font-bold border border-purple-500/30">1</span>
-                                <span>좌측의 <b>License Key</b>를 복사합니다.</span>
+                        <ul className="space-y-6 text-sm text-gray-400 font-medium">
+                            <li className="flex gap-4 group/item">
+                                <span className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-500/10 text-purple-400 flex items-center justify-center text-xs font-black border border-purple-500/20 group-hover/item:scale-110 transition-transform">1</span>
+                                <span className="pt-1">{t.guide1}</span>
                             </li>
-                            <li className="flex gap-3">
-                                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-[10px] font-bold border border-purple-500/30">2</span>
-                                <span>다운로드한 <b>Launcher.exe</b>를 실행합니다.</span>
+                            <li className="flex gap-4 group/item">
+                                <span className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-500/10 text-purple-400 flex items-center justify-center text-xs font-black border border-purple-500/20 group-hover/item:scale-110 transition-transform">2</span>
+                                <span className="pt-1">{t.guide2}</span>
                             </li>
-                            <li className="flex gap-3">
-                                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-[10px] font-bold border border-purple-500/30">3</span>
-                                <span>로그인 창에 복사한 키를 붙여넣으세요.</span>
+                            <li className="flex gap-4 group/item">
+                                <span className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-500/10 text-purple-400 flex items-center justify-center text-xs font-black border border-purple-500/20 group-hover/item:scale-110 transition-transform">3</span>
+                                <span className="pt-1">{t.guide3}</span>
                             </li>
                         </ul>
                     </div>

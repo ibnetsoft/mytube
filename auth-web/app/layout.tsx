@@ -9,6 +9,8 @@ export const metadata: Metadata = {
   description: "AI Automated Video Creation Platform - PICADIRI STUDIO",
 };
 
+import { LanguageProvider } from "@/lib/LanguageContext";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -17,7 +19,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className} suppressHydrationWarning>
-        {children}
+        <LanguageProvider>
+          {children}
+        </LanguageProvider>
       </body>
     </html>
   );
