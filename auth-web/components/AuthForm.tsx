@@ -54,7 +54,7 @@ export default function AuthForm() {
                 }}
                 theme="dark"
                 providers={['google', 'github']}
-                redirectTo="http://localhost:3000/dashboard"
+                redirectTo={typeof window !== 'undefined' ? `${window.location.origin}/dashboard` : undefined}
             />
         </div>
     );
