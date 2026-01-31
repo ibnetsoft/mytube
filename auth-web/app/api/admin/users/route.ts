@@ -2,6 +2,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
     // 환경변수에서 Service Role Key를 가져옴
     // 주의: 클라이언트용 ANON_KEY가 아니라, 관리자용 SERVICE_ROLE_KEY가 필요합니다.
