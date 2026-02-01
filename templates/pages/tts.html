@@ -9,14 +9,14 @@
         <!-- Script Status Badge -->
         <span id="scriptStatusBadge"
             class="text-[10px] flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 text-gray-400 font-normal">
-            <span>🔄</span> 대본 확인 중...
+            <span>🔄</span> {{ t('status_checking_script') }}
         </span>
 
         <div class="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
 
         <!-- Provider -->
         <div class="flex items-center gap-2">
-            <span class="text-xs font-bold text-gray-700 dark:text-gray-300">서비스</span>
+            <span class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('label_service') }}</span>
             <select id="providerSelect"
                 class="text-xs border-gray-300 dark:border-gray-600 rounded-md py-1 px-2 focus:ring-primary focus:border-primary bg-gray-50 dark:bg-gray-700 dark:text-white">
                 <option value="gemini">Gemini (무료)</option>
@@ -30,10 +30,10 @@
 
         <!-- Voice (Single Mode) -->
         <div class="flex items-center gap-2" id="singleVoiceControls">
-            <span class="text-xs font-bold text-gray-700 dark:text-gray-300">성우</span>
+            <span class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('label_voice') }}</span>
             <select id="voiceSelect"
                 class="text-xs border-gray-300 dark:border-gray-600 rounded-md py-1 px-2 focus:ring-primary focus:border-primary bg-gray-50 dark:bg-gray-700 dark:text-white w-40">
-                <option value="">로딩 중...</option>
+                <option value="">{{ t('status_loading') }}</option>
             </select>
         </div>
 
@@ -41,8 +41,8 @@
 
         <!-- Speed -->
         <div class="flex items-center gap-2">
-            <span class="text-xs font-bold text-gray-700 dark:text-gray-300">속도 <span id="speedValue"
-                    class="text-primary">1.0</span></span>
+            <span class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('label_speed') }} <span
+                    id="speedValue" class="text-primary">1.0</span></span>
             <input type="range" id="audioSpeed" min="0.5" max="2.0" step="0.1" value="1.0"
                 class="w-20 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-primary"
                 title="">
@@ -56,17 +56,17 @@
             <div
                 class="relative w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600">
             </div>
-            <span class="ms-2 text-xs font-medium text-gray-900 dark:text-gray-300">🎙️ 멀티보이스</span>
+            <span class="ms-2 text-xs font-medium text-gray-900 dark:text-gray-300">{{ t('label_multivoice') }}</span>
         </label>
 
         <!-- Generate Button -->
         <button onclick="saveTTSSettings(this)"
             class="px-3 py-1.5 text-xs bg-green-600 hover:bg-green-700 text-white rounded shadow transition flex items-center gap-1">
-            <span>💾 세팅저장</span>
+            <span>💾 {{ t('btn_save_settings_only') }}</span>
         </button>
         <button onclick="generateTTS()" id="generateBtn"
             class="btn-primary py-1.5 px-4 text-sm font-medium rounded-md shadow-sm hover:shadow active:scale-95 transition-all flex items-center gap-2 whitespace-nowrap">
-            <span>🔊 생성하기</span>
+            <span>🔊 {{ t('btn_generate') }}</span>
         </button>
 
         <!-- Divider -->
@@ -78,7 +78,7 @@
                 onchange="uploadExternalAudio(this)">
             <button onclick="document.getElementById('audioUploadInput').click()"
                 class="btn-secondary py-1.5 px-3 flex items-center justify-center gap-2 text-xs font-bold shadow-sm whitespace-nowrap">
-                <span>📁 외부 음성 업로드</span>
+                <span>📁 {{ t('btn_upload_ext_audio') }}</span>
             </button>
         </div>
     </div>
@@ -93,7 +93,7 @@
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
                         <span class="text-sm">🔑</span>
-                        <span id="apiStatusText" class="text-xs text-gray-500">API 상태 확인 중...</span>
+                        <span id="apiStatusText" class="text-xs text-gray-500">{{ t('status_checking_api') }}</span>
                     </div>
                 </div>
             </div>
@@ -102,7 +102,7 @@
             <div id="voicePreviewSection"
                 class="hidden bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm border-l-4 border-l-blue-400">
                 <div class="flex items-center justify-between mb-2">
-                    <h4 class="text-xs font-bold text-gray-700 dark:text-gray-300">🎙️ 목소리 미리듣기</h4>
+                    <h4 class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('voice_preview_title') }}</h4>
                     <span id="previewVoiceLabel" class="text-[10px] text-blue-600 font-bold"></span>
                 </div>
                 <div class="flex items-center gap-2">
@@ -114,30 +114,31 @@
             <div id="voiceMappingSection"
                 class="hidden flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex flex-col overflow-hidden shadow-sm">
                 <div class="flex items-center justify-between mb-2 shrink-0">
-                    <h4 class="text-xs font-bold text-gray-700 dark:text-gray-300">🎭 인물별 성우 설정</h4>
+                    <h4 class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('character_voice_title') }}</h4>
                     <button onclick="analyzeScriptForCharacters()"
-                        class="text-[10px] text-blue-500 hover:text-blue-700">🔄 갱신</button>
+                        class="text-[10px] text-blue-500 hover:text-blue-700">🔄 {{ t('btn_refresh') }}</button>
                 </div>
 
                 <div class="text-[10px] text-gray-500 mb-2 bg-blue-50 dark:bg-blue-900/20 p-2 rounded">
-                    대본에 <strong>"철수: 안녕"</strong> 형식으로 입력하면 자동으로 인식됩니다.
+                    {{ t('multivoice_helper') | safe }}
                 </div>
 
                 <div id="characterList" class="overflow-y-auto flex-1 space-y-2 pr-1 custom-scrollbar">
-                    <p class="text-xs text-gray-400 text-center py-4">대본을 입력하면<br>등장인물이 표시됩니다.</p>
+                    <p class="text-xs text-gray-400 text-center py-4">{{ t('multivoice_empty_desc') | safe }}</p>
                 </div>
             </div>
 
             <!-- Audio Result (Visible after generation) -->
             <div id="resultSection"
                 class="hidden shrink-0 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm border-l-4 border-l-purple-500">
-                <h4 class="text-xs font-bold text-gray-800 dark:text-white mb-2">🎵 생성 결과</h4>
+                <h4 class="text-xs font-bold text-gray-800 dark:text-white mb-2">{{ t('gen_result_title') }}</h4>
                 <audio id="audioPlayer" controls class="w-full h-8 mb-2"></audio>
                 <div class="flex gap-2">
                     <a id="downloadLink" href="#" download class="flex-1 btn-secondary py-1 text-xs text-center">💾
-                        다운로드</a>
+                        {{ t('btn_download') }}</a>
                     <a href="/subtitle_gen"
-                        class="flex-1 btn-primary py-1 text-xs text-center bg-blue-600 hover:bg-blue-700">📝 자막작업</a>
+                        class="flex-1 btn-primary py-1 text-xs text-center bg-blue-600 hover:bg-blue-700">{{
+                        t('btn_go_subtitle') }}</a>
                 </div>
             </div>
         </div>
@@ -148,24 +149,24 @@
             <div
                 class="flex items-center justify-between p-2 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                 <h3 class="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                    📄 대본 입력
+                    {{ t('script_input_title') }}
                     <span class="font-normal text-gray-400">|</span>
                     <span class="font-normal text-gray-500"><span id="charCount">0</span>자</span>
                 </h3>
                 <button onclick="loadScript()"
                     class="text-xs text-gray-500 hover:text-primary flex items-center gap-1 transition-colors">
-                    🔄 대본 불러오기
+                    🔄 {{ t('btn_load_script') }}
                 </button>
             </div>
 
             <textarea id="ttsText"
                 class="flex-1 p-3 text-sm font-mono border-0 focus:ring-0 resize-none bg-transparent dark:text-gray-200 custom-scrollbar leading-relaxed"
-                placeholder="여기에 대본을 입력하세요..."></textarea>
+                placeholder="{{ t('script_input_placeholder') }}"></textarea>
 
             <div
                 class="p-1 px-3 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-700 text-[10px] text-gray-400 flex justify-between">
-                <span>예상 시간: <span id="estTime">0:00</span></span>
-                <span>Shift+Enter 줄바꿈</span>
+                <span>{{ t('est_time_label') }}: <span id="estTime">0:00</span></span>
+                <span>{{ t('newline_hint') }}</span>
             </div>
         </div>
     </div>
@@ -241,10 +242,10 @@
 
         if (hasScript) {
             badge.className = "text-[10px] flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 font-normal";
-            badge.innerHTML = "<span>✅</span> 대본 준비됨";
+            badge.innerHTML = "<span>✅</span> {{ t('script_ready') }}";
         } else {
             badge.className = "text-[10px] flex items-center gap-1 px-2 py-1 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-normal";
-            badge.innerHTML = "<span>🚫</span> 대본 없음";
+            badge.innerHTML = "<span>🚫</span> {{ t('no_script') }}";
         }
     }
 
@@ -339,10 +340,10 @@
         const projectId = getCurrentProject();
         if (!projectId) return;
 
-        const originalText = btn ? btn.innerHTML : "세팅저장";
+        const originalText = btn ? btn.innerHTML : "{{ t('btn_save_settings_only') }}";
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = `<span>🔄</span> 저장중...`;
+            btn.innerHTML = `<span>🔄</span> {{ t('status_saving') }}`;
         }
 
         try {
@@ -361,7 +362,7 @@
 
             const result = await API.project.saveSettings(projectId, settings);
             if (result.status === 'ok') {
-                Utils.showToast("TTS 설정이 영구 저장되었습니다.", "success");
+                Utils.showToast("{{ t('toast_tts_settings_saved') }}", "success");
             } else {
                 throw new Error(result.error || "Save failed");
             }
@@ -397,7 +398,7 @@
             if (provider.value !== 'gemini') {
                 provider.value = 'gemini';
                 handleProviderChange();
-                Utils.showToast('멀티 보이스 = Gemini 권장', 'info');
+                Utils.showToast("{{ t('toast_multivoice_gemini_recommended') }}", 'info');
             }
         } else {
             section.classList.add('hidden');
@@ -446,7 +447,7 @@
         container.innerHTML = '';
 
         if (detectedCharacters.size === 0) {
-            container.innerHTML = '<p class="text-xs text-gray-400 text-center py-2">인물 대사가 감지되지 않음<br>(예: "철수: 안녕")</p>';
+            container.innerHTML = `<p class="text-xs text-gray-400 text-center py-2">${"{{ t('no_characters_detected') | safe }}"}</p>`;
             return;
         }
 
@@ -458,14 +459,14 @@
 
             let options = availableVoices.length > 0 ? availableVoices.map(v =>
                 `<option value="${v.id}" ${v.id === savedVoice ? 'selected' : ''}>${v.name}</option>`
-            ).join('') : `<option value="">로딩중...</option>`;
+            ).join('') : `<option value="">{{ t('status_loading') }}</option>`;
 
             const safeChar = char.replace(/'/g, "\\'");
 
             row.innerHTML = `
                 <span class="text-xs font-bold text-gray-700 dark:text-gray-300 w-16 truncate" title="${char}">${char}</span>
                 <select class="text-[10px] border-gray-200 dark:border-gray-600 rounded py-1 pl-1 pr-6 flex-1 bg-white dark:bg-gray-800 dark:text-white" onchange="updateCharVoice('${safeChar}', this.value)">
-                    <option value="">-- 기본 --</option>
+                    <option value="">-- {{ t('label_default_voice') }} --</option>
                     ${options}
                 </select>
             `;
@@ -481,7 +482,7 @@
     async function loadVoices() {
         const select = document.getElementById('voiceSelect');
         const provider = document.getElementById('providerSelect').value;
-        select.innerHTML = '<option>로딩...</option>';
+        select.innerHTML = `<option>{{ t('status_loading') }}</option>`;
         availableVoices = [];
 
         // ... Data Loading Logic same as before ... 
@@ -527,7 +528,7 @@
         if (voices.length > 0) {
             select.innerHTML = voices.map(v => `<option value="${v.id}">${v.name}</option>`).join('');
         } else {
-            select.innerHTML = '<option value="">음성 없음</option>';
+            select.innerHTML = `<option value="">{{ t('no_voice') }}</option>`;
         }
 
         // Add event listener for preview
@@ -595,7 +596,7 @@
                             const content = s.script || s.narration || s.text || "";
                             return `[Shorts #${i + 1}] ${s.title || ''}\n${content}`;
                         }).join('\n\n');
-                        Utils.showToast('쇼츠 대본을 불러왔습니다.', 'info');
+                        Utils.showToast("{{ t('toast_shorts_script_loaded') }}", 'info');
                     }
                 }
 
@@ -603,13 +604,13 @@
                     // Update Local Storage for consistency
                     Utils.storage.set('fullScript', { script: scriptText });
                     applyScriptToTextarea(scriptText);
-                    Utils.showToast('대본이 로드되었습니다.', 'success');
+                    Utils.showToast("{{ t('toast_script_loaded') }}", 'success');
                     return;
                 }
 
             } catch (e) {
                 console.error("Server script load failed:", e);
-                Utils.showToast('서버에서 대본을 불러오지 못했습니다: ' + e.message, 'error');
+                Utils.showToast("{{ t('toast_script_load_failed') }}", 'error');
             }
         }
 
@@ -619,7 +620,7 @@
             console.log("Loaded script from local storage");
             applyScriptToTextarea(localData.script);
         } else {
-            if (projectId && !scriptText) Utils.showToast('저장된 대본이 없습니다. 대본 생성을 먼저 진행해주세요.', 'warning');
+            if (projectId && !scriptText) Utils.showToast("{{ t('err_no_script') }}", 'warning');
         }
     }
 
@@ -645,7 +646,7 @@
 
     async function generateTTS() {
         const text = document.getElementById('ttsText').value.trim();
-        if (!text) return Utils.showToast('텍스트 입력 필요', 'warning');
+        if (!text) return Utils.showToast("{{ t('toast_input_text_required') }}", 'warning');
 
         const provider = document.getElementById('providerSelect').value;
         const speed = parseFloat(document.getElementById('audioSpeed').value) || 1.0;
@@ -655,7 +656,7 @@
 
         if (provider === 'browser') { playBrowserTTS(); return; }
 
-        Utils.setLoading(btn, true, '생성 중...');
+        Utils.setLoading(btn, true, "{{ t('status_generating') }}");
         try {
             const projectId = getCurrentProject();
             const result = await API.tts.generate(text, {
@@ -671,16 +672,16 @@
                 player.play().catch(e => { });
                 document.getElementById('downloadLink').href = result.url;
                 document.getElementById('resultSection').classList.remove('hidden');
-                Utils.showToast('생성 완료', 'success');
+                Utils.showToast("{{ t('status_done') }}", 'success');
                 Utils.storage.set('ttsAudio', { url: result.url, timestamp: Date.now() });
 
                 // [NEW] Update Stepper
                 if (window.updateStepStatus) window.updateStepStatus('tts', true);
             } else {
-                Utils.showToast(result.error || '생성 실패', 'error');
+                Utils.showToast(result.error || "{{ t('status_fail') }}", 'error');
             }
         } catch (error) {
-            Utils.showToast('오류 발생', 'error');
+            Utils.showToast("{{ t('status_error') }}", 'error');
         } finally {
             Utils.setLoading(btn, false);
         }
@@ -694,12 +695,12 @@
         const projectId = getCurrentProject();
 
         if (!projectId) {
-            Utils.showToast("프로젝트를 먼저 선택해주세요.", "warning");
+            Utils.showToast("{{ t('toast_select_project_first') }}", "warning");
             input.value = ''; // Reset
             return;
         }
 
-        Utils.showToast("음성 파일 업로드 중...", "info");
+        Utils.showToast("{{ t('status_uploading') }}", "info");
 
         const formData = new FormData();
         formData.append('file', file);
@@ -712,7 +713,7 @@
             const result = await response.json();
 
             if (result.status === 'ok') {
-                Utils.showToast('외부 음성 파일이 등록되었습니다.', 'success');
+                Utils.showToast("{{ t('toast_ext_audio_registered') }}", 'success');
 
                 // Set audio player
                 const player = document.getElementById('audioPlayer');

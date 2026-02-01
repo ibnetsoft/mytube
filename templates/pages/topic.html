@@ -11,7 +11,7 @@
         <div class="flex items-center justify-between mb-4">
             <h3 class="font-bold text-xl text-gray-800 dark:text-white flex items-center gap-3">
                 <div class="flex items-center gap-2">
-                    <span>🔥 실시간 트렌드 키워드</span>
+                    <span>🔥 {{ t('trend_title') }}</span>
                     <span
                         class="text-xs font-normal bg-red-100 text-red-600 px-2 py-0.5 rounded-full animate-pulse">LIVE</span>
                 </div>
@@ -19,7 +19,7 @@
                 <button onclick="loadTrendKeywords()"
                     class="btn-secondary py-1.5 px-4 text-xs flex items-center gap-2 bg-white dark:bg-gray-800 hover:shadow-md transition-all active:scale-95">
                     <span>🔄</span>
-                    <span>키워드 새로고침</span>
+                    <span>{{ t('trend_refresh') }}</span>
                 </button>
             </h3>
 
@@ -28,20 +28,20 @@
                 <!-- 기간 선택 -->
                 <select id="trend-period"
                     class="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2">
-                    <option value="now">실시간</option>
-                    <option value="week">주간 (7일)</option>
-                    <option value="month">월간 (30일)</option>
+                    <option value="now">{{ t('trend_period_now') }}</option>
+                    <option value="week">{{ t('trend_period_week') }}</option>
+                    <option value="month">{{ t('trend_period_month') }}</option>
                 </select>
 
                 <!-- 연령 선택 -->
                 <select id="trend-age"
                     class="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2">
-                    <option value="all">전체 연령</option>
-                    <option value="10s">10대</option>
-                    <option value="20s">20대</option>
-                    <option value="30s">30대</option>
-                    <option value="40s">40대</option>
-                    <option value="50s" selected>50대 이상</option>
+                    <option value="all">{{ t('trend_age_all') }}</option>
+                    <option value="10s">{{ t('trend_age_10s') }}</option>
+                    <option value="20s">{{ t('trend_age_20s') }}</option>
+                    <option value="30s">{{ t('trend_age_30s') }}</option>
+                    <option value="40s">{{ t('trend_age_40s') }}</option>
+                    <option value="50s" selected>{{ t('trend_age_50s') }}</option>
                 </select>
 
                 <!-- 언어 선택 -->
@@ -68,9 +68,9 @@
                 </div>
                 <div id="bubblePlaceholder" class="flex flex-col items-center gap-3">
                     <div class="text-6xl opacity-50">🌍</div>
-                    <p class="text-sm">상단 '새로고침' 버튼을 눌러 실시간 키워드를 불러오세요</p>
-                    <button onclick="loadTrendKeywords()" class="btn-primary py-2 px-6 rounded-full scale-110">지금
-                        불러오기</button>
+                    <p class="text-sm">{{ t('trend_placeholder') }}</p>
+                    <button onclick="loadTrendKeywords()" class="btn-primary py-2 px-6 rounded-full scale-110">{{
+                        t('trend_load_btn') }}</button>
                 </div>
             </div>
         </div>
@@ -128,36 +128,40 @@
 <!-- 검색 섹션 -->
 <div class="card mb-6">
     <div class="flex gap-4 mb-4">
-        <input type="text" id="searchInput" placeholder="검색어를 입력하세요 (예: 요리, 여행, 테크)" class="input-field flex-1"
+        <input type="text" id="searchInput" placeholder="{{ t('search_placeholder') }}" class="input-field flex-1"
             onkeypress="if(event.key==='Enter') searchVideos()">
         <select id="searchOrder" class="input-field w-40">
-            <option value="relevance">관련성</option>
-            <option value="viewCount">조회수</option>
-            <option value="date">최신순</option>
-            <option value="rating">평점</option>
+            <option value="relevance">{{ t('search_sort_relevance') }}</option>
+            <option value="viewCount">{{ t('search_sort_views') }}</option>
+            <option value="date">{{ t('search_sort_date') }}</option>
+            <option value="rating">{{ t('search_sort_rating') }}</option>
         </select>
         <select id="searchPeriod" class="input-field w-40">
-            <option value="">전체 기간</option>
-            <option value="week">최근 1주</option>
-            <option value="month">최근 1달</option>
-            <option value="year">최근 1년</option>
+            <option value="">{{ t('search_period_all') }}</option>
+            <option value="week">{{ t('search_period_week') }}</option>
+            <option value="month">{{ t('search_period_month') }}</option>
+            <option value="year">{{ t('search_period_year') }}</option>
         </select>
         <select id="searchLanguage" class="input-field w-40">
-            <option value="">모든 언어</option>
+            <option value="">{{ t('search_lang_all') }}</option>
             <option value="ko">한국어</option>
             <option value="en">English</option>
-            <option value="ja">Japanese</option>
-            <option value="es">Spanish</option>
+            <option value="vi">Tiếng Việt</option>
+            <option value="th">ภาษาไทย</option>
+            <option value="id">Bahasa Indonesia</option>
+            <option value="fr">Français</option>
+            <option value="ru">Русский</option>
+            <option value="pt">Português</option>
         </select>
         <button onclick="searchVideos()" class="btn-primary flex items-center gap-2">
             <span>🔍</span>
-            <span>검색</span>
+            <span>{{ t('search_btn') }}</span>
         </button>
     </div>
 
     <!-- 추천 주제 -->
     <div class="flex flex-wrap gap-2">
-        <span class="text-sm text-gray-500 mr-2">추천 주제:</span>
+        <span class="text-sm text-gray-500 mr-2">{{ t('recommended_topics') }}:</span>
         <button onclick="setSearchTopic('일상 브이로그')"
             class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">일상
             브이로그</button>
@@ -182,7 +186,7 @@
 <div id="loadingSection" class="hidden">
     <div class="card text-center py-12">
         <div class="loader mx-auto mb-4"></div>
-        <p class="text-gray-500">검색 중...</p>
+        <p class="text-gray-500">{{ t('status_loading') }}</p>
     </div>
 </div>
 
@@ -190,16 +194,16 @@
 <div id="resultsSection" class="hidden">
     <div class="flex items-center justify-between mb-4">
         <h2 class="text-lg font-bold text-gray-800 dark:text-white">
-            검색 결과 <span id="resultCount" class="text-gray-500 font-normal"></span>
+            {{ t('search_results') }} <span id="resultCount" class="text-gray-500 font-normal"></span>
         </h2>
         <div class="flex gap-2">
-            <button onclick="sortVideos('viral')" class="btn-secondary text-sm">🔥 성과도순</button>
-            <button onclick="sortVideos('views')" class="btn-secondary text-sm">👁️ 조회수순</button>
-            <button onclick="saveSelectedToArchive()" class="btn-primary text-sm bg-green-600 hover:bg-green-700">📂 선택
-                보관</button>
+            <button onclick="sortVideos('viral')" class="btn-secondary text-sm">{{ t('btn_sort_viral') }}</button>
+            <button onclick="sortVideos('views')" class="btn-secondary text-sm">{{ t('btn_sort_views') }}</button>
+            <button onclick="saveSelectedToArchive()" class="btn-primary text-sm bg-green-600 hover:bg-green-700">{{
+                t('btn_save_archive') }}</button>
             <button onclick="openBatchAnalysisModal()"
                 class="btn-primary text-sm bg-blue-600 hover:bg-blue-700 flex items-center gap-1">
-                <span>⚡</span> 분석 및 생성
+                <span>⚡</span> {{ t('btn_analyze_batch') }}
             </button>
         </div>
     </div>
@@ -215,21 +219,21 @@
                                 class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500">
                         </div>
                     </th>
-                    <th scope="col" class="px-2 py-3">썸네일</th>
+                    <th scope="col" class="px-2 py-3">{{ t('th_thumb') }}</th>
                     <th scope="col" class="px-2 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
-                        onclick="sortVideos('channel')">채널명</th>
-                    <th scope="col" class="px-2 py-3 w-[30%]">제목</th>
+                        onclick="sortVideos('channel')">{{ t('th_channel') }}</th>
+                    <th scope="col" class="px-2 py-3 w-[30%]">{{ t('th_title') }}</th>
                     <th scope="col" class="px-2 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
-                        onclick="sortVideos('date')">업로드</th>
-                    <th scope="col" class="px-2 py-3 text-right">구독자수</th>
+                        onclick="sortVideos('date')">{{ t('th_upload') }}</th>
+                    <th scope="col" class="px-2 py-3 text-right">{{ t('th_subs') }}</th>
                     <th scope="col" class="px-2 py-3 text-right cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
-                        onclick="sortVideos('views')">조회수</th>
-                    <th scope="col" class="px-2 py-3 text-center">기여도</th>
+                        onclick="sortVideos('views')">{{ t('th_views') }}</th>
+                    <th scope="col" class="px-2 py-3 text-center">{{ t('th_contribution') }}</th>
                     <th scope="col"
                         class="px-2 py-3 text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
-                        onclick="sortVideos('performance')">성과도</th>
-                    <th scope="col" class="px-2 py-3 text-right">좋아요</th>
-                    <th scope="col" class="px-2 py-3 text-center">작업</th>
+                        onclick="sortVideos('performance')">{{ t('th_performance') }}</th>
+                    <th scope="col" class="px-2 py-3 text-right">{{ t('th_likes') }}</th>
+                    <th scope="col" class="px-2 py-3 text-center">{{ t('th_actions') }}</th>
                 </tr>
             </thead>
             <tbody id="videoTableBody">
@@ -242,8 +246,8 @@
 <!-- 빈 상태 -->
 <div id="emptySection" class="card text-center py-12">
     <div class="text-5xl mb-4">🎬</div>
-    <h3 class="text-xl font-semibold text-gray-700 dark:text-white mb-2">영상을 검색해보세요</h3>
-    <p class="text-gray-500">인기 있는 주제를 찾아 콘텐츠 아이디어를 얻으세요</p>
+    <h3 class="text-xl font-semibold text-gray-700 dark:text-white mb-2">{{ t('empty_title') }}</h3>
+    <p class="text-gray-500">{{ t('empty_desc') }}</p>
 </div>
 
 <!-- [REMOVED] Analysis Modal replaced by direct navigation to Script Plan -->
@@ -252,8 +256,8 @@
         class="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-4 max-w-sm w-full mx-4">
         <div class="loader-lg"></div>
         <div class="text-center">
-            <h4 class="text-lg font-bold text-gray-800 dark:text-white mb-1">AI 심층 분석 중...</h4>
-            <p class="text-sm text-gray-500 dark:text-gray-400">영상의 인기 비결과 시청자 니즈를 파악하여<br />최적의 기획안을 준비하고 있습니다.</p>
+            <h4 class="text-lg font-bold text-gray-800 dark:text-white mb-1">{{ t('loading_analysis') }}</h4>
+            <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('loading_desc') }}</p>
         </div>
         <div id="loadingVideoTitle" class="text-xs text-indigo-500 font-medium truncate w-full text-center"></div>
     </div>

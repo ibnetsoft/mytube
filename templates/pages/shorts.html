@@ -4,31 +4,34 @@
 
 
 <div class="card mb-6">
-    <h3 class="font-bold text-gray-800 dark:text-white mb-4">⚙️ 쇼츠 설정</h3>
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">{{ t('shorts_settings_title') }}</h3>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">쇼츠 개수</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('label_shorts_count')
+                }}</label>
             <select id="shortsCount" class="input-field">
-                <option value="1">1개</option>
-                <option value="3" selected>3개</option>
-                <option value="5">5개</option>
+                <option value="1">1{{ t('unit_count') }}</option>
+                <option value="3" selected>3{{ t('unit_count') }}</option>
+                <option value="5">5{{ t('unit_count') }}</option>
             </select>
         </div>
         <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">길이</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('label_shorts_length')
+                }}</label>
             <select id="shortsLength" class="input-field">
-                <option value="30">30초</option>
-                <option value="45">45초</option>
-                <option value="60" selected>60초 (권장)</option>
+                <option value="30">30{{ t('unit_sec') }}</option>
+                <option value="45">45{{ t('unit_sec') }}</option>
+                <option value="60" selected>60{{ t('unit_sec') }} {{ t('btn_gen_hook_helper') }}</option>
             </select>
         </div>
         <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">스타일</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('label_shorts_style')
+                }}</label>
             <select id="shortsStyle" class="input-field">
-                <option value="hook">후킹형 (충격적 시작)</option>
-                <option value="tip">팁형 (유용한 정보)</option>
-                <option value="story">스토리형 (미니 스토리)</option>
-                <option value="question">질문형 (궁금증 유발)</option>
+                <option value="hook">{{ t('opt_style_hook') }}</option>
+                <option value="tip">{{ t('opt_style_tip') }}</option>
+                <option value="story">{{ t('opt_style_story') }}</option>
+                <option value="question">{{ t('opt_style_question') }}</option>
             </select>
         </div>
     </div>
@@ -37,7 +40,7 @@
 <button onclick="generateShorts()" id="generateBtn"
     class="w-full btn-primary py-4 flex items-center justify-center gap-3 text-lg mb-6">
     <span>📱</span>
-    <span>쇼츠 대본 생성</span>
+    <span>{{ t('btn_gen_shorts') }}</span>
 </button>
 
 <div id="resultSection" class="hidden">
@@ -46,13 +49,13 @@
 
 <!-- 쇼츠 팁 -->
 <div class="card bg-blue-50 dark:bg-blue-900/30 mt-6">
-    <h4 class="font-bold text-blue-800 dark:text-blue-300 mb-3">💡 바이럴 쇼츠 공식</h4>
+    <h4 class="font-bold text-blue-800 dark:text-blue-300 mb-3">{{ t('viral_shorts_title') }}</h4>
     <ul class="text-blue-700 dark:text-blue-400 text-sm space-y-2">
-        <li>• 첫 1초: 강렬한 후킹 (질문, 충격, 호기심)</li>
-        <li>• 세로 영상 (9:16) 필수</li>
-        <li>• 자막 필수 (85%가 무음으로 시청)</li>
-        <li>• 마지막에 CTA (팔로우, 좋아요 요청)</li>
-        <li>• 루프 가능한 구조면 더 좋음</li>
+        <li>{{ t('viral_tip_1') }}</li>
+        <li>{{ t('viral_tip_2') }}</li>
+        <li>{{ t('viral_tip_3') }}</li>
+        <li>{{ t('viral_tip_4') }}</li>
+        <li>{{ t('viral_tip_5') }}</li>
     </ul>
 </div>
 {% endblock %}
@@ -64,7 +67,7 @@
     async function generateShorts() {
         const scriptData = Utils.storage.get('fullScript');
         if (!scriptData?.script) {
-            Utils.showToast('먼저 대본을 생성해주세요', 'warning');
+            Utils.showToast("{{ t('err_no_script') }}", 'warning');
             return;
         }
 
@@ -73,7 +76,7 @@
         const style = document.getElementById('shortsStyle').value;
 
         const btn = document.getElementById('generateBtn');
-        Utils.setLoading(btn, true, '생성 중...');
+        Utils.setLoading(btn, true, "{{ t('status_generating') }}");
 
         const prompt = `유튜브 쇼츠 전문가로서 다음 롱폼 대본에서 쇼츠용 하이라이트를 추출해주세요.
 
@@ -112,7 +115,7 @@ JSON 형식으로 반환:
                 }
             }
         } catch (error) {
-            Utils.showToast('생성 중 오류가 발생했습니다', 'error');
+            Utils.showToast("{{ t('status_error') }}", 'error');
         } finally {
             Utils.setLoading(btn, false);
         }
@@ -125,10 +128,10 @@ JSON 형식으로 반환:
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2">
                             <span class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center font-bold">${i + 1}</span>
-                            <span class="font-bold">쇼츠 #${i + 1}</span>
+                            <span class="font-bold">{{ t('short_num_prefix') }}${i + 1}</span>
                         </div>
                         <button onclick="copyShorts(${i})" class="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition">
-                            📋 전체 복사
+                            {{ t('btn_copy_all_v2') }}
                         </button>
                     </div>
                     <p class="mt-2 text-white/90">${short.title}</p>
@@ -137,14 +140,14 @@ JSON 형식으로 반환:
                 <div class="space-y-4 mt-6">
                     <div>
                         <div class="flex items-center gap-2 mb-2">
-                            <span class="px-2 py-1 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded text-xs font-bold">후킹</span>
-                            <span class="text-sm text-gray-500">첫 1초</span>
+                            <span class="px-2 py-1 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded text-xs font-bold">{{ t('label_hook_ko') }}</span>
+                            <span class="text-sm text-gray-500">{{ t('label_first_sec') }}</span>
                         </div>
                         <p class="font-medium bg-yellow-50 dark:bg-yellow-900/30 p-3 rounded-lg">"${short.hook}"</p>
                     </div>
 
                     <div>
-                        <p class="text-sm text-gray-500 mb-2">전체 대본:</p>
+                        <p class="text-sm text-gray-500 mb-2">{{ t('label_full_script_ko') }}</p>
                         <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg text-sm whitespace-pre-wrap">${short.script}</div>
                     </div>
 
@@ -156,9 +159,9 @@ JSON 형식으로 반환:
 
     function copyShorts(index) {
         const short = shortsData[index];
-        const text = `제목: ${short.title}\n\n${short.script}\n\n${short.hashtags}`;
+        const text = `Title: ${short.title}\n\n${short.script}\n\n${short.hashtags}`;
         Utils.copyToClipboard(text);
-        Utils.showToast('쇼츠 대본이 복사되었습니다', 'success');
+        Utils.showToast("{{ t('toast_shorts_copied') }}", 'success');
     }
 </script>
 {% endblock %}

@@ -42,6 +42,24 @@ export interface Translation {
     edit: string;
     ban: string;
     noData: string;
+    membership: string;
+    standard: string;
+    independent: string;
+    toggleRole: string;
+    downloadLite: string;
+    downloadPro: string;
+    publishingQueue: string;
+    videoTitle: string;
+    requestDate: string;
+    approve: string;
+    reject: string;
+    publishToYoutube: string;
+    pending: string;
+    approved: string;
+    rejected: string;
+    published: string;
+    noRequests: string;
+    viewVideo: string;
 }
 
 export const translations: Record<Language, Translation> = {
@@ -78,7 +96,25 @@ export const translations: Record<Language, Translation> = {
         manage: "관리",
         edit: "수정",
         ban: "차단",
-        noData: "조회된 사용자 데이터가 없습니다."
+        noData: "조회된 사용자 데이터가 없습니다.",
+        membership: "회원 등급",
+        standard: "일반 회원",
+        independent: "독립 회원",
+        toggleRole: "등급 전환",
+        downloadLite: "Studio Lite 다운로드 (일반회원용)",
+        downloadPro: "Studio Pro 다운로드 (독립회원용)",
+        publishingQueue: "발행 검수 대기열",
+        videoTitle: "영상 제목",
+        requestDate: "업로드 요청일",
+        approve: "승인",
+        reject: "거절",
+        publishToYoutube: "유튜브 게시",
+        pending: "대기 중",
+        approved: "승인됨",
+        rejected: "반려됨",
+        published: "게시 완료",
+        noRequests: "대기 중인 발행 요청이 없습니다.",
+        viewVideo: "영상 보기"
     },
     en: {
         loading: "Loading...",
@@ -113,7 +149,25 @@ export const translations: Record<Language, Translation> = {
         manage: "Manage",
         edit: "Edit",
         ban: "Ban",
-        noData: "No user data found."
+        noData: "No user data found.",
+        membership: "Membership",
+        standard: "Standard",
+        independent: "Independent",
+        toggleRole: "Toggle Role",
+        downloadLite: "Download Studio Lite",
+        downloadPro: "Download Studio Pro",
+        publishingQueue: "Publishing Queue",
+        videoTitle: "Video Title",
+        requestDate: "Requested Date",
+        approve: "Approve",
+        reject: "Reject",
+        publishToYoutube: "Publish to YT",
+        pending: "Pending",
+        approved: "Approved",
+        rejected: "Rejected",
+        published: "Published",
+        noRequests: "No pending publishing requests.",
+        viewVideo: "View Video"
     },
     vi: {
         loading: "Đang tải...",
@@ -148,7 +202,25 @@ export const translations: Record<Language, Translation> = {
         manage: "Quản lý",
         edit: "Sửa",
         ban: "Chặn",
-        noData: "Không tìm thấy dữ liệu người dùng."
+        noData: "Không tìm thấy dữ liệu người dùng.",
+        membership: "Membership",
+        standard: "Standard",
+        independent: "Independent",
+        toggleRole: "Toggle Role",
+        downloadLite: "Download Studio Lite",
+        downloadPro: "Download Studio Pro",
+        publishingQueue: "Publishing Queue",
+        videoTitle: "Video Title",
+        requestDate: "Requested Date",
+        approve: "Approve",
+        reject: "Reject",
+        publishToYoutube: "Publish to YT",
+        pending: "Pending",
+        approved: "Approved",
+        rejected: "Rejected",
+        published: "Published",
+        noRequests: "No pending publishing requests.",
+        viewVideo: "View Video"
     },
     es: {
         loading: "Cargando...",
@@ -183,7 +255,25 @@ export const translations: Record<Language, Translation> = {
         manage: "Gestionar",
         edit: "Editar",
         ban: "Bloquear",
-        noData: "No se encontraron datos de usuario."
+        noData: "No se encontraron datos de usuario.",
+        membership: "Membership",
+        standard: "Standard",
+        independent: "Independent",
+        toggleRole: "Toggle Role",
+        downloadLite: "Download Studio Lite",
+        downloadPro: "Download Studio Pro",
+        publishingQueue: "Publishing Queue",
+        videoTitle: "Video Title",
+        requestDate: "Requested Date",
+        approve: "Approve",
+        reject: "Reject",
+        publishToYoutube: "Publish to YT",
+        pending: "Pending",
+        approved: "Approved",
+        rejected: "Rejected",
+        published: "Published",
+        noRequests: "No pending publishing requests.",
+        viewVideo: "View Video"
     },
     th: {
         loading: "กำลังโหลด...",
@@ -218,7 +308,25 @@ export const translations: Record<Language, Translation> = {
         manage: "จัดการ",
         edit: "แก้ไข",
         ban: "ระงับ",
-        noData: "ไม่พบข้อมูลผู้ใช้"
+        noData: "ไม่พบข้อมูลผู้ใช้",
+        membership: "Membership",
+        standard: "Standard",
+        independent: "Independent",
+        toggleRole: "Toggle Role",
+        downloadLite: "Download Studio Lite",
+        downloadPro: "Download Studio Pro",
+        publishingQueue: "Publishing Queue",
+        videoTitle: "Video Title",
+        requestDate: "Requested Date",
+        approve: "Approve",
+        reject: "Reject",
+        publishToYoutube: "Publish to YT",
+        pending: "Pending",
+        approved: "Approved",
+        rejected: "Rejected",
+        published: "Published",
+        noRequests: "No pending publishing requests.",
+        viewVideo: "View Video"
     },
     id: {
         loading: "Memuat...",
@@ -253,7 +361,25 @@ export const translations: Record<Language, Translation> = {
         manage: "Kelola",
         edit: "Edit",
         ban: "Blokir",
-        noData: "Data pengguna tidak ditemukan."
+        noData: "Data pengguna tidak ditemukan.",
+        membership: "Membership",
+        standard: "Standard",
+        independent: "Independent",
+        toggleRole: "Toggle Role",
+        downloadLite: "Download Studio Lite",
+        downloadPro: "Download Studio Pro",
+        publishingQueue: "Publishing Queue",
+        videoTitle: "Video Title",
+        requestDate: "Requested Date",
+        approve: "Approve",
+        reject: "Reject",
+        publishToYoutube: "Publish to YT",
+        pending: "Pending",
+        approved: "Approved",
+        rejected: "Rejected",
+        published: "Published",
+        noRequests: "No pending publishing requests.",
+        viewVideo: "View Video"
     },
     fr: {
         loading: "Chargement...",
@@ -288,7 +414,25 @@ export const translations: Record<Language, Translation> = {
         manage: "Gérer",
         edit: "Modifier",
         ban: "Bannir",
-        noData: "Aucune donnée utilisateur trouvée."
+        noData: "Aucune donnée utilisateur trouvée.",
+        membership: "Membership",
+        standard: "Standard",
+        independent: "Independent",
+        toggleRole: "Toggle Role",
+        downloadLite: "Download Studio Lite",
+        downloadPro: "Download Studio Pro",
+        publishingQueue: "Publishing Queue",
+        videoTitle: "Video Title",
+        requestDate: "Requested Date",
+        approve: "Approve",
+        reject: "Reject",
+        publishToYoutube: "Publish to YT",
+        pending: "Pending",
+        approved: "Approved",
+        rejected: "Rejected",
+        published: "Published",
+        noRequests: "No pending publishing requests.",
+        viewVideo: "View Video"
     },
     ru: {
         loading: "Загрузка...",
@@ -323,7 +467,25 @@ export const translations: Record<Language, Translation> = {
         manage: "Управление",
         edit: "Изм.",
         ban: "Бан",
-        noData: "Данные пользователей не найдены."
+        noData: "Данные пользователей не найдены.",
+        membership: "Membership",
+        standard: "Standard",
+        independent: "Independent",
+        toggleRole: "Toggle Role",
+        downloadLite: "Download Studio Lite",
+        downloadPro: "Download Studio Pro",
+        publishingQueue: "Publishing Queue",
+        videoTitle: "Video Title",
+        requestDate: "Requested Date",
+        approve: "Approve",
+        reject: "Reject",
+        publishToYoutube: "Publish to YT",
+        pending: "Pending",
+        approved: "Approved",
+        rejected: "Rejected",
+        published: "Published",
+        noRequests: "No pending publishing requests.",
+        viewVideo: "View Video"
     },
     pt: {
         loading: "Carregando...",
@@ -358,6 +520,24 @@ export const translations: Record<Language, Translation> = {
         manage: "Gerenciar",
         edit: "Editar",
         ban: "Banir",
-        noData: "Nenhum dado de usuário encontrado."
+        noData: "Nenhum dado de usuário encontrado.",
+        membership: "Membership",
+        standard: "Standard",
+        independent: "Independent",
+        toggleRole: "Toggle Role",
+        downloadLite: "Download Studio Lite",
+        downloadPro: "Download Studio Pro",
+        publishingQueue: "Publishing Queue",
+        videoTitle: "Video Title",
+        requestDate: "Requested Date",
+        approve: "Approve",
+        reject: "Reject",
+        publishToYoutube: "Publish to YT",
+        pending: "Pending",
+        approved: "Approved",
+        rejected: "Rejected",
+        published: "Published",
+        noRequests: "No pending publishing requests.",
+        viewVideo: "View Video"
     }
 };

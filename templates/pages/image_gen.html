@@ -6,10 +6,10 @@
 <div class="card mb-6">
     <div class="flex flex-wrap items-center gap-6 mb-6">
         <h3 class="font-bold text-gray-800 dark:text-white shrink-0 flex items-center gap-2">
-            <span>⚙️ 이미지 설정</span>
+            <span>{{ t('image_settings_title') }}</span>
             <span id="scriptStatusBadge"
                 class="text-[10px] items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 font-normal hidden md:flex">
-                <span>🔄</span> 대본 확인 중...
+                <span>🔄</span> {{ t('status_checking_script') }}
             </span>
         </h3>
 
@@ -48,14 +48,14 @@
                 <button onclick="analyzeCharacters()" id="analyzeCharacterBtn"
                     class="btn-secondary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-sm hover:scale-105 transition-transform bg-white border border-gray-300 dark:bg-gray-700 dark:border-gray-600">
                     <span>🧙‍♂️</span>
-                    <span class="hidden sm:inline">캐릭터 분석</span>
+                    <span class="hidden sm:inline">{{ t('btn_char_analysis') }}</span>
                 </button>
 
                 <!-- Scene Analysis Button -->
                 <button onclick="analyzeScenes()" id="analyzeSceneBtn"
                     class="btn-secondary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-sm hover:scale-105 transition-transform bg-white border border-gray-300 dark:bg-gray-700 dark:border-gray-600">
                     <span>🔍</span>
-                    <span class="hidden sm:inline">Scene 분석</span>
+                    <span class="hidden sm:inline">{{ t('btn_scene_analysis') }}</span>
                 </button>
                 <span id="sceneCountBadge"
                     class="hidden text-xs font-bold bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-3 py-2 rounded-lg">
@@ -66,14 +66,14 @@
                 <button onclick="saveImageSettings(this)" id="saveSettingsBtn"
                     class="btn-secondary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-sm hover:scale-105 transition-transform bg-white border border-gray-300 dark:bg-gray-700 dark:border-gray-600">
                     <span>💾</span>
-                    <span>세팅저장</span>
+                    <span>{{ t('btn_save_settings') }}</span>
                 </button>
 
                 <!-- Generate Prompt Button -->
                 <button onclick="generatePrompts()" id="generateBtn"
                     class="btn-primary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-md hover:scale-105 transition-transform bg-gradient-to-r from-blue-600 to-indigo-600">
                     <span>🪄</span>
-                    <span>프롬프트 생성</span>
+                    <span>{{ t('btn_gen_prompt') }}</span>
                 </button>
             </div>
         </div>
@@ -92,7 +92,7 @@
                             <div class="flex items-center gap-2">
                                 <button onclick="document.getElementById('charUploadInput').click()"
                                     class="btn-secondary text-xs py-2 px-3 flex items-center gap-1">
-                                    <span>📂</span> 이미지 업로드
+                                    <span>📂</span> {{ t('btn_upload_image') }}
                                 </button>
                                 <input type="file" id="charUploadInput" class="hidden" accept="image/*"
                                     onchange="previewCharImage(this)">
@@ -105,8 +105,8 @@
                                 class="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                                 <input type="checkbox" id="useThumbnailCheck"
                                     class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" checked>
-                                <span class="text-xs font-medium text-gray-700 dark:text-white">현재 썸네일 이미지를 주인공으로
-                                    사용</span>
+                                <span class="text-xs font-medium text-gray-700 dark:text-white">{{
+                                    t('curr_thumb_as_char') }}</span>
                             </label>
                         </div>
 
@@ -115,7 +115,7 @@
                             class="hidden items-center gap-3 bg-white dark:bg-gray-900 p-2 rounded border border-gray-200 dark:border-gray-700 w-fit">
                             <img id="charPreviewImg" src=""
                                 class="w-10 h-10 rounded object-cover border border-gray-300">
-                            <span class="text-xs text-gray-500" id="charPreviewName">이미지 선택됨</span>
+                            <span class="text-xs text-gray-500" id="charPreviewName">{{ t('img_selected') }}</span>
                             <button onclick="clearCharImage()"
                                 class="text-red-500 hover:text-red-700 text-xs ml-2">❌</button>
                         </div>
@@ -124,10 +124,10 @@
                         <div class="flex items-center gap-2 mt-1">
                             <button onclick="analyzeAndSetConsistency()" id="analyzeBtn"
                                 class="btn-primary flex-1 md:flex-none text-xs py-2 px-4 bg-indigo-600 hover:bg-indigo-700">
-                                🤖 이미지 분석하여 설정에 적용하기 (AI Vision)
+                                {{ t('btn_ai_vision_apply') }}
                             </button>
                             <p class="text-[10px] text-gray-400">
-                                * 이미지를 분석하여 텍스트 프롬프트로 변환 후 아래 설정에 추가합니다.
+                                {{ t('ai_vision_helper') }}
                             </p>
                         </div>
                     </div>
@@ -136,15 +136,15 @@
                 <!-- Right: Thumbnail Reference Display -->
                 <div
                     class="w-full md:w-1/3 flex flex-col items-center justify-center border-l border-gray-200 dark:border-gray-600 pl-0 md:pl-6 pt-4 md:pt-0 border-dashed">
-                    <label class="block text-xs font-medium text-gray-500 mb-2 w-full text-center">현재 프로젝트 썸네일
-                        (Reference)</label>
+                    <label class="block text-xs font-medium text-gray-500 mb-2 w-full text-center">{{
+                        t('curr_proj_thumb') }}</label>
                     <div id="thumbnailReferenceContainer"
                         class="relative w-[30%] aspect-video bg-gray-800 rounded-lg overflow-hidden shadow-sm group border border-gray-200 dark:border-gray-700">
                         <img id="currentProjectThumbnail" src=""
                             class="w-full h-full object-contain opacity-50 transition-opacity duration-300"
                             alt="Thumbnail" onerror="this.style.opacity=0">
                         <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <span class="text-xs text-gray-400" id="thumbPlaceholder">썸네일 없음</span>
+                            <span class="text-xs text-gray-400" id="thumbPlaceholder">{{ t('no_thumb') }}</span>
                         </div>
                     </div>
                 </div>
@@ -152,11 +152,11 @@
         </div>
 
         <div class="w-full mt-3">
-            <label class="block text-sm font-medium text-gray-700 dark:text-white mb-1">🌍 캐릭터/배경 일관성 프롬프트 (Global
-                Generated)</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-white mb-1">{{ t('global_consistency_label')
+                }}</label>
             <textarea id="globalPrompt"
                 class="input-field w-full text-sm p-3 h-24 bg-yellow-50 dark:bg-yellow-900/10 border-yellow-200 dark:border-yellow-800 focus:border-yellow-400 focus:ring-yellow-400"
-                placeholder="상단 '캐릭터 분석' 버튼을 누르면 캐릭터 외형 묘사가 여기에 자동으로 입력됩니다. 직접 수정하셔도 됩니다."></textarea>
+                placeholder="{{ t('global_consistency_placeholder') }}"></textarea>
 
             <!-- [MOVED] 캐릭터 분석 결과 -->
             <div id="characterResultContainer"
@@ -169,14 +169,15 @@
                 <div
                     class="inline-block animate-spin rounded-full h-6 w-6 border-4 border-indigo-500 border-t-transparent">
                 </div>
-                <p class="mt-2 text-xs text-indigo-600 font-medium">분석 중...</p>
+                <p class="mt-2 text-xs text-indigo-600 font-medium">{{ t('status_analyzing') }}</p>
             </div>
         </div>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="col-span-1 md:col-span-2">
-            <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">스타일 선택</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">{{ t('select_style_label')
+                }}</label>
             <input type="hidden" id="imageStyle" value="realistic">
 
             <!-- [Modified] Styles loaded dynamically -->
@@ -194,21 +195,21 @@
     <div class="card">
         <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-100 dark:border-gray-700">
             <h3 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                <span>🎨</span> 생성된 프롬프트
+                <span>🎨</span> {{ t('gen_prompts_title') }}
             </h3>
             <div class="flex gap-2">
                 <button onclick="toggleSelectAll()" id="selectAllBtn"
                     class="btn-secondary text-sm px-4 flex items-center gap-2">
-                    <span id="selectAllIcon">☐</span> 전체 선택
+                    <span id="selectAllIcon">☐</span> {{ t('btn_select_all') }}
                 </button>
                 <button onclick="downloadAllImages()" class="btn-secondary text-sm px-4 flex items-center gap-2">
-                    📥 이미지 다운로드
+                    {{ t('btn_download_images') }}
                 </button>
-                <button onclick="copyAllPrompts()" class="btn-secondary text-sm px-4">📋 전체 복사</button>
+                <button onclick="copyAllPrompts()" class="btn-secondary text-sm px-4">{{ t('btn_copy_all') }}</button>
                 <button onclick="generateSelectedImages()" id="autoGenBtn"
                     class="btn-primary text-sm px-4 flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled>
-                    <span>🚀</span> 이미지 생성
+                    <span>🚀</span> {{ t('btn_gen_images') }}
                 </button>
             </div>
         </div>
@@ -217,17 +218,17 @@
 
         <!-- 다음 단계 버튼 (숨김 상태로 시작) -->
         <div id="nextStepSection" class="hidden mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-center">
-            <h4 class="font-bold text-lg mb-2 text-blue-800 dark:text-blue-300">🎉 이미지 생성이 완료되었습니다!</h4>
-            <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">아래 버튼을 눌러 영상 합성을 위한 음성을 생성하세요.</p>
+            <h4 class="font-bold text-lg mb-2 text-blue-800 dark:text-blue-300">{{ t('gen_complete_title') }}</h4>
+            <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">{{ t('gen_complete_desc') }}</p>
             <a href="/video-gen" class="btn-primary inline-flex items-center gap-2">
-                <span>🎥</span> 동영상(선택사항) 확인하러 가기
+                {{ t('btn_go_video_check') }}
             </a>
-            <div class="mt-2 text-xs text-gray-500">또는 바로 <a href="/tts" class="underline hover:text-blue-600">TTS
-                    생성</a>으로 이동</div>
+            <div class="mt-2 text-xs text-gray-500">{{ t('or') }} <a href="/tts"
+                    class="underline hover:text-blue-600">{{ t('btn_go_tts_direct') }}</a></div>
         </div>
 
         <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-            <h4 class="font-medium text-gray-800 dark:text-white mb-3">🔗 외부 생성 서비스 (옵션)</h4>
+            <h4 class="font-medium text-gray-800 dark:text-white mb-3">{{ t('external_services_title') }}</h4>
             <div class="flex flex-wrap gap-2">
                 <a href="https://midjourney.com" target="_blank" class="btn-secondary text-sm">Midjourney</a>
                 <a href="https://labs.openai.com" target="_blank" class="btn-secondary text-sm">DALL-E</a>
@@ -243,6 +244,39 @@
 <script>
     let prompts = [];
 
+    const i18n = {
+        err_no_script: "{{ t('err_no_script') }}",
+        status_analyzing: "{{ t('status_analyzing') }}",
+        char_not_found: "{{ t('char_not_found') }}",
+        img_not_generated: "{{ t('img_not_generated') }}",
+        btn_ai_gen: "{{ t('btn_ai_gen') }}",
+        btn_apply: "{{ t('btn_apply') }}",
+        toast_char_prompt_regen: "{{ t('toast_char_prompt_regen') }}",
+        toast_vision_success: "{{ t('toast_vision_success') }}",
+        toast_vision_fail: "{{ t('toast_vision_fail') }}",
+        status_analyzing_script: "{{ t('status_analyzing_script') }}",
+        msg_scenes_analyzed: "{{ t('msg_scenes_analyzed') }}",
+        confirm_delete_char: "이 캐릭터 카드를 삭제하시겠습니까?",
+        label_fadein: "{{ t('label_fadein') }}",
+        no_script_desc: "{{ t('no_script_desc') }}",
+        label_start: "{{ t('label_start') }}",
+        label_end: "{{ t('label_end') }}",
+        toast_json_copied: "{{ t('toast_json_copied') }}",
+        opt_motion_standard: "{{ t('opt_motion_standard') }}",
+        opt_motion_long: "{{ t('opt_motion_long') }}",
+        btn_media_upload_v2: "{{ t('btn_media_upload_v2') }}",
+        char_name_unknown: "Unknown",
+        char_role: "Character",
+        btn_json_copy: "📋 JSON {{ t('btn_copy') }}",
+        btn_gen_single_img: "🎨 {{ t('btn_gen_images') }}",
+        err_server_comm: "서버 통신 오류가 발생했습니다.",
+        err_char_analysis_fail: "캐릭터 분석 실패",
+        btn_regen_prompt: "{{ t('btn_regen_prompt') }}",
+        btn_delete: "{{ t('btn_delete') }}",
+        no_desc: "{{ t('label_no_desc') }}",
+        status_generating: "생성 중..."
+    };
+
     // [NEW] 캐릭터 분석 함수
     async function analyzeCharacters() {
         // [Fix] 스크립트 데이터 안전하게 가져오기 (객체일 경우 처리)
@@ -257,7 +291,7 @@
         }
 
         if (!script || script === "null" || script.length < 10) {
-            alert("저장된 대본이 없거나 너무 짧습니다. 먼저 대본을 생성해주세요.");
+            alert(i18n.err_no_script);
             return;
         }
 
@@ -298,12 +332,11 @@
                 // 결과 스크롤 이동
                 container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             } else {
-                alert('캐릭터 분석 실패:\n' + (result.error || JSON.stringify(result, null, 2)));
+                alert(i18n.err_char_analysis_fail + ':\n' + (result.error || JSON.stringify(result, null, 2)));
             }
-
         } catch (error) {
             console.error('Error analyzing characters:', error);
-            alert('서버 통신 오류가 발생했습니다.');
+            alert(i18n.err_server_comm);
         } finally {
             btn.disabled = false;
             btn.classList.remove('opacity-50', 'cursor-not-allowed');
@@ -316,7 +349,7 @@
         const list = document.getElementById('characterList');
 
         if (characters.length === 0) {
-            list.innerHTML = '<p class="col-span-full text-center text-gray-500 py-4">분석된 등장인물이 없습니다. (대본에 인물 묘사가 부족할 수 있습니다)</p>';
+            list.innerHTML = `<p class="col-span-full text-center text-gray-500 py-4">${i18n.char_not_found}</p>`;
             return;
         }
 
@@ -331,24 +364,24 @@
 
             card.innerHTML = `
                 <div class="flex justify-between items-start mb-2">
-                    <h4 class="font-bold text-gray-800 dark:text-white">${char.name || 'Unknown'}</h4>
-                    <span class="text-xs px-2 py-1 rounded-full ${roleBadgeColor} font-medium">${char.role || 'Character'}</span>
+                    <h4 class="font-bold text-gray-800 dark:text-white">${char.name || i18n.char_name_unknown}</h4>
+                    <span class="text-xs px-2 py-1 rounded-full ${roleBadgeColor} font-medium">${char.role || i18n.char_role}</span>
                 </div>
                 
                 <!-- Character Image Preview -->
                 <div class="mb-3 aspect-square bg-gray-100 dark:bg-gray-900 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 flex items-center justify-center relative group/char">
                     <img id="char-img-${index}" src="${char.image_url || ''}" class="w-full h-full object-cover ${char.image_url ? '' : 'hidden'}" alt="${char.name}">
-                    <div id="char-placeholder-${index}" class="text-gray-400 text-[10px] ${char.image_url ? 'hidden' : ''}">이미지 미생성</div>
+                    <div id="char-placeholder-${index}" class="text-gray-400 text-[10px] ${char.image_url ? 'hidden' : ''}">${i18n.img_not_generated}</div>
                     
                     <div class="absolute inset-0 bg-black/40 opacity-0 group-hover/char:opacity-100 transition-opacity flex items-center justify-center">
                          <button onclick="generateCharacterImage(${index})" class="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold py-1.5 px-3 rounded-full shadow-lg transform hover:scale-105 transition-all">
-                             🎨 AI 생성
+                             ${i18n.btn_ai_gen}
                          </button>
                     </div>
                 </div>
 
                 <p class="text-[11px] text-gray-500 mb-2 border-b border-gray-100 dark:border-gray-700 pb-2 min-h-[3em] line-clamp-2" title="${char.description_ko}">
-                    ${char.description_ko || '설명 없음'}
+                    ${char.description_ko || i18n.no_desc}
                 </p>
 
                 <div class="bg-gray-50 dark:bg-gray-900/50 p-2 rounded text-[10px] text-gray-600 dark:text-gray-400 font-mono break-words mb-3 h-16 overflow-y-auto scrollbar-thin">
@@ -358,16 +391,16 @@
                 <div class="flex gap-2">
                     <button onclick="applyCharacter(${index})" 
                         class="flex-1 btn-secondary text-xs py-1.5 flex items-center justify-center gap-1 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200">
-                        <span>⬇️</span> 적용
+                        <span>⬇️</span> ${i18n.btn_apply}
                     </button>
                     
                     <button id="regen-btn-${index}" onclick="regenerateCharacter(${index})" 
-                        class="px-2 py-1.5 border border-gray-200 dark:border-gray-700 rounded text-gray-500 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 transition-colors" title="프롬프트 AI 재생성">
+                        class="px-2 py-1.5 border border-gray-200 dark:border-gray-700 rounded text-gray-500 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 transition-colors" title="${i18n.btn_regen_prompt}">
                         🔄
                     </button>
                     
                     <button onclick="deleteCharacter(${index})" 
-                        class="px-2 py-1.5 border border-gray-200 dark:border-gray-700 rounded text-gray-500 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 transition-colors" title="삭제">
+                        class="px-2 py-1.5 border border-gray-200 dark:border-gray-700 rounded text-gray-500 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 transition-colors" title="${i18n.btn_delete}">
                         🗑️
                     </button>
                 </div>
@@ -378,7 +411,7 @@
 
     // [NEW] Delete Character
     async function deleteCharacter(index) {
-        if (!confirm('이 캐릭터 카드를 삭제하시겠습니까?')) return;
+        if (!confirm(i18n.confirm_delete_char)) return;
 
         let chars = Utils.storage.get('characterPrompts') || [];
         chars.splice(index, 1);
@@ -407,7 +440,7 @@
                 chars[index].prompt_en = newText.trim();
                 Utils.storage.set('characterPrompts', chars);
                 renderCharacters(chars);
-                Utils.showToast('캐릭터 프롬프트가 재생성되었습니다.', 'success');
+                Utils.showToast(i18n.toast_char_prompt_regen, 'success');
             } else {
                 throw new Error("No response text");
             }
@@ -438,7 +471,7 @@
         const img = document.getElementById(`char-img-${index}`);
 
         // UI 상태 업데이트
-        placeholder.textContent = "생성 중...";
+        placeholder.textContent = i18n.status_generating;
         placeholder.classList.remove('hidden');
         if (img) img.classList.add('hidden');
 
@@ -548,7 +581,7 @@
         }
 
         if (!script) {
-            Utils.showToast('먼저 대본을 생성해주세요', 'warning');
+            Utils.showToast(i18n.err_no_script, 'warning');
             return;
         }
 
@@ -558,7 +591,7 @@
         const count = analyzedSceneCount || 0;
 
         const btn = document.getElementById('generateBtn');
-        Utils.setLoading(btn, true, '생성 중...');
+        Utils.setLoading(btn, true, i18n.status_generating);
 
         try {
             // [Modified] Pass global prompt separately for intelligent application
@@ -640,7 +673,7 @@
                         <span class="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-sm">${i + 1}</span>
                         <div>
                             <span class="font-bold text-white">Scene ${i + 1}</span>
-                            <span class="text-xs text-gray-400 ml-2">🎬 ${firstText || '(대본 없음)'}</span>
+                            <span class="text-xs text-gray-400 ml-2">🎬 ${firstText || i18n.no_script_desc}</span>
                         </div>
                         <!-- Fade-in Checkbox -->
                         <div class="flex items-center gap-1 ml-4 px-2 py-1 bg-gray-800/50 rounded border border-gray-600">
@@ -649,12 +682,12 @@
                                    class="fadein-checkbox w-4 h-4 rounded border-gray-500 text-purple-600 focus:ring-purple-500 cursor-pointer"
                                    ${prompt.fade_in ? 'checked' : ''}
                                    onchange="updateFadeInSetting(${i}, this.checked)">
-                            <label for="fadein-checkbox-${i}" class="text-xs text-gray-300 cursor-pointer select-none">✨ 페이드인</label>
+                            <label for="fadein-checkbox-${i}" class="text-xs text-gray-300 cursor-pointer select-none">${i18n.label_fadein}</label>
                         </div>
                     </div>
                     <div class="flex gap-2">
-                        <button onclick="copyPromptJson(${i})" class="btn-secondary text-xs px-3 py-1">📋 JSON 복사</button>
-                        <button onclick="generateSingleImage(${i})" class="btn-primary text-xs px-3 py-1 bg-purple-600 hover:bg-purple-700">🎨 이미지 생성</button>
+                        <button onclick="copyPromptJson(${i})" class="btn-secondary text-xs px-3 py-1">${i18n.btn_json_copy}</button>
+                        <button onclick="generateSingleImage(${i})" class="btn-primary text-xs px-3 py-1 bg-purple-600 hover:bg-purple-700">${i18n.btn_gen_single_img}</button>
                     </div>
                 </div>
                 
@@ -683,14 +716,14 @@
                                             <span>🎬 Motion (Wan 2.2)</span>
                                          </button>
                                          <select id="motion-dur-${i}" class="text-[10px] bg-black/80 text-white rounded px-2 py-1 border border-purple-500 cursor-pointer hover:bg-black" onclick="event.stopPropagation()">
-                                            <option value="3.3" selected>⚡ 3.3s (Standard)</option>
-                                            <option value="5.0">🐢 5.0s (Long/Slow)</option>
+                                            <option value="3.3" selected>${i18n.opt_motion_standard}</option>
+                                            <option value="5.0">${i18n.opt_motion_long}</option>
                                          </select>
                                     </div>
                                 </div>
                                 ` : `
                                 <div class="aspect-video bg-gray-900 rounded-lg border border-dashed border-gray-600 flex flex-col items-center justify-center w-[90%] transition-colors hover:bg-gray-800">
-                                    <span class="text-gray-500 text-sm">🖼️ 이미지 미생성</span>
+                                    <span class="text-gray-500 text-sm">🖼️ ${i18n.img_not_generated}</span>
                                 </div>
                                 `}
                             </div>
@@ -699,7 +732,7 @@
                             <div class="w-[90%] mx-auto mt-2"> <!-- Center align with mx-auto -->
                                 <button onclick="document.getElementById('scene-upload-${i}').click()" 
                                         class="w-full btn-secondary text-xs py-2 flex items-center justify-center gap-2 border border-dashed border-gray-600 hover:border-blue-500 hover:text-blue-500 transition-colors bg-gray-800/50">
-                                    <span>📂</span> 미디어(이미지/영상) 업로드 v2
+                                    <span>📂</span> ${i18n.btn_media_upload_v2}
                                 </button>
                                 <input type="file" id="scene-upload-${i}" class="hidden" accept="image/*,video/*,video/mp4,video/x-m4v" onchange="uploadSceneImage(${i}, this)">
                             </div>
@@ -719,8 +752,8 @@
                             ${scriptStart || scriptEnd ? `
                             <div class="bg-gray-800 rounded px-3 py-2 text-xs border border-gray-700">
                                 <div class="flex gap-4 text-gray-400">
-                                    ${scriptStart ? `<span>🔵 시작: <span class="text-gray-300">${scriptStart}</span></span>` : ''}
-                                    ${scriptEnd ? `<span>🔴 끝: <span class="text-gray-300">${scriptEnd}</span></span>` : ''}
+                                    ${scriptStart ? `<span>🔵 ${i18n.label_start}: <span class="text-gray-300">${scriptStart}</span></span>` : ''}
+                                    ${scriptEnd ? `<span>🔴 ${i18n.label_end}: <span class="text-gray-300">${scriptEnd}</span></span>` : ''}
                                 </div>
                             </div>
                             ` : ''}
@@ -791,7 +824,7 @@
             prompt_en: p.prompt_en || p.prompt_content || p.prompt || ''
         };
         Utils.copyToClipboard(JSON.stringify(jsonData, null, 2));
-        Utils.showToast('JSON이 복사되었습니다', 'success');
+        Utils.showToast(i18n.toast_json_copied, 'success');
     }
 
     // Generate single image
@@ -809,7 +842,7 @@
         const statusDiv = card.querySelector('.status-indicator');
         statusDiv.classList.remove('hidden');
         statusDiv.className = 'status-indicator px-4 py-2 bg-yellow-900/30 border-t border-gray-700 text-sm text-yellow-400';
-        statusDiv.textContent = '⏳ 이미지 생성 중... (10~20초 소요)';
+        statusDiv.textContent = '⏳ ' + i18n.status_generating;
 
         try {
             // [Fix] 키 값 호환성 처리
@@ -830,7 +863,7 @@
                 drawPromptsUI(prompts);
                 window.scrollTo(0, scrollY);
 
-                Utils.showToast('이미지가 생성되었습니다', 'success');
+                Utils.showToast('Image generated', 'success');
 
                 if (window.updateStepStatus) window.updateStepStatus('image', true);
             } else {
@@ -851,7 +884,7 @@
         const projectId = getCurrentProject();
 
         if (!projectId) {
-            Utils.showToast('프로젝트를 찾을 수 없습니다.', 'error');
+            Utils.showToast('Project not found', 'error');
             return;
         }
 
@@ -859,7 +892,7 @@
         const btn = input.previousElementSibling;
         const originalText = btn ? btn.innerHTML : '';
         if (btn) {
-            btn.innerHTML = '<span>⏳</span> 업로드 중...';
+            btn.innerHTML = '<span>⏳</span> ...';
             btn.disabled = true;
         }
 
@@ -895,7 +928,7 @@
                 drawPromptsUI(prompts);
                 window.scrollTo(0, scrollY);
 
-                Utils.showToast('미디어가 업로드되었습니다.', 'success');
+                Utils.showToast('Media uploaded', 'success');
             } else {
                 throw new Error(result.error || 'Server Error');
             }
@@ -917,13 +950,13 @@
         const p = prompts[index];
         const content = p.prompt_en || p.prompt_content || p.prompt || '';
         Utils.copyToClipboard(content);
-        Utils.showToast('복사되었습니다', 'success');
+        Utils.showToast('Copied', 'success');
     }
 
     function copyAllPrompts() {
         const text = prompts.map((p, i) => `[장면 ${i + 1}] ${p.scene_text || p.scene || ''}\n${p.prompt_en || p.prompt_content || p.prompt || ''}`).join('\n\n');
         Utils.copyToClipboard(text);
-        Utils.showToast('전체 복사되었습니다', 'success');
+        Utils.showToast('All copied', 'success');
     }
 
     async function downloadAllImages() {
@@ -973,12 +1006,12 @@
         }
 
         if (prompts.length === 0) {
-            Utils.showToast('먼저 프롬프트를 생성해주세요', 'warning');
+            Utils.showToast(i18n.err_no_script, 'warning');
             return;
         }
 
         const btn = document.getElementById('autoGenBtn');
-        Utils.setLoading(btn, true, '이미지 생성 중...');
+        Utils.setLoading(btn, true, i18n.status_generating);
 
         let processedCount = 0;
 
@@ -1002,7 +1035,7 @@
                 if (statusDiv) {
                     statusDiv.classList.remove('hidden');
                     statusDiv.className = 'status-indicator px-4 py-2 bg-yellow-900/30 border-t border-gray-700 text-sm text-yellow-400';
-                    statusDiv.textContent = '⏳ 이미지 생성 중... (10~20초 소요)';
+                    statusDiv.textContent = '⏳ ' + i18n.status_generating;
                 }
 
                 // API 호출
@@ -1043,7 +1076,7 @@
                     }
 
                     if (statusDiv) {
-                        statusDiv.textContent = '✅ 생성 완료';
+                        statusDiv.textContent = '✅ Done';
                         statusDiv.className = 'status-indicator px-4 py-2 bg-green-900/30 border-t border-gray-700 text-sm text-green-400';
                     }
 
@@ -1062,9 +1095,9 @@
             }
 
             if (processedCount === 0) {
-                Utils.showToast('선택된 항목이 없습니다.', 'warning');
+                Utils.showToast('No items selected', 'warning');
             } else {
-                Utils.showToast(`${processedCount}개의 이미지가 처리되었습니다`, 'success');
+                Utils.showToast(`${processedCount} images processed`, 'success');
             }
 
             // 다음 단계 (수동 이동)
@@ -1074,7 +1107,7 @@
             }
         } catch (e) {
             console.error(e);
-            Utils.showToast('이미지 생성 중 오류 발생', 'error');
+            Utils.showToast('Error during image generation', 'error');
         } finally {
             Utils.setLoading(btn, false);
         }
@@ -1177,7 +1210,7 @@
         if (statusDiv) {
             statusDiv.classList.remove('hidden');
             statusDiv.className = 'status-indicator px-4 py-2 bg-purple-900/30 border-t border-gray-700 text-sm text-purple-300';
-            statusDiv.textContent = '🎬 Wan 2.2 모션 생성 중... (약 1~2분 소요)';
+            statusDiv.textContent = '🎬 ' + i18n.status_generating;
         }
 
         try {
@@ -1205,7 +1238,7 @@
                 // Refresh UI
                 drawPromptsUI(prompts);
 
-                Utils.showToast('모션 생성이 완료되었습니다!', 'success');
+                Utils.showToast('Motion generated', 'success');
             } else {
                 throw new Error(result.detail || '생성 실패');
             }
@@ -1234,7 +1267,7 @@
         }
 
         const btn = document.getElementById('analyzeSceneBtn');
-        Utils.setLoading(btn, true, 'Scene 분석 중...');
+        Utils.setLoading(btn, true, i18n.status_analyzing);
 
         try {
             const response = await fetch(`/api/projects/${projectId}/analyze-scenes`, {
@@ -1257,7 +1290,7 @@
                     resultBadge.classList.remove('hidden');
                 }
 
-                Utils.showToast(`AI 분석 완료: ${result.scene_count}개 Scene으로 나눌 수 있습니다`, 'success');
+                Utils.showToast(i18n.msg_scenes_analyzed.replace('{count}', result.scene_count), 'success');
             }
         } catch (e) {
             console.error('Scene analysis error:', e);
@@ -1275,7 +1308,7 @@
 
         const originalHtml = btn.innerHTML;
         btn.disabled = true;
-        btn.innerHTML = `<span>🔄</span> 저장중...`;
+        btn.innerHTML = `<span>🔄</span> ...`;
 
         try {
             const style = document.getElementById('imageStyle').value;
@@ -1288,7 +1321,7 @@
 
             const result = await API.project.saveSettings(projectId, settings);
             if (result.status === 'ok') {
-                Utils.showToast("이미지 설정이 영구 저장되었습니다.", "success");
+                Utils.showToast('Settings saved', "success");
             } else {
                 throw new Error(result.error || "저장 실패");
             }
@@ -1446,11 +1479,13 @@
         if (hasScript) {
             badge.className = "text-[10px] items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 font-normal hidden md:flex";
             // [Modified] Add topic text
-            const text = topicText ? `[${topicText}] 대본 준비됨` : '대본 준비됨';
+            const label = "{{ t('script_ready') }}";
+            const text = topicText ? `[${topicText}] ${label}` : label;
             badge.innerHTML = `<span>✅</span> ${text}`;
         } else {
             badge.className = "text-[10px] items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-normal hidden md:flex";
-            const text = topicText ? `[${topicText}] 대본 없음` : '대본 없음';
+            const label = "{{ t('no_script') }}";
+            const text = topicText ? `[${topicText}] ${label}` : label;
             badge.innerHTML = `<span>🚫</span> ${text}`;
         }
     }

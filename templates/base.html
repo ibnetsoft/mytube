@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }} - 피카디리스튜디오</title>
+    <title>{{ title }} - {{ t('app_name') }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="icon" type="image/png" href="/static/img/favicon.png">
@@ -45,8 +45,9 @@
         <aside class="w-64 bg-white dark:bg-gray-800 min-h-screen fixed left-0 top-0 shadow-lg z-40">
             <!-- 로고 -->
             <div class="p-3 border-b border-gray-200 dark:border-gray-800">
-                <a href="/" class="flex items-center gap-2">
-                    <span class="text-lg font-bold text-gray-800 dark:text-white">피카디리스튜디오</span>
+                <a href="/" class="flex flex-col gap-0.5">
+                    <span class="text-xs font-black tracking-widest text-blue-500 uppercase">{{ membership }}</span>
+                    <span class="text-lg font-bold text-gray-800 dark:text-white">{{ t('app_name') }}</span>
                 </a>
             </div>
 
@@ -56,13 +57,15 @@
             <!-- 프로젝트 선택 -->
             <div class="px-3 py-1.5 border-b border-gray-200 dark:border-gray-700">
                 <div class="flex items-center justify-between mb-1">
-                    <span class="text-[10px] font-medium text-gray-500 dark:text-gray-400">현재 프로젝트</span>
+                    <span class="text-[10px] font-medium text-gray-500 dark:text-gray-400">{{ t('cur_project_label')
+                        }}</span>
                     <button onclick="openProjectModal()"
-                        class="text-[10px] text-blue-500 hover:text-blue-600 font-bold">+ New</button>
+                        class="text-[10px] text-blue-500 hover:text-blue-600 font-bold">{{ t('new_project_btn')
+                        }}</button>
                 </div>
                 <select id="projectSelect" onchange="onProjectChange(this.value)"
                     class="w-full text-sm p-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-800 dark:text-white">
-                    <option value="">프로젝트 선택...</option>
+                    <option value="">{{ t('select_project_placeholder') }}</option>
                 </select>
                 <div id="currentProjectInfo" class="mt-2 text-xs text-gray-500 hidden">
                     <span id="projectStatus"></span>
@@ -76,61 +79,61 @@
                         <a href="/projects" id="nav-projects"
                             class="sidebar-item {% if page == 'projects' %}active{% endif %}">
                             <span class="sidebar-icon">📂</span>
-                            <span>내 프로젝트</span>
+                            <span>{{ t('nav_my_projects') }}</span>
                         </a>
                     </li>
                     <li>
                         <a href="/" id="nav-topic" class="sidebar-item {% if page == 'topic' %}active{% endif %}">
                             <span class="sidebar-icon">🔍</span>
-                            <span>주제 찾기</span>
+                            <span>{{ t('nav_topic') }}</span>
                         </a>
                     </li>
                     <li>
                         <a href="/repository" id="nav-repository"
                             class="sidebar-item {% if page == 'repository' %}active{% endif %}">
                             <span class="sidebar-icon">💾</span>
-                            <span>저장소</span>
+                            <span>{{ t('nav_repository') }}</span>
                         </a>
                     </li>
                     <li>
                         <a href="/script-plan" id="nav-plan"
                             class="sidebar-item {% if page == 'script-plan' %}active{% endif %}">
                             <span class="sidebar-icon">📋</span>
-                            <span>대본 기획</span>
+                            <span>{{ t('nav_plan') }}</span>
                         </a>
                     </li>
                     <li>
                         <a href="/script-gen" id="nav-script"
                             class="sidebar-item {% if page == 'script-gen' %}active{% endif %}">
                             <span class="sidebar-icon">✍️</span>
-                            <span>대본 생성</span>
+                            <span>{{ t('nav_script') }}</span>
                         </a>
                     </li>
                     <li>
                         <a href="/video-gen" id="nav-intro"
                             class="sidebar-item {% if page == 'video-gen' %}active{% endif %}">
                             <span class="sidebar-icon">🎥</span>
-                            <span>인트로 생성</span>
+                            <span>{{ t('nav_intro') }}</span>
                         </a>
                     </li>
                     <li>
                         <a href="/image-gen" id="nav-image"
                             class="sidebar-item {% if page == 'image-gen' %}active{% endif %}">
                             <span class="sidebar-icon">🖼️</span>
-                            <span>이미지 생성</span>
+                            <span>{{ t('nav_image') }}</span>
                         </a>
                     </li>
                     <li>
                         <a href="/thumbnail" id="nav-thumbnail"
                             class="sidebar-item {% if page == 'thumbnail' %}active{% endif %}">
                             <span class="sidebar-icon">🎨</span>
-                            <span>썸네일 생성</span>
+                            <span>{{ t('nav_thumbnail') }}</span>
                         </a>
                     </li>
                     <li>
                         <a href="/tts" id="nav-tts" class="sidebar-item {% if page == 'tts' %}active{% endif %}">
                             <span class="sidebar-icon">🔊</span>
-                            <span>TTS 생성</span>
+                            <span>{{ t('nav_tts') }}</span>
                         </a>
                     </li>
 
@@ -138,28 +141,28 @@
                         <a href="/subtitle-gen" id="nav-subtitle"
                             class="sidebar-item {% if page == 'subtitle-gen' %}active{% endif %}">
                             <span class="sidebar-icon">📝</span>
-                            <span>자막 편집</span>
+                            <span>{{ t('nav_subtitle') }}</span>
                         </a>
                     </li>
                     <li>
                         <a href="/render" id="nav-render"
                             class="sidebar-item {% if page == 'render' %}active{% endif %}">
                             <span class="sidebar-icon">🎬</span>
-                            <span>영상 렌더링</span>
+                            <span>{{ t('nav_render') }}</span>
                         </a>
                     </li>
                     <li>
                         <a href="/video-upload" id="nav-upload"
                             class="sidebar-item {% if page == 'video-upload' %}active{% endif %}">
                             <span class="sidebar-icon">📤</span>
-                            <span>영상 업로드</span>
+                            <span>{% if is_independent %}{{ t('nav_upload') }}{% else %}발행 요청{% endif %}</span>
                         </a>
                     </li>
                     <li>
                         <a href="/title-desc" id="nav-title"
                             class="sidebar-item {% if page == 'title-desc' %}active{% endif %}">
                             <span class="sidebar-icon">📝</span>
-                            <span>제목/설명 생성</span>
+                            <span>{{ t('nav_title_desc') }}</span>
                         </a>
                     </li>
 
@@ -167,14 +170,14 @@
                         <a href="/shorts" id="nav-shorts"
                             class="sidebar-item {% if page == 'shorts' %}active{% endif %}">
                             <span class="sidebar-icon">📱</span>
-                            <span>쇼츠 추출</span>
+                            <span>{{ t('nav_shorts') }}</span>
                         </a>
                     </li>
                     <li class="mt-1 pt-1">
                         <a href="/settings" id="nav-settings"
                             class="sidebar-item {% if page == 'settings' %}active{% endif %}">
                             <span class="sidebar-icon">⚙️</span>
-                            <span>설정</span>
+                            <span>{{ t('nav_settings') }}</span>
                         </a>
                     </li>
                 </ul>
@@ -183,19 +186,26 @@
             <div class="px-3 pb-1">
                 <button onclick="toggleTheme()"
                     class="w-full flex items-center justify-center gap-2 p-1 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-[10px] font-medium">
-                    <span class="dark:hidden">🌞 라이트</span>
-                    <span class="hidden dark:inline">🌙 다크</span>
+                    <span class="dark:hidden">{{ t('theme_light') }}</span>
+                    <span class="hidden dark:inline">{{ t('theme_dark') }}</span>
                 </button>
             </div>
 
             <!-- API 상태 -->
-            <div class="absolute bottom-0 left-0 right-0 p-4">
+            <div
+                class="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-white dark:from-gray-800 to-transparent pt-8">
                 <div id="apiStatus" class="text-xs text-gray-500 dark:text-gray-400">
                     <div class="flex items-center gap-2 mb-1">
                         <span id="statusDot" class="w-2 h-2 rounded-full bg-gray-400"></span>
-                        <span>API 상태 확인 중...</span>
+                        <span>{{ t('api_status_checking') }}</span>
                     </div>
                 </div>
+                {% if not is_independent %}
+                <div
+                    class="mt-2 p-2 bg-blue-500/10 rounded-lg border border-blue-500/20 text-[10px] text-blue-600 dark:text-blue-400 font-bold">
+                    💎 독립 회원이 되어 <br />직접 업로드 권한을 얻으세요!
+                </div>
+                {% endif %}
             </div>
         </aside>
 
@@ -243,7 +253,8 @@
                                         class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
                                         <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
                                     </div>
-                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">주제</span>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{
+                                        t('step_topic') }}</span>
                                 </a>
 
 
@@ -256,7 +267,8 @@
                                         class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
                                         <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
                                     </div>
-                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">기획</span>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{
+                                        t('step_plan') }}</span>
                                 </a>
 
                                 <!-- Step 4: Script -->
@@ -267,7 +279,8 @@
                                         class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
                                         <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
                                     </div>
-                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">대본</span>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{
+                                        t('step_script') }}</span>
                                 </a>
 
                                 <!-- Step 5: Intro -->
@@ -278,8 +291,8 @@
                                         class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
                                         <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
                                     </div>
-                                    <span
-                                        class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">인트로</span>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{
+                                        t('step_intro') }}</span>
                                 </a>
 
                                 <!-- Step 6: Image -->
@@ -290,8 +303,8 @@
                                         class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
                                         <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
                                     </div>
-                                    <span
-                                        class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">이미지</span>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{
+                                        t('step_image') }}</span>
                                 </a>
 
                                 <!-- Step 7: Thumbnail -->
@@ -302,8 +315,8 @@
                                         class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
                                         <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
                                     </div>
-                                    <span
-                                        class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">썸네일</span>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{
+                                        t('step_thumbnail') }}</span>
                                 </a>
 
                                 <!-- Step 8: TTS -->
@@ -314,8 +327,8 @@
                                         class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
                                         <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
                                     </div>
-                                    <span
-                                        class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">TTS</span>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{
+                                        t('step_tts') }}</span>
                                 </a>
 
 
@@ -328,7 +341,8 @@
                                         class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
                                         <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
                                     </div>
-                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">자막</span>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{
+                                        t('step_subtitle') }}</span>
                                 </a>
 
                                 <!-- Step 11: Render -->
@@ -339,7 +353,8 @@
                                         class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
                                         <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
                                     </div>
-                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">영상</span>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{
+                                        t('step_render') }}</span>
                                 </a>
 
                                 <!-- Step 12: Upload -->
@@ -350,8 +365,8 @@
                                         class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
                                         <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
                                     </div>
-                                    <span
-                                        class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">업로드</span>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{
+                                        t('step_upload') }}</span>
                                 </a>
                             </div>
                         </div>
@@ -620,7 +635,7 @@
                     apiStatus.innerHTML = `
                         <div class="flex items-center gap-2 mb-1">
                             <span class="w-2 h-2 rounded-full bg-green-500"></span>
-                            <span class="text-green-600 dark:text-green-400">연결됨</span>
+                            <span class="text-green-600 dark:text-green-400">{{ t('api_connected') }}</span>
                         </div>
                         <div class="text-gray-400">${activeApis.join(', ')}</div>
                     `;

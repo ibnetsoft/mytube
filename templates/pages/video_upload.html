@@ -6,8 +6,8 @@
     <div
         class="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 shrink-0">
         <h3 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
-            <span>📤 영상 업로드</span>
-            <span class="text-xs font-normal text-gray-500">완성된 영상을 직접 업로드하여 YouTube에 게시하세요.</span>
+            <span>📤 {{ t('nav_upload_video') }}</span>
+            <span class="text-xs font-normal text-gray-500">{{ t('upload_video_desc') }}</span>
         </h3>
     </div>
 
@@ -31,15 +31,15 @@
                     </svg>
                 </div>
 
-                <p class="text-sm font-bold text-gray-700 dark:text-gray-300">파일을 드래그하거나 클릭하세요</p>
-                <p class="text-xs text-gray-500 mt-2 text-center">MP4, MOV, AVI, MKV (최대 2GB)</p>
+                <p class="text-sm font-bold text-gray-700 dark:text-gray-300">{{ t('drag_or_click') }}</p>
+                <p class="text-xs text-gray-500 mt-2 text-center">{{ t('upload_size_hint') }}</p>
                 <input type="file" id="fileInput" accept="video/*" class="hidden" onchange="handleFileSelect(event)">
             </div>
 
             <!-- Upload Progress -->
             <div id="uploadProgress" class="hidden mt-4">
                 <div class="flex justify-between text-xs mb-1">
-                    <span class="font-bold text-blue-600">업로드 중...</span>
+                    <span class="font-bold text-blue-600">{{ t('status_uploading') }}</span>
                     <span id="progressPercent">0%</span>
                 </div>
                 <div class="w-full bg-gray-200 rounded-full h-1.5 dark:bg-gray-700 overflow-hidden">
@@ -55,7 +55,7 @@
             <div id="emptyState"
                 class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 bg-gray-50/50 dark:bg-gray-900/50 z-10 backdrop-blur-[1px]">
                 <div class="text-4xl mb-2 grayscale opacity-30">📺</div>
-                <p class="text-xs">영상을 업로드하면 미리보기가 표시됩니다.</p>
+                <p class="text-xs">{{ t('preview_placeholder_upload') }}</p>
             </div>
 
             <div id="previewContent" class="flex flex-col h-full gap-4">
@@ -68,27 +68,39 @@
                 <!-- Info -->
                 <div
                     class="grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg border border-gray-100 dark:border-gray-700">
-                    <div>파일명: <span id="videoFileName"
+                    <div>{{ t('label_filename') }} <span id="videoFileName"
                             class="text-gray-900 dark:text-white font-mono truncate block"></span></div>
-                    <div>크기: <span id="videoFileSize" class="text-gray-900 dark:text-white font-mono"></span></div>
-                    <div>길이: <span id="videoDuration" class="text-gray-900 dark:text-white font-mono"></span></div>
+                    <div>{{ t('label_filesize') }} <span id="videoFileSize"
+                            class="text-gray-900 dark:text-white font-mono"></span></div>
+                    <div>{{ t('label_duration') }} <span id="videoDuration"
+                            class="text-gray-900 dark:text-white font-mono"></span></div>
                 </div>
 
                 <div class="flex-1"></div>
 
                 <!-- Actions -->
                 <div class="grid grid-cols-1 gap-2">
+                    {% if is_independent %}
                     <button onclick="uploadToYouTube()" id="youtubeUploadBtn"
                         class="btn-primary py-2.5 flex items-center justify-center gap-2 text-sm shadow-md">
                         <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                             <path
                                 d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
                         </svg>
-                        YouTube 게시
+                        {{ t('btn_post_yt') }}
                     </button>
+                    {% else %}
+                    <button onclick="requestPublish()" id="requestPublishBtn"
+                        class="btn-primary py-2.5 bg-purple-600 hover:bg-purple-700 flex items-center justify-center gap-2 text-sm shadow-md">
+                        <span>📤</span> 발행 요청하기 (검수 필요)
+                    </button>
+                    <p class="text-[10px] text-gray-500 text-center mt-1">
+                        * 일반 회원은 관리자 검수 후 유튜브에 게시됩니다.
+                    </p>
+                    {% endif %}
                     <button onclick="deleteVideo()"
                         class="btn-secondary py-2 text-xs hover:text-red-600 hover:bg-red-50 hover:border-red-200">
-                        🗑️ 삭제하기
+                        🗑️ {{ t('btn_delete_video') }}
                     </button>
                 </div>
             </div>
@@ -109,13 +121,13 @@
     function handleFileSelect(e) { if (e.target.files.length) processFile(e.target.files[0]); }
 
     function processFile(file) {
-        if (file.size > 2 * 1024 * 1024 * 1024) return Utils.showToast('2GB 이하만 가능합니다', 'error');
+        if (file.size > 2 * 1024 * 1024 * 1024) return Utils.showToast("{{ t('err_upload_limit') }}", 'error');
         uploadVideo(file);
     }
 
     async function uploadVideo(file) {
         const projectId = getCurrentProject();
-        if (!projectId) return Utils.showToast('프로젝트 선택 필요', 'warning');
+        if (!projectId) return Utils.showToast("{{ t('toast_select_project_first') }}", 'warning');
 
         const formData = new FormData(); formData.append('file', file);
         document.getElementById('uploadProgress').classList.remove('hidden');
@@ -135,18 +147,18 @@
                     if (res.status === 'ok') {
                         uploadedVideoPath = res.path;
                         showVideoPreview(file, res);
-                        Utils.showToast('업로드 완료', 'success');
+                        Utils.showToast("{{ t('toast_upload_finished') }}", 'success');
 
                         // [NEW] Update Progress Stepper
                         if (window.updateStepStatus) window.updateStepStatus('upload', true);
 
                     } else Utils.showToast(res.error, 'error');
-                } else Utils.showToast('업로드 실패', 'error');
+                } else Utils.showToast("{{ t('toast_upload_fail') }}", 'error');
                 document.getElementById('uploadProgress').classList.add('hidden');
             };
             xhr.open('POST', `/api/video/upload-external/${projectId}`);
             xhr.send(formData);
-        } catch (e) { Utils.showToast('오류 발생', 'error'); }
+        } catch (e) { Utils.showToast("{{ t('status_error') }}", 'error'); }
     }
 
     function showVideoPreview(file, result) {
@@ -162,22 +174,66 @@
         });
     }
 
+    async function requestPublish() {
+        const projectId = getCurrentProject();
+        if (!uploadedVideoPath) return Utils.showToast("{{ t('toast_no_video_uploaded') }}", 'warning');
+
+        const btn = document.getElementById('requestPublishBtn');
+        Utils.setLoading(btn, true, "요청 중...");
+
+        try {
+            // Get current project details for metadata
+            const project = await API.project.get(projectId);
+            const settings = await API.project.getSettings(projectId);
+
+            const payload = {
+                userId: "{{ license_key }}",
+                videoUrl: uploadedVideoPath, // In real world, this should be a public link
+                metadata: {
+                    title: settings.title || project.name,
+                    projectId: projectId,
+                    duration: document.getElementById('videoDuration').textContent
+                }
+            };
+
+            const res = await fetch('https://mytube-ashy-seven.vercel.app/api/publishing', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                Utils.showToast("발행 요청이 완료되었습니다. 관리자 승인 후 게시됩니다.", 'success');
+                btn.disabled = true;
+                btn.textContent = "✅ 요청 완료";
+            } else {
+                Utils.showToast(data.error || "요청 실패", 'error');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast("서버 연결 실패", 'error');
+        } finally {
+            Utils.setLoading(btn, false);
+        }
+    }
+
     async function uploadToYouTube() {
         const projectId = getCurrentProject();
-        if (!uploadedVideoPath) return Utils.showToast('영상 없음', 'warning');
+        if (!uploadedVideoPath) return Utils.showToast("{{ t('toast_no_video_uploaded') }}", 'warning');
 
         const btn = document.getElementById('youtubeUploadBtn');
-        Utils.setLoading(btn, true, '업로드 중...');
+        Utils.setLoading(btn, true, "{{ t('status_uploading') }}");
         try {
             const res = await fetch(`/api/youtube/upload-external/${projectId}`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }
             });
             const data = await res.json();
             if (data.status === 'ok') {
-                Utils.showToast('YouTube 게시 완료!', 'success');
+                Utils.showToast("{{ t('toast_post_finished') }}", 'success');
                 window.open(`https://www.youtube.com/watch?v=${data.video_id}`, '_blank');
             } else Utils.showToast(data.error, 'error');
-        } catch (e) { Utils.showToast('게시 실패', 'error'); }
+        } catch (e) { Utils.showToast("{{ t('toast_post_fail') }}", 'error'); }
         finally { Utils.setLoading(btn, false); }
     }
 
@@ -187,7 +243,7 @@
         try {
             await fetch(`/api/video/delete-external/${projectId}`, { method: 'DELETE' });
             location.reload();
-        } catch (e) { Utils.showToast('삭제 오류', 'error'); }
+        } catch (e) { Utils.showToast("{{ t('status_error') }}", 'error'); }
     }
 
     document.addEventListener('DOMContentLoaded', async () => {

@@ -59,31 +59,35 @@
 
 <!-- 1단계: 아이디어 생성 -->
 <div class="card mb-6">
-    <h3 class="font-bold text-gray-800 dark:text-white mb-4">1️⃣ 썸네일 아이디어 생성</h3>
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">{{ t('thumb_stage_1') }}</h3>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">영상 주제</label>
-            <input type="text" id="videoTitle" class="input-field" placeholder="예: 삼국지 최강의 무장 TOP 5">
+            <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">{{ t('label_video_topic')
+                }}</label>
+            <input type="text" id="videoTitle" class="input-field" placeholder="{{ t('placeholder_video_topic') }}">
         </div>
         <div class="md:col-span-2">
-            <label class="block text-sm font-medium text-gray-700 dark:text-white mb-3">스타일 선택</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-white mb-3">{{ t('label_select_style')
+                }}</label>
             <input type="hidden" id="thumbnailStyle" value="face">
             <div id="thumbnailStyleGrid" class="style-grid">
                 <!-- Loaded via JS -->
             </div>
         </div>
         <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">색상 톤</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">{{ t('label_color_tone')
+                }}</label>
             <select id="colorTone" class="input-field">
-                <option value="vibrant">비비드 (채도 높음)</option>
-                <option value="warm">따뜻한 톤</option>
-                <option value="cool">차가운 톤</option>
-                <option value="dark">다크 모드</option>
-                <option value="neon">네온</option>
+                <option value="vibrant">{{ t('opt_vibrant') }}</option>
+                <option value="warm">{{ t('opt_warm') }}</option>
+                <option value="cool">{{ t('opt_cool') }}</option>
+                <option value="dark">{{ t('opt_dark') }}</option>
+                <option value="neon">{{ t('opt_neon') }}</option>
             </select>
         </div>
         <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">비율 설정</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">{{ t('label_aspect_ratio')
+                }}</label>
             <select id="aspectRatio" class="input-field" onchange="setAspectRatio(this.value)">
                 <option value="16:9">16:9 (유튜브 롱폼)</option>
                 <option value="9:16">9:16 (쇼츠/릴스)</option>
@@ -95,15 +99,15 @@
             <button onclick="generateIdeas()" id="ideaBtn"
                 class="btn-primary py-3 text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2">
                 <span class="text-lg">💡</span>
-                <span>아이디어 생성하기</span>
+                <span>{{ t('btn_gen_ideas') }}</span>
             </button>
 
             <button onclick="generateHookTexts()" id="hookTextBtn"
                 class="btn-secondary py-3 text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2">
                 <span class="text-lg">🤖</span>
                 <div class="flex flex-col items-center">
-                    <span>AI 후킹 문구 생성</span>
-                    <span class="text-[9px] opacity-75">(대본 기반)</span>
+                    <span>{{ t('btn_gen_hook_texts') }}</span>
+                    <span class="text-[9px] opacity-75">{{ t('btn_gen_hook_helper') }}</span>
                 </div>
             </button>
         </div>
@@ -113,7 +117,7 @@
     <div id="hookTextsSection" class="hidden card mb-4">
         <h4 class="text-sm font-bold text-blue-800 dark:text-blue-300 mb-3 flex items-center gap-2">
             <span>🎯</span>
-            <span>AI 추천 후킹 문구</span>
+            <span>{{ t('ai_recommend_hook') }}</span>
         </h4>
         <div id="hookTextsList" class="flex flex-wrap gap-2 mb-3"></div>
         <p id="hookReasoning" class="text-xs text-blue-600 dark:text-blue-400 italic"></p>
@@ -121,19 +125,19 @@
 
     <!-- 2단계: 아이디어 선택 및 이미지 생성 -->
     <div id="ideasSection" class="card mb-6 hidden">
-        <h3 class="font-bold text-gray-800 dark:text-white mb-4">2️⃣ 아이디어 선택 & 이미지 생성</h3>
+        <h3 class="font-bold text-gray-800 dark:text-white mb-4">{{ t('thumb_stage_2') }}</h3>
         <div id="ideasList" class="space-y-4 mb-4"></div>
     </div>
 
     <!-- 3단계: 텍스트 추가 -->
     <div id="textSection" class="card mb-6 hidden">
-        <h3 class="font-bold text-gray-800 dark:text-white mb-4">3️⃣ 썸네일 텍스트 설정</h3>
+        <h3 class="font-bold text-gray-800 dark:text-white mb-4">{{ t('thumb_stage_3') }}</h3>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">텍스트 후보 (클릭해서
-                        선택)</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">{{
+                        t('label_text_candidates') }}</label>
                     <div id="textCandidates" class="flex flex-wrap gap-2 mb-3"></div>
                 </div>
 
@@ -144,41 +148,42 @@
                 </div>
 
                 <button onclick="addLayer()" class="btn-secondary w-full mb-4 text-sm">
-                    ➕ 텍스트 레이어 추가
+                    {{ t('btn_add_text_layer') }}
                 </button>
 
                 <div class="border-t border-gray-200 dark:border-gray-700 my-4 pt-4">
-                    <p class="text-xs text-gray-500 mb-2">① 배경 먼저 생성 후 위치 조정하기 (선택사항)</p>
+                    <p class="text-xs text-gray-500 mb-2">{{ t('helper_step_1') }}</p>
                     <div class="flex gap-2 mb-3">
                         <button onclick="document.getElementById('bgUploadInput').click()"
                             class="flex-1 btn-secondary py-2">
-                            📂 배경 이미지 업로드
+                            {{ t('btn_upload_bg') }}
                         </button>
                         <input type="file" id="bgUploadInput" class="hidden" accept="image/*"
                             onchange="uploadBackgroundImage(this)">
 
                         <button onclick="generateBackground()" id="bgBtn" class="flex-1 btn-secondary py-2">
-                            🤖 AI 배경 생성
+                            {{ t('btn_ai_gen_bg') }}
                         </button>
                     </div>
 
-                    <p class="text-xs text-gray-500 mb-2">② 최종 결과물 생성</p>
+                    <p class="text-xs text-gray-500 mb-2">{{ t('helper_step_2') }}</p>
                     <button onclick="generateFinalThumbnail()" id="generateBtn" class="w-full btn-primary py-3">
-                        🎨 썸네일 최종 생성 (합성)
+                        {{ t('btn_finalize_thumb') }}
                     </button>
                 </div>
             </div>
 
             <div class="space-y-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">썸네일 레이아웃 미리보기</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">{{
+                        t('label_preview_layout') }}</label>
                     <div id="previewContainer"
                         class="bg-gray-100 dark:bg-gray-700 rounded-lg p-2 relative overflow-hidden flex items-center justify-center transition-all duration-300 max-h-[600px] mx-auto">
                         <canvas id="thumbnailCanvas" width="1280" height="720"
                             class="w-full h-auto rounded shadow-inner bg-gray-200 dark:bg-gray-800"></canvas>
                         <div id="previewPlaceholder"
                             class="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <span class="text-gray-500 text-sm">아이디어를 선택하세요</span>
+                            <span class="text-gray-500 text-sm">{{ t('placeholder_select_idea') }}</span>
                         </div>
                     </div>
                 </div>
@@ -191,10 +196,11 @@
                 </div>
 
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">도형 레이어 (배경 위)</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">{{
+                        t('label_shape_layer') }}</label>
                     <div id="shapeLayersContainer" class="space-y-4 mb-4"></div>
                     <button onclick="addShapeLayer()" class="btn-secondary w-full text-sm">
-                        ➕ 도형 레이어 추가
+                        {{ t('btn_add_shape_layer') }}
                     </button>
                 </div>
             </div>
@@ -203,7 +209,7 @@
 
     <!-- 4단계: 결과 -->
     <div id="resultSection" class="card hidden">
-        <h3 class="font-bold text-gray-800 dark:text-white mb-4">4️⃣ 생성된 썸네일</h3>
+        <h3 class="font-bold text-gray-800 dark:text-white mb-4">{{ t('thumb_stage_4') }}</h3>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="flex justify-center items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-2">
                 <img id="resultImage" src="" alt="Generated Thumbnail"
@@ -211,16 +217,17 @@
             </div>
             <div class="space-y-4">
                 <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                    <h4 class="font-medium text-gray-800 dark:text-white mb-2">📐 이미지 정보</h4>
-                    <p id="thumbnailSizeInfo" class="text-sm text-gray-600 dark:text-gray-400">크기: 1280 x 720 (16:9)</p>
+                    <h4 class="font-medium text-gray-800 dark:text-white mb-2">📐 {{ t('image_info_title') }}</h4>
+                    <p id="thumbnailSizeInfo" class="text-sm text-gray-600 dark:text-gray-400">{{ t('label_size') }}:
+                        1280 x 720 (16:9)</p>
                     <p class="text-sm text-gray-600 dark:text-gray-400">형식: PNG</p>
                 </div>
                 <div class="flex gap-2">
                     <a id="downloadLink" href="" download="thumbnail.png" class="flex-1 btn-primary text-center">
-                        📥 다운로드
+                        {{ t('btn_download') }}
                     </a>
                     <button onclick="regenerate()" class="btn-secondary">
-                        🔄 다시 생성
+                        {{ t('btn_regen') }}
                     </button>
                 </div>
                 <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
@@ -236,7 +243,7 @@
 
         <!-- 생성 이력 -->
         <div class="mt-6">
-            <h4 class="font-medium text-gray-800 dark:text-white mb-3">📜 생성 이력</h4>
+            <h4 class="font-medium text-gray-800 dark:text-white mb-3">📜 {{ t('history_title') }}</h4>
             <div id="historyList" class="grid grid-cols-4 md:grid-cols-6 gap-2"></div>
         </div>
     </div>

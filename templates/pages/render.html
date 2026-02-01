@@ -8,22 +8,22 @@
 
         <!-- Resolution & Settings -->
         <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3">
-            <span class="text-xs font-bold text-gray-700 dark:text-gray-300">설정</span>
+            <span class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('label_resolution') }}</span>
             <select id="resolution"
                 class="text-xs border-gray-300 dark:border-gray-600 rounded py-1 bg-gray-50 dark:bg-gray-700 dark:text-white">
-                <option value="720p">720p (권장)</option>
-                <option value="1080p">1080p (고화질)</option>
+                <option value="720p">{{ t('opt_720p') }}</option>
+                <option value="1080p">{{ t('opt_1080p') }}</option>
             </select>
             <label class="flex items-center gap-1 cursor-pointer">
                 <input type="checkbox" id="useSubtitles" class="w-3 h-3 text-blue-600 rounded" checked>
-                <span class="text-xs text-gray-600 dark:text-gray-300 select-none">자막 포함</span>
+                <span class="text-xs text-gray-600 dark:text-gray-300 select-none">{{ t('label_include_subs') }}</span>
             </label>
         </div>
 
         <!-- Render Button -->
         <button onclick="createVideo()" id="renderBtn"
             class="btn-primary py-1.5 px-6 text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all ml-auto">
-            <span>🎬 영상 생성 시작</span>
+            <span>🎬 {{ t('btn_start_render') }}</span>
         </button>
     </div>
 
@@ -36,20 +36,20 @@
             <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shrink-0">
                 <h4 class="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">Project Status</h4>
                 <div class="grid grid-cols-2 gap-2">
-                    <div id="scriptStatus" class="status-item">📝 대본</div>
-                    <div id="imageStatus" class="status-item">🖼️ 이미지</div>
-                    <div id="audioStatus" class="status-item">🔊 오디오</div>
-                    <div id="videoStatus" class="status-item">🎬 비디오</div>
+                    <div id="scriptStatus" class="status-item">📝 {{ t('status_script') }}</div>
+                    <div id="imageStatus" class="status-item">🖼️ {{ t('status_image') }}</div>
+                    <div id="audioStatus" class="status-item">🔊 {{ t('status_audio') }}</div>
+                    <div id="videoStatus" class="status-item">🎬 {{ t('status_video') }}</div>
                 </div>
             </div>
 
             <!-- Intro Video Section (Compact) -->
             <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shrink-0">
                 <div class="flex justify-between items-center mb-2">
-                    <h4 class="text-xs font-bold text-gray-500 uppercase">Intro Video</h4>
+                    <h4 class="text-xs font-bold text-gray-500 uppercase">{{ t('intro_video_title') }}</h4>
                     <button onclick="document.getElementById('introFileInput').click()"
                         class="text-[10px] bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded hover:bg-gray-200">
-                        📁 업로드
+                        📁 {{ t('btn_upload') }}
                     </button>
                     <input type="file" id="introFileInput" accept="video/*" class="hidden">
                 </div>
@@ -61,7 +61,7 @@
                 </div>
                 <div id="introEmpty"
                     class="text-center p-2 text-xs text-gray-400 border border-dashed rounded bg-gray-50 dark:bg-gray-900/50">
-                    인트로 없음
+                    {{ t('no_intro') }}
                 </div>
             </div>
 
@@ -69,12 +69,12 @@
             <div
                 class="bg-gray-900 rounded-lg border border-gray-800 p-3 overflow-hidden flex flex-col font-mono text-xs text-green-400 h-[300px]">
                 <div class="flex justify-between border-b border-gray-800 pb-1 mb-2">
-                    <span>>_ Render Log</span>
+                    <span>>_ {{ t('render_log_title') }}</span>
                     <span id="renderTimer" class="text-yellow-400">00:00</span>
                 </div>
                 <div id="renderLogContent"
                     class="flex-1 overflow-y-auto custom-scrollbar opacity-80 whitespace-pre-wrap">
-                    Ready to render...
+                    {{ t('ready_to_render') }}
                 </div>
                 <!-- Progress Bar overlaid in log -->
                 <div class="mt-2 h-1 bg-gray-800 rounded overflow-hidden">
@@ -98,7 +98,7 @@
                 <div id="videoPlaceholder"
                     class="absolute inset-0 flex flex-col items-center justify-center bg-gray-100 dark:bg-gray-900 text-gray-400 z-0">
                     <span class="text-6xl mb-4 animate-pulse">🎬</span>
-                    <p>영상을 생성하면 이곳에서 재생됩니다.</p>
+                    <p>{{ t('placeholder_video_desc') }}</p>
                 </div>
             </div>
 
@@ -106,13 +106,15 @@
             <div
                 class="p-3 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-600 flex justify-between items-center shrink-0 rounded-b-lg">
                 <div class="flex gap-2">
-                    <button onclick="downloadScript()" class="text-xs btn-secondary px-2">📝 대본</button>
-                    <button onclick="downloadPrompts()" class="text-xs btn-secondary px-2">🖼️ 프롬프트</button>
+                    <button onclick="downloadScript()" class="text-xs btn-secondary px-2">📝 {{ t('status_script')
+                        }}</button>
+                    <button onclick="downloadPrompts()" class="text-xs btn-secondary px-2">🖼️ {{ t('nav_image')
+                        }}</button>
                 </div>
                 <div class="flex gap-2">
                     <a id="downloadVideoBtn" href="#"
                         class="btn-primary py-1.5 px-4 text-sm font-bold opacity-50 pointer-events-none transition-opacity">
-                        💾 영상 다운로드
+                        💾 {{ t('btn_download_video') }}
                     </a>
                 </div>
             </div>
@@ -135,7 +137,7 @@
 
     document.addEventListener('DOMContentLoaded', async () => {
         const projectId = getCurrentProject();
-        if (!projectId) return Utils.showToast('프로젝트 선택 필요', 'warning');
+        if (!projectId) return Utils.showToast("{{ t('toast_select_project_first') }}", 'warning');
 
         try {
             const data = await API.project.getFull(projectId);
@@ -203,7 +205,7 @@
         const sub = document.getElementById('useSubtitles').checked;
         const btn = document.getElementById('renderBtn');
 
-        Utils.setLoading(btn, true, '요청 중...');
+        Utils.setLoading(btn, true, "{{ t('status_loading') }}");
 
         try {
             const res = await API.project.render(projectId, { resolution, useSubtitles: sub });
@@ -211,11 +213,11 @@
                 startRenderingUI();
                 pollRenderStatus(projectId);
             } else {
-                Utils.showToast('실패: ' + (res.message || '오류'), 'error');
+                Utils.showToast("{{ t('status_fail') }}: " + (res.message || 'Error'), 'error');
                 Utils.setLoading(btn, false);
             }
         } catch (e) {
-            Utils.showToast('오류 발생', 'error');
+            Utils.showToast("{{ t('status_error') }}", 'error');
             Utils.setLoading(btn, false);
         }
     }
@@ -223,7 +225,7 @@
     function startRenderingUI() {
         isPolling = true;
         document.getElementById('renderBtn').disabled = true;
-        document.getElementById('renderBtn').innerHTML = `<span class="animate-spin">⏳</span> 진행 중...`;
+        document.getElementById('renderBtn').innerHTML = `<span class="animate-spin">⏳</span> {{ t('status_loading') }}`;
 
         const log = document.getElementById('renderLogContent');
         log.innerHTML += `\n[${new Date().toLocaleTimeString()}] Rendering Started...`;
@@ -276,10 +278,10 @@
 
         const btn = document.getElementById('renderBtn');
         btn.disabled = false;
-        btn.innerHTML = `<span>🎬 다시 생성</span>`;
+        btn.innerHTML = `<span>🎬 {{ t('btn_regen_video') }}</span>`;
 
         showVideoResult(path);
-        Utils.showToast('랜더링 완료!', 'success');
+        Utils.showToast("{{ t('toast_render_finished') }}", 'success');
 
         // Update Video Status Indicator
         document.getElementById('videoStatus').classList.add('done');
@@ -295,8 +297,8 @@
         document.getElementById('renderLogContent').innerHTML += `\n[ERROR] Rendering Failed. Call support.`;
         const btn = document.getElementById('renderBtn');
         btn.disabled = false;
-        btn.innerHTML = `<span>⚠️ 재시도</span>`;
-        Utils.showToast('랜더링 실패', 'error');
+        btn.innerHTML = `<span>⚠️ {{ t('btn_retry_video') }}</span>`;
+        Utils.showToast("{{ t('toast_render_failed') }}", 'error');
     }
 
     function showVideoResult(path) {
@@ -328,15 +330,15 @@
         const formData = new FormData();
         formData.append('file', file);
 
-        Utils.showToast('업로드 중...', 'info');
+        Utils.showToast("{{ t('status_uploading') }}", 'info');
         try {
             const res = await fetch(`/api/video/upload-intro/${projectId}`, { method: 'POST', body: formData });
             const data = await res.json();
             if (data.status === 'success') {
                 showIntroPreview(data.intro_path);
-                Utils.showToast('인트로 적용됨', 'success');
+                Utils.showToast("{{ t('toast_intro_applied') }}", 'success');
             } else Utils.showToast(data.error, 'error');
-        } catch (err) { Utils.showToast('업로드 실패', 'error'); }
+        } catch (err) { Utils.showToast("{{ t('toast_upload_fail') }}", 'error'); }
         e.target.value = '';
     }
 
@@ -354,7 +356,7 @@
         await fetch(`/api/video/delete-intro/${projectId}`, { method: 'DELETE' });
         document.getElementById('introPreview').classList.add('hidden');
         document.getElementById('introEmpty').classList.remove('hidden');
-        Utils.showToast('삭제됨', 'success');
+        Utils.showToast("{{ t('toast_deleted') }}", 'success');
     }
 
     function downloadScript() { /* ... existing logic ... */ }

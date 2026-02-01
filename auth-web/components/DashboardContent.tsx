@@ -124,11 +124,13 @@ export default function DashboardContent() {
                             {t.downloadDesc}
                         </p>
                         <a
-                            href="https://drive.google.com/file/d/12mIil732JSbj7yQwAiRDj2A2wHrZ51Qz/view?usp=sharing"
+                            href={user?.app_metadata?.membership === 'independent'
+                                ? "https://drive.google.com/file/d/pro_link_placeholder"
+                                : "https://drive.google.com/file/d/lite_link_placeholder"}
                             className="w-full py-5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 rounded-[1.5rem] transition-all font-black text-sm uppercase tracking-widest shadow-xl shadow-green-900/20 active:scale-[0.98] flex items-center justify-center gap-3 text-center"
                             target="_blank"
                         >
-                            {t.downloadBtn}
+                            {user?.app_metadata?.membership === 'independent' ? t.downloadPro : t.downloadLite}
                         </a>
                     </div>
 

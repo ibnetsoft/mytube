@@ -1,5 +1,5 @@
 """
-wingsAIStudio - FastAPI 메인 서버
+PICADIRI STUDIO - FastAPI 메인 서버
 YouTube 영상 자동화 제작 플랫폼 (Python 기반)
 """
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Body, Request, Form, UploadFile, File
@@ -40,6 +40,7 @@ from config import config
 import database as db
 from services.gemini_service import gemini_service
 from services.replicate_service import replicate_service
+from services.auth_service import auth_service
 
 # Helper: 프로젝트별 출력 폴더 생성
 def get_project_output_dir(project_id: int):
@@ -88,6 +89,19 @@ app.add_middleware(
 
 # 템플릿 및 정적 파일
 templates = Jinja2Templates(directory=config.TEMPLATES_DIR)
+
+# i18n
+from services.i18n import Translator
+app_lang = os.environ.get("APP_LANG", "ko")
+translator = Translator(app_lang)
+
+# Add t function to Jinja2 globals
+templates.env.globals['t'] = translator.t
+templates.env.globals['current_lang'] = app_lang
+templates.env.globals['membership'] = auth_service.get_membership()
+templates.env.globals['is_independent'] = auth_service.is_independent()
+templates.env.globals['license_key'] = open("license.key", "r").read().strip() if os.path.exists("license.key") else ""
+
 app.mount("/static", StaticFiles(directory=config.STATIC_DIR), name="static")
 
 # output 폴더
@@ -102,12 +116,15 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 async def startup_event():
     """앱 시작 시 실행 (DB 초기화 및 마이그레이션)"""
     try:
+        # Verify License & Membership
+        auth_service.verify_license()
+        
         db.init_db()
         db.migrate_db()
         db.reset_rendering_status() # [FIX] Stuck rendering status reset
-        print("[Startup] DB Initialized & Migrated")
+        print(f"[Startup] DB Initialized. Membership: {auth_service.get_membership()}")
     except Exception as e:
-        print(f"[Startup] DB Setup Failed: {e}")
+        print(f"[Startup] Setup Failed: {e}")
 
 
 # ===========================================
