@@ -1359,6 +1359,15 @@ def get_projects() -> List[Dict]:
     conn.close()
     return [dict(row) for row in rows]
 
+def get_all_channels() -> List[Dict]:
+    """모든 채널 목록 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM channels ORDER BY id ASC")
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
 def get_project(project_id: int) -> Optional[Dict]:
     """특정 프로젝트 조회"""
     conn = get_db()

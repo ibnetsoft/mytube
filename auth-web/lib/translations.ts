@@ -58,6 +58,7 @@ export interface Translation {
     approved: string;
     rejected: string;
     published: string;
+    to_be_published?: string;
     noRequests: string;
     viewVideo: string;
 }
@@ -113,6 +114,7 @@ export const translations: Record<Language, Translation> = {
         approved: "승인됨",
         rejected: "반려됨",
         published: "게시 완료",
+        to_be_published: "게시 중...",
         noRequests: "대기 중인 발행 요청이 없습니다.",
         viewVideo: "영상 보기"
     },
@@ -166,6 +168,7 @@ export const translations: Record<Language, Translation> = {
         approved: "Approved",
         rejected: "Rejected",
         published: "Published",
+        to_be_published: "Publishing...",
         noRequests: "No pending publishing requests.",
         viewVideo: "View Video"
     },

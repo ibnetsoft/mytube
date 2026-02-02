@@ -58,10 +58,12 @@
                     title="설명/태그">설명</th>
                 <th scope="col"
                     class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap"
-                    title="업로드 완료">업로드</th>
+                    title="업로드/예약 완료">{% if is_independent %}업로드{% else %}예약{% endif %}</th>
+                {% if is_independent %}
                 <th scope="col"
                     class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap"
                     title="발행 완료">발행</th>
+                {% endif %}
                 <th scope="col"
                     class="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
                     관리</th>
@@ -85,6 +87,9 @@
 
 {% block scripts %}
 <script>
+    const isIndependent = JSON.parse('{{ is_independent | tojson | safe }}');
+    const licenseKey = '{{ get_license_key() }}';
+
     async function loadProjectList() {
         document.getElementById('loadingSection').classList.remove('hidden');
         document.getElementById('projectTableBody').innerHTML = '';
@@ -189,13 +194,15 @@
                 <td class="px-1 py-3 text-center whitespace-nowrap">${checkLink(s.desc, 'title-desc', p.id)}</td>
                 <td class="px-1 py-3 text-center whitespace-nowrap relative">
                     ${checkLink(s.upload, 'upload', p.id)}
-                    <!-- Auto Upload Rocket Icon -->
+                    <!-- Auto Upload Rocket Icon (Only if Metadata exists) -->
+                    ${s.desc && (s.video || s.upload) ? `
                     <button onclick="event.stopPropagation(); autoUploadYouTube('${p.id}')" 
-                        class="absolute -right-3 top-1/2 -translate-y-1/2 text-lg hover:scale-125 transition-transform" 
-                        title="유튜브 원클릭 자동 업로드 (영상+메타+썸네일)">
+                        class="absolute -right-3 top-1/2 -translate-y-1/2 text-lg hover:scale-125 transition-transform z-20" 
+                        title="${isIndependent ? '유튜브 원클릭 자동 업로드 (영상+메타+썸네일)' : '클라우드 전송 및 업로드 예약 신청'}">
                         🚀
-                    </button>
+                    </button>` : ''}
                 </td>
+                ${isIndependent ? `
                 <td class="px-1 py-3 text-center whitespace-nowrap relative">
                     ${checkLink(s.publish, 'publish', p.id)}
                     ${s.upload && !s.publish ? `
@@ -204,7 +211,7 @@
                         title="유튜브 영상을 '공개'로 전환">
                         📢
                     </button>` : ''}
-                </td>
+                </td>` : ''}
 
                 <td class="px-3 py-3 whitespace-nowrap text-center text-sm font-medium">
                     <button onclick="event.stopPropagation(); deleteProject('${p.id}')" class="text-red-400 hover:text-red-900 transition p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/40">
@@ -321,34 +328,75 @@
     }
 
     async function autoUploadYouTube(projectId) {
-        if (!confirm('유튜브에 영상을 자동으로 업로드하고 썸네일/메타데이터를 설정하시겠습니까?')) return;
-
         const rocketBtn = event.currentTarget;
         const originalText = rocketBtn.innerText;
 
-        try {
-            rocketBtn.innerText = '⏳';
-            rocketBtn.disabled = true;
-            Utils.showToast('유튜브 업로드를 시작합니다. 잠시만 기다려주세요...', 'info');
+        if (isIndependent) {
+            if (!confirm('유튜브에 영상을 자동으로 업로드하고 썸네일/메타데이터를 설정하시겠습니까?')) return;
+            try {
+                rocketBtn.innerText = '⏳';
+                rocketBtn.disabled = true;
+                Utils.showToast('유튜브 업로드를 시작합니다...', 'info');
 
-            const res = await fetch(`/api/projects/${projectId}/youtube/auto-upload`, {
-                method: 'POST'
-            });
-            const data = await res.json();
+                const res = await fetch(`/api/youtube/upload-external/${projectId}`, { method: 'POST' });
+                const data = await res.json();
 
-            if (res.ok && data.status === 'ok') {
-                Utils.showToast('유튜브 업로드 및 설정이 완료되었습니다!', 'success');
-                // 목록 새로고침하여 상태 반영 (동그라미 색상 등)
-                loadProjectList();
-            } else {
-                throw new Error(data.detail || '업로드 실패');
+                if (res.ok && data.status === 'ok') {
+                    Utils.showToast('유튜브 업로드 및 설정 완료!', 'success');
+                    loadProjectList();
+                } else throw new Error(data.error || '업로드 실패');
+            } catch (e) {
+                Utils.showToast(`업로드 실패: ${e.message}`, 'error');
+            } finally {
+                rocketBtn.innerText = originalText;
+                rocketBtn.disabled = false;
             }
-        } catch (e) {
-            console.error('자동 업로드 실패:', e);
-            Utils.showToast(`업로드 실패: ${e.message}`, 'error');
-        } finally {
-            rocketBtn.innerText = originalText;
-            rocketBtn.disabled = false;
+        } else {
+            // [STANDARD USER] Direct YouTube Private Upload + Admin Record
+            if (!confirm('유튜브 채널 (@Honjada)에 "비공개"로 예약 업로드하고 검토를 요청하시겠습니까?')) return;
+            try {
+                rocketBtn.innerText = '⏳';
+                rocketBtn.disabled = true;
+                Utils.showToast('유튜브 예약 업로드 중...', 'info');
+
+                // 1. YouTube Upload
+                const ytRes = await fetch(`/api/youtube/upload-external/${projectId}`, { method: 'POST' });
+                const ytData = await ytRes.json();
+                if (ytRes.status !== 200 || ytData.status !== 'ok') throw new Error(ytData.error || "유튜브 업로드 실패");
+
+                // 2. Submit record to Central Server
+                const fullData = await API.project.get(projectId);
+                const settings = await API.project.getSettings(projectId);
+
+                const payload = {
+                    userId: licenseKey,
+                    videoUrl: ytData.url,
+                    videoId: ytData.video_id,
+                    metadata: {
+                        title: settings.title || fullData.name,
+                        projectId: projectId,
+                        isYouTubePrivate: true
+                    }
+                };
+
+                const pubRes = await fetch('{{ AUTH_SERVER_URL }}/api/publishing', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const pubData = await pubRes.json();
+                if (pubData.success) {
+                    Utils.showToast("성공! 유튜브 채널에 비공개로 업로드되었으며 검토 요청이 완료되었습니다.", 'success');
+                    loadProjectList();
+                } else throw new Error(pubData.error || "중앙 서버 기록 실패");
+            } catch (e) {
+                console.error('발행 요청 실패:', e);
+                Utils.showToast(`오류: ${e.message}`, 'error');
+            } finally {
+                rocketBtn.innerText = originalText;
+                rocketBtn.disabled = false;
+            }
         }
     }
 

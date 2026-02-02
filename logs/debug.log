@@ -1371,3 +1371,12 @@ ModuleNotFoundError: No module named 'moviepy.editor'
 [2026-01-31 13:21:40.194134] create_slideshow(PROJ=28) Effects: ['none', 'none', 'none', 'zoom_out', 'random', 'zoom_in', 'random']
 [2026-01-31 13:21:42.856205] RENDER_SETTINGS: font='GmarketSansBold', color='#ffffff', style='Custom', stroke_color='#000000', stroke_enabled=1, stroke_width=0.0, bg_enabled=1
 [2026-01-31 13:21:43.222802] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-01 21:19:54.978724] Starting Single-pass render for project 28
+[2026-02-01 21:19:54.978763] Images: 7, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\브롤_20260125\tts_20260125_221255.mp3
+[2026-02-01 21:19:55.224027] DEBUG_RENDER: num_img=7, num_sub=8
+[2026-02-01 21:19:55.228812] p_settings(ID=28) found: True
+[2026-02-01 21:19:55.230585] DEBUG_MAIN: p_settings keys: ['id', 'project_id', 'title', 'thumbnail_text', 'duration_seconds', 'aspect_ratio', 'script', 'hashtags', 'voice_tone', 'video_command', 'video_path', 'is_uploaded', 'created_at', 'updated_at', 'thumbnail_url', 'voice_name', 'voice_language', 'voice_style_prompt', 'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum', 'subtitle_font_size', 'subtitle_path', 'is_published', 'youtube_video_id', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'background_video_url', 'intro_video_path', 'external_video_path', 'character_ref_text', 'character_ref_image_path', 'script_style', 'template_image_url', 'image_timings_path', 'timeline_images_path', 'app_mode', 'subtitle_base_color', 'subtitle_pos_x', 'subtitle_pos_y', 'image_effects_path', 'subtitle_bg_enabled', 'subtitle_stroke_enabled', 'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity', 'voice_provider', 'voice_speed', 'voice_multi_enabled', 'voice_mapping_json', 'thumbnail_style']
+[2026-02-01 21:19:55.230605] DEBUG_MAIN: ef_path: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\image_effects_28_1769948394.json
+[2026-02-01 21:19:55.232242] create_slideshow(PROJ=28) Effects: ['none', 'none', 'none', 'zoom_out', 'random', 'zoom_in', 'random']
+[2026-02-01 21:19:58.126460] RENDER_SETTINGS: font='GmarketSansBold', color='#ffffff', style='Custom', stroke_color='#000000', stroke_enabled=1, stroke_width=0.0, bg_enabled=1
+[2026-02-01 21:19:58.502930] calling writes_videofile code in video_service (720p safe mode)

@@ -152,17 +152,17 @@
                         </a>
                     </li>
                     <li>
-                        <a href="/video-upload" id="nav-upload"
-                            class="sidebar-item {% if page == 'video-upload' %}active{% endif %}">
-                            <span class="sidebar-icon">📤</span>
-                            <span>{% if is_independent %}{{ t('nav_upload') }}{% else %}발행 요청{% endif %}</span>
-                        </a>
-                    </li>
-                    <li>
                         <a href="/title-desc" id="nav-title"
                             class="sidebar-item {% if page == 'title-desc' %}active{% endif %}">
                             <span class="sidebar-icon">📝</span>
                             <span>{{ t('nav_title_desc') }}</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/video-upload" id="nav-upload"
+                            class="sidebar-item {% if page == 'video-upload' %}active{% endif %}">
+                            <span class="sidebar-icon">📤</span>
+                            <span>{% if is_independent %}{{ t('nav_upload') }}{% else %}업로드 예약{% endif %}</span>
                         </a>
                     </li>
 

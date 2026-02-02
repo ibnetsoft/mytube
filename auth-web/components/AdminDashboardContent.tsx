@@ -17,6 +17,7 @@ export default function AdminDashboardContent() {
     const { t } = useLanguage()
     const [users, setUsers] = useState<any[]>([])
     const [requests, setRequests] = useState<any[]>([])
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
     const [isAdmin, setIsAdmin] = useState(false)
     const [activeTab, setActiveTab] = useState<Tab>('users')
@@ -257,6 +258,12 @@ export default function AdminDashboardContent() {
                     <div className="bg-[#111] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl">
                         <div className="p-8 border-b border-white/5 bg-white/5 flex justify-between items-center">
                             <h2 className="font-black text-xl tracking-tight uppercase">{t.publishingQueue}</h2>
+                            <button
+                                onClick={fetchData}
+                                className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border border-white/10"
+                            >
+                                🔄 {t.loading === "로딩 중..." ? "새로고침" : "Refresh"}
+                            </button>
                         </div>
                         <div className="overflow-x-auto">
                             <table className="w-full text-left text-sm">
@@ -282,7 +289,8 @@ export default function AdminDashboardContent() {
                                                 <span className={`px-3 py-1 rounded-full text-[10px] font-black border uppercase tracking-tighter ${request.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' :
                                                     request.status === 'approved' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
                                                         request.status === 'published' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
-                                                            'bg-red-500/10 text-red-500 border-red-500/20'
+                                                            request.status === 'to_be_published' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
+                                                                'bg-red-500/10 text-red-500 border-red-500/20'
                                                     }`}>
                                                     {t[request.status as keyof typeof t] || request.status}
                                                 </span>
@@ -307,19 +315,18 @@ export default function AdminDashboardContent() {
                                                     )}
                                                     {request.status === 'approved' && (
                                                         <button
-                                                            onClick={() => updateRequestStatus(request.id, 'published')}
+                                                            onClick={() => updateRequestStatus(request.id, 'to_be_published')}
                                                             className="bg-green-600 hover:bg-green-500 text-white text-[10px] px-4 py-2 rounded-xl transition-all font-black uppercase tracking-tighter shadow-lg shadow-green-900/20"
                                                         >
                                                             {t.publishToYoutube}
                                                         </button>
                                                     )}
-                                                    <a
-                                                        href={request.video_url}
-                                                        target="_blank"
+                                                    <button
+                                                        onClick={() => setPreviewUrl(request.video_url)}
                                                         className="text-gray-400 hover:text-white text-[10px] border border-white/10 px-3 py-2 rounded-xl transition-all font-black uppercase tracking-tighter"
                                                     >
                                                         {t.viewVideo}
-                                                    </a>
+                                                    </button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -337,6 +344,35 @@ export default function AdminDashboardContent() {
                     </div>
                 )}
             </div>
+
+            {/* Video Preview Modal */}
+            {previewUrl && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div
+                        className="absolute inset-0 bg-black/90 backdrop-blur-xl"
+                        onClick={() => setPreviewUrl(null)}
+                    />
+                    <div className="relative bg-[#111] border border-white/10 rounded-[2.5rem] overflow-hidden max-w-5xl w-full shadow-2xl animate-in zoom-in duration-300">
+                        <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/5">
+                            <h3 className="font-black uppercase tracking-tighter text-gray-400">Video Preview</h3>
+                            <button
+                                onClick={() => setPreviewUrl(null)}
+                                className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-all text-xl"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div className="aspect-video bg-black">
+                            <video
+                                src={previewUrl}
+                                controls
+                                autoPlay
+                                className="w-full h-full"
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

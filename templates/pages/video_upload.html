@@ -92,10 +92,10 @@
                     {% else %}
                     <button onclick="requestPublish()" id="requestPublishBtn"
                         class="btn-primary py-2.5 bg-purple-600 hover:bg-purple-700 flex items-center justify-center gap-2 text-sm shadow-md">
-                        <span>📤</span> 발행 요청하기 (검수 필요)
+                        <span>📤</span> {{ t('btn_reserve') }} 신청 (검수 필요)
                     </button>
                     <p class="text-[10px] text-gray-500 text-center mt-1">
-                        * 일반 회원은 관리자 검수 후 유튜브에 게시됩니다.
+                        * 일반 회원은 업로드 예약 후 관리자 확인을 거쳐 최종 게시됩니다.
                     </p>
                     {% endif %}
                     <button onclick="deleteVideo()"
@@ -110,6 +110,7 @@
 
 <script>
     let uploadedVideoPath = null;
+    let currentVideoFile = null; // Store the original file for cloud upload
 
     function handleDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('border-primary', 'bg-blue-50'); }
     function handleDragLeave(e) { e.preventDefault(); e.currentTarget.classList.remove('border-primary', 'bg-blue-50'); }
@@ -146,6 +147,7 @@
                     const res = JSON.parse(xhr.responseText);
                     if (res.status === 'ok') {
                         uploadedVideoPath = res.path;
+                        currentVideoFile = file; // Save file reference
                         showVideoPreview(file, res);
                         Utils.showToast("{{ t('toast_upload_finished') }}", 'success');
 
@@ -179,24 +181,78 @@
         if (!uploadedVideoPath) return Utils.showToast("{{ t('toast_no_video_uploaded') }}", 'warning');
 
         const btn = document.getElementById('requestPublishBtn');
-        Utils.setLoading(btn, true, "요청 중...");
+        Utils.setLoading(btn, true, "유튜브에 예약 업로드 중...");
 
         try {
-            // Get current project details for metadata
+            // 1. YouTube Upload (as Private by default in backend for Standard)
+            const ytRes = await fetch(`/api/youtube/upload-external/${projectId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const ytData = await ytRes.json();
+
+            if (ytData.status !== 'ok') {
+                throw new Error(ytData.error || "유튜브 업로드 중 오류 발생");
+            }
+
+            const videoId = ytData.video_id;
+            const videoUrl = ytData.url;
+
+            // 1.5 Cloud Upload for Admin Preview (Optional but Recommended)
+            let cloudPath = null;
+            if (currentVideoFile) {
+                try {
+                    Utils.setLoading(btn, true, "클라우드 검토용 영상 업로드 중...");
+
+                    // A. Get Signed URL
+                    const signRes = await fetch('{{ AUTH_SERVER_URL }}/api/publishing/presigned-url', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userId: "{{ get_license_key() }}",
+                            fileName: currentVideoFile.name,
+                            fileType: currentVideoFile.type
+                        })
+                    });
+                    const signData = await signRes.json();
+
+                    if (signData.success) {
+                        // B. Upload to Storage
+                        const uploadRes = await fetch(signData.uploadUrl, {
+                            method: 'PUT',
+                            body: currentVideoFile,
+                            headers: { 'Content-Type': currentVideoFile.type }
+                        });
+
+                        if (uploadRes.ok) {
+                            cloudPath = signData.path;
+                        }
+                    }
+                } catch (err) {
+                    console.warn("Cloud upload failed, but continuing with YouTube record:", err);
+                }
+            }
+
+            // 2. Submit record to Central Server for Admin tracking
+            Utils.setLoading(btn, true, "검토 레코드 등록 중...");
             const project = await API.project.get(projectId);
             const settings = await API.project.getSettings(projectId);
 
             const payload = {
-                userId: "{{ license_key }}",
-                videoUrl: uploadedVideoPath, // In real world, this should be a public link
+                userId: "{{ get_license_key() }}",
+                videoUrl: cloudPath || videoUrl, // Use cloud path if available for preview
+                videoId: videoId,
                 metadata: {
                     title: settings.title || project.name,
                     projectId: projectId,
-                    duration: document.getElementById('videoDuration').textContent
+                    duration: document.getElementById('videoDuration').textContent,
+                    isYouTubePrivate: true,
+                    isCloud: !!cloudPath,
+                    youtubeUrl: videoUrl
                 }
             };
 
-            const res = await fetch('https://mytube-ashy-seven.vercel.app/api/publishing', {
+            const res = await fetch('{{ AUTH_SERVER_URL }}/api/publishing', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -204,15 +260,16 @@
 
             const data = await res.json();
             if (data.success) {
-                Utils.showToast("발행 요청이 완료되었습니다. 관리자 승인 후 게시됩니다.", 'success');
+                Utils.showToast("성공! 유튜브 채널에 '비공개'로 업로드되었으며 관리자에게 검토가 요청되었습니다.", 'success');
                 btn.disabled = true;
-                btn.textContent = "✅ 요청 완료";
+                btn.className = "btn-secondary py-2.5 w-full bg-green-500/10 text-green-500 border-green-500/20";
+                btn.innerHTML = "<span>✅</span> 유튜브 예약 업로드 완료";
             } else {
-                Utils.showToast(data.error || "요청 실패", 'error');
+                throw new Error(data.error || "중앙 서버 전송 실패");
             }
         } catch (e) {
             console.error(e);
-            Utils.showToast("서버 연결 실패", 'error');
+            Utils.showToast(e.message || "처리 중 오류 발생", 'error');
         } finally {
             Utils.setLoading(btn, false);
         }
@@ -225,8 +282,11 @@
         const btn = document.getElementById('youtubeUploadBtn');
         Utils.setLoading(btn, true, "{{ t('status_uploading') }}");
         try {
+            // Independent users upload as PUBLIC by default (or we could add a toggle)
             const res = await fetch(`/api/youtube/upload-external/${projectId}`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' }
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ privacy: 'public' })
             });
             const data = await res.json();
             if (data.status === 'ok') {
@@ -249,14 +309,56 @@
     document.addEventListener('DOMContentLoaded', async () => {
         const projectId = getCurrentProject();
         if (projectId) {
-            const settings = await API.project.getSettings(projectId);
-            if (settings?.external_video_path) {
-                // Restore logic simplified for demo
-                const url = settings.external_video_path.replace(/\\/g, '/').split('/output').pop();
-                if (url) {
-                    uploadedVideoPath = settings.external_video_path;
-                    showVideoPreview({ name: 'Existing Video', size: 0 }, { url: '/output' + url });
+            const data = await API.project.getFull(projectId);
+            const settings = data.settings || {};
+            const metadata = data.metadata || {};
+            const hasDesc = !!metadata.description;
+
+            // 1. Determine Video Path (Prefer External, then Rendered)
+            let videoPath = settings.external_video_path;
+            let videoSource = 'external';
+
+            if (!videoPath && settings.video_path) {
+                videoPath = settings.video_path;
+                videoSource = 'rendered';
+            }
+
+            if (videoPath) {
+                // Construct URL
+                // If it's absolute local path, we need to convert to relative /output/...
+                let webUrl = "";
+                if (videoPath.includes('output')) {
+                    const parts = videoPath.split('output');
+                    webUrl = '/output' + parts[parts.length - 1].replace(/\\/g, '/');
                 }
+
+                if (webUrl) {
+                    uploadedVideoPath = videoPath;
+
+                    // Fetch file info (especially size)
+                    try {
+                        const headRes = await fetch(webUrl, { method: 'HEAD' });
+                        const size = headRes.headers.get('content-length');
+                        showVideoPreview({
+                            name: videoSource === 'rendered' ? 'Rendered Final Video' : 'Uploaded Video',
+                            size: size ? parseInt(size) : 0
+                        }, { url: webUrl });
+                    } catch (e) {
+                        showVideoPreview({
+                            name: videoSource === 'rendered' ? 'Rendered Final Video' : 'Uploaded Video',
+                            size: 0
+                        }, { url: webUrl });
+                    }
+                }
+            }
+
+            // [NEW] Enable button if metadata is finished, even if not manually uploaded just now
+            const isFinished = hasDesc && videoPath;
+            // The buttons are enabled by default in HTML, but let's make sure the state is clear
+            if (isFinished) {
+                console.log("Project is ready for publish/upload");
+            } else if (!videoPath) {
+                // No video yet
             }
         }
     });

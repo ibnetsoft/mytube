@@ -31,9 +31,17 @@ class YouTubeUploadService:
 
         # 3. 토큰 유효성 검사 및 갱신/신규 발급
         if not credentials or not credentials.valid:
+            needs_login = True
             if credentials and credentials.expired and credentials.refresh_token:
-                credentials.refresh(Request())
-            else:
+                try:
+                    from google.auth.exceptions import RefreshError
+                    credentials.refresh(Request())
+                    needs_login = False
+                except RefreshError:
+                    print("Refresh token is invalid (invalid_grant). Re-authenticating...")
+                    needs_login = True
+            
+            if needs_login:
                 if not os.path.exists(self.client_secret_file):
                     raise FileNotFoundError("client_secret.json 파일이 없습니다. OAuth 설정을 먼저 해주세요.")
                 

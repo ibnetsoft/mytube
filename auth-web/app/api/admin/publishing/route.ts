@@ -5,35 +5,78 @@ import { NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-        auth: {
-            autoRefreshToken: false,
-            persistSession: false
-        }
-    })
-
+    console.log('--- Admin Publishing GET Started ---')
     try {
-        // Fetch publishing requests with user emails
-        // Note: This assumes a 'publishing_requests' table exists
-        const { data, error } = await supabaseAdmin
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+        if (!supabaseUrl || !supabaseServiceKey) {
+            console.error("Missing Supabase env vars:", { url: !!supabaseUrl, key: !!supabaseServiceKey })
+            return NextResponse.json({
+                error: "Server configuration error (env vars missing)",
+                details: { url: !!supabaseUrl, key: !!supabaseServiceKey }
+            }, { status: 500 })
+        }
+
+        const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+            auth: {
+                autoRefreshToken: false,
+                persistSession: false
+            }
+        })
+
+        // 1. Fetch requests (Essential)
+        console.log('Fetching publishing_requests...')
+        const { data: requests, error: reqError } = await supabaseAdmin
             .from('publishing_requests')
-            .select('*, profiles(email)')
+            .select('*')
             .order('created_at', { ascending: false })
 
-        if (error) {
-            // If table doesn't exist yet, return empty list to avoid crash
-            if (error.code === '42P01') {
-                return NextResponse.json({ requests: [] })
-            }
-            throw error
+        if (reqError) {
+            console.error('Database query error:', reqError)
+            return NextResponse.json({ error: `Database error: ${reqError.message}` }, { status: 500 })
         }
 
-        return NextResponse.json({ requests: data })
-    } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        // 2. Fetch users (Optional/Safe)
+        console.log('Fetching user list for emails...')
+        let emailMap = new Map()
+        try {
+            const { data: userData, error: userError } = await supabaseAdmin.auth.admin.listUsers()
+            if (userError) {
+                console.warn("Could not list users via Admin SDK:", userError.message)
+            } else if (userData?.users) {
+                userData.users.forEach(u => emailMap.set(u.id, u.email))
+            }
+        } catch (uErr: any) {
+            console.warn("User list fetch crashed:", uErr.message)
+        }
+
+        // 3. Transform data
+        const requestsWithUrls = (requests || []).map(req => {
+            const email = emailMap.get(req.user_id) || 'Unknown User'
+
+            // Construct base object
+            const enriched = {
+                ...req,
+                profiles: { email } // Match frontend expectation
+            }
+
+            // Cloud URL handling
+            if (req.metadata?.isCloud && req.video_url) {
+                return {
+                    ...enriched,
+                    video_url: `${supabaseUrl}/storage/v1/object/public/videos/${req.video_url}`
+                }
+            }
+            return enriched
+        })
+
+        console.log(`Admin GET Success: Returning ${requestsWithUrls.length} items`)
+        return NextResponse.json({ requests: requestsWithUrls })
+
+    } catch (err: any) {
+        console.error("Unexpected Admin API Error:", err)
+        return NextResponse.json({ error: err.message || "Unknown server error" }, { status: 500 })
     }
 }
 

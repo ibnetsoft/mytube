@@ -57,3 +57,14 @@ CREATE POLICY "Admins can manage all requests" ON public.publishing_requests
 
 -- 6. Add profiles link (Foreign Key for easier joining in UI)
 -- Already added in CREATE TABLE step above.
+
+-- 7. Storage Bucket Setup (IMPORTANT)
+-- Go to Storage -> New Bucket -> Name: "videos" -> Public: ON
+-- Or run this if your Supabase version supports it:
+-- INSERT INTO storage.buckets (id, name, public) VALUES ('videos', 'videos', true);
+
+-- Add policy to allow public viewing
+CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING (bucket_id = 'videos');
+
+-- Add policy to allow authenticated uploads (Central server handles this via Admin key, but helpful for debugging)
+-- CREATE POLICY "Upload Access" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'videos');

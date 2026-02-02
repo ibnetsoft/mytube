@@ -41,6 +41,7 @@ import database as db
 from services.gemini_service import gemini_service
 from services.replicate_service import replicate_service
 from services.auth_service import auth_service
+from services.storage_service import storage_service
 
 # Helper: 프로젝트별 출력 폴더 생성
 def get_project_output_dir(project_id: int):
@@ -100,7 +101,14 @@ templates.env.globals['t'] = translator.t
 templates.env.globals['current_lang'] = app_lang
 templates.env.globals['membership'] = auth_service.get_membership()
 templates.env.globals['is_independent'] = auth_service.is_independent()
-templates.env.globals['license_key'] = open("license.key", "r").read().strip() if os.path.exists("license.key") else ""
+def get_license_key():
+    if os.path.exists("license.key"):
+        with open("license.key", "r") as f:
+            return f.read().strip()
+    return ""
+
+templates.env.globals['get_license_key'] = get_license_key
+templates.env.globals['AUTH_SERVER_URL'] = "http://localhost:3000" if config.DEBUG else "https://mytube-ashy-seven.vercel.app"
 
 app.mount("/static", StaticFiles(directory=config.STATIC_DIR), name="static")
 
@@ -408,7 +416,8 @@ async def page_video_upload(request: Request):
     return templates.TemplateResponse("pages/video_upload.html", {
         "request": request,
         "page": "video-upload",
-        "title": "영상 업로드"
+        "title": "영상 업로드",
+        "is_independent": auth_service.is_independent()
     })
 
 @app.get("/subtitle_gen", response_class=HTMLResponse)
@@ -1711,48 +1720,82 @@ async def tts_generate(req: TTSRequest):
                 print(f"🔄 [Main] 오디오 파일 병합 시작 ({len(audio_files)}개)...")
                 output_path = None
                 
-                # 가급적 pydub 사용 (더 안정적)
-                try:
-                    from pydub import AudioSegment
-                    import imageio_ffmpeg
-                    
-                    # ffmpeg 경로 수동 설정
-                    ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
-                    AudioSegment.converter = ffmpeg_exe
-                    
-                    combined = AudioSegment.empty()
-                    for af in audio_files:
-                        segment_audio = AudioSegment.from_file(af)
-                        combined += segment_audio
-                    
-                    combined.export(result_filename, format="mp3")
-                    output_path = result_filename
-                    print(f"✅ [Main] pydub으로 오디오 병합 완료: {result_filename}")
-                except Exception as pydub_err:
-                    print(f"⚠️ pydub 병합 실패 ({pydub_err}), MoviePy로 재시도합니다.")
+                # Blocking IO/Processing을 ThreadPool에서 실행
+                loop = asyncio.get_event_loop()
+                
+                def merge_audio_sync():
+                    nonlocal output_path
+                    # 1. Try Pydub (Faster, no re-encode usually)
                     try:
-                        try:
-                            from moviepy.editor import AudioFileClip, concatenate_audioclips
-                        except ImportError:
-                            from moviepy import AudioFileClip, concatenate_audioclips
-                    except ImportError:
-                        from moviepy.audio.io.AudioFileClip import AudioFileClip
-                        from moviepy.audio.AudioClip import concatenate_audioclips
-                    
-                    clips = []
-                    for af in audio_files:
-                        try:
-                            clips.append(AudioFileClip(af))
-                        except:
-                            pass
-                    
-                    if clips:
-                        final_clip = concatenate_audioclips(clips)
-                        final_clip.write_audiofile(result_filename, verbose=False, logger=None)
-                        final_clip.close()
-                        for clip in clips: clip.close() # 모든 클립 리소스 해제
+                        from pydub import AudioSegment
+                        import imageio_ffmpeg
+                        
+                        # ffmpeg 경로 명시적 설정 (Windows WinError 2 방지)
+                        ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+                        AudioSegment.converter = ffmpeg_exe
+                        # AudioSegment.ffmpeg = ffmpeg_exe # 일부 버전 호환성
+                        
+                        # [Robustness] ffprobe check disabled or assumed optional for simple concat?
+                        # Pydub uses info_json which requires ffprobe.
+                        # If imageio_ffmpeg doesn't provide ffprobe, pydub fails on from_file.
+                        # We can try to skip pydub if we suspect ffprobe is missing, 
+                        # but let's try it and catch exception.
+                        
+                        combined = AudioSegment.empty()
+                        for af in audio_files:
+                            combined += AudioSegment.from_file(af)
+                        
+                        combined.export(result_filename, format="mp3")
                         output_path = result_filename
-                        print(f"✅ [Main] MoviePy로 오디오 병합 완료: {result_filename}")
+                        print(f"✅ [Main] pydub으로 오디오 병합 완료: {result_filename}")
+                        return True
+                    except Exception as pydub_err:
+                        # WinError 2 often means ffprobe missing
+                        print(f"⚠️ pydub 병합 실패 ({pydub_err}), MoviePy로 재시도합니다.")
+                        return False
+
+                # Run Pydub in thread
+                pydub_success = await loop.run_in_executor(None, merge_audio_sync)
+                
+                if pydub_success:
+                    pass # Done
+                else:
+                    # 2. Key Fallback: MoviePy (Re-encodes, slower but reliable with imageio)
+                    def merge_moviepy_sync():
+                        nonlocal output_path
+                        try:
+                            try:
+                                from moviepy.editor import AudioFileClip, concatenate_audioclips
+                            except ImportError:
+                                from moviepy import AudioFileClip, concatenate_audioclips
+                        except ImportError:
+                            from moviepy.audio.io.AudioFileClip import AudioFileClip
+                            from moviepy.audio.AudioClip import concatenate_audioclips
+                        
+                        clips = []
+                        try:
+                            for af in audio_files:
+                                try:
+                                    clips.append(AudioFileClip(af))
+                                except Exception as e:
+                                    print(f"Failed to load clip {af}: {e}")
+                            
+                            if clips:
+                                final_clip = concatenate_audioclips(clips)
+                                final_clip.write_audiofile(result_filename, verbose=False, logger=None)
+                                final_clip.close()
+                                for clip in clips: clip.close()
+                                output_path = result_filename
+                                print(f"✅ [Main] MoviePy로 오디오 병합 완료: {result_filename}")
+                                return True
+                            else:
+                                print(f"❌ [Main] MoviePy: No valid clips to merge.")
+                                return False
+                        except Exception as e:
+                            print(f"❌ [Main] MoviePy 병합 실패: {e}")
+                            return False
+                            
+                    moviepy_success = await loop.run_in_executor(None, merge_moviepy_sync)
                 
                 if output_path:
                     # 임시 파일 삭제
@@ -1760,7 +1803,7 @@ async def tts_generate(req: TTSRequest):
                          try: os.remove(af)
                          except: pass
                 else:
-                    return {"status": "error", "error": "오디오 병합 과정에서 모든 시도가 실패했습니다."}
+                    return {"status": "error", "error": "오디오 병합 실패 (Pydub 및 MoviePy 모두 실패)"}
             else:
                  return {"status": "error", "error": "생성된 오디오 세그먼트가 없습니다."}
 
@@ -5415,6 +5458,46 @@ async def upload_external_video(project_id: int, file: UploadFile = File(...)):
         raise HTTPException(500, f"업로드 중 오류가 발생했습니다: {str(e)}")
 
 
+@app.post("/api/video/sync-cloud/{project_id}")
+async def sync_video_to_cloud(project_id: int):
+    """로컬 영상을 클라우드(Supabase)로 업로드하고 경로 반환"""
+    try:
+        settings = db.get_project_settings(project_id)
+        # 1. 우선순위: 외부 업로드 영상 -> 렌더링된 영상
+        video_path = settings.get("external_video_path")
+        
+        # 만약 외부 경로가 없거나 존재하지 않는다면 렌더링 경로 시도
+        if not video_path or not os.path.exists(video_path):
+            video_path = settings.get("video_path")
+            
+        # 렌더링 경로는 웹 경로(/output/...)로 저장되어 있을 수 있으므로 변환 시도
+        if video_path and not os.path.exists(video_path) and video_path.startswith('/output/'):
+            rel_path = video_path.replace('/output/', '', 1).replace('/', os.sep)
+            video_path = os.path.join(config.OUTPUT_DIR, rel_path)
+            
+        if not video_path or not os.path.exists(video_path):
+            return {"status": "error", "error": "업로드되거나 렌더링된 영상 파일이 없습니다."}
+            
+        license_key = ""
+        if os.path.exists("license.key"):
+            with open("license.key", "r") as f:
+                license_key = f.read().strip()
+                
+        if not license_key:
+            return {"status": "error", "error": "라이선스 키를 찾을 수 없습니다."}
+            
+        cloud_path = storage_service.upload_video_to_cloud(license_key, video_path)
+        
+        if not cloud_path:
+            return {"status": "error", "error": "클라우드 업로드 실패"}
+            
+        # [NEW] Mark as uploaded/reserved locally
+        db.update_project_setting(project_id, 'is_uploaded', 1)
+        
+        return {"status": "ok", "cloud_path": cloud_path}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
 @app.delete("/api/video/delete-external/{project_id}")
 async def delete_external_video(project_id: int):
     """업로드된 외부 영상 삭제"""
@@ -5443,23 +5526,51 @@ async def delete_external_video(project_id: int):
 
 
 @app.post("/api/youtube/upload-external/{project_id}")
-async def upload_external_to_youtube(project_id: int):
-    """업로드된 외부 영상을 YouTube에 게시"""
+async def upload_external_to_youtube(
+    project_id: int, 
+    request: Request
+):
+    """업로드된 외부 영상 게시 (Standard: Private, Independent: Selectable)"""
+    try:
+        data = await request.json()
+        requested_privacy = data.get("privacy", "private")
+    except:
+        requested_privacy = "private"
+
+    # [NEW] Membership Check
+    from services.auth_service import auth_service
+    is_independent = auth_service.is_independent()
+    
+    # Force private if not independent
+    final_privacy = "private"
+    if is_independent:
+        final_privacy = requested_privacy
+    else:
+        # Standard user always private locally (admin triggers public later)
+        if requested_privacy == "public":
+            print("[Security] Standard user attempted public upload. Forcing private.")
+            final_privacy = "private"
+
     try:
         # 프로젝트 정보 조회
         project = db.get_project(project_id)
         if not project:
             raise HTTPException(404, "프로젝트를 찾을 수 없습니다.")
         
-        # 외부 영상 경로 조회
+        # 영상 경로 조회 (외부 업로드 -> 렌더링 영상 순)
         settings = db.get_project_settings(project_id)
-        if not settings or not settings.get('external_video_path'):
-            raise HTTPException(404, "업로드된 영상이 없습니다.")
+        video_path = settings.get('external_video_path')
         
-        video_path = settings['external_video_path']
-        
-        if not os.path.exists(video_path):
-            raise HTTPException(404, "영상 파일을 찾을 수 없습니다.")
+        if not video_path or not os.path.exists(video_path):
+            video_path = settings.get('video_path')
+            
+        # 렌더링 웹 경로 처리
+        if video_path and not os.path.exists(video_path) and video_path.startswith('/output/'):
+            rel_path = video_path.replace('/output/', '', 1).replace('/', os.sep)
+            video_path = os.path.join(config.OUTPUT_DIR, rel_path)
+            
+        if not video_path or not os.path.exists(video_path):
+            raise HTTPException(404, "업로드되거나 렌더링된 영상이 없습니다.")
         
         # YouTube 업로드 서비스 import
         from services.youtube_upload_service import youtube_upload_service
@@ -5470,22 +5581,38 @@ async def upload_external_to_youtube(project_id: int):
         description = metadata.get('description', '') if metadata else ''
         tags = metadata.get('tags', []) if metadata else []
         
-        # YouTube 업로드
-        result = await youtube_upload_service.upload_video(
-            video_path=video_path,
+        # [NEW] 채널 정보 조회하여 토큰 경로 결정
+        try:
+            channels = db.get_all_channels()
+            token_path = None
+            if channels:
+                # 첫 번째 채널(Honjada 등)의 토큰 사용 시도
+                cand_path = channels[0].get('credentials_path')
+                if cand_path and os.path.exists(cand_path):
+                    token_path = cand_path
+                else:
+                    print(f"[YouTube] Specified channel token not found at {cand_path}, using default.")
+        except:
+            token_path = None
+
+        # YouTube 업로드 (동기 함수이므로 await 제거)
+        result = youtube_upload_service.upload_video(
+            file_path=video_path,
             title=title,
             description=description,
             tags=tags,
             category_id="22",  # People & Blogs
-            privacy_status="private"  # 기본값: 비공개
+            privacy_status=final_privacy, # [UPDATED]
+            token_path=token_path      # [NEW] 존재할 때만 토큰 전달
         )
         
-        if result.get('status') == 'ok':
-            video_id = result.get('video_id')
+        if result and result.get('id'):
+            video_id = result.get('id')
             
-            # DB에 YouTube 비디오 ID 저장
+            # DB에 YouTube 비디오 ID 및 상태 저장
             db.update_project_setting(project_id, 'youtube_video_id', video_id)
             db.update_project_setting(project_id, 'is_published', 1)
+            db.update_project_setting(project_id, 'is_uploaded', 1)
             
             return {
                 "status": "ok",
@@ -5495,11 +5622,11 @@ async def upload_external_to_youtube(project_id: int):
         else:
             raise HTTPException(500, result.get('error', 'YouTube 업로드 실패'))
             
-    except HTTPException:
-        raise
     except Exception as e:
         print(f"YouTube upload error: {e}")
-        raise HTTPException(500, f"YouTube 업로드 중 오류가 발생했습니다: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"status": "error", "error": f"YouTube 업로드 실패: {str(e)}"}
 
 
 
@@ -5585,6 +5712,10 @@ if __name__ == "__main__":
     print(f"📍 서버: http://{config.HOST}:{config.PORT}")
     print("=" * 50)
     
+    # [NEW] Verify License & Membership
+    from services.auth_service import auth_service
+    auth_service.verify_license()
+    
     # [NEW] Auto-open Browser in Production (or Frozen)
     if not config.DEBUG or getattr(sys, 'frozen', False):
         import webbrowser
@@ -5597,6 +5728,10 @@ if __name__ == "__main__":
             
         print("🌍 브라우저 자동 실행 대기 중...")
         threading.Thread(target=open_browser, daemon=True).start()
+
+    # [NEW] Auto Publish Service Start
+    from services.auto_publish_service import auto_publish_service
+    auto_publish_service.start()
 
     uvicorn.run(
         "main:app",

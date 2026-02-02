@@ -525,7 +525,12 @@ class TTSService:
                 "Iris": "ko-KR-SoonBokNeural",
                 "Calliope": "ko-KR-YuJinNeural"
             }
-            target_voice = voice_map.get(voice_name, "ko-KR-SunHiNeural")
+            
+            # [FIX] If voice_name appears to be a full ID (e.g. ko-KR-...), use it directly
+            if "-" in voice_name and len(voice_name) > 10:
+                target_voice = voice_name
+            else:
+                target_voice = voice_map.get(voice_name, "ko-KR-SunHiNeural")
         
         return await self.generate_edge_tts(text, target_voice, rate_str, filename)
 

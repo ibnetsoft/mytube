@@ -340,7 +340,7 @@
         const projectId = getCurrentProject();
         if (!projectId) return;
 
-        const originalText = btn ? btn.innerHTML : "{{ t('btn_save_settings_only') }}";
+        const originalText = btn ? btn.innerHTML : `{{ t('btn_save_settings_only') }}`;
         if (btn) {
             btn.disabled = true;
             btn.innerHTML = `<span>🔄</span> {{ t('status_saving') }}`;
@@ -362,7 +362,7 @@
 
             const result = await API.project.saveSettings(projectId, settings);
             if (result.status === 'ok') {
-                Utils.showToast("{{ t('toast_tts_settings_saved') }}", "success");
+                Utils.showToast(`{{ t('toast_tts_settings_saved') }}`, "success");
             } else {
                 throw new Error(result.error || "Save failed");
             }
@@ -447,7 +447,7 @@
         container.innerHTML = '';
 
         if (detectedCharacters.size === 0) {
-            container.innerHTML = `<p class="text-xs text-gray-400 text-center py-2">${"{{ t('no_characters_detected') | safe }}"}</p>`;
+            container.innerHTML = `<p class="text-xs text-gray-400 text-center py-2">{{ t('no_characters_detected') | safe }}</p>`;
             return;
         }
 
@@ -604,13 +604,13 @@
                     // Update Local Storage for consistency
                     Utils.storage.set('fullScript', { script: scriptText });
                     applyScriptToTextarea(scriptText);
-                    Utils.showToast("{{ t('toast_script_loaded') }}", 'success');
+                    Utils.showToast(`{{ t('toast_script_loaded') }}`, 'success');
                     return;
                 }
 
             } catch (e) {
                 console.error("Server script load failed:", e);
-                Utils.showToast("{{ t('toast_script_load_failed') }}", 'error');
+                Utils.showToast(`{{ t('toast_script_load_failed') }}`, 'error');
             }
         }
 
@@ -620,7 +620,7 @@
             console.log("Loaded script from local storage");
             applyScriptToTextarea(localData.script);
         } else {
-            if (projectId && !scriptText) Utils.showToast("{{ t('err_no_script') }}", 'warning');
+            if (projectId && !scriptText) Utils.showToast(`{{ t('err_no_script') }}`, 'warning');
         }
     }
 
@@ -646,7 +646,7 @@
 
     async function generateTTS() {
         const text = document.getElementById('ttsText').value.trim();
-        if (!text) return Utils.showToast("{{ t('toast_input_text_required') }}", 'warning');
+        if (!text) return Utils.showToast(`{{ t('toast_input_text_required') }}`, 'warning');
 
         const provider = document.getElementById('providerSelect').value;
         const speed = parseFloat(document.getElementById('audioSpeed').value) || 1.0;
@@ -656,7 +656,7 @@
 
         if (provider === 'browser') { playBrowserTTS(); return; }
 
-        Utils.setLoading(btn, true, "{{ t('status_generating') }}");
+        Utils.setLoading(btn, true, `{{ t('status_generating') }}`);
         try {
             const projectId = getCurrentProject();
             const result = await API.tts.generate(text, {
@@ -678,10 +678,10 @@
                 // [NEW] Update Stepper
                 if (window.updateStepStatus) window.updateStepStatus('tts', true);
             } else {
-                Utils.showToast(result.error || "{{ t('status_fail') }}", 'error');
+                Utils.showToast(result.error || `{{ t('status_fail') }}`, 'error');
             }
         } catch (error) {
-            Utils.showToast("{{ t('status_error') }}", 'error');
+            Utils.showToast(`{{ t('status_error') }}`, 'error');
         } finally {
             Utils.setLoading(btn, false);
         }
@@ -695,12 +695,12 @@
         const projectId = getCurrentProject();
 
         if (!projectId) {
-            Utils.showToast("{{ t('toast_select_project_first') }}", "warning");
+            Utils.showToast(`{{ t('toast_select_project_first') }}`, "warning");
             input.value = ''; // Reset
             return;
         }
 
-        Utils.showToast("{{ t('status_uploading') }}", "info");
+        Utils.showToast(`{{ t('status_uploading') }}`, "info");
 
         const formData = new FormData();
         formData.append('file', file);
@@ -713,7 +713,7 @@
             const result = await response.json();
 
             if (result.status === 'ok') {
-                Utils.showToast("{{ t('toast_ext_audio_registered') }}", 'success');
+                Utils.showToast(`{{ t('toast_ext_audio_registered') }}`, 'success');
 
                 // Set audio player
                 const player = document.getElementById('audioPlayer');
