@@ -216,7 +216,7 @@
         let projectId = null;
         if (urlProjectId) {
             projectId = parseInt(urlProjectId);
-            setCurrentProject(projectId); // Update global state/localStorage
+            setCurrentProject(projectId); // Update global state
         } else {
             projectId = getCurrentProject();
         }
@@ -225,7 +225,7 @@
             await loadProjectData(projectId);
         }
 
-        // [STRONG OVERRIDE] URL에서 전달된 topic이 있다면 무조건 입력창에 적용 (DB 값보다 우선)
+        // [STRONG OVERRIDE] URL에서 전달된 topic이 있다면 무조건 입력창에 적용 (DB 값보다 우선) + DB 동기화
         const urlTopic = urlParams.get('topic');
         if (urlTopic) {
             console.log("[Force Topic] URL Parameter found:", urlTopic);
@@ -233,7 +233,11 @@
             document.getElementById('topicInput').value = val;
             const kwInput = document.getElementById('titleKeywordInput');
             if (kwInput) kwInput.value = val;
-            // 만약 API로 프로젝트 내용을 불러왔더라도, 사용자가 방금 검색한 키워드가 더 중요하므로 덮어씀
+
+            // [FIX] Update Project Topic in DB immediately to prevent mix-up
+            if (projectId) {
+                API.project.update(projectId, { topic: val }).catch(e => console.error("Topic sync failed", e));
+            }
         } else {
             // URL 파라미터가 없더라도, 잠시 후 topicInput에 값이 들어오면 동기화 시도
             setTimeout(() => {
@@ -274,6 +278,14 @@
     // 상태 복구 완료 시 UI 업데이트
     window.addEventListener('projectStateRestored', (e) => {
         const data = e.detail;
+        const currentPid = getCurrentProject();
+
+        // [FIX] 프로젝트 ID가 다르면 복구된 상태 무시 (이전 프로젝트 데이터 오염 방지)
+        if (currentPid && data.project && data.project.id && String(data.project.id) !== String(currentPid)) {
+            console.warn("Ignoring restored state due to Project ID mismatch.", data.project.id, currentPid);
+            return;
+        }
+
         if (data.project) {
             if (data.project.topic) {
                 const topic = data.project.topic;
@@ -398,7 +410,17 @@
                         const metaData = await metaRes.json();
                         if (metaData && metaData.titles && metaData.titles.length > 0) {
                             renderRecommendedTitles(metaData.titles);
-                            // The new renderRecommendedTitles handles showing the container
+                        } else {
+                            // [FIX] Clear outdated titles
+                            const grid = document.getElementById('recommendedTitlesGrid');
+                            if (grid) grid.innerHTML = '';
+
+                            // Auto-generate if we have a topic
+                            const topic = document.getElementById('topicInput').value;
+                            if (topic) {
+                                console.log("[Load] No saved titles, auto-generating...");
+                                setTimeout(() => generateRecommendedTitles(), 500);
+                            }
                         }
                     }
                 }
@@ -1022,7 +1044,12 @@
                 Utils.showToast("대기열에 추가되었습니다! 📥", "success");
                 setTimeout(() => {
                     if (confirm("대기열에 담았습니다. 새로운 주제로 계속 하시겠습니까?")) {
-                        window.location.href = '/topic';
+                        // [FIX] Reset current project to ensure new topic creates new project
+                        if (typeof setCurrentProject === 'function') setCurrentProject(null);
+                        localStorage.removeItem('currentProjectId');
+                        localStorage.removeItem('scriptStructure');
+
+                        window.location.href = '/';
                     }
                 }, 500);
             } else {
