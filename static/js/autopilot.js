@@ -266,6 +266,16 @@ async function loadSavedSettings() {
                 if (sSelect) sSelect.value = data.script_style;
             }
 
+            // [NEW] Duration
+            if (data.duration_seconds) {
+                const minutes = Math.round(data.duration_seconds / 60);
+                const durInput = document.getElementById('targetDuration');
+                if (durInput && minutes > 0) {
+                    durInput.value = minutes;
+                    console.log("[Autopilot] Loaded duration:", minutes, "min");
+                }
+            }
+
             // 5. Last Topic (Global)
             if (data.last_topic) {
                 const topicInput = document.getElementById('topicInput');
@@ -364,7 +374,7 @@ async function startAutoPilot() {
         script_style: document.getElementById('scriptStyleSelect').value,
         voice_provider: document.getElementById('providerSelect').value,
         voice_id: document.getElementById('voiceSelect').value,
-        duration_seconds: window.loadedDurationSeconds || 0 // [NEW]
+        duration_seconds: (parseInt(document.getElementById('targetDuration').value) || 10) * 60
     };
 
     log(`🎬 Visual: ${config.visual_style} | Thumb: ${config.thumbnail_style}`);

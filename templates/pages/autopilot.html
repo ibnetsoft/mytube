@@ -112,6 +112,18 @@
                                 <option value="cyberpunk_neon">사이버펑크</option>
                             </optgroup>
                         </select>
+
+                        <!-- [NEW] Duration Input -->
+                        <div class="pt-2">
+                            <label class="block text-sm font-medium text-gray-400 mb-2">영상 길이 (목표)</label>
+                            <div class="relative">
+                                <input type="number" id="targetDuration" min="1" max="180" value="10" placeholder="10"
+                                    class="w-full bg-gray-800/50 border-gray-700 text-white rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 transition-all">
+                                <span
+                                    class="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">분</span>
+                            </div>
+                            <p class="text-[10px] text-gray-500 mt-1">* 대본 생성 시 목표 분량으로 반영됩니다.</p>
+                        </div>
                     </div>
 
                     <!-- Voice Selection (Dynamic) -->
