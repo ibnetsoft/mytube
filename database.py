@@ -183,13 +183,14 @@ def init_db():
         )
     """)
 
-    # 썸네일 아이디어
+    # 썸네일 아이디어 및 상세 설정
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS thumbnails (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             project_id INTEGER,
             ideas TEXT,
             texts TEXT,
+            full_settings TEXT, -- 상세 설정 (JSON)
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (project_id) REFERENCES projects(id)
         )
@@ -268,6 +269,15 @@ def migrate_db():
     """기존 테이블에 새 컬럼 추가 (마이그레이션)"""
     conn = get_db()
     cursor = conn.cursor()
+
+    # [NEW] Global Settings Table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS global_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
 
     # project_settings에 thumbnail_url 컬럼 추가 (없으면)
     try:
@@ -447,6 +457,21 @@ def migrate_db():
         
     # [NEW] Character Consistency Persistence
     try:
+        cursor.execute("ALTER TABLE projects ADD COLUMN character_ref_image_path TEXT")
+    except sqlite3.OperationalError:
+        pass
+        
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN image_style TEXT")
+    except sqlite3.OperationalError:
+        pass
+        
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN thumbnail_style TEXT")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
         cursor.execute("ALTER TABLE project_settings ADD COLUMN character_ref_text TEXT")
     except sqlite3.OperationalError:
         pass
@@ -567,9 +592,13 @@ def migrate_db():
     except sqlite3.OperationalError: pass
 
     # [NEW] Thumbnail Style Persistence
-    try:
-        cursor.execute("ALTER TABLE project_settings ADD COLUMN thumbnail_style TEXT")
-    except sqlite3.OperationalError: pass
+    # [NEW] Thumbnail Full Settings Persistence
+    cursor.execute("PRAGMA table_info(thumbnails)")
+    thumb_cols = [info[1] for info in cursor.fetchall()]
+    if 'full_settings' not in thumb_cols:
+        try:
+            cursor.execute("ALTER TABLE thumbnails ADD COLUMN full_settings TEXT")
+        except sqlite3.OperationalError: pass
 
     conn.commit()
     print("[DB] Migration completed")
@@ -1067,20 +1096,21 @@ def get_metadata(project_id: int) -> Optional[Dict]:
 
 # ============ 썸네일 ============
 
-def save_thumbnails(project_id: int, ideas: List[Dict], texts: List[str]):
-    """썸네일 아이디어 저장"""
+def save_thumbnails(project_id: int, ideas: List[Dict], texts: List[str], full_settings: Dict = None):
+    """썸네일 아이디어 및 설정 저장"""
     conn = get_db()
     cursor = conn.cursor()
 
     cursor.execute("DELETE FROM thumbnails WHERE project_id = ?", (project_id,))
 
     cursor.execute("""
-        INSERT INTO thumbnails (project_id, ideas, texts)
-        VALUES (?, ?, ?)
+        INSERT INTO thumbnails (project_id, ideas, texts, full_settings)
+        VALUES (?, ?, ?, ?)
     """, (
         project_id,
         json.dumps(ideas, ensure_ascii=False),
-        json.dumps(texts, ensure_ascii=False)
+        json.dumps(texts, ensure_ascii=False),
+        json.dumps(full_settings, ensure_ascii=False) if full_settings else None
     ))
 
     conn.commit()
@@ -1098,6 +1128,7 @@ def get_thumbnails(project_id: int) -> Optional[Dict]:
         data = dict(row)
         data['ideas'] = json.loads(data['ideas']) if data['ideas'] else []
         data['texts'] = json.loads(data['texts']) if data['texts'] else []
+        data['full_settings'] = json.loads(data['full_settings']) if data.get('full_settings') else {}
         return data
     return None
 
@@ -1124,7 +1155,8 @@ def save_project_settings(project_id: int, settings: Dict):
                     'character_ref_text', 'character_ref_image_path', 'script_style',
                     'subtitle_base_color', 'subtitle_pos_y', 'subtitle_pos_x', 'subtitle_bg_enabled', 'subtitle_stroke_enabled',
                     'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity',
-                    'voice_provider', 'voice_speed', 'voice_multi_enabled', 'voice_mapping_json', 'app_mode', 'intro_video_path']: # [NEW]
+                    'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity',
+                    'voice_provider', 'voice_speed', 'voice_multi_enabled', 'voice_mapping_json', 'app_mode', 'intro_video_path', 'thumbnail_style', 'image_style']: # [NEW]
             if key in settings:
                 fields.append(f"{key} = ?")
                 values.append(settings[key])
@@ -1145,8 +1177,8 @@ def save_project_settings(project_id: int, settings: Dict):
               video_command, video_path, is_uploaded,
               image_style_prompt, subtitle_font, subtitle_color, target_language, subtitle_style_enum, subtitle_font_size, subtitle_stroke_color, subtitle_stroke_width, subtitle_position_y, background_video_url, character_ref_text, character_ref_image_path, script_style,
               subtitle_base_color, subtitle_pos_y, subtitle_pos_x, subtitle_bg_enabled, subtitle_stroke_enabled, subtitle_line_spacing, subtitle_bg_color, subtitle_bg_opacity,
-              voice_provider, voice_speed, voice_multi_enabled, voice_mapping_json, app_mode, intro_video_path)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              voice_provider, voice_speed, voice_multi_enabled, voice_mapping_json, app_mode, intro_video_path, thumbnail_style, image_style)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          """, (
             project_id,
             settings.get('title'),
@@ -1190,6 +1222,8 @@ def save_project_settings(project_id: int, settings: Dict):
             settings.get('voice_mapping_json'),
             settings.get('app_mode', 'longform'),
             settings.get('intro_video_path'),
+            settings.get('thumbnail_style'),
+            settings.get('image_style'),
         ))
 
     conn.commit()
@@ -1218,8 +1252,7 @@ def update_project_setting(project_id: int, key: str, value: Any):
                     'subtitle_path', 'image_timings_path', 'timeline_images_path', 'image_effects_path', 'app_mode',
                     'subtitle_base_color', 'subtitle_pos_y', 'subtitle_pos_x', 'subtitle_bg_enabled', 'subtitle_stroke_enabled',
                     'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity',
-                    'voice_provider', 'voice_speed', 'voice_multi_enabled', 'voice_mapping_json', 'intro_video_path',
-                    'thumbnail_style'] # [FIX] Added missing subtitle keys and thumbnail_style
+                    'voice_provider', 'voice_speed', 'voice_multi_enabled', 'voice_mapping_json', 'intro_video_path', 'thumbnail_style', 'image_style']
 
 
     if key not in allowed_keys:

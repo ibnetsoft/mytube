@@ -162,7 +162,8 @@
                         <a href="/video-upload" id="nav-upload"
                             class="sidebar-item {% if page == 'video-upload' %}active{% endif %}">
                             <span class="sidebar-icon">📤</span>
-                            <span>{% if is_independent %}{{ t('nav_upload') }}{% else %}업로드 예약{% endif %}</span>
+                            <span>{% if is_independent %}{{ t('nav_upload') }}{% else %}{{ t('nav_reserve') }}{% endif
+                                %}</span>
                         </a>
                     </li>
 
@@ -171,6 +172,17 @@
                             class="sidebar-item {% if page == 'shorts' %}active{% endif %}">
                             <span class="sidebar-icon">📱</span>
                             <span>{{ t('nav_shorts') }}</span>
+                        </a>
+                    </li>
+                    <li class="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                        <a href="/autopilot" id="nav-autopilot"
+                            class="sidebar-item bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 {% if page == 'autopilot' %}active{% endif %}">
+                            <span class="sidebar-icon">🤖</span>
+                            <span
+                                class="bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-400 font-bold">{{
+                                t('nav_autopilot') }}</span>
+                            <span
+                                class="ml-auto text-[10px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded">Beta</span>
                         </a>
                     </li>
                     <li class="mt-1 pt-1">
@@ -203,7 +215,7 @@
                 {% if not is_independent %}
                 <div
                     class="mt-2 p-2 bg-blue-500/10 rounded-lg border border-blue-500/20 text-[10px] text-blue-600 dark:text-blue-400 font-bold">
-                    💎 독립 회원이 되어 <br />직접 업로드 권한을 얻으세요!
+                    {{ t('msg_independent_promo') | safe }}
                 </div>
                 {% endif %}
             </div>
@@ -408,6 +420,59 @@
     <script src="/static/js/utils.js?v={{ range(1, 100000) | random }}"></script>
     <script src="/static/js/api_v2.js?v={{ range(1, 100000) | random }}"></script>
     {% block scripts %}{% endblock %}
+
+    <div
+        class="fixed top-4 right-6 z-50 flex gap-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur p-1.5 rounded-full shadow-lg border border-gray-200 dark:border-gray-700 transition-all hover:scale-105">
+        <button onclick="changeGlobalLanguage('ko')"
+            class="w-8 h-8 rounded-full overflow-hidden border-2 border-transparent hover:border-indigo-500 transition-all transform hover:-translate-y-1 relative group"
+            title="한국어">
+            <img src="https://flagcdn.com/w40/kr.png" alt="Korean" class="w-full h-full object-cover">
+            <div class="absolute inset-0 bg-black/10 group-hover:bg-transparent transition"></div>
+        </button>
+        <button onclick="changeGlobalLanguage('en')"
+            class="w-8 h-8 rounded-full overflow-hidden border-2 border-transparent hover:border-indigo-500 transition-all transform hover:-translate-y-1 relative group"
+            title="English">
+            <img src="https://flagcdn.com/w40/gb.png" alt="English" class="w-full h-full object-cover">
+            <div class="absolute inset-0 bg-black/10 group-hover:bg-transparent transition"></div>
+        </button>
+        <button onclick="changeGlobalLanguage('vi')"
+            class="w-8 h-8 rounded-full overflow-hidden border-2 border-transparent hover:border-indigo-500 transition-all transform hover:-translate-y-1 relative group"
+            title="Tiếng Việt">
+            <img src="https://flagcdn.com/w40/vn.png" alt="Vietnamese" class="w-full h-full object-cover">
+            <div class="absolute inset-0 bg-black/10 group-hover:bg-transparent transition"></div>
+        </button>
+    </div>
+
+    <script>
+        // Global Language Switcher
+        async function changeGlobalLanguage(lang) {
+            try {
+                const res = await fetch('/api/settings/language', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ lang: lang })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    // Show animation or toast
+                    Utils.showToast('Language changing...', 'success');
+                    setTimeout(() => window.location.reload(), 500);
+                }
+            } catch (e) {
+                console.error("Language switch failed:", e);
+                Utils.showToast('Failed to switch language', 'error');
+            }
+        }
+
+        // Highlight current lang
+        document.addEventListener('DOMContentLoaded', () => {
+            // current_lang is injected by Jinja2, but we can't access it easily in JS variable unless we distinct it.
+            // But we can check the html lang attribute if set, or just use server logic.
+            // Ideally visual feedback is good.
+            // Let's assume re-render handles it, but for active state:
+            // We can check cookies? Or just reliance on reload.
+        });
+    </script>
 
     <script>
         // 프로젝트 상태 한글
@@ -675,7 +740,7 @@
 
                     // Rename Script Gen
                     if (navScript) {
-                        navScript.querySelector('span:last-child').textContent = "쇼츠 대본";
+                        navScript.querySelector('span:last-child').textContent = "{{ t('nav_script_shorts') }}";
                     }
                 } else {
                     // Longform Mode: Show everything (default)
@@ -686,7 +751,7 @@
                     if (navShorts) navShorts.parentElement.classList.remove('hidden');
 
                     if (navScript) {
-                        navScript.querySelector('span:last-child').textContent = "대본 생성";
+                        navScript.querySelector('span:last-child').textContent = "{{ t('nav_script') }}";
                     }
                 }
 

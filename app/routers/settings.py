@@ -1,7 +1,7 @@
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Dict, Any
 import database as db
 import os
 import shutil
@@ -10,6 +10,55 @@ import time
 from config import config
 
 router = APIRouter(prefix="/api/settings", tags=["Settings"])
+
+class GlobalSettings(BaseModel):
+    app_mode: Optional[str] = None
+    gemini_tts: Optional[Dict[str, Any]] = None
+    script_styles: Optional[Dict[str, Any]] = None
+
+@router.get("")
+async def get_global_settings_api():
+    """글로벌 설정 조회 (Project 1 + Global Table)"""
+    # 1. Load Global Table Settings
+    global_conf = {
+        "app_mode": db.get_global_setting("app_mode", None), # Use None to allow fallback
+        "gemini_tts": db.get_global_setting("gemini_tts", {}),
+        "script_styles": db.get_global_setting("script_styles", {}),
+        "template_image_url": db.get_global_setting("template_image_url")
+    }
+    
+    # 2. Load Default Settings (stored in Project 1 by convention)
+    default_project_settings = db.get_project_settings(1) or {}
+    
+    # 3. Merge (Project 1 is base, Global Table overrides specific keys)
+    # But for app_mode, we want Global Table value if exists, else Project 1
+    merged = default_project_settings.copy()
+    
+    # Update only non-None values from global_conf or specific logic
+    if global_conf["app_mode"]:
+        merged["app_mode"] = global_conf["app_mode"]
+    
+    # gemini_tts and others from global table are strictly structure objects
+    # Autopilot expects flat fields like voice_provider, so we keep Project 1 values
+    # unless we want to map gemini_tts back to flat fields. 
+    # For now, just returning merged allows Autopilot to find 'voice_provider' from Project 1.
+    
+    merged["gemini_tts"] = global_conf["gemini_tts"]
+    merged["script_styles"] = global_conf["script_styles"]
+    merged["template_image_url"] = global_conf["template_image_url"]
+    
+    return merged
+
+@router.post("")
+async def save_global_settings_api(settings: GlobalSettings):
+    """글로벌 설정 저장"""
+    if settings.app_mode:
+        db.save_global_setting("app_mode", settings.app_mode)
+    if settings.gemini_tts:
+        db.save_global_setting("gemini_tts", settings.gemini_tts)
+    if settings.script_styles:
+        db.save_global_setting("script_styles", settings.script_styles)
+    return {"status": "ok"}
 
 class StylePreset(BaseModel):
     style_key: str
@@ -155,7 +204,6 @@ async def get_thumbnail_style_presets_api():
             "mystery": "미스터리형: 어두운 조명, 실루엣, 물음표 등을 활용하여 호기심을 자극하는 분위기. 중요한 정보는 가려져 있거나 흐릿하게 표현.",
             "minimal": "미니멀형: 여백을 충분히 활용하고, 핵심 요소 1-2개만 배치하여 깔끔하고 세련된 느낌. 색상은 2-3가지로 제한.",
             "dramatic": "드라마틱형: 역동적인 앵글, 강한 명암 대비, 영화 포스터 같은 극적인 연출. 채도가 높고 강렬한 색감 사용.",
-            "japanese_viral": "시니어 롱폼(일본풍): 일본 유튜브 스타일의 화려한 자막과 이펙트. 원색적인 색감 사용과 정보량이 많은 꽉 찬 화면 구성.",
             "ghibli": "지브리 감성: 지브리 스튜디오 애니메이션 스타일. 부드러운 수채화풍 배경, 파스텔 톤 색감, 몽환적이고 감성적인 분위기.",
             "wimpy": "윔피키드 스타일: 윔피키드(Wimpy Kid) 다이어리 스타일. 흑백의 단순한 선화, 손글씨 폰트, 공책 질감 배경, 유머러스한 낙서 느낌."
         }

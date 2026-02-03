@@ -201,6 +201,11 @@
         checkScriptStatus(); // [NEW] Check Status
         await checkAPIStatus();
         await loadVoices();
+
+        // [NEW] Restore saved settings
+        const pid = getCurrentProject();
+        if (pid) await restoreTTSSettings(pid);
+
         loadScript();
 
         document.getElementById('providerSelect').addEventListener('change', handleProviderChange);
@@ -211,6 +216,41 @@
             speedSlider.addEventListener('input', (e) => speedValue.textContent = e.target.value);
         }
     });
+
+    async function restoreTTSSettings(projectId) {
+        try {
+            const settings = await API.project.getSettings(projectId);
+            if (!settings) return;
+
+            if (settings.voice_provider) {
+                const prov = document.getElementById('providerSelect');
+                if (prov) {
+                    prov.value = settings.voice_provider;
+                    // reload voices for this provider
+                    await loadVoices();
+                }
+            }
+
+            if (settings.voice_name) { // voice_name maps to voiceId in DB
+                const vs = document.getElementById('voiceSelect');
+                if (vs) vs.value = settings.voice_name;
+            }
+            // voice_id might also be used in some contexts, check both
+            if (settings.voice_id && !settings.voice_name) {
+                const vs = document.getElementById('voiceSelect');
+                if (vs) vs.value = settings.voice_id;
+            }
+
+            if (settings.voice_speed) {
+                const speed = document.getElementById('audioSpeed');
+                const val = document.getElementById('speedValue');
+                if (speed) speed.value = settings.voice_speed;
+                if (val) val.textContent = settings.voice_speed;
+            }
+        } catch (e) {
+            console.error("Failed to restore TTS settings:", e);
+        }
+    }
 
     // Script Status Check (Same logic as image_gen)
     async function checkScriptStatus() {

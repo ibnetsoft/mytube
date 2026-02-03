@@ -284,4 +284,16 @@ JSON 형식으로 5개의 후보 문구를 생성하세요:
 **중요**: 대본의 핵심 메시지를 왜곡하지 말고, 클릭베이트가 아닌 진정성 있는 후킹을 만드세요.
 JSON만 반환하세요."""
 
+    THUMBNAIL_IDEA_PROMPT = """
+        Topic: {topic}
+        Script Summary: {script_summary}
+        
+        Suggest a high Click-Through-Rate (CTR) Thumbnail Plan.
+        JSON Output:
+        {{
+            "hook_text": "Short shocking text (max 5 words)",
+            "image_prompt": "Visual description for AI image generator (English, detailed, 16:9)"
+        }}
+    """
+
 prompts = Prompts()

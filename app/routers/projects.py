@@ -148,6 +148,10 @@ async def update_project_details(project_id: int, data: Dict[str, Any]):
         if project_updates:
             db.update_project(project_id, **project_updates)
             
+            # [NEW] Sync Topic to Global Settings (Project 1) for Autopilot
+            if "topic" in project_updates:
+                db.update_project_setting(1, "last_topic", project_updates["topic"])
+            
         # 2. project_settings 테이블 정보 업데이트 (title -> video_title)
         if "video_title" in data:
             db.update_project_setting(project_id, "title", data["video_title"])

@@ -267,6 +267,45 @@ class GeminiService:
             return json.loads(json_match.group())
         return {"error": "파싱 실패", "raw": text}
 
+    async def generate_thumbnail_texts(self, topic: str, script: str, style: str, language: str = "ko") -> dict:
+        """대본 및 스타일 기반 썸네일 후킹 문구 생성"""
+        
+        # Script truncation to avoid token limits
+        safe_script = script[:3000] if script else f"Topic: {topic}"
+        
+        prompt = prompts.GEMINI_THUMBNAIL_HOOK_TEXT.format(
+            script=safe_script,
+            thumbnail_style=style,
+            image_style=style, # Same for now
+            target_language=language
+        )
+
+        try:
+            text = await self.generate_text(prompt, temperature=0.8)
+            
+            # JSON Parsing
+            import json
+            import re
+            
+            # Clean Markdown
+            cleaned_text = re.sub(r'```json\s*|\s*```', '', text).strip()
+            
+            # Try parse
+            try:
+                data = json.loads(cleaned_text)
+                return data
+            except json.JSONDecodeError:
+                match = re.search(r'\{[\s\S]*\}', cleaned_text)
+                if match:
+                    return json.loads(match.group(0))
+                else:
+                    # Fallback
+                    return {"texts": [], "reasoning": "JSON parse failed"}
+                    
+        except Exception as e:
+            print(f"Thumbnail Text Gen Error: {e}")
+            return {"texts": [], "reasoning": str(e)}
+
     async def extract_success_strategy(self, analysis_data: dict) -> List[dict]:
         """분석 결과에서 일반화된 성공 전략(Knowledge) 추출"""
         analysis_json = json.dumps(analysis_data, ensure_ascii=False)
@@ -338,6 +377,7 @@ class GeminiService:
         context_instruction = "Korean context."
         if target_language == "ja": context_instruction = "Japanese context."
         elif target_language == "en": context_instruction = "Global context."
+        elif target_language == "vi": context_instruction = "Vietnamese context."
         
 
         
@@ -420,6 +460,7 @@ class GeminiService:
         elif language == "ja": lang_name = "Japan (Japanese)"
         elif language == "en": lang_name = "USA/International (English)"
         elif language == "es": lang_name = "Spain/Latin America (Spanish)"
+        elif language == "vi": lang_name = "Vietnam (Vietnamese)"
         else: lang_name = "South Korea (Korean)"
 
         # 기간 텍스트

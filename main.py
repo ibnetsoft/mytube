@@ -38,10 +38,12 @@ except Exception as e:
 
 from config import config
 import database as db
+from app.routers import settings  # [NEW]
 from services.gemini_service import gemini_service
 from services.replicate_service import replicate_service
 from services.auth_service import auth_service
 from services.storage_service import storage_service
+from services.thumbnail_service import thumbnail_service
 
 # Helper: 프로젝트별 출력 폴더 생성
 def get_project_output_dir(project_id: int):
@@ -110,7 +112,31 @@ def get_license_key():
 templates.env.globals['get_license_key'] = get_license_key
 templates.env.globals['AUTH_SERVER_URL'] = "http://localhost:3000" if config.DEBUG else "https://mytube-ashy-seven.vercel.app"
 
+# [NEW] Language Persistence
+LANG_FILE = "language.pref"
+if os.path.exists(LANG_FILE):
+    with open(LANG_FILE, "r") as f:
+        saved_lang = f.read().strip()
+        if saved_lang in ['ko', 'en', 'vi']:
+            translator.set_lang(saved_lang)
+            app_lang = saved_lang
+            templates.env.globals['current_lang'] = app_lang
+            print(f"[I18N] Loaded saved language: {app_lang}")
+
 app.mount("/static", StaticFiles(directory=config.STATIC_DIR), name="static")
+app.include_router(settings.router)  # [NEW]
+
+@app.post("/api/settings/language")
+async def set_language(lang: str = Body(..., embed=True)):
+    """Change global language setting"""
+    if lang in ['ko', 'en', 'vi']:
+        translator.set_lang(lang)
+        templates.env.globals['current_lang'] = lang
+        # Persist
+        with open(LANG_FILE, "w") as f:
+            f.write(lang)
+        return {"status": "ok", "lang": lang}
+    return {"status": "error", "message": "Invalid language"}
 
 # output 폴더
 os.makedirs(config.OUTPUT_DIR, exist_ok=True)
@@ -235,6 +261,7 @@ class ProjectSettingUpdate(BaseModel):
 class ThumbnailsSave(BaseModel):
     ideas: List[dict]
     texts: List[str]
+    full_settings: Optional[dict] = None
 
 class ShortsSave(BaseModel):
     shorts_data: List[dict]
@@ -252,6 +279,7 @@ class ProjectSettingsSave(BaseModel):
     is_uploaded: Optional[int] = None
     subtitle_style_enum: Optional[str] = None
     image_style_prompt: Optional[str] = None
+    image_style: Optional[str] = None  # For autopilot sync
     character_ref_text: Optional[str] = None
     character_ref_image_path: Optional[str] = None
     voice_name: Optional[str] = None
@@ -289,6 +317,8 @@ class ProjectSettingsSave(BaseModel):
     timeline_images_path: Optional[str] = None
     image_effects_path: Optional[str] = None
     intro_video_path: Optional[str] = None
+    # Thumbnail
+    thumbnail_style: Optional[str] = None
 class ChannelCreate(BaseModel):
     name: str
     handle: str
@@ -891,8 +921,8 @@ async def get_metadata(project_id: int):
 
 @app.post("/api/projects/{project_id}/thumbnails")
 async def save_thumbnails(project_id: int, req: ThumbnailsSave):
-    """썸네일 아이디어 저장"""
-    db.save_thumbnails(project_id, req.ideas, req.texts)
+    """썸네일 아이디어 및 설정 저장"""
+    db.save_thumbnails(project_id, req.ideas, req.texts, req.full_settings)
     return {"status": "ok"}
 
 @app.get("/api/projects/{project_id}/thumbnails")
@@ -949,12 +979,25 @@ async def get_shorts(project_id: int):
     return db.get_shorts(project_id) or {}
 
 # 프로젝트 핵심 설정 (10가지 요소)
+# List of keys to sync to Global/Default settings (Project 1)
+SYNC_KEYS = ['visual_style', 'image_style', 'image_style_prompt', 'thumbnail_style', 
+             'script_style', 'voice_provider', 'voice_id', 'voice_name', 'voice_language',
+             'character_ref_text', 'character_ref_image_path', 'duration_seconds']
+
 @app.post("/api/projects/{project_id}/settings")
 async def save_project_settings(project_id: int, req: ProjectSettingsSave):
     """프로젝트 핵심 설정 저장"""
     try:
         settings = {k: v for k, v in req.dict().items() if v is not None}
         db.save_project_settings(project_id, settings)
+        
+        # [FIX] Sync to Global Settings (Project 1)
+        if project_id != 1:
+            global_updates = {k: v for k, v in settings.items() if k in SYNC_KEYS}
+            if global_updates:
+                db.save_project_settings(1, global_updates)
+                print(f"🔄 Synced {len(global_updates)} settings to Global (Project 1)")
+
         return {"status": "ok", "message": "Settings saved"}
     except Exception as e:
         print(f"Settings Save Error: {e}")
@@ -973,7 +1016,14 @@ async def update_project_setting(project_id: int, key: str, value: str):
         value = int(value)
     elif key in ['subtitle_font_size', 'subtitle_stroke_width', 'subtitle_line_spacing', 'subtitle_bg_opacity']:
         value = float(value)
+        
     result = db.update_project_setting(project_id, key, value)
+    
+    # [FIX] Sync to Global Settings (Project 1)
+    if project_id != 1 and key in SYNC_KEYS:
+        db.update_project_setting(1, key, value)
+        print(f"🔄 Synced '{key}' to Global (Project 1)")
+
     if not result:
         raise HTTPException(400, f"유효하지 않은 설정 키: {key}")
     return {"status": "ok"}
@@ -1060,7 +1110,20 @@ async def save_api_keys(req: ApiKeySave):
 async def get_global_settings():
     """글로벌 설정 조회"""
     from services.settings_service import settings_service
-    return settings_service.get_settings()
+    
+    # 1. Load JSON settings
+    settings = settings_service.get_settings()
+    
+    # 2. Merge DB global settings (Project 1)
+    # Project 1 acts as the container for global preferences synced from other projects
+    try:
+        db_settings = db.get_project_settings(1)
+        if db_settings:
+            settings.update(db_settings)
+    except Exception as e:
+        print(f"Failed to merge DB settings: {e}")
+        
+    return settings
 
 @app.post("/api/settings")
 async def save_global_settings(data: Dict[str, Any] = Body(...)):
@@ -2029,6 +2092,12 @@ async def get_settings_api():
                 "language_code": p_settings.get("voice_language"),
                 "style_prompt": p_settings.get("voice_style_prompt")
             },
+            "voice_provider": p_settings.get("voice_provider"),
+            "voice_id": p_settings.get("voice_id") or p_settings.get("voice_name"), # fallback
+            "visual_style": p_settings.get("visual_style"),
+            "image_style": p_settings.get("visual_style"), # alias
+            "thumbnail_style": p_settings.get("thumbnail_style"),
+            "script_style": p_settings.get("script_style"),
             "app_mode": p_settings.get("app_mode", "longform"),
             "template_image_url": p_settings.get("template_image_url")
         }
@@ -2105,6 +2174,7 @@ async def tts_voices():
                         voices.append({
                             "voice_id": v["voice_id"],
                             "name": v["name"],
+                            "provider": "elevenlabs",
                             "preview_url": v.get("preview_url"),
                             "labels": v.get("labels", {})
                         })
@@ -5109,6 +5179,60 @@ async def regenerate_subtitles(project_id: int):
         return {"status": "error", "error": str(e)}
 
 
+@app.get("/autopilot", response_class=HTMLResponse)
+async def page_autopilot(request: Request):
+    """오토파일럿 (디렉터 모드) 페이지"""
+    return templates.TemplateResponse("pages/autopilot.html", {"request": request})
+
+class AutoPilotStartRequest(BaseModel):
+    keyword: str
+    visual_style: str = "realistic"
+    thumbnail_style: Optional[str] = "face" # [NEW]
+    video_scene_count: int = 0
+    narrative_style: str = "informative"
+    script_style: Optional[str] = None # [NEW] Alias or explicit
+    voice_id: str = "ko-KR-Neural2-A"
+    voice_provider: Optional[str] = None # [NEW]
+    subtitle_style: str = "Basic_White"
+    duration_seconds: Optional[int] = 0 # [NEW]
+
+@app.post("/api/autopilot/start")
+async def start_autopilot_api(
+    req: AutoPilotStartRequest,
+    background_tasks: BackgroundTasks
+):
+    """오토파일럿 시작 (API)"""
+    # 1. Start Workflow in Background
+    # We pass the configuration dictionary to the service
+    config_dict = {
+        "visual_style": req.visual_style,
+        "thumbnail_style": req.thumbnail_style,
+        "video_scene_count": req.video_scene_count,
+        "narrative_style": req.script_style or req.narrative_style, # Prefer script_style
+        "script_style": req.script_style or req.narrative_style, 
+        "voice_id": req.voice_id,
+        "voice_provider": req.voice_provider,
+        "duration_seconds": req.duration_seconds
+    }
+    
+    # Create Project First
+    project_name = f"[Auto] {req.keyword}"
+    project_id = db.create_project(name=project_name, topic=req.keyword)
+    
+    # Save Initial Settings
+    db.update_project_setting(project_id, "autopilot_config", config_dict)
+    
+    # [NEW] Also save key settings to project_settings table directly for immediate UI sync
+    if req.thumbnail_style:
+        db.update_project_setting(project_id, "thumbnail_style", req.thumbnail_style)
+    if req.duration_seconds:
+         db.update_project_setting(project_id, "duration_seconds", req.duration_seconds)
+    
+    # Start Task
+    background_tasks.add_task(autopilot_service.run_workflow, req.keyword, project_id, config_dict)
+    
+    return {"status": "ok", "project_id": project_id, "message": "Automation started"}
+
 # ===========================================
 # Auto-Pilot Scheduler
 # ===========================================
@@ -5690,7 +5814,9 @@ async def create_plan_from_repository(req: RepositoryPlanRequest):
 # API: 스타일 프리셋 관리 (모듈화 완료)
 # ===========================================
 from app.routers import settings as settings_router
+from app.routers import thumbnails as thumbnails_router
 app.include_router(settings_router.router)
+app.include_router(thumbnails_router.router)
 
 
 

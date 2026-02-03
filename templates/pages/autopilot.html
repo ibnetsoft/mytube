@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto py-8 px-4">
+    <div class="header-section mb-8">
+        <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-500 mb-2">
+            {{ t('autopilot_title') }} <span
+                class="text-sm font-normal text-purple-400 bg-purple-400/10 px-2 py-0.5 rounded-full ml-2">Director
+                Mode</span>
+        </h1>
+        <p class="text-gray-500 dark:text-gray-400">{{ t('autopilot_desc') }}</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Input Panel -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- 1. Topic -->
+            <div class="card bg-gray-900/40 border-purple-500/20 backdrop-blur-sm p-6">
+                <div class="flex items-center gap-3 mb-6">
+                    <div
+                        class="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-400 font-bold">
+                        1</div>
+                    <h3 class="text-xl font-bold text-white">{{ t('autopilot_step_topic') }}</h3>
+                </div>
+
+                <div class="space-y-4">
+                    <label class="block text-sm font-medium text-gray-400">{{ t('label_topic_keyword') }}</label>
+                    <input type="text" id="topicInput"
+                        class="w-full bg-gray-800/50 border-gray-700 text-white rounded-xl px-4 py-3 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                        placeholder="{{ t('placeholder_topic') }}">
+                </div>
+            </div>
+
+            <!-- 2. Visual & Video -->
+            <div class="card bg-gray-900/40 border-purple-500/20 backdrop-blur-sm p-6">
+                <div class="flex items-center gap-3 mb-6">
+                    <div
+                        class="w-10 h-10 rounded-xl bg-pink-500/20 flex items-center justify-center text-pink-400 font-bold">
+                        2</div>
+                    <h3 class="text-xl font-bold text-white">{{ t('autopilot_step_visual') }}</h3>
+                </div>
+
+                <!-- [NEW] Image Styles Grid -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-400 mb-3">{{ t('select_style_label') }}</label>
+                    <input type="hidden" id="imageStyle" value="realistic">
+                    <div id="styleSelectorGrid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                        <!-- Dynamic Loading via JS -->
+                    </div>
+                </div>
+
+                <div class="pt-6 border-t border-gray-800">
+                    <div class="flex items-center justify-between mb-4">
+                        <label class="text-sm font-medium text-gray-400">{{ t('label_video_scenes') }}</label>
+                        <span id="sceneCountVal"
+                            class="text-pink-400 font-bold bg-pink-400/10 px-2 py-0.5 rounded text-xs">0 Scenes</span>
+                    </div>
+                    <input type="range" id="videoSceneCount" min="0" max="20" value="0"
+                        class="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-pink-500 mb-2">
+                    <p class="text-[11px] text-gray-500">{{ t('desc_video_scenes') }}</p>
+                </div>
+            </div>
+
+            <!-- 3. Thumbnail Settings -->
+            <div class="card bg-gray-900/40 border-purple-500/20 backdrop-blur-sm p-6">
+                <div class="flex items-center gap-3 mb-6">
+                    <div
+                        class="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center text-orange-400 font-bold">
+                        3</div>
+                    <h3 class="text-xl font-bold text-white">썸네일 스타일 (Thumbnail)</h3>
+                </div>
+
+                <div class="mb-6">
+                    <input type="hidden" id="thumbnailStyle" value="face">
+                    <div id="thumbnailStyleGrid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                        <!-- Dynamic Loading via JS -->
+                        <div class="col-span-full py-4 text-center text-gray-500 text-xs">Loading Styles...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. Narration & Audio -->
+            <div class="card bg-gray-900/40 border-purple-500/20 backdrop-blur-sm p-6">
+                <div class="flex items-center gap-3 mb-6">
+                    <div
+                        class="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold">
+                        4</div>
+                    <h3 class="text-xl font-bold text-white">{{ t('autopilot_step_audio') }}</h3>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Script Style -->
+                    <div class="space-y-4">
+                        <label class="block text-sm font-medium text-gray-400">{{ t('plan_style_label') }}</label>
+                        <select id="scriptStyleSelect"
+                            class="w-full bg-gray-800/50 border-gray-700 text-white rounded-xl px-4 py-3 text-sm">
+                            <optgroup label="📹 기본 스타일">
+                                <option value="default" selected>기본 설정 (Natural)</option>
+                                <option value="news">뉴스 보도 (News)</option>
+                                <option value="story">옛날 이야기 (Story)</option>
+                                <option value="senior_story">시니어 사연 (Senior)</option>
+                            </optgroup>
+                            <optgroup label="🎬 영화/시대극">
+                                <option value="classic_50s">50년대 클래식영화</option>
+                                <option value="joseon_sageuk">조선시대 사극</option>
+                                <option value="modern_drama">현대 드라마</option>
+                                <option value="mystery_thriller">미스터리 스릴러</option>
+                            </optgroup>
+                            <optgroup label="🎨 아트/애니">
+                                <option value="watercolor_analog">수채화풍</option>
+                                <option value="digital_webtoon">디지털 웹툰</option>
+                                <option value="cyberpunk_neon">사이버펑크</option>
+                            </optgroup>
+                        </select>
+                    </div>
+
+                    <!-- Voice Selection (Dynamic) -->
+                    <div class="space-y-4">
+                        <label class="block text-sm font-medium text-gray-400">{{ t('label_voice_tone') }}</label>
+                        <div class="flex flex-col gap-2">
+                            <select id="providerSelect"
+                                class="w-full bg-gray-800/50 border-gray-700 text-white rounded-xl px-4 py-2 text-xs">
+                                <option value="gemini">Gemini (Free)</option>
+                                <option value="elevenlabs" selected>ElevenLabs</option>
+                                <option value="google_cloud">Google Cloud</option>
+                                <option value="openai">OpenAI</option>
+                            </select>
+                            <select id="voiceSelect"
+                                class="w-full bg-gray-800/50 border-gray-700 text-white rounded-xl px-4 py-2 text-xs">
+                                <option value="">Loading Voices...</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button id="startAutopilotBtn"
+                class="w-full py-5 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-xl shadow-lg shadow-purple-900/20 hover:scale-[1.02] transform transition-all active:scale-95 group">
+                <span class="group-hover:mr-2 transition-all">{{ t('btn_start_autopilot') }}</span>
+                <span class="opacity-0 group-hover:opacity-100 transition-all">🚀</span>
+            </button>
+            <button onclick="clearLogs()" class="text-xs text-gray-500 hover:text-white">{{ t('btn_clear_log')
+                }}</button>
+        </div>
+        <div id="consoleLogs" class="flex-1 overflow-y-auto space-y-1 p-2 text-gray-300">
+            <div class="text-gray-500 italic">Waiting to start...</div>
+        </div>
+    </div>
+
+</div>
+</div>
+</div>
+
+<script src="/static/js/autopilot.js"></script>
+{% endblock %}

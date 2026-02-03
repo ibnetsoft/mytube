@@ -427,13 +427,8 @@ const API = {
             return response.json();
         },
 
-        // [New] Bulk update settings
+        // All settings bulk update
         async updateSettings(projectId, settings) {
-            return this.saveSettings(projectId, settings);
-        },
-
-        // Alias for update (commonly used)
-        async update(projectId, settings) {
             return this.saveSettings(projectId, settings);
         }
     },
