@@ -6,6 +6,33 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 2. Load Saved Settings (Global / Default Project)
     await loadSavedSettings();
+
+    // 3. Event Listeners
+    const startBtn = document.getElementById('startAutopilotBtn');
+    if (startBtn) {
+        startBtn.addEventListener('click', startAutopilot);
+    }
+
+    const sceneRange = document.getElementById('videoSceneCount');
+    const sceneVal = document.getElementById('sceneCountVal');
+    if (sceneRange && sceneVal) {
+        sceneRange.addEventListener('input', (e) => {
+            sceneVal.textContent = `${e.target.value} Scenes`;
+        });
+    }
+
+    // [NEW] Check Monitor Mode
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('monitor') === 'true' && urlParams.get('project_id')) {
+        const pid = urlParams.get('project_id');
+        console.log("🔄 Monitoring Project:", pid);
+        const startBtn = document.getElementById('startAutopilotBtn');
+        if (startBtn) {
+            startBtn.disabled = true;
+            startBtn.innerText = "🔄 Processing... (Monitoring Mode)";
+        }
+        pollStatus(pid);
+    }
 });
 
 // Styles Configuration
@@ -448,4 +475,127 @@ function pollStatus(projectId) {
             console.error("Poll error:", e);
         }
     }, 5000);
+}
+
+/* =========================================
+   [NEW] Batch Mode Logic
+   ========================================= */
+
+function switchTab(mode) {
+    const single = document.getElementById('singleMode');
+    const batch = document.getElementById('batchMode');
+    const tabSingle = document.getElementById('tabSingle');
+    const tabBatch = document.getElementById('tabBatch');
+
+    if (mode === 'single') {
+        single.classList.remove('hidden');
+        batch.classList.add('hidden');
+        tabSingle.classList.add('border-purple-500', 'text-purple-400');
+        tabSingle.classList.remove('border-transparent', 'text-gray-400');
+        tabBatch.classList.remove('border-purple-500', 'text-purple-400');
+        tabBatch.classList.add('border-transparent', 'text-gray-400');
+    } else {
+        single.classList.add('hidden');
+        batch.classList.remove('hidden');
+        tabBatch.classList.add('border-purple-500', 'text-purple-400');
+        tabBatch.classList.remove('border-transparent', 'text-gray-400');
+        tabSingle.classList.remove('border-purple-500', 'text-purple-400');
+        tabSingle.classList.add('border-transparent', 'text-gray-400');
+        refreshQueue();
+    }
+}
+
+async function refreshQueue() {
+    const list = document.getElementById('queueList');
+    const badge = document.getElementById('queueBadge');
+    const countEl = document.getElementById('queueCount');
+
+    list.innerHTML = `<div class="text-center py-12 text-gray-500"><div class="loader-sm mx-auto mb-2"></div>로딩 중...</div>`;
+
+    try {
+        const res = await fetch('/api/autopilot/queue');
+        const data = await res.json();
+
+        const projects = data.projects || [];
+        const count = data.count || 0;
+
+        if (badge) {
+            badge.innerText = count;
+            badge.classList.remove('hidden');
+        }
+        if (countEl) countEl.innerText = count;
+
+        const btnStart = document.getElementById('btnStartBatch');
+
+        if (count === 0) {
+            list.innerHTML = `<div class="text-center py-12 text-gray-500">대기 중인 프로젝트가 없습니다.<br><span class="text-xs">기획 페이지에서 '담기' 버튼을 눌러 추가하세요.</span></div>`;
+            if (btnStart) btnStart.disabled = true;
+            return;
+        }
+
+        if (btnStart) btnStart.disabled = false;
+
+        list.innerHTML = projects.map((p, idx) => `
+            <div class="flex items-center justify-between p-4 bg-gray-800/50 rounded-xl border border-gray-700/50 hover:bg-gray-800 transition-all">
+                <div class="flex items-center gap-4">
+                    <div class="flex flex-col items-center">
+                        <span class="text-gray-600 font-mono text-xs mb-1">SEQ</span>
+                        <span class="text-purple-400 font-bold bg-purple-500/10 px-2 py-0.5 rounded text-sm">${idx + 1}</span>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-white text-base mb-1">${p.topic || '제목 없음'}</h4>
+                        <p class="text-xs text-gray-400 flex items-center gap-2">
+                            <span>ID: ${p.id}</span>
+                            <span class="text-gray-600">|</span>
+                            <span>${new Date(p.created_at).toLocaleString()}</span>
+                            ${p.status === 'queued' ? '<span class="text-yellow-500 bg-yellow-500/10 px-1.5 py-0.5 rounded ml-2">대기중</span>' : ''}
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="deleteFromQueue(${p.id})" class="text-xs text-red-500 bg-red-500/10 px-3 py-1.5 rounded hover:bg-red-500 hover:text-white transition-all ml-2">삭제</button>
+                </div>
+            </div>
+        `).join('');
+
+    } catch (e) {
+        console.error(e);
+        list.innerHTML = `<div class="text-center py-12 text-red-500">목록 로드 실패</div>`;
+    }
+}
+
+async function startBatch() {
+    if (!confirm("대기열에 있는 모든 프로젝트를 순차적으로 제작하시겠습니까? (이 작업은 시간이 걸립니다)")) return;
+
+    const btn = document.getElementById('btnStartBatch');
+    btn.disabled = true;
+    btn.innerHTML = `<span>⏳</span> 시작 요청 중...`;
+
+    try {
+        const res = await fetch('/api/autopilot/batch-start', { method: 'POST' });
+        const data = await res.json();
+
+        if (data.status === 'started') {
+            Utils.showToast("일괄 제작이 시작되었습니다! 🚀", "success");
+            btn.innerHTML = `<span>🔄</span> 일괄 처리 실행 중...`;
+            document.getElementById('batchConsoleLogs').innerHTML = `<div class="text-yellow-400">✅ 명령이 전달되었습니다. 서버 로그를 모니터링합니다...</div>`;
+        }
+    } catch (e) {
+        alert("실패: " + e.message);
+        btn.disabled = false;
+        btn.innerHTML = `<span>▶️</span> 일괄 처리 시작`;
+    }
+}
+
+async function deleteFromQueue(pid) {
+    if (!confirm("이 프로젝트를 대기열에서 제거하시겠습니까? (상태가 'planning'으로 되돌아갑니다)")) return;
+    try {
+        const res = await fetch(`/api/projects/${pid}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'planning' })
+        });
+        refreshQueue();
+        Utils.showToast("대기열에서 제거되었습니다.", "info");
+    } catch (e) { console.error(e); }
 }

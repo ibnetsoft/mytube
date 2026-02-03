@@ -5286,6 +5286,92 @@ async def run_autopilot_now(
     background_tasks.add_task(autopilot_service.run_workflow, keyword)
     return {"status": "started", "message": f"'{keyword}' 주제로 즉시 제작을 시작합니다."}
 
+class AutopilotContinueRequest(BaseModel):
+    auto_plan: bool = False
+    topic: Optional[str] = None
+    script_style: Optional[str] = None
+    duration_seconds: Optional[int] = None
+
+@app.post("/api/autopilot/continue/{project_id}")
+async def continue_autopilot(
+    project_id: int, 
+    req: AutopilotContinueRequest,
+    background_tasks: BackgroundTasks
+):
+    """기획 데이터 이어받아 오토파일럿 시작 (Step 4부터 혹은 기획부터)"""
+    project = db.get_project(project_id)
+    if not project: raise HTTPException(404, "Project not found")
+
+    # Update settings if provided (Force Auto Plan)
+    if req.auto_plan:
+        if req.topic: db.update_project(project_id, topic=req.topic)
+        
+        settings_update = {}
+        if req.script_style: settings_update["script_style"] = req.script_style
+        if req.duration_seconds: settings_update["duration_seconds"] = req.duration_seconds
+        
+        for k, v in settings_update.items():
+            db.update_project_setting(project_id, k, v)
+
+    # Force 'analyzed' status to trigger Step 4 (Scripting) in Autopilot
+    # Even for auto_plan, we need 'analyzed' status (analysis data) to be present.
+    # Usually manual flow ensures analysis is done before entering script_plan page.
+    if project.get("status") in ["created", "planning", "analyzed"]:
+        db.update_project(project_id, status="analyzed")
+
+    p_settings = db.get_project_settings(project_id) or {}
+    config_dict = {
+        "script_style": p_settings.get("script_style", "default"),
+        "duration_seconds": p_settings.get("duration_seconds", 300),
+        "voice_provider": p_settings.get("voice_provider"),
+        "voice_id": p_settings.get("voice_id"),
+        "visual_style": "realistic", 
+        "thumbnail_style": "face", 
+        "auto_thumbnail": True,
+        "auto_plan": req.auto_plan
+    }
+
+    background_tasks.add_task(autopilot_service.run_workflow, project['topic'], project_id, config_dict)
+    return {"status": "ok", "project_id": project_id}
+
+class AutopilotQueueRequest(BaseModel):
+    topic: str
+    script_style: str
+    duration_seconds: int
+    auto_plan: bool = True
+
+@app.post("/api/projects/{project_id}/queue")
+async def add_to_queue(project_id: int, req: AutopilotQueueRequest):
+    """프로젝트를 제작 대기열에 추가"""
+    db.update_project(project_id, status="queued", topic=req.topic)
+    
+    # Save settings including auto_plan flag
+    settings = {
+        "script_style": req.script_style,
+        "duration_seconds": req.duration_seconds,
+        "auto_plan": req.auto_plan,
+        "auto_thumbnail": True,
+        "visual_style": "realistic", 
+        "thumbnail_style": "face"
+    }
+    for k, v in settings.items():
+        db.update_project_setting(project_id, k, v)
+        
+    return {"status": "ok"}
+
+@app.get("/api/autopilot/queue")
+async def get_queue():
+    """대기 중인 프로젝트 목록 조회"""
+    projects = db.get_all_projects()
+    queued = [p for p in projects if p.get("status") == "queued"]
+    return {"projects": queued, "count": len(queued)}
+
+@app.post("/api/autopilot/batch-start")
+async def start_batch_processing(background_tasks: BackgroundTasks):
+    """대기열 일괄 처리 시작"""
+    background_tasks.add_task(autopilot_service.run_batch_workflow)
+    return {"status": "started", "message": "Batch processing started"}
+
 # ===========================================
 # ===========================================
 # Render Progress API

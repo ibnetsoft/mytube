@@ -117,16 +117,83 @@ class AutoPilotService:
         script_presets = db.get_script_style_presets()
         style_desc = script_presets.get(style_key, f"Style: {style_key}")
 
-        prompt = prompts.AUTOPILOT_GENERATE_SCRIPT.format(
-            analysis_json=json.dumps(analysis, ensure_ascii=False)
-        )
-        if style_key != "default":
-            prompt += f"\n\n[Writing Style Directive]: {style_desc}\nApply this style strictly throughout the script."
+        # [NEW] Check for Manual Planning (Script Structure)
+        manual_plan = db.get_script_structure(project_id)
+
+        # [AUTO-PLAN] If auto_plan is requested AND no manual plan exists, generate one now
+        if not (manual_plan and manual_plan.get("structure")) and config_dict.get("auto_plan"):
+             print(f"🤖 [Auto-Pilot] 자동 기획 생성 시작...")
+             try:
+                 struct_prompt = f"""
+Create a structured plan for a YouTube video based on this analysis.
+Analysis: {json.dumps(analysis, ensure_ascii=False)}
+
+Context:
+- Video Topic: {db.get_project(project_id).get('topic')}
+- Script Style: {style_desc}
+
+Required Format (JSON Only):
+{{
+  "hook": "Strong opening sentence to grab attention",
+  "sections": [
+    {{ "title": "Section Title", "key_points": ["point1", "point2"] }}
+  ],
+  "cta": "Conclusion and call to action"
+}}
+Language: Korean
+"""
+                 request_s = type('obj', (object,), {"prompt": struct_prompt, "temperature": 0.7})
+                 result_s = await gemini_service.generate_content(request_s)
+                 
+                 import re
+                 match = re.search(r'\{[\s\S]*\}', result_s["text"])
+                 if match:
+                     new_struct = json.loads(match.group())
+                     db.save_script_structure(project_id, new_struct)
+                     manual_plan = {"structure": new_struct} # Update local var to trigger next block
+                     print(f"✅ [Auto-Pilot] 자동 기획 완료 및 저장.")
+             except Exception as e:
+                 print(f"⚠️ [Auto-Pilot] 자동 기획 실패: {e}")
+        
+        if manual_plan and manual_plan.get("structure"):
+            print(f"📄 [Auto-Pilot] 수동 기획 데이터 발견! 기획 기반 대본 작성 모드로 전환합니다.")
+            plan_json = json.dumps(manual_plan.get("structure"), ensure_ascii=False)
+            
+            prompt = f"""You are a professional YouTube scriptwriter.
+Write a full script based strictly on the following USER PLANNED STRUCTURE.
+
+[User Plan & Title]
+{plan_json}
+
+[Reference Analysis]
+{json.dumps(analysis, ensure_ascii=False)}
+
+Instructions:
+1. You MUST follow the 'User Plan' structure (Hook, Body, Conclusion, etc).
+2. The 'structure' contains specific Hooks and plot points selected by the user. Do NOT change them.
+3. Use the 'Reference Analysis' only to enrich the content details.
+4. Output the full script in Korean.
+"""
+            if style_key != "default":
+                prompt += f"\n\n[Writing Style Directive]: {style_desc}\nApply this style strictly."
+        else:
+            # Original Logic
+            prompt = prompts.AUTOPILOT_GENERATE_SCRIPT.format(
+                analysis_json=json.dumps(analysis, ensure_ascii=False)
+            )
+            if style_key != "default":
+                prompt += f"\n\n[Writing Style Directive]: {style_desc}\nApply this style strictly throughout the script."
 
         request = type('obj', (object,), {"prompt": prompt, "temperature": 0.8})
         result = await gemini_service.generate_content(request)
         script = result["text"]
-        db.save_script(project_id, script, len(script), 50)
+        
+        # Save script
+        # Calculate approximate duration (char count / 15 chars per sec is rough, usually 5 chars/sec for speech)
+        # Using a safer estimate provided by user input usually, but here auto-calc
+        target_duration_sec = config_dict.get("duration_seconds", 300) 
+        db.save_script(project_id, script, len(script), target_duration_sec)
+        
         return script
 
     async def _generate_assets(self, project_id: int, script: str, config_dict: dict):
@@ -348,5 +415,50 @@ class AutoPilotService:
             )
             db.update_project_setting(project_id, "is_uploaded", 1)
         except: pass
+
+    async def run_batch_workflow(self):
+        """queued 상태의 프로젝트를 순차적으로 모두 처리"""
+        print("🚦 [Batch] 일괄 제작 프로세스 시작...")
+        import asyncio
+        
+        while True:
+            projects = db.get_all_projects()
+            # FIFO: ID가 작은 순서대로 처리
+            queue = sorted([p for p in projects if p.get("status") == "queued"], key=lambda x: x['id'])
+            
+            if not queue:
+                print("🏁 [Batch] 대기열 작업을 모두 완료했습니다.")
+                break
+                
+            project = queue[0]
+            pid = project['id']
+            print(f"▶️ [Batch] 프로젝트 시작: {project.get('topic')} (ID: {pid})")
+            
+            try:
+                # 상태 변경: analyzed (오토파일럿이 이어서 작업할 수 있도록)
+                db.update_project(pid, status="analyzed")
+                
+                # 설정 로드
+                p_settings = db.get_project_settings(pid) or {}
+                config_dict = {
+                    "script_style": p_settings.get("script_style", "default"),
+                    "duration_seconds": p_settings.get("duration_seconds", 300),
+                    "voice_provider": p_settings.get("voice_provider"),
+                    "voice_id": p_settings.get("voice_id"),
+                    "visual_style": "realistic", 
+                    "thumbnail_style": "face", 
+                    "auto_thumbnail": True,
+                    "auto_plan": p_settings.get("auto_plan", True)
+                }
+                
+                # 워크플로우 실행 (Wait for completion)
+                await self.run_workflow(project.get('topic'), pid, config_dict)
+                print(f"✅ [Batch] 프로젝트 완료: {pid}")
+                
+            except Exception as e:
+                print(f"❌ [Batch] 프로젝트 실패 (ID: {pid}): {e}")
+                db.update_project(pid, status="error")
+                
+            await asyncio.sleep(2)
 
 autopilot_service = AutoPilotService()

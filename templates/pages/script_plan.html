@@ -82,6 +82,13 @@
 
             <!-- 생성 버튼 -->
             <div class="flex flex-col gap-2 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+                <!-- [NEW] Add to Queue Button -->
+                <button onclick="addToQueue()"
+                    class="w-full py-3 text-sm font-bold shadow-md hover:shadow-xl transition-all rounded-lg flex items-center justify-center gap-2 bg-gradient-to-r from-green-600 to-teal-600 text-white border-0">
+                    <span>📥</span>
+                    <span>제작 대기열에 담기 (나중에 일괄생성)</span>
+                </button>
+
                 <button onclick="saveScriptSettings(this)"
                     class="btn-secondary w-full py-2 text-xs flex items-center justify-center gap-2">
                     <span>💾</span>
@@ -146,6 +153,12 @@
                             <span>🔄</span> {{ t('btn_regenerate') }}
                         </button>
                         <!-- Moved Main Action Button Here -->
+                        <!-- [NEW] Auto-Pilot Handover Button -->
+                        <button onclick="continueWithAutopilot()"
+                            class="text-xs px-4 py-1.5 font-bold shadow-sm hover:shadow-md transition-all rounded flex items-center gap-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white mr-3 border-0">
+                            <span>🚀</span>
+                            <span>오토파일럿으로 완성하기</span>
+                        </button>
                         <button onclick="goToScriptGen()"
                             class="btn-primary text-xs px-4 py-1.5 font-bold shadow-sm hover:shadow-md transition-all rounded flex items-center gap-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
                             <span>✍️</span>
@@ -916,10 +929,115 @@
         if (projectId) {
             window.location.href = `/script-gen?project_id=${projectId}&auto_start=true`;
         } else {
-            // 프로젝트 ID가 없을 경우 그냥 이동 (혹은 에러 처리)
             window.location.href = '/script-gen';
         }
     }
+
+    async function continueWithAutopilot(forceAutoPlan = false) {
+        const projectId = getCurrentProject();
+        if (!projectId) {
+            Utils.showToast("프로젝트를 찾을 수 없습니다.", "error");
+            return;
+        }
+
+        let msg = "현재 기획으로 대본부터 영상까지 오토파일럿을 진행하시겠습니까?";
+        if (forceAutoPlan) {
+            msg = "현재 설정된 주제와 스타일로 '기획부터' 생성하며 오토파일럿을 진행하시겠습니까?";
+        }
+
+        if (!confirm(msg)) return;
+
+        const btn = event.currentTarget || document.querySelector('button[onclick*="continueWithAutopilot"]');
+        const originalText = btn ? btn.innerHTML : '';
+        if (btn) Utils.setLoading(btn, true, "🚀 시동 중...");
+
+        try {
+            // Gather current inputs if forceAutoPlan
+            let bodyData = { auto_plan: forceAutoPlan };
+            if (forceAutoPlan) {
+                const topic = document.getElementById('topicInput').value.trim();
+                const style = document.getElementById('scriptStyleSelect').value;
+                const durVal = parseInt(document.getElementById('durationInput').value) || 60;
+                const duration = (window.APP_MODE === 'shorts') ? durVal : durVal * 60;
+
+                bodyData.topic = topic;
+                bodyData.script_style = style;
+                bodyData.duration_seconds = duration;
+            }
+
+            const res = await fetch(`/api/autopilot/continue/${projectId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(bodyData)
+            });
+            const data = await res.json();
+
+            if (data.status === 'ok') {
+                Utils.showToast("오토파일럿이 시작되었습니다! 🚀", "success");
+                window.location.href = `/autopilot?project_id=${projectId}&monitor=true`;
+            } else {
+                throw new Error(data.error || "오토파일럿 시작 실패");
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast(e.message, "error");
+        } finally {
+            if (btn) {
+                Utils.setLoading(btn, false);
+                btn.innerHTML = originalText;
+            }
+        }
+    }
+
+    async function addToQueue() {
+        const projectId = getCurrentProject();
+        if (!projectId) {
+            Utils.showToast("프로젝트가 선택되지 않았습니다.", "error");
+            return;
+        }
+
+        const btn = event.currentTarget;
+        const originalText = btn.innerHTML;
+        Utils.setLoading(btn, true, "담는 중...");
+
+        try {
+            const topic = document.getElementById('topicInput').value.trim();
+            const style = document.getElementById('scriptStyleSelect').value;
+            const durVal = parseInt(document.getElementById('durationInput').value) || 60;
+            const duration = (window.APP_MODE === 'shorts') ? durVal : durVal * 60;
+
+            const res = await fetch(`/api/projects/${projectId}/queue`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    topic,
+                    script_style: style,
+                    duration_seconds: duration,
+                    auto_plan: true
+                })
+            });
+
+            const data = await res.json();
+            if (data.status === 'ok') {
+                Utils.showToast("대기열에 추가되었습니다! 📥", "success");
+                setTimeout(() => {
+                    if (confirm("대기열에 담았습니다. 새로운 주제로 계속 하시겠습니까?")) {
+                        window.location.href = '/topic';
+                    }
+                }, 500);
+            } else {
+                throw new Error(data.error || "대기열 추가 실패");
+            }
+
+        } catch (e) {
+            console.error(e);
+            Utils.showToast(e.message, "error");
+        } finally {
+            Utils.setLoading(btn, false);
+            btn.innerHTML = originalText;
+        }
+    }
+
 </script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 {% endblock %}
