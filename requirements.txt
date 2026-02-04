@@ -31,3 +31,5 @@ apscheduler
 replicate>=0.30.0
 aiohttp
 pydub
+openai>=1.0.0
+

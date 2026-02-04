@@ -254,7 +254,7 @@ Instructions:
             if i < video_scene_count: await process_scene(p, True)
             else: await process_scene(p, False)
 
-        # 3. TTS (Universal Support)
+        # 3. TTS (Scene-based Generation for Perfect Sync)
         # Check Config -> Fallback to Global Settings -> Default
         provider = config_dict.get("voice_provider")
         voice_id = config_dict.get("voice_id")
@@ -264,23 +264,106 @@ Instructions:
              if not provider: provider = p_settings.get("voice_provider", "google_cloud")
              if not voice_id: voice_id = p_settings.get("voice_id") or p_settings.get("voice_name", "ko-KR-Neural2-A")
         
-        print(f"🎙️ [Auto-Pilot] Generating TTS with {provider} / {voice_id}")
-        filename = f"auto_tts_{project_id}.mp3"
+        print(f"🎙️ [Auto-Pilot] Generating Scene-based TTS with {provider} / {voice_id}")
         
-        # Use existing tts_service functions based on provider
-        if provider == "elevenlabs":
-            output_path = await tts_service.generate_elevenlabs(script, voice_id, filename)
-        elif provider == "openai":
-            output_path = await tts_service.generate_openai(script, voice_id, filename)
-        elif provider == "gemini":
-            output_path = await tts_service.generate_gemini(script, voice_id, filename)
-        else: # Default: Google Cloud
-            output_path = await tts_service.generate_google_cloud(script, voice_id, filename)
+        # [NEW] Scene별 오디오 생성 및 병합
+        scene_audio_files = []
+        scene_durations = []
+        
+        # 이미지가 생성된 Scene들만 대상으로 함 (순서 중요)
+        # image_prompts는 이미 DB에서 로드됨
+        # 정렬 보장
+        sorted_prompts = sorted(image_prompts, key=lambda x: x.get('scene_number', 0))
+        
+        import uuid
+        temp_audios = [] # cleanup list
+        
+        for i, p in enumerate(sorted_prompts):
+            # Scene Text 추출 (narrative or scene_text or script)
+            text = p.get('scene_text') or p.get('narrative') or p.get('script') or ""
+            if not text:
+                # 텍스트 없는 씬 (이미지만 존재) -> 기본 3초 침묵? 아니면 그냥 스킵?
+                # 시각적인 연출을 위해 2~3초 할당하고 오디오는 무음 처리하는 것이 자연스러움.
+                # 하지만 구현 복잡도를 낮추기 위해, 아주 짧은 무음(0.1초) 추가하거나 이전 오디오를 연장.
+                # 여기서는 텍스트가 없으면 오디오 생성 스킵하고 duration을 3.0초(Default)로 설정하여
+                # 나중에 영상 생성 시 '오디오 없는 구간'으로 처리하기엔 video_service가 복잡해짐.
+                # 심플하게: "..." 같은 무음 텍스트로 생성 시도하거나 Skip.
+                scene_durations.append(3.0) 
+                continue
+
+            scene_filename = f"temp_tts_{project_id}_{i}_{uuid.uuid4()}.mp3"
             
-        from moviepy.editor import AudioFileClip
-        clip = AudioFileClip(output_path)
-        db.save_tts(project_id, provider, voice_id, output_path, clip.duration)
-        clip.close()
+            try:
+                # Call TTS Service per scene
+                s_out = None
+                if provider == "elevenlabs":
+                    s_out = await tts_service.generate_elevenlabs(text, voice_id, scene_filename)
+                elif provider == "openai":
+                    s_out = await tts_service.generate_openai(text, voice_id, model="tts-1", filename=scene_filename)
+                elif provider == "gemini":
+                    s_out = await tts_service.generate_gemini(text, voice_id, filename=scene_filename)
+                else:
+                    s_out = await tts_service.generate_google_cloud(text, voice_id, filename=scene_filename)
+                
+                if s_out and os.path.exists(s_out):
+                    temp_audios.append(s_out)
+                    scene_audio_files.append(s_out)
+                    
+                    # Measure Duration
+                    from moviepy.editor import AudioFileClip
+                    try:
+                        ac = AudioFileClip(s_out)
+                        dur = ac.duration
+                        scene_durations.append(dur)
+                        ac.close()
+                    except:
+                        scene_durations.append(3.0) # Fallback
+                else:
+                    print(f"⚠️ Scene {i} TTS Gen Failed. Using default duration.")
+                    scene_durations.append(3.0)
+
+            except Exception as e:
+                print(f"⚠️ Scene {i} TTS Error: {e}")
+                scene_durations.append(3.0)
+        
+        # Merge Audios
+        final_filename = f"auto_tts_{project_id}.mp3"
+        final_audio_path = os.path.join(config.OUTPUT_DIR, final_filename)
+        
+        if scene_audio_files:
+            try:
+                from moviepy.editor import concatenate_audioclips, AudioFileClip
+                clips = [AudioFileClip(f) for f in scene_audio_files]
+                final_clip = concatenate_audioclips(clips)
+                final_clip.write_audiofile(final_audio_path, logger=None)
+                
+                total_duration = final_clip.duration
+                final_clip.close()
+                for c in clips: c.close()
+                
+                # DB Save
+                db.save_tts(project_id, provider, voice_id, final_audio_path, total_duration)
+                
+                # [CRITICAL] Save Scene Timings !
+                # We need to pass this to render_video.
+                # Save as project setting 'image_timings_path' json
+                timings_path = os.path.join(config.OUTPUT_DIR, f"image_timings_{project_id}.json")
+                with open(timings_path, "w", encoding="utf-8") as f:
+                     json.dump(scene_durations, f)
+                db.update_project_setting(project_id, "image_timings_path", timings_path)
+                
+                print(f"✅ [Auto-Pilot] Scene-based TTS Complete. Total: {total_duration:.2f}s, Scenes: {len(scene_durations)}")
+                
+            except Exception as e:
+                print(f"❌ Audio Merge Failed: {e}")
+                # Fallback to single file gen logic if merge fails?
+        else:
+             print("❌ No audio generated.")
+        
+        # Cleanup temps
+        for f in temp_audios:
+            try: os.remove(f)
+            except: pass
 
     async def _generate_thumbnail(self, project_id: int, script: str, config_dict: dict):
         """대본 기반 썸네일 자동 기획 및 생성"""
@@ -395,7 +478,47 @@ Instructions:
         subs = video_service.generate_aligned_subtitles(audio_path, script_data["full_script"])
         if not subs: subs = video_service.generate_simple_subtitles(script_data["full_script"], tts_data["duration"])
 
-        image_durations = tts_data["duration"] / len(images) if images else 5.0
+        # [IMPROVED] Smart Duration Calculation
+        image_durations = 5.0 # Default fallback
+        
+        # 1. Try to load saved scene timings (from Scene-based TTS)
+        settings = db.get_project_settings(project_id)
+        timings_path = settings.get("image_timings_path")
+        
+        smart_sync_enabled = False
+        if timings_path and os.path.exists(timings_path):
+            try:
+                with open(timings_path, "r", encoding="utf-8") as f:
+                    loaded_durations = json.load(f)
+                    
+                # Durations count vs Images count check
+                # Note: images list might be filtered (only URLs). loaded_durations count follows prompt count.
+                # If they diff significantly, fallback or truncated.
+                if loaded_durations:
+                    # If we have more durations than images, slice it
+                    if len(loaded_durations) >= len(images):
+                        image_durations = loaded_durations[:len(images)]
+                    else:
+                        # Less durations? Pad with average or last
+                        # Or just use mixed list. create_slideshow handles list.
+                        # Extend with remainder average
+                        rem_dur = tts_data["duration"] - sum(loaded_durations)
+                        rem_cnt = len(images) - len(loaded_durations)
+                        if rem_cnt > 0:
+                            avg = max(3.0, rem_dur / rem_cnt)
+                            image_durations = loaded_durations + [avg] * rem_cnt
+                        else:
+                            image_durations = loaded_durations
+                            
+                    print(f"✅ [Auto-Pilot] Smart Sync Applied: {len(image_durations)} scenes")
+                    smart_sync_enabled = True
+            except Exception as e:
+                print(f"⚠️ Failed to load smart timings: {e}")
+
+        # 2. Fallback to Simple N-Division
+        if not smart_sync_enabled:
+            image_durations = tts_data["duration"] / len(images) if images else 5.0
+            print(f"⚠️ [Auto-Pilot] Fallback to N-Division Sync ({image_durations:.2f}s per image)")
         
         final_path = video_service.create_slideshow(
             images=images, audio_path=audio_path, output_filename=output_filename,

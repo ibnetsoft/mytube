@@ -881,67 +881,93 @@ class VideoService:
             if not final_words:
                 final_words = [{"word": w.word, "start": w.start, "end": w.end} for w in ai_words]
 
-            subtitles = []
+            # [IMPROVED] Smart Semantic Segmentation (2-Line Limit Rule)
+            # 1. 절대 한계: 40자 (2줄 초과 방지)
+            # 2. 의미 분할: 조사/어미 뒤, 문장부호 뒤
+            # 3. 호흡 분할: 0.5초 이상 침묵
             
-            # Custom Segmentation Logic
-            # Goal: Max ~40 chars, break on long pause (>0.8s) or punctuation
-            current_sub = {"start": 0, "end": 0, "text": ""}
-            MAX_CHARS = 40
-            MAX_GAP = 0.8 # 말 빠르기 고려하여 조금 줄임
+            MAX_CHARS_PER_BLOCK = 40
+            SOFT_LIMIT_CHARS = 12     # 이 길이 넘으면 조사/어미 체크 시작 (조금 더 자주 끊기게 수정)
+            MIN_SILENCE_GAP = 0.5
+            
+            # Heuristics
+            SEMANTIC_ENDINGS = ('은', '는', '이', '가', '을', '를', '에', '서', '로', '에게', '고', '며', '니', '면', '지', '나', '해', '돼', '요', '죠')
+            SENTENCE_ENDINGS = ('.', '?', '!', ',', '…')
 
             if final_words:
-                # 첫 단어 초기화
-                current_sub["start"] = final_words[0]["start"]
-                current_sub["end"] = final_words[0]["end"]
-                current_sub["text"] = final_words[0]["word"]
+                current_words = []
+                current_block_start = final_words[0]["start"]
                 
-                for i in range(1, len(final_words)):
-                    word_obj = final_words[i]
+                for i, word_obj in enumerate(final_words):
                     word_text = word_obj["word"].strip()
+                    word_start = word_obj["start"]
+                    word_end = word_obj["end"]
                     
-                    # Gap check
-                    gap = word_obj["start"] - current_sub["end"]
+                    # 0. Calculate Gap from previous
+                    prev_end = final_words[i-1]["end"] if i > 0 else word_start
+                    gap = word_start - prev_end
                     
-                    # Length check (temp)
-                    temp_len = len(current_sub["text"]) + len(word_text) + 1
+                    # Current text accumulated with new word
+                    temp_ws = current_words + [word_obj]
+                    temp_text = " ".join([w["word"] for w in temp_ws]).strip()
+                    temp_len = len(temp_text)
                     
-                    # Break conditions
-                    is_too_long = temp_len > MAX_CHARS
-                    is_long_gap = gap > MAX_GAP
-                    is_sentence_end = current_sub["text"].endswith(('.', '?', '!'))
+                    should_break = False
                     
-                    if is_long_gap or is_too_long or (is_sentence_end and len(current_sub["text"]) > 10):
-                        # Commit current sub
-                        # [FIX] Aggressive cleanup for unclosed brackets or artifacts
-                        cleaned = re.sub(r'\([^)]*\)|\[[^\]]*\]|\*+[^*]+\*+', '', current_sub["text"])
-                        cleaned = cleaned.replace('(', '').replace(')', '').replace('[', '').replace(']', '').strip()
-                        if cleaned:
+                    # Rule 1: Silence Gap (Long pause)
+                    if gap > MIN_SILENCE_GAP and current_words:
+                        should_break = True
+                        
+                    # Rule 2: Hard Limit (Max Chars)
+                    elif temp_len > MAX_CHARS_PER_BLOCK:
+                        should_break = True
+                        
+                    # Rule 3: Semantic Soft Break & Punctuation
+                    # 현재 블록이 어느정도 찼고(SOFT_LIMIT), 이전 단어가 조사/어미/문장부호로 끝났다면 끊어줌
+                    elif current_words and len(" ".join([w["word"] for w in current_words])) > SOFT_LIMIT_CHARS:
+                         last_w = current_words[-1]["word"].strip()
+                         # 문장부호 체크
+                         if last_w.endswith(SENTENCE_ENDINGS):
+                             should_break = True
+                         else:
+                             # 조사/어미 체크 (특수문자 제거 후)
+                             clean_last = re.sub(r'[^\w가-힣]', '', last_w)
+                             if clean_last.endswith(SEMANTIC_ENDINGS):
+                                 should_break = True
+                
+                    if should_break:
+                        # Commit Current Block
+                        block_text = " ".join([w["word"] for w in current_words]).strip()
+                        # Brackets clean
+                        block_text = re.sub(r'\([^)]*\)|\[[^\]]*\]|\*+[^*]+\*+', '', block_text).strip()
+                        
+                        # [Quality] Ensure start < end
+                        c_end = prev_end
+                        if c_end <= current_block_start: c_end = current_block_start + 0.1
+                        
+                        if block_text:
                             subtitles.append({
-                                "start": current_sub["start"],
-                                "end": current_sub["end"],
-                                "text": cleaned
+                                "start": current_block_start,
+                                "end": c_end,
+                                "text": block_text
                             })
                         
-                        # Start new sub
-                        current_sub = {
-                            "start": word_obj["start"],
-                            "end": word_obj["end"],
-                            "text": word_text
-                        }
+                        # Start New Block
+                        current_words = [word_obj]
+                        current_block_start = word_start
                     else:
-                        # Append to current
-                        current_sub["text"] += " " + word_text
-                        current_sub["end"] = word_obj["end"]
-                
-                # Commit last sub
-                cleaned = re.sub(r'\([^)]*\)|\[[^\]]*\]|\*+[^*]+\*+', '', current_sub["text"])
-                cleaned = cleaned.replace('(', '').replace(')', '').replace('[', '').replace(']', '').strip()
-                if cleaned:
-                    subtitles.append({
-                        "start": current_sub["start"],
-                        "end": current_sub["end"],
-                        "text": cleaned
-                    })
+                        current_words.append(word_obj)
+                        
+                # Commit Final Block
+                if current_words:
+                    block_text = " ".join([w["word"] for w in current_words]).strip()
+                    block_text = re.sub(r'\([^)]*\)|\[[^\]]*\]|\*+[^*]+\*+', '', block_text).strip()
+                    if block_text:
+                        subtitles.append({
+                            "start": current_block_start,
+                            "end": final_words[-1]["end"],
+                            "text": block_text
+                        })
             
             # [DEBUG] Log Final Subtitles
             try:
