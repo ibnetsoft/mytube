@@ -408,13 +408,33 @@ Instructions:
         now = config.get_kst_time()
         publish_time = (now + timedelta(days=1)).replace(hour=8, minute=0, second=0).isoformat()
         try:
-            youtube_upload_service.upload_video(
+            # 1. Video Upload (Schedule for next day 8 AM)
+            response = youtube_upload_service.upload_video(
                 file_path=video_path, title=f"AI Auto Video {now.date()}",
                 description="#Shorts #AI", tags=["ai", "shorts"],
                 privacy_status="private", publish_at=publish_time
             )
+            
+            # 2. Thumbnail Upload
+            video_id = response.get("id")
+            settings = db.get_project_settings(project_id)
+            thumb_url = settings.get("thumbnail_path")
+            
+            if video_id and thumb_url:
+                # /output/filename.jpg -> LOCAL_PATH/filename.jpg
+                fname = thumb_url.split("/")[-1]
+                thumb_path = os.path.join(config.OUTPUT_DIR, fname)
+                
+                if os.path.exists(thumb_path):
+                    print(f"🖼️ [Auto-Pilot] Uploading thumbnail: {thumb_path}")
+                    try:
+                        youtube_upload_service.set_thumbnail(video_id, thumb_path)
+                    except Exception as te:
+                        print(f"⚠️ Thumbnail upload failed: {te}")
+
             db.update_project_setting(project_id, "is_uploaded", 1)
-        except: pass
+        except Exception as e:
+            print(f"❌ Upload failed: {e}")
 
     async def run_batch_workflow(self):
         """queued 상태의 프로젝트를 순차적으로 모두 처리"""

@@ -369,7 +369,7 @@ function clearLogs() {
 
 let isProcessing = false;
 
-async function startAutoPilot() {
+async function startAutopilot() {
     if (isProcessing) return;
 
     const topicInput = document.getElementById('topicInput');
@@ -577,8 +577,24 @@ async function startBatch() {
 
         if (data.status === 'started') {
             Utils.showToast("일괄 제작이 시작되었습니다! 🚀", "success");
-            btn.innerHTML = `<span>🔄</span> 일괄 처리 실행 중...`;
-            document.getElementById('batchConsoleLogs').innerHTML = `<div class="text-yellow-400">✅ 명령이 전달되었습니다. 서버 로그를 모니터링합니다...</div>`;
+            btn.innerHTML = `<span class="loader-sm border-white"></span> 처리 중...`;
+
+            const logArea = document.getElementById('batchConsoleLogs');
+            logArea.innerHTML = `<div class="text-yellow-400 p-2">✅ 일괄 처리 작업이 시작되었습니다. 대기열이 줄어드는지 확인하세요.</div>`;
+
+            // Start Polling Queue Count to show progress
+            const interval = setInterval(async () => {
+                await refreshQueue();
+                const countText = document.getElementById('queueCount')?.innerText || "0";
+                if (countText === "0") {
+                    clearInterval(interval);
+                    btn.disabled = false;
+                    btn.innerHTML = `<span>▶️</span> 일괄 처리 시작`;
+                    logArea.innerHTML += `<div class="text-green-400 p-2">🏁 모든 작업이 완료되었습니다!</div>`;
+                    Utils.showToast("모든 작업 완료!", "success");
+                }
+            }, 5000);
+
         }
     } catch (e) {
         alert("실패: " + e.message);
