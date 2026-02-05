@@ -23,6 +23,30 @@
         </button>
     </div>
 
+    <!-- [NEW] Presets Toolbar -->
+    <div class="mb-8 bg-gray-900 border border-gray-700 rounded-xl p-4 flex items-center justify-between">
+        <div class="flex items-center gap-4 flex-1">
+            <div class="flex items-center gap-2">
+                <span class="text-gray-400 text-sm font-medium">✨ 저장된 설정(Preset):</span>
+                <select id="presetSelect" onchange="loadPreset(this.value)"
+                    class="bg-gray-800 border-gray-600 text-white text-sm rounded-lg pr-8 focus:ring-purple-500 focus:border-purple-500 block w-64 p-2">
+                    <option value="">-- 현재 설정 (Custom) --</option>
+                    <option disabled>Loading...</option>
+                </select>
+            </div>
+            <button onclick="deleteCurrentPreset()" id="btnDeletePreset"
+                class="text-red-400 hover:text-red-300 text-xs hidden underline">삭제</button>
+        </div>
+        <div class="flex items-center gap-2">
+            <input type="text" id="newPresetName" placeholder="새 프리셋 이름"
+                class="bg-gray-800 border-gray-600 text-white text-sm rounded-lg px-3 py-2 w-48">
+            <button onclick="saveCurrentPreset()"
+                class="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                💾 현재 설정 저장
+            </button>
+        </div>
+    </div>
+
     <div id="singleMode">
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <!-- Input Panel -->
@@ -160,6 +184,25 @@
                             </div>
                         </div>
                     </div>
+                </div>
+
+                <!-- 5. Subtitle Settings (Preview) -->
+                <div class="card bg-gray-900/40 border-purple-500/20 backdrop-blur-sm p-6">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div
+                            class="w-10 h-10 rounded-xl bg-teal-500/20 flex items-center justify-center text-teal-400 font-bold">
+                            5</div>
+                        <h3 class="text-xl font-bold text-white">자막 스타일 (Default)</h3>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4 text-sm text-gray-300 bg-gray-800/50 p-4 rounded-xl"
+                        id="subtitlePreviewPanel">
+                        <!-- Loading... -->
+                        <div class="col-span-2 text-center text-gray-500">
+                            <div class="loader-sm inline-block mr-2"></div> 설정 로딩 중...
+                        </div>
+                    </div>
+                    <p class="text-[10px] text-gray-500 mt-2 text-right">* 자막 페이지에서 '저장'한 마지막 설정이 적용됩니다.</p>
                 </div>
 
                 <button id="startAutopilotBtn"

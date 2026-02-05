@@ -481,12 +481,23 @@
 
         // Initialize Utils-dependent variables
         if (!projectId) {
-            const storedId = Utils.storage.get('currentProjectId');
-            if (storedId) projectId = parseInt(storedId);
+            // Priority 1: URL Param (Most Reliable for direct links)
+            const urlParams = new URLSearchParams(window.location.search);
+            const pid = urlParams.get('project_id');
+            if (pid) projectId = parseInt(pid);
+
+            // Priority 2: storage (Fallback)
+            if (!projectId) {
+                const storedId = Utils.storage.get('currentProjectId');
+                if (storedId) projectId = parseInt(storedId);
+            }
         }
 
         if (!projectId) {
-            return Utils.showToast('프로젝트 ID를 찾을 수 없습니다.', 'error');
+            Utils.showToast('프로젝트 ID를 찾을 수 없습니다. 메인화면에서 프로젝트를 선택해주세요.', 'error');
+            // Optional: Redirect to home?
+            // window.location.href = '/';
+            return;
         }
 
         setupStyleListeners();
@@ -1206,7 +1217,12 @@
 
     // [NEW] Save Style Settings Bulk
     async function saveStyleSettings(btn) {
-        if (!projectId) return;
+        if (!projectId) {
+            alert("❌ 프로젝트 ID가 확인되지 않아 설정을 저장할 수 없습니다.\n페이지를 새로고침하거나 메인 화면에서 프로젝트를 다시 선택해주세요.");
+            console.error("saveStyleSettings failed: projectId is null/undefined");
+            return;
+        }
+
         const originalText = btn ? btn.innerHTML : "세팅저장";
         if (btn) {
             btn.disabled = true;
@@ -1272,6 +1288,12 @@
             if (preview) {
                 await API.project.updateSetting(projectId, 'subtitle_pos_x', preview.style.left);
                 await API.project.updateSetting(projectId, 'subtitle_pos_y', preview.style.top);
+            }
+
+            // [Fix] Force save font size to ensure consistency and update timestamp
+            const sizeSlider = document.getElementById('fontSizeSlider');
+            if (sizeSlider) {
+                await API.project.updateSetting(projectId, 'subtitle_font_size', parseFloat(sizeSlider.value));
             }
 
             const res = await fetch('/api/subtitle/save', {

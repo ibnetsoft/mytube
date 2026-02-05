@@ -247,6 +247,16 @@ def init_db():
         )
     """)
 
+    # [NEW] 오토파일럿 프리셋
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS autopilot_presets (
+             id INTEGER PRIMARY KEY AUTOINCREMENT,
+             name TEXT NOT NULL,
+             settings_json TEXT NOT NULL,
+             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     # [NEW] 캐릭터 프롬프트 및 이미지 관리
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS project_characters (
@@ -1479,14 +1489,52 @@ def get_global_setting(key: str, default: Any = None) -> Any:
     return default
 
 def get_subtitle_defaults() -> Dict:
-    """자막 기본값 조회 (프로젝트 생성용)"""
+    """자막 기본값 조회 (최근 프로젝트 설정 우선 -> 없으면 글로벌 기본값)"""
+    
+    # 1. 최근 수정된 프로젝트에서 자막 설정 가져오기 (사용자 경험 연속성 보장)
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT subtitle_font, subtitle_font_size, subtitle_base_color, subtitle_style_enum, 
+                   subtitle_stroke_color, subtitle_stroke_width, subtitle_bg_enabled, subtitle_bg_opacity,
+                   subtitle_line_spacing, subtitle_bg_color
+            FROM project_settings 
+            ORDER BY updated_at DESC 
+            LIMIT 1
+        """)
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row and row['subtitle_font']:
+            # DB 컬럼 -> Dict 매핑
+            return {
+                "subtitle_font": row['subtitle_font'],
+                "subtitle_font_size": row['subtitle_font_size'],
+                "subtitle_color": row['subtitle_base_color'],
+                "subtitle_style_enum": row['subtitle_style_enum'],
+                "subtitle_stroke_color": row['subtitle_stroke_color'],
+                "subtitle_stroke_width": row['subtitle_stroke_width'],
+                "subtitle_bg_enabled": row['subtitle_bg_enabled'],
+                "subtitle_bg_opacity": row['subtitle_bg_opacity'],
+                "subtitle_line_spacing": row['subtitle_line_spacing'],
+                "subtitle_bg_color": row['subtitle_bg_color']
+            }
+    except Exception as e:
+        print(f"[DB] Error fetching recent subtitle settings: {e}")
+
+    # 2. Fallback to Global Defaults (if DB is empty or error)
     return get_global_setting("subtitle_default_style", {
-        "subtitle_font": "GmarketSansBold",  # [CHANGED] User request
-        "subtitle_font_size": 5.4,           # [CHANGED] 5.4% (User request)
+        "subtitle_font": "GmarketSansBold", 
+        "subtitle_font_size": 5.4,
         "subtitle_color": "white",
         "subtitle_style_enum": "Basic_White",
         "subtitle_stroke_color": "black",
-        "subtitle_stroke_width": 0           # [CHANGED] 0px (User request)
+        "subtitle_stroke_width": 0,
+        "subtitle_bg_enabled": 1,
+        "subtitle_bg_opacity": 0.5,
+        "subtitle_line_spacing": 0.1,
+        "subtitle_bg_color": "#000000"
     })
 
 # ============ 성공 전략 지식 베이스 (학습 시스템) ============
@@ -1796,3 +1844,39 @@ def save_image_prompts(project_id: int, prompts: list):
 
     conn.commit()
     conn.close()
+
+# [NEW] Autopilot Presets Helper
+def save_autopilot_preset(name: str, settings: dict):
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO autopilot_presets (name, settings_json) VALUES (?, ?)", (name, json.dumps(settings, ensure_ascii=False)))
+        conn.commit()
+    except Exception as e:
+        print(f"[DB Error] Save Preset: {e}")
+    finally:
+        conn.close()
+
+def get_autopilot_presets():
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM autopilot_presets ORDER BY created_at DESC")
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except Exception as e:
+        print(f"[DB Error] Get Presets: {e}")
+        return []
+    finally:
+        conn.close()
+
+def delete_autopilot_preset(preset_id: int):
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM autopilot_presets WHERE id = ?", (preset_id,))
+        conn.commit()
+    except Exception as e:
+        print(f"[DB Error] Delete Preset: {e}")
+    finally:
+        conn.close()

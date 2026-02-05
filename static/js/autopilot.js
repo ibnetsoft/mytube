@@ -2,10 +2,11 @@
 
 document.addEventListener('DOMContentLoaded', async () => {
     // 1. Load Presets (Styles & Voices)
-    await Promise.all([loadStyles(), loadVoices()]);
+    await Promise.all([loadStyles(), loadVoices(), fetchPresets()]);
 
     // 2. Load Saved Settings (Global / Default Project)
-    await loadSavedSettings();
+    // 2. Load Saved Settings (Global / Default Project)
+    await Promise.all([loadSavedSettings(), loadSubtitleDefaults()]);
 
     // 3. Event Listeners
     const startBtn = document.getElementById('startAutopilotBtn');
@@ -393,15 +394,18 @@ async function startAutopilot() {
     log("🚀 Launching Auto-Pilot...");
 
     // Build Config
+    // Build Config
     const config = {
         keyword: topic,
         visual_style: document.getElementById('imageStyle').value,
-        thumbnail_style: document.getElementById('thumbnailStyle').value, // [NEW]
+        thumbnail_style: document.getElementById('thumbnailStyle').value,
         video_scene_count: parseInt(document.getElementById('videoSceneCount').value || 0),
         script_style: document.getElementById('scriptStyleSelect').value,
         voice_provider: document.getElementById('providerSelect').value,
         voice_id: document.getElementById('voiceSelect').value,
-        duration_seconds: (parseInt(document.getElementById('targetDuration').value) || 10) * 60
+        duration_seconds: (parseInt(document.getElementById('targetDuration').value) || 10) * 60,
+        subtitle_settings: window.currentSubtitleSettings || null, // [NEW]
+        preset_id: document.getElementById('presetSelect') ? (parseInt(document.getElementById('presetSelect').value) || null) : null
     };
 
     log(`🎬 Visual: ${config.visual_style} | Thumb: ${config.thumbnail_style}`);
@@ -613,5 +617,206 @@ async function deleteFromQueue(pid) {
         });
         refreshQueue();
         Utils.showToast("대기열에서 제거되었습니다.", "info");
+    } catch (e) { console.error(e); }
+}
+
+async function loadSubtitleDefaults() {
+    const panel = document.getElementById('subtitlePreviewPanel');
+    if (!panel) return;
+
+    try {
+        const res = await fetch('/api/settings/subtitle/defaults');
+        const data = await res.json();
+        const s = data.settings || {};
+
+        // [NEW] Cache for Preset Saving & Start Payload
+        window.currentSubtitleSettings = s;
+        renderSubtitlePreview(s);
+
+        if (data.status === 'ok') {
+            // Already rendered by renderSubtitlePreview(s)
+        } else {
+            panel.innerHTML = `<div class="col-span-2 text-red-400 text-xs">설정 로드 실패</div>`;
+        }
+    } catch (e) {
+        console.error(e);
+        panel.innerHTML = `<div class="col-span-2 text-red-400 text-xs">연결 오류</div>`;
+    }
+}
+
+// [NEW] Render Subtitle Preview (Helper)
+function renderSubtitlePreview(s) {
+    const panel = document.getElementById('subtitlePreviewPanel');
+    if (!panel) return;
+
+    // Logic extracted from above for reuse
+    const fontName = s.subtitle_font || 'N/A';
+    const size = s.subtitle_font_size ? `${s.subtitle_font_size}%` : 'N/A';
+    const color = s.subtitle_color || 'N/A';
+    const opacity = s.subtitle_bg_opacity !== undefined ? s.subtitle_bg_opacity : 'N/A';
+    const stroke = s.subtitle_stroke_width > 0 ? `${s.subtitle_stroke_width}px` : 'None';
+    const lineSpace = s.subtitle_line_spacing || '0.1';
+
+    panel.innerHTML = `
+        <div class="flex flex-col">
+            <span class="text-xs text-gray-500">폰트 (Font)</span>
+            <span class="font-bold text-white">${fontName}</span>
+        </div>
+        <div class="flex flex-col">
+            <span class="text-xs text-gray-500">크기 (Size)</span>
+            <span class="font-bold text-white">${size}</span>
+        </div>
+        <div class="flex flex-col">
+            <span class="text-xs text-gray-500">색상 (Color)</span>
+            <div class="flex items-center gap-2">
+                <div class="w-3 h-3 rounded-full border border-gray-600" style="background-color: ${color}"></div>
+                <span class="font-bold text-white">${color}</span>
+            </div>
+        </div>
+        <div class="flex flex-col">
+            <span class="text-xs text-gray-500">테두리 (Stroke)</span>
+            <span class="font-bold text-white">${stroke}</span>
+        </div>
+        <div class="flex flex-col">
+            <span class="text-xs text-gray-500">배경 투명도 (Opacity)</span>
+            <span class="font-bold text-white">${opacity}</span>
+        </div>
+        <div class="flex flex-col">
+            <span class="text-xs text-gray-500">줄 간격 (Spacing)</span>
+            <span class="font-bold text-white">${lineSpace}</span>
+        </div>
+    `;
+}
+
+// [NEW] Preset Functions
+async function fetchPresets() {
+    const select = document.getElementById('presetSelect');
+    if (!select) return;
+
+    try {
+        const res = await fetch('/api/autopilot/presets');
+        const data = await res.json();
+
+        select.innerHTML = '<option value="">-- 현재 설정 (Custom) --</option>';
+        if (data.presets) {
+            data.presets.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.innerText = p.name;
+                select.appendChild(opt);
+            });
+        }
+
+    } catch (e) { console.error("Fetch presets error:", e); }
+}
+
+async function loadPreset(presetId) {
+    if (!presetId) {
+        document.getElementById('btnDeletePreset').classList.add('hidden');
+        return;
+    }
+
+    document.getElementById('btnDeletePreset').classList.remove('hidden');
+
+    // Fetch individual preset or find in list (we need full settings)
+    const select = document.getElementById('presetSelect');
+    // We didn't store full data in DOM, but we can re-fetch list or store in memory.
+    // Simpler: Fetch all (cached response likely) or find in existing fetchPresets if we stored it?
+    // Let's just re-fetch list to find the item (not optimal but OK).
+
+    try {
+        const res = await fetch('/api/autopilot/presets');
+        const data = await res.json();
+        const preset = data.presets.find(p => p.id == presetId);
+
+        if (preset && preset.settings) {
+            applyPresetSettings(preset.settings);
+            Utils.showToast(`프리셋 '${preset.name}' 로드 완료`, 'success');
+        }
+    } catch (e) {
+        console.error(e);
+        Utils.showToast('프리셋 로드 실패', 'error');
+    }
+}
+
+function applyPresetSettings(s) {
+    // 1. Visual
+    if (s.visual_style) selectStyle('imageStyle', s.visual_style);
+    if (s.thumbnail_style) selectStyle('thumbnailStyle', s.thumbnail_style);
+
+    // 2. Video
+    if (s.video_scene_count) {
+        document.getElementById('videoSceneCount').value = s.video_scene_count;
+        document.getElementById('sceneCountVal').innerText = s.video_scene_count + " Scenes";
+    }
+    if (s.duration_seconds) {
+        document.getElementById('targetDuration').value = Math.round(s.duration_seconds / 60);
+    }
+
+    // 3. Script
+    if (s.script_style) {
+        document.getElementById('scriptStyleSelect').value = s.script_style;
+    }
+
+    // 4. Voice
+    if (s.voice_provider) {
+        document.getElementById('providerSelect').value = s.voice_provider;
+        // Trigger change? No, manually update voice
+        // We need to wait for voice fetch? 
+        // This is tricky. Simplified for now.
+    }
+
+    // 5. Subtitles (Most Important)
+    if (s.subtitle_settings) {
+        window.currentSubtitleSettings = s.subtitle_settings;
+        renderSubtitlePreview(s.subtitle_settings);
+    }
+}
+
+async function saveCurrentPreset() {
+    const nameInput = document.getElementById('newPresetName');
+    const name = nameInput.value.trim();
+    if (!name) return alert("프리셋 이름을 입력해주세요.");
+
+    // Gather ALL current settings
+    const settings = {
+        visual_style: document.getElementById('imageStyle').value,
+        thumbnail_style: document.getElementById('thumbnailStyle').value,
+        video_scene_count: parseInt(document.getElementById('videoSceneCount').value),
+        script_style: document.getElementById('scriptStyleSelect').value,
+        voice_provider: document.getElementById('providerSelect').value,
+        voice_id: document.getElementById('voiceSelect').value,
+        duration_seconds: (parseInt(document.getElementById('targetDuration').value) || 10) * 60,
+        subtitle_settings: window.currentSubtitleSettings || {}
+    };
+
+    try {
+        const res = await fetch('/api/autopilot/presets', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, settings })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+            Utils.showToast("프리셋이 저장되었습니다!", "success");
+            nameInput.value = "";
+            fetchPresets(); // refresh list
+        } else {
+            alert("Error: " + data.error);
+        }
+    } catch (e) { console.error(e); }
+}
+
+async function deleteCurrentPreset() {
+    const select = document.getElementById('presetSelect');
+    const id = select.value;
+    if (!id) return;
+
+    if (!confirm("정말 이 프리셋을 삭제하시겠습니까?")) return;
+
+    try {
+        await fetch(`/api/autopilot/presets/${id}`, { method: 'DELETE' });
+        Utils.showToast("삭제되었습니다.", "info");
+        fetchPresets();
     } catch (e) { console.error(e); }
 }
