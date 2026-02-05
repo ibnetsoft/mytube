@@ -111,7 +111,9 @@ async def save_custom_style_preset(
     image_url = None
     if file:
         try:
-            filename = f"style_{style_key}_{int(time.time())}.png"
+            # Sanitize style_key for filename (remove/replace invalid chars)
+            safe_key = style_key.replace('/', '_').replace('\\', '_').replace(' ', '_')
+            filename = f"style_{safe_key}_{int(time.time())}.png"
             file_path = os.path.join(config.STATIC_DIR, "styles", filename)
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
             
@@ -240,7 +242,9 @@ async def add_custom_thumbnail_style_preset(
         
         # Generate filename
         ext = os.path.splitext(file.filename)[1]
-        filename = f"thumb_{style_key}_{uuid.uuid4().hex[:8]}{ext}"
+        # Sanitize style_key for filename (remove/replace invalid chars)
+        safe_key = style_key.replace('/', '_').replace('\\', '_').replace(' ', '_')
+        filename = f"thumb_{safe_key}_{uuid.uuid4().hex[:8]}{ext}"
         filepath = os.path.join(save_dir, filename)
         
         # Save file

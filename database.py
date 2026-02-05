@@ -40,10 +40,17 @@ def init_db():
             name TEXT NOT NULL,
             topic TEXT,
             status TEXT DEFAULT 'draft',
+            language TEXT DEFAULT 'ko',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+
+    # [MIGRATION] Add language column if not exists
+    try:
+        cursor.execute("ALTER TABLE projects ADD COLUMN language TEXT DEFAULT 'ko'")
+    except Exception:
+        pass # Already exists
 
     # 프로젝트 핵심 설정 (10가지 요소)
     cursor.execute("""
@@ -213,16 +220,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             style_key TEXT UNIQUE,
             prompt_value TEXT,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-
-    # [NEW] 이미지 스타일 프롬프트 프리셋
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS style_presets (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            style_key TEXT UNIQUE,
-            prompt_value TEXT,
+            image_url TEXT,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -243,6 +241,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             style_key TEXT UNIQUE,
             prompt_value TEXT,
+            image_url TEXT,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -610,6 +609,19 @@ def migrate_db():
             cursor.execute("ALTER TABLE thumbnails ADD COLUMN full_settings TEXT")
         except sqlite3.OperationalError: pass
 
+    # [MIGRATION] Add image_url to style preset tables
+    try:
+        cursor.execute("ALTER TABLE style_presets ADD COLUMN image_url TEXT")
+        print("[Migration] Added image_url to style_presets")
+    except sqlite3.OperationalError:
+        pass  # Already exists
+    
+    try:
+        cursor.execute("ALTER TABLE thumbnail_style_presets ADD COLUMN image_url TEXT")
+        print("[Migration] Added image_url to thumbnail_style_presets")
+    except sqlite3.OperationalError:
+        pass  # Already exists
+
     conn.commit()
     print("[DB] Migration completed")
 
@@ -617,13 +629,13 @@ def migrate_db():
 
 # ============ 프로젝트 CRUD ============
 
-def create_project(name: str, topic: str = None, app_mode: str = 'longform') -> int:
+def create_project(name: str, topic: str = None, app_mode: str = 'longform', language: str = 'ko') -> int:
     """새 프로젝트 생성 + 기본 설정 초기화"""
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO projects (name, topic) VALUES (?, ?)",
-        (name, topic)
+        "INSERT INTO projects (name, topic, language) VALUES (?, ?, ?)",
+        (name, topic, language)
     )
     project_id = cursor.lastrowid
 
@@ -634,6 +646,17 @@ def create_project(name: str, topic: str = None, app_mode: str = 'longform') -> 
     # [NEW] 자막 기본값 가져오기
     sub_defaults = get_subtitle_defaults()
     
+    # [NEW] 언어별 기본 폰트 자동 설정
+    # (video_service.py의 font_mapping과 일치해야 함)
+    lang_fonts = {
+        'ko': 'GmarketSansBold',
+        'en': 'Impact',
+        'ja': 'NotoSansJP',
+        'vi': 'Roboto',
+        'es': 'Roboto'
+    }
+    initial_font = lang_fonts.get(language, 'GmarketSansBold')
+
     cursor.execute(
         """INSERT INTO project_settings 
            (project_id, title, voice_name, voice_language, voice_style_prompt,
@@ -642,7 +665,7 @@ def create_project(name: str, topic: str = None, app_mode: str = 'longform') -> 
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (project_id, name, defaults.get("voice_name", "Puck"), 
          defaults.get("language_code", "ko-KR"), defaults.get("style_prompt", ""),
-         sub_defaults.get("subtitle_font"), sub_defaults.get("subtitle_font_size"),
+         initial_font, sub_defaults.get("subtitle_font_size"),
          sub_defaults.get("subtitle_color"), sub_defaults.get("subtitle_style_enum"),
          sub_defaults.get("subtitle_stroke_color"), sub_defaults.get("subtitle_stroke_width"),
          1, 0, 'elevenlabs', 1.0, 0, app_mode) # Default: BG ON, Stroke OFF
@@ -1880,3 +1903,140 @@ def delete_autopilot_preset(preset_id: int):
         print(f"[DB Error] Delete Preset: {e}")
     finally:
         conn.close()
+
+# ============ 스타일 프리셋 관리 ============
+
+def get_style_presets():
+    """이미지 스타일 프리셋 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM style_presets")
+    rows = cursor.fetchall()
+    conn.close()
+    
+    # {style_key: {prompt_value, image_url}} 형태로 반환
+    result = {}
+    for row in rows:
+        row_dict = dict(row)
+        result[row_dict['style_key']] = {
+            'prompt_value': row_dict['prompt_value'],
+            'image_url': row_dict.get('image_url')
+        }
+    return result
+
+def save_style_preset(style_key: str, prompt_value: str, image_url: str = None):
+    """이미지 스타일 프리셋 저장"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # Check if exists
+    cursor.execute("SELECT * FROM style_presets WHERE style_key = ?", (style_key,))
+    existing = cursor.fetchone()
+    
+    if existing:
+        # Update (preserve image_url if not provided)
+        if image_url is None:
+            cursor.execute("""
+                UPDATE style_presets 
+                SET prompt_value = ?, updated_at = CURRENT_TIMESTAMP 
+                WHERE style_key = ?
+            """, (prompt_value, style_key))
+        else:
+            cursor.execute("""
+                UPDATE style_presets 
+                SET prompt_value = ?, image_url = ?, updated_at = CURRENT_TIMESTAMP 
+                WHERE style_key = ?
+            """, (prompt_value, image_url, style_key))
+    else:
+        # Insert
+        cursor.execute("""
+            INSERT INTO style_presets (style_key, prompt_value, image_url) 
+            VALUES (?, ?, ?)
+        """, (style_key, prompt_value, image_url))
+    
+    conn.commit()
+    conn.close()
+
+def get_script_style_presets():
+    """대본 스타일 프리셋 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM script_style_presets")
+    rows = cursor.fetchall()
+    conn.close()
+    
+    result = {}
+    for row in rows:
+        result[row['style_key']] = row['prompt_value']
+    return result
+
+def save_script_style_preset(style_key: str, prompt_value: str):
+    """대본 스타일 프리셋 저장"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT * FROM script_style_presets WHERE style_key = ?", (style_key,))
+    existing = cursor.fetchone()
+    
+    if existing:
+        cursor.execute("""
+            UPDATE script_style_presets 
+            SET prompt_value = ?, updated_at = CURRENT_TIMESTAMP 
+            WHERE style_key = ?
+        """, (prompt_value, style_key))
+    else:
+        cursor.execute("""
+            INSERT INTO script_style_presets (style_key, prompt_value) 
+            VALUES (?, ?)
+        """, (style_key, prompt_value))
+    
+    conn.commit()
+    conn.close()
+
+def get_thumbnail_style_presets():
+    """썸네일 스타일 프리셋 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM thumbnail_style_presets")
+    rows = cursor.fetchall()
+    conn.close()
+    
+    result = {}
+    for row in rows:
+        row_dict = dict(row)
+        result[row_dict['style_key']] = {
+            'prompt_value': row_dict['prompt_value'],
+            'image_url': row_dict.get('image_url')
+        }
+    return result
+
+def save_thumbnail_style_preset(style_key: str, prompt_value: str, image_url: str = None):
+    """썸네일 스타일 프리셋 저장"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT * FROM thumbnail_style_presets WHERE style_key = ?", (style_key,))
+    existing = cursor.fetchone()
+    
+    if existing:
+        # Update (preserve image_url if not provided)
+        if image_url is None:
+            cursor.execute("""
+                UPDATE thumbnail_style_presets 
+                SET prompt_value = ?, updated_at = CURRENT_TIMESTAMP 
+                WHERE style_key = ?
+            """, (prompt_value, style_key))
+        else:
+            cursor.execute("""
+                UPDATE thumbnail_style_presets 
+                SET prompt_value = ?, image_url = ?, updated_at = CURRENT_TIMESTAMP 
+                WHERE style_key = ?
+            """, (prompt_value, image_url, style_key))
+    else:
+        cursor.execute("""
+            INSERT INTO thumbnail_style_presets (style_key, prompt_value, image_url) 
+            VALUES (?, ?, ?)
+        """, (style_key, prompt_value, image_url))
+    
+    conn.commit()
+    conn.close()

@@ -16,9 +16,30 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const sceneRange = document.getElementById('videoSceneCount');
     const sceneVal = document.getElementById('sceneCountVal');
+    const allVideoCheck = document.getElementById('allVideoCheck');
+
     if (sceneRange && sceneVal) {
         sceneRange.addEventListener('input', (e) => {
+            if (allVideoCheck && allVideoCheck.checked) return;
             sceneVal.textContent = `${e.target.value} Scenes`;
+        });
+    }
+
+    if (allVideoCheck && sceneRange && sceneVal) {
+        allVideoCheck.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                sceneRange.disabled = true;
+                sceneRange.classList.add('opacity-30');
+                sceneVal.textContent = `ALL Scenes`;
+                sceneVal.classList.replace('bg-pink-500/10', 'bg-pink-500');
+                sceneVal.classList.replace('text-pink-400', 'text-white');
+            } else {
+                sceneRange.disabled = false;
+                sceneRange.classList.remove('opacity-30');
+                sceneVal.textContent = `${sceneRange.value} Scenes`;
+                sceneVal.classList.replace('bg-pink-500', 'bg-pink-500/10');
+                sceneVal.classList.replace('text-white', 'text-pink-400');
+            }
         });
     }
 
@@ -36,63 +57,103 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-// Styles Configuration
-const VISUAL_STYLES = [
-    { id: 'realistic', name: '사실적인 (Realistic)', img: '/static/img/styles/style_realistic.png' },
-    { id: 'anime', name: '애니메이션 (Anime)', img: '/static/img/styles/style_anime.png' },
-    { id: 'cinematic', name: '시네마틱 (Cinematic)', img: '/static/img/styles/style_cinematic.png' },
-    { id: 'minimal', name: '미니멀 (Minimal)', img: '/static/img/styles/style_minimal.png' },
-    { id: '3d', name: '3D 렌더 (3D Render)', img: '/static/img/styles/style_3d.png' },
-    { id: 'webtoon', name: '웹툰 (Webtoon)', img: '/static/img/styles/style_webtoon.png' },
-    { id: 'ghibli', name: '지브리 (Ghibli)', img: '/static/img/styles/style_ghibli.png' },
-    { id: 'wimpy', name: '윔피키드 (Wimpy Kid)', img: '/static/img/styles/style_wimpy.png' },
-    { id: 'korean_webtoon', name: '한국웹 (Korea)', img: '/static/img/styles/style_korean_webtoon.png' }
-];
-
-const THUMBNAIL_STYLES = [
-    { id: 'face', name: '얼굴 강조형', img: '/static/img/thumbs/face.png' },
-    { id: 'text', name: '텍스트 중심형', img: '/static/img/thumbs/text.png' },
-    { id: 'wimpy', name: '윔피키드 스타일', img: '/static/img/thumbs/wimpy.png' },
-    { id: '시니어사연2', name: '시니어사연2', img: '/static/img/custom_styles/thumb_시니어사연2_1e07c4d6.png' },
-    { id: 'ghibli', name: '지브리 감성', img: '/static/img/thumbs/ghibli.png' },
-    { id: 'dramatic', name: '드라마틱형', img: '/static/img/thumbs/dramatic.png' },
-    { id: 'mystery', name: '미스터리형', img: '/static/img/thumbs/mystery.png' },
-    { id: 'minimal', name: '미니멀형', img: '/static/img/thumbs/minimal.png' }
-];
-
+// Styles will be loaded dynamically from API
 async function loadStyles() {
-    // 1. Visual Styles
+    // 1. Visual Styles (fetch from DB)
     const vGrid = document.getElementById('styleSelectorGrid');
     if (vGrid) {
-        vGrid.innerHTML = '';
-        VISUAL_STYLES.forEach(style => {
-            const div = createStyleCard(style, 'imageStyle');
-            vGrid.appendChild(div);
-        });
+        vGrid.innerHTML = '<div class="col-span-full py-4 text-center text-gray-500 text-[10px]">불러오는 중...</div>';
+        try {
+            const res = await fetch('/api/settings/style-presets');
+            const data = await res.json();
+
+            vGrid.innerHTML = '';
+            Object.entries(data).forEach(([key, val]) => {
+                // If customized style has image_url, use it. Otherwise, use default path.
+                const imgUrl = (typeof val === 'object' && val.image_url) ? val.image_url : `/static/img/styles/style_${key}.png`;
+
+                const style = {
+                    id: key,
+                    name: (typeof val === 'object' && val.name_ko) ? val.name_ko : key,
+                    img: imgUrl
+                };
+                const div = createStyleCard(style, 'imageStyle');
+                vGrid.appendChild(div);
+            });
+
+            // Set default
+            const currentImgStyle = document.getElementById('imageStyle').value;
+            if (currentImgStyle && data[currentImgStyle]) {
+                selectStyle('imageStyle', currentImgStyle);
+            } else {
+                const firstKey = Object.keys(data)[0];
+                if (firstKey) selectStyle('imageStyle', firstKey);
+            }
+        } catch (e) {
+            console.error("Failed to load visual styles:", e);
+        }
     }
 
-    // 2. Thumbnail Styles
+    // 2. Thumbnail Styles (fetch from DB)
     const tGrid = document.getElementById('thumbnailStyleGrid');
     if (tGrid) {
-        tGrid.innerHTML = '';
-        THUMBNAIL_STYLES.forEach(style => {
-            const div = createStyleCard(style, 'thumbnailStyle');
-            tGrid.appendChild(div);
-        });
+        tGrid.innerHTML = '<div class="col-span-full py-4 text-center text-gray-500 text-[10px]">불러오는 중...</div>';
+        try {
+            const res = await fetch('/api/settings/thumbnail-style-presets');
+            const data = await res.json();
+
+            // Default Korean Labels for system styles
+            const defaultNames = {
+                'face': '얼굴 강조형',
+                'text': '텍스트 중심형',
+                'wimpy': '윔피키드 스타일',
+                'ghibli': '지브리 감성',
+                'dramatic': '드라마틱형',
+                'mystery': '미스터리형',
+                'minimal': '미니멀형'
+            };
+
+            tGrid.innerHTML = '';
+            Object.entries(data).forEach(([key, val]) => {
+                const imgUrl = (typeof val === 'object' && val.image_url) ? val.image_url : `/static/img/thumbs/${key}.png`;
+
+                const style = {
+                    id: key,
+                    name: defaultNames[key] || key,
+                    img: imgUrl
+                };
+                const div = createStyleCard(style, 'thumbnailStyle');
+                tGrid.appendChild(div);
+            });
+
+            // Set default
+            const currentThumbStyle = document.getElementById('thumbnailStyle').value;
+            if (currentThumbStyle && data[currentThumbStyle]) {
+                selectStyle('thumbnailStyle', currentThumbStyle);
+            } else {
+                const firstKey = Object.keys(data)[0];
+                if (firstKey) selectStyle('thumbnailStyle', firstKey);
+            }
+        } catch (e) {
+            console.error("Failed to load thumbnail styles:", e);
+        }
     }
 }
 
 function createStyleCard(style, inputId) {
     const div = document.createElement('div');
-    // Using style-card class conventions from other pages if possible, but tailwind here is self-contained.
     div.className = `cursor-pointer relative group rounded-xl overflow-hidden border-2 border-transparent hover:border-purple-500 transition-all bg-gray-800 aspect-video style-card-${inputId}`;
     div.dataset.value = style.id;
     div.onclick = () => selectStyle(inputId, style.id);
 
+    // Filter name for display (remove paths if any)
+    const displayName = style.name.split('/').pop().replace(/_/g, ' ');
+
     div.innerHTML = `
-        <img src="${style.img}" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" alt="${style.name}" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22160%22 height=%2290%22%3E%3Crect fill=%22%23374151%22 width=%22160%22 height=%2290%22/%3E%3Ctext fill=%22%239CA3AF%22 x=%22%2550%22 y=%22%2550%22 text-anchor=%22middle%22 dy=%22.3em%22%3ENo Image%3C/text%3E%3C/svg%3E';">
+        <img src="${style.img}" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" alt="${style.name}" 
+            onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=\\'flex flex-col items-center justify-center h-full p-2 text-center\\'><div class=\\'text-xl mb-1\\'>🎨</div><div class=\\'text-[9px] text-gray-400 font-medium leading-tight truncate w-full\\'>${displayName}</div></div>';">
         <div class="absolute bottom-0 inset-x-0 bg-black/60 p-1.5 text-center transition-transform translate-y-0">
-            <span class="text-[10px] text-white font-medium block truncate">${style.name}</span>
+            <span class="text-[10px] text-white font-medium block truncate">${displayName}</span>
         </div>
         <div class="absolute top-2 right-2 bg-purple-600 rounded-full p-1 opacity-0 check-icon transition-opacity shadow-lg">
             <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
@@ -126,12 +187,58 @@ function selectStyle(inputId, val) {
     }
 }
 
+// [NEW] Motion Method Selection
+function setMotionMethod(method) {
+    const input = document.getElementById('motionMethod');
+    if (!input) return;
+    input.value = method;
+
+    // Visual update
+    document.querySelectorAll('.motion-method-btn').forEach(btn => {
+        if (btn.dataset.value === method) {
+            btn.classList.replace('bg-gray-800', 'bg-purple-600');
+            btn.classList.replace('text-gray-400', 'text-white');
+            btn.classList.add('font-bold', 'shadow-sm');
+        } else {
+            btn.classList.replace('bg-purple-600', 'bg-gray-800');
+            btn.classList.replace('text-white', 'text-gray-400');
+            btn.classList.remove('font-bold', 'shadow-sm');
+        }
+    });
+}
+
 
 async function loadVoices() {
     const providerSelect = document.getElementById('providerSelect');
     const voiceSelect = document.getElementById('voiceSelect');
+    const scriptSelect = document.getElementById('scriptStyleSelect');
 
     if (!providerSelect || !voiceSelect) return;
+
+    // Load Script Styles if select exists
+    if (scriptSelect) {
+        try {
+            const res = await fetch('/api/settings/script-style-presets');
+            const data = await res.json();
+
+            // Keep current value if possible
+            const currentVal = scriptSelect.value;
+            scriptSelect.innerHTML = '';
+
+            Object.keys(data).forEach(key => {
+                const opt = document.createElement('option');
+                opt.value = key;
+                opt.innerText = key;
+                scriptSelect.appendChild(opt);
+            });
+
+            if (data[currentVal]) scriptSelect.value = currentVal;
+            else if (Object.keys(data).length > 0) scriptSelect.value = Object.keys(data)[0];
+
+        } catch (e) {
+            console.error("Failed to load script styles:", e);
+        }
+    }
 
     // Provider Change Event
     providerSelect.onchange = async () => {
@@ -400,6 +507,8 @@ async function startAutopilot() {
         visual_style: document.getElementById('imageStyle').value,
         thumbnail_style: document.getElementById('thumbnailStyle').value,
         video_scene_count: parseInt(document.getElementById('videoSceneCount').value || 0),
+        all_video: document.getElementById('allVideoCheck')?.checked || false, // [NEW]
+        motion_method: document.getElementById('motionMethod')?.value || 'standard', // [NEW]
         script_style: document.getElementById('scriptStyleSelect').value,
         voice_provider: document.getElementById('providerSelect').value,
         voice_id: document.getElementById('voiceSelect').value,
@@ -713,16 +822,16 @@ async function fetchPresets() {
 async function loadPreset(presetId) {
     if (!presetId) {
         document.getElementById('btnDeletePreset').classList.add('hidden');
+        document.getElementById('newPresetName').value = ""; // Clear name
         return;
     }
 
     document.getElementById('btnDeletePreset').classList.remove('hidden');
 
-    // Fetch individual preset or find in list (we need full settings)
     const select = document.getElementById('presetSelect');
-    // We didn't store full data in DOM, but we can re-fetch list or store in memory.
-    // Simpler: Fetch all (cached response likely) or find in existing fetchPresets if we stored it?
-    // Let's just re-fetch list to find the item (not optimal but OK).
+    const selectedOption = select.options[select.selectedIndex];
+    const presetName = selectedOption ? selectedOption.innerText : "";
+    document.getElementById('newPresetName').value = presetName;
 
     try {
         const res = await fetch('/api/autopilot/presets');
@@ -745,9 +854,23 @@ function applyPresetSettings(s) {
     if (s.thumbnail_style) selectStyle('thumbnailStyle', s.thumbnail_style);
 
     // 2. Video
-    if (s.video_scene_count) {
+    if (s.video_scene_count !== undefined) {
         document.getElementById('videoSceneCount').value = s.video_scene_count;
         document.getElementById('sceneCountVal').innerText = s.video_scene_count + " Scenes";
+    }
+
+    // [NEW] All Video Toggle
+    if (s.all_video !== undefined) {
+        const check = document.getElementById('allVideoCheck');
+        if (check) {
+            check.checked = s.all_video;
+            check.dispatchEvent(new Event('change')); // Trigger visual update
+        }
+    }
+
+    // [NEW] Motion Method
+    if (s.motion_method) {
+        setMotionMethod(s.motion_method);
     }
     if (s.duration_seconds) {
         document.getElementById('targetDuration').value = Math.round(s.duration_seconds / 60);
@@ -778,45 +901,60 @@ async function saveCurrentPreset() {
     const name = nameInput.value.trim();
     if (!name) return alert("프리셋 이름을 입력해주세요.");
 
-    // Gather ALL current settings
-    const settings = {
-        visual_style: document.getElementById('imageStyle').value,
-        thumbnail_style: document.getElementById('thumbnailStyle').value,
-        video_scene_count: parseInt(document.getElementById('videoSceneCount').value),
-        script_style: document.getElementById('scriptStyleSelect').value,
-        voice_provider: document.getElementById('providerSelect').value,
-        voice_id: document.getElementById('voiceSelect').value,
-        duration_seconds: (parseInt(document.getElementById('targetDuration').value) || 10) * 60,
-        subtitle_settings: window.currentSubtitleSettings || {}
+    const currentSettings = {
+        name: name,
+        settings: {
+            image_style: document.getElementById('imageStyle').value,
+            thumbnail_style: document.getElementById('thumbnailStyle').value,
+            video_scene_count: parseInt(document.getElementById('videoSceneCount').value || 0),
+            all_video: document.getElementById('allVideoCheck')?.checked || false,
+            motion_method: document.getElementById('motionMethod')?.value || 'standard',
+            script_style: document.getElementById('scriptStyleSelect').value,
+            voice_provider: document.getElementById('providerSelect').value,
+            voice_id: document.getElementById('voiceSelect').value,
+            target_duration: parseInt(document.getElementById('targetDuration').value || 10),
+            subtitle_settings: window.currentSubtitleSettings || null
+        }
     };
 
     try {
         const res = await fetch('/api/autopilot/presets', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, settings })
+            body: JSON.stringify(currentSettings)
         });
         const data = await res.json();
         if (data.status === 'ok') {
             Utils.showToast("프리셋이 저장되었습니다!", "success");
-            nameInput.value = "";
             fetchPresets(); // refresh list
         } else {
             alert("Error: " + data.error);
         }
-    } catch (e) { console.error(e); }
+    } catch (e) {
+        console.error(e);
+    }
 }
 
 async function deleteCurrentPreset() {
     const select = document.getElementById('presetSelect');
-    const id = select.value;
-    if (!id) return;
+    const pid = select.value;
+    if (!pid) return;
 
-    if (!confirm("정말 이 프리셋을 삭제하시겠습니까?")) return;
+    const name = select.options[select.selectedIndex].innerText;
+    if (!confirm(`'${name}' 프리셋을 정말 삭제할까요?`)) return;
 
     try {
-        await fetch(`/api/autopilot/presets/${id}`, { method: 'DELETE' });
-        Utils.showToast("삭제되었습니다.", "info");
-        fetchPresets();
+        const res = await fetch(`/api/autopilot/presets/${pid}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.status === 'ok') {
+            Utils.showToast("프리셋이 삭제되었습니다.", "success");
+            fetchPresets();
+            document.getElementById('btnDeletePreset').classList.add('hidden');
+            document.getElementById('newPresetName').value = "";
+        } else {
+            alert("삭제 실패: " + data.error);
+        }
     } catch (e) { console.error(e); }
 }
+
+

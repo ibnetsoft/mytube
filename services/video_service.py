@@ -1396,7 +1396,13 @@ class VideoService:
             "Gungsuh": "batang.ttc",
             "gungsuh": "batang.ttc",
             "궁서": "batang.ttc",
-            "궁서체": "batang.ttc"
+            "궁서체": "batang.ttc",
+            
+            # [NEW] Multilingual Fonts
+            "Impact": "impact.ttf",
+            "Roboto": "Roboto-Bold.ttf",
+            "NotoSansJP": "msgothic.ttc", # Fallback to standard Windows font
+            "ja": "msgothic.ttc"
         }
         
         target_font_file = font_mapping.get(font_name, font_name)
@@ -1812,28 +1818,31 @@ class VideoService:
         인트로 영상과 메인 영상을 병합
         FFmpeg concat demuxer 사용
         """
+        return self.concatenate_videos([intro_path, main_video_path], output_path)
+
+    def concatenate_videos(self, video_paths: List[str], output_path: str) -> str:
+        """
+        여러 비디오 파일을 하나로 합칩니다.
+        """
         import subprocess
         from pathlib import Path
         import tempfile
         
         try:
-            # 파일 존재 확인
-            if not Path(intro_path).exists():
-                print(f"Intro video not found: {intro_path}")
-                return main_video_path
-            
-            if not Path(main_video_path).exists():
-                raise FileNotFoundError(f"Main video not found: {main_video_path}")
-            
+            valid_paths = [p for p in video_paths if Path(p).exists()]
+            if not valid_paths:
+                return ""
+            if len(valid_paths) == 1:
+                import shutil
+                shutil.copy2(valid_paths[0], output_path)
+                return output_path
+
             # concat.txt 파일 생성
             with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as f:
                 concat_file = f.name
-                # 절대 경로로 변환
-                intro_abs = str(Path(intro_path).absolute()).replace('\\', '/')
-                main_abs = str(Path(main_video_path).absolute()).replace('\\', '/')
-                
-                f.write(f"file '{intro_abs}'\n")
-                f.write(f"file '{main_abs}'\n")
+                for p in valid_paths:
+                    abs_p = str(Path(p).absolute()).replace('\\', '/')
+                    f.write(f"file '{abs_p}'\n")
             
             # FFmpeg concat 명령
             cmd = [
@@ -1841,37 +1850,72 @@ class VideoService:
                 '-f', 'concat',
                 '-safe', '0',
                 '-i', concat_file,
-                '-c', 'copy',  # 재인코딩 없이 복사 (빠름)
-                '-y',  # 덮어쓰기
+                '-c', 'copy',
+                '-y',
                 output_path
             ]
             
-            print(f"Merging intro with main video...")
-            print(f"Command: {' '.join(cmd)}")
-            
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                encoding='utf-8',
-                errors='replace'
-            )
-            
-            # concat.txt 삭제
+            result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
             Path(concat_file).unlink(missing_ok=True)
             
             if result.returncode != 0:
-                print(f"FFmpeg error: {result.stderr}")
-                # 병합 실패 시 원본 비디오 반환
-                return main_video_path
+                print(f"Concatenate error: {result.stderr}")
+                return valid_paths[0]
             
-            print(f"Successfully merged intro. Output: {output_path}")
             return output_path
-            
         except Exception as e:
-            print(f"Error merging intro: {e}")
-            # 오류 발생 시 원본 비디오 반환
-            return main_video_path
+            print(f"Error concatenating: {e}")
+            return video_paths[0] if video_paths else ""
+
+    def extract_last_frame(self, video_path: str, output_image_path: str) -> bool:
+        """
+        비디오의 마지막 프레임을 이미지로 추출합니다. (영상 연장용)
+        """
+        import subprocess
+        try:
+            # -sseof -1: 마지막 1초 지점부터 탐색하여 마지막 프레임 찾기
+            cmd = [
+                config.FFMPEG_PATH,
+                '-sseof', '-1',
+                '-i', video_path,
+                '-update', '1',
+                '-q:v', '1', # Best quality
+                '-frames:v', '1',
+                '-y',
+                output_image_path
+            ]
+            result = subprocess.run(cmd, capture_output=True)
+            return result.returncode == 0
+        except Exception as e:
+            print(f"Extract frame error: {e}")
+            return False
+
+    def apply_slow_mo(self, video_path: str, output_path: str, speed_ratio: float = 0.625) -> str:
+        """
+        영상 속도를 늦춰 길이를 늘립니다. (보간법 사용)
+        0.625 ratio: 5초 -> 8초
+        """
+        import subprocess
+        try:
+            # setpts: 속도 조절
+            # minterpolate: 프레임 보간 (부드러운 움직임)
+            # r=fps (원본 fps 유지)
+            cmd = [
+                config.FFMPEG_PATH,
+                '-i', video_path,
+                '-vf', f"setpts={1/speed_ratio}*PTS,minterpolate='fps=24:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsfm=1'",
+                '-y',
+                output_path
+            ]
+            print(f"Applying Slow-mo (ratio {speed_ratio})...")
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                print(f"Slow-mo error: {result.stderr}")
+                return video_path
+            return output_path
+        except Exception as e:
+            print(f"Slow-mo exception: {e}")
+            return video_path
 
 # 싱글톤 인스턴스
 video_service = VideoService()

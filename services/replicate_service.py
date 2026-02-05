@@ -14,66 +14,92 @@ class ReplicateService:
             self.api_key = os.getenv("REPLICATE_API_TOKEN")
         return bool(self.api_key)
 
-    async def generate_video_from_image(self, image_path: str, prompt: str = "Cinematic video, high quality, smooth motion", motion_bucket_id: int = 127, duration: float = 3.3):
+    async def generate_video_from_image(self, image_path: str, prompt: str = "Cinematic video, high quality, smooth motion", duration: float = 5.0, method: str = "standard"):
         """
         Replicate의 wan-video 모델을 사용하여 이미지 -> 비디오 생성
-        Wan 2.1 Limit: Max 81 frames usually.
-        Config:
-         - 3.3s @ 24fps (Standard) => ~81 frames
-         - 5.0s @ 16fps (Long)     => ~80 frames
+        - standard: 5초 생성 (Wan 2.1 한계)
+        - extend: 5초 생성 후 마지막 프레임 따서 3초 추가 생성 (총 8초)
+        - slowmo: 5초 생성 후 보간법으로 8초로 늘림
         """
         if not self.check_api_key():
-            raise Exception("Replicate API Key is missing. Please set REPLICATE_API_TOKEN.")
+            raise Exception("Replicate API Key is missing.")
+
+        print(f"🎬 [Video Gen] Method: {method}, Image: {os.path.basename(image_path)}")
 
         try:
-            # Calculate FPS based on duration to fit within ~81 frames limit of Wan 2.1
-            fps = 24
-            num_frames = int(duration * fps)
-            
-            if num_frames > 81:
-                # If requested duration exceeds capacity at 24fps, lower the FPS
-                # Max duration roughly 5s (81/16 = 5.06s)
-                fps = 16 
-                num_frames = int(duration * fps)
+            if method == "extend":
+                # 1. First 5 seconds
+                first_part_data = await self._generate_basic(image_path, prompt, duration=5.0)
+                first_path = self._save_temp_video(first_part_data, "part1.mp4")
+
+                # 2. Extract last frame
+                from services.video_service import video_service
+                last_frame_path = first_path.replace(".mp4", "_last.png")
+                if video_service.extract_last_frame(first_path, last_frame_path):
+                    # 3. Generate next 3 seconds from last frame
+                    second_part_data = await self._generate_basic(last_frame_path, prompt, duration=3.0)
+                    second_path = self._save_temp_video(second_part_data, "part2.mp4")
+
+                    # 4. Merge
+                    final_path = first_path.replace("part1.mp4", "extended_8s.mp4")
+                    video_service.concatenate_videos([first_path, second_path], final_path)
+                    
+                    with open(final_path, "rb") as f:
+                        return f.read()
+                return first_part_data
+
+            elif method == "slowmo":
+                # 1. Standard 5s generation
+                video_data = await self._generate_basic(image_path, prompt, duration=5.0)
+                temp_path = self._save_temp_video(video_data, "before_slowmo.mp4")
                 
-                # Cap at 81 if still exceeding
-                if num_frames > 81:
-                    num_frames = 81
-            
-            print(f"[Wan 2.1] Generating {duration}s video ({num_frames} frames @ {fps} fps)")
+                # 2. Apply FFmpeg Slow-mo (Interpolation)
+                from services.video_service import video_service
+                output_path = temp_path.replace(".mp4", "_slowmo_8s.mp4")
+                video_service.apply_slow_mo(temp_path, output_path, speed_ratio=0.625) # 5/8 = 0.625
+                
+                with open(output_path, "rb") as f:
+                    return f.read()
 
-            input_data = {
-                "image": open(image_path, "rb"),
-                "prompt": prompt,
-                "go_fast": True,
-                "num_frames": num_frames,
-                "resolution": "720p",
-                "sample_shift": 12,
-                "optimize_prompt": False,
-                "frames_per_second": fps
-            }
-
-            # 비동기 실행 (run_in_executor)
-            loop = asyncio.get_event_loop()
-            output = await loop.run_in_executor(None, self._run_replicate, input_data)
-            
-            # Replicate (Wan-Video) output은 보통 URL 리스트 또는 File object
-            if output:
-                video_url = output[0] if isinstance(output, list) else output
-                # 다운로드
-                return await self._download_video(str(video_url))
-            else:
-                raise Exception("No output from Replicate")
+            else: # Standard 5s
+                return await self._generate_basic(image_path, prompt, duration=duration)
 
         except Exception as e:
-            print(f"Replicate Error: {e}")
+            print(f"Replicate Service Error: {e}")
             raise e
 
+    async def _generate_basic(self, image_path: str, prompt: str, duration: float = 5.0):
+        """기본 Wan 2.1 생성 (최대 81프레임)"""
+        fps = 16 if duration > 3.5 else 24
+        num_frames = int(duration * fps)
+        if num_frames > 81: num_frames = 81
+
+        input_data = {
+            "image": open(image_path, "rb"),
+            "prompt": prompt,
+            "num_frames": num_frames,
+            "frames_per_second": fps,
+            "resolution": "720p",
+            "go_fast": True
+        }
+
+        loop = asyncio.get_event_loop()
+        output = await loop.run_in_executor(None, self._run_replicate, input_data)
+        
+        if output:
+            url = output[0] if isinstance(output, list) else output
+            return await self._download_video(str(url))
+        return None
+
+    def _save_temp_video(self, data, filename):
+        path = os.path.join(config.OUTPUT_DIR, f"temp_{int(time.time())}_{filename}")
+        with open(path, "wb") as f:
+            f.write(data)
+        return path
+
     def _run_replicate(self, input_data):
-        # [NEW] 최신 Wan 2.2 모델 적용 (User's request: 2.2)
-        # 1.3/1.4 대비 획기적 성능, Cinematic 퀄리티
         return replicate.run(
-            "wan-video/wan-2.2-i2v-fast",
+            "wan-video/wan-2.1-i2v-720p", # Use standard 720p model
             input=input_data
         )
 

@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto py-8 px-4">
+    <div class="header-section mb-8">
+        <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-500 mb-2">
+            {{ t('autopilot_title') }} <span
+                class="text-sm font-normal text-purple-400 bg-purple-400/10 px-2 py-0.5 rounded-full ml-2">Director
+                Mode</span>
+        </h1>
+        <p class="text-gray-500 dark:text-gray-400">{{ t('autopilot_desc') }}</p>
+    </div>
+
+    <div class="mb-6 flex border-b border-gray-700 gap-4">
+        <button onclick="switchTab('single')" id="tabSingle"
+            class="px-4 py-3 text-purple-400 border-b-2 border-purple-500 font-bold focus:outline-none transition-colors">
+            🚀 단일 제작 (Single)
+        </button>
+        <button onclick="switchTab('batch')" id="tabBatch"
+            class="px-4 py-3 text-gray-400 hover:text-white font-medium focus:outline-none transition-colors flex items-center gap-2 border-b-2 border-transparent">
+            <span>📥</span> 대기열 관리 (Batch)
+            <span id="queueBadge" class="bg-gray-700 text-xs px-1.5 py-0.5 rounded-full hidden">0</span>
+        </button>
+    </div>
+
+    <!-- [NEW] Presets Toolbar -->
+    <div class="mb-8 bg-gray-900 border border-gray-700 rounded-xl p-4 flex items-center justify-between">
+        <div class="flex items-center gap-4 flex-1">
+            <div class="flex items-center gap-2">
+                <span class="text-gray-400 text-sm font-medium">✨ 저장된 설정(Preset):</span>
+                <select id="presetSelect" onchange="loadPreset(this.value)"
+                    class="bg-gray-800 border-gray-600 text-white text-sm rounded-lg pr-8 focus:ring-purple-500 focus:border-purple-500 block w-64 p-2">
+                    <option value="">-- 현재 설정 (Custom) --</option>
+                    <option disabled>Loading...</option>
+                </select>
+            </div>
+            <button onclick="deleteCurrentPreset()" id="btnDeletePreset"
+                class="text-red-400 hover:text-red-300 text-xs hidden underline">삭제</button>
+        </div>
+        <div class="flex items-center gap-2">
+            <input type="text" id="newPresetName" placeholder="새 프리셋 이름"
+                class="bg-gray-800 border-gray-600 text-white text-sm rounded-lg px-3 py-2 w-48">
+            <button onclick="saveCurrentPreset()"
+                class="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                💾 현재 설정 저장
+            </button>
+        </div>
+    </div>
+
+    <div id="singleMode">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Input Panel -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- 1. Topic -->
+                <div class="card bg-gray-900/40 border-purple-500/20 backdrop-blur-sm p-6">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div
+                            class="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-400 font-bold">
+                            1</div>
+                        <h3 class="text-xl font-bold text-white">{{ t('autopilot_step_topic') }}</h3>
+                    </div>
+
+                    <div class="space-y-4">
+                        <label class="block text-sm font-medium text-gray-400">{{ t('label_topic_keyword') }}</label>
+                        <input type="text" id="topicInput"
+                            class="w-full bg-gray-800/50 border-gray-700 text-white rounded-xl px-4 py-3 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                            placeholder="{{ t('placeholder_topic') }}">
+                    </div>
+                </div>
+
+                <!-- 2. Visual & Video -->
+                <div class="card bg-gray-900/40 border-purple-500/20 backdrop-blur-sm p-6">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div
+                            class="w-10 h-10 rounded-xl bg-pink-500/20 flex items-center justify-center text-pink-400 font-bold">
+                            2</div>
+                        <h3 class="text-xl font-bold text-white">{{ t('autopilot_step_visual') }}</h3>
+                    </div>
+
+                    <!-- [NEW] Image Styles Grid -->
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium text-gray-400 mb-3">{{ t('select_style_label')
+                            }}</label>
+                        <input type="hidden" id="imageStyle" value="realistic">
+                        <div id="styleSelectorGrid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                            <!-- Dynamic Loading via JS -->
+                        </div>
+                    </div>
+
+                    <div class="pt-6 border-t border-gray-800">
+                        <div class="flex items-center justify-between mb-4">
+                            <label class="text-sm font-medium text-gray-400">{{ t('label_video_scenes') }}</label>
+                            <span id="sceneCountVal"
+                                class="text-pink-400 font-bold bg-pink-400/10 px-2 py-0.5 rounded text-xs">0
+                                Scenes</span>
+                        </div>
+                        <input type="range" id="videoSceneCount" min="0" max="20" value="0"
+                            class="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-pink-500 mb-2">
+                        <p class="text-[11px] text-gray-500">{{ t('desc_video_scenes') }}</p>
+                    </div>
+                </div>
+
+                <!-- 3. Thumbnail Settings -->
+                <div class="card bg-gray-900/40 border-purple-500/20 backdrop-blur-sm p-6">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div
+                            class="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center text-orange-400 font-bold">
+                            3</div>
+                        <h3 class="text-xl font-bold text-white">썸네일 스타일 (Thumbnail)</h3>
+                    </div>
+
+                    <div class="mb-6">
+                        <input type="hidden" id="thumbnailStyle" value="face">
+                        <div id="thumbnailStyleGrid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                            <!-- Dynamic Loading via JS -->
+                            <div class="col-span-full py-4 text-center text-gray-500 text-xs">Loading Styles...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. Narration & Audio -->
+                <div class="card bg-gray-900/40 border-purple-500/20 backdrop-blur-sm p-6">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div
+                            class="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold">
+                            4</div>
+                        <h3 class="text-xl font-bold text-white">{{ t('autopilot_step_audio') }}</h3>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Script Style -->
+                        <div class="space-y-4">
+                            <label class="block text-sm font-medium text-gray-400">{{ t('plan_style_label') }}</label>
+                            <select id="scriptStyleSelect"
+                                class="w-full bg-gray-800/50 border-gray-700 text-white rounded-xl px-4 py-3 text-sm">
+                                <optgroup label="📹 기본 스타일">
+                                    <option value="default" selected>기본 설정 (Natural)</option>
+                                    <option value="news">뉴스 보도 (News)</option>
+                                    <option value="story">옛날 이야기 (Story)</option>
+                                    <option value="senior_story">시니어 사연 (Senior)</option>
+                                </optgroup>
+                                <optgroup label="🎬 영화/시대극">
+                                    <option value="classic_50s">50년대 클래식영화</option>
+                                    <option value="joseon_sageuk">조선시대 사극</option>
+                                    <option value="modern_drama">현대 드라마</option>
+                                    <option value="mystery_thriller">미스터리 스릴러</option>
+                                </optgroup>
+                                <optgroup label="🎨 아트/애니">
+                                    <option value="watercolor_analog">수채화풍</option>
+                                    <option value="digital_webtoon">디지털 웹툰</option>
+                                    <option value="cyberpunk_neon">사이버펑크</option>
+                                </optgroup>
+                            </select>
+
+                            <!-- [NEW] Duration Input -->
+                            <div class="pt-2">
+                                <label class="block text-sm font-medium text-gray-400 mb-2">영상 길이 (목표)</label>
+                                <div class="relative">
+                                    <input type="number" id="targetDuration" min="1" max="180" value="10"
+                                        placeholder="10"
+                                        class="w-full bg-gray-800/50 border-gray-700 text-white rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 transition-all">
+                                    <span
+                                        class="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">분</span>
+                                </div>
+                                <p class="text-[10px] text-gray-500 mt-1">* 대본 생성 시 목표 분량으로 반영됩니다.</p>
+                            </div>
+                        </div>
+
+                        <!-- Voice Selection (Dynamic) -->
+                        <div class="space-y-4">
+                            <label class="block text-sm font-medium text-gray-400">{{ t('label_voice_tone') }}</label>
+                            <div class="flex flex-col gap-2">
+                                <select id="providerSelect"
+                                    class="w-full bg-gray-800/50 border-gray-700 text-white rounded-xl px-4 py-2 text-xs">
+                                    <option value="gemini">Gemini (Free)</option>
+                                    <option value="elevenlabs" selected>ElevenLabs</option>
+                                    <option value="google_cloud">Google Cloud</option>
+                                    <option value="openai">OpenAI</option>
+                                </select>
+                                <select id="voiceSelect"
+                                    class="w-full bg-gray-800/50 border-gray-700 text-white rounded-xl px-4 py-2 text-xs">
+                                    <option value="">Loading Voices...</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. Subtitle Settings (Preview) -->
+                <div class="card bg-gray-900/40 border-purple-500/20 backdrop-blur-sm p-6">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div
+                            class="w-10 h-10 rounded-xl bg-teal-500/20 flex items-center justify-center text-teal-400 font-bold">
+                            5</div>
+                        <h3 class="text-xl font-bold text-white">자막 스타일 (Default)</h3>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4 text-sm text-gray-300 bg-gray-800/50 p-4 rounded-xl"
+                        id="subtitlePreviewPanel">
+                        <!-- Loading... -->
+                        <div class="col-span-2 text-center text-gray-500">
+                            <div class="loader-sm inline-block mr-2"></div> 설정 로딩 중...
+                        </div>
+                    </div>
+                    <p class="text-[10px] text-gray-500 mt-2 text-right">* 자막 페이지에서 '저장'한 마지막 설정이 적용됩니다.</p>
+                </div>
+
+                <button id="startAutopilotBtn"
+                    class="w-full py-5 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-xl shadow-lg shadow-purple-900/20 hover:scale-[1.02] transform transition-all active:scale-95 group">
+                    <span class="group-hover:mr-2 transition-all">{{ t('btn_start_autopilot') }}</span>
+                    <span class="opacity-0 group-hover:opacity-100 transition-all">🚀</span>
+                </button>
+                <button onclick="clearLogs()" class="text-xs text-gray-500 hover:text-white">{{ t('btn_clear_log')
+                    }}</button>
+            </div>
+            <div id="consoleLogs" class="flex-1 overflow-y-auto space-y-1 p-2 text-gray-300">
+                <div class="text-gray-500 italic">Waiting to start...</div>
+            </div>
+        </div>
+
+    </div>
+</div> <!-- End of Single Mode -->
+
+<!-- Mode 2: Batch Queue Manager -->
+<div id="batchMode" class="hidden">
+    <div class="card bg-gray-900/40 border-purple-500/20 backdrop-blur-sm p-6 mb-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-xl font-bold text-white flex items-center gap-2">
+                <span>📦</span> 제작 대기열 (Queue)
+                <span id="queueCount" class="text-sm bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full">0</span>
+            </h3>
+            <div class="flex gap-2">
+                <button onclick="refreshQueue()"
+                    class="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white text-xs">
+                    🔄 새로고침
+                </button>
+                <button onclick="startBatch()" id="btnStartBatch"
+                    class="px-6 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-lg hover:shadow-lg transition-all disabled:opacity-50 text-sm flex items-center gap-2">
+                    <span>▶️</span> 일괄 처리 시작 (Start Batch)
+                </button>
+            </div>
+        </div>
+
+        <div id="queueList" class="space-y-3 min-h-[300px]">
+            <!-- Dynamic Queue Items -->
+            <div class="text-center py-12 text-gray-500">
+                로딩 중...
+            </div>
+        </div>
+    </div>
+
+    <!-- Batch Log Console (Visible when batch runs) -->
+    <div class="card bg-gray-900/60 border-gray-700/50 p-4">
+        <h4 class="text-sm font-bold text-gray-400 mb-2">Batch Process Logs</h4>
+        <div id="batchConsoleLogs"
+            class="h-48 overflow-y-auto font-mono text-xs text-green-400 bg-black/30 p-2 rounded">
+            <div class="text-gray-600 italic">Logs will appear here...</div>
+        </div>
+    </div>
+</div>
+</div>
+</div>
+
+<script src="/static/js/autopilot.js"></script>
+{% endblock %}

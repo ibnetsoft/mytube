@@ -102,7 +102,12 @@ async def create_project(req: ProjectCreate):
     except:
         current_app_mode = "longform"
     
-    project_id = db.create_project(req.name, req.topic, app_mode=current_app_mode)
+    project_id = db.create_project(
+        req.name, 
+        req.topic, 
+        app_mode=current_app_mode,
+        language=req.target_language or "ko"
+    )
     
     # 언어 설정 저장
     if req.target_language:

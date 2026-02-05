@@ -197,9 +197,15 @@ Instructions:
         return script
 
     async def _generate_assets(self, project_id: int, script: str, config_dict: dict):
-        video_scene_count = config_dict.get("video_scene_count", 0)
+        all_video = config_dict.get("all_video", False)
+        motion_method = config_dict.get("motion_method", "standard")
         visual_style_key = config_dict.get("visual_style", "realistic")
         
+        # Determine sequence duration based on method
+        video_duration = 5.0
+        if motion_method in ["extend", "slowmo"]:
+            video_duration = 8.0
+
         # Get visual style prompt from presets
         style_presets = db.get_style_presets()
         style_data = style_presets.get(visual_style_key, {})
@@ -212,44 +218,60 @@ Instructions:
             db.save_image_prompts(project_id, image_prompts)
             image_prompts = db.get_image_prompts(project_id)
 
+        # Determine how many scenes to make as video
+        if all_video:
+            video_scene_count = len(image_prompts)
+            print(f"🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating {video_scene_count} video scenes.")
+        else:
+            video_scene_count = config_dict.get("video_scene_count", 0)
+
         # 2. Assets (Video/Image)
         from services.replicate_service import replicate_service
         async def process_scene(p, is_video: bool):
             scene_num = p.get("scene_number")
-            if p.get("image_url"): return True
+            if p.get("image_url") and not (is_video and not p.get("video_url")): 
+                # Already has image, and if video requested, check if video exists
+                if not (is_video and not p.get("video_url")):
+                    return True
             
             prompt_en = p.get("prompt_en", "cinematic scene")
             now = config.get_kst_time()
             try:
-                if is_video:
+                # Generate base image if not exists
+                image_abs_path = None
+                if p.get("image_url") and p.get("image_url").startswith("/output/"):
+                    image_abs_path = os.path.join(config.OUTPUT_DIR, p.get("image_url").replace("/output/", ""))
+                
+                if not image_abs_path or not os.path.exists(image_abs_path):
                     images = await gemini_service.generate_image(prompt_en, aspect_ratio="9:16")
                     if not images: return False
                     
-                    base_img_path = os.path.join(config.OUTPUT_DIR, f"temp_{project_id}_{scene_num}.png")
-                    with open(base_img_path, 'wb') as f: f.write(images[0])
-                    
-                    video_data = await replicate_service.generate_video_from_image(base_img_path, prompt=f"Cinematic motion, {prompt_en}")
+                    filename = f"img_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.png"
+                    image_abs_path = os.path.join(config.OUTPUT_DIR, filename)
+                    with open(image_abs_path, 'wb') as f: f.write(images[0])
+                    db.update_image_prompt_url(project_id, scene_num, f"/output/{filename}")
+                
+                if is_video:
+                    print(f"📹 [Auto-Pilot] Generating video for Scene {scene_num} (Method: {motion_method})")
+                    video_data = await replicate_service.generate_video_from_image(
+                        image_abs_path, 
+                        prompt=f"Cinematic motion, {prompt_en}",
+                        duration=video_duration,
+                        method=motion_method
+                    )
                     if video_data:
                         filename = f"vid_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.mp4"
                         out = os.path.join(config.OUTPUT_DIR, filename)
                         with open(out, 'wb') as f: f.write(video_data)
-                        db.update_image_prompt_url(project_id, scene_num, f"/output/{filename}")
-                        try: os.remove(base_img_path)
-                        except: pass
+                        db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
                         return True
                 
-                # Image fallback or default
-                images = await gemini_service.generate_image(prompt_en, aspect_ratio="9:16")
-                if images:
-                    filename = f"img_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.png"
-                    out = os.path.join(config.OUTPUT_DIR, filename)
-                    with open(out, 'wb') as f: f.write(images[0])
-                    db.update_image_prompt_url(project_id, scene_num, f"/output/{filename}")
-                    return True
-            except: pass
+                return True # Image only path success
+            except Exception as e:
+                print(f"⚠️ [Auto-Pilot] Scene {scene_num} Asset Gen Error: {e}")
             return False
 
-        # Workflow execution
+        # Workflow execution (Sequential for safety, could be parallelized)
         for i, p in enumerate(image_prompts):
             if i < video_scene_count: await process_scene(p, True)
             else: await process_scene(p, False)

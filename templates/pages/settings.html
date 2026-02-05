@@ -1116,7 +1116,7 @@
 
             list.innerHTML = Object.entries(presets).map(([key, data]) => {
                 // Compatibility check: data might be string (old) or object (new)
-                const prompt = typeof data === 'string' ? data : (data.prompt || '');
+                const prompt = typeof data === 'string' ? data : (data.prompt_value || '');
                 const imageUrl = typeof data === 'object' ? data.image_url : null;
 
                 const displayName = {
@@ -1152,14 +1152,15 @@
                                 </div>
                             </div>
                             <div class="flex gap-1">
-                                <button onclick="saveOneStylePreset('${key}')" class="text-[10px] bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition-colors">💾 저장</button>
+                                <button onclick="toggleEditStylePreset('${key}')" id="edit_btn_${key}" class="text-[10px] bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600 transition-colors">✏️ 수정</button>
+                                <button onclick="saveOneStylePreset('${key}')" id="save_btn_${key}" class="hidden text-[10px] bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition-colors">💾 저장</button>
                                 ${!isDefault ?
                         `<button onclick="deleteStylePreset('${key}')" class="text-[10px] bg-red-50 text-red-500 border border-red-200 px-2 py-1 rounded hover:bg-red-100 transition-colors" title="삭제">🗑️</button>`
                         : ''
                     }
                             </div>
                         </div>
-                        <textarea id="preset_${key}" class="input-field w-full text-[11px] font-mono" rows="2">${prompt}</textarea>
+                        <textarea id="preset_${key}" class="input-field w-full text-[11px] font-mono bg-gray-100 dark:bg-gray-900" rows="2" readonly>${prompt}</textarea>
                     </div>
                 `;
             }).join('');
@@ -1190,6 +1191,33 @@
                 parent.prepend(img);
             }
             reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    function toggleEditStylePreset(key) {
+        const textarea = document.getElementById(`preset_${key}`);
+        const editBtn = document.getElementById(`edit_btn_${key}`);
+        const saveBtn = document.getElementById(`save_btn_${key}`);
+
+        if (textarea.hasAttribute('readonly')) {
+            // Enable editing
+            textarea.removeAttribute('readonly');
+            textarea.classList.remove('bg-gray-100', 'dark:bg-gray-900');
+            textarea.classList.add('bg-white', 'dark:bg-gray-800', 'ring-2', 'ring-yellow-400');
+            textarea.focus();
+
+            // Toggle buttons
+            editBtn.classList.add('hidden');
+            saveBtn.classList.remove('hidden');
+        } else {
+            // Disable editing (cancel)
+            textarea.setAttribute('readonly', true);
+            textarea.classList.add('bg-gray-100', 'dark:bg-gray-900');
+            textarea.classList.remove('bg-white', 'dark:bg-gray-800', 'ring-2', 'ring-yellow-400');
+
+            // Toggle buttons
+            editBtn.classList.remove('hidden');
+            saveBtn.classList.add('hidden');
         }
     }
 
@@ -1231,6 +1259,17 @@
                     fileInput.value = '';
                 }
                 Utils.showToast(`[${key}] 스타일이 저장되었습니다`, 'success');
+
+                // Exit edit mode
+                const textarea = document.getElementById(`preset_${key}`);
+                const editBtn = document.getElementById(`edit_btn_${key}`);
+                const saveBtn = document.getElementById(`save_btn_${key}`);
+
+                textarea.setAttribute('readonly', true);
+                textarea.classList.add('bg-gray-100', 'dark:bg-gray-900');
+                textarea.classList.remove('bg-white', 'dark:bg-gray-800', 'ring-2', 'ring-yellow-400');
+                editBtn.classList.remove('hidden');
+                saveBtn.classList.add('hidden');
             } else {
                 const err = await res.json();
                 Utils.showToast(err.detail || '저장 실패', 'error');
@@ -1351,15 +1390,45 @@
                             <div class="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-md border border-gray-100 dark:border-gray-700">
                                 <div class="flex justify-between items-center mb-2">
                                     <label class="text-sm font-bold text-gray-700 dark:text-gray-200">${displayName}</label>
-                                    <button onclick="saveOneScriptStylePreset('${key}')" class="text-[10px] bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">💾 저장</button>
+                                    <div class="flex gap-1">
+                                        <button onclick="toggleEditScriptStylePreset('${key}')" id="script_edit_btn_${key}" class="text-[10px] bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600 transition-colors">✏️ 수정</button>
+                                        <button onclick="saveOneScriptStylePreset('${key}')" id="script_save_btn_${key}" class="hidden text-[10px] bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition-colors">💾 저장</button>
+                                    </div>
                                 </div>
-                                <textarea id="script_preset_${key}" class="input-field w-full text-[11px] font-mono leading-tight" rows="${rows}">${val}</textarea>
+                                <textarea id="script_preset_${key}" class="input-field w-full text-[11px] font-mono leading-tight bg-gray-100 dark:bg-gray-900" rows="${rows}" readonly>${val}</textarea>
                             </div>
                         `;
             }).join('');
         } catch (e) {
             console.error(e);
             list.innerHTML = '<p class="text-red-500 text-xs">대본 스타일을 불러오지 못했습니다.</p>';
+        }
+    }
+
+    function toggleEditScriptStylePreset(key) {
+        const textarea = document.getElementById(`script_preset_${key}`);
+        const editBtn = document.getElementById(`script_edit_btn_${key}`);
+        const saveBtn = document.getElementById(`script_save_btn_${key}`);
+
+        if (textarea.hasAttribute('readonly')) {
+            // Enable editing
+            textarea.removeAttribute('readonly');
+            textarea.classList.remove('bg-gray-100', 'dark:bg-gray-900');
+            textarea.classList.add('bg-white', 'dark:bg-gray-800', 'ring-2', 'ring-yellow-400');
+            textarea.focus();
+
+            // Toggle buttons
+            editBtn.classList.add('hidden');
+            saveBtn.classList.remove('hidden');
+        } else {
+            // Disable editing (cancel)
+            textarea.setAttribute('readonly', true);
+            textarea.classList.add('bg-gray-100', 'dark:bg-gray-900');
+            textarea.classList.remove('bg-white', 'dark:bg-gray-800', 'ring-2', 'ring-yellow-400');
+
+            // Toggle buttons
+            editBtn.classList.remove('hidden');
+            saveBtn.classList.add('hidden');
         }
     }
 
@@ -1374,6 +1443,17 @@
 
             if (res.ok) {
                 Utils.showToast(`[${key}] 대본 스타일이 저장되었습니다`, 'success');
+
+                // Exit edit mode
+                const textarea = document.getElementById(`script_preset_${key}`);
+                const editBtn = document.getElementById(`script_edit_btn_${key}`);
+                const saveBtn = document.getElementById(`script_save_btn_${key}`);
+
+                textarea.setAttribute('readonly', true);
+                textarea.classList.add('bg-gray-100', 'dark:bg-gray-900');
+                textarea.classList.remove('bg-white', 'dark:bg-gray-800', 'ring-2', 'ring-yellow-400');
+                editBtn.classList.remove('hidden');
+                saveBtn.classList.add('hidden');
             } else {
                 Utils.showToast('저장 실패', 'error');
             }
@@ -1394,7 +1474,7 @@
 
             list.innerHTML = Object.entries(presets).map(([key, data]) => {
                 // Compatibility
-                const prompt = typeof data === 'string' ? data : (data.prompt || '');
+                const prompt = typeof data === 'string' ? data : (data.prompt_value || '');
                 const imageUrl = typeof data === 'object' ? data.image_url : null;
 
                 const displayName = {
@@ -1436,14 +1516,15 @@
                             </div>
 
                             <div class="flex gap-1">
-                                <button onclick="saveOneThumbnailStylePreset('${key}')" class="text-[10px] bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition-colors">💾 저장</button>
+                                <button onclick="toggleEditThumbnailStylePreset('${key}')" id="thumb_edit_btn_${key}" class="text-[10px] bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600 transition-colors">✏️ 수정</button>
+                                <button onclick="saveOneThumbnailStylePreset('${key}')" id="thumb_save_btn_${key}" class="hidden text-[10px] bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition-colors">💾 저장</button>
                                 ${!isDefault ?
                         `<button onclick="deleteThumbnailStylePreset('${key}')" class="text-[10px] bg-red-50 text-red-500 border border-red-200 px-2 py-1 rounded hover:bg-red-100 transition-colors" title="삭제">🗑️</button>`
                         : ''
                     }
                             </div>
                         </div>
-                        <textarea id="thumbnail_preset_${key}" class="input-field w-full text-[11px] font-mono leading-tight mt-1" rows="3">${prompt}</textarea>
+                        <textarea id="thumbnail_preset_${key}" class="input-field w-full text-[11px] font-mono leading-tight mt-1 bg-gray-100 dark:bg-gray-900" rows="3" readonly>${prompt}</textarea>
                     </div>
                 `;
             }).join('');
@@ -1470,6 +1551,33 @@
                 parent.prepend(img);
             }
             reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    function toggleEditThumbnailStylePreset(key) {
+        const textarea = document.getElementById(`thumbnail_preset_${key}`);
+        const editBtn = document.getElementById(`thumb_edit_btn_${key}`);
+        const saveBtn = document.getElementById(`thumb_save_btn_${key}`);
+
+        if (textarea.hasAttribute('readonly')) {
+            // Enable editing
+            textarea.removeAttribute('readonly');
+            textarea.classList.remove('bg-gray-100', 'dark:bg-gray-900');
+            textarea.classList.add('bg-white', 'dark:bg-gray-800', 'ring-2', 'ring-yellow-400');
+            textarea.focus();
+
+            // Toggle buttons
+            editBtn.classList.add('hidden');
+            saveBtn.classList.remove('hidden');
+        } else {
+            // Disable editing (cancel)
+            textarea.setAttribute('readonly', true);
+            textarea.classList.add('bg-gray-100', 'dark:bg-gray-900');
+            textarea.classList.remove('bg-white', 'dark:bg-gray-800', 'ring-2', 'ring-yellow-400');
+
+            // Toggle buttons
+            editBtn.classList.remove('hidden');
+            saveBtn.classList.add('hidden');
         }
     }
 
@@ -1506,6 +1614,17 @@
             if (res.ok) {
                 if (file) fileInput.value = '';
                 Utils.showToast(`[${key}] 썸네일 스타일이 저장되었습니다`, 'success');
+
+                // Exit edit mode
+                const textarea = document.getElementById(`thumbnail_preset_${key}`);
+                const editBtn = document.getElementById(`thumb_edit_btn_${key}`);
+                const saveBtn = document.getElementById(`thumb_save_btn_${key}`);
+
+                textarea.setAttribute('readonly', true);
+                textarea.classList.add('bg-gray-100', 'dark:bg-gray-900');
+                textarea.classList.remove('bg-white', 'dark:bg-gray-800', 'ring-2', 'ring-yellow-400');
+                editBtn.classList.remove('hidden');
+                saveBtn.classList.add('hidden');
             } else {
                 Utils.showToast('저장 실패', 'error');
             }

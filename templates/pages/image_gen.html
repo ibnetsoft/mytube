@@ -262,8 +262,9 @@
         label_start: "{{ t('label_start') }}",
         label_end: "{{ t('label_end') }}",
         toast_json_copied: "{{ t('toast_json_copied') }}",
-        opt_motion_standard: "{{ t('opt_motion_standard') }}",
-        opt_motion_long: "{{ t('opt_motion_long') }}",
+        opt_motion_standard: "⚡ 5s (표준)",
+        opt_motion_extend: "💎 8s (고화질 연장)",
+        opt_motion_slowmo: "🐢 8s (부드러운 슬로우모)",
         btn_media_upload_v2: "{{ t('btn_media_upload_v2') }}",
         char_name_unknown: "Unknown",
         char_role: "Character",
@@ -711,15 +712,16 @@
                                     <div class="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded">✓ Image</div>
                                     
                                     <!-- Motion Button Overlay -->
-                                    <div class="absolute inset-0 bg-black/50 opacity-0 group-hover/image:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
-                                         <button id="motion-btn-${i}" onclick="generateMotion(${i})" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-full shadow-lg transform hover:scale-105 transition-all flex items-center gap-2">
-                                            <span>🎬 Motion (Wan 2.2)</span>
-                                         </button>
-                                         <select id="motion-dur-${i}" class="text-[10px] bg-black/80 text-white rounded px-2 py-1 border border-purple-500 cursor-pointer hover:bg-black" onclick="event.stopPropagation()">
-                                            <option value="3.3" selected>${i18n.opt_motion_standard}</option>
-                                            <option value="5.0">${i18n.opt_motion_long}</option>
-                                         </select>
-                                    </div>
+                                     <div class="absolute inset-0 bg-black/50 opacity-0 group-hover/image:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+                                          <button id="motion-btn-${i}" onclick="generateMotion(${i})" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-full shadow-lg transform hover:scale-105 transition-all flex items-center gap-2">
+                                             <span>🎬 Motion</span>
+                                          </button>
+                                          <select id="motion-opt-${i}" class="text-[10px] bg-black/80 text-white rounded px-2 py-1 border border-purple-500 cursor-pointer hover:bg-black" onclick="event.stopPropagation()">
+                                             <option value="5.0|standard" selected>${i18n.opt_motion_standard}</option>
+                                             <option value="8.0|extend">${i18n.opt_motion_extend}</option>
+                                             <option value="8.0|slowmo">${i18n.opt_motion_slowmo}</option>
+                                          </select>
+                                     </div>
                                 </div>
                                 ` : `
                                 <div class="aspect-video bg-gray-900 rounded-lg border border-dashed border-gray-600 flex flex-col items-center justify-center w-[90%] transition-colors hover:bg-gray-800">
@@ -1063,11 +1065,12 @@
                             <!-- Motion Button Overlay (Re-added) -->
                             <div class="absolute inset-0 bg-black/50 opacity-0 group-hover/image:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
                                  <button id="motion-btn-${i}" onclick="generateMotion(${i})" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-full shadow-lg transform hover:scale-105 transition-all flex items-center gap-2">
-                                    <span>🎬 Motion (Wan 2.2)</span>
+                                    <span>🎬 Motion</span>
                                  </button>
-                                 <select id="motion-dur-${i}" class="text-[10px] bg-black/80 text-white rounded px-2 py-1 border border-purple-500 cursor-pointer hover:bg-black" onclick="event.stopPropagation()">
-                                    <option value="3.3" selected>⚡ 3.3s (Standard)</option>
-                                    <option value="5.0">🐢 5.0s (Long/Slow)</option>
+                                 <select id="motion-opt-${i}" class="text-[10px] bg-black/80 text-white rounded px-2 py-1 border border-purple-500 cursor-pointer hover:bg-black" onclick="event.stopPropagation()">
+                                    <option value="5.0|standard" selected>${i18n.opt_motion_standard}</option>
+                                    <option value="8.0|extend">${i18n.opt_motion_extend}</option>
+                                    <option value="8.0|slowmo">${i18n.opt_motion_slowmo}</option>
                                  </select>
                             </div>
                         `;
@@ -1218,13 +1221,17 @@
             const basePrompt = p.prompt_en || p.prompt_content || p.prompt || "Cinematic scene";
             const motionPrompt = `${basePrompt}, cinematic slow motion, high quality, 4k`;
 
+            const optVal = document.getElementById(`motion-opt-${index}`)?.value || "5.0|standard";
+            const [duration, method] = optVal.split("|");
+
             const res = await fetch(`/api/projects/${projectId}/scenes/animate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     scene_number: index + 1,
                     prompt: motionPrompt,
-                    duration: document.getElementById(`motion-dur-${index}`)?.value ? parseFloat(document.getElementById(`motion-dur-${index}`).value) : 3.3
+                    duration: parseFloat(duration),
+                    method: method
                 })
             });
 
@@ -1884,10 +1891,10 @@
                 return `
                 <div class="style-card relative cursor-pointer border-2 ${isSelected ? 'border-blue-600' : 'border-transparent'} hover:border-blue-300 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all"
                     onclick="selectStyle('${key}', this)" data-value="${key}">
-                    <div class="aspect-square bg-gray-200 overflow-hidden">
+                    <div class="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 overflow-hidden flex items-center justify-center">
                         <img src="${imageUrl}"
                             class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
-                            onerror="this.src='/static/img/no-image.png'; this.parentElement.classList.add('flex', 'items-center', 'justify-center', 'text-xs', 'text-gray-400'); this.style.display='none'; this.parentElement.innerHTML='<span>No Img</span>';">
+                            onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=\'text-center p-2\'><div class=\'text-2xl mb-1\'>🎨</div><div class=\'text-xs text-gray-600 dark:text-gray-300 font-medium\'>${krName.replace(/\n/g, ' ')}</div></div>';">
                     </div>
                     <div class="p-2 text-center bg-white dark:bg-gray-800">
                         <span class="text-xs font-bold block dark:text-white truncate">${krName}</span>
