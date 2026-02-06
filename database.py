@@ -59,6 +59,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             project_id INTEGER UNIQUE,
             title TEXT,
+            description TEXT,
             thumbnail_text TEXT,
             thumbnail_url TEXT,
             duration_seconds INTEGER DEFAULT 60,
@@ -82,11 +83,21 @@ def init_db():
             subtitle_position_y INTEGER,
             background_video_url TEXT,
             is_uploaded INTEGER DEFAULT 0,
+            all_video INTEGER DEFAULT 0,
+            motion_method TEXT DEFAULT 'standard',
+            video_scene_count INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (project_id) REFERENCES projects(id)
         )
     """)
+
+    # [MIGRATION] Add video options columns if not exists
+    for col, col_type in [("all_video", "INTEGER DEFAULT 0"), ("motion_method", "TEXT DEFAULT 'standard'"), ("video_scene_count", "INTEGER DEFAULT 0")]:
+        try:
+            cursor.execute(f"ALTER TABLE project_settings ADD COLUMN {col} {col_type}")
+        except Exception:
+            pass # Already exists
 
     # 분석 데이터 (주제 찾기 결과)
     cursor.execute("""
@@ -905,16 +916,24 @@ def get_script_structure(project_id: int) -> Optional[Dict]:
 # ============ 대본 ============
 
 def save_script(project_id: int, script: str, word_count: int, duration: int):
-    """대본 저장"""
+    """대본 저장 (scripts 테이블 및 project_settings 테이블 동기화)"""
     conn = get_db()
     cursor = conn.cursor()
 
+    # 1. scripts 테이블 업데이트
     cursor.execute("DELETE FROM scripts WHERE project_id = ?", (project_id,))
-
     cursor.execute("""
         INSERT INTO scripts (project_id, full_script, word_count, estimated_duration)
         VALUES (?, ?, ?, ?)
     """, (project_id, script, word_count, duration))
+
+    # 2. project_settings 테이블 업데이트 (동기화)
+    # project_settings에 해당 프로젝트가 이미 존재하는지 확인
+    cursor.execute("SELECT project_id FROM project_settings WHERE project_id = ?", (project_id,))
+    if cursor.fetchone():
+        cursor.execute("UPDATE project_settings SET script = ?, updated_at = CURRENT_TIMESTAMP WHERE project_id = ?", (script, project_id))
+    else:
+        cursor.execute("INSERT INTO project_settings (project_id, script) VALUES (?, ?)", (project_id, script))
 
     conn.commit()
     conn.close()
@@ -1282,7 +1301,7 @@ def update_project_setting(project_id: int, key: str, value: Any):
     conn = get_db()
     cursor = conn.cursor()
 
-    allowed_keys = ['title', 'thumbnail_text', 'thumbnail_url', 'duration_seconds', 'aspect_ratio',
+    allowed_keys = ['title', 'description', 'thumbnail_text', 'thumbnail_url', 'duration_seconds', 'aspect_ratio',
                     'script', 'hashtags', 'voice_tone', 'voice_name', 'voice_language', 'voice_style_prompt', 
                     'video_command', 'video_path', 'is_uploaded', 
                     'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum',
@@ -1291,7 +1310,8 @@ def update_project_setting(project_id: int, key: str, value: Any):
                     'subtitle_path', 'image_timings_path', 'timeline_images_path', 'image_effects_path', 'app_mode',
                     'subtitle_base_color', 'subtitle_pos_y', 'subtitle_pos_x', 'subtitle_bg_enabled', 'subtitle_stroke_enabled',
                     'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity',
-                    'voice_provider', 'voice_speed', 'voice_multi_enabled', 'voice_mapping_json', 'intro_video_path', 'thumbnail_style', 'image_style']
+                    'voice_provider', 'voice_speed', 'voice_multi_enabled', 'voice_mapping_json', 'intro_video_path', 'thumbnail_style', 'image_style',
+                    'all_video', 'motion_method', 'video_scene_count']
 
 
     if key not in allowed_keys:
@@ -1305,6 +1325,21 @@ def update_project_setting(project_id: int, key: str, value: Any):
         WHERE project_id = ?
     """, (value, project_id))
     
+    # [NEW] 'script' 업데이트 시 scripts 테이블도 동기화
+    if key == 'script' and value:
+        try:
+            # 대략적인 시간 계산 (한국어 1분당 450자 기준)
+            char_count = len(str(value))
+            est_duration = max(5, int(char_count / 7.5)) # 최소 5초
+            
+            cursor.execute("DELETE FROM scripts WHERE project_id = ?", (project_id,))
+            cursor.execute("""
+                INSERT INTO scripts (project_id, full_script, word_count, estimated_duration)
+                VALUES (?, ?, ?, ?)
+            """, (project_id, value, char_count, est_duration))
+        except Exception as e:
+            print(f"[DB] Script sync failed in update_project_setting: {e}")
+
     print(f"[DB] Update {key} for pid {project_id}. Rowcount: {cursor.rowcount}")
 
     if cursor.rowcount == 0:
@@ -1630,22 +1665,6 @@ migrate_db()
 # 이미지 스타일 프리셋 관리
 # ===========================================
 
-def get_style_presets() -> Dict[str, Dict[str, Any]]:
-    """모든 스타일 프리셋 조회"""
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT style_key, prompt_value, image_url FROM style_presets")
-    rows = cursor.fetchall()
-    conn.close()
-    
-    # Return structure: {key: {prompt: "...", image_url: "..."}}
-    return {
-        row['style_key']: {
-            "prompt": row['prompt_value'],
-            "image_url": row['image_url']
-        } 
-        for row in rows
-    }
 
 def save_style_preset(style_key: str, prompt_value: str, image_url: str = None):
     """스타일 프리셋 저장 또는 업데이트"""

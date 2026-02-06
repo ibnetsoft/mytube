@@ -58,16 +58,27 @@
                 <div class="xl:col-span-3 space-y-3 overflow-y-auto custom-scrollbar pr-1">
                     <!-- 1. Topic Area -->
                     <div class="card bg-gray-900/40 border-purple-500/10 p-4 rounded-xl">
-                        <div class="flex items-center gap-2 mb-3">
-                            <div
-                                class="w-7 h-7 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-400 font-bold text-xs">
-                                1</div>
-                            <h3 class="text-sm font-bold text-white">{{ t('autopilot_step_topic') }}</h3>
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center gap-2">
+                                <div
+                                    class="w-7 h-7 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-400 font-bold text-xs">
+                                    1</div>
+                                <h3 class="text-sm font-bold text-white">{{ t('autopilot_step_topic') }}</h3>
+                            </div>
+                            <!-- [NEW] Mode Switch -->
+                            <div class="flex bg-gray-800/80 rounded-lg p-0.5 border border-gray-700">
+                                <button type="button" onclick="setMode('longform')" id="modeLongform"
+                                    class="mode-btn px-2 py-1 text-[9px] rounded-md bg-purple-600 text-white font-bold transition-all">롱폼</button>
+                                <button type="button" onclick="setMode('shorts')" id="modeShorts"
+                                    class="mode-btn px-2 py-1 text-[9px] rounded-md text-gray-500 hover:text-white transition-all">쇼츠</button>
+                                <input type="hidden" id="appMode" value="longform">
+                            </div>
                         </div>
                         <input type="text" id="topicInput"
                             class="w-full bg-gray-800/40 border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 transition-all"
                             placeholder="{{ t('placeholder_topic') }}">
                     </div>
+
 
                     <!-- 4. Narration & Audio -->
                     <div class="card bg-gray-900/40 border-blue-500/10 p-4 rounded-xl">

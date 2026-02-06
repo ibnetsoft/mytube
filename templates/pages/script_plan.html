@@ -151,6 +151,10 @@
                     <h3 class="card-title mb-0">📝 {{ t('plan_result_title') }}</h3>
                     <!-- Buttons Group (Moved 'Generate Script' here) -->
                     <div class="btn-group flex gap-2">
+                        <button onclick="saveStructureChanges(this)"
+                            class="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1 bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100">
+                            <span>💾</span> {{ t('btn_save') }}
+                        </button>
                         <button onclick="copyStructure()"
                             class="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1">
                             <span>📋</span> {{ t('btn_copy') }}
@@ -162,9 +166,14 @@
                         <!-- Moved Main Action Button Here -->
                         <!-- [NEW] Auto-Pilot Handover Button -->
                         <button onclick="continueWithAutopilot()"
-                            class="text-xs px-4 py-1.5 font-bold shadow-sm hover:shadow-md transition-all rounded flex items-center gap-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white mr-3 border-0">
+                            class="text-xs px-4 py-1.5 font-bold shadow-sm hover:shadow-md transition-all rounded flex items-center gap-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white mr-2 border-0">
                             <span>🚀</span>
                             <span>{{ t('btn_continue_autopilot') }}</span>
+                        </button>
+                        <button onclick="addToQueue()"
+                            class="text-xs px-4 py-1.5 font-bold shadow-sm hover:shadow-md transition-all rounded flex items-center gap-1 bg-gradient-to-r from-green-600 to-teal-600 text-white mr-3 border-0">
+                            <span>📥</span>
+                            <span>대기열에 담기</span>
                         </button>
                         <button onclick="goToScriptGen()"
                             class="btn-primary text-xs px-4 py-1.5 font-bold shadow-sm hover:shadow-md transition-all rounded flex items-center gap-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
@@ -703,26 +712,28 @@
 
         let html = `<div class="space-y-6">`;
 
+        // 1. Hook
         html += `
             <div class="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-100 dark:border-red-900/50">
                 <h4 class="font-bold text-red-600 dark:text-red-400 mb-2">${i18n.hook_label}</h4>
-                <p class="text-gray-800 dark:text-gray-200 text-lg font-medium">"${data.hook || '내용 없음'}"</p>
+                <div id="editHook" contenteditable="true" class="text-gray-800 dark:text-gray-200 text-lg font-medium outline-none focus:ring-2 focus:ring-red-200 rounded p-1">${data.hook || ''}</div>
             </div>
         `;
 
+
         // 2. Sections
         if (data.sections && data.sections.length > 0) {
-            html += `<div class="space-y-4">`;
+            html += `<div id="editSectionsContainer" class="space-y-4">`;
             data.sections.forEach((section, index) => {
                 html += `
-                    <div class="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+                    <div class="section-item p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
                         <div class="flex items-center gap-2 mb-2">
                             <span class="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-1 rounded text-xs font-bold">Scene ${index + 1}</span>
-                            <h5 class="font-bold text-gray-800 dark:text-white">${section.title}</h5>
+                            <h5 contenteditable="true" class="editSectionTitle font-bold text-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-purple-200 rounded p-1 flex-1">${section.title}</h5>
                         </div>
                         <ul class="list-disc list-inside space-y-1 ml-1">
                             ${(section.key_points || []).map(point => `
-                                <li class="text-gray-700 dark:text-gray-300 text-sm">${point}</li>
+                                <li contenteditable="true" class="editKeyPoint text-gray-700 dark:text-gray-300 text-sm outline-none focus:ring-2 focus:ring-blue-100 rounded p-1">${point}</li>
                             `).join('')}
                         </ul>
                     </div>
@@ -735,7 +746,7 @@
         html += `
             <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-900/50">
                 <h4 class="font-bold text-blue-600 dark:text-blue-400 mb-2">${i18n.cta_label}</h4>
-                <p class="text-gray-800 dark:text-gray-200">"${data.cta}"</p>
+                <div id="editCTA" contenteditable="true" class="text-gray-800 dark:text-gray-200 outline-none focus:ring-2 focus:ring-blue-200 rounded p-1">${data.cta || ''}</div>
             </div>
         `;
 
@@ -749,6 +760,58 @@
 
         html += `</div>`;
         container.innerHTML = html;
+    }
+
+    async function saveStructureChanges(btn) {
+        const projectId = getCurrentProject();
+        if (!projectId || !currentStructure) return;
+
+        const originalHtml = btn.innerHTML;
+        Utils.setLoading(btn, true, '저장 중...');
+
+        try {
+            // Collect edited data
+            const hook = document.getElementById('editHook').innerText.trim();
+            const cta = document.getElementById('editCTA').innerText.trim();
+
+            const sections = [];
+            const sectionElems = document.querySelectorAll('.section-item');
+            sectionElems.forEach(elem => {
+                const title = elem.querySelector('.editSectionTitle').innerText.trim();
+                const keyPoints = [];
+                elem.querySelectorAll('.editKeyPoint').forEach(kp => {
+                    keyPoints.push(kp.innerText.trim());
+                });
+                sections.push({ title, key_points: keyPoints });
+            });
+
+            const newStructure = {
+                ...currentStructure,
+                hook: hook,
+                cta: cta,
+                sections: sections
+            };
+
+            const res = await fetch(`/api/projects/${projectId}/script-structure`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newStructure)
+            });
+
+            if (res.ok) {
+                currentStructure = newStructure;
+                Utils.showToast('변경사항이 저장되었습니다.', 'success');
+                Utils.storage.set('scriptStructure', newStructure);
+            } else {
+                throw new Error('저장 실패');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('저장 중 오류 발생: ' + e.message, 'error');
+        } finally {
+            Utils.setLoading(btn, false);
+            btn.innerHTML = originalHtml;
+        }
     }
 
     function copyStructure() {
@@ -1042,7 +1105,13 @@
                     topic,
                     script_style: style,
                     duration_seconds: duration,
-                    auto_plan: true
+                    auto_plan: true,
+                    // Use defaults for now as Plan page doesn't have these selectors yet
+                    visual_style: "realistic",
+                    thumbnail_style: "face",
+                    all_video: false,
+                    motion_method: "standard",
+                    video_scene_count: 0
                 })
             });
 

@@ -56,7 +56,8 @@ async def start_autopilot_api(
          return {"status": "error", "error": "Topic (or keyword) is required"}
 
     # 3. Create Project & Get ID (Atomic)
-    pid = db.create_project(name=f"[Auto] {topic}", topic=topic)
+    pid = db.create_project(name=f"[Auto] {topic}", topic=topic, app_mode=req.mode)
+
 
     # 4. Trigger Background Task
     background_tasks.add_task(

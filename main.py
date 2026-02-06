@@ -3560,6 +3560,8 @@ class AutoPilotStartRequest(BaseModel):
     visual_style: str = "realistic"
     thumbnail_style: Optional[str] = "face"
     video_scene_count: int = 0
+    all_video: bool = False
+    motion_method: str = "standard"
     narrative_style: str = "informative"
     script_style: Optional[str] = None
     voice_id: str = "ko-KR-Neural2-A"
@@ -3646,6 +3648,8 @@ async def start_autopilot_api(
         "visual_style": req.visual_style,
         "thumbnail_style": req.thumbnail_style,
         "video_scene_count": req.video_scene_count,
+        "all_video": req.all_video,
+        "motion_method": req.motion_method,
         "narrative_style": req.script_style or req.narrative_style,
         "script_style": req.script_style or req.narrative_style, 
         "voice_id": req.voice_id,
@@ -3776,8 +3780,11 @@ async def continue_autopilot(
         "duration_seconds": p_settings.get("duration_seconds", 300),
         "voice_provider": p_settings.get("voice_provider"),
         "voice_id": p_settings.get("voice_id"),
-        "visual_style": "realistic", 
-        "thumbnail_style": "face", 
+        "visual_style": p_settings.get("visual_style", "realistic"), 
+        "thumbnail_style": p_settings.get("thumbnail_style", "face"), 
+        "all_video": bool(p_settings.get("all_video", 0)),
+        "motion_method": p_settings.get("motion_method", "standard"),
+        "video_scene_count": p_settings.get("video_scene_count", 0),
         "auto_thumbnail": True,
         "auto_plan": req.auto_plan
     }
@@ -3790,6 +3797,11 @@ class AutopilotQueueRequest(BaseModel):
     script_style: str
     duration_seconds: int
     auto_plan: bool = True
+    all_video: bool = False
+    motion_method: str = "standard"
+    video_scene_count: int = 0
+    visual_style: str = "realistic"
+    thumbnail_style: str = "face"
 
 @app.post("/api/projects/{project_id}/queue")
 async def add_to_queue(project_id: int, req: AutopilotQueueRequest):
@@ -3802,8 +3814,11 @@ async def add_to_queue(project_id: int, req: AutopilotQueueRequest):
         "duration_seconds": req.duration_seconds,
         "auto_plan": req.auto_plan,
         "auto_thumbnail": True,
-        "visual_style": "realistic", 
-        "thumbnail_style": "face"
+        "visual_style": req.visual_style, 
+        "thumbnail_style": req.thumbnail_style,
+        "all_video": 1 if req.all_video else 0,
+        "motion_method": req.motion_method,
+        "video_scene_count": req.video_scene_count
     }
     for k, v in settings.items():
         db.update_project_setting(project_id, k, v)

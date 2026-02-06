@@ -146,6 +146,12 @@
                             <span>{{ t('btn_continue_autopilot') }}</span>
                         </button>
 
+                        <button onclick="addToQueue()" id="queueBtn"
+                            class="py-2 px-6 font-bold shadow-md hover:shadow-xl transition-all rounded-lg flex items-center gap-2 bg-gradient-to-r from-green-600 to-teal-600 text-white border-0">
+                            <span>📥</span>
+                            <span>제작 대기열에 담기</span>
+                        </button>
+
                         <button onclick="goToImageGen()" class="btn-primary py-2 px-4 rounded-lg text-sm">
                             {{ t('btn_go_image') }}
                         </button>
@@ -808,16 +814,19 @@ ${topic}
 
 [작성 지침]
 0. ${lengthInstruction}
-1. 자연스럽고 몰입감 있는 한국어 대본을 작성하세요.
-2. 섹션 제목은 출력하지 말고, 본문만 작성하세요.
-3. 이 파트의 분량은 **약 ${minChars}자 ~ ${maxChars}자** 내외로 작성하세요. (절대적으로 지킬 것)
-4. ${isShorts ? '문장을 짧고 간결하게 끊어주세요. 호흡을 짧게 가져가세요.' : '문장을 자연스럽게 이어주세요.'}
+1. 반드시 **독백(Monologue) 또는 나레이션(Narration) 형식**으로 작성하세요. (대화체 절대 금지)
+2. 화자는 **무조건 딱 1명(성우 1인)**으로 제한합니다. 대화 형식으로 역할을 나누지 마세요.
+3. 자연스럽고 몰입감 있는 한국어 대본을 작성하세요.
+4. 섹션 제목은 출력하지 말고, 본문만 작성하세요.
+5. 이 파트의 분량은 **약 ${minChars}자 ~ ${maxChars}자** 내외로 작성하세요. (절대적으로 지킬 것)
+6. ${isShorts ? '문장을 짧고 간결하게 끊어주세요. 호흡을 짧게 가져가세요.' : '문장을 자연스럽게 이어주세요.'}
 
 **[절대 금지 사항 - TTS 읽기 오류 방지]**
-1. 괄호와 상황 설명 금지 (예: (음악), (상황), (웃음) 등 절대 넣지 말 것)
-2. 시간 표시 금지 (예: [0-5초], ** 등 타임스탬프 금지)
-3. 이모티콘 및 기호 금지 (예: 🤣, ✨, 🔥 등 특수문자 금지)
-4. 화자(이름) 표시 금지 (예: 나:, 상사: 처럼 누가 말하는지 적지 말 것)
+1. 대화 형식 금지 (A: 아니요, B: 맞아요 같은 가상 대화 절대 넣지 말 것)
+2. 괄호와 상황 설명 금지 (예: (음악), (상황), (웃음) 등 절대 넣지 말 것)
+3. 시간 표시 금지 (예: [0-5초], ** 등 타임스탬프 금지)
+4. 이모티콘 및 기호 금지 (예: 🤣, ✨, 🔥 등 특수문자 금지)
+5. 화자(이름) 표시 금지 (예: 나:, 상사: 처럼 누가 말하는지 적지 말 것)
 
 본문만 출력하세요: `;
 
@@ -935,6 +944,66 @@ ${topic}
                 window.location.href = `/autopilot?project_id=${projectId}&monitor=true`;
             } else {
                 throw new Error(data.error || "오토파일럿 시작 실패");
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast(e.message, "error");
+        } finally {
+            Utils.setLoading(btn, false);
+            btn.innerHTML = originalText;
+        }
+    }
+
+    async function addToQueue() {
+        const projectId = getCurrentProject();
+        if (!projectId) {
+            Utils.showToast("프로젝트가 선택되지 않았습니다.", "error");
+            return;
+        }
+
+        const btn = document.getElementById('queueBtn');
+        const originalText = btn.innerHTML;
+        Utils.setLoading(btn, true, "담는 중...");
+
+        try {
+            // 1. Ensure current script is saved
+            const script = document.getElementById('scriptContent').value;
+            if (script.trim()) {
+                await API.project.saveScript(projectId, script, script.length, Math.ceil(script.length / 415));
+            }
+
+            // 2. Fetch current settings to preserve them
+            const fullData = await API.project.getFull(projectId);
+            const settings = fullData.settings || {};
+            const project = fullData.project || {};
+
+            // 3. Add to Queue
+            const res = await fetch(`/api/projects/${projectId}/queue`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    topic: project.topic || "Untitled",
+                    script_style: settings.script_style || "default",
+                    duration_seconds: settings.duration_seconds || 60,
+                    auto_plan: false, // Don't re-generate script
+                    visual_style: settings.visual_style || "realistic",
+                    thumbnail_style: settings.thumbnail_style || "face",
+                    all_video: settings.all_video || false,
+                    motion_method: settings.motion_method || "standard",
+                    video_scene_count: settings.video_scene_count || 0
+                })
+            });
+
+            const data = await res.json();
+            if (data.status === 'ok') {
+                Utils.showToast("대기열에 추가되었습니다! 📥", "success");
+                setTimeout(() => {
+                    if (confirm("대기열에 담았습니다. 목록으로 돌아가시겠습니까?")) {
+                        window.location.href = '/script-plan';
+                    }
+                }, 500);
+            } else {
+                throw new Error(data.error || "대기열 추가 실패");
             }
         } catch (e) {
             console.error(e);

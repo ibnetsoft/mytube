@@ -34,70 +34,104 @@ class VideoService:
         이미지 슬라이드쇼 영상 생성 (시네마틱 프레임 적용)
         """
         try:
-            # [FIX] MoviePy 2.0 Explicit Imports (VENV confirmed as 2.x structure)
+            # 2.x Styles (Top-level namespace changed in 2.0+)
             from moviepy.video.VideoClip import ImageClip, VideoClip, ColorClip, TextClip
             from moviepy.video.io.VideoFileClip import VideoFileClip
-            # In 2.0, concatenate is in CompositeVideoClip module
             from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip, concatenate_videoclips
             from moviepy.audio.io.AudioFileClip import AudioFileClip
+            from moviepy.audio.AudioClip import AudioClip
             
-            # FX Imports (Classes in 2.0)
+            # Effects (Classes in 2.0)
             from moviepy.video.fx.Resize import Resize
             from moviepy.video.fx.Loop import Loop
             from moviepy.video.fx.FadeIn import FadeIn
             from moviepy.video.fx.CrossFadeIn import CrossFadeIn
+            MOVIEPY_V2 = True
+            
+        except ImportError:
+            # Fallback to 1.x Styles (moviepy.editor)
+            try:
+                from moviepy.editor import (
+                    ImageClip, VideoClip, ColorClip, TextClip,
+                    VideoFileClip, CompositeVideoClip, concatenate_videoclips,
+                    AudioFileClip
+                )
+                from moviepy.audio.AudioClip import AudioClip
+                import moviepy.video.fx.all as vfx_all
+                MOVIEPY_V2 = False
+                
+                # Monkey-patch 1.x clips to support 2.x 'with_' method names
+                def with_duration(self, t): return self.set_duration(t)
+                def with_position(self, pos): return self.set_position(pos)
+                def with_start(self, t): return self.set_start(t)
+                def with_end(self, t): return self.set_end(t)
+                def with_opacity(self, op): return self.set_opacity(op)
+                def with_fps(self, fps): return self.set_fps(fps)
+                def with_audio(self, audio): return self.set_audio(audio)
+                def with_subclip(self, s=0, e=None): return self.subclip(s, e)
+                
+                for cls in [VideoClip, AudioClip, ImageClip, ColorClip, TextClip, VideoFileClip]:
+                    cls.with_duration = with_duration
+                    cls.with_position = with_position
+                    cls.with_start = with_start
+                    cls.with_end = with_end
+                    cls.with_opacity = with_opacity
+                    cls.with_fps = with_fps
+                    cls.with_audio = with_audio
+                    cls.with_subclip = with_subclip
 
-            # Mock VFX to support vfx.resize syntax using 2.0 Effects
-            class MockVFX:
-                pass
-            vfx = MockVFX()
-            
-            def resize_wrapper(clip, new_size=None):
-                # 2.0 Resize takes new_size as first arg
-                return clip.with_effects([Resize(new_size=new_size)])
-            vfx.resize = resize_wrapper
-            
-            def loop_wrapper(clip, n=None, duration=None):
+                    
+            except ImportError as e:
+                print(f"CRITICAL: MoviePy Import Failed completely: {e}")
+                raise ImportError(f"MoviePy 또는 Requests가 설치되지 않았습니다. (Error: {e})")
+
+        # Compatibility Mocking for VFX
+        class MockVFX:
+            pass
+        vfx = MockVFX()
+
+        # [HELPER] FX Wrappers
+        def apply_loop(clip, n=None, duration=None):
+            if MOVIEPY_V2:
                 return clip.with_effects([Loop(n=n, duration=duration)])
-            vfx.loop = loop_wrapper
+            return clip.fx(vfx_all.loop, n=n, duration=duration)
+
+        def apply_resize(clip, new_size=None, height=None, width=None):
+            # Normalization
+            if height and not new_size: new_size = [None, height]
+            if width and not new_size: new_size = [width, None]
             
-            def fadein_wrapper(clip, duration):
+            if MOVIEPY_V2:
+                return clip.with_effects([Resize(new_size=new_size)])
+            # 1.x has .resize() method (from moviepy.editor or VideoClip)
+            return clip.resize(new_size=new_size)
+
+        def apply_fadein(clip, duration):
+            if MOVIEPY_V2:
                 return clip.with_effects([FadeIn(duration=duration)])
-            vfx.fadein = fadein_wrapper
-            
-            def crossfadein_wrapper(clip, duration):
+            return clip.fx(vfx_all.fadein, duration)
+
+        def apply_crossfadein(clip, duration):
+            if MOVIEPY_V2:
                 return clip.with_effects([CrossFadeIn(duration=duration)])
-            vfx.crossfadein = crossfadein_wrapper
+            return clip.fx(vfx_all.crossfadein, duration)
 
-            # Pillow Patch (Just in case, though 2.0 uses Resampling)
-            import PIL.Image
-            if not hasattr(PIL.Image, 'ANTIALIAS'):
-                try:
-                    PIL.Image.ANTIALIAS = PIL.Image.LANCZOS
-                except: pass
+        # Assign to vfx for backward compatibility
+        vfx.loop = apply_loop
+        vfx.resize = apply_resize
+        vfx.fadein = apply_fadein
+        vfx.crossfadein = apply_crossfadein
 
-            import numpy as np
-            import requests 
-            
-        except ImportError as e:
-            # LOG IMPORT ERROR
+        # Pillow Patch
+        import PIL.Image
+        if not hasattr(PIL.Image, 'ANTIALIAS'):
             try:
-                base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                trace_path = os.path.join(base_dir, "debug_effects_trace.txt")
-                with open(trace_path, "a", encoding="utf-8") as f:
-                    f.write(f"CRITICAL IMPORT ERROR in create_slideshow (2.0 attempt): {e}\n")
+                PIL.Image.ANTIALIAS = PIL.Image.LANCZOS
             except: pass
-            raise ImportError(f"MoviePy Import Failed: {e}")
-            
-        except ImportError as e:
-            # LOG IMPORT ERROR
-            try:
-                base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                trace_path = os.path.join(base_dir, "debug_effects_trace.txt")
-                with open(trace_path, "a", encoding="utf-8") as f:
-                    f.write(f"CRITICAL IMPORT ERROR in create_slideshow: {e}\n")
-            except: pass
-            raise ImportError(f"MoviePy Import Failed: {e}")
+
+        import numpy as np
+        import requests 
+
 
         clips = []
         # DEBUG: Log incoming effects
@@ -462,9 +496,10 @@ class VideoService:
             elif video.duration > audio.duration + 0.5:
                 # [FIX] Video is significantly longer than audio (Sync Issue Safety Net)
                 print(f"DEBUG: Video ({video.duration}s) is longer than Audio ({audio.duration}s). Trimming video.")
-                video = video.subclip(0, audio.duration)
+                video = video.with_subclip(0, audio.duration)
 
             video = video.with_audio(audio)
+
             
         # 제목 오버레이 추가
         if title_text:

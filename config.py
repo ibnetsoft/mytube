@@ -53,8 +53,18 @@ class Config:
     LOG_DIR = os.path.join(BASE_DIR, "logs")
     
     # 하드코딩된 상수 관리
-    DEFAULT_FONT_PATH = "malgun.ttf"  # 시스템에 설치된 맑은 고딕 또는 폰트 파일 경로
+    # [FIX] Better font discovery for Windows
+    DEFAULT_FONT_PATH = "C:/Windows/Fonts/malgun.ttf" if os.path.exists("C:/Windows/Fonts/malgun.ttf") else "malgun.ttf"
     DEBUG_LOG_PATH = os.path.join(LOG_DIR, "debug.log")
+
+    
+    # [NEW] FFmpeg Path for services
+    try:
+        import imageio_ffmpeg
+        FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
+    except ImportError:
+        FFMPEG_PATH = "ffmpeg"
+
 
     @classmethod
     def setup_directories(cls):

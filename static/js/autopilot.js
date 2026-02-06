@@ -187,6 +187,44 @@ function selectStyle(inputId, val) {
     }
 }
 
+// [NEW] Mode Selection
+function setMode(mode) {
+    const input = document.getElementById('appMode');
+    if (!input) return;
+    input.value = mode;
+
+    // Visual update
+    const btnLong = document.getElementById('modeLongform');
+    const btnShort = document.getElementById('modeShorts');
+
+    if (mode === 'longform') {
+        btnLong.classList.replace('text-gray-500', 'bg-purple-600');
+        btnLong.classList.replace('text-white', 'text-white'); // ensure text is white
+        btnLong.classList.add('bg-purple-600', 'text-white', 'font-bold');
+
+        btnShort.classList.remove('bg-purple-600', 'text-white', 'font-bold');
+        btnShort.classList.add('text-gray-500');
+
+        // Update Duration Label to 'Min'
+        const durLabel = document.querySelector('#targetDuration + span');
+        if (durLabel) durLabel.innerText = '분';
+        const durInput = document.getElementById('targetDuration');
+        if (durInput && durInput.value == 60) durInput.value = 10; // Reset if it was set for shorts
+    } else {
+        btnShort.classList.add('bg-purple-600', 'text-white', 'font-bold');
+        btnShort.classList.remove('text-gray-500');
+
+        btnLong.classList.remove('bg-purple-600', 'text-white', 'font-bold');
+        btnLong.classList.add('text-gray-500');
+
+        // Update Duration Label to 'Sec'
+        const durLabel = document.querySelector('#targetDuration + span');
+        if (durLabel) durLabel.innerText = '초';
+        const durInput = document.getElementById('targetDuration');
+        if (durInput) durInput.value = 60; // Default for shorts
+    }
+}
+
 // [NEW] Motion Method Selection
 function setMotionMethod(method) {
     const input = document.getElementById('motionMethod');
@@ -206,6 +244,7 @@ function setMotionMethod(method) {
         }
     });
 }
+
 
 
 async function loadVoices() {
@@ -332,6 +371,11 @@ async function loadSavedSettings() {
 
         if (data) {
             log("⚙️ Loaded Saved Settings");
+
+            if (data.app_mode) {
+                setMode(data.app_mode);
+            }
+
 
             // 1. TTS Settings
             if (data.voice_provider) {
@@ -504,7 +548,8 @@ async function startAutopilot() {
     // Build Config
     const config = {
         keyword: topic,
-        visual_style: document.getElementById('imageStyle').value,
+        mode: document.getElementById('appMode')?.value || 'longform', // [NEW]
+        image_style: document.getElementById('imageStyle').value,
         thumbnail_style: document.getElementById('thumbnailStyle').value,
         video_scene_count: parseInt(document.getElementById('videoSceneCount').value || 0),
         all_video: document.getElementById('allVideoCheck')?.checked || false, // [NEW]
@@ -512,12 +557,18 @@ async function startAutopilot() {
         script_style: document.getElementById('scriptStyleSelect').value,
         voice_provider: document.getElementById('providerSelect').value,
         voice_id: document.getElementById('voiceSelect').value,
-        duration_seconds: (parseInt(document.getElementById('targetDuration').value) || 10) * 60,
+        duration_seconds: (function () {
+            const val = parseInt(document.getElementById('targetDuration').value);
+            const m = document.getElementById('appMode')?.value || 'longform';
+            if (m === 'shorts') return val || 60; // Seconds
+            return (val || 10) * 60; // Minutes to Seconds
+        })(),
         subtitle_settings: window.currentSubtitleSettings || null, // [NEW]
         preset_id: document.getElementById('presetSelect') ? (parseInt(document.getElementById('presetSelect').value) || null) : null
     };
 
-    log(`🎬 Visual: ${config.visual_style} | Thumb: ${config.thumbnail_style}`);
+    log(`🎬 Mode: ${config.mode} | ImageStyle: ${config.image_style} | Thumb: ${config.thumbnail_style}`);
+
     log(`🎙️ Voice: ${config.voice_provider} / ${config.voice_id}`);
 
     try {
@@ -849,8 +900,15 @@ async function loadPreset(presetId) {
 }
 
 function applyPresetSettings(s) {
-    // 1. Visual
-    if (s.visual_style) selectStyle('imageStyle', s.visual_style);
+    // [NEW] Mode
+    if (s.mode) {
+        setMode(s.mode);
+    }
+
+    // 1. Image Style
+    if (s.image_style) selectStyle('imageStyle', s.image_style);
+    if (s.visual_style) selectStyle('imageStyle', s.visual_style); // Fallback for old presets
+
     if (s.thumbnail_style) selectStyle('thumbnailStyle', s.thumbnail_style);
 
     // 2. Video
@@ -904,6 +962,7 @@ async function saveCurrentPreset() {
     const currentSettings = {
         name: name,
         settings: {
+            mode: document.getElementById('appMode')?.value || 'longform',
             image_style: document.getElementById('imageStyle').value,
             thumbnail_style: document.getElementById('thumbnailStyle').value,
             video_scene_count: parseInt(document.getElementById('videoSceneCount').value || 0),

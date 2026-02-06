@@ -109,6 +109,10 @@ class AutoPilotService:
                 analysis = db.get_analysis(project_id)
                 script = await self._generate_script(project_id, analysis.get("analysis_result", {}), self.config)
                 db.update_project_setting(project_id, "script", script)
+                
+                # [NEW] AI 제목 및 설명 생성
+                await self._generate_metadata(project_id, script)
+                
                 db.update_project(project_id, status="scripted")
                 current_status = "scripted"
 
@@ -150,6 +154,19 @@ class AutoPilotService:
         except Exception as e:
             print(f"❌ [Auto-Pilot] 오류 발생: {e}")
             db.update_project(project_id, status="error")
+
+    async def _generate_metadata(self, project_id: int, script_text: str):
+        """AI를 사용하여 제목, 설명, 태그 생성"""
+        print(f"📝 [Auto-Pilot] 제목 및 설명 생성 시작...")
+        try:
+            metadata = await gemini_service.generate_video_metadata(script_text)
+            if metadata:
+                db.update_project_setting(project_id, "title", metadata.get("title"))
+                db.update_project_setting(project_id, "description", metadata.get("description"))
+                db.update_project_setting(project_id, "hashtags", ",".join(metadata.get("tags", [])))
+                print(f"✅ [Auto-Pilot] 메타데이터 생성 완료: {metadata.get('title')}")
+        except Exception as e:
+            print(f"⚠️ [Auto-Pilot] 메타데이터 생성 실패: {e}")
 
     async def _find_best_material(self, keyword: str):
         params = {
@@ -202,6 +219,7 @@ Required Format (JSON Only):
   "cta": "Conclusion and call to action"
 }}
 Language: Korean
+Style Guide: Narration/Monologue only. NO dialogue between characters.
 """
                  # request_s = type('obj', (object,), {"prompt": struct_prompt, "temperature": 0.7})
                  result_text_s = await gemini_service.generate_text(struct_prompt, temperature=0.7)
@@ -229,11 +247,18 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
 [Reference Analysis]
 {json.dumps(analysis, ensure_ascii=False)}
 
-Instructions:
+[Instructions]
 1. You MUST follow the 'User Plan' structure (Hook, Body, Conclusion, etc).
 2. The 'structure' contains specific Hooks and plot points selected by the user. Do NOT change them.
 3. Use the 'Reference Analysis' only to enrich the content details.
-4. Output the full script in Korean.
+4. Voice: Strictly SINGLE SPEAKER Narration or Monologue. 
+5. NO DIALOGUE: Do not write conversations between different people (No "A: Hello, B: Hi").
+6. Output the full script in Korean.
+
+[Absolute Rules for TTS]
+- NO character names or colons (e.g., "Narrator:", "Me:").
+- NO parentheses or situational descriptions (e.g., "(music)", "(laughs)").
+- NO special characters or emojis.
 """
             if style_key != "default":
                 prompt += f"\n\n[Writing Style Directive]: {style_desc}\nApply this style strictly."
@@ -276,7 +301,8 @@ Instructions:
     async def _generate_assets(self, project_id: int, script: str, config_dict: dict):
         all_video = config_dict.get("all_video", False)
         motion_method = config_dict.get("motion_method", "standard")
-        visual_style_key = config_dict.get("visual_style", "realistic")
+        image_style_key = config_dict.get("image_style", config_dict.get("visual_style", "realistic"))
+
         
         # Determine sequence duration based on method
         video_duration = 5.0
@@ -285,7 +311,8 @@ Instructions:
 
         # Get visual style prompt from presets
         style_presets = db.get_style_presets()
-        style_data = style_presets.get(visual_style_key, {})
+        style_data = style_presets.get(image_style_key, {})
+
         style_prefix = style_data.get("prompt_value", "photorealistic")
         
         # 1. Image Prompts
@@ -325,12 +352,21 @@ Instructions:
                     image_abs_path = os.path.join(config.OUTPUT_DIR, p.get("image_url").replace("/output/", ""))
                 
                 if not image_abs_path or not os.path.exists(image_abs_path):
-                    # [CRITICAL] Determine aspect ratio based on duration (Long-form vs Shorts)
+                    # [CRITICAL] Determine aspect ratio based on Mode (Shorts vs Longform)
                     duration_sec = config_dict.get("duration_seconds", 300)
-                    aspect_ratio = "16:9" if duration_sec > 60 else "9:16"
+                    mode = config_dict.get("mode", "longform")
                     
-                    print(f"🎨 [Auto-Pilot] Generating image for Scene {scene_num} (Aspect Ratio: {aspect_ratio})")
+                    if mode == "shorts":
+                        aspect_ratio = "9:16"
+                    elif mode == "longform":
+                        aspect_ratio = "16:9"
+                    else:
+                        # Fallback to duration threshold
+                        aspect_ratio = "16:9" if (duration_sec and duration_sec >= 60) else "9:16"
+                    
+                    print(f"🎨 [Auto-Pilot] Generating image for Scene {scene_num} (Mode: {mode}, Duration: {duration_sec}s, Aspect Ratio: {aspect_ratio})")
                     images = await gemini_service.generate_image(prompt_en, aspect_ratio=aspect_ratio)
+
                     if not images: return False
                     
                     filename = f"img_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.png"
@@ -366,6 +402,9 @@ Instructions:
             db.update_project(project_id, status=f"assets_{i+1}/{len(image_prompts)}")
             if i < video_scene_count: await process_scene(p, True)
             else: await process_scene(p, False)
+
+        # [CRITICAL] Re-fetch image_prompts from DB to get updated video_url/image_url paths
+        image_prompts = db.get_image_prompts(project_id)
 
         # 3. TTS (Scene-based Generation for Perfect Sync)
         db.update_project(project_id, status="generating_tts")
@@ -766,22 +805,40 @@ Instructions:
             image_durations = tts_data["duration"] / len(images) if images else 5.0
             print(f"⚠️ [Auto-Pilot] Fallback to N-Division Sync ({image_durations if not isinstance(image_durations, list) else 'list'}s per image)")
         
+        # [NEW] Determine Resolution based on App Mode
+        app_mode = settings.get("app_mode", "longform")
+        resolution = (1920, 1080) if app_mode == "longform" else (1080, 1920)
+        print(f"🎬 [Auto-Pilot] Rendering video with resolution: {resolution} (Mode: {app_mode})")
+
         final_path = video_service.create_slideshow(
             images=images, audio_path=audio_path, output_filename=output_filename,
-            duration_per_image=image_durations, subtitles=subs, project_id=project_id
+            duration_per_image=image_durations, subtitles=subs, project_id=project_id,
+            resolution=resolution
         )
+
         db.update_project_setting(project_id, "video_path", f"/output/{output_filename}")
         db.update_project(project_id, status="rendered")
 
     async def _upload_video(self, project_id: int, video_path: str):
         now = config.get_kst_time()
         publish_time = (now + timedelta(days=1)).replace(hour=8, minute=0, second=0).isoformat()
+        
+        # Load generated metadata
+        settings = db.get_project_settings(project_id)
+        ai_title = settings.get("title") or f"AI Auto Video {now.date()}"
+        ai_desc = settings.get("description") or "#Shorts #AI"
+        ai_tags_str = settings.get("hashtags") or "ai,shorts"
+        ai_tags = [t.strip() for t in ai_tags_str.split(",") if t.strip()]
+
         try:
             # 1. Video Upload (Schedule for next day 8 AM)
             response = youtube_upload_service.upload_video(
-                file_path=video_path, title=f"AI Auto Video {now.date()}",
-                description="#Shorts #AI", tags=["ai", "shorts"],
-                privacy_status="private", publish_at=publish_time
+                file_path=video_path, 
+                title=ai_title,
+                description=ai_desc, 
+                tags=ai_tags,
+                privacy_status="private", 
+                publish_at=publish_time
             )
             
             # 2. Thumbnail Upload
@@ -824,18 +881,27 @@ Instructions:
             print(f"▶️ [Batch] 프로젝트 시작: {project.get('topic')} (ID: {pid})")
             
             try:
-                # 상태 변경: analyzed (오토파일럿이 이어서 작업할 수 있도록)
-                db.update_project(pid, status="analyzed")
-                
                 # 설정 로드
                 p_settings = db.get_project_settings(pid) or {}
+
+                # [MODIFIED] Check if script already exists to decide start status
+                # This enables "Queue after script generation"
+                if p_settings.get("script") and len(p_settings.get("script").strip()) > 50:
+                    print(f"📄 [Batch] 기존 대본 발견 (ID: {pid}). 'scripted' 단계부터 시작합니다.")
+                    db.update_project(pid, status="scripted")
+                else:
+                    db.update_project(pid, status="analyzed")
+                
                 config_dict = {
                     "script_style": p_settings.get("script_style", "default"),
                     "duration_seconds": p_settings.get("duration_seconds", 300),
                     "voice_provider": p_settings.get("voice_provider"),
                     "voice_id": p_settings.get("voice_id"),
-                    "visual_style": "realistic", 
-                    "thumbnail_style": "face", 
+                    "image_style": p_settings.get("image_style", "realistic"), 
+                    "thumbnail_style": p_settings.get("thumbnail_style", "face"), 
+                    "all_video": bool(p_settings.get("all_video", 0)),
+                    "motion_method": p_settings.get("motion_method", "standard"),
+                    "video_scene_count": p_settings.get("video_scene_count", 0),
                     "auto_thumbnail": True,
                     "auto_plan": p_settings.get("auto_plan", True)
                 }

@@ -451,6 +451,35 @@ class GeminiService:
             return []
 
 
+    async def generate_video_metadata(self, script_text: str) -> dict:
+        """대본을 바탕으로 제목, 설명, 태그 생성"""
+        prompt = prompts.AUTOPILOT_GENERATE_METADATA.format(script_text=script_text)
+        try:
+            response_text = await self.generate_text(prompt, temperature=0.7)
+            
+            # Clean Markdown code blocks
+            cleaned_text = re.sub(r'```json\s*|\s*```', '', response_text).strip()
+            
+            # Use regex to find JSON object
+            json_match = re.search(r'\{[\s\S]*\}', cleaned_text)
+            if json_match:
+                return json.loads(json_match.group(0))
+            
+            # Fallback if parsing fails
+            return {
+                "title": f"New Video {config.get_kst_time().date()}",
+                "description": "#AI #Shorts",
+                "tags": ["ai", "shorts"]
+            }
+        except Exception as e:
+            print(f"Metadata Gen Error: {e}")
+            return {
+                "title": f"Video {config.get_kst_time().date()}",
+                "description": "#AI",
+                "tags": ["ai"]
+            }
+
+
     async def generate_trending_keywords(self, language: str = "ko", period: str = "now", age: str = "all") -> list:
         """
         언어/기간/연령별 인기 유튜브 트렌드 키워드 생성 (Search Volume 시뮬레이션)
