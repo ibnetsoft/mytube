@@ -1416,3 +1416,311 @@ ModuleNotFoundError: No module named 'moviepy.editor'
 [2026-02-03 22:42:46.382953] create_slideshow(PROJ=28) Effects: ['none', 'none', 'none', 'zoom_in', 'random', 'zoom_in', 'pan_right']
 [2026-02-03 22:42:48.984740] RENDER_SETTINGS: font='GmarketSansBold', color='#ffffff', style='Custom', stroke_color='#000000', stroke_enabled=1, stroke_width=0.0, bg_enabled=1
 [2026-02-03 22:42:49.324275] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-06 07:29:04.604802] create_slideshow(PROJ=55) Effects: None
+[2026-02-06 07:39:27.178573] create_slideshow(PROJ=56) Effects: None
+[2026-02-06 07:39:28.661513] RENDER_SETTINGS: font='malgun.ttf', color='white', style='Basic_White', stroke_color='black', stroke_enabled=1, stroke_width=9.0, bg_enabled=None
+[2026-02-06 07:39:29.828066] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-06 08:10:14.459580] create_slideshow(PROJ=57) Effects: None
+[2026-02-06 08:10:15.793124] RENDER_SETTINGS: font='malgun.ttf', color='white', style='Basic_White', stroke_color='black', stroke_enabled=1, stroke_width=9.0, bg_enabled=None
+[2026-02-06 08:10:16.441992] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-06 08:52:42.240040] create_slideshow(PROJ=58) Effects: None
+[2026-02-06 08:52:43.645808] RENDER_SETTINGS: font='malgun.ttf', color='white', style='Basic_White', stroke_color='black', stroke_enabled=1, stroke_width=9.0, bg_enabled=None
+[2026-02-06 08:52:55.157295] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-06 10:59:27.643841] create_slideshow(PROJ=59) Effects: None
+[2026-02-06 10:59:28.680977] RENDER_SETTINGS: font='malgun.ttf', color='white', style='Basic_White', stroke_color='black', stroke_enabled=1, stroke_width=9.0, bg_enabled=None
+[2026-02-06 10:59:30.002455] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-06 13:09:29.147487] Starting render for project 59
+[2026-02-06 13:09:29.147501] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_59.mp3
+[2026-02-06 13:09:29.308031] Render Error: No module named 'moviepy.editor'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\utils.py", line 14, in <module>
+    import audioop
+ModuleNotFoundError: No module named 'audioop'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\app\routers\video.py", line 830, in render_executor_func
+    import pydub
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\__init__.py", line 1, in <module>
+    from .audio_segment import AudioSegment
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\audio_segment.py", line 11, in <module>
+    from .utils import mediainfo_json, fsdecode
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\utils.py", line 16, in <module>
+    import pyaudioop as audioop
+ModuleNotFoundError: No module named 'pyaudioop'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\app\routers\video.py", line 834, in render_executor_func
+    from moviepy.editor import AudioFileClip
+ModuleNotFoundError: No module named 'moviepy.editor'
+
+[2026-02-06 13:12:24.731792] Starting render for project 59
+[2026-02-06 13:12:24.731811] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_59.mp3
+[2026-02-06 13:12:24.751854] Render Error: No module named 'moviepy.editor'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\utils.py", line 14, in <module>
+    import audioop
+ModuleNotFoundError: No module named 'audioop'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\app\routers\video.py", line 830, in render_executor_func
+    import pydub
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\__init__.py", line 1, in <module>
+    from .audio_segment import AudioSegment
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\audio_segment.py", line 11, in <module>
+    from .utils import mediainfo_json, fsdecode
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\utils.py", line 16, in <module>
+    import pyaudioop as audioop
+ModuleNotFoundError: No module named 'pyaudioop'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\app\routers\video.py", line 834, in render_executor_func
+    from moviepy.editor import AudioFileClip
+ModuleNotFoundError: No module named 'moviepy.editor'
+
+[2026-02-06 13:12:31.804820] Starting render for project 59
+[2026-02-06 13:12:31.804837] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_59.mp3
+[2026-02-06 13:12:31.819812] Render Error: No module named 'moviepy.editor'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\utils.py", line 14, in <module>
+    import audioop
+ModuleNotFoundError: No module named 'audioop'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\app\routers\video.py", line 830, in render_executor_func
+    import pydub
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\__init__.py", line 1, in <module>
+    from .audio_segment import AudioSegment
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\audio_segment.py", line 11, in <module>
+    from .utils import mediainfo_json, fsdecode
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\utils.py", line 16, in <module>
+    import pyaudioop as audioop
+ModuleNotFoundError: No module named 'pyaudioop'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\app\routers\video.py", line 834, in render_executor_func
+    from moviepy.editor import AudioFileClip
+ModuleNotFoundError: No module named 'moviepy.editor'
+
+[2026-02-06 13:26:17.143847] Starting render for project 59
+[2026-02-06 13:26:17.143862] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_59.mp3
+[2026-02-06 13:26:17.374834] create_slideshow(PROJ=59) Effects: ['random', 'random', 'random', 'random', 'random']
+[2026-02-06 13:26:18.203944] RENDER_SETTINGS: font='GmarketSansBold', color='#ffffff', style='Custom', stroke_color='#000000', stroke_enabled=1, stroke_width=3.0, bg_enabled=1
+[2026-02-06 13:26:20.097122] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-06 17:48:00.366386] Starting render for project 57
+[2026-02-06 17:48:00.366400] Images: 6, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_57.mp3
+[2026-02-06 17:48:00.545940] create_slideshow(PROJ=57) Effects: ['random', 'random', 'random', 'random', 'random', 'random']
+[2026-02-06 17:48:01.477471] RENDER_SETTINGS: font='GmarketSansBold', color='white', style='Custom', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-06 17:48:01.960629] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-06 17:56:33.158057] Starting render for project 57
+[2026-02-06 17:56:33.158070] Images: 6, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_57.mp3
+[2026-02-06 17:56:33.374115] create_slideshow(PROJ=57) Effects: ['random', 'random', 'random', 'random', 'random', 'random']
+[2026-02-06 17:56:34.301388] RENDER_SETTINGS: font='GmarketSansBold', color='white', style='Custom', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-06 17:56:34.804916] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-06 18:14:48.700274] Starting render for project 57
+[2026-02-06 18:14:48.700295] Images: 6, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_57.mp3
+[2026-02-06 18:14:48.923993] create_slideshow(PROJ=57) Effects: ['random', 'random', 'random', 'random', 'random', 'random']
+[2026-02-06 18:14:49.821163] RENDER_SETTINGS: font='GmarketSansBold', color='white', style='Custom', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-06 18:14:50.283588] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-06 18:27:28.545234] Starting render for project 57
+[2026-02-06 18:27:28.545255] Images: 6, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_57.mp3
+[2026-02-06 18:27:28.751913] create_slideshow(PROJ=57) Effects: ['random', 'random', 'random', 'random', 'random', 'random']
+[2026-02-06 18:27:29.646909] RENDER_SETTINGS: font='GmarketSansBold', color='white', style='Custom', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-06 18:27:29.898022] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-06 18:43:45.904625] Starting render for project 57
+[2026-02-06 18:43:45.904638] Images: 6, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_57.mp3
+[2026-02-06 18:43:46.067874] create_slideshow(PROJ=57) Effects: ['random', 'random', 'random', 'random', 'random']
+[2026-02-06 18:43:46.936991] RENDER_SETTINGS: font='GmarketSansBold', color='white', style='Custom', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-06 18:43:47.414687] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-06 18:47:22.040697] Starting render for project 57
+[2026-02-06 18:47:22.040711] Images: 6, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_57.mp3
+[2026-02-06 18:47:22.232496] create_slideshow(PROJ=57) Effects: ['random', 'random', 'random', 'random', 'random', 'random']
+[2026-02-06 18:47:23.070864] RENDER_SETTINGS: font='Jalnan', color='#f7ef08', style='Custom', stroke_color='#000000', stroke_enabled=1, stroke_width=3.0, bg_enabled=0
+[2026-02-06 18:47:23.507474] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-06 19:03:30.211090] Starting render for project 57
+[2026-02-06 19:03:30.211108] Images: 6, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_57.mp3
+[2026-02-06 19:03:30.386263] create_slideshow(PROJ=57) Effects: ['random', 'random', 'random', 'random', 'random', 'random']
+[2026-02-06 19:03:31.311080] RENDER_SETTINGS: font='Jua', color='#fbbf24', style='Custom', stroke_color='#000000', stroke_enabled=1, stroke_width=6.0, bg_enabled=1
+[2026-02-06 19:03:31.793727] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-06 19:13:55.301106] Starting render for project 57
+[2026-02-06 19:13:55.301124] Images: 6, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_57.mp3
+[2026-02-06 19:13:55.484104] create_slideshow(PROJ=57) Effects: ['zoom_in', 'zoom_out', 'pan_left', 'pan_right', 'random', 'none']
+[2026-02-06 19:13:56.361488] RENDER_SETTINGS: font='CookieRun-Regular', color='#000000', style='Custom', stroke_color='#ffffff', stroke_enabled=1, stroke_width=6.0, bg_enabled=1
+[2026-02-06 19:13:56.834289] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-06 19:17:27.683755] Starting render for project 57
+[2026-02-06 19:17:27.683766] Images: 6, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_57.mp3
+[2026-02-06 19:17:27.854937] create_slideshow(PROJ=57) Effects: ['zoom_in', 'zoom_out', 'pan_left', 'pan_right', 'random', 'none']
+[2026-02-06 19:17:28.718262] RENDER_SETTINGS: font='BinggraeMelona-Bold', color='#000000', style='Custom', stroke_color='#000000', stroke_enabled=1, stroke_width=6.0, bg_enabled=1
+[2026-02-06 19:17:29.190405] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-06 19:23:29.548567] Starting render for project 57
+[2026-02-06 19:23:29.548588] Images: 6, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_57.mp3
+[2026-02-06 19:23:29.721404] create_slideshow(PROJ=57) Effects: ['zoom_in', 'zoom_out', 'pan_left', 'pan_right', 'random', 'none']
+[2026-02-06 19:23:30.650757] RENDER_SETTINGS: font='NetmarbleB', color='#02f79a', style='Custom', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-06 19:23:31.193870] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-06 19:28:49.402671] Starting render for project 57
+[2026-02-06 19:28:49.402683] Images: 6, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_57.mp3
+[2026-02-06 19:28:49.556037] create_slideshow(PROJ=57) Effects: ['zoom_in', 'zoom_out', 'pan_left', 'pan_right', 'random', 'none']
+[2026-02-06 19:28:50.449435] RENDER_SETTINGS: font='NetmarbleB', color='#fbbf24', style='Custom', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-06 19:28:50.915030] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-06 19:33:06.191032] Starting render for project 57
+[2026-02-06 19:33:06.191051] Images: 6, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_57.mp3
+[2026-02-06 19:33:06.345588] create_slideshow(PROJ=57) Effects: ['zoom_in', 'zoom_out', 'pan_left', 'pan_right', 'random', 'none']
+[2026-02-06 19:33:07.233276] RENDER_SETTINGS: font='NetmarbleB', color='#fbbf24', style='Custom', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-06 19:33:07.686620] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-06 19:37:27.043371] Starting render for project 57
+[2026-02-06 19:37:27.043387] Images: 6, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_57.mp3
+[2026-02-06 19:37:27.203452] create_slideshow(PROJ=57) Effects: ['zoom_in', 'zoom_out', 'pan_left', 'pan_right', 'random', 'none']
+[2026-02-06 19:37:28.133736] RENDER_SETTINGS: font='NetmarbleB', color='#fbbf24', style='Custom', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-06 19:37:28.595921] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-06 19:43:06.856839] Starting render for project 57
+[2026-02-06 19:43:06.856850] Images: 6, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_57.mp3
+[2026-02-06 19:43:07.033659] Render Error: moviepy 또는 requests가 설치되지 않았습니다.
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 37, in create_slideshow
+    from moviepy.editor import (
+    ...<2 lines>...
+    )
+ModuleNotFoundError: No module named 'moviepy.editor'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\app\routers\video.py", line 1059, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<11 lines>...
+        project_id=project_id
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 45, in create_slideshow
+    raise ImportError("moviepy 또는 requests가 설치되지 않았습니다.")
+ImportError: moviepy 또는 requests가 설치되지 않았습니다.
+
+[2026-02-06 19:44:23.127118] Starting render for project 57
+[2026-02-06 19:44:23.127130] Images: 6, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_57.mp3
+[2026-02-06 19:44:23.379106] Render Error: moviepy 또는 requests가 설치되지 않았습니다.
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 37, in create_slideshow
+    from moviepy.editor import (
+    ...<2 lines>...
+    )
+ModuleNotFoundError: No module named 'moviepy.editor'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\app\routers\video.py", line 1059, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<11 lines>...
+        project_id=project_id
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 45, in create_slideshow
+    raise ImportError("moviepy 또는 requests가 설치되지 않았습니다.")
+ImportError: moviepy 또는 requests가 설치되지 않았습니다.
+
+[2026-02-06 19:44:37.381080] Starting render for project 57
+[2026-02-06 19:44:37.381097] Images: 6, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_57.mp3
+[2026-02-06 19:44:37.550221] Render Error: moviepy 또는 requests가 설치되지 않았습니다.
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 37, in create_slideshow
+    from moviepy.editor import (
+    ...<2 lines>...
+    )
+ModuleNotFoundError: No module named 'moviepy.editor'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\app\routers\video.py", line 1059, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<11 lines>...
+        project_id=project_id
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 45, in create_slideshow
+    raise ImportError("moviepy 또는 requests가 설치되지 않았습니다.")
+ImportError: moviepy 또는 requests가 설치되지 않았습니다.
+
+[2026-02-06 19:47:09.799572] Starting render for project 57
+[2026-02-06 19:47:09.799582] Images: 6, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_57.mp3
+[2026-02-06 19:47:10.003006] Render Error: moviepy 또는 requests가 설치되지 않았습니다.
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 37, in create_slideshow
+    from moviepy.editor import (
+    ...<2 lines>...
+    )
+ModuleNotFoundError: No module named 'moviepy.editor'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\app\routers\video.py", line 1059, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<11 lines>...
+        project_id=project_id
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 55, in create_slideshow
+    raise ImportError("moviepy 또는 requests가 설치되지 않았습니다.")
+ImportError: moviepy 또는 requests가 설치되지 않았습니다.
+
+[2026-02-06 19:47:16.106980] Starting render for project 57
+[2026-02-06 19:47:16.106993] Images: 6, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_57.mp3
+[2026-02-06 19:47:16.269026] Render Error: moviepy 또는 requests가 설치되지 않았습니다.
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 37, in create_slideshow
+    from moviepy.editor import (
+    ...<2 lines>...
+    )
+ModuleNotFoundError: No module named 'moviepy.editor'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\app\routers\video.py", line 1059, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<11 lines>...
+        project_id=project_id
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 55, in create_slideshow
+    raise ImportError("moviepy 또는 requests가 설치되지 않았습니다.")
+ImportError: moviepy 또는 requests가 설치되지 않았습니다.
+
+[2026-02-06 19:50:01.528857] Starting render for project 57
+[2026-02-06 19:50:01.528875] Images: 6, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_57.mp3
+[2026-02-06 19:50:01.715847] Render Error: MoviePy Import Failed: No module named 'moviepy.video.compositing.concatenate'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 42, in create_slideshow
+    from moviepy.video.compositing.concatenate import concatenate_videoclips
+ModuleNotFoundError: No module named 'moviepy.video.compositing.concatenate'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\app\routers\video.py", line 1059, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<11 lines>...
+        project_id=project_id
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 72, in create_slideshow
+    raise ImportError(f"MoviePy Import Failed: {e}")
+ImportError: MoviePy Import Failed: No module named 'moviepy.video.compositing.concatenate'
+
+[2026-02-06 19:56:35.618190] Starting render for project 57
+[2026-02-06 19:56:35.618206] Images: 6, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_57.mp3
+[2026-02-06 19:56:35.893165] create_slideshow(PROJ=57) Effects: ['zoom_in', 'zoom_out', 'pan_left', 'pan_right', 'random', 'none']
+[2026-02-06 19:56:37.423083] RENDER_SETTINGS: font='NetmarbleB', color='#fbbf24', style='Custom', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-06 19:56:37.921159] calling writes_videofile code in video_service (720p safe mode)

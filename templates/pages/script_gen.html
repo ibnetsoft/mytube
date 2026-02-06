@@ -116,6 +116,11 @@
                         <div class="flex gap-2">
                             <button onclick="translateScript()" id="translateBtn"
                                 class="btn-secondary text-xs hidden">{{ t('btn_translate') }}</button>
+                            <!-- [NEW] Clean Script Button -->
+                            <button onclick="cleanCurrentScript()"
+                                class="btn-secondary text-xs flex items-center gap-1 border-yellow-600/50 text-yellow-500 hover:bg-yellow-500/10 px-3">
+                                ✨ 정제
+                            </button>
                             <button onclick="copyScript()"
                                 class="btn-primary text-xs flex items-center gap-1 bg-blue-600 hover:bg-blue-500 text-white px-3">
                                 📋 <span class="font-bold">{{ t('btn_copy_all') }}</span>
@@ -134,6 +139,13 @@
                     <textarea id="scriptContent" class="input-field font-mono text-sm" rows="15"></textarea>
 
                     <div class="flex justify-center gap-3 mt-4 pt-4 border-t border-gray-700">
+                        <!-- [NEW] Autopilot Continue Button -->
+                        <button onclick="continueWithAutopilot()" id="autopilotBtn"
+                            class="py-2 px-6 font-bold shadow-md hover:shadow-xl transition-all rounded-lg flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white border-0">
+                            <span>🚀</span>
+                            <span>{{ t('btn_continue_autopilot') }}</span>
+                        </button>
+
                         <button onclick="goToImageGen()" class="btn-primary py-2 px-4 rounded-lg text-sm">
                             {{ t('btn_go_image') }}
                         </button>
@@ -628,6 +640,26 @@
         Utils.showToast('대본 전체가 복사되었습니다! 📋', 'success');
     }
 
+    function cleanCurrentScript() {
+        let text = document.getElementById('scriptContent').value;
+        if (!text) return;
+
+        if (!confirm('대본에서 괄호, 별표(**), 이모지, 화자 표시 등을 모두 제거하시겠습니까?')) return;
+
+        const cleaned = text
+            .replace(/\([^)]*\)/g, '')
+            .replace(/\[[^\]]*\]/g, '')
+            .replace(/\*/g, '')
+            .replace(/[^\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318Fa-zA-Z0-9\s,.\?\!\"\'\.]/g, '')
+            .replace(/^[가-힣\w\s]+[\s]*:[\s]*/gm, '')
+            .replace(/\n\s*\n/g, '\n\n')
+            .trim();
+
+        document.getElementById('scriptContent').value = cleaned;
+        updateStats();
+        Utils.showToast('대본이 깨끗하게 정리되었습니다! ✨', 'success');
+    }
+
     function goToImageGen() { window.location.href = '/image-gen'; }
     function goToTTS() { window.location.href = '/tts'; }
 
@@ -781,6 +813,12 @@ ${topic}
 3. 이 파트의 분량은 **약 ${minChars}자 ~ ${maxChars}자** 내외로 작성하세요. (절대적으로 지킬 것)
 4. ${isShorts ? '문장을 짧고 간결하게 끊어주세요. 호흡을 짧게 가져가세요.' : '문장을 자연스럽게 이어주세요.'}
 
+**[절대 금지 사항 - TTS 읽기 오류 방지]**
+1. 괄호와 상황 설명 금지 (예: (음악), (상황), (웃음) 등 절대 넣지 말 것)
+2. 시간 표시 금지 (예: [0-5초], ** 등 타임스탬프 금지)
+3. 이모티콘 및 기호 금지 (예: 🤣, ✨, 🔥 등 특수문자 금지)
+4. 화자(이름) 표시 금지 (예: 나:, 상사: 처럼 누가 말하는지 적지 말 것)
+
 본문만 출력하세요: `;
 
                 try {
@@ -788,13 +826,24 @@ ${topic}
                     console.log(`Section ${i + 1} result: `, result.status);
 
                     if (result.status === 'ok' && result.text) {
-                        finalScript += `\n\n ** [${section.title}] **\n${result.text.trim()} `;
+                        let sectionText = result.text.trim();
+
+                        // [CRITICAL] 5가지 금지 항목 정제 (괄호, 타임스탬프, 이모티콘, 화자 표시, 별표)
+                        sectionText = sectionText
+                            .replace(/\([^)]*\)/g, '')   // 1. 괄호 제거 (웃음)
+                            .replace(/\[[^\]]*\]/g, '')  // 2. 대괄호 제거 [0-5초]
+                            .replace(/\*/g, '')          // 3. 별표 제거 **
+                            .replace(/[^\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318Fa-zA-Z0-9\s,.\?\!\"\'\.]/g, '') // 4. 이모지 등 특수문자 제거
+                            .replace(/^[가-힣\w\s]+[\s]*:[\s]*/gm, '') // 5. 화자 표시 제거
+                            .trim();
+
+                        finalScript += (finalScript ? '\n\n' : '') + sectionText;
                     } else {
-                        finalScript += `\n\n ** [${section.title}] **\n(이 섹션 생성 실패: ${result.error || '알 수 없는 오류'}) \n`;
+                        finalScript += (finalScript ? '\n\n' : '') + `(이 섹션 생성 실패: ${result.error || '알 수 없는 오류'})`;
                     }
                 } catch (sectionErr) {
                     console.error(`Section ${i + 1} error: `, sectionErr);
-                    finalScript += `\n\n ** [${section.title}] **\n(생성 오류: ${sectionErr.message}) \n`;
+                    finalScript += (finalScript ? '\n\n' : '') + `(생성 오류: ${sectionErr.message})`;
                 }
 
                 // Show progress
@@ -857,6 +906,42 @@ ${topic}
             } catch (e) {
                 console.error(e);
             }
+        }
+    }
+
+    async function continueWithAutopilot() {
+        const projectId = getCurrentProject();
+        if (!projectId) {
+            Utils.showToast("프로젝트를 찾을 수 없습니다.", "error");
+            return;
+        }
+
+        if (!confirm("현재 대본으로 나머지 과정(이미지 생성, 오디오, 렌더링)을 오토파일럿으로 진행하시겠습니까?")) return;
+
+        const btn = document.getElementById('autopilotBtn');
+        const originalText = btn.innerHTML;
+        Utils.setLoading(btn, true, "🚀 시동 중...");
+
+        try {
+            const res = await fetch(`/api/autopilot/continue/${projectId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ auto_plan: false })
+            });
+            const data = await res.json();
+
+            if (data.status === 'ok') {
+                Utils.showToast("오토파일럿이 시작되었습니다! 🚀", "success");
+                window.location.href = `/autopilot?project_id=${projectId}&monitor=true`;
+            } else {
+                throw new Error(data.error || "오토파일럿 시작 실패");
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast(e.message, "error");
+        } finally {
+            Utils.setLoading(btn, false);
+            btn.innerHTML = originalText;
         }
     }
 </script>

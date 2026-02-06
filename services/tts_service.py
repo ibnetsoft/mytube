@@ -26,9 +26,9 @@ except ImportError:
 
 try:
     try:
-        from moviepy.editor import AudioFileClip, concatenate_audioclips
-    except ImportError:
         from moviepy import AudioFileClip, concatenate_audioclips
+    except ImportError:
+        from moviepy.editor import AudioFileClip, concatenate_audioclips
 except ImportError:
     try:
         from moviepy.audio.io.AudioFileClip import AudioFileClip
@@ -71,9 +71,19 @@ class TTSService:
         self,
         text: str,
         voice_id: str = "4JJwo477JUAx3HV0T7n7",
-        filename: str = "tts_output.mp3"
-    ) -> Optional[str]:
-        """ElevenLabs TTS 생성"""
+        filename: str = "tts_output.mp3",
+        return_alignment: bool = True
+    ) -> dict:
+        """
+        ElevenLabs TTS 생성 (with timestamps for subtitle alignment)
+        
+        Returns:
+            dict: {
+                "audio_path": str (파일 경로),
+                "alignment": list (단어별 타이밍 정보),
+                "duration": float (총 재생 시간)
+            }
+        """
         # [FIX] 텍스트 정제 (지문 제거)
         text = self.clean_text(text)
         
@@ -84,18 +94,43 @@ class TTSService:
             print(f"DEBUG: Text too long ({len(text)} chars). Splitting into {len(chunks)} chunks for ElevenLabs.")
             
             chunk_files = []
+            all_alignments = []
+            cumulative_time = 0.0
+            
             for i, chunk in enumerate(chunks):
                 chunk_filename = f"temp_{i}_{filename}"
-                chunk_path = await self.generate_elevenlabs(chunk, voice_id, chunk_filename)
-                if chunk_path:
-                    chunk_files.append(chunk_path)
+                result = await self.generate_elevenlabs(chunk, voice_id, chunk_filename, return_alignment)
+                
+                if result and result.get("audio_path"):
+                    chunk_files.append(result["audio_path"])
+                    
+                    # 타이밍 정보 누적 (offset 보정)
+                    if result.get("alignment"):
+                        for item in result["alignment"]:
+                            adjusted_item = item.copy()
+                            adjusted_item["start"] = item["start"] + cumulative_time
+                            adjusted_item["end"] = item["end"] + cumulative_time
+                            all_alignments.append(adjusted_item)
+                    
+                    cumulative_time += result.get("duration", 0)
             
             if not chunk_files:
-                return None
+                return {"audio_path": None, "alignment": [], "duration": 0}
             
             output_path = os.path.join(self.output_dir, filename)
             self._merge_audio_files(chunk_files, output_path)
-            return output_path
+            
+            # 타이밍 정보 저장
+            alignment_path = output_path.replace(".mp3", "_alignment.json")
+            import json
+            with open(alignment_path, "w", encoding="utf-8") as f:
+                json.dump(all_alignments, f, ensure_ascii=False, indent=2)
+            
+            return {
+                "audio_path": output_path,
+                "alignment": all_alignments,
+                "duration": cumulative_time
+            }
 
         # [FIX] 런타임에 .env 변경사항 반영
         load_dotenv(override=True)
@@ -104,7 +139,8 @@ class TTSService:
         if not api_key:
             raise ValueError("ElevenLabs API 키가 설정되지 않았습니다")
 
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+        # [NEW] with_timestamps 엔드포인트 사용
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/with-timestamps"
 
         headers = {
             "xi-api-key": api_key,
@@ -120,16 +156,93 @@ class TTSService:
             }
         }
 
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        output_path = os.path.join(self.output_dir, filename)
+        alignment_data = []
+        audio_duration = 0.0
+
+        async with httpx.AsyncClient(timeout=180.0) as client:
             response = await client.post(url, headers=headers, json=payload)
 
             if response.status_code == 200:
-                output_path = os.path.join(self.output_dir, filename)
-                with open(output_path, "wb") as f:
-                    f.write(response.content)
-                return output_path
+                import json
+                import base64
+                
+                data = response.json()
+                
+                # 오디오 데이터 (base64)
+                audio_base64 = data.get("audio_base64", "")
+                if audio_base64:
+                    audio_bytes = base64.b64decode(audio_base64)
+                    with open(output_path, "wb") as f:
+                        f.write(audio_bytes)
+                
+                # 타이밍 정보 추출
+                alignment = data.get("alignment", {})
+                characters = alignment.get("characters", [])
+                char_start_times = alignment.get("character_start_times_seconds", [])
+                char_end_times = alignment.get("character_end_times_seconds", [])
+                
+                # 문자 타이밍을 단어 타이밍으로 변환
+                if characters and char_start_times:
+                    alignment_data = self._chars_to_words_alignment(
+                        characters, char_start_times, char_end_times
+                    )
+                    
+                    if alignment_data:
+                        audio_duration = alignment_data[-1]["end"]
+                
+                # 타이밍 정보 저장
+                alignment_path = output_path.replace(".mp3", "_alignment.json")
+                with open(alignment_path, "w", encoding="utf-8") as f:
+                    json.dump(alignment_data, f, ensure_ascii=False, indent=2)
+                
+                print(f"✅ ElevenLabs TTS 생성 완료: {output_path} ({len(alignment_data)} words, {audio_duration:.1f}s)")
+                
+                return {
+                    "audio_path": output_path,
+                    "alignment": alignment_data,
+                    "duration": audio_duration
+                }
             else:
                 raise Exception(f"ElevenLabs API 오류: {response.text}")
+    
+    def _chars_to_words_alignment(self, characters: list, start_times: list, end_times: list) -> list:
+        """문자 단위 타이밍을 단어 단위로 변환"""
+        words = []
+        current_word = ""
+        word_start = None
+        word_end = None
+        
+        for i, char in enumerate(characters):
+            if i >= len(start_times):
+                break
+                
+            if char.strip() == "" or char in " \n\t":
+                # 공백 - 단어 종료
+                if current_word:
+                    words.append({
+                        "word": current_word.strip(),
+                        "start": word_start,
+                        "end": word_end
+                    })
+                    current_word = ""
+                    word_start = None
+            else:
+                # 문자 추가
+                if word_start is None:
+                    word_start = start_times[i]
+                current_word += char
+                word_end = end_times[i] if i < len(end_times) else start_times[i] + 0.1
+        
+        # 마지막 단어
+        if current_word:
+            words.append({
+                "word": current_word.strip(),
+                "start": word_start,
+                "end": word_end
+            })
+        
+        return words
 
     async def generate_gtts(
         self,

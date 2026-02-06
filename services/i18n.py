@@ -115,6 +115,8 @@ PLATFORM_TRANSLATIONS = {
         'plan_info_style': '🎨 스타일',
         'plan_info_duration': '⏱️ 예상 길이',
         'loading_title_gen': 'AI 최적 제목 추천 중...',
+        'plan_autopilot_direct': '오토파일럿으로 즉시 제작 (기획 자동)',
+        'btn_continue_autopilot': '오토파일럿으로 완성하기',
         # Script Gen Page
         'script_explorer_title': '대본 탐색기',
         'btn_new_folder': '새 폴더',
@@ -488,6 +490,8 @@ PLATFORM_TRANSLATIONS = {
         'plan_info_style': '🎨 Style',
         'plan_info_duration': '⏱️ Duration',
         'loading_title_gen': 'Recommending best titles...',
+        'plan_autopilot_direct': 'Start Direct with Auto-Pilot (Auto Plan)',
+        'btn_continue_autopilot': 'Continue with Auto-Pilot',
         # Script Gen Page
         'script_explorer_title': 'Script Explorer',
         'btn_new_folder': 'New Folder',

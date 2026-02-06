@@ -1837,10 +1837,7 @@ async def tts_generate(req: TTSRequest):
                     def merge_moviepy_sync():
                         nonlocal output_path
                         try:
-                            try:
-                                from moviepy.editor import AudioFileClip, concatenate_audioclips
-                            except ImportError:
-                                from moviepy import AudioFileClip, concatenate_audioclips
+                            from moviepy import AudioFileClip, concatenate_audioclips
                         except ImportError:
                             from moviepy.audio.io.AudioFileClip import AudioFileClip
                             from moviepy.audio.AudioClip import concatenate_audioclips
@@ -1927,7 +1924,7 @@ async def tts_generate(req: TTSRequest):
                          except ImportError:
                              # Fallback to MoviePy
                              try:
-                                 from moviepy.editor import AudioFileClip
+                                 from moviepy import AudioFileClip
                                  with AudioFileClip(output_path) as ac:
                                      duration = ac.duration
                              except: pass
@@ -1935,7 +1932,7 @@ async def tts_generate(req: TTSRequest):
                              print(f"pydub check failed: {e}")
                              # Fallback to MoviePy
                              try:
-                                 from moviepy.editor import AudioFileClip
+                                 from moviepy import AudioFileClip
                                  with AudioFileClip(output_path) as ac:
                                      duration = ac.duration
                              except: pass

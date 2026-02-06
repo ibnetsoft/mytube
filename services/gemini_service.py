@@ -602,15 +602,89 @@ class GeminiService:
 
             # 4. Extract scenes list
             if isinstance(data, dict):
-                return data.get("scenes", [])
+                scenes = data.get("scenes", [])
             elif isinstance(data, list):
-                return data
+                scenes = data
+            else:
+                scenes = []
+            
+            # [NEW] Hybrid Approach: Time-based correction
+            # Split scenes that are too long (>20 seconds) into sub-images
+            corrected_scenes = []
+            MAX_SCENE_SECONDS = 20  # Maximum seconds per image
+            MIN_SCENE_SECONDS = 5   # Minimum seconds per image
+            
+            for scene in scenes:
+                estimated_sec = scene.get("estimated_seconds", 15)
+                
+                # If estimated_seconds is missing, calculate from text length
+                if not estimated_sec or estimated_sec <= 0:
+                    scene_text = scene.get("scene_text", "")
+                    estimated_sec = max(5, len(scene_text) / 6)  # ~6 chars/sec for Korean
+                
+                if estimated_sec <= MAX_SCENE_SECONDS:
+                    # Scene is fine, keep as is
+                    scene["estimated_seconds"] = estimated_sec
+                    corrected_scenes.append(scene)
+                else:
+                    # Scene is too long, split into sub-images
+                    num_splits = int(estimated_sec / MAX_SCENE_SECONDS) + 1
+                    sub_duration = estimated_sec / num_splits
+                    
+                    scene_text = scene.get("scene_text", "")
+                    text_parts = self._split_text_evenly(scene_text, num_splits)
+                    
+                    for i in range(num_splits):
+                        sub_scene = scene.copy()
+                        sub_scene["scene_number"] = len(corrected_scenes) + 1
+                        sub_scene["scene_title"] = f"{scene.get('scene_title', '')} ({i+1}/{num_splits})"
+                        sub_scene["scene_text"] = text_parts[i] if i < len(text_parts) else scene_text
+                        sub_scene["estimated_seconds"] = sub_duration
+                        # Slightly vary the prompt for visual diversity
+                        if i > 0:
+                            sub_scene["prompt_en"] = scene.get("prompt_en", "") + f", variation {i+1}"
+                        corrected_scenes.append(sub_scene)
+            
+            # Renumber scenes sequentially
+            for idx, scene in enumerate(corrected_scenes):
+                scene["scene_number"] = idx + 1
+            
+            print(f"[Hybrid] Original: {len(scenes)} scenes → Corrected: {len(corrected_scenes)} scenes")
+            return corrected_scenes
             
         except Exception as e:
             print(f"JSON Parse Error in generate_image_prompts: {e}")
             pass
             
         return []
+    
+    def _split_text_evenly(self, text: str, num_parts: int) -> list:
+        """텍스트를 균등하게 분할 (문장 경계 우선)"""
+        if not text or num_parts <= 1:
+            return [text]
+        
+        import re
+        sentences = re.split(r'(?<=[.!?])\s+', text)
+        
+        if len(sentences) <= num_parts:
+            # Not enough sentences, split by characters
+            part_len = len(text) // num_parts
+            parts = []
+            for i in range(num_parts):
+                start = i * part_len
+                end = (i + 1) * part_len if i < num_parts - 1 else len(text)
+                parts.append(text[start:end].strip())
+            return parts
+        
+        # Distribute sentences evenly
+        sentences_per_part = len(sentences) // num_parts
+        parts = []
+        for i in range(num_parts):
+            start_idx = i * sentences_per_part
+            end_idx = (i + 1) * sentences_per_part if i < num_parts - 1 else len(sentences)
+            parts.append(" ".join(sentences[start_idx:end_idx]))
+        
+        return parts
 
     async def generate_video_search_keywords(self, script_segment: str, mood_style: str = "cinematic") -> str:
         """

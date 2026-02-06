@@ -34,14 +34,70 @@ class VideoService:
         이미지 슬라이드쇼 영상 생성 (시네마틱 프레임 적용)
         """
         try:
-            from moviepy import (
-                ImageClip, concatenate_videoclips,
-                AudioFileClip, CompositeVideoClip, VideoFileClip, vfx
-            )
+            # [FIX] MoviePy 2.0 Explicit Imports (VENV confirmed as 2.x structure)
+            from moviepy.video.VideoClip import ImageClip, VideoClip, ColorClip, TextClip
+            from moviepy.video.io.VideoFileClip import VideoFileClip
+            # In 2.0, concatenate is in CompositeVideoClip module
+            from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip, concatenate_videoclips
+            from moviepy.audio.io.AudioFileClip import AudioFileClip
+            
+            # FX Imports (Classes in 2.0)
+            from moviepy.video.fx.Resize import Resize
+            from moviepy.video.fx.Loop import Loop
+            from moviepy.video.fx.FadeIn import FadeIn
+            from moviepy.video.fx.CrossFadeIn import CrossFadeIn
+
+            # Mock VFX to support vfx.resize syntax using 2.0 Effects
+            class MockVFX:
+                pass
+            vfx = MockVFX()
+            
+            def resize_wrapper(clip, new_size=None):
+                # 2.0 Resize takes new_size as first arg
+                return clip.with_effects([Resize(new_size=new_size)])
+            vfx.resize = resize_wrapper
+            
+            def loop_wrapper(clip, n=None, duration=None):
+                return clip.with_effects([Loop(n=n, duration=duration)])
+            vfx.loop = loop_wrapper
+            
+            def fadein_wrapper(clip, duration):
+                return clip.with_effects([FadeIn(duration=duration)])
+            vfx.fadein = fadein_wrapper
+            
+            def crossfadein_wrapper(clip, duration):
+                return clip.with_effects([CrossFadeIn(duration=duration)])
+            vfx.crossfadein = crossfadein_wrapper
+
+            # Pillow Patch (Just in case, though 2.0 uses Resampling)
+            import PIL.Image
+            if not hasattr(PIL.Image, 'ANTIALIAS'):
+                try:
+                    PIL.Image.ANTIALIAS = PIL.Image.LANCZOS
+                except: pass
+
             import numpy as np
-            import requests # For downloading background video
-        except ImportError:
-            raise ImportError("moviepy 또는 requests가 설치되지 않았습니다.")
+            import requests 
+            
+        except ImportError as e:
+            # LOG IMPORT ERROR
+            try:
+                base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                trace_path = os.path.join(base_dir, "debug_effects_trace.txt")
+                with open(trace_path, "a", encoding="utf-8") as f:
+                    f.write(f"CRITICAL IMPORT ERROR in create_slideshow (2.0 attempt): {e}\n")
+            except: pass
+            raise ImportError(f"MoviePy Import Failed: {e}")
+            
+        except ImportError as e:
+            # LOG IMPORT ERROR
+            try:
+                base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                trace_path = os.path.join(base_dir, "debug_effects_trace.txt")
+                with open(trace_path, "a", encoding="utf-8") as f:
+                    f.write(f"CRITICAL IMPORT ERROR in create_slideshow: {e}\n")
+            except: pass
+            raise ImportError(f"MoviePy Import Failed: {e}")
 
         clips = []
         # DEBUG: Log incoming effects
@@ -245,35 +301,48 @@ class VideoService:
                     # Get specific duration for this image
                     dur = duration_per_image[i] if isinstance(duration_per_image, list) else duration_per_image
     
-                    # [CHANGED] Enable FPS for effects
-                    clip = ImageClip(processed_img_path).with_duration(dur).with_fps(fps)
-
+                    # [CHANGED] Explicitly convert to VideoClip to ensure lambda resize works for animation
+                    # MoviePy 2.0: ImageClip is already a Clip. w/duration.
+                    clip = ImageClip(processed_img_path).with_duration(dur)
+                    
                 # [NEW] Apply fade-in effect if requested (Works for both Video and Image)
                 if fade_in_flags and i < len(fade_in_flags) and fade_in_flags[i]:
                     dur = clip.duration
                     fade_duration = min(1.0, dur * 0.3)  # Max 1초 또는 클립 길이의 30%
                     try:
-                        clip = clip.parse_color_to_rgb() # Ensure RGB mode for fadein
-                    except: pass
-                    clip = clip.fadein(fade_duration)
-                    print(f"  → Fade-in applied to item #{i+1} ({fade_duration:.2f}s)")
+                        # 2.0 Compatible FadeIn
+                        clip = vfx.fadein(clip, fade_duration)
+                        print(f"  → Fade-in applied to item #{i+1} ({fade_duration:.2f}s)")
+                    except Exception as e:
+                        print(f"FadeIn Error: {e}")
 
                 # [NEW] Apply Ken Burns Effects (Zoom/Pan) - Only for Images
                 effect = None  # [FIX] Initialize to prevent UnboundLocalError
                 safe_effect = 'none'
                 if image_effects and i < len(image_effects):
-                    safe_effect = str(image_effects[i]).lower() # Normalize
+                    safe_effect = str(image_effects[i]).lower().replace(" ", "_") # Normalize (zoom in -> zoom_in)
+                
+                try:
+                    with open("debug_effects_trace.txt", "a", encoding="utf-8") as df:
+                        df.write(f"Img[{i}] EffectRaw: {image_effects[i] if image_effects and i < len(image_effects) else 'N/A'} -> Safe: {safe_effect} (Dur:{dur}, FPS:{fps})\n")
+                except: pass
                 
                 # Force disable effect for Video clips
-                if is_video_asset and clip is not None:
+                if is_video_asset and clip is None: # Logic check: clip is valid here
+                     pass # Effect can apply to video too if desired, but user likely wants motion on images only
+                if is_video_asset:
                      safe_effect = 'none'
                 
                 if safe_effect == 'random':
                     import random
                     # Random logic: Select one, log it
-                    effect = random.choice(['zoom_in', 'zoom_out', 'pan_left', 'pan_right'])
-                    print(f"DEBUG_RENDER: Image[{i}] Random Selection -> '{effect}'")
-                elif safe_effect and safe_effect != 'none':
+                    safe_effect = random.choice(['zoom_in', 'zoom_out', 'pan_left', 'pan_right']) # [FIX] Update safe_effect directly
+                    try:
+                        with open("debug_effects_trace.txt", "a", encoding="utf-8") as df:
+                            df.write(f"  -> Random Selection for Img[{i}]: {safe_effect}\n")
+                    except: pass
+                
+                if safe_effect and safe_effect != 'none':
                     effect = safe_effect
 
                 if effect:
@@ -284,20 +353,19 @@ class VideoService:
                         
                         if effect == 'zoom_in':
                             # Center Zoom: 1.0 -> 1.5
-                            # Use hardcoded conversion to avoid closure issues if any
-                            clip = clip.resize(lambda t, duration=dur: 1.0 + 0.5 * (t / duration)) 
-                            # Safe Container
+                            clip = vfx.resize(clip, lambda t: 1.0 + 0.5 * (t / dur))
+                            # Safe Container (2.0 uses with_position, with_duration)
                             clip = CompositeVideoClip([clip.with_position('center')], size=(w,h)).with_duration(dur)
                             
                         elif effect == 'zoom_out':
                             # Center Zoom Out: 1.5 -> 1.0
-                            clip = clip.resize(lambda t, duration=dur: 1.5 - 0.5 * (t / duration))
+                            clip = vfx.resize(clip, lambda t: 1.5 - 0.5 * (t / dur))
                             clip = CompositeVideoClip([clip.with_position('center')], size=(w,h)).with_duration(dur)
                             
                         elif effect.startswith('pan_'):
                             # Pan Scale: 1.4 (Increased for visibility)
                             pan_zoom = 1.4
-                            clip = clip.resize(pan_zoom)
+                            clip = vfx.resize(clip, pan_zoom)
                             new_w, new_h = clip.w, clip.h
                             
                             # Max movement range
@@ -310,25 +378,29 @@ class VideoService:
 
                             if effect == 'pan_left':
                                 # Start: 0 (Left aligned) -> End: -max_x (Right aligned, so image moves Left)
-                                clip = clip.with_position(lambda t, mx=max_x, cy=center_y, d=dur: (int(0 - mx * (t / d)), int(cy)))
+                                clip = clip.with_position(lambda t: (int(0 - max_x * (t / dur)), int(center_y)))
                                 
                             elif effect == 'pan_right':
                                 # Start: -max_x -> End: 0
-                                clip = clip.with_position(lambda t, mx=max_x, cy=center_y, d=dur: (int(-mx + mx * (t / d)), int(cy)))
+                                clip = clip.with_position(lambda t: (int(-max_x + max_x * (t / dur)), int(center_y)))
                                 
                             elif effect == 'pan_up':
                                 # Start: 0 -> End: -max_y
-                                clip = clip.with_position(lambda t, my=max_y, cx=center_x, d=dur: (int(cx), int(0 - my * (t / d))))
+                                clip = clip.with_position(lambda t: (int(center_x), int(0 - max_y * (t / dur))))
                                 
                             elif effect == 'pan_down':
                                 # Start: -max_y -> End: 0
-                                clip = clip.with_position(lambda t, my=max_y, cx=center_x, d=dur: (int(cx), int(-my + my * (t / d))))
-
-                            # Wrap
+                                clip = clip.with_position(lambda t: (int(center_x), int(-max_y + max_y * (t / dur))))
+                            
+                            # Wrap (ensure Composite uses with_duration)
                             clip = CompositeVideoClip([clip], size=(w,h)).with_duration(dur)
 
                     except Exception as e:
                         print(f"Effect Error: {e}")
+                        try:
+                            with open("debug_effects_trace.txt", "a", encoding="utf-8") as df:
+                                df.write(f"Img[{i}] ERROR applying effect '{effect}': {str(e)}\n")
+                        except: pass
                         pass
 
                 clips.append(clip)

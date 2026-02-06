@@ -1,0 +1,50 @@
+Img[0] EffectRaw: zoom_in -> Safe: zoom_in
+Img[1] EffectRaw: zoom_out -> Safe: zoom_out
+Img[2] EffectRaw: pan_left -> Safe: pan_left
+Img[3] EffectRaw: pan_right -> Safe: pan_right
+Img[4] EffectRaw: random -> Safe: random
+Img[5] EffectRaw: none -> Safe: none
+Img[0] EffectRaw: zoom_in -> Safe: zoom_in (Dur:1.29, FPS:24)
+Img[0] ERROR applying effect 'zoom_in': 'ImageClip' object has no attribute 'resize'
+Img[1] EffectRaw: zoom_out -> Safe: zoom_out (Dur:2.11, FPS:24)
+Img[1] ERROR applying effect 'zoom_out': 'ImageClip' object has no attribute 'resize'
+Img[2] EffectRaw: pan_left -> Safe: pan_left (Dur:5.98, FPS:24)
+Img[2] ERROR applying effect 'pan_left': 'ImageClip' object has no attribute 'resize'
+Img[3] EffectRaw: pan_right -> Safe: pan_right (Dur:2.0999999999999996, FPS:24)
+Img[3] ERROR applying effect 'pan_right': 'ImageClip' object has no attribute 'resize'
+Img[4] EffectRaw: random -> Safe: random (Dur:4.049999999999999, FPS:24)
+  -> Random Selection for Img[4]: zoom_out
+Img[4] ERROR applying effect 'zoom_out': 'ImageClip' object has no attribute 'resize'
+Img[5] EffectRaw: none -> Safe: none (Dur:5.660000000000002, FPS:24)
+Img[0] EffectRaw: zoom_in -> Safe: zoom_in (Dur:1.29, FPS:24)
+Img[0] ERROR applying effect 'zoom_in': 'ImageClip' object has no attribute 'fx'
+Img[1] EffectRaw: zoom_out -> Safe: zoom_out (Dur:2.11, FPS:24)
+Img[1] ERROR applying effect 'zoom_out': 'ImageClip' object has no attribute 'fx'
+Img[2] EffectRaw: pan_left -> Safe: pan_left (Dur:5.98, FPS:24)
+Img[2] ERROR applying effect 'pan_left': 'ImageClip' object has no attribute 'fx'
+Img[3] EffectRaw: pan_right -> Safe: pan_right (Dur:2.0999999999999996, FPS:24)
+Img[3] ERROR applying effect 'pan_right': 'ImageClip' object has no attribute 'fx'
+Img[4] EffectRaw: random -> Safe: random (Dur:4.049999999999999, FPS:24)
+  -> Random Selection for Img[4]: pan_left
+Img[4] ERROR applying effect 'pan_left': 'ImageClip' object has no attribute 'fx'
+Img[5] EffectRaw: none -> Safe: none (Dur:5.660000000000002, FPS:24)
+Img[0] EffectRaw: zoom_in -> Safe: zoom_in (Dur:1.29, FPS:24)
+Img[0] ERROR applying effect 'zoom_in': module 'moviepy.video.fx' has no attribute 'resize'
+Img[1] EffectRaw: zoom_out -> Safe: zoom_out (Dur:2.11, FPS:24)
+Img[1] ERROR applying effect 'zoom_out': module 'moviepy.video.fx' has no attribute 'resize'
+Img[2] EffectRaw: pan_left -> Safe: pan_left (Dur:5.98, FPS:24)
+Img[2] ERROR applying effect 'pan_left': module 'moviepy.video.fx' has no attribute 'resize'
+Img[3] EffectRaw: pan_right -> Safe: pan_right (Dur:2.0999999999999996, FPS:24)
+Img[3] ERROR applying effect 'pan_right': module 'moviepy.video.fx' has no attribute 'resize'
+Img[4] EffectRaw: random -> Safe: random (Dur:4.049999999999999, FPS:24)
+  -> Random Selection for Img[4]: zoom_in
+Img[4] ERROR applying effect 'zoom_in': module 'moviepy.video.fx' has no attribute 'resize'
+Img[5] EffectRaw: none -> Safe: none (Dur:5.660000000000002, FPS:24)
+CRITICAL IMPORT ERROR in create_slideshow: No module named 'moviepy.video.compositing.concatenate'
+Img[0] EffectRaw: zoom_in -> Safe: zoom_in (Dur:1.29, FPS:24)
+Img[1] EffectRaw: zoom_out -> Safe: zoom_out (Dur:2.11, FPS:24)
+Img[2] EffectRaw: pan_left -> Safe: pan_left (Dur:5.98, FPS:24)
+Img[3] EffectRaw: pan_right -> Safe: pan_right (Dur:2.0999999999999996, FPS:24)
+Img[4] EffectRaw: random -> Safe: random (Dur:4.049999999999999, FPS:24)
+  -> Random Selection for Img[4]: zoom_in
+Img[5] EffectRaw: none -> Safe: none (Dur:5.660000000000002, FPS:24)

@@ -99,6 +99,13 @@
                     <span>🤖</span>
                     <span>{{ t('btn_gen_structure') }}</span>
                 </button>
+
+                <!-- [NEW] Autopilot Direct Start Button -->
+                <button onclick="continueWithAutopilot(true)"
+                    class="w-full py-3 text-sm font-bold shadow-md hover:shadow-xl transition-all rounded-lg flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white border-0 mt-1">
+                    <span>🚀</span>
+                    <span>{{ t('plan_autopilot_direct') }}</span>
+                </button>
             </div>
         </div>
 
@@ -157,7 +164,7 @@
                         <button onclick="continueWithAutopilot()"
                             class="text-xs px-4 py-1.5 font-bold shadow-sm hover:shadow-md transition-all rounded flex items-center gap-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white mr-3 border-0">
                             <span>🚀</span>
-                            <span>오토파일럿으로 완성하기</span>
+                            <span>{{ t('btn_continue_autopilot') }}</span>
                         </button>
                         <button onclick="goToScriptGen()"
                             class="btn-primary text-xs px-4 py-1.5 font-bold shadow-sm hover:shadow-md transition-all rounded flex items-center gap-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
