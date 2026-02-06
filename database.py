@@ -10,7 +10,8 @@ DB_PATH = Path(__file__).parent / "data" / "wingsai.db"
 def get_db():
     """데이터베이스 연결"""
     DB_PATH.parent.mkdir(exist_ok=True)
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(DB_PATH), timeout=60.0)
+    conn.execute("PRAGMA journal_mode=WAL;") # Enable WAL mode for better concurrency
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -822,6 +823,11 @@ def save_analysis(project_id: int, video_data: Dict, analysis_result: Dict):
     # 기존 분석 삭제
     cursor.execute("DELETE FROM analysis WHERE project_id = ?", (project_id,))
 
+    # video_id extraction (handle search response which has a dict for id)
+    v_id = video_data.get('id', '')
+    if isinstance(v_id, dict):
+        v_id = v_id.get('videoId', '')
+
     cursor.execute("""
         INSERT INTO analysis
         (project_id, video_id, video_title, channel_title, thumbnail_url,
@@ -829,7 +835,7 @@ def save_analysis(project_id: int, video_data: Dict, analysis_result: Dict):
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         project_id,
-        video_data.get('id'),
+        v_id,
         video_data.get('snippet', {}).get('title'),
         video_data.get('snippet', {}).get('channelTitle'),
         video_data.get('snippet', {}).get('thumbnails', {}).get('high', {}).get('url'),

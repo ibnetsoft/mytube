@@ -295,7 +295,7 @@ async def get_subtitles(project_id: int):
 
 @router.post("/subtitle/generate")
 async def generate_subtitles_api(req: dict = Body(...)):
-    """자막 자동 생성 (Whisper)"""
+    """자막 자동 생성 (Simple Split)"""
     project_id = req.get("project_id")
     if not project_id:
         raise HTTPException(400, "project_id required")
@@ -313,10 +313,48 @@ async def generate_subtitles_api(req: dict = Body(...)):
         full_script = script_data['full_script'] if script_data else ""
         
         # Service Call
-        subtitles = video_service.generate_aligned_subtitles(tts_data['audio_path'], full_script)
+        # Service Call - [CHANGED] Use Simple Generation (Whisper Deprecated/Removed)
+        # 1. Calculate Duration from Audio
+        audio_duration = 0.0
+        audio_path = tts_data.get('audio_path')
+        
+        if not audio_path or not os.path.exists(audio_path):
+             return {"status": "error", "error": f"오디오 파일을 찾을 수 없습니다: {audio_path}"}
+
+        try:
+            import pydub
+            # Use pydub for faster duration check if available
+            audio_seg = pydub.AudioSegment.from_file(audio_path)
+            audio_duration = audio_seg.duration_seconds
+        except Exception as e_pydub:
+            print(f"DEBUG_WARN: pydub failed: {e_pydub}")
+            try:
+                # Fallback to MoviePy (Support both v1 and v2 imports)
+                try:
+                    from moviepy import AudioFileClip
+                except ImportError:
+                    from moviepy.editor import AudioFileClip
+                
+                with AudioFileClip(audio_path) as clip:
+                    audio_duration = clip.duration
+            except Exception as e_moviepy:
+                print(f"DEBUG_ERR: moviepy failed: {e_moviepy}")
+                pass
+
+        if audio_duration <= 0:
+             return {"status": "error", "error": "오디오 길이를 확인할 수 없습니다. (디버그 로그 확인 필요)"}
+
+        # 2. Try Metadata-based Generation (Best Sync)
+        # TTS 생성 시 만들어진 .vtt(Edge)나 .json(ElevenLabs)이 있으면 우선 사용
+        subtitles = video_service.generate_subtitles_from_metadata(audio_path)
         
         if not subtitles:
-            return {"status": "error", "error": "자막 생성 실패 (Whisper 오류)"}
+            # 3. Fallback: Simple Generation (Duration Split)
+            print("Metadata not found, falling back to SMART generation (Weighted Split).")
+            subtitles = video_service.generate_smart_subtitles(full_script, audio_duration)
+        
+        if not subtitles:
+            return {"status": "error", "error": "자막 생성 실패 (대본이 없거나 메타데이터를 찾을 수 없습니다)"}
             
         # Save to JSON
         filename = f"subtitles_{project_id}_{int(time.time())}.json"
@@ -860,9 +898,9 @@ async def render_project_video(
                         "font_size": float(s_settings.get("subtitle_font_size", 5.4)),
                         "stroke_color": s_settings.get("subtitle_stroke_color", "black"),
                         "stroke_width": float(s_settings.get("subtitle_stroke_width") or 0.0),
-                        "subtitle_stroke_enabled": int(s_settings.get("subtitle_stroke_enabled", 0)), 
+                        "subtitle_stroke_enabled": 1 if str(s_settings.get("subtitle_stroke_enabled", 0)).lower() in ['true', '1'] else 0, 
                         "position_y": s_settings.get("subtitle_pos_y"), 
-                        "bg_enabled": int(s_settings.get("subtitle_bg_enabled", 1)),
+                        "bg_enabled": 1 if str(s_settings.get("subtitle_bg_enabled", 1)).lower() in ['true', '1'] else 0,
                         "line_spacing": float(s_settings.get("subtitle_line_spacing", 0.1)),
                         "bg_color": s_settings.get("subtitle_bg_color", "#000000"),
                         "bg_opacity": float(s_settings.get("subtitle_bg_opacity", 0.5))
@@ -1010,6 +1048,10 @@ async def render_project_video(
                     if ef_path and os.path.exists(ef_path):
                         with open(ef_path, "r", encoding="utf-8") as f:
                             image_effects = json.load(f)
+                        print(f"DEBUG_RENDER: Loaded {len(image_effects)} image effects from {ef_path}")
+                        print(f"DEBUG_RENDER: Effects Data: {image_effects}")
+                    else:
+                         print(f"DEBUG_RENDER: No image effects file found at {ef_path} or path is empty.")
                 except Exception as e:
                     print(f"Failed to load image effects: {e}")
 

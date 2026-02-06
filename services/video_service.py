@@ -264,77 +264,71 @@ class VideoService:
                 if image_effects and i < len(image_effects):
                     safe_effect = str(image_effects[i]).lower() # Normalize
                 
-                # Force disable effect for Video clips (detected above) to avoid double movement
+                # Force disable effect for Video clips
                 if is_video_asset and clip is not None:
                      safe_effect = 'none'
+                
                 if safe_effect == 'random':
                     import random
+                    # Random logic: Select one, log it
                     effect = random.choice(['zoom_in', 'zoom_out', 'pan_left', 'pan_right'])
-                    print(f"DEBUG_RENDER: Random Effect Selected -> '{effect}'")
+                    print(f"DEBUG_RENDER: Image[{i}] Random Selection -> '{effect}'")
                 elif safe_effect and safe_effect != 'none':
                     effect = safe_effect
 
                 if effect:
-                    print(f"DEBUG_RENDER: Applying Effect '{effect}' (FPS={fps})")
+                    print(f"DEBUG_RENDER: Image[{i}] Applying Effect '{effect}' (FPS={fps}, Dur={dur}s)")
 
                     try:
-                        # Base scale factors
-                        zoom_scale = 1.5 # Max zoom level (Increased)
-                        
-                        w, h = clip.size
+                        w, h = clip.w, clip.h # Original/Target size (1920, 1080)
                         
                         if effect == 'zoom_in':
-                            # Center Zoom In: 1.0 -> 1.5 (using captured variables to avoid closure bugs)
-                            clip = clip.resize(lambda t, d=dur, zs=zoom_scale: 1 + (zs - 1) * t / d)
-                            # Keep centered safely by using CompositeVideoClip as container
+                            # Center Zoom: 1.0 -> 1.5
+                            # Use hardcoded conversion to avoid closure issues if any
+                            clip = clip.resize(lambda t, duration=dur: 1.0 + 0.5 * (t / duration)) 
+                            # Safe Container
                             clip = CompositeVideoClip([clip.with_position('center')], size=(w,h)).with_duration(dur)
                             
                         elif effect == 'zoom_out':
                             # Center Zoom Out: 1.5 -> 1.0
-                            clip = clip.resize(lambda t, d=dur, zs=zoom_scale: zs - (zs - 1) * t / d)
+                            clip = clip.resize(lambda t, duration=dur: 1.5 - 0.5 * (t / duration))
                             clip = CompositeVideoClip([clip.with_position('center')], size=(w,h)).with_duration(dur)
                             
                         elif effect.startswith('pan_'):
-                            # For Panning, we need start/end positions.
-                            # Pre-zoom to allow movement without black bars.
-                            pan_zoom = 1.3 # [FIX] Increased from 1.2 to 1.3 for safety against black bars
+                            # Pan Scale: 1.4 (Increased for visibility)
+                            pan_zoom = 1.4
                             clip = clip.resize(pan_zoom)
                             new_w, new_h = clip.w, clip.h
                             
-                            # Max offsets (positive values)
+                            # Max movement range
                             max_x = new_w - w
                             max_y = new_h - h
                             
-                            # Center Y for horizontal pans, Center X for vertical pans
-                            # We need to center the *crop* window relative to the image.
-                            # Since 'clip' is the image, and we place it on a (w,h) canvas.
-                            # center_y calculation:
-                            # If we want to center the image vertically: y = (h - new_h) / 2 = -max_y / 2
-                            default_y = -max_y / 2
-                            default_x = -max_x / 2
+                            # Centered fixed coords
+                            center_y = -max_y / 2
+                            center_x = -max_x / 2
 
                             if effect == 'pan_left':
-                                # Reveal Image from Right to Left (Start: Right aligned -> End: Left aligned)
-                                clip = clip.with_position(lambda t, mx=max_x, dy=default_y, d=dur: (int(-mx + mx * t / d), int(dy)))
+                                # Start: 0 (Left aligned) -> End: -max_x (Right aligned, so image moves Left)
+                                clip = clip.with_position(lambda t, mx=max_x, cy=center_y, d=dur: (int(0 - mx * (t / d)), int(cy)))
                                 
                             elif effect == 'pan_right':
-                                # Reveal Image from Left to Right (Start: Left aligned -> End: Right aligned)
-                                clip = clip.with_position(lambda t, mx=max_x, dy=default_y, d=dur: (int(0 - mx * t / d), int(dy)))
+                                # Start: -max_x -> End: 0
+                                clip = clip.with_position(lambda t, mx=max_x, cy=center_y, d=dur: (int(-mx + mx * (t / d)), int(cy)))
                                 
                             elif effect == 'pan_up':
-                                # Reveal Top: Start Bottom aligned -> End Top aligned
-                                clip = clip.with_position(lambda t, my=max_y, dx=default_x, d=dur: (int(dx), int(-my + my * t / d)))
+                                # Start: 0 -> End: -max_y
+                                clip = clip.with_position(lambda t, my=max_y, cx=center_x, d=dur: (int(cx), int(0 - my * (t / d))))
                                 
                             elif effect == 'pan_down':
-                                # Reveal Bottom: Start Top aligen -> End Bottom aligned
-                                clip = clip.with_position(lambda t, my=max_y, dx=default_x, d=dur: (int(dx), int(0 - my * t / d)))
+                                # Start: -max_y -> End: 0
+                                clip = clip.with_position(lambda t, my=max_y, cx=center_x, d=dur: (int(cx), int(-my + my * (t / d))))
 
-                            # [CRITICAL FIX] Wrap in CompositeVideoClip of target size (w,h)
+                            # Wrap
                             clip = CompositeVideoClip([clip], size=(w,h)).with_duration(dur)
 
                     except Exception as e:
                         print(f"Effect Error: {e}")
-                        # Fallback to static
                         pass
 
                 clips.append(clip)
@@ -1143,43 +1137,8 @@ class VideoService:
 
 
 
-    def generate_simple_subtitles(self, script: str, duration: float) -> List[dict]:
-        """
-        대본을 문장 단위로 나누고 시간을 등분할하여 자막 데이터 생성 (MVP)
-        """
-        import re
-        
-        # 문장 단위로 분리 (마침표, 물음표, 느낌표 기준)
-        sentences = re.split(r'(?<=[.?!])\s+', script.strip())
-        sentences = [s for s in sentences if s.strip()]
-        
-        if not sentences:
-            return []
-            
-        # 시간 등분할
-        duration_per_sentence = duration / len(sentences)
-        
-        subtitles = []
-        current_time = 0.0
-        
-        for text in sentences:
-            end_time = current_time + duration_per_sentence
-            
-            # 너무 긴 문장은 줄바꿈 처리 (임시)
-            if len(text) > 20:
-                mid = len(text) // 2
-                split_idx = text.find(' ', mid)
-                if split_idx != -1:
-                    text = text[:split_idx] + '\n' + text[split_idx+1:]
-            
-            subtitles.append({
-                "start": current_time,
-                "end": end_time,
-                "text": text.strip()
-            })
-            current_time = end_time
-            
-        return subtitles
+
+
 
     def add_subtitles(
         self,
@@ -1729,7 +1688,135 @@ class VideoService:
         
         return output_path
 
-    def _create_zoom_clip(self, image_path: str, duration: float, target_size: tuple):
+    def generate_subtitles_from_metadata(self, audio_path: str) -> List[dict]:
+        """
+        TTS 생성시 만들어진 메타데이터(.vtt 또는 .json)를 이용하여 자막 생성
+        (Whisper 없이도 정확한 싱크 가능)
+        """
+        import os
+        import json
+        import re
+
+        if not audio_path:
+            return []
+
+        base_path = os.path.splitext(audio_path)[0]
+        vtt_path = base_path + ".vtt"
+        json_path = base_path + "_alignment.json"
+
+        # 1. Edge TTS (.vtt) - Sentence/Word boundaries
+        if os.path.exists(vtt_path):
+            print(f"DEBUG: Found VTT metadata: {vtt_path}")
+            subtitles = []
+            
+            def parse_vtt_time(t_str):
+                # 00:00:00.000
+                try:
+                    parts = t_str.strip().split(':')
+                    if len(parts) == 3:
+                        h = int(parts[0])
+                        m = int(parts[1])
+                        s = float(parts[2])
+                        return h * 3600 + m * 60 + s
+                    elif len(parts) == 2:
+                        m = int(parts[0])
+                        s = float(parts[1])
+                        return m * 60 + s
+                    return 0.0
+                except:
+                    return 0.0
+
+            try:
+                with open(vtt_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                
+                blocks = re.split(r'\n\s*\n', content)
+                for block in blocks:
+                    lines = block.strip().splitlines()
+                    if not lines: continue
+                    
+                    time_line = None
+                    text_lines = []
+                    for line in lines:
+                        if '-->' in line:
+                            time_line = line
+                        elif time_line and not line.startswith('NOTE') and not line.startswith('WEBVTT'): 
+                            text_lines.append(line)
+                    
+                    if time_line and text_lines:
+                        times = time_line.split('-->')
+                        start = parse_vtt_time(times[0])
+                        end = parse_vtt_time(times[1])
+                        text = " ".join(text_lines).strip()
+                        if text:
+                            subtitles.append({"start": start, "end": end, "text": text})
+                
+                if subtitles:
+                    print(f"DEBUG: Loaded {len(subtitles)} subtitles from VTT.")
+                    return subtitles
+            except Exception as e:
+                print(f"Failed to parse VTT: {e}")
+
+        # 2. ElevenLabs (.json) - Word-level alignment
+        if os.path.exists(json_path):
+            print(f"DEBUG: Found Alignment JSON: {json_path}")
+            try:
+                with open(json_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                
+                if not data: return []
+
+                subtitles = []
+                current_block = []
+                current_start = 0.0
+                current_chars = 0
+                MAX_CHARS = 40
+                
+                # Check format: Is it list of {word, start, end}?
+                # Yes, tts_service saves it that way.
+                
+                for i, item in enumerate(data):
+                    word = item.get('word', '')
+                    start = item.get('start', 0.0)
+                    end = item.get('end', 0.0)
+                    
+                    if not current_block:
+                        current_start = start
+                    
+                    current_block.append(word)
+                    current_chars += len(word)
+                    
+                    # Grouping Logic
+                    is_end_char = word.strip().endswith(('.', '?', '!'))
+                    is_long = current_chars > MAX_CHARS
+                    is_last = (i == len(data) - 1)
+                    
+                    if is_end_char or is_long or is_last:
+                        # Reconstruct sentence
+                        text = "".join(current_block)
+                        # Fix spacing if words don't have spaces (ElevenLabs returns raw chars sometimes?)
+                        # Actually tts_service _chars_to_words_alignment constructs words.
+                        # If words lack spaces, join with space.
+                        # But better: just join with space and strip.
+                        if " " not in text and len(current_block) > 1:
+                             text = " ".join(current_block)
+                        
+                        subtitles.append({
+                            "start": current_start,
+                            "end": end,
+                            "text": text.strip()
+                        })
+                        current_block = []
+                        current_chars = 0
+                
+                if subtitles:
+                    print(f"DEBUG: Loaded {len(subtitles)} subtitles from Alignment JSON.")
+                    return subtitles
+                    
+            except Exception as e:
+                print(f"Failed to parse Alignment JSON: {e}")
+
+        return []
         """
         Ken Burns 효과 (줌인)가 적용된 클립 생성
         """
@@ -1759,70 +1846,85 @@ class VideoService:
             print(f"줌 효과 적용 실패: {e}")
             return img_clip
 
-    def generate_simple_subtitles(self, script_text: str, duration: float) -> List[dict]:
+    def generate_smart_subtitles(self, script_text: str, duration: float) -> List[dict]:
         """
-        대본을 시간(Duration)에 맞춰 균등 분할하여 자막 생성 (Fallback)
-        줄바꿈 > 문장부호 > 길이 순으로 분할 시도하여 최소한의 덩어리로 나눔.
+        대본을 지능적으로 분할하고 시간을 배분 (글자수 비례 + 문장 병합)
         """
         if not script_text:
             return []
             
         import re
-
-        # 1. 줄바꿈으로 먼저 분리
+        
+        # 1. Atomic Split (split by punctuation)
+        raw_sentences = []
         lines = [L.strip() for L in script_text.splitlines() if L.strip()]
-        
-        final_sentences = []
-        
         for line in lines:
-            # 2. 문장 부호로 분리 (. ? ! )
-            # (?<=[.?!]) : lookbehind assertion, 문장부호를 포함하기 위해
-            chunks = re.split(r'(?<=[.?!])\s+', line)
-            for chunk in chunks:
-                if not chunk.strip(): continue
-                
-                # 3. 너무 긴 문장은 강제 분할 (50자 기준)
-                if len(chunk) > 50:
-                     # 쉼표로 시도
-                     sub_chunks = re.split(r'(?<=[,])\s+', chunk)
-                     for sub in sub_chunks:
-                         if len(sub) > 50:
-                             # 그래도 길면 공백 기준 하드 컷 (약 30자)
-                             words = sub.split(' ')
-                             current_sent = ""
-                             for w in words:
-                                 if len(current_sent) + len(w) > 40:
-                                     final_sentences.append(current_sent.strip())
-                                     current_sent = w + " "
-                                 else:
-                                     current_sent += w + " "
-                             if current_sent: final_sentences.append(current_sent.strip())
-                         else:
-                             if sub.strip(): final_sentences.append(sub.strip())
-                else:
-                    final_sentences.append(chunk.strip())
+            # 문장 부호 뒤 공백 기준 분리
+            parts = re.split(r'(?<=[.?!])\s+', line)
+            for p in parts:
+                if p.strip():
+                    raw_sentences.append(p.strip())
         
-        if not final_sentences:
+        if not raw_sentences:
             return []
             
-        count = len(final_sentences)
-        duration_per_sentence = duration / count
+        # 2. Grouping (Merge short sentences) - 자막 퀄리티 향상
+        # [MODIFIED] Grouping causes Image Count mismatch (6 images vs 5 subtitles).
+        # Disabling grouping to ensure 1 Sentence = 1 Subtitle = 1 Image.
+        # Proportional Timing will still handle "Short/Long" duration naturally.
+        grouped_sentences = raw_sentences
+        
+        # grouped_sentences = []
+        # current_group = ""
+        # MAX_GROUP_LEN = 40 # 자막 한 줄에 적당한 길이 (유튜브 숏츠 기준)
+        
+        # for s in raw_sentences:
+        #     if not current_group:
+        #         current_group = s
+        #     else:
+        #         # 합쳤을 때 너무 길지 않으면 병합
+        #         if len(current_group) + len(s) + 1 <= MAX_GROUP_LEN:
+        #             current_group += " " + s
+        #         else:
+        #             grouped_sentences.append(current_group)
+        #             current_group = s
+        # if current_group:
+        #     grouped_sentences.append(current_group)
+            
+        # 3. Proportional Timing (글자 수 비례 시간 배분)
+        # 기존: n등분 (짧은 말도 길게 나옴) -> 수정: 글자 수 비례
+        total_chars = sum(len(s.replace(" ", "")) for s in grouped_sentences) # 공백 제외 글자수 기준이 더 정확
+        if total_chars == 0:
+            return []
+            
+        char_duration = duration / total_chars
         
         subtitles = []
         current_time = 0.0
         
-        for sent in final_sentences:
-            end_time = current_time + duration_per_sentence
-            # 마지막 자막의 오차 보정은 하지 않음 (약간의 오차 허용)
+        for text in grouped_sentences:
+            # 공백 제외 길이로 계산
+            pure_len = len(text.replace(" ", ""))
+            s_duration = pure_len * char_duration
+            
+            start_t = current_time
+            end_t = current_time + s_duration
+            
+            if end_t > duration:
+                end_t = duration
             
             subtitles.append({
-                "start": float(f"{current_time:.2f}"),
-                "end": float(f"{end_time:.2f}"),
-                "text": sent.strip()
+                "start": float(f"{start_t:.2f}"), # 소수점 2자리 깔끔하게
+                "end": float(f"{end_t:.2f}"),
+                "text": text
             })
-            current_time = end_time
+            current_time = end_t
             
-        print(f"Generated {len(subtitles)} simple subtitles (Fallback).")
+        # 마지막 오차 보정
+        if subtitles:
+            subtitles[-1]["end"] = duration
+            
+        print(f"DEBUG: Generated {len(subtitles)} smart subtitles (Weighted Split).")
         return subtitles
     
     def merge_with_intro(self, intro_path: str, main_video_path: str, output_path: str) -> str:
