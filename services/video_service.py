@@ -1,4 +1,4 @@
-"""
+﻿"""
 영상 합성 서비스
 - MoviePy + FFmpeg를 사용한 이미지+음성 합성
 """
@@ -34,7 +34,7 @@ class VideoService:
         이미지 슬라이드쇼 영상 생성 (시네마틱 프레임 적용)
         """
         try:
-            from moviepy.editor import (
+            from moviepy import (
                 ImageClip, concatenate_videoclips,
                 AudioFileClip, CompositeVideoClip, VideoFileClip, vfx
             )
@@ -205,7 +205,7 @@ class VideoService:
                             # Cut to fit
                             clip = clip.subclip(0, dur)
                             
-                        clip = clip.set_duration(dur)
+                        clip = clip.with_duration(dur)
                         
                         # Skip Ken Burns effects for videos (it moves already)
                         image_effects[i] = 'none' if image_effects and i < len(image_effects) else 'none'
@@ -246,7 +246,7 @@ class VideoService:
                     dur = duration_per_image[i] if isinstance(duration_per_image, list) else duration_per_image
     
                     # [CHANGED] Enable FPS for effects
-                    clip = ImageClip(processed_img_path).set_duration(dur).set_fps(fps)
+                    clip = ImageClip(processed_img_path).with_duration(dur).with_fps(fps)
 
                 # [NEW] Apply fade-in effect if requested (Works for both Video and Image)
                 if fade_in_flags and i < len(fade_in_flags) and fade_in_flags[i]:
@@ -287,12 +287,12 @@ class VideoService:
                             # Center Zoom In: 1.0 -> 1.5 (using captured variables to avoid closure bugs)
                             clip = clip.resize(lambda t, d=dur, zs=zoom_scale: 1 + (zs - 1) * t / d)
                             # Keep centered safely by using CompositeVideoClip as container
-                            clip = CompositeVideoClip([clip.set_position('center')], size=(w,h)).set_duration(dur)
+                            clip = CompositeVideoClip([clip.with_position('center')], size=(w,h)).with_duration(dur)
                             
                         elif effect == 'zoom_out':
                             # Center Zoom Out: 1.5 -> 1.0
                             clip = clip.resize(lambda t, d=dur, zs=zoom_scale: zs - (zs - 1) * t / d)
-                            clip = CompositeVideoClip([clip.set_position('center')], size=(w,h)).set_duration(dur)
+                            clip = CompositeVideoClip([clip.with_position('center')], size=(w,h)).with_duration(dur)
                             
                         elif effect.startswith('pan_'):
                             # For Panning, we need start/end positions.
@@ -315,22 +315,22 @@ class VideoService:
 
                             if effect == 'pan_left':
                                 # Reveal Image from Right to Left (Start: Right aligned -> End: Left aligned)
-                                clip = clip.set_position(lambda t, mx=max_x, dy=default_y, d=dur: (int(-mx + mx * t / d), int(dy)))
+                                clip = clip.with_position(lambda t, mx=max_x, dy=default_y, d=dur: (int(-mx + mx * t / d), int(dy)))
                                 
                             elif effect == 'pan_right':
                                 # Reveal Image from Left to Right (Start: Left aligned -> End: Right aligned)
-                                clip = clip.set_position(lambda t, mx=max_x, dy=default_y, d=dur: (int(0 - mx * t / d), int(dy)))
+                                clip = clip.with_position(lambda t, mx=max_x, dy=default_y, d=dur: (int(0 - mx * t / d), int(dy)))
                                 
                             elif effect == 'pan_up':
                                 # Reveal Top: Start Bottom aligned -> End Top aligned
-                                clip = clip.set_position(lambda t, my=max_y, dx=default_x, d=dur: (int(dx), int(-my + my * t / d)))
+                                clip = clip.with_position(lambda t, my=max_y, dx=default_x, d=dur: (int(dx), int(-my + my * t / d)))
                                 
                             elif effect == 'pan_down':
                                 # Reveal Bottom: Start Top aligen -> End Bottom aligned
-                                clip = clip.set_position(lambda t, my=max_y, dx=default_x, d=dur: (int(dx), int(0 - my * t / d)))
+                                clip = clip.with_position(lambda t, my=max_y, dx=default_x, d=dur: (int(dx), int(0 - my * t / d)))
 
                             # [CRITICAL FIX] Wrap in CompositeVideoClip of target size (w,h)
-                            clip = CompositeVideoClip([clip], size=(w,h)).set_duration(dur)
+                            clip = CompositeVideoClip([clip], size=(w,h)).with_duration(dur)
 
                     except Exception as e:
                         print(f"Effect Error: {e}")
@@ -385,7 +385,7 @@ class VideoService:
                     print(f"DEBUG: Audio ({check_duration:.2f}s) is significantly longer than video ({video.duration:.2f}s). Extending last clip.")
                     # 비디오가 짧으면 마지막 이미지 연장
                     last_dur = duration_per_image[-1] if isinstance(duration_per_image, list) else duration_per_image
-                    last_clip = clips[-1].set_duration(
+                    last_clip = clips[-1].with_duration(
                         check_duration - video.duration + last_dur
                     )
                     clips[-1] = last_clip
@@ -398,7 +398,7 @@ class VideoService:
                 print(f"DEBUG: Video ({video.duration}s) is longer than Audio ({audio.duration}s). Trimming video.")
                 video = video.subclip(0, audio.duration)
 
-            video = video.set_audio(audio)
+            video = video.with_audio(audio)
             
         # 제목 오버레이 추가
         if title_text:
@@ -418,8 +418,8 @@ class VideoService:
                     from moviepy.video.fx.margin import margin
                     # margin 함수 대신 position으로 조정
                     # ("center", 100) -> 상단 100px 지점
-                    title_clip = title_clip.set_position(("center", 150)) 
-                    title_clip = title_clip.set_duration(video.duration)
+                    title_clip = title_clip.with_position(("center", 150)) 
+                    title_clip = title_clip.with_duration(video.duration)
                     
                 video = CompositeVideoClip([video, title_clip])
             except Exception as e:
@@ -437,7 +437,7 @@ class VideoService:
                 baked_thumb_path = self._create_cinematic_frame(thumbnail_path, resolution)
                 temp_files.append(baked_thumb_path)
                 
-                thumb_clip = ImageClip(baked_thumb_path).set_duration(0.1) # 0.1s duration
+                thumb_clip = ImageClip(baked_thumb_path).with_duration(0.1) # 0.1s duration
                 
                 # 2. Concatenate [Thumb] + [Main Video]
                 # Note: Concatenating CompositeVideoClip with ImageClip works.
@@ -579,10 +579,10 @@ class VideoService:
                         if y_pos + txt_clip.h > video.h:
                              y_pos = video.h - txt_clip.h - 50 # Safety buffer
 
-                        txt_clip = txt_clip.set_position(("center", y_pos))
+                        txt_clip = txt_clip.with_position(("center", y_pos))
 
-                        txt_clip = txt_clip.set_start(sub["start"])
-                        txt_clip = txt_clip.set_duration(sub["end"] - sub["start"])
+                        txt_clip = txt_clip.with_start(sub["start"])
+                        txt_clip = txt_clip.with_duration(sub["end"] - sub["start"])
                         subtitle_clips.append(txt_clip)
                 except Exception as e:
                     print(f"Error creating subtitle clip for text '{sub.get('text', '')}': {e}")
@@ -1238,10 +1238,10 @@ class VideoService:
                     if hasattr(video, 'h'):
                         bottom_margin = int(video.h * 0.08)
                         y_pos = video.h - txt_clip.h - bottom_margin
-                        txt_clip = txt_clip.set_position(("center", y_pos))
+                        txt_clip = txt_clip.with_position(("center", y_pos))
                     else:
                         # Fallback if video is not a clip object
-                        txt_clip = txt_clip.set_position(("center", 0.90), relative=True)
+                        txt_clip = txt_clip.with_position(("center", 0.90), relative=True)
                     
                     subtitle_clips.append(txt_clip)
                     
@@ -1475,37 +1475,38 @@ class VideoService:
                  pass
 
         # Balanced Wrapping Logic with Manual Newline Support
-        # 1. 텍스트 너비가 맥스 폭(너비 - 패딩)을 넘는지 확인
-        safe_width = int(width * 0.9) # 좌우 5% 패딩
+        # [FIX] 프리뷰와 렌더링 일치를 위한 개선
+        # - 이미 \n으로 나뉜 텍스트는 최대한 존중
+        # - 픽셀 너비 초과 시에만 단어 단위로 줄바꿈 (화면 넘침 방지)
+        safe_width = int(width * 0.9)
         
         def get_text_width(text, font):
             dummy_draw = ImageDraw.Draw(Image.new('RGBA', (1, 1)))
             return dummy_draw.textlength(text, font=font)
 
-        # [FIX] Manual Newline Support
-        # 사용자가 입력한 엔터(\n)를 먼저 기준으로 나눈 뒤, 각 라인에 대해 길이 체크/줄바꿈 수행
+        # [FIX] Manual Newline Support - 사용자가 입력한 \n을 기준으로 먼저 분리
         manual_lines = text.split('\n')
         wrapped_lines = []
+        
+        # 최대 2줄 제한 (프리뷰와 일치)
+        MAX_LINES = 2
         
         for m_line in manual_lines:
             m_line = m_line.strip()
             if not m_line:
-                # 빈 줄 유지하고 싶다면:
-                # wrapped_lines.append("") 
                 continue
+            
+            # 이미 최대 줄 수에 도달하면 중단
+            if len(wrapped_lines) >= MAX_LINES:
+                break
                 
             line_width = get_text_width(m_line, font)
             
             if line_width <= safe_width:
-                 wrapped_lines.append(m_line)
+                # 픽셀 너비 OK - 그대로 추가
+                wrapped_lines.append(m_line)
             else:
-                # 2. 넘는다면, 균형있게 나누기 (Balanced Wrapping)
-                # 단순히 꽉 채우는게 아니라, 전체 길이를 라인 수로 나누어 목표 길이를 정함
-                
-                # 예상 라인 수
-                est_lines = int(line_width / safe_width) + 1
-                target_line_width = line_width / est_lines
-                
+                # [FIX] 픽셀 너비 초과 - 단어 단위로 줄바꿈하되, MAX_LINES 이내로 제한
                 words = m_line.split(' ')
                 current_line = []
                 current_width = 0
@@ -1513,24 +1514,32 @@ class VideoService:
                 for word in words:
                     word_width = get_text_width(word + " ", font)
                     
-                    if current_width + word_width > safe_width:
-                        # 무조건 줄바꿈 (화면 넘어감)
+                    if current_width + word_width > safe_width and current_line:
+                        # 현재 줄 저장
                         wrapped_lines.append(" ".join(current_line))
+                        
+                        # MAX_LINES 체크
+                        if len(wrapped_lines) >= MAX_LINES:
+                            # 남은 단어들을 마지막 줄에 그냥 붙이기
+                            remaining_words = words[words.index(word):]
+                            if remaining_words:
+                                wrapped_lines[-1] += " " + " ".join(remaining_words)
+                            break
+                        
                         current_line = [word]
                         current_width = word_width
-                    elif current_width + word_width > target_line_width * 1.2 and len(current_line) > 0:
-                         # 목표 너비를 적당히(20%) 넘으면 줄바꿈 -> 균형 유도
-                         wrapped_lines.append(" ".join(current_line))
-                         current_line = [word]
-                         current_width = word_width
                     else:
                         current_line.append(word)
                         current_width += word_width
+                else:
+                    # for-else: break 없이 끝난 경우
+                    if current_line and len(wrapped_lines) < MAX_LINES:
+                        wrapped_lines.append(" ".join(current_line))
+                    elif current_line and len(wrapped_lines) >= MAX_LINES:
+                        # 마지막 줄에 추가
+                        wrapped_lines[-1] += " " + " ".join(current_line)
                 
-                if current_line:
-                    wrapped_lines.append(" ".join(current_line))
-                
-        wrapped_text = "\n".join(wrapped_lines)
+        wrapped_text = "\n".join(wrapped_lines[:MAX_LINES])  # 안전장치
 
         # 텍스트 크기 측정
         dummy_img = Image.new('RGBA', (1, 1))
@@ -1565,6 +1574,9 @@ class VideoService:
         # [FIX] Multi-line Background Support
         # Instead of one big box, draw per-line rounded strips
         
+        # [DEBUG] Log wrapped lines for troubleshooting
+        print(f"DEBUG_SUBTITLE: wrapped_lines count = {len(wrapped_lines)}, lines = {wrapped_lines}")
+        
         # Calculate Starting Y (Top of Text Block)
         current_y = center_y - (text_h // 2)
         
@@ -1580,50 +1592,50 @@ class VideoService:
         
         # [FIX] Precision Vertical Alignment
         # Calculate background per line using actual text boundaries
-        for line in wrapped_lines:
-            if not line:
-                current_y += line_height_font + line_spacing
+        
+        # Consistent total height calculation regardless of background
+        full_line_height = line_height_font + line_spacing
+        
+        for idx, line in enumerate(wrapped_lines):
+            if not line or not line.strip():
+                current_y += full_line_height
                 continue
                 
-            # Measure Precise line dimensions using (0,0) as reference
-            # [FIX] Stroke width visibility logic
-            # Gungsuh and other fonts need different stroke scaling.
-            # Convert user 'px' to internal draw width. 
-            # If user set 0.4, and it's a 1080p video, 0.4 is too small.
-            # We enforce a floor for visibility.
+            # Measure Precise line dimensions
             s_width = int(max(1, round(final_stroke_width))) if final_stroke_width > 0.01 else 0
-            l_bbox = draw.textbbox((0, 100), line, font=font, stroke_width=s_width)
+            l_bbox = draw.textbbox((0, 0), line, font=font, stroke_width=s_width)
             lw = l_bbox[2] - l_bbox[0]
             lh = l_bbox[3] - l_bbox[1]
             
             # Calculate actual line_x to center the text
             line_x = center_x - (lw / 2)
             
-            # 1. Draw Background
+            # Draw Background (per line)
             if bg_color:
-                # Map bbox to actual line_x/current_y position
+                # [FIX] Tighter vertical positioning to prevent merging into one block
+                # bg_h should be just enough to cover the font height
+                bg_h = line_height_font * 1.05 # Reduced from 1.2 to 1.05
+                offset_y = (bg_h - line_height_font) / 2
+                
+                # bx0, bx1 (Horizontal)
                 bx0 = line_x - pad_x
-                by0 = current_y + (l_bbox[1] - 100) - (pad_y // 4) # Tight vertical
                 bx1 = line_x + lw + pad_x
-                by1 = current_y + (l_bbox[3] - 100) + (pad_y // 4)
+                
+                # by0, by1 (Vertical) - Tightly around the font
+                by0 = current_y - offset_y
+                by1 = current_y + line_height_font + offset_y
                 
                 draw.rounded_rectangle([bx0, by0, bx1, by1], radius=10, fill=bg_color)
             
-            # 2. Draw Text
+            # 2. Draw Text (Always at the same current_y)
             if s_width > 0:
-                # [DEBUG] Log actual draw parameters
-                try:
-                    with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
-                        df.write(f"[{datetime.datetime.now()}] DRAW_TEXT: '{line}', color='{final_font_color}', stroke='{stroke_color}', sw={s_width}, y={current_y}\n")
-                except: pass
-                
                 draw.text((line_x, current_y), line, font=font, fill=final_font_color, 
                           stroke_width=s_width, stroke_fill=stroke_color)
             else:
                 draw.text((line_x, current_y), line, font=font, fill=final_font_color)
                 
             # Next Line
-            current_y += line_height_font + line_spacing
+            current_y += full_line_height
 
         import uuid
         temp_filename = f"sub_{uuid.uuid4()}.png"
@@ -1721,10 +1733,10 @@ class VideoService:
         """
         Ken Burns 효과 (줌인)가 적용된 클립 생성
         """
-        from moviepy.editor import ImageClip, CompositeVideoClip
+        from moviepy import ImageClip, CompositeVideoClip
         
         # 기본 이미지 클립
-        img_clip = ImageClip(image_path).set_duration(duration)
+        img_clip = ImageClip(image_path).with_duration(duration)
         
         # 줌인 효과 (1.0 -> 1.15)
         # lambda t: 1 + 0.03 * t  (5초 동안 약 15% 확대)
@@ -1737,11 +1749,11 @@ class VideoService:
             
             # 중앙 정렬하여 CompositeVideoClip으로 감싸기 (크롭 효과)
             # set_position("center")는 CompositeVideoClip 내에서 중앙 배치
-            zoomed_clip = zoomed_clip.set_position("center")
+            zoomed_clip = zoomed_clip.with_position("center")
             
             # 최종 크기를 target_size로 고정 (넘치는 부분 잘림 효과)
             final_clip = CompositeVideoClip([zoomed_clip], size=target_size)
-            final_clip = final_clip.set_duration(duration)
+            final_clip = final_clip.with_duration(duration)
             return final_clip
         except Exception as e:
             print(f"줌 효과 적용 실패: {e}")

@@ -35,6 +35,21 @@ class SubtitleGenerationRequest(BaseModel):
     text: Optional[str] = None
 
 
+class SubtitlePreviewRequest(BaseModel):
+    """자막 미리보기 이미지 생성 요청"""
+    text: str
+    font_name: str = "GmarketSansBold"
+    font_size: int = 32
+    font_color: str = "#FFFFFF"
+    stroke_color: str = "#000000"
+    stroke_width: float = 3.0
+    bg_enabled: bool = True
+    bg_color: str = "rgba(0,0,0,0.6)"
+    style_name: str = "Custom"
+    width: int = 1920
+    height: int = 1080
+
+
 # ===========================================
 # Helper Functions
 # ===========================================
@@ -63,6 +78,61 @@ def get_project_output_dir(project_id: int):
 # ===========================================
 # API: 자막 (Subtitle)
 # ===========================================
+
+@router.post("/subtitle/preview-image")
+async def generate_subtitle_preview(request: SubtitlePreviewRequest):
+    """
+    자막 미리보기 이미지 생성 (렌더링과 동일한 결과)
+    Returns: Base64 encoded PNG image
+    """
+    import base64
+    from io import BytesIO
+    
+    try:
+        # video_service의 _create_subtitle_image 메서드 사용 (렌더링과 동일)
+        img_path = video_service._create_subtitle_image(
+            text=request.text,
+            width=request.width,
+            font_size=request.font_size,
+            font_color=request.font_color,
+            font_name=request.font_name,
+            style_name=request.style_name,
+            stroke_color=request.stroke_color,
+            stroke_width=request.stroke_width,
+            bg_color=request.bg_color if request.bg_enabled else None
+        )
+        
+        if not img_path or not os.path.exists(img_path):
+            return JSONResponse(
+                status_code=500,
+                content={"status": "error", "error": "이미지 생성 실패"}
+            )
+        
+        # 이미지를 Base64로 인코딩
+        with open(img_path, "rb") as f:
+            img_data = f.read()
+        
+        b64_data = base64.b64encode(img_data).decode('utf-8')
+        
+        # 임시 파일 삭제
+        try:
+            os.remove(img_path)
+        except:
+            pass
+        
+        return {
+            "status": "ok",
+            "image": f"data:image/png;base64,{b64_data}"
+        }
+        
+    except Exception as e:
+        print(f"[SubtitlePreview] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "error": str(e)}
+        )
 
 @router.get("/subtitle/{project_id}")
 async def get_subtitles(project_id: int):
@@ -831,7 +901,7 @@ async def render_project_video(
                     audio_seg = pydub.AudioSegment.from_file(audio_path)
                     audio_duration = audio_seg.duration_seconds
                 except:
-                    from moviepy.editor import AudioFileClip
+                    from moviepy import AudioFileClip
                     with AudioFileClip(audio_path) as audio_clip:
                         audio_duration = audio_clip.duration
                 
