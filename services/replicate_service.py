@@ -70,18 +70,13 @@ class ReplicateService:
             raise e
 
     async def _generate_basic(self, image_path: str, prompt: str, duration: float = 5.0):
-        """기본 Wan 2.1 생성 (최대 81프레임)"""
-        fps = 16 if duration > 3.5 else 24
-        num_frames = int(duration * fps)
-        if num_frames > 81: num_frames = 81
-
+        """기본 Wan 2.1 생성 (wavespeedai/wan-2.1-i2v-720p)"""
         input_data = {
             "image": open(image_path, "rb"),
             "prompt": prompt,
-            "num_frames": num_frames,
-            "frames_per_second": fps,
-            "resolution": "720p",
-            "go_fast": True
+            "size": "1280x720",
+            "duration": 5, # Standard 5s
+            "fast_mode": "Balanced"
         }
 
         loop = asyncio.get_event_loop()
@@ -99,10 +94,23 @@ class ReplicateService:
         return path
 
     def _run_replicate(self, input_data):
-        return replicate.run(
-            "wan-video/wan-2.1-i2v-720p", # Use standard 720p model
-            input=input_data
-        )
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                return replicate.run(
+                    "wavespeedai/wan-2.1-i2v-720p",
+                    input=input_data
+                )
+            except Exception as e:
+                error_str = str(e).lower()
+                if "429" in error_str or "throttled" in error_str or "rate limit" in error_str:
+                    if attempt < max_retries - 1:
+                        wait_time = (attempt + 1) * 5 + float(input_data.get("duration", 5)) # Initial wait: ~10s
+                        print(f"⚠️ [Replicate] Rate Limit Hit (429). Waiting {wait_time}s before retry {attempt+1}/{max_retries}...")
+                        time.sleep(wait_time)
+                        continue
+                print(f"❌ [Replicate] Error: {e}")
+                raise e
 
     async def _download_video(self, url):
         """URL에서 비디오 다운로드 후 로컬 저장"""

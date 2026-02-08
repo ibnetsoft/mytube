@@ -2140,15 +2140,13 @@ class VideoService:
             # setpts: 속도 조절
             # minterpolate: 프레임 보간 (부드러운 움직임)
             # r=fps (원본 fps 유지)
-            cmd = [
-                config.FFMPEG_PATH,
-                '-i', video_path,
-                '-vf', f"setpts={1/speed_ratio}*PTS,minterpolate='fps=24:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsfm=1'",
-                '-y',
-                output_path
-            ]
-            print(f"Applying Slow-mo (ratio {speed_ratio})...")
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            # Simplified Slow-mo (setpts only) for stability
+            # minterpolate is too heavy and often fails on Windows/Replicate environments
+            cmd = f'"{config.FFMPEG_PATH}" -y -i "{video_path}" -filter:v "setpts={1/speed_ratio}*PTS" -r 24 "{output_path}"'
+            
+            print(f"Applying Slow-mo (ratio {speed_ratio})... CMD: {cmd}")
+            # Use shell=True for string command on Windows to handle quotes properly
+            result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
             if result.returncode != 0:
                 print(f"Slow-mo error: {result.stderr}")
                 return video_path
