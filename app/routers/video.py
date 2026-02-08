@@ -619,6 +619,36 @@ async def get_project_subtitles(project_id: int, force_refresh: bool = False):
             image_timings_path = None
             timeline_images_path = None
 
+        # [FIX] Load Audio Data (Crucial for Frontend)
+        audio_url = None
+        audio_duration = 0.0
+        try:
+            tts_data = db.get_tts(project_id)
+            if tts_data and tts_data.get('audio_path'):
+                audio_path = tts_data['audio_path']
+                if os.path.exists(audio_path):
+                    # Web URL conversion
+                    if audio_path.startswith(config.OUTPUT_DIR):
+                        rel = os.path.relpath(audio_path, config.OUTPUT_DIR).replace("\\", "/")
+                        audio_url = f"/output/{rel}"
+                    
+                    # Duration Calculation
+                    try:
+                        # Try pydub first
+                        import pydub
+                        audio_seg = pydub.AudioSegment.from_file(audio_path)
+                        audio_duration = audio_seg.duration_seconds
+                    except:
+                        # Fallback to MoviePy
+                        try:
+                            from moviepy.editor import AudioFileClip
+                            with AudioFileClip(audio_path) as clip:
+                                audio_duration = clip.duration
+                        except:
+                            pass
+        except Exception as e:
+            print(f"Error loading audio in get_project_subtitles: {e}")
+
         # Load subtitles
         if subtitle_path and os.path.exists(subtitle_path):
              with open(subtitle_path, "r", encoding="utf-8") as f:
@@ -712,7 +742,9 @@ async def get_project_subtitles(project_id: int, force_refresh: bool = False):
             "timeline_images": timeline_images,
             "source_images": source_images,
             "image_effects": image_effects,
-            "settings": settings 
+            "settings": settings,
+            "audio_url": audio_url,
+            "audio_duration": audio_duration
         }
 
     except Exception as e:

@@ -2481,6 +2481,22 @@
                 updateDebug(`[Data] Subtitles: ${subtitles.length}, Images: ${images.length}, Timings: ${imageTimings.length}, Source: ${sourceImages.length}`);
                 console.log("[Data Detail]", { imageTimings, images, sourceImages });
 
+                // [FIX] Load Audio
+                if (data.audio_url) {
+                    const audioPlayer = document.getElementById('audioPlayer');
+                    if (audioPlayer) {
+                        // Use convertToWebPath just in case
+                        const finalAudioUrl = Utils.convertToWebPath(data.audio_url);
+                        audioPlayer.src = finalAudioUrl;
+                        audioPlayer.load();
+                        updateDebug(`[Audio] Loaded: ${finalAudioUrl}`);
+                    }
+                }
+                if (data.audio_duration) {
+                    audioDuration = parseFloat(data.audio_duration);
+                    updateDebug(`[Audio] Duration: ${audioDuration.toFixed(2)}s`);
+                }
+
 
 
                 // Style Settings

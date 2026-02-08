@@ -1908,9 +1908,14 @@ async def tts_generate(req: TTSRequest):
         else:
             # 1. ElevenLabs
             if req.provider == "elevenlabs":
-                output_path = await tts_service.generate_elevenlabs(
+                result = await tts_service.generate_elevenlabs(
                     req.text, req.voice_id, result_filename
                 )
+                # ElevenLabs returns a dict containing metadata
+                if isinstance(result, dict):
+                    output_path = result.get("audio_path")
+                else:
+                    output_path = result
             # 2. Google Cloud
             elif req.provider == "google_cloud":
                 output_path = await tts_service.generate_google_cloud(
@@ -1964,21 +1969,27 @@ async def tts_generate(req: TTSRequest):
                  except Exception as e:
                      print(f"Failed to calculate audio duration: {e}")
 
+                 # [FIX] Logic for voice_id/name: Single voice should use actual ID
+                 final_voice_id = "multi-voice" if req.multi_voice else (req.voice_id or "default")
+                 final_voice_name = "Multi Voice" if req.multi_voice else (req.voice_id or "default")
+
                  db.save_tts(
                      req.project_id,
-                     req.voice_id or "multi-voice" if req.multi_voice else "default",
-                     req.voice_id or "multi-voice" if req.multi_voice else "default",
+                     final_voice_id,
+                     final_voice_name,
                      output_path,
                      duration
                  )
                  
-                 # [FIX] 자막 생성을 위해 TTS 입력 텍스트를 프로젝트 설정(script)에 저장
+                 # [FIX] Save script text to project settings
                  if req.text:
                      db.update_project_setting(req.project_id, "script", req.text)
                      print(f"DEBUG: Saved TTS text to project settings (len={len(req.text)})")
 
              except Exception as db_e:
                  print(f"TTS DB 저장 실패: {db_e}")
+                 # Don't swallow! Raise or return error so frontend knows.
+                 raise db_e
         
         # URL 생성
         if req.project_id:

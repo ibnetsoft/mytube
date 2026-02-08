@@ -11,7 +11,12 @@ def get_db():
     """데이터베이스 연결"""
     DB_PATH.parent.mkdir(exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH), timeout=60.0)
-    conn.execute("PRAGMA journal_mode=WAL;") # Enable WAL mode for better concurrency
+    # [PER_CONN_WAL] Some say setting WAL every time is redundant, but in Python sqlite3 it might be safer to ensure.
+    # However, if it causes lock, we can wrap it.
+    try:
+        conn.execute("PRAGMA journal_mode=WAL;") 
+    except:
+        pass # Ignore if busy, mode is persistent anyway
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -1104,18 +1109,46 @@ def update_image_prompt_video_url(project_id: int, scene_number: int, video_url:
 
 def save_tts(project_id: int, voice_id: str, voice_name: str, audio_path: str, duration: float):
     """TTS 저장"""
-    conn = get_db()
-    cursor = conn.cursor()
+    import time
+    max_retries = 3
+    retry_delay = 0.5
+    
+    for attempt in range(max_retries):
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
 
-    cursor.execute("DELETE FROM tts_audio WHERE project_id = ?", (project_id,))
+            try:
+                cursor.execute("DELETE FROM tts_audio WHERE project_id = ?", (project_id,))
 
-    cursor.execute("""
-        INSERT INTO tts_audio (project_id, voice_id, voice_name, audio_path, duration)
-        VALUES (?, ?, ?, ?, ?)
-    """, (project_id, voice_id, voice_name, audio_path, duration))
+                cursor.execute("""
+                    INSERT INTO tts_audio (project_id, voice_id, voice_name, audio_path, duration)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (project_id, voice_id, voice_name, audio_path, duration))
 
-    conn.commit()
-    conn.close()
+                conn.commit()
+                return True
+            except sqlite3.OperationalError as e:
+                if "locked" in str(e).lower():
+                    raise e # Let outer handle retry
+                else:
+                    print(f"Error saving TTS: {e}")
+                    raise e
+            finally:
+                conn.close()
+
+        except sqlite3.OperationalError as e:
+            if "locked" in str(e).lower() and attempt < max_retries - 1:
+                print(f"[DB] Database locked in save_tts, retrying... ({attempt+1}/{max_retries})")
+                time.sleep(retry_delay)
+                retry_delay *= 2
+                continue
+            else:
+                print(f"[DB] Final error in save_tts: {e}")
+                raise e # Notify upstream
+        except Exception as e:
+            print(f"[DB] Unexpected error in save_tts: {e}")
+            raise e
 
 def get_tts(project_id: int) -> Optional[Dict]:
     """TTS 조회"""
@@ -1334,40 +1367,64 @@ def update_project_setting(project_id: int, key: str, value: Any):
         conn.close()
         return False
 
-    cursor.execute(f"""
-        UPDATE project_settings
-        SET {key} = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE project_id = ?
-    """, (value, project_id))
-    
-    # [NEW] 'script' 업데이트 시 scripts 테이블도 동기화
-    if key == 'script' and value:
+    import time
+    max_retries = 3
+    retry_delay = 0.5
+
+    for attempt in range(max_retries):
         try:
-            # 대략적인 시간 계산 (한국어 1분당 450자 기준)
-            char_count = len(str(value))
-            est_duration = max(5, int(char_count / 7.5)) # 최소 5초
+            cursor.execute(f"""
+                UPDATE project_settings
+                SET {key} = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE project_id = ?
+            """, (value, project_id))
             
-            cursor.execute("DELETE FROM scripts WHERE project_id = ?", (project_id,))
-            cursor.execute("""
-                INSERT INTO scripts (project_id, full_script, word_count, estimated_duration)
-                VALUES (?, ?, ?, ?)
-            """, (project_id, value, char_count, est_duration))
+            # [NEW] 'script' 업데이트 시 scripts 테이블도 동기화
+            if key == 'script' and value:
+                try:
+                    # 대략적인 시간 계산 (한국어 1분당 450자 기준)
+                    char_count = len(str(value))
+                    est_duration = max(5, int(char_count / 7.5)) # 최소 5초
+                    
+                    cursor.execute("DELETE FROM scripts WHERE project_id = ?", (project_id,))
+                    cursor.execute("""
+                        INSERT INTO scripts (project_id, full_script, word_count, estimated_duration)
+                        VALUES (?, ?, ?, ?)
+                    """, (project_id, value, char_count, est_duration))
+                except Exception as e:
+                    print(f"[DB] Script sync failed in update_project_setting: {e}")
+
+            if cursor.rowcount == 0:
+                conn.close() 
+                if attempt == 0: # Only try insert on first failure if it's not a lock issue
+                    print("[DB] Row not found, falling back to insert")
+                    save_project_settings(project_id, {key: value})
+                return True
+
+            conn.commit()
+            conn.close()
+            return True
+
+        except sqlite3.OperationalError as e:
+            if "locked" in str(e).lower() and attempt < max_retries - 1:
+                print(f"[DB] Database locked in update_project_setting, retrying in {retry_delay}s... ({attempt+1}/{max_retries})")
+                time.sleep(retry_delay)
+                retry_delay *= 2 # Exponential backoff
+                # Re-open connection as cursor might be invalidated? typically just retry exec is enough but safer to loop
+                conn.close() # Close and retry gets new conn
+                conn = get_db()
+                cursor = conn.cursor()
+                continue
+            else:
+                print(f"[DB] Error updating project setting: {e}")
+                conn.close()
+                return False
         except Exception as e:
-            print(f"[DB] Script sync failed in update_project_setting: {e}")
+             print(f"[DB] Unexpected error in update_project_setting: {e}")
+             conn.close()
+             return False
 
-    print(f"[DB] Update {key} for pid {project_id}. Rowcount: {cursor.rowcount}")
-
-    if cursor.rowcount == 0:
-        # 행이 없으면 새로 생성 (upsert)
-        conn.close() # 기존 커서 닫고
-        print("[DB] Row not found, falling back to insert")
-        # save_project_settings가 내부적으로 INSERT 수행
-        save_project_settings(project_id, {key: value})
-        return True
-
-    conn.commit()
-    conn.close()
-    return True
+    return False
 
 
 # ============ 쇼츠 ============
