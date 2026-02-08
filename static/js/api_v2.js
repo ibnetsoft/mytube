@@ -187,6 +187,22 @@ const API = {
         }
     },
 
+    // 썸네일 전용 API
+    thumbnail: {
+        async generateText(projectId, style = 'face', language = 'ko') {
+            const response = await fetch('/api/thumbnail/generate-text', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    project_id: parseInt(projectId),
+                    thumbnail_style: style,
+                    target_language: language
+                })
+            });
+            return response.json();
+        }
+    },
+
     // 영상 API
     video: {
         async createSlideshow(images, audioUrl = null, durationPerImage = 5.0) {

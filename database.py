@@ -634,6 +634,20 @@ def migrate_db():
     except sqlite3.OperationalError:
         pass  # Already exists
 
+    # [NEW] Thumbnail Preference Migration for Project Settings
+    for col, col_type in [
+        ("thumbnail_style", "TEXT"),
+        ("thumbnail_font", "TEXT"),
+        ("thumbnail_font_size", "INTEGER"),
+        ("thumbnail_color", "TEXT"),
+        ("thumbnail_full_state", "TEXT")
+    ]:
+        try:
+            cursor.execute(f"ALTER TABLE project_settings ADD COLUMN {col} {col_type}")
+            print(f"[Migration] Added {col} to project_settings")
+        except sqlite3.OperationalError:
+            pass
+
     conn.commit()
     print("[DB] Migration completed")
 
@@ -1310,8 +1324,9 @@ def update_project_setting(project_id: int, key: str, value: Any):
                     'subtitle_path', 'image_timings_path', 'timeline_images_path', 'image_effects_path', 'app_mode',
                     'subtitle_base_color', 'subtitle_pos_y', 'subtitle_pos_x', 'subtitle_bg_enabled', 'subtitle_stroke_enabled',
                     'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity',
-                    'voice_provider', 'voice_speed', 'voice_multi_enabled', 'voice_mapping_json', 'intro_video_path', 'thumbnail_style', 'image_style',
-                    'all_video', 'motion_method', 'video_scene_count']
+                    'voice_provider', 'voice_speed', 'voice_multi_enabled', 'voice_mapping_json', 'intro_video_path', 
+                    'thumbnail_style', 'thumbnail_font', 'thumbnail_font_size', 'thumbnail_color', 'thumbnail_full_state',
+                    'image_style', 'all_video', 'motion_method', 'video_scene_count']
 
 
     if key not in allowed_keys:

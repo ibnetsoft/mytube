@@ -82,6 +82,8 @@ class AutoPilotService:
         """오토파일럿 전체 워크플로우 실행"""
         print(f"🚀 [Auto-Pilot] '{keyword}' 작업 시작")
         self.config = config_dict or {}
+        if "auto_plan" not in self.config:
+            self.config["auto_plan"] = True  # Always generate plan data by default
         
         try:
             # 1~2. 소재 발굴 및 프로젝트 생성
@@ -98,26 +100,36 @@ class AutoPilotService:
 
             # 3. AI 분석
             if current_status in ["created", "draft"]:
+                db.update_project(project_id, status="analyzing") # [NEW] status for UI
                 video = await self._find_best_material(keyword)
-                analysis_result = await self._analyze_video(video['id']['videoId'])
+                analysis_result = await self._analyze_video(video)
                 db.save_analysis(project_id, video, analysis_result)
                 db.update_project(project_id, status="analyzed")
                 current_status = "analyzed"
 
             # 4. 기획 및 대본 작성
             if current_status == "analyzed":
+                db.update_project(project_id, status="planning") # [NEW] status for UI
                 analysis = db.get_analysis(project_id)
                 script = await self._generate_script(project_id, analysis.get("analysis_result", {}), self.config)
                 db.update_project_setting(project_id, "script", script)
                 
+                db.update_project(project_id, status="scripting") # [NEW] status for UI
                 # [NEW] AI 제목 및 설명 생성
                 await self._generate_metadata(project_id, script)
                 
                 db.update_project(project_id, status="scripted")
                 current_status = "scripted"
 
-            # 5. 에셋 생성 (이미지 & 썸네일 & 오디오)
+            # 4.5 캐릭터 추출 (일관성 유지용)
             if current_status == "scripted":
+                script_data = db.get_script(project_id)
+                if script_data:
+                    await self._extract_characters(project_id, script_data["full_script"], self.config)
+                current_status = "characters_ready"
+
+            # 5. 에셋 생성 (이미지 & 썸네일 & 오디오)
+            if current_status == "characters_ready":
                 script_data = db.get_script(project_id)
                 full_script = script_data["full_script"]
                 
@@ -125,10 +137,18 @@ class AutoPilotService:
                 db.update_project(project_id, status="generating_assets")
                 await self._generate_assets(project_id, full_script, self.config)
                 
+                # [NEW] Ensure Metadata exists (Title, Description) - Re-run if skipped earlier
+                settings = db.get_project_settings(project_id) or {}
+                if not settings.get('title') or not settings.get('description'):
+                    print(f"📝 [Auto-Pilot] Metadata missing for pid {project_id}. Generating...")
+                    await self._generate_metadata(project_id, full_script)
+
                 # 5-2. [NEW] 썸네일 자동 생성
                 if self.config.get('auto_thumbnail', True):
-                    db.update_project(project_id, status="generating_thumbnail")
-                    await self._generate_thumbnail(project_id, full_script, self.config)
+                    # Check if already exists to avoid duplicate gen
+                    if not settings.get('thumbnail_url'):
+                        db.update_project(project_id, status="generating_thumbnail")
+                        await self._generate_thumbnail(project_id, full_script, self.config)
 
                 db.update_project(project_id, status="tts_done")
                 current_status = "tts_done"
@@ -155,6 +175,32 @@ class AutoPilotService:
             print(f"❌ [Auto-Pilot] 오류 발생: {e}")
             db.update_project(project_id, status="error")
 
+    async def _extract_characters(self, project_id: int, script_text: str, config_dict: dict = None):
+        """대본에서 캐릭터 추출 및 일관성 있는 프롬프트 생성 (이미 있으면 건너뜀)"""
+        # [NEW] 이미 캐릭터가 수동으로 설정되어 있는지 확인
+        existing = db.get_project_characters(project_id)
+        if existing:
+            print(f"👥 [Auto-Pilot] 이미 {len(existing)}명의 캐릭터가 설정되어 있습니다. 추출을 건너뜁니다.")
+            return
+
+        print(f"👥 [Auto-Pilot] 캐릭터 추출 시작...")
+        
+        # [NEW] 비주얼 스타일 결정
+        style_prefix = "photorealistic"
+        if config_dict:
+            image_style_key = config_dict.get("image_style", config_dict.get("visual_style", "realistic"))
+            style_presets = db.get_style_presets()
+            style_data = style_presets.get(image_style_key, {})
+            style_prefix = style_data.get("prompt_value", "photorealistic")
+        
+        try:
+            characters = await gemini_service.generate_character_prompts_from_script(script_text, visual_style=style_prefix)
+            if characters:
+                db.save_project_characters(project_id, characters)
+                print(f"✅ [Auto-Pilot] {len(characters)}명의 캐릭터를 식별하고 저장했습니다. (Style: {style_prefix})")
+        except Exception as e:
+            print(f"⚠️ [Auto-Pilot] 캐릭터 추출 실패: {e}")
+
     async def _generate_metadata(self, project_id: int, script_text: str):
         """AI를 사용하여 제목, 설명, 태그 생성"""
         print(f"📝 [Auto-Pilot] 제목 및 설명 생성 시작...")
@@ -179,9 +225,29 @@ class AutoPilotService:
             data = response.json()
             return data["items"][0] if "items" in data and data["items"] else None
 
-    async def _analyze_video(self, video_id: str):
-        prompt = prompts.AUTOPILOT_ANALYZE_VIDEO.format(video_id=video_id)
-        # request = type('obj', (object,), {"prompt": prompt, "temperature": 0.7})
+    async def _analyze_video(self, video_data: dict):
+        video_id = video_data['id']['videoId']
+        title = video_data['snippet']['title']
+        description = video_data['snippet']['description']
+        
+        prompt = f"""
+        유튜브 영상 정보를 바탕으로 새로운 영상을 위한 분석을 수행합니다.
+        
+        [영상 정보]
+        - 제목: {title}
+        - ID: {video_id}
+        - 설명: {description[:500]}
+        
+        이 영상의 핵심 타겟 오디언스, 주요 내용, 그리고 이를 벤치마킹했을 때 대중들이 좋아할만한 '공감 포인트'를 3가지만 분석해서 JSON으로 주세요.
+        
+        JSON 포맷:
+        {{
+            "sentiment": "positive/negative/neutral",
+            "topics": ["주제1", "주제2"],
+            "viewer_needs": "시청자들이 원하는 것 설명"
+        }}
+        JSON만 출력하세요.
+        """
         result_text = await gemini_service.generate_text(prompt, temperature=0.7)
         try:
             import re
@@ -202,13 +268,15 @@ class AutoPilotService:
         if not (manual_plan and manual_plan.get("structure")) and config_dict.get("auto_plan"):
              print(f"🤖 [Auto-Pilot] 자동 기획 생성 시작...")
              try:
-                 struct_prompt = f"""
+                  target_duration_min = config_dict.get("duration_seconds", 300) // 60
+                  struct_prompt = f"""
 Create a structured plan for a YouTube video based on this analysis.
 Analysis: {json.dumps(analysis, ensure_ascii=False)}
 
 Context:
 - Video Topic: {db.get_project(project_id).get('topic')}
 - Script Style: {style_desc}
+- Target Duration: {target_duration_min} minutes
 
 Required Format (JSON Only):
 {{
@@ -216,21 +284,27 @@ Required Format (JSON Only):
   "sections": [
     {{ "title": "Section Title", "key_points": ["point1", "point2"] }}
   ],
-  "cta": "Conclusion and call to action"
+  "cta": "Conclusion and call to action",
+  "style": "{style_key}",
+  "duration": {target_duration_min}
 }}
 Language: Korean
 Style Guide: Narration/Monologue only. NO dialogue between characters.
 """
-                 # request_s = type('obj', (object,), {"prompt": struct_prompt, "temperature": 0.7})
-                 result_text_s = await gemini_service.generate_text(struct_prompt, temperature=0.7)
-                 
-                 import re
-                 match = re.search(r'\{[\s\S]*\}', result_text_s)
-                 if match:
-                     new_struct = json.loads(match.group())
-                     db.save_script_structure(project_id, new_struct)
-                     manual_plan = {"structure": new_struct} # Update local var to trigger next block
-                     print(f"✅ [Auto-Pilot] 자동 기획 완료 및 저장.")
+                  # request_s = type('obj', (object,), {"prompt": struct_prompt, "temperature": 0.7})
+                  result_text_s = await gemini_service.generate_text(struct_prompt, temperature=0.7)
+                  
+                  import re
+                  match = re.search(r'\{[\s\S]*\}', result_text_s)
+                  if match:
+                      new_struct = json.loads(match.group())
+                      # Ensure style and duration are set if AI missed them
+                      if "style" not in new_struct: new_struct["style"] = style_key
+                      if "duration" not in new_struct: new_struct["duration"] = target_duration_min
+                      
+                      db.save_script_structure(project_id, new_struct)
+                      manual_plan = {"structure": new_struct} # Update local var to trigger next block
+                      print(f"✅ [Auto-Pilot] 자동 기획 완료 및 저장. (Duration: {target_duration_min}m)")
              except Exception as e:
                  print(f"⚠️ [Auto-Pilot] 자동 기획 실패: {e}")
         
@@ -322,7 +396,9 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
         image_prompts = db.get_image_prompts(project_id)
         if not image_prompts:
             print(f"🖼️ [Auto-Pilot] Generating image prompts for {target_duration}s video...")
-            image_prompts = await gemini_service.generate_image_prompts_from_script(script, target_duration, style_prefix)
+            # [NEW] 캐릭터 정보 조회 및 전달
+            characters = db.get_project_characters(project_id)
+            image_prompts = await gemini_service.generate_image_prompts_from_script(script, target_duration, style_prefix, characters=characters)
             db.save_image_prompts(project_id, image_prompts)
             image_prompts = db.get_image_prompts(project_id)
             print(f"🖼️ [Auto-Pilot] Generated {len(image_prompts)} image prompts")
@@ -636,11 +712,26 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
 
         # 2. 배경 이미지 생성
         try:
+            # [NEW] Art Style & Layout Inheritance
+            image_style_key = config_dict.get("image_style", "realistic")
+            style_presets = db.get_style_presets()
+            style_data = style_presets.get(image_style_key, {})
+            style_prefix = style_data.get("prompt_value", "photorealistic")
+
+            # [NEW] Layout Style
+            thumbnail_style_key = config_dict.get("thumbnail_style", "face")
+            thumb_presets = db.get_thumbnail_style_presets()
+            thumb_preset = thumb_presets.get(thumbnail_style_key, {})
+            layout_desc = thumb_preset.get("prompt", "")
+            
+            # Combine everything for a consistent look
+            final_thumb_prompt = f"ABSOLUTELY NO TEXT. Style: {style_prefix}. Composition: {layout_desc}. Subjects: {image_prompt}. 8k, high quality."
+
             # [CRITICAL] Determine aspect ratio based on duration (Long-form vs Shorts)
             duration_sec = config_dict.get("duration_seconds", 300)
             aspect_ratio = "16:9" if duration_sec > 60 else "9:16"
             
-            images = await gemini_service.generate_image(image_prompt, aspect_ratio=aspect_ratio)
+            images = await gemini_service.generate_image(final_thumb_prompt, aspect_ratio=aspect_ratio)
             if not images: return
 
             now = config.get_kst_time()
@@ -699,7 +790,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             
             if success:
                 web_path = f"/output/{final_filename}"
-                db.update_project_setting(project_id, "thumbnail_path", web_path)
+                db.update_project_setting(project_id, "thumbnail_url", web_path)
                 print(f"✅ [Auto-Pilot] 썸네일 생성 완료: {web_path}")
             
             try: os.remove(bg_path)
@@ -747,8 +838,9 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
         if not images:
             # Fallback to image prompts
             for img in images_data:
-                if not img.get("image_url"): continue
-                fpath = os.path.join(config.OUTPUT_DIR, img["image_url"].split("/")[-1])
+                best_url = img.get("video_url") or img.get("image_url")
+                if not best_url: continue
+                fpath = os.path.join(config.OUTPUT_DIR, best_url.split("/")[-1])
                 if os.path.exists(fpath): images.append(fpath)
                 
         audio_path = tts_data["audio_path"]
@@ -844,7 +936,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             # 2. Thumbnail Upload
             video_id = response.get("id")
             settings = db.get_project_settings(project_id)
-            thumb_url = settings.get("thumbnail_path")
+            thumb_url = settings.get("thumbnail_url")
             
             if video_id and thumb_url:
                 # /output/filename.jpg -> LOCAL_PATH/filename.jpg

@@ -81,3 +81,6 @@ Timestamp: 2026-02-06 19:33:07.232546, Pct: 5.0, CalcSize: 102, VideoH: 1080, Se
 Timestamp: 2026-02-06 19:37:28.133130, Pct: 5.0, CalcSize: 102, VideoH: 1080, Settings: {'font': 'NetmarbleB', 'font_color': '#fbbf24', 'style_name': 'Custom', 'font_size': 5.0, 'stroke_color': '#000000', 'stroke_width': 0.0, 'subtitle_stroke_enabled': 0, 'position_y': '', 'bg_enabled': 1, 'line_spacing': 0.1, 'bg_color': '#000000', 'bg_opacity': 0.5}
 Timestamp: 2026-02-06 19:56:37.422060, Pct: 5.0, CalcSize: 102, VideoH: 1080, Settings: {'font': 'NetmarbleB', 'font_color': '#fbbf24', 'style_name': 'Custom', 'font_size': 5.0, 'stroke_color': '#000000', 'stroke_width': 0.0, 'subtitle_stroke_enabled': 0, 'position_y': '', 'bg_enabled': 1, 'line_spacing': 0.1, 'bg_color': '#000000', 'bg_opacity': 0.5}
 Timestamp: 2026-02-06 22:38:58.949571, Pct: 5.0, CalcSize: 102, VideoH: 1080, Settings: {}
+Timestamp: 2026-02-08 12:58:14.785370, Pct: 5.0, CalcSize: 102, VideoH: 1080, Settings: {}
+Timestamp: 2026-02-08 13:00:38.579487, Pct: 5.0, CalcSize: 102, VideoH: 1080, Settings: {}
+Timestamp: 2026-02-08 13:09:15.593364, Pct: 5.0, CalcSize: 102, VideoH: 1080, Settings: {}

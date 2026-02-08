@@ -176,10 +176,19 @@ JSON만 반환하세요."""
 [대본]
 {script}
 
+[비주얼 스타일 및 배격 지침 - 최우선 순위]
+현재 영상의 프로젝트 스타일은 **"{visual_style}"** 입니다. 
+이 스타일은 캐릭터의 외형뿐만 아니라 선의 굵기, 색상 표현 방식, 질감 등 모든 시각적 요소에 적용되어야 합니다.
+
+[STRICT STYLE RULE]
+- 선택된 스타일이 실사(Photorealistic)가 아닌 경우(예: Cartoon, Anime, Sketch 등), 'realistic', 'photorealistic', 'hyper-detailed', '8k', 'cinematic lighting', 'depth of field'와 같은 키워드를 **절대** 사용하지 마세요.
+- 대신 해당 스타일에 맞는 매체(Medium) 키워드를 사용하세요 (예: 'hand-drawn line art', 'flat colors', 'brush strokes', 'ink doodle').
+- 캐릭터의 외형 묘사는 반드시 이 "{visual_style}" 세계관 안에서 자연스럽게 보여야 합니다.
+
 **분석 지침:**
 1. 대본에 언급되거나 암시된 모든 등장인물을 식별하세요.
 2. 각 캐릭터의 역할(주인공/조연/배경인물)을 파악하세요.
-3. 대본의 맥락에서 유추할 수 있는 외형적 특징을 상세히 묘사하세요.
+3. 대본의 맥락 및 지정된 스타일에 유추할 수 있는 외형적 특징을 상세히 묘사하세요.
 4. 이미지 생성 AI가 이해할 수 있는 구체적인 영어 프롬프트를 작성하세요.
 
 **외형 묘사 포함 요소:**
@@ -197,12 +206,14 @@ JSON만 반환하세요."""
             "name": "캐릭터 이름 또는 역할",
             "role": "주인공/조연/배경인물",
             "description_ko": "외형 묘사 (한글, 2-3문장)",
-            "prompt_en": "Detailed English prompt for image generation, including gender, age, facial features, hairstyle, clothing, expression, atmosphere. Use comma-separated descriptors suitable for AI image generation."
+            "prompt_en": "Detailed English prompt for image generation. CRITICAL: Focus ONLY on permanent physical identity (gender, age, hair, skin, clothing). DO NOT include background, environment, or specific poses (like 'pointing' or 'shouting'). The character should be described in a neutral portrait way so that they can be placed in various scenes later. Strict NO background description."
         }}
     ]
 }}
 
 - 최대 5명의 주요 캐릭터만 추출하세요.
+- **실명 및 브랜드 사용 금지 (CRITICAL)**: prompt_en에는 실존 유명인, 가수, 특정 그룹명 등을 절대 넣지 말고 일반적인 외형 묘사(예: 'a Japanese J-pop duo')로 대체하세요. 이는 AI 보안 필터 차단을 피하기 위함입니다.
+- **배경 묘사 금지**: prompt_en에는 'in a room', 'outdoor', 'background' 등의 환경 묘사를 절대 포함하지 마세요. 캐릭터 자체의 외형만 묘사하세요.
 - prompt_en은 영어로, 이미지 생성 AI에 바로 사용할 수 있는 형식으로 작성하세요.
 - JSON만 반환하세요."""
 
@@ -221,6 +232,7 @@ JSON만 반환하세요."""
 {script}
 
 {style_instruction}
+{character_instruction}
 {limit_instruction}
 
 다음 JSON 형식으로 출력해주세요:
@@ -241,8 +253,8 @@ JSON만 반환하세요."""
 }}
 
 - estimated_seconds: 해당 장면의 scene_text를 읽는 데 걸리는 예상 시간 (초)
-- 이미지는 16:9 비율(가로형)에 적합해야 합니다.
-- 텍스트가 없는 이미지를 묘사해주세요.
+- **STRICT VISUAL STYLE**: 모든 prompt_en은 반드시 "{style_prefix}"로 시작해야 하며, 배경(Background), 인물(Characters), 소품(Props) 모두가 이 스타일에 완벽하게 부합해야 합니다. 배경만 실사로 나오지 않도록 주의하세요.
+- **NO TEXT ALLOWED**: 이미지 안에 어떠한 텍스트도 포함되지 않도록 묘사하세요.
 - JSON만 반환하세요.
 """
 
@@ -294,14 +306,12 @@ JSON만 반환하세요."""
    - wimpy: 유머러스, 일상적, 일기 형식 ("나의 처절한 실패기", "절대 하면 안되는 일")
 
 [출력 형식]
-JSON 형식으로 5개의 후보 문구를 생성하세요:
+JSON 형식으로 3개의 후보 문구를 생성하세요:
 {{
     "texts": [
         "후보 문구 1 (가장 강력한 후킹)",
-        "후보 문구 2 (감정 유발)",
-        "후보 문구 3 (질문형)",
-        "후보 문구 4 (숫자/리스트형)",
-        "후보 문구 5 (대비/반전형)"
+        "후보 문구 2 (감정 유발 또는 질문형)",
+        "후보 문구 3 (숫자 또는 대비형)"
     ],
     "reasoning": "선택 이유 (1-2문장)"
 }}

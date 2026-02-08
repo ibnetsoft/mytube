@@ -34,7 +34,7 @@ class VideoService:
         이미지 슬라이드쇼 영상 생성 (시네마틱 프레임 적용)
         """
         try:
-            # 2.x Styles (Top-level namespace changed in 2.0+)
+            # MoviePy 2.x (Modern)
             from moviepy.video.VideoClip import ImageClip, VideoClip, ColorClip, TextClip
             from moviepy.video.io.VideoFileClip import VideoFileClip
             from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip, concatenate_videoclips
@@ -49,7 +49,7 @@ class VideoService:
             MOVIEPY_V2 = True
             
         except ImportError:
-            # Fallback to 1.x Styles (moviepy.editor)
+            # MoviePy 1.x (Legacy)
             try:
                 from moviepy.editor import (
                     ImageClip, VideoClip, ColorClip, TextClip,
@@ -59,31 +59,50 @@ class VideoService:
                 from moviepy.audio.AudioClip import AudioClip
                 import moviepy.video.fx.all as vfx_all
                 MOVIEPY_V2 = False
-                
-                # Monkey-patch 1.x clips to support 2.x 'with_' method names
-                def with_duration(self, t): return self.set_duration(t)
-                def with_position(self, pos): return self.set_position(pos)
-                def with_start(self, t): return self.set_start(t)
-                def with_end(self, t): return self.set_end(t)
-                def with_opacity(self, op): return self.set_opacity(op)
-                def with_fps(self, fps): return self.set_fps(fps)
-                def with_audio(self, audio): return self.set_audio(audio)
-                def with_subclip(self, s=0, e=None): return self.subclip(s, e)
-                
-                for cls in [VideoClip, AudioClip, ImageClip, ColorClip, TextClip, VideoFileClip]:
-                    cls.with_duration = with_duration
-                    cls.with_position = with_position
-                    cls.with_start = with_start
-                    cls.with_end = with_end
-                    cls.with_opacity = with_opacity
-                    cls.with_fps = with_fps
-                    cls.with_audio = with_audio
-                    cls.with_subclip = with_subclip
-
-                    
             except ImportError as e:
                 print(f"CRITICAL: MoviePy Import Failed completely: {e}")
                 raise ImportError(f"MoviePy 또는 Requests가 설치되지 않았습니다. (Error: {e})")
+
+        # [PATCH] Uniform method names for v1 and v2 compatibility
+        from moviepy.video.VideoClip import VideoClip
+        from moviepy.audio.AudioClip import AudioClip
+        
+        # Define patches as independent functions to avoid recursion
+        def _patch_with_duration(clip, t):
+            if hasattr(clip, 'set_duration'): return clip.set_duration(t)
+            return clip
+        def _patch_with_position(clip, pos):
+            if hasattr(clip, 'set_position'): return clip.set_position(pos)
+            return clip
+        def _patch_with_start(clip, t):
+            if hasattr(clip, 'set_start'): return clip.set_start(t)
+            return clip
+        def _patch_with_end(clip, t):
+            if hasattr(clip, 'set_end'): return clip.set_end(t)
+            return clip
+        def _patch_with_opacity(clip, op):
+            if hasattr(clip, 'set_opacity'): return clip.set_opacity(op)
+            return clip
+        def _patch_with_fps(clip, fps):
+            if hasattr(clip, 'set_fps'): return clip.set_fps(fps)
+            return clip
+        def _patch_with_audio(clip, audio):
+            if hasattr(clip, 'set_audio'): return clip.set_audio(audio)
+            return clip
+        def _patch_with_subclip(clip, s=0, e=None):
+            if hasattr(clip, 'subclipped'): return clip.subclipped(s, e)
+            if hasattr(clip, 'subclip'): return clip.subclip(s, e)
+            return clip
+
+        for cls in [VideoClip, AudioClip, ImageClip, ColorClip, TextClip, VideoFileClip, CompositeVideoClip]:
+            if not hasattr(cls, 'with_duration'): cls.with_duration = lambda self, t: _patch_with_duration(self, t)
+            if not hasattr(cls, 'with_position'): cls.with_position = lambda self, pos: _patch_with_position(self, pos)
+            if not hasattr(cls, 'with_start'): cls.with_start = lambda self, t: _patch_with_start(self, t)
+            if not hasattr(cls, 'with_end'): cls.with_end = lambda self, t: _patch_with_end(self, t)
+            if not hasattr(cls, 'with_opacity'): cls.with_opacity = lambda self, op: _patch_with_opacity(self, op)
+            if not hasattr(cls, 'with_fps'): cls.with_fps = lambda self, fps: _patch_with_fps(self, fps)
+            if not hasattr(cls, 'with_audio'): cls.with_audio = lambda self, audio: _patch_with_audio(self, audio)
+            if not hasattr(cls, 'with_subclip'): cls.with_subclip = lambda self, s=0, e=None: _patch_with_subclip(self, s, e)
 
         # Compatibility Mocking for VFX
         class MockVFX:

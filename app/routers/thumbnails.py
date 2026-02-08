@@ -54,16 +54,27 @@ async def save_thumbnails(project_id: int, req: ThumbnailsSave):
         
         # Save full settings (New)
         if req.full_settings:
-            # We can store this in a JSON column or a separate table.
-            # For now, let's use a specific key in project_settings or a new table.
-            # Since user wants "Save Settings" to be robust, let's update project_settings
-            # with a specific key 'thumbnail_full_state'
             import json
-            db.update_project_setting(project_id, 'thumbnail_full_state', json.dumps(req.full_settings))
+            db.update_project_setting(project_id, 'thumbnail_full_state', json.dumps(req.full_settings, ensure_ascii=False))
             
-            # Also update discrete fields for easier access if needed
-            if req.full_settings.get('style'):
-                db.update_project_setting(project_id, 'thumbnail_style', req.full_settings['style'])
+            # 스타일 업데이트
+            style = req.full_settings.get('style')
+            if style:
+                db.update_project_setting(project_id, 'thumbnail_style', style)
+
+            # 텍스트 레이어에서 대표 폰트/색상 정보 추출 및 저장
+            text_layers = req.full_settings.get('textLayers', [])
+            if text_layers and len(text_layers) > 0:
+                main_layer = text_layers[0] # 첫 번째 레이어를 기준으로 저장
+                
+                # 개별 설정 동기화
+                db.update_project_setting(project_id, 'thumbnail_font', main_layer.get('font_family', 'Recipekorea'))
+                db.update_project_setting(project_id, 'thumbnail_font_size', main_layer.get('font_size', 75))
+                db.update_project_setting(project_id, 'thumbnail_color', main_layer.get('color', '#FFFFFF'))
+                
+                # 메인 텍스트도 업데이트 (있는 경우)
+                if main_layer.get('text'):
+                    db.update_project_setting(project_id, 'thumbnail_text', main_layer['text'])
 
         return {"status": "ok"}
     except Exception as e:

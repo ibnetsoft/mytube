@@ -68,8 +68,9 @@
         </div>
         <div class="md:col-span-2">
             <div class="flex items-center justify-between mb-3">
-                <label class="block text-sm font-medium text-gray-700 dark:text-white">{{ t('label_select_style')
-                    }}</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-white">{{ t('label_select_style') }}
+                    <span class="text-[10px] font-normal text-blue-500 ml-1">(* 전체 이미지 스타일 설정을 따릅니다)</span>
+                </label>
                 <button onclick="saveThumbnailStyle()" id="saveStyleBtn"
                     class="px-3 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded shadow transition flex items-center gap-1">
                     <span>💾</span>
@@ -85,20 +86,14 @@
     <!-- 색상 톤, 비율 설정 제거됨 -->
 
 
-    <!-- 버튼 그리드 (Compact) -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:col-span-3">
-        <button onclick="generateIdeas()" id="ideaBtn"
-            class="btn-primary py-3 text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2">
-            <span class="text-lg">💡</span>
-            <span>{{ t('btn_gen_ideas') }}</span>
-        </button>
-
-        <button onclick="generateHookTexts()" id="hookTextBtn"
-            class="btn-secondary py-3 text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2">
-            <span class="text-lg">🤖</span>
+    <!-- 버튼 그리드 (Unified) -->
+    <div class="grid grid-cols-1 gap-3 md:col-span-3">
+        <button onclick="generateUnifiedIdea()" id="unifiedIdeaBtn"
+            class="btn-primary py-4 text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2">
+            <span class="text-lg">✨</span>
             <div class="flex flex-col items-center">
-                <span>{{ t('btn_gen_hook_texts') }}</span>
-                <span class="text-[9px] opacity-75">{{ t('btn_gen_hook_helper') }}</span>
+                <span>{{ t('btn_gen_ideas_unified') or '💡 아이디어 및 후킹 문구 생성' }}</span>
+                <span class="text-[10px] opacity-80">대본을 분석하여 최적의 썸네일 기획과 문구를 제안합니다</span>
             </div>
         </button>
     </div>
@@ -121,7 +116,7 @@
 </div>
 
 <!-- 3단계: 텍스트 추가 -->
-<div id="textSection" class="card mb-6 hidden">
+<div id="textSection" class="card mb-6">
     <h3 class="font-bold text-gray-800 dark:text-white mb-4">{{ t('thumb_stage_3') }}</h3>
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -290,6 +285,8 @@
         const projectId = getCurrentProject();
         initCanvasEvents(); // 캔버스 이벤트 초기화
         await loadThumbnailStyles(); // [NEW]
+        renderLayers(); // 기본 레이어 렌더링
+        drawPreview(); // 초기 캔버스 그리기
 
         if (projectId) {
             try {
@@ -374,6 +371,18 @@
                 } else if (settings?.app_mode === 'shorts') {
                     setAspectRatio('9:16');
                 }
+
+                // [NEW] Apply Saved Font Preferences to Default Layer
+                if (settings?.thumbnail_font || settings?.thumbnail_font_size || settings?.thumbnail_color) {
+                    if (textLayers && textLayers[0]) {
+                        if (settings.thumbnail_font) textLayers[0].font_family = settings.thumbnail_font;
+                        if (settings.thumbnail_font_size) textLayers[0].font_size = parseInt(settings.thumbnail_font_size);
+                        if (settings.thumbnail_color) textLayers[0].color = settings.thumbnail_color;
+                        renderLayers();
+                        drawPreview();
+                        console.log('Applied saved font preferences to default layer');
+                    }
+                }
             } catch (e) {
                 console.log('프로젝트 데이터 로드 실패', e);
             }
@@ -384,6 +393,7 @@
 
 
     // [NEW] Dynamically load styles
+    let thumbnailStylesPresets = {}; // [NEW] Global storage for presets
     async function loadThumbnailStyles() {
         const grid = document.getElementById('thumbnailStyleGrid');
         if (!grid) return;
@@ -391,17 +401,15 @@
         try {
             const res = await fetch('/api/settings/thumbnail-style-presets');
             const presets = await res.json();
+            thumbnailStylesPresets = presets; // [NEW] Store globally
 
             const displayNames = {
                 'face': '얼굴 강조형',
                 'text': '텍스트 중심형',
-                'contrast': '비포/애프터형',
-                'mystery': '미스터리형',
-                'minimal': '미니멀형',
-                'dramatic': '드라마틱형',
-                'ghibli': '지브리 감성',
-                'wimpy': '윔피키드 스타일',
-                '시니어사연2': '시니어사연2'
+                'contrast': '반분할(좌우대비)',
+                'mystery': '미스터리/실루엣',
+                'dynamic': '다이내믹(광각)',
+                'japanese_viral': '일본 바이럴형'
             };
 
             const currentStyle = document.getElementById('thumbnailStyle').value;
@@ -440,10 +448,18 @@
         btn.innerHTML = '<span>🔄</span><span>저장중...</span>';
 
         try {
-            // Save to project settings
-            await API.project.saveSettings(projectId, { thumbnail_style: styleId });
-            Utils.showToast(`썸네일 스타일이 저장되었습니다: ${styleId}`, "success");
-            console.log('Thumbnail style saved:', styleId);
+            // [MODIFIED] Save Style + Font Preferences
+            const mainLayer = textLayers[0] || {};
+            const payload = {
+                thumbnail_style: styleId,
+                thumbnail_font: mainLayer.font_family,
+                thumbnail_font_size: mainLayer.font_size,
+                thumbnail_color: mainLayer.color
+            };
+
+            await API.project.saveSettings(projectId, payload);
+            Utils.showToast(`스타일 및 폰트 설정이 저장되었습니다.`, "success");
+            console.log('Thumbnail settings saved:', payload);
         } catch (e) {
             console.error('Failed to save thumbnail style:', e);
             Utils.showToast("저장 실패: " + e.message, "error");
@@ -454,7 +470,7 @@
     }
 
     // 스타일 선택 함수 (UI selection only, no auto-save)
-    function selectThumbnailStyle(styleId) {
+    function selectThumbnailStyle(styleId, applyDefaults = true) {
         document.getElementById('thumbnailStyle').value = styleId;
 
         // UI 업데이트
@@ -466,7 +482,15 @@
             }
         });
 
-        console.log('Thumbnail style selected:', styleId);
+        if (!applyDefaults) {
+            console.log('Skipping default style layout application (loading existing settings)');
+            // Just update UI active state
+            document.querySelectorAll('.style-card-thumb').forEach(card => {
+                if (card.dataset.style === styleId) card.classList.add('active');
+                else card.classList.remove('active');
+            });
+            return;
+        }
 
         // 스타일에 따른 기본 텍스트 설정 자동 최적화
         if (styleId === 'japanese_viral') {
@@ -540,15 +564,16 @@
     }
 
     // 1. 아이디어 생성
-    async function generateIdeas() {
+    async function generateIdeas(buttonId = 'ideaBtn') {
         const title = document.getElementById('videoTitle').value.trim() || '영상';
         const style = document.getElementById('thumbnailStyle').value;
 
+        // [NEW] Get Style Instruction from Presets
+        const stylePreset = thumbnailStylesPresets[style];
+        const styleInstruction = (typeof stylePreset === 'object') ? stylePreset.prompt_value : (stylePreset || "");
 
-        // targetLang은 전역 변수 사용 (DOMContentLoaded에서 설정됨)
-
-        const btn = document.getElementById('ideaBtn');
-        Utils.setLoading(btn, true, '생성 중...');
+        const btn = document.getElementById(buttonId);
+        if (btn) Utils.setLoading(btn, true, '생성 중...');
 
         const langInstruction = window.targetLang === 'ja' ? '썸네일 텍스트 후보(texts)는 반드시 "일본어(Japanese)"로 작성하세요.' :
             window.targetLang === 'en' ? '썸네일 텍스트 후보(texts)는 반드시 "영어(English)"로 작성하세요.' :
@@ -560,7 +585,8 @@
 ${title}
 
 [스타일]
-${style}
+- 스타일 이름: ${style}
+- 스타일 가이드: ${styleInstruction}
 ${style === 'japanese_viral' ? `
 **SPECIAL STYLE INSTRUCTION (Japanese Viral):**
 - Layout: Split screen or Text Overlay. Left 60% Text, Right 40% Image.
@@ -582,10 +608,10 @@ JSON 형식으로 반환:
             "prompt_en": "Detailed English prompt for Imagen 4. DO NOT include names of real people; use generic descriptions like 'middle-aged man', 'female doctor', etc. Example: A dramatic cinematic scene of a middle-aged male doctor in a dark room, expressive lighting, professional photography, 8k quality"
         }
     ],
-    "texts": ["썸네일 텍스트 후보 1 (3-5단어)", "후보 2", "후보 3", "후보 4", "후보 5"]
+    "texts": ["썸네일 텍스트 후보 1 (3-5단어)", "후보 2", "후보 3"]
 }
 
-ideas는 3개 생성하세요. prompt_en은 Imagen 4에서 최상의 결과가 나오도록 아주 상세하게 영어로 작성하세요. 실존 인물의 이름(예: 연예인, 정치인, 의사명 등)은 절대로 넣지 마세요. 대신 그 사람의 특징이나 직업 등으로 묘사하세요. JSON만 반환하세요.`;
+ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. prompt_en은 Imagen 4에서 최상의 결과가 나오도록 아주 상세하게 영어로 작성하세요. 실존 인물의 이름(예: 연예인, 정치인, 의사명 등)은 절대로 넣지 마세요. 대신 그 사람의 특징이나 직업 등으로 묘사하세요. JSON만 반환하세요.`;
 
         try {
             const result = await API.gemini.generate(prompt, { temperature: 0.8 });
@@ -601,7 +627,11 @@ ideas는 3개 생성하세요. prompt_en은 Imagen 4에서 최상의 결과가 �
                         thumbnailData = JSON.parse(jsonMatch[0]);
                         console.log('Parsed thumbnail data:', JSON.stringify(thumbnailData, null, 2));
                         renderIdeas();
-                        document.getElementById('ideasSection').classList.remove('hidden');
+                        if (thumbnailData.ideas && thumbnailData.ideas.length > 0) {
+                            selectIdea(0);
+                        }
+                        // [REMOVED] 사용자 요청으로 아이디어 섹션 숨김 유지
+                        // document.getElementById('ideasSection').classList.remove('hidden');
                         saveStateToLocal(); // 저장
                     } catch (parseError) {
                         console.error('JSON parse error:', parseError);
@@ -629,6 +659,35 @@ ideas는 3개 생성하세요. prompt_en은 Imagen 4에서 최상의 결과가 �
         }
     }
 
+    // [NEW] Unified Idea & Hook Generation
+    async function generateUnifiedIdea() {
+        const projectId = getCurrentProject();
+        if (!projectId) {
+            Utils.showToast('프로젝트를 먼저 선택하세요', 'warning');
+            return;
+        }
+
+        const btn = document.getElementById('unifiedIdeaBtn');
+        Utils.setLoading(btn, true, 'AI 분석 및 생성 중...');
+
+        try {
+            // 1. Generate Context/Background
+            await generateIdeas('unifiedIdeaBtn');
+
+            // 2. Generate Hooking Texts
+            if (typeof generateHookTexts === 'function') {
+                await generateHookTexts('unifiedIdeaBtn');
+            }
+
+            Utils.showToast('아이디어와 후킹 문구가 생성되었습니다!', 'success');
+        } catch (e) {
+            console.error('Unified generation error:', e);
+            Utils.showToast('생성 중 오류가 발생했습니다.', 'error');
+        } finally {
+            Utils.setLoading(btn, false);
+        }
+    }
+
     // 아이디어 렌더링
     function renderIdeas() {
         if (!thumbnailData || !thumbnailData.ideas) return;
@@ -641,7 +700,7 @@ ideas는 3개 생성하세요. prompt_en은 Imagen 4에서 최상의 결과가 �
                 </div>
                 <p class="text-gray-600 dark:text-gray-400 mb-2">${idea.concept}</p>
                 <p class="text-sm text-gray-500">레이아웃: ${idea.layout}</p>
-                <details class="mt-2" open>
+                <details class="mt-2">
                     <summary class="text-xs text-blue-500 cursor-pointer">프롬프트 수정</summary>
                     <textarea 
                         class="w-full h-32 bg-gray-900 text-green-400 p-2 rounded text-xs mt-2 focus:ring-1 focus:ring-blue-500 outline-none resize-y"
@@ -674,116 +733,83 @@ ideas는 3개 생성하세요. prompt_en은 Imagen 4에서 최상의 결과가 �
         // UI 업데이트 (선택됨 표시)
         renderIdeas();
 
-        // 텍스트 후보 자동 배정 (레이어 동적 생성)
+        // [MODIFIED] 텍스트 후보 처리: 3개의 후보를 각각 다른 레이어로 배치
         if (thumbnailData.texts && thumbnailData.texts.length > 0) {
-            // 기존 레이어 초기화 (또는 사용자에게 물어봐야 하지만, 편의상 초기화)
-            textLayers = [];
+            const textsToApply = thumbnailData.texts.slice(0, 3); // 최대 3개
 
-            const currentStyle = document.getElementById('thumbnailStyle').value;
-            const style = currentStyle; // 'viral' 또는 다른 스타일
-            // const isJapaneseViral = currentStyle === 'japanese_viral'; // 이 변수는 더 이상 사용되지 않음
+            // 스타일별 최적 폰트/색상 설정
+            const currentStyle = document.getElementById('thumbnailStyle').value || 'face';
+            const styleConfigs = {
+                'face': { color: '#ffffff', stroke_color: '#000000', stroke_width: 8, font_family: 'Recipekorea' },
+                'text': { color: '#ffff00', stroke_color: '#000000', stroke_width: 10, font_family: 'GmarketSansBold' },
+                'contrast': { color: '#ffffff', stroke_color: '#ff0000', stroke_width: 8, font_family: 'GmarketSansBold' },
+                'mystery': { color: '#adff2f', stroke_color: '#000000', stroke_width: 6, font_family: 'GmarketSansMedium' },
+                'minimal': { color: '#000000', stroke_color: '#ffffff', stroke_width: 2, font_family: 'NanumGothic' },
+                'dramatic': { color: '#ff0000', stroke_color: '#000000', stroke_width: 10, font_family: 'Recipekorea' },
+                'japanese_viral': { color: '#ffffff', stroke_color: '#000000', stroke_width: 8, font_family: 'GmarketSansBold' },
+                'ghibli': { color: '#ffffff', stroke_color: '#4a4a4a', stroke_width: 4, font_family: 'NanumPen' },
+                'wimpy': { color: '#000000', stroke_color: 'transparent', stroke_width: 0, font_family: 'NanumPen' }
+            };
+            const config = styleConfigs[currentStyle] || styleConfigs['face'];
 
-            // [SMART LAYOUT] 텍스트 레이아웃 자동 계산
-            // 모든 텍스트 후보를 하나의 문자열로 합쳐서 줄바꿈으로 분리
-            const allText = thumbnailData.texts.join('\n');
-            const lines = allText.split('\n').filter(line => line.trim() !== ''); // 빈 줄 제거
-            const lineCount = lines.length;
-            let baseFontSize = 72;
+            textLayers = textsToApply.map((text, i) => {
+                let position = 'center';
+                if (i === 0) position = 'row2';
+                else if (i === 1) position = 'center';
+                else position = 'row4';
 
-            // 줄 수에 따른 기본 폰트 크기 및 배치 전략 설정
-            if (lineCount <= 1) baseFontSize = 90;
-            else if (lineCount === 2) baseFontSize = 85;
-            else if (lineCount === 3) baseFontSize = 75;
-            else baseFontSize = 65; // 4줄 이상은 작게
-
-            lines.forEach((line, i) => {
-                const newLayer = {
-                    text: line,
-                    position: 'center', // 기본값, 아래에서 덮어씀
+                return {
+                    text: text,
+                    position: position,
                     x_offset: 0,
                     y_offset: 0,
-                    font_family: 'malgun',
-                    font_size: baseFontSize,
-                    color: '#FFFFFF',
-                    stroke_color: '#000000',
-                    stroke_width: 5, // 외곽선 조금 더 잘 보이게
+                    font_family: config.font_family || 'Recipekorea',
+                    font_size: i === 1 ? 85 : 75,
+                    color: i === 1 ? '#FFFF00' : config.color, // 중앙은 항상 노랑 강조
+                    stroke_color: config.stroke_color,
+                    stroke_width: config.stroke_width,
                     bg_color: null
                 };
-
-                // [Smart Positioning]
-                if (style === 'viral') {
-                    // 바이럴 스타일: 색상 알록달록 + 배치 분산
-                    if (lineCount === 1) {
-                        newLayer.position = 'center';
-                        newLayer.color = '#FFFF00';
-                        newLayer.stroke_color = '#FF0000';
-                    } else if (lineCount === 2) {
-                        if (i === 0) { newLayer.position = 'row2'; newLayer.color = '#FFFFFF'; } // 상단
-                        if (i === 1) { newLayer.position = 'row4'; newLayer.color = '#FFFF00'; newLayer.stroke_color = '#FF0000'; } // 하단 강조
-                    } else if (lineCount === 3) {
-                        if (i === 0) { newLayer.position = 'row1'; newLayer.color = '#FFFFFF'; }
-                        if (i === 1) { newLayer.position = 'center'; newLayer.color = '#00FFFF'; }
-                        if (i === 2) { newLayer.position = 'bottom'; newLayer.color = '#FFFF00'; newLayer.stroke_color = '#FF0000'; }
-                    } else {
-                        // 4줄 이상
-                        if (i === 0) { newLayer.position = 'row1'; newLayer.color = '#FFFFFF'; }
-                        else if (i === 1) { newLayer.position = 'row2'; newLayer.color = '#00FFFF'; }
-                        else if (i === 2) { newLayer.position = 'row3'; newLayer.color = '#E000FF'; }
-                        else if (i === 3) {
-                            newLayer.position = 'row4';
-                            newLayer.color = '#FFFF00';
-                            newLayer.stroke_color = '#FF0000';
-                        } else {
-                            newLayer.position = 'row5'; // 5번째 줄
-                        }
-                    }
-                } else {
-                    // 일반 스타일: 깔끔하게 위에서 아래로
-                    if (lineCount === 1) newLayer.position = 'center';
-                    else if (lineCount === 2) {
-                        if (i === 0) newLayer.position = 'row2';
-                        if (i === 1) newLayer.position = 'row4';
-                    }
-                    else if (lineCount === 3) {
-                        if (i === 0) newLayer.position = 'row1';
-                        if (i === 1) newLayer.position = 'center';
-                        if (i === 2) newLayer.position = 'bottom';
-                    }
-                    else {
-                        if (i === 0) newLayer.position = 'row1';
-                        else if (i === 1) newLayer.position = 'row2';
-                        else if (i === 2) newLayer.position = 'row3';
-                        else if (i === 3) newLayer.position = 'row4';
-                        else newLayer.position = 'row5';
-                    }
-                }
-
-                textLayers.push(newLayer);
             });
+
+            // 상단 'AI 추천 후킹 문구' 섹션 연동
+            const hookSection = document.getElementById('hookTextsSection');
+            const hookList = document.getElementById('hookTextsList');
+            if (hookSection && hookList) {
+                // [REMOVED] 사용자 요청으로 후킹 문구 버튼 섹션 숨김 유지
+                // hookSection.classList.remove('hidden');
+                hookList.innerHTML = thumbnailData.texts.map((text, i) => `
+                    <button onclick="applyHookText('${text.replace(/'/g, "\\'")}', ${i})" 
+                        class="px-3 py-2 bg-white dark:bg-gray-700 border-2 border-blue-300 dark:border-blue-600 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-800 transition text-sm font-bold text-gray-800 dark:text-white shadow-sm hover:shadow-md">
+                        ${i === 0 ? '⭐ ' : ''}${text}
+                    </button>
+                `).join('');
+            }
         }
 
         // 텍스트 섹션 표시
         document.getElementById('textSection').classList.remove('hidden');
 
-        // 텍스트 후보 표시
+        // 하단 텍스트 후보 섹션 비움
         const textContainer = document.getElementById('textCandidates');
-        textContainer.innerHTML = thumbnailData.texts.map(text => `
-            <button onclick="addTextToActiveLayer('${text.replace(/'/g, "\\'")}')" class="px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 rounded-lg hover:bg-yellow-200 transition text-sm">
-                ${text}
-            </button>
-        `).join('');
+        if (textContainer) textContainer.innerHTML = '';
 
         // 미리보기 플레이스홀더 숨기기
         const placeholder = document.getElementById('previewPlaceholder');
         if (placeholder) placeholder.classList.add('hidden');
 
         renderLayers();
-        Utils.showToast(`아이디어 ${index + 1} 선택됨`, 'success');
+        drawPreview();
+
+        // [NEW] 아이디어 선택 시 자동으로 배경 생성까지 시작
+        const currentStyleName = document.getElementById('thumbnailStyle').value;
+        generateBackground(currentStyleName);
+
+        Utils.showToast(`아이디어 적용 및 배경 생성 시작`, 'success');
 
         // 스크롤
-        // 스크롤
         document.getElementById('textSection').scrollIntoView({ behavior: 'smooth' });
-        saveStateToLocal(); // 저장
+        saveStateToLocal();
     }
 
     // 레이어 추가
@@ -825,9 +851,12 @@ ideas는 3개 생성하세요. prompt_en은 Imagen 4에서 최상의 결과가 �
                     <div class="flex-1 min-w-[100px]">
                         <label class="block text-[9px] text-gray-500 mb-1">폰트</label>
                         <select onchange="updateLayer(${i}, 'font_family', this.value)" class="input-field py-1 text-xs w-full h-8">
+                            <option value="Recipekorea" ${layer.font_family === 'Recipekorea' ? 'selected' : ''}>레시피코리아</option>
+                            <option value="GmarketSansBold" ${layer.font_family === 'GmarketSansBold' ? 'selected' : ''}>Gmarket Bold</option>
                             <option value="malgun" ${layer.font_family === 'malgun' ? 'selected' : ''}>맑은고딕</option>
-                            <option value="gmarket" ${layer.font_family === 'gmarket' ? 'selected' : ''}>Gmarket</option>
-                            <option value="cookie" ${layer.font_family === 'cookie' ? 'selected' : ''}>쿠키런</option>
+                            <option value="gungsuh" ${layer.font_family === 'gungsuh' ? 'selected' : ''}>궁서체</option>
+                            <option value="NanumGothic" ${layer.font_family === 'NanumGothic' ? 'selected' : ''}>나눔고딕</option>
+                            <option value="NanumPen" ${layer.font_family === 'NanumPen' ? 'selected' : ''}>나눔손글씨</option>
                         </select>
                     </div>
 
@@ -1204,17 +1233,21 @@ ideas는 3개 생성하세요. prompt_en은 Imagen 4에서 최상의 결과가 �
     let bgImage = null; // Global background image object
 
     // 배경 생성 함수
-    async function generateBackground() {
+    async function generateBackground(style = null) {
         if (!selectedPrompt) {
             Utils.showToast('먼저 아이디어를 선택하세요', 'warning');
             return;
         }
 
         const btn = document.getElementById('bgBtn');
-        Utils.setLoading(btn, true, '배경 생성 중... (40초 소요)');
+        Utils.setLoading(btn, true, '배경 생성 중...');
+
+        // 스타일 파라미터가 없으면 현재 선택된 스타일 사용
+        const currentStyle = style || document.getElementById('thumbnailStyle').value;
 
         try {
-            const result = await API.image.generateThumbnailBackground(selectedPrompt, currentAspectRatio); // Correct API Call
+            const projectId = getCurrentProject();
+            const result = await API.image.generateThumbnailBackground(selectedPrompt, currentAspectRatio, currentStyle, projectId);
 
 
             if (result.status === 'ok') {
@@ -1393,9 +1426,18 @@ ideas는 3개 생성하세요. prompt_en은 Imagen 4에서 최상의 결과가 �
         // 기본 폰트 설정 (브라우저 캔버스용)
         // main.py와 최대한 비슷하게 맞춤
         const getFont = (family, size) => {
-            let fontName = 'Malgun Gothic';
-            if (family === 'gmarket') fontName = 'Gmarket Sans';
-            if (family === 'cookie') fontName = 'CookieRun';
+            const fontMap = {
+                'Recipekorea': 'Recipekorea',
+                'GmarketSansBold': 'Gmarket Sans Bold',
+                'GmarketSansMedium': 'Gmarket Sans Medium',
+                'malgun': 'Malgun Gothic',
+                'gungsuh': 'Gungsuh',
+                'NanumGothic': 'NanumGothic',
+                'NanumPen': 'Nanum Pen Script',
+                'gmarket': 'Gmarket Sans',
+                'cookie': 'CookieRun'
+            };
+            let fontName = fontMap[family] || family || 'Malgun Gothic';
             return `bold ${size}px "${fontName}", sans-serif`;
         };
 
@@ -1704,7 +1746,7 @@ ideas는 3개 생성하세요. prompt_en은 Imagen 4에서 최상의 결과가 �
 
             const result = await response.json();
             if (result.status === 'ok') {
-                Utils.showToast('모든 설정이 서버에 영구 저장되었습니다.', 'success');
+                Utils.showToast('스타일, 폰트, 색상 등 모든 설정이 서버에 영구 저장되었습니다.', 'success');
                 saveStateToLocal(); // 로컬 세션도 동기화
             } else {
                 throw new Error(result.error || '저장 실패');
@@ -1783,7 +1825,8 @@ ideas는 3개 생성하세요. prompt_en은 Imagen 4에서 최상의 결과가 �
             }
 
             if (state.title) document.getElementById('videoTitle').value = state.title;
-            if (state.style) selectThumbnailStyle(state.style);
+            // [MODIFIED] Do not apply defaults when restoring saved style
+            if (state.style) selectThumbnailStyle(state.style, false);
             // Aspect Ratio Restore
             // [FIX] Force Aspect Ratio based on Mode
             if (currentMode === 'shorts') {
@@ -1801,7 +1844,8 @@ ideas는 3개 생성하세요. prompt_en은 Imagen 4에서 최상의 결과가 �
                 selectedIdeaIndex = state.selectedIdeaIndex;
                 selectedPrompt = state.selectedPrompt;
                 renderIdeas();
-                document.getElementById('ideasSection').classList.remove('hidden');
+                // [REMOVED] 상태 복구 시에도 아이디어 섹션 숨김 유지
+                // document.getElementById('ideasSection').classList.remove('hidden');
             }
 
             if (state.textLayers) {

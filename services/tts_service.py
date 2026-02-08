@@ -203,6 +203,9 @@ class TTSService:
                     "alignment": alignment_data,
                     "duration": audio_duration
                 }
+            elif "voice_not_found" in response.text and voice_id != "4JJwo477JUAx3HV0T7n7":
+                print(f"⚠️ ElevenLabs voice '{voice_id}' not found. Falling back to default.")
+                return await self.generate_elevenlabs(text, "4JJwo477JUAx3HV0T7n7", filename, return_alignment)
             else:
                 raise Exception(f"ElevenLabs API 오류: {response.text}")
     

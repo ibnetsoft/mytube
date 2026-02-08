@@ -173,14 +173,14 @@ async def startup_event():
 
 # 스타일 매핑 
 STYLE_PROMPTS = {
-    "realistic": "A highly realistic photo, 8k resolution, highly detailed photography, standard view",
-    "anime": "Anime style illustration, vibrant colors, detailed background, Makoto Shinkai style",
+    "realistic": "A highly realistic photo, 8k resolution, highly detailed photography, lifelike textures, natural lighting, professional cinematography, high quality",
+    "anime": "Anime style illustration, vibrant colors, detailed background, Makoto Shinkai style, high quality",
     "cinematic": "Cinematic movie shot, dramatic lighting, shadow and light depth, highly detailed, 4k",
-    "minimal": "Minimalist flat vector illustration, simple shapes, clean lines, white background",
-    "3d": "3D render, Pixar style, soft studio lighting, octane render, 4k",
-    "webtoon": "Oriental fantasy webtoon style illustration of a character in traditional clothing lying on a bed in a dark room, dramatic lighting, detailed line art, manhwa aesthetics, high quality",
-    "ghibli": "Studio Ghibli style, cel shaded, vibrant colors, lush background, Hayao Miyazaki style, highly detailed",
-    "wimpy": "Diary of a Wimpy Kid style, simple black and white line drawing, hand-drawn sketch, minimalist stick figure illustration, white background, high quality"
+    "minimal": "Minimalist flat vector illustration, simple shapes, clean lines, white background, high quality",
+    "3d": "3D render, Pixar style, soft studio lighting, octane render, 4k, high quality",
+    "webtoon": "Modern K-webtoon manhwa style, high-quality digital illustration, sharp line art, vibrant colors, expressive character, modern manhwa aesthetic, professional digital art, no text, no speech bubbles",
+    "ghibli": "Studio Ghibli style, cel shaded, vibrant colors, lush background, Hayao Miyazaki style, highly detailed, masterfully painted",
+    "wimpy": "Diary of a Wimpy Kid book illustration style, strictly 2D black and white hand-drawn line art, simple doodle aesthetic, minimalist cartoon sketch on paper texture, strictly grayscale, NO color, NO realistic shading, NO 3D effects. ABSOLUTELY NO TEXT. Style is simple ink drawing on white paper."
 }
 
 class SearchRequest(BaseModel):
@@ -631,90 +631,100 @@ async def analyze_scenes(project_id: int):
 
 @app.post("/api/image/generate-prompts")
 async def generate_image_prompts_api(req: PromptsGenerateRequest):
-    """대본 기반 이미지 프롬프트 생성 (Only Prompts)"""
+    """대본 기반 이미지 프롬프트 생성 (Unified API)"""
     try:
-        # 1. Duration Estimation
+        # 1. Project Context & Duration Estimation
         duration = 60
+        style_key = req.style
+        characters = []
+
         if req.project_id:
+            # Get latest script info
             p_data = db.get_script(req.project_id)
             if p_data:
                 duration = p_data.get('estimated_duration', 60)
-        else:
-            # Estimate from word count (approx 3 words/sec implies 180 words/min? No, usually 150wpm -> 2.5 w/s)
-            # Simple estimation if not provided
+            
+            # Get project settings (to resolve style key if generic)
+            settings = db.get_project_settings(req.project_id)
+            if settings:
+                if not style_key or style_key == 'realistic' or style_key == 'default':
+                    style_key = settings.get('image_style', style_key)
+            
+            # Get existing characters for the project
+            characters = db.get_project_characters(req.project_id)
+        
+        if not duration:
             duration = len(req.script) // 5 # very rough char count est
 
-        # 2. Call Gemini
-        print(f"[Prompts] Generating for Project {req.project_id}, Style: {req.style}, Duration: {duration}s")
+        # 2. Style Prompt Resolution (Key -> Description)
+        db_presets = db.get_style_presets()
+        style_data = db_presets.get(style_key.lower())
+        
+        if style_data and isinstance(style_data, dict):
+            style_prompt = style_data.get('prompt_value', style_key)
+        else:
+            style_prompt = STYLE_PROMPTS.get(style_key.lower(), style_key)
+
+        # 3. Call Gemini via Unified Service
+        print(f"[Prompts] Generating for Project {req.project_id}, Resolved Style: {style_key}")
         
         # [SAFETY] Truncate script to prevent Token Limit Exceeded / Timeout
-        safe_script = req.script
-        if len(safe_script) > 15000:
-            print(f"[Prompts] Script too long ({len(safe_script)} chars). Truncating to 15000 chars.")
-            safe_script = safe_script[:15000] + "...(truncated)"
+        safe_script = req.script[:15000] if len(req.script) > 15000 else req.script
 
         prompts_list = await gemini_service.generate_image_prompts_from_script(
             safe_script, 
             duration, 
-            style_prompt=req.style
+            style_prompt=style_prompt,
+            characters=characters
         )
         
-        if prompts_list:
-            print(f"[DEBUG] Gemini Response Keys: {list(prompts_list[0].keys())}")
-            # Ensure fields exist for DB safety and persistence
-            for p in prompts_list:
-                # 1. Ensure scene_text exists
-                s_text = p.get('scene_text') or p.get('scene') or p.get('narrative') or ''
-                p['scene_text'] = s_text
-
-                # 2. Derive Title if missing
-                if not p.get('scene_title'):
-                    if s_text:
-                        # Use first 15 chars as title
-                        p['scene_title'] = s_text[:15] + "..." if len(s_text) > 15 else s_text
-                    else:
-                        p['scene_title'] = f"Scene {p.get('scene_number', '?')}"
-
-                # 3. Derive Start/End if missing
-                if not p.get('script_start'):
-                    # First 2 words or 10 chars
-                    p['script_start'] = " ".join(s_text.split()[:2]) if s_text else ""
-                
-                if not p.get('script_end'):
-                    # Last 2 words or 10 chars
-                    p['script_end'] = " ".join(s_text.split()[-2:]) if s_text else ""
-
-        
         if not prompts_list:
-             # Retry once if empty
-             print("[Prompts] Empty result, retrying...")
-             prompts_list = await gemini_service.generate_image_prompts_from_script(
-                req.script, 
+            # Retry once if empty
+            print("[Prompts] Empty result, retrying...")
+            prompts_list = await gemini_service.generate_image_prompts_from_script(
+                safe_script, 
                 duration, 
-                style_prompt=req.style
+                style_prompt=style_prompt,
+                characters=characters
             )
 
         if not prompts_list:
-             raise HTTPException(500, "프롬프트 생성 실패 (Gemini returned empty)")
+             raise HTTPException(500, "프롬프트 생성 실패 (AI 응답 오류)")
 
-        # 3. Handle Character Consistency (Global Prompt Injection)
-        # If character_reference is text (from UI), prepend it?
-        # Typically frontend sends 'globalPrompt' as 'style' or part of style.
-        # But req.character_reference is separate.
-        # Let's simple check if we need to post-process.
-        # Currently gemini_service handles style_prompt injection.
-        
-        # 4. Save to DB immediatelly if project_id is present
-        # This makes the "Prompt Gen" button robust against refresh even if frontend fails to valid save.
+        # 4. Post-processing for UI consistency
+        for p in prompts_list:
+            # Ensure mandatory fields
+            s_text = p.get('scene_text') or p.get('scene') or p.get('narrative') or ''
+            p['scene_text'] = s_text
+            
+            if not p.get('scene_title'):
+                p['scene_title'] = s_text[:15] + "..." if len(s_text) > 15 else f"Scene {p.get('scene_number', '?')}"
+            
+            # Ensure script bits exist
+            if not p.get('script_start'):
+                p['script_start'] = " ".join(s_text.split()[:2]) if s_text else ""
+            if not p.get('script_end'):
+                p['script_end'] = " ".join(s_text.split()[-2:]) if s_text else ""
+
+            # Default empty states for UI
+            if 'image_url' not in p: p['image_url'] = ""
+            if 'image_path' not in p: p['image_path'] = ""
+
+        # 5. [CRITICAL] DB에 실시간 저장 (UI에서 '적용' 버튼 누르기 전 미리 백업)
         if req.project_id:
-            db.save_image_prompts(req.project_id, prompts_list)
-            print(f"[Prompts] Saved {len(prompts_list)} prompts to DB for Project {req.project_id}")
+            try:
+                db.save_image_prompts(req.project_id, prompts_list)
+                print(f"[Main] Auto-saved {len(prompts_list)} image prompts for project {req.project_id}")
+            except Exception as e:
+                print(f"[DB] Auto-save image prompts failed: {e}")
 
-        return {"status": "ok", "prompts": prompts_list}
-
+        return {"prompts": prompts_list}
+        
     except Exception as e:
-        print(f"Generate Prompts Error: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        print(f"Scene analysis error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(500, f"분석 실패: {str(e)}")
 
 
 @app.post("/api/projects/{project_id}/image-prompts/auto")
@@ -1589,6 +1599,21 @@ async def gemini_generate(req: GeminiRequest):
         else:
             return {"status": "error", "error": result}
 
+@app.get("/api/projects/{project_id}/characters")
+async def get_project_characters_api(project_id: int):
+    """프로젝트 캐릭터 정보 조회"""
+    chars = db.get_project_characters(project_id)
+    return {"status": "ok", "characters": chars}
+
+@app.post("/api/projects/{project_id}/characters")
+async def save_project_characters_manual(project_id: int, characters: List[Dict] = Body(...)):
+    """수동으로 편집/추가한 캐릭터 정보 저장"""
+    try:
+        db.save_project_characters(project_id, characters)
+        return {"status": "ok", "message": f"{len(characters)}명의 캐릭터 정보가 저장되었습니다."}
+    except Exception as e:
+        raise HTTPException(500, f"캐릭터 저장 실패: {str(e)}")
+
 @app.get("/api/projects/{project_id}/script-structure")
 async def get_project_script_structure(project_id: int):
     """대본 구조 조회"""
@@ -2281,7 +2306,8 @@ class ThumbnailGenerateRequest(BaseModel):
 class ThumbnailBackgroundRequest(BaseModel):
     prompt: str
     aspect_ratio: Optional[str] = "16:9"  # [NEW] Aspect Ratio
-    thumbnail_style: Optional[str] = None # [NEW] Style Reference
+    thumbnail_style: Optional[str] = None # [NEW] Layout/Composition Reference
+    project_id: Optional[int] = None # [NEW] Project reference for Style Inheritance
 
 class ThumbnailGenerateRequest(BaseModel):
     prompt: str
@@ -2425,46 +2451,95 @@ async def generate_thumbnail_background(req: ThumbnailBackgroundRequest):
         # 1. Imagen 4로 배경 이미지 생성
         clean_prompt = req.prompt
         
-        # [NEW] Check for Style Sample Image and Analyze if exists
-        style_desc = ""
+        # [NEW] Style Inheritance architecture
+        # 1. Art Style (from Project Settings)
+        art_style_desc = ""
+        if req.project_id:
+            settings = db.get_project_settings(req.project_id)
+            if settings:
+                # Use image_style_prompt if available (this is the refined AI prompt)
+                art_style_desc = settings.get('image_style_prompt') 
+                if not art_style_desc and settings.get('image_style'):
+                    # Fallback to fetching preset by key
+                    presets = db.get_style_presets()
+                    style_key = settings.get('image_style')
+                    preset = presets.get(style_key)
+                    if preset:
+                        art_style_desc = preset.get('prompt_value')
+        
+        # 2. Layout/Composition Style (from Thumbnail Settings)
+        layout_desc = ""
         if req.thumbnail_style:
+            # 1. DB에서 스타일 설명 가져오기 (이제 레이아웃 중심)
+            presets = db.get_thumbnail_style_presets() # Returns Dict[str, Dict]
+            target_preset = presets.get(req.thumbnail_style)
+            if target_preset:
+                layout_desc = target_preset.get('prompt', '') # get_thumbnail_style_presets uses 'prompt' key
+                print(f"[{req.thumbnail_style}] Using Layout preset description: {layout_desc}")
+            
+            # 2. 이미지 파일 분석 (있다면 추가/덮어쓰기)
             sample_img_dir = "static/thumbnail_samples"
             if os.path.exists(sample_img_dir):
                 for f in os.listdir(sample_img_dir):
-                    if f.startswith(req.thumbnail_style + '.'): # Exact match prefix
+                    if f.startswith(req.thumbnail_style + '.'):
                         try:
                             with open(os.path.join(sample_img_dir, f), "rb") as img_f:
                                 sample_img_bytes = img_f.read()
                             
-                            # Analyze style using Gemini Vision
-                            print(f"[{req.thumbnail_style}] Analyzing sample image style for background generation...")
+                            print(f"[{req.thumbnail_style}] Analyzing sample image layout/style...")
                             analyze_prompt = "Describe the visual style, lighting, color palette, and composition of this image in 5 keywords for AI image generation. format: style1, style2, style3, ..."
-                            style_desc = await gemini_service.generate_text_from_image(analyze_prompt, sample_img_bytes)
-                            print(f"[{req.thumbnail_style}] Style keywords: {style_desc}")
+                            vision_desc = await gemini_service.generate_text_from_image(analyze_prompt, sample_img_bytes)
+                            layout_desc = f"{layout_desc}, {vision_desc}" if layout_desc else vision_desc
+                            print(f"[{req.thumbnail_style}] Composition keywords from image: {vision_desc}")
                             break
                         except Exception as e:
-                            print(f"Style analysis failed: {e}")
+                            print(f"Layout analysis failed: {e}")
                             pass
+        
+        final_style_components = []
+        if art_style_desc:
+            final_style_components.append(f"Visual Art Style: {art_style_desc}")
+        if layout_desc:
+            final_style_components.append(f"Composition & Layout: {layout_desc}")
+        
+        final_style_prefix = ". ".join(final_style_components) + ". " if final_style_components else ""
 
-        final_prompt_prefix = ""
-        if style_desc:
-            final_prompt_prefix = f"Style Reference Keywords: {style_desc}. "
-
-        # negative_constraints 강화 (CJK 포함)
+        # negative_constraints 강화
         negative_constraints = "text, words, letters, alphabet, typography, watermark, signature, speech bubble, logo, brand name, writing, caption, chinese characters, japanese kanji, korean hangul, hanzi"
         
-        # 프롬프트 앞뒤로 강력한 부정 명령 배치
-        final_prompt = f"ABSOLUTELY NO TEXT. NO CHINESE/JAPANESE/KOREAN CHARACTERS. {final_prompt_prefix}{clean_prompt}. Background image only. High quality, 8k, detailed, YouTube thumbnail background, empty background, no watermark. DO NOT INCLUDE: {negative_constraints}. INVISIBLE TEXT."
+        final_prompt = f"ABSOLUTELY NO TEXT. NO CHARACTERS. {final_style_prefix}{clean_prompt}. High quality, 8k, YouTube thumbnail background, empty background, no watermark. DO NOT INCLUDE: {negative_constraints}."
 
-        response = client.models.generate_images(
-            model="imagen-4.0-generate-001",
-            prompt=final_prompt,
-            config={
-                "number_of_images": 1,
-                "aspect_ratio": req.aspect_ratio, # [NEW] Dynamic AR
-                "safety_filter_level": "BLOCK_LOW_AND_ABOVE"
-            }
-        )
+        # [NEW] 모델 폴백 로직 (gemini_service.py와 동일하게)
+        models_to_try = [
+            "imagen-4.0-generate-001",
+            "imagen-4.0-fast-generate-001"
+        ]
+        
+        response = None
+        last_error = ""
+
+        # TRY MODELS
+        for model_name in models_to_try:
+            try:
+                print(f"🎨 [ThumbnailBG] Generating image with model: {model_name}")
+                response = client.models.generate_images(
+                    model=model_name,
+                    prompt=final_prompt,
+                    config={
+                        "number_of_images": 1,
+                        "aspect_ratio": req.aspect_ratio,
+                        "safety_filter_level": "BLOCK_LOW_AND_ABOVE"
+                    }
+                )
+                if response and response.generated_images:
+                    break # Success
+            except Exception as model_err:
+                print(f"⚠️ [ThumbnailBG] Model {model_name} failed: {model_err}")
+                last_error = str(model_err)
+                continue
+
+        if not response or not response.generated_images:
+            return {"status": "error", "error": f"배경 이미지 생성 실패. 마지막 오류: {last_error}"}
 
         if not response.generated_images:
             return {"status": "error", "error": "배경 이미지 생성 실패"}
@@ -2914,6 +2989,12 @@ class CharacterPromptRequest(BaseModel):
 async def generate_character_prompts(req: CharacterPromptRequest):
     """대본 기반 캐릭터 프롬프트 생성"""
     try:
+        # [NEW] 이미 캐릭터가 수동으로 설정되어 있는지 확인
+        existing = db.get_project_characters(req.project_id)
+        if existing:
+            print(f"👥 [Auto-Pilot] 이미 {len(existing)}명의 캐릭터가 설정되어 있습니다. 추출을 건너뜁니다.")
+            return {"status": "ok", "characters": existing} # Return existing characters
+
         characters = await gemini_service.generate_character_prompts_from_script(req.script)
         
         # [NEW] DB 저장
@@ -2931,110 +3012,8 @@ async def generate_character_prompts(req: CharacterPromptRequest):
         print(f"Character prompts generation failed: {e}\n{error_trace}")
         return {"status": "error", "error": f"{str(e)}", "trace": error_trace}
 
-@app.post("/api/image/generate-prompts")
-async def generate_image_prompts(req: PromptsGenerateRequest):
-    """대본 기반 이미지 프롬프트 생성 (POST Body 사용)"""
-    script = req.script
-    style = req.style
-    count = req.count
-    character_reference = req.character_reference # [NEW]
 
-    # [NEW] 이미지 개수 처리 로직
-    count_instruction = "- 적절한 개수의 이미지 프롬프트를 생성하세요"
-    if count > 0:
-        count_instruction = f"- {count}개의 이미지 프롬프트를 생성하세요 (지정된 개수 준수)"
-    # [NEW] 이미지 스타일 프리셋 조회 (DB 우선)
-    db_presets = db.get_style_presets()
-    
-    # 선택된 스타일의 상세 프롬프트 가져오기
-    detailed_style = db_presets.get(style.lower()) or STYLE_PROMPTS.get(style.lower(), style)
-
-    # [NEW] Character Consistency Logic
-    char_instruction = ""
-    if character_reference:
-        char_instruction = f"""
-[CHARACTER CONSISTENCY REQUIREMENT]
-You have a specific character reference:
-"{character_reference}"
-
-**CRITICAL INSTRUCTION FOR CHARACTER USAGE:**
-1. **Conditional Application**: ONLY describe this character when the scene explicitly involves them (e.g. "she walks", "he looks", "close up of person").
-2. **Contextual Exclusion**: If the scene is a background (e.g. "empty street"), object (e.g. "coffee cup"), or landscape, DO NOT include the character description.
-3. **Identity & ETHNICITY Preservation**:
-   - You MUST explicitly include the race/ethnicity terms from the reference in every prompt where the character appears (e.g. "Korean woman", "Asian female").
-   - Do NOT rely on implicit bias. Force the ethnicity keyword to ensure consistency.
-4. **Visual Consistency**: Use the same hair color, hair style, and key facial features described in the reference.
-"""
-
-    prompt = f"""당신은 AI 이미지 생성 프롬프트 전문가입니다.
-아래 대본을 읽고, 영상에 사용할 이미지 프롬프트를 생성해주세요.
-
-[대본]
-{script}  # [MODIFIED] 길이 제한 해제
-
-[스타일 지침]
-"{detailed_style}"
-모든 이미지 프롬프트에 위 스타일 키워드를 반드시 포함시켜야 합니다.
-
-{char_instruction}
-
-[요청]
-{count_instruction}
-- 각 프롬프트는 영어로 작성하세요
-- Midjourney/DALL-E에 적합한 형식으로 작성하세요
-- 프롬프트 시작 부분에 스타일 키워드를 배치하세요.
-- **장시간 영상 페이싱 지침**: 사용자의 몰입도 유지를 위해 다음 구간별 빈도를 준수하세요:
-  1. 0~2분: 8초당 1장 (고속 후킹)
-  2. 2~5분: 20초당 1장 (몰입 전개)
-  3. 5~7분: 40초당 1장 (안정 전개)
-  4. 7~10분: 1분당 1장 (유지 전개)
-  5. 10분 이후: 2~10분당 1장 (매크로 흐름)
-
-JSON 형식으로 반환:
-{{
-    "prompts": [
-        {{"scene": "장면 설명 (한국어)", "prompt": "{style}, 영어 프롬프트", "script_start": "대본 시작 부분 (15자)", "script_end": "대본 끝 부분 (15자)", "style_tags": "--ar 1:1"}}
-    ]
-}}
-
-JSON만 반환하세요."""
-
-    result = await gemini_generate(GeminiRequest(prompt=prompt, temperature=0.7))
-
-    if result["status"] == "ok":
-        json_match = re.search(r'\{[\s\S]*\}', result["text"])
-        if json_match:
-            try:
-                data = json.loads(json_match.group())
-
-                # [NEW] DB 저장 (프로젝트 ID가 있는 경우)
-                if req.project_id and "prompts" in data:
-                    save_list = []
-                    for item in data["prompts"]:
-                        # DB 스키마 매핑
-                        save_list.append({
-                            "scene": item.get("scene", ""),
-                            "prompt_ko": item.get("scene", ""), # 장면 설명을 한국어 프롬프트로 사용
-                            "prompt_en": item.get("prompt") or item.get("prompt_content") or "",
-                            "image_url": item.get("image_url", ""),
-                            "script_start": item.get("script_start", ""),
-                            "script_end": item.get("script_end", "")
-                        })
-                    try:
-                        db.save_image_prompts(req.project_id, save_list)
-                        print(f"[Main] Saved {len(save_list)} image prompts to DB for project {req.project_id}")
-                    except Exception as e:
-                        print(f"[Main] Failed to save prompts to DB: {e}")
-
-                return data
-            except Exception as e:
-                print(f"JSON Parsing Error: {e}")
-                pass
-        return {"raw": result["text"]}
-
-    return result
-
-
+# duplicate endpoint removed
 @app.post("/api/image/generate-character")
 async def generate_character_image(
     prompt: str = Body(...),

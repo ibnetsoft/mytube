@@ -226,46 +226,35 @@
                     </div>
                 </div>
 
-                <!-- COLUMN 3: Status & Console (30%) -->
-                <div class="xl:col-span-3 flex flex-col gap-3 min-h-0">
+                <!-- COLUMN 3: Status & Action (30%) -->
+                <div class="xl:col-span-3 flex flex-col gap-4">
                     <!-- Action Area -->
-                    <div class="flex-none space-y-2">
+                    <div
+                        class="card bg-gray-900/40 border-purple-500/20 p-6 rounded-2xl shadow-2xl flex-col flex items-center justify-center text-center">
+                        <div
+                            class="w-16 h-16 bg-purple-500/10 rounded-full flex items-center justify-center text-3xl mb-4 animate-bounce">
+                            🚀</div>
+                        <h3 class="text-lg font-bold text-white mb-2">무인 제작 시작</h3>
+                        <p class="text-xs text-gray-500 mb-6 leading-relaxed">입력하신 주제와 설정값으로<br>대본부터 영상까지 한 번에 자동 제작합니다.
+                        </p>
+
                         <button id="startAutopilotBtn"
-                            class="w-full py-3.5 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-700 text-white font-black text-base shadow-xl hover:shadow-purple-500/20 transform transition-all active:scale-95 flex items-center justify-center gap-2 group">
-                            {{ t('btn_start_autopilot') }} <span
-                                class="group-hover:translate-x-1 transition-transform">🚀</span>
+                            class="w-full py-4 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-700 text-white font-black text-base shadow-xl hover:shadow-purple-500/30 transform transition-all active:scale-95 flex items-center justify-center gap-2 group border-0 mb-4">
+                            <span>제작 시작하기</span>
+                            <span class="group-hover:translate-x-1 transition-transform">⚡</span>
                         </button>
 
-                        <!-- Mini Progress -->
-                        <div class="bg-gray-900 border border-gray-800 rounded-xl p-3">
-                            <div class="flex justify-between items-center mb-1.5">
-                                <span
-                                    class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Progress</span>
-                                <span id="progressPercent" class="text-[10px] font-mono text-purple-400">0%</span>
-                            </div>
-                            <div class="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
-                                <div id="progressBar"
-                                    class="bg-gradient-to-r from-purple-500 to-pink-500 h-full w-0 transition-all duration-500">
-                                </div>
-                            </div>
+                        <div class="flex items-center gap-2 text-[10px] text-gray-600">
+                            <span class="flex h-2 w-2 rounded-full bg-green-500/50"></span>
+                            AI 및 렌더링 서버 대기 중
                         </div>
                     </div>
 
-                    <!-- Console (Flexible) -->
+                    <!-- App Tips or Stats could go here later -->
                     <div
-                        class="flex-1 min-h-0 card bg-black/40 border border-gray-800/60 rounded-xl p-3 flex flex-col shadow-inner">
-                        <div class="flex items-center justify-between mb-2">
-                            <div class="flex items-center gap-2">
-                                <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                                <h4 class="text-[10px] font-bold text-gray-500 uppercase">System Logs</h4>
-                            </div>
-                            <button onclick="clearLogs()"
-                                class="text-[9px] text-gray-600 hover:text-white transition-colors">CLEAR</button>
-                        </div>
-                        <div id="consoleLogs"
-                            class="flex-1 overflow-y-auto custom-scrollbar font-mono text-[10px] leading-relaxed space-y-1 pr-1 text-gray-400">
-                            <div class="text-gray-600 italic">SYSTEM READY...</div>
-                        </div>
+                        class="card bg-purple-900/10 border border-purple-500/10 p-4 rounded-xl flex-1 opacity-60 flex flex-col items-center justify-center">
+                        <p class="text-[11px] text-purple-400 text-center italic">"고급 설정을 변경하여<br>자신만의 스타일을 프리셋으로 만드세요."
+                        </p>
                     </div>
                 </div>
             </div>
@@ -303,8 +292,7 @@
                 </div>
                 <!-- Mini Log for Batch -->
                 <div class="card bg-black border border-gray-800 rounded-2xl p-4 flex flex-col overflow-hidden">
-                    <div
-                        class="text-xs font-bold text-gray-500 mb-3 uppercase tracking-tighter tracking-widest tracking-widest">
+                    <div class="text-xs font-bold text-gray-500 mb-3 uppercase tracking-widest">
                         Execution Logs</div>
                     <div id="batchConsoleLogs"
                         class="flex-1 overflow-y-auto custom-scrollbar text-[10px] font-mono text-green-500/80 leading-relaxed bg-black/40 p-2 rounded-xl">
@@ -314,6 +302,134 @@
             </div>
         </div>
     </div>
+</div>
+
+<!-- =========================================== -->
+<!-- [NEW] Autopilot Status Modal (Popup) -->
+<!-- =========================================== -->
+<div id="autopilotModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 lg:p-8">
+    <!-- Backdrop -->
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-md"></div>
+
+    <!-- Modal Container -->
+    <div
+        class="relative bg-gray-900 border border-gray-700/50 w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in duration-300">
+        <!-- Header -->
+        <div
+            class="flex items-center justify-between px-6 py-5 border-b border-gray-800 bg-gray-900/80 backdrop-blur-xl">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-purple-600 flex items-center justify-center text-lg animate-pulse">
+                    🎬</div>
+                <div>
+                    <h3 class="font-bold text-white text-lg flex items-center gap-2">
+                        자동 제작 진행 중
+                        <span id="modalTopicTitle"
+                            class="text-xs font-normal text-gray-500 truncate max-w-[150px]"></span>
+                    </h3>
+                    <p id="modalStatusText" class="text-xs text-purple-400 font-medium">작업 대기 중...</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="closeAutopilotModal()" id="modalCloseBtn"
+                    class="p-2 hover:bg-white/5 rounded-full transition-colors text-gray-500" title="닫기(작업 유지)">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+                        </path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Progress Area -->
+        <div class="px-6 py-6 bg-gray-950/20">
+            <div class="flex justify-between items-end mb-2.5">
+                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <span class="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                    Overall Progress
+                </span>
+                <span id="modalProgressPercent" class="text-xs font-mono font-bold text-purple-400">0%</span>
+            </div>
+            <div
+                class="w-full bg-gray-800 rounded-full h-3.5 p-1 border border-gray-700/50 overflow-hidden shadow-inner flex items-center">
+                <div id="modalProgressBar"
+                    class="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 h-full w-0 transition-all duration-700 rounded-full shadow-[0_0_15px_rgba(168,85,247,0.4)]">
+                </div>
+            </div>
+        </div>
+
+        <!-- System Logs Console -->
+        <div class="flex-1 bg-black/40 border-t border-gray-800 p-6 flex flex-col min-h-[300px] max-h-[400px]">
+            <div class="flex items-center justify-between mb-3 shrink-0">
+                <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                    <h4 class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">SYSTEM LOGS</h4>
+                </div>
+                <button onclick="clearLogs()"
+                    class="text-[9px] text-gray-600 hover:text-white transition-colors uppercase tracking-wider">Clear
+                    Logs</button>
+            </div>
+            <div id="modalConsoleLogs"
+                class="flex-1 overflow-y-auto custom-scrollbar font-mono text-[11px] leading-relaxed space-y-1.5 pr-2 text-gray-400">
+                <div class="text-gray-700 italic border-b border-gray-800/20 pb-1">SYSTEM INITIALIZED...</div>
+            </div>
+        </div>
+
+        <!-- Footer Action -->
+        <div id="modalFooter" class="px-6 py-4 bg-gray-900 border-t border-gray-800 flex justify-between items-center">
+            <span class="text-[10px] text-gray-500">제작이 완료될 때까지 브라우저 창을 닫지 마세요.</span>
+            <button id="modalDoneBtn" onclick="window.location.href='/video-gen'"
+                class="hidden px-6 py-2 bg-white text-black font-bold rounded-xl text-xs hover:bg-purple-100 transition-all shadow-lg">결과
+                확인하러 가기 →</button>
+        </div>
+    </div>
+</div>
+
+</div>
+</div>
+
+<!-- MODE 2: Batch Mode (Kept standard but cleaned up) -->
+<div id="batchMode" class="hidden h-full flex flex-col gap-4">
+    <div class="card bg-gray-900/40 border-purple-500/20 p-5 shrink-0 rounded-2xl">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-2xl bg-purple-500/20 flex items-center justify-center text-xl">📦
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-white">제작 대기열 <span id="queueCount"
+                            class="text-purple-400 ml-1">0</span></h3>
+                    <p class="text-xs text-gray-500">Queue Management & Batch Processing</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="refreshQueue()"
+                    class="p-2.5 bg-gray-800 hover:bg-gray-700 rounded-xl text-white transition-all">🔄</button>
+                <button onclick="startBatch()" id="btnStartBatch"
+                    class="px-6 py-2.5 bg-white text-black font-black rounded-xl hover:bg-purple-100 transition-all disabled:opacity-30 text-xs shadow-lg">
+                    START BATCH ▶️
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- List -->
+        <div class="card bg-gray-900/40 border-gray-800 rounded-2xl p-4 overflow-y-auto custom-scrollbar"
+            id="queueList">
+            <div class="text-center py-20 text-gray-600 text-sm">대기열 항목이 없습니다.</div>
+        </div>
+        <!-- Mini Log for Batch -->
+        <div class="card bg-black border border-gray-800 rounded-2xl p-4 flex flex-col overflow-hidden">
+            <div
+                class="text-xs font-bold text-gray-500 mb-3 uppercase tracking-tighter tracking-widest tracking-widest">
+                Execution Logs</div>
+            <div id="batchConsoleLogs"
+                class="flex-1 overflow-y-auto custom-scrollbar text-[10px] font-mono text-green-500/80 leading-relaxed bg-black/40 p-2 rounded-xl">
+                <div class="text-gray-800 italic">No batch activity...</div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
 </div>
 
 <style>

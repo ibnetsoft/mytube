@@ -500,21 +500,109 @@ function mapImageToThumb(imgStyle) {
 }
 
 function log(msg) {
-    const area = document.getElementById('consoleLogs');
-    if (!area) return;
+    const area = document.getElementById('modalConsoleLogs');
+    const oldArea = document.getElementById('consoleLogs');
+
+    const target = area || oldArea;
+    if (!target) return;
+
+    let icon = "⚙️";
+    if (msg.includes("✅")) icon = "✅";
+    if (msg.includes("❌")) icon = "❌";
+    if (msg.includes("🚀")) icon = "🚀";
+    if (msg.includes("🎬")) icon = "🎬";
+    if (msg.includes("🎙️")) icon = "🎙️";
+    if (msg.includes("🏁")) icon = "🏁";
+    if (msg.includes("Status:")) icon = "⚡";
+    if (msg.includes("Anal")) icon = "📊";
+    if (msg.includes("Script")) icon = "📝";
+    if (msg.includes("Asset")) icon = "🎨";
+    if (msg.includes("Thumb")) icon = "🖼️";
+    if (msg.includes("Render")) icon = "🎞️";
+
+    // Clean up msg if it already has the icon we matched
+    const cleanMsg = msg.replace(/[✅❌🚀🎬🎙️🏁⚙️📊📝🎨🖼️🎞️⚡]/g, "").trim();
 
     const div = document.createElement('div');
-    const time = new Date().toLocaleTimeString();
-    div.className = `text-gray-400 text-xs border-b border-gray-800 py-1`;
-    div.innerHTML = `<span class="opacity-50">[${time}]</span> ${msg}`;
+    const time = new Date().toLocaleTimeString('ko-KR', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    div.className = `log-item text-gray-400 text-[10px] border-b border-gray-800/20 py-1.5 flex gap-2 items-start`;
+    div.innerHTML = `
+        <span class="opacity-30 shrink-0 font-mono">[${time}]</span> 
+        <span class="shrink-0 scale-75 origin-top">${icon}</span>
+        <span class="flex-1 leading-normal">${cleanMsg}</span>
+    `;
 
-    area.appendChild(div);
-    area.scrollTop = area.scrollHeight;
+    target.appendChild(div);
+    target.scrollTop = target.scrollHeight;
+
+    const statusText = document.getElementById('modalStatusText');
+    if (statusText && msg.includes('Status:')) {
+        const stage = msg.split('Status:')[1].trim();
+        statusText.innerText = getFriendlyStatus(stage);
+    }
 }
 
 function clearLogs() {
-    const area = document.getElementById('consoleLogs');
-    if (area) area.innerHTML = '<div class="text-gray-500 italic">Logs cleared.</div>';
+    const area = document.getElementById('modalConsoleLogs');
+    if (area) area.innerHTML = '<div class="text-gray-700 italic border-b border-gray-800/20 pb-1">Logs cleared.</div>';
+}
+
+function openAutopilotModal(topic = "") {
+    const modal = document.getElementById('autopilotModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        document.getElementById('modalTopicTitle').innerText = topic ? `(${topic})` : "";
+        document.getElementById('modalProgressPercent').innerText = "0%";
+        document.getElementById('modalProgressBar').style.width = "0%";
+        document.getElementById('modalStatusText').innerText = "작업 시작 준비 중...";
+        document.getElementById('modalDoneBtn').classList.add('hidden');
+    }
+}
+
+function closeAutopilotModal() {
+    const modal = document.getElementById('autopilotModal');
+    if (modal) {
+        if (isProcessing) {
+            if (!confirm("작업이 백그라운드에서 계속 진행됩니다.\n모달을 닫으시겠습니까?")) return;
+        }
+        modal.classList.add('hidden');
+    }
+}
+
+function getFriendlyStatus(status) {
+    const map = {
+        'created': '워크플로우 초기화 중...',
+        'analyzing': '유튜브 데이터 분석 중...',
+        'analyzed': '데이터 분석 완료',
+        'planning': '대본 기획 구성 중...',
+        'planned': '기획안 확정 완료',
+        'scripting': 'AI 대본 작성 중...',
+        'scripted': '대본 초안 완성',
+        'generating_assets': 'AI 비주얼 에셋 생성 중 (이미지/영상)...',
+        'generating_thumbnail': '맞춤형 썸네일 제작 중...',
+        'rendering': '최종 영상 합성 및 렌더링 중...',
+        'done': '모든 제작이 완료되었습니다! ✨',
+        'error': '처리 중 오류가 발생했습니다.'
+    };
+    return map[status] || status;
+}
+
+function getProgressValue(status) {
+    const map = {
+        'created': 5,
+        'analyzing': 15,
+        'analyzed': 25,
+        'planning': 35,
+        'planned': 45,
+        'scripting': 55,
+        'scripted': 65,
+        'generating_assets': 75,
+        'generating_thumbnail': 85,
+        'rendering': 95,
+        'done': 100,
+        'error': 0
+    };
+    return map[status] ?? 10;
 }
 
 // --- Autopilot Logic ---
@@ -536,39 +624,33 @@ async function startAutopilot() {
     const startBtn = document.getElementById('startAutopilotBtn');
 
     // UI Loading State
-    isProcessing = true;
-    if (startBtn) {
-        startBtn.disabled = true;
-        startBtn.innerHTML = '🚀 Starting...';
-    }
-    clearLogs();
-    log("🚀 Launching Auto-Pilot...");
-
-    // Build Config
     // Build Config
     const config = {
         keyword: topic,
-        mode: document.getElementById('appMode')?.value || 'longform', // [NEW]
+        mode: document.getElementById('appMode')?.value || 'longform',
         image_style: document.getElementById('imageStyle').value,
         thumbnail_style: document.getElementById('thumbnailStyle').value,
         video_scene_count: parseInt(document.getElementById('videoSceneCount').value || 0),
-        all_video: document.getElementById('allVideoCheck')?.checked || false, // [NEW]
-        motion_method: document.getElementById('motionMethod')?.value || 'standard', // [NEW]
+        all_video: document.getElementById('allVideoCheck')?.checked || false,
+        motion_method: document.getElementById('motionMethod')?.value || 'standard',
         script_style: document.getElementById('scriptStyleSelect').value,
         voice_provider: document.getElementById('providerSelect').value,
         voice_id: document.getElementById('voiceSelect').value,
         duration_seconds: (function () {
             const val = parseInt(document.getElementById('targetDuration').value);
             const m = document.getElementById('appMode')?.value || 'longform';
-            if (m === 'shorts') return val || 60; // Seconds
-            return (val || 10) * 60; // Minutes to Seconds
+            if (m === 'shorts') return val || 60;
+            return (val || 10) * 60;
         })(),
-        subtitle_settings: window.currentSubtitleSettings || null, // [NEW]
+        subtitle_settings: window.currentSubtitleSettings || null,
         preset_id: document.getElementById('presetSelect') ? (parseInt(document.getElementById('presetSelect').value) || null) : null
     };
 
-    log(`🎬 Mode: ${config.mode} | ImageStyle: ${config.image_style} | Thumb: ${config.thumbnail_style}`);
+    // UI Loading State (Popup Trigger)
+    isProcessing = true;
+    openAutopilotModal(topic);
 
+    log(`🎬 Mode: ${config.mode} | Style: ${config.image_style}`);
     log(`🎙️ Voice: ${config.voice_provider} / ${config.voice_id}`);
 
     try {
@@ -590,7 +672,7 @@ async function startAutopilot() {
         isProcessing = false;
         if (startBtn) {
             startBtn.disabled = false;
-            startBtn.innerHTML = '🚀 Start Auto-Pilot';
+            startBtn.innerHTML = '<span>제작 시작하기</span> ⚡';
         }
     }
 }
@@ -599,41 +681,61 @@ function pollStatus(projectId) {
     const interval = setInterval(async () => {
         try {
             const res = await fetch(`/api/projects/${projectId}/full`);
+            if (!res.ok) throw new Error("Status check failed");
             const data = await res.json();
 
             const status = data.project?.status || "processing";
-            if (document.getElementById('consoleLogs')) {
-                const lastLog = document.getElementById('consoleLogs').lastElementChild;
-                if (lastLog && lastLog.textContent.includes("Status:")) {
-                    lastLog.innerHTML = `<span class="opacity-50">[${new Date().toLocaleTimeString()}]</span> ... Status: ${status}`;
-                } else {
-                    log(`... Status: ${status}`);
-                }
+
+            // Update UI Progress
+            const progress = getProgressValue(status);
+            const pBar = document.getElementById('modalProgressBar');
+            const pPercent = document.getElementById('modalProgressPercent');
+            const statusText = document.getElementById('modalStatusText');
+
+            if (pBar) pBar.style.width = `${progress}%`;
+            if (pPercent) pPercent.innerText = `${progress}%`;
+            if (statusText) statusText.innerText = getFriendlyStatus(status);
+
+            // Log Update (Throttle logs to same status)
+            const logContainer = document.getElementById('modalConsoleLogs');
+            const lastLog = logContainer ? logContainer.lastElementChild : null;
+
+            if (lastLog && lastLog.textContent.includes("Status:")) {
+                const time = new Date().toLocaleTimeString('ko-KR', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                lastLog.innerHTML = `<span class="opacity-30 shrink-0">[${time}]</span> <span class="flex-1">... Background Check Status: <span class="text-purple-400 font-bold">${status}</span></span>`;
+            } else {
+                log(`... Status: ${status}`);
             }
 
             if (status === 'done') {
                 clearInterval(interval);
                 isProcessing = false;
-                log("🏁 Process Completed!");
+                log("🏁 제작이 완료되었습니다! 잠시 후 이동합니다.");
 
-                // Done Action
+                const doneBtn = document.getElementById('modalDoneBtn');
+                if (doneBtn) doneBtn.classList.remove('hidden');
+
                 const startBtn = document.getElementById('startAutopilotBtn');
                 if (startBtn) {
-                    startBtn.innerText = "✅ View Result";
-                    startBtn.onclick = () => window.location.href = `/video-gen`;
+                    startBtn.innerText = "✅ Result Rendered";
                     startBtn.disabled = false;
                 }
 
-                // Auto redirect after 2s
+                // Auto redirect after 3s
                 setTimeout(() => {
                     window.location.href = '/video-gen';
-                }, 2000);
+                }, 3000);
 
             } else if (status === 'error') {
                 clearInterval(interval);
                 isProcessing = false;
-                log("❌ Error occurred.");
-                document.getElementById('startAutopilotBtn').disabled = false;
+                log("❌ 제작 중 오류가 발생했습니다. 로그를 확인하세요.");
+
+                const startBtn = document.getElementById('startAutopilotBtn');
+                if (startBtn) {
+                    startBtn.disabled = false;
+                    startBtn.innerHTML = '<span>제작 시작하기</span> ⚡';
+                }
             }
         } catch (e) {
             console.error("Poll error:", e);

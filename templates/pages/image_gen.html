@@ -159,9 +159,32 @@
                 placeholder="{{ t('global_consistency_placeholder') }}"></textarea>
 
             <!-- [MOVED] 캐릭터 분석 결과 -->
+            <!-- [MOVED] 캐릭터 분석 결과 -->
             <div id="characterResultContainer"
                 class="hidden mt-4 bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-                <div id="characterList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+
+                <div
+                    class="flex flex-col sm:flex-row items-center justify-between mb-4 pb-2 border-b border-gray-100 dark:border-gray-700 gap-3">
+                    <h4 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                        <span>👥</span> {{ t('btn_char_analysis') }} 결과 및 관리
+                    </h4>
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <button onclick="addCharacterManually()"
+                            class="flex-1 sm:flex-none btn-secondary text-[10px] py-1.5 px-3 flex items-center justify-center gap-1 border-dashed">
+                            <span>➕</span> {{ t('btn_add_char_manual') or '직접 추가' }}
+                        </button>
+                        <button onclick="saveCharactersToProject()" id="saveCharsBtn"
+                            class="flex-1 sm:flex-none btn-primary text-[10px] py-1.5 px-3 flex items-center justify-center gap-1 bg-green-600 hover:bg-green-700 border-none shadow-sm">
+                            <span>💾</span> {{ t('btn_save_to_server') or '서버에 저장' }}
+                        </button>
+                    </div>
+                </div>
+
+                <div id="characterList" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3"></div>
+
+                <p class="mt-3 text-[10px] text-gray-400 italic">
+                    * 이름을 클릭하여 수정할 수 있습니다. 수동으로 편집한 내용은 반드시 [서버에 저장]을 눌러야 오토파일럿에 반영됩니다.
+                </p>
             </div>
 
             <!-- [MOVED] 로딩 인디케이터 -->
@@ -348,6 +371,7 @@
     // 캐릭터 카드 렌더링
     function renderCharacters(characters) {
         const list = document.getElementById('characterList');
+        list.innerHTML = '';
 
         if (characters.length === 0) {
             list.innerHTML = `<p class="col-span-full text-center text-gray-500 py-4">${i18n.char_not_found}</p>`;
@@ -356,17 +380,25 @@
 
         characters.forEach((char, index) => {
             const card = document.createElement('div');
-            card.className = "bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 shadow-sm hover:shadow-md transition-shadow relative group";
+            card.className = "bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm hover:shadow-md transition-shadow relative group";
 
             // 역할에 따른 배지 색상
             let roleBadgeColor = "bg-gray-100 text-gray-600";
-            if (char.role && char.role.includes("주인공")) roleBadgeColor = "bg-blue-100 text-blue-700";
-            else if (char.role && char.role.includes("조연")) roleBadgeColor = "bg-green-100 text-green-700";
+            if (char.role && char.role.includes("주인공")) roleBadgeColor = "bg-blue-100 text-blue-700 border border-blue-200";
+            else if (char.role && char.role.includes("조연")) roleBadgeColor = "bg-green-100 text-green-700 border border-green-200";
 
             card.innerHTML = `
-                <div class="flex justify-between items-start mb-2">
-                    <h4 class="font-bold text-gray-800 dark:text-white">${char.name || i18n.char_name_unknown}</h4>
-                    <span class="text-xs px-2 py-1 rounded-full ${roleBadgeColor} font-medium">${char.role || i18n.char_role}</span>
+                <div class="flex justify-between items-start mb-2 gap-2">
+                    <input type="text" value="${char.name || i18n.char_name_unknown}" 
+                        class="font-bold text-gray-800 dark:text-white bg-transparent border-none focus:ring-1 focus:ring-indigo-300 rounded px-1 w-full text-sm"
+                        onchange="updateCharLocal(${index}, 'name', this.value)">
+                    
+                    <select onchange="updateCharLocal(${index}, 'role', this.value)"
+                        class="text-[10px] px-2 py-0.5 rounded-full ${roleBadgeColor} font-medium border-none focus:ring-1 focus:ring-indigo-300 cursor-pointer bg-white/50 dark:bg-gray-700 whitespace-nowrap">
+                        <option value="주인공" ${char.role === '주인공' ? 'selected' : ''}>주인공</option>
+                        <option value="조연" ${char.role === '조연' ? 'selected' : ''}>조연</option>
+                        <option value="배경인물" ${char.role === '배경인물' ? 'selected' : ''}>배경인물</option>
+                    </select>
                 </div>
                 
                 <!-- Character Image Preview -->
@@ -381,17 +413,21 @@
                     </div>
                 </div>
 
-                <p class="text-[11px] text-gray-500 mb-2 border-b border-gray-100 dark:border-gray-700 pb-2 min-h-[3em] line-clamp-2" title="${char.description_ko}">
-                    ${char.description_ko || i18n.no_desc}
-                </p>
-
-                <div class="bg-gray-50 dark:bg-gray-900/50 p-2 rounded text-[10px] text-gray-600 dark:text-gray-400 font-mono break-words mb-3 h-16 overflow-y-auto scrollbar-thin">
-                    ${char.prompt_en}
+                <div class="mb-2">
+                    <label class="text-[9px] text-gray-400 block mb-1">외형 묘사 (Description)</label>
+                    <textarea class="w-full text-[11px] text-gray-600 dark:text-gray-300 bg-gray-50/50 dark:bg-gray-900/30 border border-gray-100 dark:border-gray-700 rounded p-1.5 focus:ring-1 focus:ring-indigo-300 outline-none"
+                        rows="2" onchange="updateCharLocal(${index}, 'description_ko', this.value)">${char.description_ko || ''}</textarea>
                 </div>
 
-                <div class="flex gap-2">
+                <div>
+                    <label class="text-[9px] text-gray-400 block mb-1">프롬프트 (AI Prompt)</label>
+                    <textarea class="w-full text-[10px] text-gray-500 dark:text-gray-400 font-mono bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-700 rounded p-1.5 min-h-[60px] focus:ring-1 focus:ring-indigo-300 outline-none scrollbar-thin"
+                        onchange="updateCharLocal(${index}, 'prompt_en', this.value)">${char.prompt_en || ''}</textarea>
+                </div>
+
+                <div class="flex gap-2 mt-3 pt-2 border-t border-gray-100 dark:border-gray-700">
                     <button onclick="applyCharacter(${index})" 
-                        class="flex-1 btn-secondary text-xs py-1.5 flex items-center justify-center gap-1 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200">
+                        class="flex-1 btn-secondary text-[10px] py-1.5 flex items-center justify-center gap-1 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200">
                         <span>⬇️</span> ${i18n.btn_apply}
                     </button>
                     
@@ -408,6 +444,89 @@
             `;
             list.appendChild(card);
         });
+    }
+    // [NEW] 수동으로 캐릭터 추가
+    function addCharacterManually() {
+        const chars = Utils.storage.get('characterPrompts') || [];
+        const newChar = {
+            name: "새 캐릭터",
+            role: "조연",
+            description_ko: "외형에 대한 설명을 입력하세요.",
+            prompt_en: "Add English visual prompt here.",
+            image_url: "",
+            image_path: ""
+        };
+        chars.push(newChar);
+        Utils.storage.set('characterPrompts', chars);
+
+        // UI 보이기
+        const container = document.getElementById('characterResultContainer');
+        container.classList.remove('hidden');
+
+        renderCharacters(chars);
+
+        // 마지막 카드로 스크롤
+        const list = document.getElementById('characterList');
+        if (list.lastElementChild) {
+            list.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            // 이름 입력칸에 포커스
+            const input = list.lastElementChild.querySelector('input');
+            if (input) {
+                input.focus();
+                input.select();
+            }
+        }
+    }
+
+    // [NEW] 로컬 스토리지 데이터 업데이트
+    function updateCharLocal(index, field, value) {
+        let chars = Utils.storage.get('characterPrompts') || [];
+        if (chars[index]) {
+            chars[index][field] = value;
+            Utils.storage.set('characterPrompts', chars);
+            console.log(`Character ${index} ${field} updated locally`);
+        }
+    }
+
+    // [NEW] 서버에 캐릭터 정보 영구 저장 (Autopilot 연동 핵심)
+    async function saveCharactersToProject() {
+        const projectId = getCurrentProject();
+        if (!projectId) {
+            Utils.showToast('프로젝트를 먼저 선택해야 서버에 저장할 수 있습니다.', 'warning');
+            return;
+        }
+
+        const chars = Utils.storage.get('characterPrompts') || [];
+        if (chars.length === 0) {
+            Utils.showToast('저장할 캐릭터 정보가 없습니다.', 'info');
+            return;
+        }
+
+        const btn = document.getElementById('saveCharsBtn');
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<span>⏳</span> 저장 중...`;
+
+        try {
+            const response = await fetch(`/api/projects/${projectId}/characters`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(characters = chars) // FastAPI Body(...) matches characters
+            });
+
+            const result = await response.json();
+            if (result.status === 'ok') {
+                Utils.showToast('캐릭터 설정이 서버에 영구 저장되었습니다. 이제 오토파일럿 실행 시 이 설정이 반영됩니다.', 'success');
+            } else {
+                throw new Error(result.error || '저장 실패');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('서버 저장 실패: ' + e.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
     }
 
     // [NEW] Delete Character
@@ -700,16 +819,16 @@
                             <!-- Image Container -->
                             <div class="image-container relative flex justify-center"> <!-- [FIX] Center align -->
                                 ${p.video_url ? `
-                                <div class="aspect-video bg-black rounded-lg overflow-hidden border border-purple-500 w-[90%] relative group/video">
+                                <div class="aspect-video bg-black rounded-lg overflow-hidden border border-purple-500 w-[60%] relative group/video">
                                     <video src="${p.video_url}" class="w-full h-full object-contain" controls autoplay loop muted></video>
-                                    <div class="absolute top-2 right-2 bg-purple-600 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
+                                    <div class="absolute top-2 right-2 bg-purple-600 text-white text-[9px] px-1.5 py-0.5 rounded flex items-center gap-1">
                                         <span>🎬 Motion</span>
                                     </div>
                                 </div>
                                 ` : p.image_url ? `
-                                <div class="aspect-video bg-black rounded-lg overflow-hidden border border-gray-600 w-[90%] relative group/image">
+                                <div class="aspect-video bg-black rounded-lg overflow-hidden border border-gray-600 w-[60%] relative group/image">
                                     <img src="${p.image_url}" class="w-full h-full object-contain" alt="Scene ${i + 1}">
-                                    <div class="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded">✓ Image</div>
+                                    <div class="absolute top-2 right-2 bg-green-500 text-white text-[9px] px-1.5 py-0.5 rounded">✓ Image</div>
                                     
                                     <!-- Motion Button Overlay -->
                                      <div class="absolute inset-0 bg-black/50 opacity-0 group-hover/image:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
@@ -724,8 +843,8 @@
                                      </div>
                                 </div>
                                 ` : `
-                                <div class="aspect-video bg-gray-900 rounded-lg border border-dashed border-gray-600 flex flex-col items-center justify-center w-[90%] transition-colors hover:bg-gray-800">
-                                    <span class="text-gray-500 text-sm">🖼️ ${i18n.img_not_generated}</span>
+                                <div class="aspect-video bg-gray-900 rounded-lg border border-dashed border-gray-600 flex flex-col items-center justify-center w-[60%] transition-colors hover:bg-gray-800">
+                                    <span class="text-gray-500 text-[10px]">🖼️ ${i18n.img_not_generated}</span>
                                 </div>
                                 `}
                             </div>
@@ -1916,7 +2035,34 @@
     document.addEventListener('DOMContentLoaded', () => {
         applyAppMode();
         loadStyles(); // [NEW]
+
+        // [NEW] Load characters from server for current project
+        loadCharactersFromServer();
+
         // Removed auto-load of characterPrompts to prevent data leakage between projects
     });
+
+    // [NEW] 서버에서 저장된 캐릭터 정보 불러오기
+    async function loadCharactersFromServer() {
+        const projectId = getCurrentProject();
+        if (!projectId) return;
+
+        try {
+            const response = await fetch(`/api/projects/${projectId}/characters`);
+            const result = await response.json();
+
+            if (result.status === 'ok' && result.characters && result.characters.length > 0) {
+                console.log(`Loaded ${result.characters.length} characters from server`);
+                Utils.storage.set('characterPrompts', result.characters);
+
+                // UI 표시
+                const container = document.getElementById('characterResultContainer');
+                container.classList.remove('hidden');
+                renderCharacters(result.characters);
+            }
+        } catch (e) {
+            console.error('Failed to load characters from server:', e);
+        }
+    }
 </script>
 {% endblock %}

@@ -83,10 +83,12 @@ class GeminiService:
     ) -> List[bytes]:
         """이미지 생성 (Imagen 3 우선, 실패 시 Imagen 2로 폴백)"""
         
-        # Only use verified working models (confirmed by test_imagen.py)
+        # [MODIFIED] Use a wider range of models for fallback
         models = [
-            "imagen-4.0-generate-001",      # Imagen 4 (Verified Working)
-            "imagen-4.0-fast-generate-001", # Imagen 4 Fast (Available in API)
+            "imagen-3.0-generate-001",      # Imagen 3 Standard
+            "imagen-3.0-fast-generate-001", # Imagen 3 Fast
+            "imagen-4.0-generate-001",      # Imagen 4
+            "imagen-4.0-fast-generate-001", # Imagen 4 Fast
         ]
         
         last_error = None
@@ -96,8 +98,19 @@ class GeminiService:
                 url = f"{self.base_url}/models/{model_name}:predict?key={self.api_key}"
                 print(f"🎨 [Imagen] Trying model: {model_name}")
                 
+                # [NEW] Style Reinforcement for Non-Realistic Styles
+                # If the prompt contains stylistic markers but avoids realism, reinforce negative prompts
+                stylistic_keywords = ["wimpy", "anime", "cartoon", "ghibli", "sketch", "line art", "doodle", "webtoon"]
+                is_stylistic = any(kw in prompt.lower() for kw in stylistic_keywords)
+                contains_photo = any(kw in prompt.lower() for kw in ["photo", "realistic", "8k", "cinematic"])
+                
+                final_prompt = prompt
+                if is_stylistic and not contains_photo:
+                    # Append massive negative reinforcement to force the style
+                    final_prompt += ". NO PHOTOREALISM. NO 3D RENDER. NO DEPTH OF FIELD. FLAT 2D STYLE ONLY. ABSOLUTELY NO REALISTIC TEXTURES."
+
                 payload = {
-                    "instances": [{"prompt": prompt}],
+                    "instances": [{"prompt": final_prompt}],
                     "parameters": {
                         "sampleCount": num_images,
                         "aspectRatio": aspect_ratio,
@@ -174,7 +187,9 @@ class GeminiService:
                 continue
         
         # 모든 모델 시도 실패
-        raise Exception(f"All Imagen models failed. Last error: {last_error}")
+        if "No images" in str(last_error) or "Safety" in str(last_error):
+             raise Exception(f"이미지 생성기(Imagen) 보안 필터에 의해 차단되었습니다. 유명인 이름, 브랜드명, 또는 부적절한 키워드가 포함되어 있는지 확인하세요. (Last error: {last_error})")
+        raise Exception(f"모든 이미지 생성 모델 시도 실패. 잠시 후 다시 시도해주세요. (Last error: {last_error})")
 
 
     async def generate_video(
@@ -530,10 +545,13 @@ class GeminiService:
             print(f"Trend keywords generation failed: {e}")
             return []
 
-    async def generate_character_prompts_from_script(self, script: str) -> List[dict]:
+    async def generate_character_prompts_from_script(self, script: str, visual_style: str = "photorealistic") -> List[dict]:
         """대본을 분석하여 등장인물 정보 및 이미지 프롬프트 생성"""
         
-        prompt = prompts.GEMINI_CHARACTER_PROMPTS.format(script=script[:8000])  # 토큰 제한 고려
+        prompt = prompts.GEMINI_CHARACTER_PROMPTS.format(
+            script=script[:8000], 
+            visual_style=visual_style
+        )
         
         text = await self.generate_text(prompt, temperature=0.5)
         
@@ -548,8 +566,8 @@ class GeminiService:
                 pass
         return []
 
-    async def generate_image_prompts_from_script(self, script: str, duration_seconds: int, style_prompt: str = None) -> List[dict]:
-        """대본을 분석하여 장면별 이미지 프롬프트 생성 (가변 페이싱 적용)"""
+    async def generate_image_prompts_from_script(self, script: str, duration_seconds: int, style_prompt: str = None, characters: List[dict] = None) -> List[dict]:
+        """대본을 분석하여 장면별 이미지 프롬프트 생성 (가변 페이싱 및 캐릭터 일관성 적용)"""
         
         # [NEW] 가변 페이싱(Dynamic Pacing) 로직 - 사용자 요청에 따른 정밀 조정
         # 0 ~ 2분 (120s): 8초당 1장 (15장)
@@ -575,15 +593,34 @@ class GeminiService:
         
         num_scenes = max(3, int(num_scenes))
         
-        style_instruction = ""
-        if style_prompt:
-            style_instruction = f"""
+        # [CRITICAL] 실사 키워드 방지 로직 보강
+        is_realistic = any(kw in style_prompt.lower() for kw in ["realistic", "photo", "cinematic", "8k"])
+        style_conflict_prevention = ""
+        if not is_realistic:
+            style_conflict_prevention = """
+[스타일 충돌 방지 - 엄격 준수]
+현재 지정된 스타일은 실사(Photorealistic)가 아닙니다.
+프롬프트 생성 시 'realistic', 'photorealistic', 'hyper-detailed', '8k', 'raw photo', 'masterpiece', 'cinematic lighting', 'depth of field', '3d render', 'octane render', 'unreal engine' 등의 실사 지향적 키워드를 **절대** 사용하지 마세요.
+인물과 배경 모두가 "{style_prompt}"의 매체 특성(그림체, 질감)을 완벽하게 따라야 하며, 조금이라도 실사 느낌이 섞이지 않도록 하세요.
+"""
+
+        style_instruction = f"""
 [스타일 지침 - 매우 중요]
 모든 이미지 프롬프트에 다음 스타일을 반드시 반영하세요:
 "{style_prompt}"
 
 모든 prompt_en의 시작 부분에 이 스타일 키워드를 포함시켜야 합니다.
 예: "{style_prompt}, ..."
+{style_conflict_prevention}
+"""
+
+        character_instruction = ""
+        if characters:
+            char_descriptions = "\n".join([f"- {c['name']} ({c['role']}): {c['prompt_en']}" for c in characters])
+            character_instruction = f"""
+[등장인물 일관성 지침 - 필수]
+이 영상에는 다음 캐릭터들이 등장합니다. 장면별 prompt_en 생성 시 해당 인물이 등장한다면 아래 묘사를 그대로 사용하여 외형 일관성을 유지하세요:
+{char_descriptions}
 """
 
         # [NEW] 장시간 영상 페이싱 지침 (사용자 요청 세분화 반영)
@@ -604,6 +641,7 @@ class GeminiService:
             num_scenes=num_scenes,
             script=script,
             style_instruction=style_instruction,
+            character_instruction=character_instruction, # [NEW]
             limit_instruction=limit_instruction,
             style_prefix=style_prompt or 'High quality, photorealistic'
         )

@@ -174,11 +174,16 @@ const API = {
         },
 
         // 썸네일 배경만 생성
-        async generateThumbnailBackground(prompt, aspectRatio = '16:9') {
+        async generateThumbnailBackground(prompt, aspectRatio = '16:9', style = null, projectId = null) {
             const response = await fetch('/api/image/generate-thumbnail-background', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt, aspect_ratio: aspectRatio })
+                body: JSON.stringify({
+                    prompt,
+                    aspect_ratio: aspectRatio,
+                    thumbnail_style: style,
+                    project_id: projectId ? parseInt(projectId) : null
+                })
             });
             return response.json();
         },
