@@ -661,8 +661,8 @@
                     
                     <div class="absolute bottom-0 right-0 bg-blue-500 text-white text-[9px] px-1 rounded-tl font-bold shadow-sm opacity-80">${actualIndex + 1}</div>
 
-                    <!-- [NEW] Effect Selector (For Motion, maybe disable? But user might want it.) -->
-                    <!-- Currently user requested distinguishing icon. Keeping selector for now. -->
+                    <!-- [NEW] Effect Selector (Hidden for Shorts/Vertical) -->
+                    ${!isShorts ? `
                     <select onchange="event.stopPropagation(); updateImageEffect(${actualIndex}, this.value)" 
                             class="mt-1 w-full text-[9px] p-0 border-gray-300 rounded bg-white dark:bg-gray-700 dark:text-white dark:border-gray-600 focus:ring-0 focus:border-blue-500 h-4 leading-none text-center"
                             title="이미지 효과 선택">
@@ -673,6 +673,7 @@
                         <option value="pan_right" ${imageEffects[actualIndex] === 'pan_right' ? 'selected' : ''}>Pan Right</option>
                         <option value="none" ${imageEffects[actualIndex] === 'none' ? 'selected' : ''}>None</option>
                     </select>
+                    ` : ''}
 
                     <!-- Move Down (Start later) -->
                     ${index < subtitles.length - 1 ? `<button onclick="event.stopPropagation(); moveImageStart(${imgIdx}, 1)" class="absolute -bottom-2 z-10 w-full h-3 bg-gray-200 hover:bg-blue-100 text-[8px] flex items-center justify-center rounded-b border border-t-0 border-gray-300 opacity-0 group-hover/thumb:opacity-100 transition-opacity" title="다음 자막부터 시작">▼</button>` : ''}
@@ -2463,19 +2464,21 @@
                 console.log("[Load] Received Image Effects:", imageEffects);
                 updateDebug(`[Load] Effects Raw: ${JSON.stringify(imageEffects)}`);
 
+                // [FIX] Store App Mode for UI Logic early
+                window.currentAppMode = (data.settings && data.settings.app_mode) || 'longform';
+                const defaultEffect = window.currentAppMode === 'shorts' ? 'none' : 'random';
+
                 // Ensure imageEffects matches images length
-                // If loaded effects are fewer than images, pad with 'random'
-                // If more, truncate or keep? Keep is safer.
                 while (imageEffects.length < images.length) {
-                    imageEffects.push('random');
+                    imageEffects.push(defaultEffect);
                 }
 
                 // Also validate that each item is valid string
                 for (let i = 0; i < imageEffects.length; i++) {
-                    if (!imageEffects[i]) imageEffects[i] = 'random';
+                    if (!imageEffects[i]) imageEffects[i] = defaultEffect;
                 }
 
-                updateDebug(`[Data] Effects Loaded: ${imageEffects.length} items.`);
+                updateDebug(`[Data] Effects Loaded: ${imageEffects.length} items (Default: ${defaultEffect}).`);
 
 
                 updateDebug(`[Data] Subtitles: ${subtitles.length}, Images: ${images.length}, Timings: ${imageTimings.length}, Source: ${sourceImages.length}`);

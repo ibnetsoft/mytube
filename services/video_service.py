@@ -354,10 +354,9 @@ class VideoService:
                         df.write(f"Img[{i}] EffectRaw: {image_effects[i] if image_effects and i < len(image_effects) else 'N/A'} -> Safe: {safe_effect} (Dur:{dur}, FPS:{fps})\n")
                 except: pass
                 
-                # Force disable effect for Video clips
-                if is_video_asset and clip is None: # Logic check: clip is valid here
-                     pass # Effect can apply to video too if desired, but user likely wants motion on images only
-                if is_video_asset:
+                # Force disable effect for Video clips OR Vertical (Shorts) content as per user request
+                is_vertical_render = resolution[1] > resolution[0]
+                if is_video_asset or is_vertical_render:
                      safe_effect = 'none'
                 
                 if safe_effect == 'random':
@@ -379,20 +378,20 @@ class VideoService:
                         w, h = clip.w, clip.h # Original/Target size (1920, 1080)
                         
                         if effect == 'zoom_in':
-                            # Center Zoom: 1.0 -> 1.5
-                            clip = vfx.resize(clip, lambda t: 1.0 + 0.5 * (t / dur))
+                            # Center Zoom: 1.0 -> 1.15 (Tuned for better framing)
+                            clip = vfx.resize(clip, lambda t: 1.0 + 0.15 * (t / dur))
                             # Safe Container (2.0 uses with_position, with_duration)
                             clip = CompositeVideoClip([clip.with_position('center')], size=(w,h)).with_duration(dur)
                             
                         elif effect == 'zoom_out':
-                            # Center Zoom Out: 1.5 -> 1.0
+                            # Center Zoom Out: 1.15 -> 1.0
                             # [FIX] MoviePy 2.x Support: Use vfx.resize instead of .resize
-                            clip = vfx.resize(clip, lambda t: 1.5 - 0.5 * (t / dur))
+                            clip = vfx.resize(clip, lambda t: 1.15 - 0.15 * (t / dur))
                             clip = CompositeVideoClip([clip.with_position('center')], size=(w,h)).with_duration(dur)
                             
                         elif effect.startswith('pan_'):
-                            # Pan Scale: 1.4 (Increased for visibility)
-                            pan_zoom = 1.4
+                            # Pan Scale: 1.2 (Tuned for visibility without extreme cropping)
+                            pan_zoom = 1.2
                             clip = vfx.resize(clip, pan_zoom)
                             new_w, new_h = clip.w, clip.h
                             
@@ -848,11 +847,19 @@ class VideoService:
 
             img_w, img_h = img.size
             
-            # [LOGIC] Resize to match Target Width (Fit Width)
-            # This ensures "Left/Right are filled completely"
-            scale_factor = target_w / img_w
-            new_w = target_w
-            new_h = int(img_h * scale_factor)
+            # [LOGIC] Fit (Contain) - Proportional resize to fit ENTIRE image within target
+            # This avoids cropping at the cost of potential bars (Letterbox/Pillarbox)
+            img_ratio = img_w / img_h
+            target_ratio = target_w / target_h
+            
+            if img_ratio > target_ratio:
+                # Image is wider (e.g. 4:3 image in 9:16 video) -> Fit Width
+                new_w = target_w
+                new_h = int(new_w / img_ratio)
+            else:
+                # Image is taller (e.g. 9:21 image in 9:16 video) -> Fit Height
+                new_h = target_h
+                new_w = int(new_h * img_ratio)
             
             # High-quality Resize
             img_resized = img.resize((new_w, new_h), Image.LANCZOS)
@@ -860,16 +867,10 @@ class VideoService:
             # Create Black Background
             bg = Image.new('RGB', (target_w, target_h), (0, 0, 0))
             
-            if new_h >= target_h:
-                # Case 1: Image is taller than target -> Center Crop (Vertical Crop)
-                # Paste at negative Y to center
-                y_offset = (target_h - new_h) // 2
-                bg.paste(img_resized, (0, y_offset))
-            else:
-                # Case 2: Image is shorter than target -> Letterbox (Top/Bottom Black)
-                # Paste at center Y
-                y_offset = (target_h - new_h) // 2
-                bg.paste(img_resized, (0, y_offset))
+            # Center on Background
+            x_offset = (target_w - new_w) // 2
+            y_offset = (target_h - new_h) // 2
+            bg.paste(img_resized, (x_offset, y_offset))
             
             # Template Overlay
             if template_path and os.path.exists(template_path):
