@@ -222,16 +222,16 @@ class VideoService:
                      target_duration = audio.duration if audio else (len(images) * duration_per_image if images else 10)
                      
                      # Loop!
-                     bg_clip = bg_clip.fx(vfx.loop, duration=target_duration)
+                     bg_clip = apply_loop(bg_clip, duration=target_duration)
                      
                      # 4. Resize/Crop to target resolution (1080p etc)
                      # Aspect Ratio Logic
                      target_w, target_h = resolution
                      
                      # Resize logic: Cover
-                     bg_clip = bg_clip.resize(height=target_h) # Fit height first
+                     bg_clip = vfx.resize(bg_clip, height=target_h) # Fit height first
                      if bg_clip.w < target_w:
-                         bg_clip = bg_clip.resize(width=target_w) # Fit width if still small
+                         bg_clip = vfx.resize(bg_clip, width=target_w) # Fit width if still small
                          
                      # Center Crop
                      bg_clip = bg_clip.crop(x1=bg_clip.w/2 - target_w/2, width=target_w, height=target_h)
@@ -268,64 +268,38 @@ class VideoService:
         for i, img_path in enumerate(images):
             if os.path.exists(img_path):
                 # [NEW] Check if it is a Video Asset (Motion)
-                is_video_asset = img_path.lower().endswith(".mp4")
+                is_video_asset = img_path.lower().endswith(('.mp4', '.mov', '.avi', '.mkv'))
                 
                 clip = None
                 
                 if is_video_asset:
                     try:
-                        print(f"DEBUG_RENDER: Processing Video Asset: {img_path}")
-                        # Load Video (No Audio, as we overlay TTS)
-                        # Remove audio from source clip to avoid mixing with TTS
-                        clip = VideoFileClip(img_path).without_audio()
-                        
-                        # Target Duration
+                        print(f"DEBUG_RENDER: Pre-processing Video Asset with FFMPEG: {img_path}")
+                        # [FIX] FFMPEG Pre-process to avoid MoviePy Hangs
+                        target_w, target_h = resolution
                         dur = duration_per_image[i] if isinstance(duration_per_image, list) else duration_per_image
                         
-                        # 1. Resize/Crop to Cover Resolution
-                        target_w, target_h = resolution
+                        # Call helper
+                        processed_path = self._preprocess_video_with_ffmpeg(img_path, target_w, target_h, fps=fps)
+                        temp_files.append(processed_path)
                         
-                        # Resize logic (Cover)
-                        # If video is wider aspect than target
-                        if clip.h == 0 or clip.w == 0: raise ValueError("Invalid clip dimensions")
+                        # Load clean clip
+                        clip = VideoFileClip(processed_path).without_audio()
                         
-                        clip_ratio = clip.w / clip.h
-                        target_ratio = target_w / target_h
-                        
-                        if clip_ratio > target_ratio:
-                            # Video is wider -> Fit Height, Crop Width
-                            clip = clip.resize(height=target_h)
-                        else:
-                            # Video is taller -> Fit Width, Crop Height
-                            clip = clip.resize(width=target_w)
-                            
-                        # Center Crop
-                        clip = clip.crop(x1=clip.w/2 - target_w/2, y1=clip.h/2 - target_h/2, width=target_w, height=target_h)
-                        
-                        # 2. Adjust Duration (Loop or Speed or Cut)
-                        # Motion videos are usually short (3-4s). TTS segments might be longer.
-                        # Strategy: Loop with crossfade? Or just Loop.
-                        # Wan 2.2 motion is usually seamless-ish or just movement. Loop is safest.
+                        # Loop logic
                         if clip.duration < dur:
-                            # Loop to fill
-                            # Note: vfx.loop requires explicit duration or n
-                            clip = vfx.loop(clip, duration=dur)
+                            clip = apply_loop(clip, duration=dur)
                         else:
-                            # Cut to fit
                             clip = clip.subclip(0, dur)
                             
                         clip = clip.with_duration(dur)
                         
-                        # Skip Ken Burns effects for videos (it moves already)
-                        image_effects[i] = 'none' if image_effects and i < len(image_effects) else 'none'
-                        
-                        # Add to temp files list? No, source file is persistent.
-                        
+                        # Disable effects
+                        if image_effects is not None:
+                             if i < len(image_effects): image_effects[i] = 'none'
+                             
                     except Exception as e:
                         print(f"Failed to load video asset {img_path}: {e}")
-                        # Fallback to Image processing if failed (might crash if it's really not an image)
-                        # Try to find a thumbnail or just fail?
-                        # If it's really an MP4, Image.open might fail.
                         pass
 
                 # [FIX] Logic to handle Video vs Image asset paths
@@ -412,6 +386,7 @@ class VideoService:
                             
                         elif effect == 'zoom_out':
                             # Center Zoom Out: 1.5 -> 1.0
+                            # [FIX] MoviePy 2.x Support: Use vfx.resize instead of .resize
                             clip = vfx.resize(clip, lambda t: 1.5 - 0.5 * (t / dur))
                             clip = CompositeVideoClip([clip.with_position('center')], size=(w,h)).with_duration(dur)
                             
@@ -464,7 +439,7 @@ class VideoService:
 
         # 클립 연결 (이미지가 있을 때만)
         if clips:
-            video_slideshow = concatenate_videoclips(clips, method="compose")
+            video_slideshow = concatenate_videoclips(clips, method="chain")
             if video:
                  # 배경 영상이 메인이므로, 슬라이드쇼는 무시하거나 오버레이? 
                  # 기획상: 반복영상 모드에선 이미지 안씀. 
@@ -559,10 +534,14 @@ class VideoService:
                 
                 thumb_clip = ImageClip(baked_thumb_path).with_duration(0.1) # 0.1s duration
                 
+                # [FIX] Ensure thumb_clip has silence to match main audio structure if needed
+                from moviepy.audio.AudioClip import AudioClip
+                silence = AudioClip(lambda t: 0, duration=0.1)
+                thumb_clip = thumb_clip.with_audio(silence)
+                
                 # 2. Concatenate [Thumb] + [Main Video]
-                # Note: Concatenating CompositeVideoClip with ImageClip works.
-                # Use 'compose' method to ensure format consistency
-                video = concatenate_videoclips([thumb_clip, video], method="compose")
+                # Use 'chain' method since resolutions are now identical
+                video = concatenate_videoclips([thumb_clip, video], method="chain")
                 
                 # Update Audio: The thumb has no audio. 
                 # concatenate handles audio automatically (silence for thumb).
@@ -746,18 +725,18 @@ class VideoService:
                         target_ratio = target_w / target_h
                         
                         if intro_ratio > target_ratio:
-                            intro_clip = intro_clip.resize(height=target_h)
+                            intro_clip = vfx.resize(intro_clip, height=target_h)
                         else:
-                            intro_clip = intro_clip.resize(width=target_w)
+                            intro_clip = vfx.resize(intro_clip, width=target_w)
                         
                         # Center Crop
                         intro_clip = intro_clip.crop(x1=intro_clip.w/2 - target_w/2, y1=intro_clip.h/2 - target_h/2, width=target_w, height=target_h)
                     else:
                         # Direct Resize
-                        intro_clip = intro_clip.resize(newsize=(target_w, target_h))
+                        intro_clip = vfx.resize(intro_clip, new_size=(target_w, target_h))
                     
                     # Concatenate [Intro] + [Main Video]
-                    video = concatenate_videoclips([intro_clip, video], method="compose")
+                    video = concatenate_videoclips([intro_clip, video], method="chain")
                     print(f"Intro Video successfully prepended. New total duration: {video.duration:.2f}s")
                     
                 except Exception as e:
@@ -765,22 +744,60 @@ class VideoService:
 
             # [FIX] Unique temp audio path to avoid conflicts/locks
             import uuid
-            temp_audio_path = os.path.join(self.output_dir, f"temp_audio_{uuid.uuid4()}.mp3")
+            # [FIX] Render Video and Audio Separately to prevent FFMPEG Hangs on Windows
+            import imageio_ffmpeg
+            import subprocess
+            ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
             
-            # [OPTIMIZE] Multi-threaded rendering & Single-pass Logger
-            num_threads = os.cpu_count() or 1
+            temp_video_path = output_path.replace(".mp4", "_noaudio.mp4")
+            temp_audio_export_path = os.path.join(self.output_dir, f"temp_audio_export_{uuid.uuid4()}.wav")
             
+            # 1. Render Video (No Audio)
+            print(f"DEBUG: Rendering video only to {temp_video_path}")
             video.write_videofile(
-                output_path,
+                temp_video_path,
                 fps=fps,
                 codec="libx264",
-                audio_codec="libmp3lame",
-                threads=num_threads,
-                preset="ultrafast", # Speed prioritized, Single-pass means we don't worry about multi-encoding compression loss
-                temp_audiofile=temp_audio_path,
-                remove_temp=False,
-                logger=logger
+                audio=False, # [KEY FIX] Disable Audio Rendering in Muxer
+                threads=1, # [FIX] Hardcoded to 1
+                preset="medium", 
+                logger=None 
             )
+            
+            # 2. Export Audio
+            if video.audio:
+                print(f"DEBUG: Exporting audio to {temp_audio_export_path}")
+                # Use WAV for maximum stability in intermediate pass
+                video.audio.write_audiofile(temp_audio_export_path, codec="pcm_s16le", logger=None)
+                
+                # 3. Merge
+                print(f"DEBUG: Merging video and audio...")
+                cmd = [
+                    ffmpeg_exe, "-y",
+                    "-i", temp_video_path,
+                    "-i", temp_audio_export_path,
+                    "-c:v", "copy",
+                    "-c:a", "aac",
+                    "-shortest",
+                    output_path
+                ]
+                # Hide console window on Windows
+                startupinfo = None
+                if os.name == 'nt':
+                     startupinfo = subprocess.STARTUPINFO()
+                     startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                
+                subprocess.run(cmd, check=True, startupinfo=startupinfo)
+                
+                # Cleanup
+                if os.path.exists(temp_audio_export_path): os.remove(temp_audio_export_path)
+            else:
+                # No audio, just rename video
+                print("DEBUG: No audio found, renaming video file.")
+                if os.path.exists(output_path): os.remove(output_path)
+                os.rename(temp_video_path, output_path)
+                
+            if os.path.exists(temp_video_path): os.remove(temp_video_path)
         except Exception as e:
             import traceback
             error_msg = traceback.format_exc()
@@ -809,82 +826,70 @@ class VideoService:
 
         return output_path
 
-    def _create_cinematic_frame(self, image_path: str, target_size: tuple, template_path: str = None) -> str:
+        
+    def _create_cinematic_frame(self, image_path: str, target_size: tuple, template_path: str = None):
         """
-        이미지를 처리하여 시네마틱 프레임 생성 (블러 배경 + 중앙정렬)
+        [MODIFIED] Vertical Aspect Ratio Logic 2.0 (Legacy Name, New Logic - User Request)
+        - No Blur Background (Black Background instead)
+        - Fit Width: Ensure Left/Right are filled completely.
+        - If image is shorter (e.g. 3:4) -> Letterbox (Top/Bottom Black)
+        - If image is taller (e.g. 9:21) -> Center Crop (Top/Bottom Cut)
         """
-        from PIL import Image, ImageFilter, ImageEnhance
+        from PIL import Image
         import uuid
         
-        target_w, target_h = target_size
-        
-        # 원본 열기
-        img = Image.open(image_path).convert("RGBA")
-        
-        # 1. 배경 생성 (꽉 차게 리사이즈 + 블러 + 어둡게)
-        bg = img.copy()
-        
-        # 비율 계산하여 꽉 차게 크롭/리사이즈 (Aspect Fill)
-        bg_ratio = target_w / target_h
-        img_ratio = img.width / img.height
-        
-        if img_ratio > bg_ratio:
-            # 이미지가 더 납작함 -> 높이에 맞춤
-            new_h = target_h
-            new_w = int(new_h * img_ratio)
-        else:
-            # 이미지가 더 길쭉함 -> 너비에 맞춤
-            new_w = target_w
-            new_h = int(new_w / img_ratio)
+        try:
+            target_w, target_h = target_size
+            img = Image.open(image_path)
             
-        bg = bg.resize((new_w, new_h), Image.Resampling.LANCZOS)
-        
-        # 중앙 크롭
-        left = (new_w - target_w) // 2
-        top = (new_h - target_h) // 2
-        bg = bg.crop((left, top, left + target_w, top + target_h))
-        
-        # 블러 및 밝기 조절
-        bg = bg.filter(ImageFilter.GaussianBlur(radius=30))
-        enhancer = ImageEnhance.Brightness(bg)
-        bg = enhancer.enhance(0.6) # 40% 어둡게
-        
-        # 2. 전경 생성 (비율 유지하며 중앙 배치)
-        # [Request] 좌우 여백 없이 꽉 채우기 (Fit Width), 하단 잘림 방지
-        fg_max_w = target_w # 100% Width
-        fg_max_h = target_h # 100% Height constraint (Aspect Ratio preserved by thumbnail)
-        
-        fg = img.copy()
-        fg.thumbnail((fg_max_w, fg_max_h), Image.Resampling.LANCZOS)
-        
-        # 배경 중앙에 합성 (위로 10% 정도 올림 - 하단 UI 공간 확보)
-        center_x = (target_w - fg.width) // 2
-        center_y = (target_h - fg.height) // 2
-        offset_y = int(target_h * 0.10) # 10% 상단 이동
-        
-        # 상단이 너무 잘리지 않도록 체크 (옵션)
-        # if center_y - offset_y < 0: offset_y = center_y # 상단 딱 맞춤
-        
-        bg.paste(fg, (center_x, center_y - offset_y), fg)
+            # Convert to RGB (in case of RGBA/P mode)
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
 
-        # [NEW] Template Overlay
-        if template_path and os.path.exists(template_path):
-            try:
-                template = Image.open(template_path).convert("RGBA")
-                template = template.resize((target_w, target_h), Image.Resampling.LANCZOS)
-                bg.paste(template, (0, 0), template) # Alpha composite
-            except Exception as e:
-                print(f"Template Overlay Error: {e}")
-        
-        # [FIX] MoviePy 호환성을 위해 RGB로 변환 (알파 채널 제거)
-        bg = bg.convert("RGB")
+            img_w, img_h = img.size
+            
+            # [LOGIC] Resize to match Target Width (Fit Width)
+            # This ensures "Left/Right are filled completely"
+            scale_factor = target_w / img_w
+            new_w = target_w
+            new_h = int(img_h * scale_factor)
+            
+            # High-quality Resize
+            img_resized = img.resize((new_w, new_h), Image.LANCZOS)
+            
+            # Create Black Background
+            bg = Image.new('RGB', (target_w, target_h), (0, 0, 0))
+            
+            if new_h >= target_h:
+                # Case 1: Image is taller than target -> Center Crop (Vertical Crop)
+                # Paste at negative Y to center
+                y_offset = (target_h - new_h) // 2
+                bg.paste(img_resized, (0, y_offset))
+            else:
+                # Case 2: Image is shorter than target -> Letterbox (Top/Bottom Black)
+                # Paste at center Y
+                y_offset = (target_h - new_h) // 2
+                bg.paste(img_resized, (0, y_offset))
+            
+            # Template Overlay
+            if template_path and os.path.exists(template_path):
+                 try:
+                     tmpl = Image.open(template_path).convert("RGBA")
+                     tmpl = tmpl.resize((target_w, target_h), Image.LANCZOS)
+                     bg.paste(tmpl, (0, 0), tmpl)
+                 except: pass
 
-        # 저장
-        output_path = os.path.join(self.output_dir, f"cinematic_{uuid.uuid4()}.jpg")
-        bg.save(output_path, quality=95)
-        
-        return output_path
-    
+            # Save to temp
+            temp_name = f"cinematic_{uuid.uuid4()}.jpg"
+            save_path = os.path.join(self.output_dir, temp_name)
+            bg.save(save_path, quality=95)
+            
+            return save_path
+
+        except Exception as e:
+            print(f"Cinematic Frame Error: {e}")
+            return image_path
+
     def _resize_image_to_fill(self,image_path: str, target_size: tuple) -> str:
         """
         이미지를 화면에 꽉 차게 리사이즈 (블러 배경 없이)
@@ -1573,8 +1578,8 @@ class VideoService:
         manual_lines = text.split('\n')
         wrapped_lines = []
         
-        # 최대 2줄 제한 (프리뷰와 일치)
-        MAX_LINES = 2
+        # [MODIFIED] Max lines increased to 3 for better accessibility
+        MAX_LINES = 3
         
         for m_line in manual_lines:
             m_line = m_line.strip()
@@ -1588,31 +1593,31 @@ class VideoService:
             line_width = get_text_width(m_line, font)
             
             if line_width <= safe_width:
-                # 픽셀 너비 OK - 그대로 추가
                 wrapped_lines.append(m_line)
             else:
-                # [FIX] 픽셀 너비 초과 - 단어 단위로 줄바꿈하되, MAX_LINES 이내로 제한
+                # [FIX] 픽셀 너비 초과 - 단어 단위로 줄바꿈
                 words = m_line.split(' ')
                 current_line = []
                 current_width = 0
                 
                 for word in words:
+                    # Skip empty words
+                    if not word: continue
+                    
                     word_width = get_text_width(word + " ", font)
                     
                     if current_width + word_width > safe_width and current_line:
-                        # 현재 줄 저장
                         wrapped_lines.append(" ".join(current_line))
-                        
-                        # MAX_LINES 체크
-                        if len(wrapped_lines) >= MAX_LINES:
-                            # 남은 단어들을 마지막 줄에 그냥 붙이기
-                            remaining_words = words[words.index(word):]
-                            if remaining_words:
-                                wrapped_lines[-1] += " " + " ".join(remaining_words)
-                            break
-                        
                         current_line = [word]
                         current_width = word_width
+                        
+                        # [FIX] If we reached limit, stop and add rest to last line (but limited)
+                        if len(wrapped_lines) >= MAX_LINES:
+                            # Don't break immediately, let's join the rest of the words for the last allowed line
+                            # Actually, if we are at MAX_LINES, we replace the last line with current+remaining
+                            remaining = words[words.index(word):]
+                            wrapped_lines[-1] = " ".join(current_line + remaining)
+                            break
                     else:
                         current_line.append(word)
                         current_width += word_width
@@ -1621,10 +1626,12 @@ class VideoService:
                     if current_line and len(wrapped_lines) < MAX_LINES:
                         wrapped_lines.append(" ".join(current_line))
                     elif current_line and len(wrapped_lines) >= MAX_LINES:
-                        # 마지막 줄에 추가
+                        # Append to last line
                         wrapped_lines[-1] += " " + " ".join(current_line)
                 
-        wrapped_text = "\n".join(wrapped_lines[:MAX_LINES])  # 안전장치
+        # [Final Safety Slice]
+        wrapped_lines = wrapped_lines[:MAX_LINES]
+        wrapped_text = "\n".join(wrapped_lines)
 
         # 텍스트 크기 측정
         dummy_img = Image.new('RGBA', (1, 1))
@@ -1638,17 +1645,20 @@ class VideoService:
         pad_x = style.get("bg_padding_x", padding_default)
         pad_y = style.get("bg_padding_y", padding_default)
 
-        # 이미지 크기는 텍스트 박스 + Y패딩만큼만 (add_subtitles에서 위치 잡음)
         # [FIX] 높이 계산 - 줄 수에 비례하여 충분한 공간 확보 + Stroke 공간 추가
-        line_count = wrapped_text.count('\n') + 1
-        line_height = font.getbbox('A')[3] * 1.5  # 줄 간격 (1.5배)
+        line_count = len(wrapped_lines)
+        ascent, descent = font.getmetrics()
         
-        # [CHANGED] Add 2% bottom padding to prevent clipping
-        bottom_padding_pct = 0.02  # 2% of width as bottom padding
-        extra_bottom = int(width * bottom_padding_pct)
+        # [CHANGED] More robust height calculation: (LineHeight * Count) + Spacing + Stroke + Padding
+        # This is more reliable than multiline_textbbox for some fonts
+        total_text_h = (ascent + descent) * line_count + (int((ascent + descent) * line_spacing_ratio) * (line_count - 1))
+        
+        vertical_safety = int(font_size * 0.8) # Increased from 0.5 to 0.8
         
         img_w = width
-        img_h = int(text_h + (pad_y * 2) + (line_count * font_size * 0.3) + final_stroke_width * 4 + extra_bottom)
+        # Use max of measured height and calculated height for safety
+        actual_h = max(text_h, total_text_h)
+        img_h = int(actual_h + (pad_y * 2) + final_stroke_width * 6 + vertical_safety)
         
         img = Image.new('RGBA', (img_w, img_h), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
@@ -1958,7 +1968,7 @@ class VideoService:
         try:
             # resize 함수: t(시간)에 따라 크기 변경
             # ImageClip에 resize를 적용하면 모든 프레임을 다시 계산함
-            zoomed_clip = img_clip.resize(lambda t: 1 + zoom_ratio * t)
+            zoomed_clip = vfx.resize(img_clip, lambda t: 1 + zoom_ratio * t)
             
             # 중앙 정렬하여 CompositeVideoClip으로 감싸기 (크롭 효과)
             # set_position("center")는 CompositeVideoClip 내에서 중앙 배치
@@ -2154,6 +2164,46 @@ class VideoService:
         except Exception as e:
             print(f"Slow-mo exception: {e}")
             return video_path
+
+    def _preprocess_video_with_ffmpeg(self, input_path, width, height, fps=30):
+        """
+        Use FFMPEG CLI to resize, crop, and re-encode video to target resolution.
+        This bypasses MoviePy's heavy resizing and decoding issues.
+        """
+        import subprocess
+        import uuid
+        import imageio_ffmpeg
+        
+        ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+        output_path = os.path.join(self.output_dir, f"video_prep_{uuid.uuid4()}.mp4")
+        
+        # Scale to cover (Access Aspect Ratio)
+        # force_original_aspect_ratio=increase ensures it covers the box
+        # crop=w:h cuts the center
+        # fps for consistency
+        vf_filter = f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},fps={fps}"
+        
+        cmd = [
+            ffmpeg_exe, "-y",
+            "-i", input_path,
+            "-vf", vf_filter,
+            "-c:v", "libx264",
+            # [SAFE MODE] Use ultrafast preset for pre-processing stability
+            "-preset", "ultrafast",
+            "-crf", "23",
+            "-an", # No Audio
+            output_path
+        ]
+        
+        # Hide console window on Windows
+        startupinfo = None
+        if os.name == 'nt':
+             startupinfo = subprocess.STARTUPINFO()
+             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+             
+        print(f"DEBUG: Pre-processing video: {input_path} -> {output_path}")
+        subprocess.run(cmd, check=True, startupinfo=startupinfo)
+        return output_path
 
 # 싱글톤 인스턴스
 video_service = VideoService()

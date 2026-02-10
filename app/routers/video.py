@@ -805,29 +805,38 @@ async def render_project_video(
     background_tasks: BackgroundTasks
 ):
     """프로젝트 영상 최종 렌더링 (이미지 + 오디오 + 자막)"""
+    print(f"DEBUG: render_project_video called for Project {project_id}")
     try:
         from services.settings_service import settings_service
         global_settings = settings_service.get_settings()
         app_mode = global_settings.get("app_mode", "longform")
 
-        # 해상도 설정
+        # 1. 데이터 조회
+        images_data = db.get_image_prompts(project_id)
+        tts_data = db.get_tts(project_id)
+        script_data = db.get_script(project_id)
+        p_settings = db.get_project_settings(project_id) or {}
+        
+        # [RESOLVE] Aspect Ratio from Project Settings (Highest Priority)
+        project_aspect = p_settings.get("aspect_ratio", "16:9")
         if app_mode == 'shorts':
+            project_aspect = "9:16" # Force 9:16 if global shorts mode
+            
+        print(f"DEBUG: Project Aspect Ratio identified as {project_aspect} (App Mode: {app_mode})")
+
+        # 해상도 설정
+        if project_aspect == '9:16':
             target_resolution = (1080, 1920)  # 9:16
         else:
             target_resolution = (1920, 1080)  # 16:9
             
         if request.resolution == "720p":
-            if app_mode == 'shorts':
+            if project_aspect == '9:16':
                 target_resolution = (720, 1280)
             else:
                 target_resolution = (1280, 720)
         
-        print(f"DEBUG: Rendering in {app_mode} mode at {target_resolution}")
-        
-        # 1. 데이터 조회
-        images_data = db.get_image_prompts(project_id)
-        tts_data = db.get_tts(project_id)
-        script_data = db.get_script(project_id)
+        print(f"DEBUG: Initial Target Resolution: {target_resolution}")
         
         if not images_data:
             raise HTTPException(400, "이미지 데이터가 없습니다.")
@@ -886,6 +895,54 @@ async def render_project_video(
                     if os.path.exists(fpath):
                         images.append(fpath)
         
+        # [FIX] Patch loaded images with latest video_url from DB
+        # This ensures we use generated videos even if timeline.json still points to static images
+        if images and images_data:
+            print(f"DEBUG: Checking for video upgrades for {len(images)} scenes...")
+            # Create lookup map: Using Basename as Key for robust matching
+            img_to_video = {}
+            for p in images_data:
+                v_url = p.get('video_url')
+                i_url = p.get('image_url')
+                
+                if v_url and i_url:
+                    base_name = os.path.basename(i_url)
+                    img_to_video[base_name] = v_url
+            
+            patched_images = []
+            upgraded_count = 0
+            
+            for img_path in images:
+                base_name = os.path.basename(img_path)
+                found_video = False
+                
+                # Check if video exists for this image
+                if base_name in img_to_video:
+                    video_url = img_to_video[base_name]
+                    
+                    # Convert URL to absolute path
+                    v_path = None
+                    if video_url.startswith("/output/"):
+                        v_rel = video_url.replace("/output/", "", 1).replace("/", os.sep)
+                        v_path = os.path.join(config.OUTPUT_DIR, v_rel)
+                    elif video_url.startswith("/static/"):
+                        v_rel = video_url.replace("/static/", "", 1).replace("/", os.sep)
+                        v_path = os.path.join(config.STATIC_DIR, v_rel)
+                        
+                    if v_path and os.path.exists(v_path):
+                        patched_images.append(v_path)
+                        # if img_path != v_path:
+                        upgraded_count += 1
+                        found_video = True
+                
+                # Keep original if no upgrade found
+                if not found_video:
+                    patched_images.append(img_path)
+            
+            if upgraded_count > 0:
+                print(f"DEBUG: Upgraded {upgraded_count} scene(s) to video assets.")
+                images = patched_images
+
         if not images:
              project_settings = db.get_project_settings(project_id)
              bg_video_url = project_settings.get("background_video_url")
@@ -895,6 +952,55 @@ async def render_project_video(
              project_settings = db.get_project_settings(project_id)
              bg_video_url = project_settings.get("background_video_url")
             
+        # [AUTO-DETECT] Resolution based on Aspect Ratio to fix User Issue
+        if images and len(images) > 0:
+            try:
+                chk_path = images[0]
+                is_vertical_asset = False
+                w, h = 0, 0
+                
+                if chk_path.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
+                     import PIL.Image
+                     if os.path.exists(chk_path):
+                         with PIL.Image.open(chk_path) as first_img:
+                             w, h = first_img.size
+                elif chk_path.lower().endswith(('.mp4', '.mov', '.avi', '.mkv')):
+                     try:
+                         # [FIX] MoviePy 2.x Compatibility
+                         from moviepy import VideoFileClip
+                         with VideoFileClip(chk_path) as clip:
+                             w, h = clip.w, clip.h
+                     except Exception as ve:
+                         print(f"[AUTO-DETECT] Video detection failed with moviepy: {ve}")
+                         # Fallback to imageio
+                         try:
+                             import imageio
+                             reader = imageio.get_reader(chk_path)
+                             meta = reader.get_meta_data()
+                             w, h = meta['size']
+                             reader.close()
+                         except: pass
+
+                if w > 0 and h > 0:
+                    is_vertical_asset = h > w
+                    
+                    # Current Target Resolution Orientation
+                    is_target_vertical = target_resolution[1] > target_resolution[0]
+                    
+                    if is_vertical_asset != is_target_vertical:
+                        print(f"[AUTO-FIX] Aspect Ratio Mismatch! Asset Vertical: {is_vertical_asset}, Target Vertical: {is_target_vertical}")
+                        
+                        if is_vertical_asset:
+                            # [SAFE MODE] Force Shorts 720p for maximum stability
+                            target_resolution = (720, 1280)
+                            print(f"[AUTO-FIX] Switched to Shorts Mode (720p Safe): {target_resolution}")
+                        else:
+                            # [SAFE MODE] Force Longform 720p for maximum stability
+                            target_resolution = (1280, 720)
+                            print(f"[AUTO-FIX] Switched to Longform Mode (720p Safe): {target_resolution}")
+            except Exception as e:
+                print(f"[AUTO-FIX] Failed to detect aspect ratio: {e}")
+
         # 오디오 경로
         audio_path = tts_data.get("audio_path")
         if not audio_path or not os.path.exists(audio_path):
