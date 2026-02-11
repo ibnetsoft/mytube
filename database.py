@@ -985,6 +985,47 @@ def save_script(project_id: int, script: str, word_count: int, duration: int):
     conn.commit()
     conn.close()
 
+def update_project_render_status(project_id: int, status: str):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE projects SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (status, project_id))
+    conn.commit()
+    conn.close()
+
+# --- Channels ---
+def get_all_channels() -> List[Dict]:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM channels ORDER BY created_at DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+def create_channel(name: str, handle: str, description: str = None) -> int:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO channels (name, handle, description) VALUES (?, ?, ?)", 
+                   (name, handle, description))
+    new_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return new_id
+
+def delete_channel(channel_id: int):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM channels WHERE id = ?", (channel_id,))
+    conn.commit()
+    conn.close()
+
+def update_channel_credentials(channel_id: int, path: str):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE channels SET credentials_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", 
+                   (path, channel_id))
+    conn.commit()
+    conn.close()
+
 def get_script(project_id: int) -> Optional[Dict]:
     """대본 조회 (scripts 테이블 우선, 없으면 project_settings 확인)"""
     print(f"[DB_DEBUG] get_script called for project_id: {project_id}")

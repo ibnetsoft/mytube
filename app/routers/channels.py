@@ -8,7 +8,7 @@ router = APIRouter(prefix="/api/channels", tags=["Channels"])
 @router.get("", response_model=List[ChannelResponse])
 async def list_channels():
     try:
-        channels = db.get_channels()
+        channels = db.get_all_channels()
         return channels
     except Exception as e:
         raise HTTPException(500, str(e))
