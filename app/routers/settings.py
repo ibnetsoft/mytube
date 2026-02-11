@@ -287,3 +287,32 @@ async def delete_thumbnail_style_preset(style_key: str):
         return {"status": "ok"}
     except Exception as e:
         raise HTTPException(500, str(e))
+
+@router.post("/language")
+async def set_language(lang: str = Body(..., embed=True)):
+    """언어 설정 저장"""
+    try:
+        db.save_global_setting("language", lang)
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@router.get("/autopilot")
+async def get_autopilot_settings():
+    """오토파일럿 설정 조회"""
+    try:
+        # 오토파일럿 설정은 관례적으로 프로젝트 ID 1번에 저장되어 있음
+        settings = db.get_project_settings(1)
+        return {"status": "success", "settings": settings}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@router.post("/autopilot")
+async def save_autopilot_settings(settings: Dict[str, Any] = Body(...)):
+    """오토파일럿 설정 저장"""
+    try:
+        db.save_project_settings(1, settings)
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+

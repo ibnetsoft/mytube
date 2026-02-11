@@ -136,6 +136,9 @@ from app.routers import commerce as commerce_router  # [NEW]
 from app.routers import projects as projects_router # [NEW]
 from app.routers import channels as channels_router # [NEW]
 from app.routers import media as media_router # [NEW]
+from app.routers import settings as settings_router # [NEW]
+from app.routers import repository as repository_router # [NEW]
+from app.routers import queue as queue_router # [NEW]
 
 app.include_router(autopilot_router.router)
 app.include_router(video_router.router)
@@ -143,6 +146,9 @@ app.include_router(commerce_router.router)  # [NEW]
 app.include_router(projects_router.router) # [NEW]
 app.include_router(channels_router.router) # [NEW]
 app.include_router(media_router.router) # [NEW]
+app.include_router(settings_router.router) # [NEW]
+app.include_router(repository_router.router) # [NEW]
+app.include_router(queue_router.router) # [NEW]
 
 @app.post("/api/settings/language")
 async def set_language(lang: str = Body(..., embed=True)):
@@ -1291,84 +1297,7 @@ async def analyze_batch_videos(req: BatchAnalysisRequest):
         "folder_path": target_dir
     }
 
-# [NEW] Repository Page Route
-@app.get("/repository", response_class=HTMLResponse)
-async def repository_page(request: Request):
-    return templates.TemplateResponse("pages/repository.html", {
-        "request": request, 
-        "title": "분석 저장소", 
-        "page": "repository"
-    })
 
-# [NEW] Repository APIs
-@app.get("/api/repository/folders")
-async def list_repository_folders():
-    """output/analysis 폴더 내의 하위 폴더 목록 반환"""
-    base_path = os.path.join(config.OUTPUT_DIR, "analysis")
-    if not os.path.exists(base_path):
-        return {"folders": []}
-    
-    folders = []
-    for d in os.listdir(base_path):
-        full_path = os.path.join(base_path, d)
-        if os.path.isdir(full_path):
-            # Creation time
-            ctime = os.path.getctime(full_path)
-            date_str = datetime.datetime.fromtimestamp(ctime).strftime('%Y-%m-%d %H:%M')
-            folders.append({"name": d, "date": date_str, "timestamp": ctime})
-            
-    # Sort by new
-    folders.sort(key=lambda x: x['timestamp'], reverse=True)
-    return {"folders": folders}
-
-@app.get("/api/repository/{folder_name}/content")
-async def get_repository_content(folder_name: str):
-    """폴더 내의 첫 번째 엑셀/CSV 파일 내용을 파싱하여 반환"""
-    folder_path = os.path.join(config.OUTPUT_DIR, "analysis", folder_name)
-    if not os.path.exists(folder_path):
-        return {"error": "폴더를 찾을 수 없습니다."}
-    
-    # Find xlsx or csv
-    files = os.listdir(folder_path)
-    target_file = None
-    for f in files:
-        if f.endswith(".xlsx") or f.endswith(".csv"):
-            target_file = os.path.join(folder_path, f)
-            break
-            
-    if not target_file:
-        return {"error": "분석 파일이 없습니다.", "data": []}
-        
-    try:
-        data = []
-        if target_file.endswith(".xlsx"):
-            # Try parsing Excel (Needs pandas + openpyxl)
-            try:
-                import pandas as pd
-                df = pd.read_excel(target_file)
-                df = df.fillna("")
-                data = df.to_dict(orient='records')
-            except ImportError:
-                # Fallback: Can't read Excel without pandas
-                return {"error": "Excel 파일을 읽으려면 pandas 모듈이 필요합니다."}
-        else:
-            # Parse CSV (Use standard csv module if pandas missing)
-            try:
-                import pandas as pd
-                df = pd.read_csv(target_file)
-                df = df.fillna("")
-                data = df.to_dict(orient='records')
-            except ImportError:
-                import csv
-                with open(target_file, 'r', encoding='utf-8-sig') as f:
-                    reader = csv.DictReader(f)
-                    data = [row for row in reader]
-
-        return {"status": "ok", "data": data, "file_name": os.path.basename(target_file)}
-        
-    except Exception as e:
-        print(f"Repository Read Error: {e}")
-        return {"error": f"파일 읽기 실패: {str(e)}"}
 
 
 # ===========================================
