@@ -133,9 +133,14 @@ app.include_router(settings.router)  # [NEW]
 from app.routers import autopilot as autopilot_router
 from app.routers import video as video_router
 from app.routers import commerce as commerce_router  # [NEW]
+from app.routers import projects as projects_router # [NEW]
+from app.routers import channels as channels_router # [NEW]
+
 app.include_router(autopilot_router.router)
 app.include_router(video_router.router)
 app.include_router(commerce_router.router)  # [NEW]
+app.include_router(projects_router.router) # [NEW]
+app.include_router(channels_router.router) # [NEW]
 
 @app.post("/api/settings/language")
 async def set_language(lang: str = Body(..., embed=True)):
@@ -3717,97 +3722,7 @@ async def get_render_status(project_id: int):
     return get_render_progress(project_id)
 
 # ===========================================
-# API: 채널 관리 (설정)
-# ===========================================
 
-@app.get("/api/channels", response_model=List[ChannelResponse])
-async def get_channels():
-    """등록된 채널 목록 조회"""
-    conn = db.get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM channels ORDER BY created_at DESC")
-    rows = cursor.fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
-
-@app.post("/api/channels", response_model=ChannelResponse)
-async def create_channel(channel: ChannelCreate):
-    """채널 등록"""
-    conn = db.get_db()
-    cursor = conn.cursor()
-    
-    # 중복 체크? (핸들 기준)
-    cursor.execute("SELECT id FROM channels WHERE handle = ?", (channel.handle,))
-    if cursor.fetchone():
-        conn.close()
-        raise HTTPException(400, "이미 등록된 채널 핸들입니다.")
-
-    cursor.execute("""
-        INSERT INTO channels (name, handle, description)
-        VALUES (?, ?, ?)
-    """, (channel.name, channel.handle, channel.description))
-    conn.commit()
-    
-    new_id = cursor.lastrowid
-    cursor.execute("SELECT * FROM channels WHERE id = ?", (new_id,))
-    row = cursor.fetchone()
-    conn.close()
-    
-    return dict(row)
-
-@app.delete("/api/channels/{channel_id}")
-async def delete_channel(channel_id: int):
-    """채널 삭제"""
-    conn = db.get_db()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM channels WHERE id = ?", (channel_id,))
-    conn.commit()
-    conn.close()
-    return {"status": "ok", "message": "채널이 삭제되었습니다."}
-
-@app.get("/api/auth/youtube/{channel_id}")
-async def authenticate_channel(channel_id: int):
-    """채널별 유튜브 계정 인증 (OAuth)"""
-    from services.youtube_upload_service import youtube_upload_service
-    
-    # 1. 채널 정보 확인
-    conn = db.get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM channels WHERE id = ?", (channel_id,))
-    channel = cursor.fetchone()
-    
-    if not channel:
-        conn.close()
-        raise HTTPException(404, "채널을 찾을 수 없습니다.")
-
-    # 2. 토큰 저장 경로 설정 (tokens/channel_{id}.pickle)
-    token_dir = os.path.join(config.BASE_DIR, "tokens")
-    os.makedirs(token_dir, exist_ok=True)
-    token_path = os.path.join(token_dir, f"channel_{channel_id}.pickle")
-    
-    try:
-        # 3. 인증 시작 (기존 서비스 재활용)
-        # get_authenticated_service 내부에서 '없으면 새로 인증' 로직이 돔
-        # 로컬 브라우저가 열리고 인증 진행
-        print(f"[Auth] Starting OAuth for channel {channel_id} ({channel['name']}) -> {token_path}")
-        
-        # 만약 기존 토큰이 있다면 삭제하여 강제 재인증 유도 (선택 사항)
-        # if os.path.exists(token_path):
-        #     os.remove(token_path)
-            
-        youtube_upload_service.get_authenticated_service(token_path=token_path)
-        
-        # 4. DB에 토큰 경로 업데이트
-        cursor.execute("UPDATE channels SET credentials_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (token_path, channel_id))
-        conn.commit()
-        conn.close()
-        
-        return {"status": "success", "message": f"채널 '{channel['name']}' 인증이 완료되었습니다."}
-        
-    except Exception as e:
-        conn.close()
-        print(f"[Auth] Failed: {e}")
-        raise HTTPException(500, f"인증 실패: {str(e)}")
 
 # ===========================================
 # 서버 실행 (Direct Run)
