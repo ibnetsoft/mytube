@@ -52,13 +52,25 @@ async def get_global_settings_api():
 @router.post("")
 async def save_global_settings_api(settings: GlobalSettings):
     """글로벌 설정 저장"""
+    # 이전 모드 저장 (모드 변경 감지용)
+    previous_mode = db.get_global_setting("app_mode", "longform")
+    
     if settings.app_mode:
         db.save_global_setting("app_mode", settings.app_mode)
     if settings.gemini_tts:
         db.save_global_setting("gemini_tts", settings.gemini_tts)
     if settings.script_styles:
         db.save_global_setting("script_styles", settings.script_styles)
-    return {"status": "ok"}
+    
+    # 모드 변경 여부 반환
+    mode_changed = previous_mode != settings.app_mode if settings.app_mode else False
+    
+    return {
+        "status": "ok",
+        "mode_changed": mode_changed,
+        "previous_mode": previous_mode,
+        "new_mode": settings.app_mode
+    }
 
 class StylePreset(BaseModel):
     style_key: str

@@ -277,9 +277,14 @@
                                 📱 쇼츠
                             </button>
                         </div>
-                        <p class="text-[10px] text-gray-400 mt-2">
-                            * 모드를 변경하면 메뉴 구성과 영상 생성 설정이 해당 포맷에 최적화됩니다.
-                        </p>
+                        <div class="mt-2 space-y-1">
+                            <p class="text-[10px] text-gray-500 dark:text-gray-400">
+                                * 모드를 변경하면 메뉴 구성과 영상 생성 설정이 해당 포맷에 최적화됩니다.
+                            </p>
+                            <p class="text-[10px] text-orange-600 dark:text-orange-400 font-medium">
+                                ⚠️ 모드 전환 시 현재 프로젝트 선택이 해제되고 모든 데이터가 초기화됩니다.
+                            </p>
+                        </div>
                     </div>
 
                     <!-- [NEW] Template Image (Overlay) -->
@@ -653,6 +658,27 @@
 
     // App Mode Toggle
     function setAppMode(mode) {
+        const currentMode = document.getElementById('appMode').value;
+
+        // 현재 모드와 같은 모드를 선택한 경우 아무것도 하지 않음
+        if (currentMode === mode) {
+            return;
+        }
+
+        // 모드 전환 확인
+        const modeNames = {
+            'longform': '롱폼 (기본)',
+            'shorts': '쇼츠'
+        };
+
+        const confirmMessage = `⚠️ 모드 전환 확인\n\n현재: ${modeNames[currentMode]}\n변경: ${modeNames[mode]}\n\n모드를 전환하면:\n• 현재 선택된 프로젝트가 해제됩니다\n• 모든 페이지의 데이터가 초기화됩니다\n• "내 프로젝트"에서 프로젝트를 다시 선택해야 합니다\n\n계속하시겠습니까?`;
+
+        if (!confirm(confirmMessage)) {
+            // 사용자가 취소한 경우, 이전 모드로 되돌림
+            return;
+        }
+
+        // 모드 변경 적용
         document.getElementById('appMode').value = mode;
 
         const btnLong = document.getElementById('btnModeLong');
@@ -667,6 +693,15 @@
         } else {
             btnShort.className = `px-4 py-1.5 rounded-md text-xs transition-all ${activeClass}`;
             btnLong.className = `px-4 py-1.5 rounded-md text-xs transition-all ${inactiveClass}`;
+        }
+
+        // 저장 버튼 강조 (사용자에게 저장 필요성 알림)
+        const saveBtn = document.querySelector('button[onclick="saveAllSettings()"]');
+        if (saveBtn) {
+            saveBtn.classList.add('animate-pulse');
+            setTimeout(() => {
+                saveBtn.classList.remove('animate-pulse');
+            }, 3000);
         }
     }
 
@@ -716,18 +751,8 @@
         // Save Keys first
         await saveApiKeys(); // This saves API keys to .env (via existing logic)
 
-        // [NEW] Check if app_mode is changing
-        const currentMode = document.getElementById('appMode').value;
-        let previousMode = null;
-        try {
-            const prevSettings = await fetch('/api/settings');
-            const prevData = await prevSettings.json();
-            previousMode = prevData.app_mode || 'longform';
-        } catch (e) {
-            console.error('Failed to get previous mode:', e);
-        }
-
         // Save Global Settings
+        const currentMode = document.getElementById('appMode').value;
         const settings = {
             app_mode: currentMode,
             gemini_tts: {
@@ -739,7 +764,7 @@
                 news: document.getElementById('promptNews').value,
                 story: document.getElementById('promptStory').value,
                 script_master: document.getElementById('promptScriptMaster').value,
-                senior_story: document.getElementById('promptSeniorStory').value // [NEW]
+                senior_story: document.getElementById('promptSeniorStory').value
             }
         };
 
@@ -751,46 +776,112 @@
             });
 
             if (res.ok) {
-                Utils.showToast('설정이 저장되었습니다', 'success');
+                const data = await res.json();
 
-                // [NEW] If app_mode changed, clear all project data and deselect project
-                if (previousMode && previousMode !== currentMode) {
-                    console.log(`App mode changed: ${previousMode} → ${currentMode}`);
+                // 모드 변경 여부 확인 (서버에서 반환)
+                if (data.mode_changed) {
+                    console.log(`🔄 모드 전환 감지: ${data.previous_mode} → ${data.new_mode}`);
 
-                    // Clear current project selection
-                    setCurrentProject(null);
+                    // 1. 현재 프로젝트 선택 해제
+                    if (typeof setCurrentProject === 'function') {
+                        setCurrentProject(null);
+                    } else {
+                        window.currentProjectId = null;
+                        localStorage.removeItem('currentProjectId');
+                    }
 
-                    // Clear all cached data
-                    Utils.storage.remove('scriptStructure');
-                    Utils.storage.remove('fullScript');
-                    Utils.storage.remove('imagePrompts');
-                    Utils.storage.remove('characterPrompts');
-                    localStorage.removeItem('trendKeywords');
-                    localStorage.removeItem('topicPageState');
-                    localStorage.removeItem('latestScriptStyle');
+                    // 2. 모든 캐시 데이터 초기화
+                    const keysToRemove = [
+                        'scriptStructure',
+                        'fullScript',
+                        'imagePrompts',
+                        'characterPrompts',
+                        'trendKeywords',
+                        'topicPageState',
+                        'latestScriptStyle',
+                        'currentProjectId',
+                        'projectData',
+                        'audioData',
+                        'videoData',
+                        'thumbnailData',
+                        'metadataData'
+                    ];
 
-                    // Hide project info in header
-                    document.getElementById('currentProjectInfo')?.classList.add('hidden');
-                    document.getElementById('projectProgressHeader')?.classList.add('hidden');
+                    keysToRemove.forEach(key => {
+                        localStorage.removeItem(key);
+                        sessionStorage.removeItem(key);
+                    });
 
-                    // Reset project selector
+                    // Utils.storage가 있다면 사용
+                    if (typeof Utils !== 'undefined' && Utils.storage) {
+                        keysToRemove.forEach(key => {
+                            Utils.storage.remove(key);
+                        });
+                    }
+
+                    // 3. UI 업데이트 - 프로젝트 정보 숨기기
+                    const elementsToHide = [
+                        'currentProjectInfo',
+                        'projectProgressHeader',
+                        'projectInfoCard'
+                    ];
+
+                    elementsToHide.forEach(id => {
+                        const element = document.getElementById(id);
+                        if (element) {
+                            element.classList.add('hidden');
+                        }
+                    });
+
+                    // 4. 프로젝트 선택 드롭다운 초기화
                     const projectSelect = document.getElementById('projectSelect');
                     if (projectSelect) {
                         projectSelect.value = '';
+                        projectSelect.selectedIndex = 0;
                     }
 
-                    Utils.showToast(`모드 전환 완료! 프로젝트를 다시 선택해주세요.`, 'info');
+                    // 5. 사용자에게 알림
+                    const modeNames = {
+                        'longform': '롱폼',
+                        'shorts': '쇼츠'
+                    };
+                    const newModeName = modeNames[data.new_mode] || data.new_mode;
 
-                    // Reload page after a short delay to apply navigation changes
+                    if (typeof Utils !== 'undefined' && Utils.showToast) {
+                        Utils.showToast(`✅ 설정 저장 완료!`, 'success');
+                        setTimeout(() => {
+                            Utils.showToast(`🔄 ${newModeName} 모드로 전환되었습니다. "내 프로젝트" 페이지에서 프로젝트를 선택해주세요.`, 'info', 5000);
+                        }, 500);
+                    } else {
+                        alert(`${newModeName} 모드로 전환되었습니다.\n\n모든 데이터가 초기화되었습니다.\n"내 프로젝트" 페이지에서 프로젝트를 다시 선택해주세요.`);
+                    }
+
+                    // 6. 페이지 새로고침 (네비게이션 메뉴 업데이트 등)
                     setTimeout(() => {
                         window.location.reload();
-                    }, 1500);
+                    }, 2000);
+                } else {
+                    // 모드 변경 없이 일반 설정만 저장된 경우
+                    if (typeof Utils !== 'undefined' && Utils.showToast) {
+                        Utils.showToast('✅ 설정이 저장되었습니다', 'success');
+                    } else {
+                        alert('설정이 저장되었습니다.');
+                    }
                 }
             } else {
-                Utils.showToast('설정 저장 실패', 'error');
+                if (typeof Utils !== 'undefined' && Utils.showToast) {
+                    Utils.showToast('❌ 설정 저장 실패', 'error');
+                } else {
+                    alert('설정 저장에 실패했습니다.');
+                }
             }
         } catch (e) {
             console.error('설정 저장 오류:', e);
+            if (typeof Utils !== 'undefined' && Utils.showToast) {
+                Utils.showToast('❌ 설정 저장 중 오류 발생', 'error');
+            } else {
+                alert('설정 저장 중 오류가 발생했습니다.');
+            }
         }
     }
 
