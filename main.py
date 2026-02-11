@@ -2394,8 +2394,15 @@ async def generate_thumbnail_text(req: ThumbnailTextRequest):
         # 대본이 너무 길면 앞부분만 사용 (토큰 절약)
         script_preview = script[:2000] if len(script) > 2000 else script
         
+        # [NEW] Get character info for better context
+        characters = db.get_project_characters(req.project_id)
+        char_context = ""
+        if characters:
+            char_names = [c.get("name") for c in characters if c.get("name")]
+            char_context = f"\n[Featured Characters]: {', '.join(char_names)}"
+
         prompt = prompts.GEMINI_THUMBNAIL_HOOK_TEXT.format(
-            script=script_preview,
+            script=f"{script_preview}{char_context}",
             thumbnail_style=req.thumbnail_style,
             image_style=image_style or '(없음)',
             target_language=req.target_language
@@ -2438,7 +2445,13 @@ async def generate_thumbnail_text(req: ThumbnailTextRequest):
                 "reasoning": reasoning
             }
         
-        return {"status": "error", "error": "AI 응답에서 JSON을 찾을 수 없습니다"}
+        # Enhanced Fallback: Use project title or "Must Watch"
+        title = project.get("topic", "Must Watch")
+        return {
+            "status": "ok", 
+            "texts": [title, f"🔥 {title}", f"✨ {title}"], 
+            "reasoning": "Fallback used (AI JSON parsing failed)"
+        }
         
     except Exception as e:
         print(f"[Thumbnail Text Gen Error] {e}")
@@ -3549,9 +3562,10 @@ class AutoPilotStartRequest(BaseModel):
     topic: Optional[str] = None
     visual_style: str = "realistic"
     thumbnail_style: Optional[str] = "face"
-    video_scene_count: int = 0
-    all_video: bool = False
-    motion_method: str = "standard"
+    video_scene_count: Optional[int] = 0
+    all_video: Optional[bool] = False
+    video_engine: Optional[str] = "wan" # "wan" or "akool"
+    motion_method: Optional[str] = "standard"
     narrative_style: str = "informative"
     script_style: Optional[str] = None
     voice_id: str = "ko-KR-Neural2-A"
@@ -3639,6 +3653,7 @@ async def start_autopilot_api(
         "thumbnail_style": req.thumbnail_style,
         "video_scene_count": req.video_scene_count,
         "all_video": req.all_video,
+        "video_engine": req.video_engine,
         "motion_method": req.motion_method,
         "narrative_style": req.script_style or req.narrative_style,
         "script_style": req.script_style or req.narrative_style, 
@@ -4084,8 +4099,12 @@ async def upload_external_to_youtube(
     try:
         data = await request.json()
         requested_privacy = data.get("privacy", "private")
+        requested_publish_at = data.get("publish_at")
+        requested_channel_id = data.get("channel_id")
     except:
         requested_privacy = "private"
+        requested_publish_at = None
+        requested_channel_id = None
 
     # [NEW] Membership Check
     from services.auth_service import auth_service
@@ -4093,10 +4112,17 @@ async def upload_external_to_youtube(
     
     # Force private if not independent
     final_privacy = "private"
+    final_publish_at = None
+    
     if is_independent:
         final_privacy = requested_privacy
+        final_publish_at = requested_publish_at
+        
+        # YouTube requires 'private' for scheduled
+        if final_publish_at:
+            final_privacy = "private"
     else:
-        # Standard user always private locally (admin triggers public later)
+        # Standard user always private locally
         if requested_privacy == "public":
             print("[Security] Standard user attempted public upload. Forcing private.")
             final_privacy = "private"
@@ -4132,17 +4158,24 @@ async def upload_external_to_youtube(
         tags = metadata.get('tags', []) if metadata else []
         
         # [NEW] 채널 정보 조회하여 토큰 경로 결정
+        token_path = None
         try:
-            channels = db.get_all_channels()
-            token_path = None
-            if channels:
-                # 첫 번째 채널(Honjada 등)의 토큰 사용 시도
-                cand_path = channels[0].get('credentials_path')
-                if cand_path and os.path.exists(cand_path):
-                    token_path = cand_path
-                else:
-                    print(f"[YouTube] Specified channel token not found at {cand_path}, using default.")
-        except:
+            if requested_channel_id:
+                channel = db.get_channel(requested_channel_id)
+                if channel and channel.get('credentials_path'):
+                    cand_path = channel['credentials_path']
+                    if os.path.exists(cand_path):
+                        token_path = cand_path
+            
+            if not token_path:
+                # Fallback to first channel if not specified or not found
+                channels = db.get_all_channels()
+                if channels:
+                    cand_path = channels[0].get('credentials_path')
+                    if cand_path and os.path.exists(cand_path):
+                        token_path = cand_path
+        except Exception as e:
+            print(f"[YouTube] Channel resolution error: {e}")
             token_path = None
 
         # YouTube 업로드 (동기 함수이므로 await 제거)
@@ -4152,8 +4185,9 @@ async def upload_external_to_youtube(
             description=description,
             tags=tags,
             category_id="22",  # People & Blogs
-            privacy_status=final_privacy, # [UPDATED]
-            token_path=token_path      # [NEW] 존재할 때만 토큰 전달
+            privacy_status=final_privacy,
+            publish_at=final_publish_at,
+            token_path=token_path
         )
         
         if result and result.get('id'):

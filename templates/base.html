@@ -687,8 +687,12 @@
                 if (result.project_id) {
                     setCurrentProject(result.project_id);
                     closeProjectModal();
-                    await loadProjects();
                     Utils.showToast('프로젝트가 생성되었습니다', 'success');
+
+                    // [FIX] Redirect to projects page to see the newly created project
+                    setTimeout(() => {
+                        window.location.href = '/projects';
+                    }, 500);
                 }
             } catch (e) {
                 Utils.showToast('프로젝트 생성 실패', 'error');

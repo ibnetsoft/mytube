@@ -17,6 +17,11 @@ class AutoPilotStartRequest(BaseModel):
     duration_minutes: int = 10
     duration_seconds: Optional[int] = None
     subtitle_settings: Optional[dict] = None
+    upload_privacy: Optional[str] = "private"
+    upload_schedule_at: Optional[str] = None
+    youtube_channel_id: Optional[int] = None
+    creation_mode: str = "default"
+    product_url: Optional[str] = None
 
 class AutopilotPresetSave(BaseModel):
     name: str

@@ -28,9 +28,23 @@ class ReplicateService:
         print(f"🎬 [Video Gen] Method: {method}, Image: {os.path.basename(image_path)}")
 
         try:
+            # [PROMPT ENGINEERING] Enhance prompt for better motion
+            base_prompt = prompt if prompt else "Cinematic video, high quality, smooth motion"
+            
+            # Add strong motion keywords if not present
+            motion_keywords = ["motion", "moving", "pan", "zoom", "walking", "running", "flying", "dynamic"]
+            if not any(k in base_prompt.lower() for k in motion_keywords):
+                base_prompt += ", dynamic camera movement, detailed motion, 4k"
+
+            if method == "slowmo":
+                # For 8s slowmo (interpolated from 5s), we need the source 5s to have clear movement.
+                # Avoid "slow motion" in prompt because we are doing it in post-process.
+                # Instead ask for "fluid motion".
+                base_prompt += ", fluid motion, high frame rate style"
+
             if method == "extend":
                 # 1. First 5 seconds
-                first_part_data = await self._generate_basic(image_path, prompt, duration=5.0)
+                first_part_data = await self._generate_basic(image_path, base_prompt, duration=5.0)
                 first_path = self._save_temp_video(first_part_data, "part1.mp4")
 
                 # 2. Extract last frame
@@ -38,7 +52,7 @@ class ReplicateService:
                 last_frame_path = first_path.replace(".mp4", "_last.png")
                 if video_service.extract_last_frame(first_path, last_frame_path):
                     # 3. Generate next 3 seconds from last frame
-                    second_part_data = await self._generate_basic(last_frame_path, prompt, duration=3.0)
+                    second_part_data = await self._generate_basic(last_frame_path, base_prompt, duration=3.0)
                     second_path = self._save_temp_video(second_part_data, "part2.mp4")
 
                     # 4. Merge
@@ -51,19 +65,20 @@ class ReplicateService:
 
             elif method == "slowmo":
                 # 1. Standard 5s generation
-                video_data = await self._generate_basic(image_path, prompt, duration=5.0)
+                video_data = await self._generate_basic(image_path, base_prompt, duration=5.0)
                 temp_path = self._save_temp_video(video_data, "before_slowmo.mp4")
                 
                 # 2. Apply FFmpeg Slow-mo (Interpolation)
                 from services.video_service import video_service
                 output_path = temp_path.replace(".mp4", "_slowmo_8s.mp4")
-                video_service.apply_slow_mo(temp_path, output_path, speed_ratio=0.625) # 5/8 = 0.625
+                # 5s -> 8s means slowing down to 62.5% speed.
+                video_service.apply_slow_mo(temp_path, output_path, speed_ratio=0.625) 
                 
                 with open(output_path, "rb") as f:
                     return f.read()
 
             else: # Standard 5s
-                return await self._generate_basic(image_path, prompt, duration=duration)
+                return await self._generate_basic(image_path, base_prompt, duration=duration)
 
         except Exception as e:
             print(f"Replicate Service Error: {e}")

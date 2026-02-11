@@ -28,10 +28,7 @@ class PromptsGenerateRequest(BaseModel):
 class ImagePromptsSave(BaseModel):
     prompts: List[dict]
 
-class AnimateRequest(BaseModel):
-    scene_number: int
-    prompt: Optional[str] = "Cinematic slow motion, high quality"
-    duration: Optional[float] = 3.3
+
 
 # Helper (Should be shared but duplicated for now to avoid circular dependency hell in short term)
 def get_project_output_dir(project_id: int):
@@ -58,7 +55,8 @@ STYLE_PROMPTS = {
     "3d": "3D render, Pixar style, soft studio lighting, octane render, 4k",
     "webtoon": "Oriental fantasy webtoon style illustration of a character in traditional clothing lying on a bed in a dark room, dramatic lighting, detailed line art, manhwa aesthetics, high quality",
     "ghibli": "Studio Ghibli style, cel shaded, vibrant colors, lush background, Hayao Miyazaki style, highly detailed",
-    "wimpy": "Diary of a Wimpy Kid style, simple black and white line drawing, hand-drawn sketch, minimalist stick figure illustration, white background, high quality"
+    "wimpy": "Minimalist black and white line art, hand-drawn simple stick figure doodle, clean ink sketch on plain white background, childlike 2D illustration, no text, no branding, high quality",
+    "wimpy_kid": "Minimalist black and white line art, hand-drawn simple stick figure doodle, clean ink sketch on plain white background, childlike 2D illustration, no text, no branding, high quality"
 }
 
 # ===========================================
@@ -377,6 +375,15 @@ async def upload_scene_image_api(
 # API: 동영상 생성 (Motion)
 # ===========================================
 
+from pydantic import BaseModel
+from typing import Optional
+
+class AnimateRequest(BaseModel):
+    scene_number: int
+    prompt: Optional[str] = "Cinematic slow motion, high quality"
+    duration: Optional[float] = 3.3
+    method: Optional[str] = "standard" # standard, extend, slowmo
+
 @router.post("/api/projects/{project_id}/scenes/animate")
 async def animate_scene(project_id: int, req: AnimateRequest):
     """
@@ -408,11 +415,12 @@ async def animate_scene(project_id: int, req: AnimateRequest):
             raise HTTPException(404, f"이미지 파일이 존재하지 않습니다: {image_path}")
 
         # 2. 비디오 생성 요청
-        print(f"Generating motion for Scene {req.scene_number} (Project {project_id}, Duration={req.duration})...")
+        print(f"Generating motion for Scene {req.scene_number} (Project {project_id}, Duration={req.duration}, Method={req.method})...")
         video_data = await replicate_service.generate_video_from_image(
             image_path=image_path,
             prompt=req.prompt or "Cinematic motion",
-            duration=req.duration or 3.3
+            duration=req.duration or 3.3,
+            method=req.method or "standard"
         )
         
         # 3. 저장

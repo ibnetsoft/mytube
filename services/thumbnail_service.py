@@ -23,6 +23,114 @@ class ThumbnailRenderer:
             "wimpy": "NanumPen.ttf"
         }
 
+    def get_style_recipe(self, style_key: str, hook_text: str = "") -> list:
+        """
+        스타일 키에 따른 텍스트 레이어 구성을 반환합니다. (Backend Style Registry)
+        """
+        # Canvas defaults
+        cw, ch = 1280, 720
+        cx, cy = cw / 2, ch / 2
+        
+        # Default Layer (Fallback)
+        base_layer = {
+            "text": hook_text or "텍스트 입력",
+            "x": cx, "y": cy, 
+            "font_size": 100,
+            "color": "#FFFFFF", 
+            "stroke_color": "#000000",
+            "stroke_width": 8,
+            "font_family": "face"  # fallback
+        }
+
+        layers = [base_layer]
+
+        if style_key == "japanese_viral":
+            # 일본 바이럴 스타일 (좌측 텍스트, 우측 이미지 여백)
+            # 4줄 구성
+            layers = [
+               {"text": "충격적인", "x": 320, "y": 180, "font_size": 80, "color": "#00FF00", "stroke_color": "#000000", "stroke_width": 8, "font_family": "japanese_viral"},
+               {"text": hook_text or "진실", "x": 320, "y": 290, "font_size": 100, "color": "#00FFFF", "stroke_color": "#000000", "stroke_width": 10, "font_family": "japanese_viral"},
+               {"text": "공개", "x": 320, "y": 420, "font_size": 80, "color": "#E000FF", "stroke_color": "#FFFFFF", "stroke_width": 8, "font_family": "japanese_viral"},
+               {"text": "!!", "x": 320, "y": 540, "font_size": 120, "color": "#FF0000", "stroke_color": "#FFFF00", "stroke_width": 10, "font_family": "japanese_viral"},
+            ]
+        
+        elif style_key == "face":
+            # 얼굴 강조형 (하단 중앙 굵은 텍스트)
+            layers[0].update({
+                "y": 600, 
+                "font_size": 110, 
+                "color": "#FFFFFF", 
+                "stroke_width": 10,
+                "font_family": "face"
+            })
+
+        elif style_key == "text":
+            # 텍스트 중심형 (중앙 거대 텍스트)
+            layers[0].update({
+                "x": cx, "y": cy,
+                "font_size": 150,
+                "color": "#FFFF00",
+                "stroke_color": "#000000",
+                "stroke_width": 15,
+                "font_family": "text"
+            })
+
+        elif style_key == "mystery":
+            # 미스터리 (라임색, 중간 크기)
+            layers[0].update({
+                "color": "#ADFF2F",
+                "font_size": 90,
+                "stroke_width": 6,
+                "font_family": "mystery"
+            })
+
+        elif style_key == "contrast":
+            # 대비 (빨간 스트로크)
+            layers[0].update({
+                "color": "#FFFFFF",
+                "stroke_color": "#FF0000",
+                "stroke_width": 8,
+                "font_family": "contrast"
+            })
+
+        elif style_key == "dramatic":
+            # 드라마틱 (빨강)
+            layers[0].update({
+                "color": "#FF0000",
+                "stroke_color": "#000000",
+                "stroke_width": 10,
+                "font_family": "dramatic"
+            })
+            
+        elif style_key == "minimal":
+             # 미니멀 (검정 + 흰 외곽선)
+             layers[0].update({
+                "color": "#000000",
+                "stroke_color": "#FFFFFF",
+                "stroke_width": 4,
+                "font_size": 80,
+                "font_family": "minimal"
+             })
+
+        elif style_key == "ghibli":
+             # 지브리 (손글씨)
+             layers[0].update({
+                 "font_family": "ghibli",
+                 "font_size": 90,
+                 "stroke_width": 4,
+                 "stroke_color": "#555555"
+             })
+             
+        elif style_key == "wimpy":
+             # 윔피 (검정 펜)
+             layers[0].update({
+                 "font_family": "wimpy",
+                 "color": "#000000",
+                 "stroke_width": 0
+             })
+
+        return layers
+
     def _load_font(self, font_name, size):
         """폰트 로드 (실패시 기본 폰트)"""
         font_path = os.path.join(self.fonts_dir, font_name)

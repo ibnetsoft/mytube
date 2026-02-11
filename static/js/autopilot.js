@@ -2,7 +2,7 @@
 
 document.addEventListener('DOMContentLoaded', async () => {
     // 1. Load Presets (Styles & Voices)
-    await Promise.all([loadStyles(), loadVoices(), fetchPresets()]);
+    await Promise.all([loadStyles(), loadVoices(), fetchPresets(), loadChannels()]);
 
     // 2. Load Saved Settings (Global / Default Project)
     // 2. Load Saved Settings (Global / Default Project)
@@ -106,11 +106,10 @@ async function loadStyles() {
             const defaultNames = {
                 'face': '얼굴 강조형',
                 'text': '텍스트 중심형',
-                'wimpy': '윔피키드 스타일',
-                'ghibli': '지브리 감성',
-                'dramatic': '드라마틱형',
-                'mystery': '미스터리형',
-                'minimal': '미니멀형'
+                'contrast': '반분할(좌우대비)',
+                'mystery': '미스터리/실루엣',
+                'dynamic': '다이내믹(광각)',
+                'japanese_viral': '시니어 바이럴'
             };
 
             tGrid.innerHTML = '';
@@ -151,7 +150,7 @@ function createStyleCard(style, inputId) {
 
     div.innerHTML = `
         <img src="${style.img}" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" alt="${style.name}" 
-            onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=\\'flex flex-col items-center justify-center h-full p-2 text-center\\'><div class=\\'text-xl mb-1\\'>🎨</div><div class=\\'text-[9px] text-gray-400 font-medium leading-tight truncate w-full\\'>${displayName}</div></div>';">
+            onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=\\'flex flex-col items-center justify-center h-full p-2 text-center\\'><div class=\\'text-2xl mb-1\\'>🎨</div><div class=\\'text-[10px] text-white font-bold leading-tight truncate w-full\\'>${displayName}</div></div>';">
         <div class="absolute bottom-0 inset-x-0 bg-black/60 p-1.5 text-center transition-transform translate-y-0">
             <span class="text-[10px] text-white font-medium block truncate">${displayName}</span>
         </div>
@@ -198,51 +197,118 @@ function setMode(mode) {
     const btnShort = document.getElementById('modeShorts');
 
     if (mode === 'longform') {
-        btnLong.classList.replace('text-gray-500', 'bg-purple-600');
-        btnLong.classList.replace('text-white', 'text-white'); // ensure text is white
         btnLong.classList.add('bg-purple-600', 'text-white', 'font-bold');
-
+        btnLong.classList.remove('text-gray-500');
         btnShort.classList.remove('bg-purple-600', 'text-white', 'font-bold');
         btnShort.classList.add('text-gray-500');
 
-        // Update Duration Label to 'Min'
         const durLabel = document.querySelector('#targetDuration + span');
         if (durLabel) durLabel.innerText = '분';
         const durInput = document.getElementById('targetDuration');
-        if (durInput && durInput.value == 60) durInput.value = 10; // Reset if it was set for shorts
+        if (durInput && durInput.value == 60) durInput.value = 10;
+
+        const commerceToggle = document.getElementById('commerceModeToggle');
+        if (commerceToggle) commerceToggle.classList.add('hidden');
+        setCreationMode('default');
     } else {
         btnShort.classList.add('bg-purple-600', 'text-white', 'font-bold');
         btnShort.classList.remove('text-gray-500');
-
         btnLong.classList.remove('bg-purple-600', 'text-white', 'font-bold');
         btnLong.classList.add('text-gray-500');
 
-        // Update Duration Label to 'Sec'
         const durLabel = document.querySelector('#targetDuration + span');
         if (durLabel) durLabel.innerText = '초';
         const durInput = document.getElementById('targetDuration');
-        if (durInput) durInput.value = 60; // Default for shorts
+        if (durInput) durInput.value = 60;
+
+        const commerceToggle = document.getElementById('commerceModeToggle');
+        if (commerceToggle) commerceToggle.classList.remove('hidden');
+
+        // Ensure creation mode is synced
+        setCreationMode(document.getElementById('creationMode')?.value || 'default');
+    }
+}
+
+// [NEW] Creation Mode Selection (Standard vs TopView Commerce)
+function setCreationMode(mode) {
+    const input = document.getElementById('creationMode');
+    if (!input) return;
+    input.value = mode;
+
+    const btnDefault = document.getElementById('modeDefault');
+    const btnCommerce = document.getElementById('modeCommerce');
+
+    const topicContainer = document.getElementById('topicInputContainer');
+    const productContainer = document.getElementById('productUrlContainer');
+
+    if (mode === 'default') {
+        // Normal Mode
+        btnDefault.classList.add('bg-cyan-600', 'text-white', 'font-bold');
+        btnDefault.classList.remove('text-cyan-400');
+        btnCommerce.classList.remove('bg-cyan-600', 'text-white', 'font-bold');
+        btnCommerce.classList.add('text-cyan-400');
+
+        if (topicContainer) topicContainer.classList.remove('hidden');
+        if (productContainer) productContainer.classList.add('hidden');
+    } else {
+        // Commerce Mode (TopView)
+        btnCommerce.classList.add('bg-cyan-600', 'text-white', 'font-bold');
+        btnCommerce.classList.remove('text-cyan-400');
+        btnDefault.classList.remove('bg-cyan-600', 'text-white', 'font-bold');
+        btnDefault.classList.add('text-cyan-400');
+
+        if (topicContainer) topicContainer.classList.add('hidden');
+        if (productContainer) productContainer.classList.remove('hidden');
     }
 }
 
 // [NEW] Motion Method Selection
-function setMotionMethod(method) {
-    const input = document.getElementById('motionMethod');
-    if (!input) return;
-    input.value = method;
-
-    // Visual update
+function setMotionMethod(val) {
+    document.getElementById('motionMethod').value = val;
     document.querySelectorAll('.motion-method-btn').forEach(btn => {
-        if (btn.dataset.value === method) {
-            btn.classList.replace('bg-gray-800', 'bg-purple-600');
-            btn.classList.replace('text-gray-400', 'text-white');
-            btn.classList.add('font-bold', 'shadow-sm');
+        if (btn.getAttribute('data-value') === val) {
+            btn.classList.add('bg-purple-600', 'text-white', 'font-bold', 'shadow-sm');
+            btn.classList.remove('bg-gray-800', 'text-gray-400');
         } else {
-            btn.classList.replace('bg-purple-600', 'bg-gray-800');
-            btn.classList.replace('text-white', 'text-gray-400');
-            btn.classList.remove('font-bold', 'shadow-sm');
+            btn.classList.remove('bg-purple-600', 'text-white', 'font-bold', 'shadow-sm');
+            btn.classList.add('bg-gray-800', 'text-gray-400');
         }
     });
+
+    // 만약 slowmo/extend 면 안내 문구 등 추가 가능
+}
+
+function setVideoEngine(val) {
+    document.getElementById('videoEngine').value = val;
+    document.querySelectorAll('.video-engine-btn').forEach(btn => {
+        if (btn.getAttribute('data-value') === val) {
+            btn.classList.add('bg-purple-600', 'text-white', 'font-bold', 'shadow-sm');
+            btn.classList.remove('bg-gray-800', 'text-gray-400');
+        } else {
+            btn.classList.remove('bg-purple-600', 'text-white', 'font-bold', 'shadow-sm');
+            btn.classList.add('bg-gray-800', 'text-gray-400');
+        }
+    });
+}
+
+function toggleScheduleInput() {
+    const privacy = document.getElementById('uploadPrivacy')?.value;
+    const container = document.getElementById('scheduleInputContainer');
+    if (!container) return;
+
+    if (privacy === 'scheduled') {
+        container.classList.remove('hidden');
+        // Default: Tomorrow this time
+        const input = document.getElementById('uploadScheduleAt');
+        if (input && !input.value) {
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            tomorrow.setMinutes(tomorrow.getMinutes() - tomorrow.getTimezoneOffset());
+            input.value = tomorrow.toISOString().slice(0, 16);
+        }
+    } else {
+        container.classList.add('hidden');
+    }
 }
 
 
@@ -475,8 +541,28 @@ async function loadSavedSettings() {
                 if (range) {
                     range.value = estScenes;
                     // Update display
-                    const display = document.getElementById('sceneCountVal');
                     if (display) display.innerText = estScenes + " Scenes";
+                }
+            }
+
+            // [NEW] Upload Settings
+            if (data.upload_privacy) {
+                const privacySelect = document.getElementById('uploadPrivacy');
+                if (privacySelect) {
+                    privacySelect.value = data.upload_privacy;
+                    toggleScheduleInput();
+                }
+            }
+            if (data.upload_schedule_at) {
+                const scheduleInput = document.getElementById('uploadScheduleAt');
+                if (scheduleInput) {
+                    scheduleInput.value = data.upload_schedule_at;
+                }
+            }
+            if (data.youtube_channel_id) {
+                const channelSelect = document.getElementById('youtubeChannelId');
+                if (channelSelect) {
+                    channelSelect.value = data.youtube_channel_id;
                 }
             }
         }
@@ -520,8 +606,8 @@ function log(msg) {
     if (msg.includes("Thumb")) icon = "🖼️";
     if (msg.includes("Render")) icon = "🎞️";
 
-    // Clean up msg if it already has the icon we matched
-    const cleanMsg = msg.replace(/[✅❌🚀🎬🎙️🏁⚙️📊📝🎨🖼️🎞️⚡]/g, "").trim();
+    // Clean up msg - removing common status icons if present (using a safer approach)
+    const cleanMsg = msg.replace(/[^\x00-\x7F가-힣]/g, "").trim();
 
     const div = document.createElement('div');
     const time = new Date().toLocaleTimeString('ko-KR', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -615,9 +701,18 @@ async function startAutopilot() {
     const topicInput = document.getElementById('topicInput');
     const topic = topicInput ? topicInput.value.trim() : '';
 
-    if (!topic) {
+    const creationMode = document.getElementById('creationMode')?.value || 'default';
+    const productUrl = document.getElementById('productUrlInput')?.value.trim() || '';
+
+    if (creationMode === 'default' && !topic) {
         alert("Please enter a topic keyword.");
         topicInput.focus();
+        return;
+    }
+
+    if (creationMode === 'commerce' && !productUrl) {
+        alert("상품 URL을 입력해주세요.");
+        document.getElementById('productUrlInput').focus();
         return;
     }
 
@@ -626,13 +721,14 @@ async function startAutopilot() {
     // UI Loading State
     // Build Config
     const config = {
-        keyword: topic,
+        keyword: creationMode === 'commerce' ? `[Commerce] ${productUrl}` : topic,
         mode: document.getElementById('appMode')?.value || 'longform',
         image_style: document.getElementById('imageStyle').value,
         thumbnail_style: document.getElementById('thumbnailStyle').value,
         video_scene_count: parseInt(document.getElementById('videoSceneCount').value || 0),
         all_video: document.getElementById('allVideoCheck')?.checked || false,
-        motion_method: document.getElementById('motionMethod')?.value || 'standard',
+        video_engine: document.getElementById('videoEngine')?.value || 'wan',
+        motion_method: document.getElementById('motionMethod').value || 'standard',
         script_style: document.getElementById('scriptStyleSelect').value,
         voice_provider: document.getElementById('providerSelect').value,
         voice_id: document.getElementById('voiceSelect').value,
@@ -643,7 +739,12 @@ async function startAutopilot() {
             return (val || 10) * 60;
         })(),
         subtitle_settings: window.currentSubtitleSettings || null,
-        preset_id: document.getElementById('presetSelect') ? (parseInt(document.getElementById('presetSelect').value) || null) : null
+        preset_id: document.getElementById('presetSelect') ? (parseInt(document.getElementById('presetSelect').value) || null) : null,
+        upload_privacy: document.getElementById('uploadPrivacy')?.value || 'private',
+        upload_schedule_at: document.getElementById('uploadScheduleAt')?.value || null,
+        youtube_channel_id: document.getElementById('youtubeChannelId')?.value ? parseInt(document.getElementById('youtubeChannelId').value) : null,
+        creation_mode: creationMode,
+        product_url: productUrl
     };
 
     // UI Loading State (Popup Trigger)
@@ -1007,6 +1108,18 @@ function applyPresetSettings(s) {
         setMode(s.mode);
     }
 
+    // [NEW] Creation Mode (Normal/Commerce)
+    if (s.creation_mode) {
+        setCreationMode(s.creation_mode);
+        if (s.product_url) {
+            document.getElementById('productUrlInput').value = s.product_url;
+        } else {
+            document.getElementById('productUrlInput').value = "";
+        }
+    } else {
+        setCreationMode('default');
+    }
+
     // 1. Image Style
     if (s.image_style) selectStyle('imageStyle', s.image_style);
     if (s.visual_style) selectStyle('imageStyle', s.visual_style); // Fallback for old presets
@@ -1033,7 +1146,14 @@ function applyPresetSettings(s) {
         setMotionMethod(s.motion_method);
     }
     if (s.duration_seconds) {
-        document.getElementById('targetDuration').value = Math.round(s.duration_seconds / 60);
+        const durInput = document.getElementById('targetDuration');
+        if (durInput) {
+            if (s.mode === 'shorts') {
+                durInput.value = s.duration_seconds;
+            } else {
+                durInput.value = Math.round(s.duration_seconds / 60);
+            }
+        }
     }
 
     // 3. Script
@@ -1053,6 +1173,23 @@ function applyPresetSettings(s) {
     if (s.subtitle_settings) {
         window.currentSubtitleSettings = s.subtitle_settings;
         renderSubtitlePreview(s.subtitle_settings);
+    }
+
+    // [NEW] Upload Options
+    if (s.upload_privacy) {
+        const privacySelect = document.getElementById('uploadPrivacy');
+        if (privacySelect) {
+            privacySelect.value = s.upload_privacy;
+            toggleScheduleInput();
+        }
+    }
+    if (s.upload_schedule_at) {
+        const scheduleAt = document.getElementById('uploadScheduleAt');
+        if (scheduleAt) scheduleAt.value = s.upload_schedule_at;
+    }
+    if (s.youtube_channel_id) {
+        const channelSelect = document.getElementById('youtubeChannelId');
+        if (channelSelect) channelSelect.value = s.youtube_channel_id;
     }
 }
 
@@ -1074,7 +1211,10 @@ async function saveCurrentPreset() {
             voice_provider: document.getElementById('providerSelect').value,
             voice_id: document.getElementById('voiceSelect').value,
             target_duration: parseInt(document.getElementById('targetDuration').value || 10),
-            subtitle_settings: window.currentSubtitleSettings || null
+            subtitle_settings: window.currentSubtitleSettings || null,
+            upload_privacy: document.getElementById('uploadPrivacy')?.value || 'private',
+            upload_schedule_at: document.getElementById('uploadScheduleAt')?.value || null,
+            youtube_channel_id: document.getElementById('youtubeChannelId')?.value ? parseInt(document.getElementById('youtubeChannelId').value) : null
         }
     };
 

@@ -85,9 +85,9 @@ class GeminiService:
         
         # [MODIFIED] Use a wider range of models for fallback
         models = [
+            "imagen-4.0-generate-001",      # Imagen 4 (Confirmed working for this environment)
             "imagen-3.0-generate-001",      # Imagen 3 Standard
             "imagen-3.0-fast-generate-001", # Imagen 3 Fast
-            "imagen-4.0-generate-001",      # Imagen 4
             "imagen-4.0-fast-generate-001", # Imagen 4 Fast
         ]
         
@@ -106,8 +106,8 @@ class GeminiService:
                 
                 final_prompt = prompt
                 if is_stylistic and not contains_photo:
-                    # Append massive negative reinforcement to force the style
-                    final_prompt += ". NO PHOTOREALISM. NO 3D RENDER. NO DEPTH OF FIELD. FLAT 2D STYLE ONLY. ABSOLUTELY NO REALISTIC TEXTURES."
+                    # Append massive negative reinforcement to force the style and avoid unwanted text
+                    final_prompt += ". NO PHOTOREALISM. NO 3D RENDER. NO DEPTH OF FIELD. FLAT 2D STYLE ONLY. ABSOLUTELY NO REALISTIC TEXTURES. NO TEXT. NO WORDS. NO LETTERS. NO ALPHABET."
 
                 payload = {
                     "instances": [{"prompt": final_prompt}],
@@ -601,6 +601,7 @@ class GeminiService:
 [스타일 충돌 방지 - 엄격 준수]
 현재 지정된 스타일은 실사(Photorealistic)가 아닙니다.
 프롬프트 생성 시 'realistic', 'photorealistic', 'hyper-detailed', '8k', 'raw photo', 'masterpiece', 'cinematic lighting', 'depth of field', '3d render', 'octane render', 'unreal engine' 등의 실사 지향적 키워드를 **절대** 사용하지 마세요.
+또한, 이미지 내에 어떠한 영어 텍스트, 로고, 브랜드명, 레이블도 포함되지 않도록 하세요. (ABSOLUTELY NO English text, NO logos, NO brand names, NO labels in the prompt or the image.)
 인물과 배경 모두가 "{style_prompt}"의 매체 특성(그림체, 질감)을 완벽하게 따라야 하며, 조금이라도 실사 느낌이 섞이지 않도록 하세요.
 """
 

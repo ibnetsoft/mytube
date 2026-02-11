@@ -409,7 +409,7 @@
                 'contrast': '반분할(좌우대비)',
                 'mystery': '미스터리/실루엣',
                 'dynamic': '다이내믹(광각)',
-                'japanese_viral': '일본 바이럴형'
+                'japanese_viral': '시니어 바이럴'
             };
 
             const currentStyle = document.getElementById('thumbnailStyle').value;
@@ -549,6 +549,17 @@
             Utils.showToast('시니어 롱폼 스타일 (4줄 컬러)이 적용되었습니다.', 'info');
         } else if (styleId === 'text') {
             textLayers.forEach(l => { l.bg_color = '#000000'; l.color = '#FFFFFF'; });
+            Utils.showToast('텍스트 중심 블랙&화이트 레이아웃이 적용되었습니다.', 'info');
+        } else {
+            // General Toast for other styles
+            const displayNames = {
+                'face': '얼굴 강조형',
+                'contrast': '반분할(좌우대비)',
+                'mystery': '미스터리/실루엣',
+                'dynamic': '다이내믹(광각)'
+            };
+            const currentLabel = displayNames[styleId] || styleId;
+            Utils.showToast(`${currentLabel} 레이아웃이 설정되었습니다.`, 'info');
         }
 
         // Only render if textLayers has been initialized and container exists
@@ -560,7 +571,7 @@
             console.warn("renderLayers skipped:", e);
         }
 
-        console.log("Selected thumbnail style:", styleId);
+        console.log(`Thumbnail style changed to: ${styleId}`);
     }
 
     // 1. 아이디어 생성
@@ -588,11 +599,11 @@ ${title}
 - 스타일 이름: ${style}
 - 스타일 가이드: ${styleInstruction}
 ${style === 'japanese_viral' ? `
-**SPECIAL STYLE INSTRUCTION (Japanese Viral):**
+**SPECIAL STYLE INSTRUCTION (Senior Viral):**
 - Layout: Split screen or Text Overlay. Left 60% Text, Right 40% Image.
 - Typography: Extremely bold, heavy sans-serif fonts. Colors: White, Red, Yellow. High contrast strokes/outlines.
-- Imagery: Close-up, emotional face (elderly/shocked/crying/angry). Dark background.
-- Vibe: Viral, provocative, "Shocking Truth", "Reality", "Documentary".
+- Imagery: Close-up, emotional face (elderly surprise/shock/sadness). High realism.
+- Vibe: Viral, provocative, "Shocking Truth", "Reality", "Senior Documentary".
 - Text Effects: Red/Yellow background highlights behind text.
 ` : ''}
 

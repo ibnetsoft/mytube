@@ -58,6 +58,29 @@ async def start_autopilot_api(
     # 3. Create Project & Get ID (Atomic)
     pid = db.create_project(name=f"[Auto] {topic}", topic=topic, app_mode=req.mode)
 
+    # 4. Save Initial Settings to DB
+    db.update_project_setting(pid, "upload_privacy", req.upload_privacy)
+    if req.upload_schedule_at:
+        db.update_project_setting(pid, "upload_schedule_at", req.upload_schedule_at)
+    if req.youtube_channel_id:
+        db.update_project_setting(pid, "youtube_channel_id", req.youtube_channel_id)
+    
+    db.update_project_setting(pid, "creation_mode", req.creation_mode)
+    if req.product_url:
+        db.update_project_setting(pid, "product_url", req.product_url)
+    
+    # [NEW] Save other core settings for Batch Mode compatibility
+    db.update_project_setting(pid, "image_style", req.image_style)
+    db.update_project_setting(pid, "thumbnail_style", req.thumbnail_style)
+    db.update_project_setting(pid, "video_scene_count", req.video_scene_count)
+    db.update_project_setting(pid, "all_video", 1 if req.all_video else 0)
+    db.update_project_setting(pid, "motion_method", req.motion_method)
+    db.update_project_setting(pid, "script_style", req.script_style)
+    db.update_project_setting(pid, "voice_provider", req.voice_provider)
+    db.update_project_setting(pid, "voice_name", req.voice_id)
+    if req.duration_seconds:
+        db.update_project_setting(pid, "duration_seconds", req.duration_seconds)
+
 
     # 4. Trigger Background Task
     background_tasks.add_task(

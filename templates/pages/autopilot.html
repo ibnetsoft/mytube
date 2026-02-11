@@ -65,18 +65,56 @@
                                     1</div>
                                 <h3 class="text-sm font-bold text-white">{{ t('autopilot_step_topic') }}</h3>
                             </div>
-                            <!-- [NEW] Mode Switch -->
-                            <div class="flex bg-gray-800/80 rounded-lg p-0.5 border border-gray-700">
+                            <!-- [NEW] Mode Switch - Enhanced Visibility -->
+                            <div
+                                class="flex bg-gray-800/90 rounded-xl p-1 border border-purple-500/30 shadow-lg shadow-purple-500/5">
                                 <button type="button" onclick="setMode('longform')" id="modeLongform"
-                                    class="mode-btn px-2 py-1 text-[9px] rounded-md bg-purple-600 text-white font-bold transition-all">롱폼</button>
+                                    class="mode-btn px-3 py-1.5 text-[10px] rounded-lg bg-purple-600 text-white font-bold transition-all flex items-center gap-1">
+                                    📺 롱폼
+                                </button>
                                 <button type="button" onclick="setMode('shorts')" id="modeShorts"
-                                    class="mode-btn px-2 py-1 text-[9px] rounded-md text-gray-500 hover:text-white transition-all">쇼츠</button>
+                                    class="mode-btn px-3 py-1.5 text-[10px] rounded-lg text-gray-400 hover:text-white transition-all flex items-center gap-1">
+                                    📱 쇼츠
+                                </button>
                                 <input type="hidden" id="appMode" value="longform">
+                                <input type="hidden" id="creationMode" value="default">
                             </div>
                         </div>
-                        <input type="text" id="topicInput"
-                            class="w-full bg-gray-800/40 border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 transition-all"
-                            placeholder="{{ t('placeholder_topic') }}">
+
+                        <!-- [NEW] Creation Mode Toggle (Only for Shorts) - More prominent -->
+                        <div id="commerceModeToggle"
+                            class="hidden mb-4 p-2 bg-gradient-to-r from-cyan-900/40 to-blue-900/40 rounded-xl border border-cyan-500/30">
+                            <p class="text-[9px] text-cyan-400 font-bold mb-2 ml-1 flex items-center gap-1">
+                                🚀 제작 모드 선택
+                            </p>
+                            <div class="flex gap-2">
+                                <button type="button" onclick="setCreationMode('default')" id="modeDefault"
+                                    class="creation-mode-btn flex-1 py-2 text-[10px] rounded-lg bg-cyan-600 text-white font-bold transition-all shadow-md">
+                                    🏠 일반 테마
+                                </button>
+                                <button type="button" onclick="setCreationMode('commerce')" id="modeCommerce"
+                                    class="creation-mode-btn flex-1 py-2 text-[10px] rounded-lg text-cyan-400 bg-cyan-900/20 border border-cyan-500/20 hover:bg-cyan-500/10 transition-all flex items-center justify-center gap-1">
+                                    🛒 상품 리뷰 <span
+                                        class="text-[8px] bg-red-500 text-white px-1 rounded-sm leading-tight">TOPVIEW</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="topicInputContainer">
+                            <input type="text" id="topicInput"
+                                class="w-full bg-gray-800/40 border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 transition-all"
+                                placeholder="{{ t('placeholder_topic') }}">
+                        </div>
+
+                        <!-- [NEW] Product URL Input (Hidden by default) -->
+                        <div id="productUrlContainer" class="hidden mt-2">
+                            <input type="text" id="productUrlInput"
+                                class="w-full bg-cyan-900/20 border-cyan-500/30 text-white rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 transition-all placeholder-cyan-700"
+                                placeholder="쿠팡/아마존 상품 URL을 입력하세요">
+                            <p class="text-[9px] text-cyan-500/60 mt-1">
+                                * TopView AI가 링크의 상품을 분석하여 영상을 제작합니다.
+                            </p>
+                        </div>
                     </div>
 
 
@@ -170,11 +208,26 @@
 
                         <input type="hidden" id="imageStyle" value="realistic">
                         <div id="styleSelectorGrid"
-                            class="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2 mb-4 max-h-[160px] overflow-y-auto p-1 custom-scrollbar">
+                            class="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-4 max-h-[220px] overflow-y-auto p-1 custom-scrollbar">
                             <!-- Dynamic Content -->
                         </div>
 
                         <div class="pt-3 border-t border-gray-800/60">
+                            <!-- Video Generation Engine Selection -->
+                            <div
+                                class="flex items-center justify-between mb-2 bg-black/20 p-1.5 rounded-lg border border-gray-800">
+                                <span class="text-[10px] text-gray-400 ml-1 font-medium">영상 엔진</span>
+                                <div class="flex gap-1" id="videoEngineGroup">
+                                    <button type="button" data-value="wan" onclick="setVideoEngine('wan')"
+                                        class="video-engine-btn px-2 py-1 text-[9px] rounded-md bg-purple-600 text-white font-bold transition-all shadow-sm">Wan
+                                        2.1 (기본)</button>
+                                    <button type="button" data-value="akool" onclick="setVideoEngine('akool')"
+                                        class="video-engine-btn px-2 py-1 text-[9px] rounded-md bg-gray-800 text-gray-400 hover:text-white transition-all">Akool
+                                        (아바타)</button>
+                                </div>
+                                <input type="hidden" id="videoEngine" value="wan">
+                            </div>
+
                             <!-- Video Generation Method Selection -->
                             <div
                                 class="flex items-center justify-between mb-3 bg-black/20 p-1.5 rounded-lg border border-gray-800">
@@ -219,7 +272,7 @@
                         </div>
                         <input type="hidden" id="thumbnailStyle" value="face">
                         <div id="thumbnailStyleGrid"
-                            class="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2 max-h-[140px] overflow-y-auto p-1 custom-scrollbar">
+                            class="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[220px] overflow-y-auto p-1 custom-scrollbar">
                             <div class="col-span-full py-4 text-center text-gray-600 text-[10px]">Loading Thumbnail
                                 Styles...</div>
                         </div>
@@ -250,11 +303,47 @@
                         </div>
                     </div>
 
-                    <!-- App Tips or Stats could go here later -->
+                    <!-- [NEW] YouTube Upload Options -->
+                    <div class="card bg-gray-900/40 border-blue-500/10 p-4 rounded-xl">
+                        <div class="flex items-center gap-2 mb-3">
+                            <div
+                                class="w-6 h-6 rounded-lg bg-red-500/20 flex items-center justify-center text-red-500 text-xs">
+                                📹</div>
+                            <h3 class="text-xs font-bold text-white">유튜브 업로드 설정</h3>
+                        </div>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-[10px] text-gray-500 mb-1">업로드 채널</label>
+                                <select id="youtubeChannelId"
+                                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-[11px] text-white focus:ring-1 focus:ring-red-500/50 outline-none">
+                                    <option value="">기본 채널 (Default)</option>
+                                    <!-- Dynamic Channels -->
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] text-gray-500 mb-1">공개 범위</label>
+                                <select id="uploadPrivacy" onchange="toggleScheduleInput()"
+                                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-[11px] text-white focus:ring-1 focus:ring-red-500/50 outline-none">
+                                    <option value="private" selected>비공개 (Private)</option>
+                                    <option value="public">공개 (Public)</option>
+                                    <option value="unlisted">일부 공개 (Unlisted)</option>
+                                    <option value="scheduled">예약 업로드 (Scheduled)</option>
+                                </select>
+                            </div>
+                            <div id="scheduleInputContainer"
+                                class="hidden animate-in fade-in slide-in-from-top-1 duration-200">
+                                <label class="block text-[10px] text-gray-500 mb-1">예약 시간</label>
+                                <input type="datetime-local" id="uploadScheduleAt"
+                                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-[11px] text-white outline-none focus:ring-1 focus:ring-red-500/50">
+                                <p class="text-[9px] text-gray-600 mt-1">* 예약은 최소 24시간 이후부터 안정적입니다.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- App Tips or Stats -->
                     <div
-                        class="card bg-purple-900/10 border border-purple-500/10 p-4 rounded-xl flex-1 opacity-60 flex flex-col items-center justify-center">
-                        <p class="text-[11px] text-purple-400 text-center italic">"고급 설정을 변경하여<br>자신만의 스타일을 프리셋으로 만드세요."
-                        </p>
+                        class="card bg-purple-900/10 border border-purple-500/10 p-3 rounded-xl flex-1 opacity-60 flex flex-col items-center justify-center">
+                        <p class="text-[10px] text-purple-400 text-center italic">"고급 설정을 프리셋으로 저장하세요."</p>
                     </div>
                 </div>
             </div>
@@ -383,53 +472,6 @@
         </div>
     </div>
 </div>
-
-</div>
-</div>
-
-<!-- MODE 2: Batch Mode (Kept standard but cleaned up) -->
-<div id="batchMode" class="hidden h-full flex flex-col gap-4">
-    <div class="card bg-gray-900/40 border-purple-500/20 p-5 shrink-0 rounded-2xl">
-        <div class="flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-2xl bg-purple-500/20 flex items-center justify-center text-xl">📦
-                </div>
-                <div>
-                    <h3 class="text-lg font-bold text-white">제작 대기열 <span id="queueCount"
-                            class="text-purple-400 ml-1">0</span></h3>
-                    <p class="text-xs text-gray-500">Queue Management & Batch Processing</p>
-                </div>
-            </div>
-            <div class="flex items-center gap-2">
-                <button onclick="refreshQueue()"
-                    class="p-2.5 bg-gray-800 hover:bg-gray-700 rounded-xl text-white transition-all">🔄</button>
-                <button onclick="startBatch()" id="btnStartBatch"
-                    class="px-6 py-2.5 bg-white text-black font-black rounded-xl hover:bg-purple-100 transition-all disabled:opacity-30 text-xs shadow-lg">
-                    START BATCH ▶️
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <div class="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- List -->
-        <div class="card bg-gray-900/40 border-gray-800 rounded-2xl p-4 overflow-y-auto custom-scrollbar"
-            id="queueList">
-            <div class="text-center py-20 text-gray-600 text-sm">대기열 항목이 없습니다.</div>
-        </div>
-        <!-- Mini Log for Batch -->
-        <div class="card bg-black border border-gray-800 rounded-2xl p-4 flex flex-col overflow-hidden">
-            <div
-                class="text-xs font-bold text-gray-500 mb-3 uppercase tracking-tighter tracking-widest tracking-widest">
-                Execution Logs</div>
-            <div id="batchConsoleLogs"
-                class="flex-1 overflow-y-auto custom-scrollbar text-[10px] font-mono text-green-500/80 leading-relaxed bg-black/40 p-2 rounded-xl">
-                <div class="text-gray-800 italic">No batch activity...</div>
-            </div>
-        </div>
-    </div>
-</div>
-</div>
 </div>
 
 <style>
@@ -470,18 +512,6 @@
 
     .log-item {
         animation: log-append 0.3s ease-out forwards;
-    }
-
-    /* Improved style selector items (since they will be smaller now) */
-    #styleSelectorGrid>div,
-    #thumbnailStyleGrid>div {
-        height: 3.5rem !important;
-        /* Force smaller size */
-    }
-
-    #styleSelectorGrid img,
-    #thumbnailStyleGrid img {
-        height: 100% !important;
     }
 </style>
 

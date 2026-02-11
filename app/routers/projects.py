@@ -91,16 +91,8 @@ async def get_projects():
 @router.post("/")
 async def create_project(req: ProjectCreate):
     """새 프로젝트 생성"""
-    # Check Global App Mode if not specified (Assuming stored in project settings or other global config)
-    # Since we don't have direct access to 'settings_service' easily without circular imports potentially,
-    # we can re-implement a simple check or import inside.
-    
-    try:
-        from services.settings_service import settings_service
-        global_settings = settings_service.get_settings()
-        current_app_mode = global_settings.get("app_mode", "longform")
-    except:
-        current_app_mode = "longform"
+    # [FIX] Read app_mode from global_settings table, not from project 1
+    current_app_mode = db.get_global_setting("app_mode", "longform")
     
     project_id = db.create_project(
         req.name, 

@@ -12,6 +12,7 @@ from services.prompts import prompts
 from services.tts_service import tts_service
 from services.video_service import video_service
 from services.youtube_upload_service import youtube_upload_service
+from services.topview_service import topview_service
 
 
 def split_text_to_subtitle_chunks(text: str, max_chars_per_line: int = 20, max_lines: int = 2) -> list:
@@ -77,6 +78,7 @@ class AutoPilotService:
     def __init__(self):
         self.search_url = f"{config.YOUTUBE_BASE_URL}/search"
         self.config = {}  # Director Mode Configuration
+        self.is_batch_running = False # [NEW] Batch Concurrency Lock
 
     async def run_workflow(self, keyword: str, project_id: int = None, config_dict: dict = None):
         """오토파일럿 전체 워크플로우 실행"""
@@ -84,6 +86,11 @@ class AutoPilotService:
         self.config = config_dict or {}
         if "auto_plan" not in self.config:
             self.config["auto_plan"] = True  # Always generate plan data by default
+        
+        # [NEW] TopView Commerce Mode Check
+        creation_mode = self.config.get("creation_mode", "default")
+        if creation_mode == "commerce":
+            return await self._run_topview_workflow(project_id, self.config)
         
         try:
             # 1~2. 소재 발굴 및 프로젝트 생성
@@ -198,6 +205,48 @@ class AutoPilotService:
             if characters:
                 db.save_project_characters(project_id, characters)
                 print(f"✅ [Auto-Pilot] {len(characters)}명의 캐릭터를 식별하고 저장했습니다. (Style: {style_prefix})")
+                
+                # [NEW] 캐릭터 샘플 이미지 생성 및 적용 (최대 3명)
+                processed_chars = characters[:3]
+                has_applied_reference = False
+                
+                for idx, char in enumerate(processed_chars):
+                    try:
+                        print(f"👤 [Auto-Pilot] 캐릭터 '{char['name']}' ({char['role']}) 샘플 이미지 생성 중...")
+                        detailed_style = style_data.get('prompt_value', style_prefix)
+                        full_prompt = f"{char['prompt_en']}, {detailed_style}"
+                        
+                        # Portrait aspect ratio 1:1
+                        images_bytes = await gemini_service.generate_image(
+                            prompt=full_prompt,
+                            num_images=1,
+                            aspect_ratio="1:1"
+                        )
+                        
+                        if images_bytes:
+                            now = config.get_kst_time()
+                            filename = f"char_{project_id}_{idx}_{now.strftime('%H%M%S')}.png"
+                            file_path = os.path.join(config.OUTPUT_DIR, filename)
+                            web_url = f"/output/{filename}"
+                            
+                            with open(file_path, "wb") as f:
+                                f.write(images_bytes[0])
+                            
+                            # DB 업데이트
+                            db.update_character_image(project_id, char['name'], web_url)
+                            
+                            # [핵심] 주인공이거나 첫 번째 캐릭터인 경우 프로젝트 레퍼런스로 자동 적용 (Apply 버튼 효과)
+                            is_protagonist = "주인공" in char.get("role", "")
+                            if not has_applied_reference:
+                                if is_protagonist or (idx == len(processed_chars) - 1) or (idx == 0 and len(processed_chars) == 1):
+                                    db.update_project_setting(project_id, "character_ref_text", char['prompt_en'])
+                                    db.update_project_setting(project_id, "character_ref_image_path", web_url)
+                                    has_applied_reference = True
+                                    print(f"✨ [Auto-Pilot] 주인공 '{char['name']}'을(를) 캐릭터 레퍼런스로 적용했습니다.")
+                        
+                    except Exception as char_e:
+                        print(f"⚠️ [Auto-Pilot] 캐릭터 '{char['name']}' 이미지 생성 실패: {char_e}")
+
         except Exception as e:
             print(f"⚠️ [Auto-Pilot] 캐릭터 추출 실패: {e}")
 
@@ -217,7 +266,7 @@ class AutoPilotService:
     async def _find_best_material(self, keyword: str):
         params = {
             "part": "snippet", "q": keyword, "type": "video",
-            "maxResults": 3, "order": "viewCount", "videoDuration": "short",
+            "maxResults": 3, "order": "relevance", "videoDuration": "short",
             "key": config.YOUTUBE_API_KEY
         }
         async with httpx.AsyncClient() as client:
@@ -409,6 +458,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             print(f"🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating {video_scene_count} video scenes.")
         else:
             video_scene_count = config_dict.get("video_scene_count", 0)
+            print(f"🎬 [Auto-Pilot] Video scene count set to: {video_scene_count}")
 
         # 2. Assets (Video/Image)
         from services.replicate_service import replicate_service
@@ -450,68 +500,47 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                     with open(image_abs_path, 'wb') as f: f.write(images[0])
                     db.update_image_prompt_url(project_id, scene_num, f"/output/{filename}")
                 
-                if is_video:
-                    try:
-                        print(f"📹 [Auto-Pilot] Generating video for Scene {scene_num} (Method: {motion_method})")
-                        video_data = await replicate_service.generate_video_from_image(
-                            image_abs_path, 
-                            prompt=f"Cinematic motion, {prompt_en}",
-                            duration=video_duration,
-                            method=motion_method
-                        )
-                        if video_data:
-                            filename = f"vid_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.mp4"
-                            out = os.path.join(config.OUTPUT_DIR, filename)
-                            with open(out, 'wb') as f: f.write(video_data)
-                            db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
-                            return True
-                    except Exception as ve:
-                        print(f"⚠️ [Auto-Pilot] Video generation failed for Scene {scene_num}: {ve}. Falling back to image.")
-                
                 return True # Image only path success
             except Exception as e:
                 print(f"⚠️ [Auto-Pilot] Scene {scene_num} Asset Gen Error: {e}")
             return False
 
-        # Workflow execution (Sequential for safety, could be parallelized)
+        # Pass 1: Image Generation (Ensure all scenes have base images)
+        print("🖼️ [Auto-Pilot] Pass 1: Generating Base Images...")
         for i, p in enumerate(image_prompts):
-            db.update_project(project_id, status=f"assets_{i+1}/{len(image_prompts)}")
-            if i < video_scene_count: await process_scene(p, True)
-            else: await process_scene(p, False)
+            db.update_project(project_id, status=f"images_{i+1}/{len(image_prompts)}")
+            await process_scene(p, False) # Only images in Pass 1
 
-        # [CRITICAL] Re-fetch image_prompts from DB to get updated video_url/image_url paths
+        # [CRITICAL] Re-fetch image_prompts from DB to get updated image_url paths
         image_prompts = db.get_image_prompts(project_id)
 
-        # 3. TTS (Scene-based Generation for Perfect Sync)
+        # Pass 2: TTS Generation (Collected for each scene)
+        print("🎙️ [Auto-Pilot] Pass 2: Generating Scene-based TTS...")
         db.update_project(project_id, status="generating_tts")
-        # Check Config -> Fallback to Project Settings -> Default
         provider = config_dict.get("voice_provider")
         voice_id = config_dict.get("voice_id")
         
         if not provider or not voice_id:
-             # Prefer current project settings over Project 1 fixed fallback
              p_settings = db.get_project_settings(project_id) or db.get_project_settings(1) or {}
              if not provider: provider = p_settings.get("voice_provider", "google_cloud")
              if not voice_id: voice_id = p_settings.get("voice_id") or p_settings.get("voice_name", "ko-KR-Neural2-A")
         
-        print(f"🎙️ [Auto-Pilot] Generating Scene-based TTS with {provider} / {voice_id}")
+        # [NEW] Collect scene audio mappings for Pass 3
+        scene_audio_map = {} # scene_number -> local_audio_path
         
-        # [NEW] Scene별 오디오 및 Alignment 정보 수집
         scene_audio_files = []
         scene_durations = []
-        all_alignments = []  # 전체 단어 타이밍 정보
+        all_alignments = []
         cumulative_audio_time = 0.0
-        
-        # 이미지가 생성된 Scene들만 대상으로 함 (순서 중요)
         sorted_prompts = sorted(image_prompts, key=lambda x: x.get('scene_number', 0))
-        
-        import uuid
         temp_audios = []
-        
+        import uuid
+
         for i, p in enumerate(sorted_prompts):
             db.update_project(project_id, status=f"tts_{i+1}/{len(sorted_prompts)}")
-            
             text = p.get('scene_text') or p.get('narrative') or p.get('script') or ""
+            scene_num = p.get('scene_number')
+
             if not text:
                 scene_durations.append(3.0)
                 cumulative_audio_time += 3.0
@@ -520,10 +549,8 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             scene_filename = f"temp_tts_{project_id}_{i}_{uuid.uuid4()}.mp3"
             
             try:
-                # [NEW] ElevenLabs 전용: alignment 정보 포함된 결과 사용
                 if provider == "elevenlabs":
                     result = await tts_service.generate_elevenlabs(text, voice_id, scene_filename)
-                    
                     if result and result.get("audio_path"):
                         audio_path = result["audio_path"]
                         duration = result.get("duration", 3.0)
@@ -531,34 +558,30 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                         
                         temp_audios.append(audio_path)
                         scene_audio_files.append(audio_path)
+                        scene_audio_map[scene_num] = audio_path
                         scene_durations.append(duration)
                         
-                        # Alignment 정보에 누적 시간 offset 적용
                         for word_info in alignment:
                             all_alignments.append({
                                 "word": word_info["word"],
                                 "start": word_info["start"] + cumulative_audio_time,
                                 "end": word_info["end"] + cumulative_audio_time
                             })
-                        
                         cumulative_audio_time += duration
                     else:
                         print(f"⚠️ Scene {i} ElevenLabs TTS Failed. Using default.")
                         scene_durations.append(3.0)
                         cumulative_audio_time += 3.0
                 else:
-                    # 다른 TTS 프로바이더 (기존 로직)
                     s_out = None
-                    if provider == "openai":
-                        s_out = await tts_service.generate_openai(text, voice_id, model="tts-1", filename=scene_filename)
-                    elif provider == "gemini":
-                        s_out = await tts_service.generate_gemini(text, voice_id, filename=scene_filename)
-                    else:
-                        s_out = await tts_service.generate_google_cloud(text, voice_id, filename=scene_filename)
+                    if provider == "openai": s_out = await tts_service.generate_openai(text, voice_id, model="tts-1", filename=scene_filename)
+                    elif provider == "gemini": s_out = await tts_service.generate_gemini(text, voice_id, filename=scene_filename)
+                    else: s_out = await tts_service.generate_google_cloud(text, voice_id, filename=scene_filename)
                     
                     if s_out and os.path.exists(s_out):
                         temp_audios.append(s_out)
                         scene_audio_files.append(s_out)
+                        scene_audio_map[scene_num] = s_out
                         
                         try:
                             from moviepy import AudioFileClip
@@ -591,6 +614,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
         final_filename = f"auto_tts_{project_id}.mp3"
         final_audio_path = os.path.join(config.OUTPUT_DIR, final_filename)
         
+        total_duration = 0.0
         if scene_audio_files:
             try:
                 from moviepy import concatenate_audioclips, AudioFileClip
@@ -605,7 +629,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                 # DB Save
                 db.save_tts(project_id, provider, voice_id, final_audio_path, total_duration)
                 
-                # [CRITICAL] Calculate Cumulative Start Times for Frontend
+                # [CRITICAL] Calculate Cumulative Start Timings for Frontend
                 cumulative_starts = []
                 current_time = 0.0
                 for dur in scene_durations:
@@ -684,36 +708,114 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             try: os.remove(f)
             except: pass
 
+        # [NEW] Pass 3: Video Generation (Now we have both Images and Audio)
+        print("📹 [Auto-Pilot] Pass 3: Generating Video Components...")
+        video_engine = config_dict.get("video_engine", "wan")
+        from services.akool_service import akool_service
+
+        # Re-fetch prompts to get latest image/audio URLs
+        image_prompts = db.get_image_prompts(project_id)
+        
+        for i, p in enumerate(image_prompts):
+            is_vid = i < video_scene_count
+            if not is_vid: continue
+            
+            scene_num = p.get("scene_number")
+            db.update_project(project_id, status=f"videos_{i+1}/{video_scene_count}")
+            
+            image_url = p.get("image_url")
+            if not image_url: continue
+            image_abs_path = os.path.join(config.OUTPUT_DIR, image_url.replace("/output/", ""))
+            
+            now = config.get_kst_time()
+            try:
+                if video_engine == "akool":
+                    audio_abs_path = scene_audio_map.get(scene_num)
+                    if not audio_abs_path: 
+                        print(f"⚠️ [Akool] No audio found for scene {scene_num}. Skipping video.")
+                        continue
+                    
+                    video_bytes = await akool_service.generate_talking_avatar(image_abs_path, audio_abs_path)
+                    if video_bytes:
+                        filename = f"vid_akool_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.mp4"
+                        out = os.path.join(config.OUTPUT_DIR, filename)
+                        with open(out, 'wb') as f: f.write(video_bytes)
+                        db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
+                else:
+                    # Wan / Replicate (Original logic)
+                    print(f"📹 [Auto-Pilot] Generating Wan Video for Scene {scene_num}")
+                    video_data = await replicate_service.generate_video_from_image(
+                        image_abs_path, 
+                        prompt=f"Cinematic motion, {p.get('prompt_en', '')}",
+                        duration=video_duration,
+                        method=motion_method
+                    )
+                    if video_data:
+                        filename = f"vid_wan_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.mp4"
+                        out = os.path.join(config.OUTPUT_DIR, filename)
+                        with open(out, 'wb') as f: f.write(video_data)
+                        db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
+            except Exception as ve:
+                print(f"⚠️ [Auto-Pilot] Video generation failed for Scene {scene_num}: {ve}")
+
     async def _generate_thumbnail(self, project_id: int, script: str, config_dict: dict):
         """대본 기반 썸네일 자동 기획 및 생성"""
         print(f"🎨 [Auto-Pilot] 썸네일 자동 생성 중... Project: {project_id}")
         
-        # 1. 썸네일 기획 (Hook & Prompt)
+        # 1. 썸네일 기획 (Hook & Visual Concept)
+        hook_text = "Must Watch"
+        visual_concept = "A high quality dramatic scene"
+        
         try:
-            prompt = prompts.THUMBNAIL_IDEA_PROMPT.format(
-                topic="Auto Generated Video", 
+            # [NEW] Use the better prompt for hook text
+            project_settings = db.get_project_settings(project_id) or {}
+            image_style = config_dict.get("image_style") or project_settings.get("image_style", "realistic")
+            thumb_style = config_dict.get("thumbnail_style") or project_settings.get("thumbnail_style", "face")
+            
+            # Get character info for better context
+            characters = db.get_project_characters(project_id)
+            char_context = ""
+            if characters:
+                char_names = [c.get("name") for c in characters if c.get("name")]
+                char_context = f"\n[Featured Characters]: {', '.join(char_names)}"
+
+            hook_prompt = prompts.GEMINI_THUMBNAIL_HOOK_TEXT.format(
+                script=f"{script[:2000]}{char_context}",
+                thumbnail_style=thumb_style,
+                image_style=image_style,
+                target_language="ko" # Default for now
+            )
+            
+            hook_result = await gemini_service.generate_text(hook_prompt, temperature=0.7)
+            import re
+            json_match = re.search(r'\{[\s\S]*\}', hook_result)
+            if json_match:
+                hook_data = json.loads(json_match.group())
+                candidates = hook_data.get("texts", [])
+                if candidates:
+                    hook_text = candidates[0] # Pick the strongest hook
+            
+            # [NEW] Generate a matching visual concept (Image Prompt)
+            # Use THUMBNAIL_IDEA_PROMPT as a secondary pass or merge logic
+            idea_prompt = prompts.THUMBNAIL_IDEA_PROMPT.format(
+                topic=project_settings.get("topic", "AI Video"),
                 script_summary=script[:1000]
             )
-            # request = type('obj', (object,), {"prompt": prompt, "temperature": 0.8})
-            result_text = await gemini_service.generate_text(prompt, temperature=0.8)
-            import re
-            json_match = re.search(r'\{[\s\S]*\}', result_text)
-            if json_match:
-                plan = json.loads(json_match.group())
-                hook_text = plan.get("hook_text", "충격적인 진실")
-                image_prompt = plan.get("image_prompt", "A mysterious dark atmosphere, high quality")
-            else:
-                hook_text = "Must Watch"
-                image_prompt = "Abstract background, 4k"
+            idea_result = await gemini_service.generate_text(idea_prompt, temperature=0.7)
+            json_match_idea = re.search(r'\{[\s\S]*\}', idea_result)
+            if json_match_idea:
+                idea_data = json.loads(json_match_idea.group())
+                visual_concept = idea_data.get("image_prompt", visual_concept)
+                
         except Exception as e:
-            print(f"⚠️ 썸네일 기획 실패: {e}")
-            hook_text = "Must Watch"
-            image_prompt = "Abstract background, 4k"
+            print(f"⚠️ [Auto-Pilot] Thumbnail Planning Error: {e}")
+            # Fallback to project title if hook fails
+            hook_text = project_settings.get("title", "Must Watch") if project_id else "Must Watch"
 
         # 2. 배경 이미지 생성
         try:
             # [NEW] Art Style & Layout Inheritance
-            image_style_key = config_dict.get("image_style", "realistic")
+            image_style_key = config_dict.get("image_style", config_dict.get("visual_style", "realistic"))
             style_presets = db.get_style_presets()
             style_data = style_presets.get(image_style_key, {})
             style_prefix = style_data.get("prompt_value", "photorealistic")
@@ -724,15 +826,48 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             thumb_preset = thumb_presets.get(thumbnail_style_key, {})
             layout_desc = thumb_preset.get("prompt", "")
             
+            # [NEW] Character Incorporation
+            characters = db.get_project_characters(project_id)
+            char_desc = ""
+            if characters:
+                # Use the first 1-2 characters to keep prompt focused
+                char_lines = []
+                for c in characters[:2]:
+                    char_lines.append(c.get("prompt_en", ""))
+                char_desc = " Featuring: " + ", ".join(char_lines)
+            
             # Combine everything for a consistent look
-            final_thumb_prompt = f"ABSOLUTELY NO TEXT. Style: {style_prefix}. Composition: {layout_desc}. Subjects: {image_prompt}. 8k, high quality."
+            final_thumb_prompt = f"ABSOLUTELY NO TEXT. Style: {style_prefix}. Composition: {layout_desc}. Subjects: {visual_concept}.{char_desc}. 8k, high quality."
 
             # [CRITICAL] Determine aspect ratio based on duration (Long-form vs Shorts)
             duration_sec = config_dict.get("duration_seconds", 300)
             aspect_ratio = "16:9" if duration_sec > 60 else "9:16"
             
-            images = await gemini_service.generate_image(final_thumb_prompt, aspect_ratio=aspect_ratio)
-            if not images: return
+            print(f"🎨 [Auto-Pilot] Generating thumbnail background. Style: {image_style_key}, Aspect: {aspect_ratio}")
+            print(f"📝 Prompt: {final_thumb_prompt[:120]}...")
+            
+            images = None
+            try:
+                images = await gemini_service.generate_image(final_thumb_prompt, aspect_ratio=aspect_ratio)
+            except Exception as e:
+                msg = f"❌ [Auto-Pilot] Thumbnail Image Gen Failed: {e}"
+                print(msg)
+                try:
+                    with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
+                        df.write(f"[{datetime.datetime.now()}] {msg}\n")
+                except: pass
+                
+                # [FALLBACK] Try a safe, generic prompt if the specific one was blocked
+                print("🔄 [Auto-Pilot] Retrying with generic thumbnail prompt due to safety/filter...")
+                generic_prompt = f"Minimal aesthetic abstract background, Style: {style_prefix}, 8k, high quality"
+                try:
+                    images = await gemini_service.generate_image(generic_prompt, aspect_ratio=aspect_ratio)
+                except Exception as e2:
+                    print(f"❌ [Auto-Pilot] Final fallback failed: {e2}")
+            
+            if not images: 
+                print("⚠️ [Auto-Pilot] No images generated for thumbnail. Skipping synthesis.")
+                return
 
             now = config.get_kst_time()
             bg_filename = f"thumb_bg_{project_id}_{now.strftime('%H%M%S')}.png"
@@ -744,17 +879,17 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             final_filename = f"thumbnail_{project_id}_{now.strftime('%H%M%S')}.jpg"
             final_path = os.path.join(config.OUTPUT_DIR, final_filename)
             
-            # [CRITICAL] Try to load 'Saved Settings' from Project 1 (Template) or Current ID
-            # Assuming Project 1 is the 'Global Config Holder' usually
-            saved_thumb_data = db.get_thumbnails(1) 
-            # OR check if the current project *already* has data (unlikely for new AutoPilot project)
+            # [PRIORITY 1] Check Autopilot Config / Project Settings for Explicit Style
+            project_settings = db.get_project_settings(project_id) or {}
+            requested_style = config_dict.get("thumbnail_style") or project_settings.get("thumbnail_style")
             
             text_layers = []
             
-            if saved_thumb_data and saved_thumb_data.get("full_settings"):
-                print(f"🎨 [Auto-Pilot] 저장된 썸네일 설정을 불러옵니다 (From Project 1)")
-                # Template 적용: 저장된 레이어 그대로 가져오되, 텍스트만 Hook으로 교체
-                # 가장 큰 폰트를 가진 레이어를 '메인 텍스트'로 간주하고 교체
+            if requested_style:
+                text_layers = thumbnail_service.get_style_recipe(requested_style, hook_text)
+            
+            # [PRIORITY 2] Fallback to Project 1 Template
+            elif (saved_thumb_data := db.get_thumbnails(1)) and saved_thumb_data.get("full_settings"):
                 layers = saved_thumb_data["full_settings"].get("layers", [])
                 
                 # Find main text layer (biggest font size)
@@ -769,35 +904,42 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                 # Copy and Replace Text
                 import copy
                 text_layers = copy.deepcopy(layers)
-                if text_layers:
-                    # Replace Main Text
-                    text_layers[main_layer_idx]["text"] = hook_text
-                    
+                if text_layers and len(text_layers) > main_layer_idx:
+                     text_layers[main_layer_idx]["text"] = hook_text
+            
             else:
-                # Fallback: Default Style based on config
-                print(f"🎨 [Auto-Pilot] 저장된 설정 없음. 기본 스타일(Mystery) 적용")
-                text_layers = [{
-                    "text": hook_text,
-                    "x": 640, "y": 600, 
-                    "font_size": 100,
-                    "color": "#00FF00", 
-                    "stroke_color": "#000000",
-                    "stroke_width": 8,
-                    "font_family": "mystery" 
-                }]
+                # [PRIORITY 3] Default Fallback
+                text_layers = thumbnail_service.get_style_recipe("mystery", hook_text)
 
             success = thumbnail_service.create_thumbnail(bg_path, text_layers, final_path)
             
             if success:
                 web_path = f"/output/{final_filename}"
                 db.update_project_setting(project_id, "thumbnail_url", web_path)
-                print(f"✅ [Auto-Pilot] 썸네일 생성 완료: {web_path}")
+                msg = f"✅ [Auto-Pilot] 썸네일 생성 완료: {web_path}"
+                print(msg)
+                try:
+                    with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
+                        df.write(f"[{datetime.datetime.now()}] {msg}\n")
+                except: pass
+            else:
+                msg = "❌ [Auto-Pilot] 썸네일 텍스트 합성 실패 (create_thumbnail returned False)"
+                print(msg)
+                try:
+                    with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
+                        df.write(f"[{datetime.datetime.now()}] {msg}\n")
+                except: pass
             
             try: os.remove(bg_path)
             except: pass
             
         except Exception as e:
-            print(f"❌ 썸네일 생성 오류: {e}")
+            msg = f"❌ [Auto-Pilot] 썸네일 생성 예외: {e}"
+            print(msg)
+            try:
+                with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
+                    df.write(f"[{datetime.datetime.now()}] {msg}\n")
+            except: pass
 
     async def _render_video(self, project_id: int):
         images_data = db.get_image_prompts(project_id)
@@ -823,25 +965,25 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             subs = video_service.generate_smart_subtitles(script_data["full_script"], tts_data["duration"])
 
         # 2. Load Timeline Images
+        # [FIX] Always use fresh DB data from image_prompts (includes video_url from Pass 3)
+        # The timeline_images_path JSON file is created during Pass 2 (before video generation)
+        # so it may not contain the latest video_url values.
         images = []
-        timeline_path = settings.get("timeline_images_path")
-        if timeline_path and os.path.exists(timeline_path):
-            try:
-                with open(timeline_path, "r", encoding="utf-8") as f:
-                    tl_urls = json.load(f)
-                for url in tl_urls:
-                    if not url: continue
-                    fpath = os.path.join(config.OUTPUT_DIR, url.split("/")[-1])
-                    if os.path.exists(fpath): images.append(fpath)
-            except: pass
-            
-        if not images:
-            # Fallback to image prompts
-            for img in images_data:
-                best_url = img.get("video_url") or img.get("image_url")
-                if not best_url: continue
+        sorted_prompts = sorted(images_data, key=lambda x: x.get('scene_number', 0))
+        for img in sorted_prompts:
+            # Priority: video_url (motion video) > image_url (static image)
+            best_url = img.get("video_url") or img.get("image_url")
+            if not best_url: 
+                continue
+            # Convert web path to absolute path
+            if best_url.startswith("/output/"):
+                fpath = os.path.join(config.OUTPUT_DIR, best_url.replace("/output/", ""))
+            else:
                 fpath = os.path.join(config.OUTPUT_DIR, best_url.split("/")[-1])
-                if os.path.exists(fpath): images.append(fpath)
+            
+            if os.path.exists(fpath): 
+                images.append(fpath)
+                print(f"📸 [Auto-Pilot] Scene {img.get('scene_number')}: Using {'video' if best_url.endswith('.mp4') else 'image'} - {os.path.basename(fpath)}")
                 
         audio_path = tts_data["audio_path"]
         output_filename = f"autopilot_{project_id}_{config.get_kst_time().strftime('%H%M%S')}.mp4"
@@ -911,102 +1053,253 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
         db.update_project_setting(project_id, "video_path", f"/output/{output_filename}")
         db.update_project(project_id, status="rendered")
 
+    async def _run_topview_workflow(self, project_id: int, config_dict: dict):
+        """TopView API를 이용한 커머스 비디오 생성 워크플로우"""
+        product_url = config_dict.get("product_url")
+        if not product_url:
+            print("⚠️ [TopView] Product URL is missing")
+            db.update_project(project_id, status="error")
+            return
+
+        print(f"🛍️ [TopView] Starting Commerce Workflow for {product_url}")
+        db.update_project(project_id, status="topview_requested")
+
+        # 1. 태스크 시작
+        from services.topview_service import topview_service
+        result = await topview_service.create_video_by_url(product_url)
+        
+        if not result or (isinstance(result, dict) and "id" not in result):
+            print(f"❌ [TopView] Failed to start task: {result}")
+            db.update_project(project_id, status="error")
+            return
+
+        task_id = result["id"]
+        db.update_project_setting(project_id, "topview_task_id", task_id)
+        db.update_project(project_id, status="topview_processing")
+
+        # 2. 폴링 (상태 확인)
+        max_retries = 60 # 약 10분 (10초 간격)
+        retry_count = 0
+        video_url = None
+
+        while retry_count < max_retries:
+            await asyncio.sleep(10)
+            status_data = await topview_service.get_task_status(task_id)
+            
+            if not status_data:
+                retry_count += 1
+                continue
+
+            status = status_data.get("status")
+            print(f"⏳ [TopView] Processing... ({status})")
+
+            if status == "completed":
+                video_url = status_data.get("video_url")
+                break
+            elif status == "failed":
+                print(f"❌ [TopView] Task failed: {status_data}")
+                db.update_project(project_id, status="error")
+                return
+            
+            retry_count += 1
+
+        if not video_url:
+            print("❌ [TopView] Task timed out or no video URL received")
+            db.update_project(project_id, status="error")
+            return
+
+        # 3. 비디오 다운로드 및 저장
+        db.update_project(project_id, status="topview_downloading")
+        target_path = os.path.join(config.OUTPUT_DIR, f"topview_{project_id}.mp4")
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(video_url, timeout=300)
+                with open(target_path, "wb") as f:
+                    f.write(resp.content)
+            
+            # DB 업데이트
+            web_path = f"/output/topview_{project_id}.mp4"
+            db.update_project_setting(project_id, "video_path", web_path)
+            db.update_project(project_id, status="rendered")
+            
+            print(f"✅ [TopView] Video generated and saved: {target_path}")
+
+            # 4. YouTube 업로드 (기본 로직 활용)
+            await self._upload_video(project_id, target_path)
+            
+        except Exception as e:
+            print(f"❌ [TopView] Download/Save Error: {e}")
+            db.update_project(project_id, status="error")
+
     async def _upload_video(self, project_id: int, video_path: str):
         now = config.get_kst_time()
-        publish_time = (now + timedelta(days=1)).replace(hour=8, minute=0, second=0).isoformat()
         
-        # Load generated metadata
-        settings = db.get_project_settings(project_id)
-        ai_title = settings.get("title") or f"AI Auto Video {now.date()}"
-        ai_desc = settings.get("description") or "#Shorts #AI"
-        ai_tags_str = settings.get("hashtags") or "ai,shorts"
+        # Load settings
+        p_settings = db.get_project_settings(project_id) or {}
+        
+        # Determine Privacy & Schedule
+        privacy = p_settings.get("upload_privacy", "private")
+        schedule_at = p_settings.get("upload_schedule_at")
+        
+        publish_time = None
+        if privacy == "scheduled" or schedule_at:
+            if schedule_at:
+                try:
+                    # Validate format or parse
+                    # Format expected: 2026-02-12T08:00:00 or ISO
+                    if "T" not in schedule_at:
+                        # Simple format YYYY-MM-DD HH:MM
+                        dt = datetime.strptime(schedule_at, "%Y-%m-%d %H:%M")
+                        publish_time = dt.isoformat()
+                    else:
+                        publish_time = schedule_at
+                except:
+                    print(f"⚠️ [Upload] Invalid schedule format: {schedule_at}. Falling back to default.")
+            
+            if not publish_time:
+                # Default: Next day 8 AM
+                publish_time = (now + timedelta(days=1)).replace(hour=8, minute=0, second=0).isoformat()
+            
+            # YouTube API requires privacyStatus to be 'private' for scheduled uploads
+            privacy = "private" 
+
+        ai_title = p_settings.get("title") or f"AI Auto Video {now.date()}"
+        ai_desc = p_settings.get("description") or "#Shorts #AI"
+        ai_tags_str = p_settings.get("hashtags") or "ai,shorts"
         ai_tags = [t.strip() for t in ai_tags_str.split(",") if t.strip()]
 
+        # [NEW] Multi-Channel Support: Resolve Token Path
+        token_path = None
+        channel_id = p_settings.get("youtube_channel_id")
+        if channel_id:
+            try:
+                # get_channel must be implemented in database.py
+                channel = db.get_channel(channel_id)
+                if channel and channel.get("credentials_path"):
+                    cand_path = channel["credentials_path"]
+                    if os.path.exists(cand_path):
+                        token_path = cand_path
+                        print(f"🔑 [Upload] Using channel token: {channel.get('name')} ({token_path})")
+            except Exception as ce:
+                print(f"⚠️ [Upload] Failed to resolve channel {channel_id}: {ce}")
+
         try:
-            # 1. Video Upload (Schedule for next day 8 AM)
+            # 1. Video Upload
+            print(f"🚀 [Upload] Starting YouTube upload (Privacy: {privacy}, Schedule: {publish_time}, Channel: {channel_id or 'Default'})")
             response = youtube_upload_service.upload_video(
                 file_path=video_path, 
                 title=ai_title,
                 description=ai_desc, 
                 tags=ai_tags,
-                privacy_status="private", 
-                publish_at=publish_time
+                privacy_status=privacy, 
+                publish_at=publish_time,
+                token_path=token_path # Pass token path
             )
             
-            # 2. Thumbnail Upload
+            # 2. Thumbnail Upload (Wait a bit for video to be indexed)
             video_id = response.get("id")
-            settings = db.get_project_settings(project_id)
-            thumb_url = settings.get("thumbnail_url")
-            
-            if video_id and thumb_url:
-                # /output/filename.jpg -> LOCAL_PATH/filename.jpg
-                fname = thumb_url.split("/")[-1]
-                thumb_path = os.path.join(config.OUTPUT_DIR, fname)
+            if video_id:
+                print(f"✅ [Auto-Pilot] Video uploaded: https://youtu.be/{video_id}. Waiting 10s for thumbnail upload...")
+                await asyncio.sleep(10)
                 
-                if os.path.exists(thumb_path):
-                    print(f"🖼️ [Auto-Pilot] Uploading thumbnail: {thumb_path}")
-                    try:
-                        youtube_upload_service.set_thumbnail(video_id, thumb_path)
-                    except Exception as te:
-                        print(f"⚠️ Thumbnail upload failed: {te}")
-
+                settings = db.get_project_settings(project_id)
+                thumb_url = settings.get("thumbnail_url")
+                
+                if thumb_url:
+                    # /output/filename.jpg -> LOCAL_PATH/filename.jpg
+                    fname = thumb_url.split("/")[-1]
+                    thumb_path = os.path.join(config.OUTPUT_DIR, fname)
+                    
+                    if os.path.exists(thumb_path):
+                        print(f"🖼️ [Auto-Pilot] Uploading thumbnail: {thumb_path}")
+                        try:
+                            youtube_upload_service.set_thumbnail(video_id, thumb_path, token_path=token_path)
+                            print(f"✅ [Auto-Pilot] Thumbnail set successfully for {video_id}")
+                        except Exception as te:
+                            print(f"⚠️ Thumbnail upload failed: {te}")
+                    else:
+                        print(f"⚠️ Thumbnail file not found at {thumb_path}")
+                else:
+                    print(f"⚠️ No thumbnail_url found for project {project_id}")
+            
             db.update_project_setting(project_id, "is_uploaded", 1)
         except Exception as e:
             print(f"❌ Upload failed: {e}")
 
     async def run_batch_workflow(self):
         """queued 상태의 프로젝트를 순차적으로 모두 처리"""
+        if self.is_batch_running:
+            print("⚠️ [Batch] 이미 진행 중인 일괄 처리 작업이 있습니다.")
+            return
+            
+        self.is_batch_running = True
         print("🚦 [Batch] 일괄 제작 프로세스 시작...")
         import asyncio
         
-        while True:
-            projects = db.get_all_projects()
-            # FIFO: ID가 작은 순서대로 처리
-            queue = sorted([p for p in projects if p.get("status") == "queued"], key=lambda x: x['id'])
-            
-            if not queue:
-                print("🏁 [Batch] 대기열 작업을 모두 완료했습니다.")
-                break
+        try:
+            while True:
+                projects = db.get_all_projects()
+                # FIFO: ID가 작은 순서대로 처리
+                queue = sorted([p for p in projects if p.get("status") == "queued"], key=lambda x: x['id'])
                 
-            project = queue[0]
-            pid = project['id']
-            print(f"▶️ [Batch] 프로젝트 시작: {project.get('topic')} (ID: {pid})")
-            
-            try:
-                # 설정 로드
-                p_settings = db.get_project_settings(pid) or {}
-
-                # [MODIFIED] Check if script already exists to decide start status
-                # This enables "Queue after script generation"
-                if p_settings.get("script") and len(p_settings.get("script").strip()) > 50:
-                    print(f"📄 [Batch] 기존 대본 발견 (ID: {pid}). 'scripted' 단계부터 시작합니다.")
-                    db.update_project(pid, status="scripted")
-                else:
-                    db.update_project(pid, status="analyzed")
+                if not queue:
+                    print("🏁 [Batch] 대기열 작업을 모두 완료했습니다.")
+                    break
+                    
+                project = queue[0]
+                pid = project['id']
+                print(f"▶️ [Batch] 프로젝트 시작: {project.get('topic')} (ID: {pid})")
                 
-                config_dict = {
-                    "script_style": p_settings.get("script_style", "default"),
-                    "duration_seconds": p_settings.get("duration_seconds", 300),
-                    "voice_provider": p_settings.get("voice_provider"),
-                    "voice_id": p_settings.get("voice_id"),
-                    "image_style": p_settings.get("image_style", "realistic"), 
-                    "thumbnail_style": p_settings.get("thumbnail_style", "face"), 
-                    "all_video": bool(p_settings.get("all_video", 0)),
-                    "motion_method": p_settings.get("motion_method", "standard"),
-                    "video_scene_count": p_settings.get("video_scene_count", 0),
-                    "auto_thumbnail": True,
-                    "auto_plan": p_settings.get("auto_plan", True)
-                }
-                
-                # 워크플로우 실행 (Wait for completion)
-                await self.run_workflow(project.get('topic'), pid, config_dict)
-                print(f"✅ [Batch] 프로젝트 완료: {pid}")
-                
-            except Exception as e:
-                print(f"❌ [Batch] 프로젝트 실패 (ID: {pid}): {e}")
-                db.update_project(pid, status="error")
-                
-            await asyncio.sleep(2)
+                try:
+                    # 설정 로드
+                    p_settings = db.get_project_settings(pid) or {}
+                    
+                    # [Logic Fix] 순서대로 진행하기 위해 적절한 시작 상태 결정
+                    # 1. 이미 대본이 있는 경우 -> 자산 생성부터
+                    if p_settings.get("script") and len(p_settings.get("script").strip()) > 50:
+                        print(f"📄 [Batch] 기존 대본 발견 (ID: {pid}). 'scripted' 단계부터 시작합니다.")
+                        db.update_project(pid, status="scripted")
+                    # 2. 분석 데이터는 있는 경우 -> 기획/대본 단계부터
+                    elif db.get_analysis(pid):
+                        print(f"📊 [Batch] 분석 데이터 발견 (ID: {pid}). 'analyzed' 단계부터 시작합니다.")
+                        db.update_project(pid, status="analyzed")
+                    # 3. 아무것도 없는 새 프로젝트인 경우 -> 처음(분석)부터
+                    else:
+                        print(f"🆕 [Batch] 신규 프로젝트 (ID: {pid}). 'created' 단계부터 시작합니다.")
+                        db.update_project(pid, status="created")
+                    
+                    config_dict = {
+                        "script_style": p_settings.get("script_style", "default"),
+                        "duration_seconds": p_settings.get("duration_seconds", 300),
+                        "voice_provider": p_settings.get("voice_provider"),
+                        "voice_id": p_settings.get("voice_id"),
+                        "image_style": p_settings.get("image_style", "realistic"), 
+                        "thumbnail_style": p_settings.get("thumbnail_style", "face"), 
+                        "all_video": bool(p_settings.get("all_video", 0)),
+                        "motion_method": p_settings.get("motion_method", "standard"),
+                        "video_scene_count": p_settings.get("video_scene_count", 0),
+                        "auto_thumbnail": True,
+                        "auto_plan": p_settings.get("auto_plan", True),
+                        "video_engine": p_settings.get("video_engine", "wan"),
+                        "upload_privacy": p_settings.get("upload_privacy", "private"),
+                        "upload_schedule_at": p_settings.get("upload_schedule_at")
+                    }
+                    
+                    # 워크플로우 실행 (Wait for completion)
+                    await self.run_workflow(project.get('topic'), pid, config_dict)
+                    print(f"✅ [Batch] 프로젝트 완료: {pid}")
+                    
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
+                    print(f"❌ [Batch] 프로젝트 실패 (ID: {pid}): {e}")
+                    db.update_project(pid, status="error")
+                    
+                await asyncio.sleep(2)
+        finally:
+            self.is_batch_running = False
+            print("🛑 [Batch] 일괄 제작 프로세스 종료")
     
     def _alignment_to_subtitles(self, alignments: list, max_chars: int = 40) -> list:
         """

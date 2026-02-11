@@ -1739,3 +1739,840 @@ ImportError: MoviePy Import Failed: No module named 'moviepy.video.compositing.c
 [2026-02-08 13:09:14.490542] create_slideshow(PROJ=65) Effects: None
 [2026-02-08 13:09:15.595842] RENDER_SETTINGS: font='C:/Windows/Fonts/malgun.ttf', color='white', style='Basic_White', stroke_color='black', stroke_enabled=1, stroke_width=9.0, bg_enabled=None
 [2026-02-08 13:09:16.272677] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-08 18:48:58.828731] Starting render for project 66
+[2026-02-08 18:48:58.828750] Images: 3, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\7일간_단기_알바로_100만원_벌_수_있을까..._20260208\tts_20260208_184646.mp3
+[2026-02-08 18:48:59.033864] create_slideshow(PROJ=66) Effects: ['random', 'random', 'random']
+[2026-02-08 18:49:00.091584] RENDER_SETTINGS: font='GmarketSansBold', color='#ffffff', style='Basic_White', stroke_color='#000000', stroke_enabled=1, stroke_width=0.2866666666666667, bg_enabled=1
+[2026-02-08 18:49:00.357595] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-08 19:17:23.998219] create_slideshow(PROJ=67) Effects: None
+[2026-02-08 19:17:26.033021] RENDER_SETTINGS: font='C:/Windows/Fonts/malgun.ttf', color='white', style='Basic_White', stroke_color='black', stroke_enabled=1, stroke_width=9.0, bg_enabled=None
+[2026-02-08 19:17:28.361048] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-08 22:31:23.132051] create_slideshow(PROJ=68) Effects: None
+[2026-02-08 22:31:25.152221] RENDER_SETTINGS: font='C:/Windows/Fonts/malgun.ttf', color='white', style='Basic_White', stroke_color='black', stroke_enabled=1, stroke_width=9.0, bg_enabled=None
+[2026-02-08 22:31:27.136915] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-08 23:41:51.276277] create_slideshow(PROJ=69) Effects: None
+[2026-02-08 23:41:53.327970] RENDER_SETTINGS: font='C:/Windows/Fonts/malgun.ttf', color='white', style='Basic_White', stroke_color='black', stroke_enabled=1, stroke_width=9.0, bg_enabled=None
+[2026-02-08 23:41:56.118984] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-09 15:09:37.772219] create_slideshow(PROJ=70) Effects: None
+[2026-02-09 15:09:39.887576] RENDER_SETTINGS: font='C:/Windows/Fonts/malgun.ttf', color='white', style='Basic_White', stroke_color='black', stroke_enabled=1, stroke_width=16.0, bg_enabled=None
+[2026-02-09 15:09:45.900159] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-09 15:55:53.965140] Starting render for project 70
+[2026-02-09 15:55:53.965156] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-02-09 15:55:54.312451] create_slideshow(PROJ=70) Effects: ['random', 'random', 'random', 'random', 'random']
+[2026-02-09 15:55:56.467174] RENDER_SETTINGS: font='GmarketSansBold', color='white', style='Basic_White', stroke_color='black', stroke_enabled=1, stroke_width=0.5333333333333333, bg_enabled=1
+[2026-02-09 15:56:05.168965] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-09 16:17:14.564558] Starting render for project 70
+[2026-02-09 16:17:14.564580] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-02-09 16:17:14.906304] create_slideshow(PROJ=70) Effects: ['random', 'random', 'random', 'random', 'random']
+[2026-02-09 16:17:17.014202] RENDER_SETTINGS: font='GmarketSansBold', color='#00ff7b', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-09 16:17:20.258658] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-09 16:32:29.044317] Starting render for project 70
+[2026-02-09 16:32:29.044333] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-02-09 16:32:29.262622] create_slideshow(PROJ=70) Effects: ['random', 'random', 'random', 'random', 'random']
+[2026-02-09 16:32:31.223143] RENDER_SETTINGS: font='GmarketSansBold', color='#00ff7b', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-09 16:32:33.317209] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-09 16:50:47.333920] Starting render for project 70
+[2026-02-09 16:50:47.333937] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-02-09 16:50:47.648858] create_slideshow(PROJ=70) Effects: ['random', 'random', 'random', 'random', 'random']
+[2026-02-09 16:50:49.551996] RENDER_SETTINGS: font='GmarketSansBold', color='#00ff7b', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-09 16:50:51.912343] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-09 17:17:58.826516] Starting render for project 70
+[2026-02-09 17:17:58.826537] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-02-09 17:18:00.114373] create_slideshow(PROJ=70) Effects: ['random', 'random', 'random', 'random', 'random']
+[2026-02-09 17:18:01.952841] RENDER_SETTINGS: font='GmarketSansBold', color='#00ff7b', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-09 17:18:04.102530] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-09 17:18:04.104134] Render Error: VideoClip.write_videofile() got an unexpected keyword argument 'verbose'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 774, in create_slideshow
+    video.write_videofile(
+    ~~~~~~~~~~~~~~~~~~~~~^
+        output_path,
+        ^^^^^^^^^^^^
+    ...<8 lines>...
+        logger=logger
+        ^^^^^^^^^^^^^
+    )
+    ^
+TypeError: VideoClip.write_videofile() got an unexpected keyword argument 'verbose'
+
+[2026-02-09 17:18:04.107670] Render Error: VideoClip.write_videofile() got an unexpected keyword argument 'verbose'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\app\routers\video.py", line 1140, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<11 lines>...
+        project_id=project_id
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 791, in create_slideshow
+    raise e
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 774, in create_slideshow
+    video.write_videofile(
+    ~~~~~~~~~~~~~~~~~~~~~^
+        output_path,
+        ^^^^^^^^^^^^
+    ...<8 lines>...
+        logger=logger
+        ^^^^^^^^^^^^^
+    )
+    ^
+TypeError: VideoClip.write_videofile() got an unexpected keyword argument 'verbose'
+
+[2026-02-09 17:18:10.365850] Starting render for project 70
+[2026-02-09 17:18:10.365871] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-02-09 17:18:10.577712] create_slideshow(PROJ=70) Effects: ['random', 'random', 'random', 'random', 'random']
+[2026-02-09 17:18:12.522144] RENDER_SETTINGS: font='GmarketSansBold', color='#00ff7b', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-09 17:18:14.332691] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-09 17:18:14.334581] Render Error: VideoClip.write_videofile() got an unexpected keyword argument 'verbose'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 774, in create_slideshow
+    video.write_videofile(
+    ~~~~~~~~~~~~~~~~~~~~~^
+        output_path,
+        ^^^^^^^^^^^^
+    ...<8 lines>...
+        logger=logger
+        ^^^^^^^^^^^^^
+    )
+    ^
+TypeError: VideoClip.write_videofile() got an unexpected keyword argument 'verbose'
+
+[2026-02-09 17:18:14.338578] Render Error: VideoClip.write_videofile() got an unexpected keyword argument 'verbose'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\app\routers\video.py", line 1140, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<11 lines>...
+        project_id=project_id
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 791, in create_slideshow
+    raise e
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 774, in create_slideshow
+    video.write_videofile(
+    ~~~~~~~~~~~~~~~~~~~~~^
+        output_path,
+        ^^^^^^^^^^^^
+    ...<8 lines>...
+        logger=logger
+        ^^^^^^^^^^^^^
+    )
+    ^
+TypeError: VideoClip.write_videofile() got an unexpected keyword argument 'verbose'
+
+[2026-02-09 17:23:00.487140] Starting render for project 70
+[2026-02-09 17:23:00.487159] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-02-09 17:23:00.744568] create_slideshow(PROJ=70) Effects: ['random', 'random', 'random', 'random', 'random']
+[2026-02-09 17:23:02.453247] RENDER_SETTINGS: font='GmarketSansBold', color='#00ff7b', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-09 17:23:04.361906] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-09 17:23:05.046007] Render Error: [Errno 32] Broken pipe
+
+MoviePy error: FFMPEG encountered the following error while writing file C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\temp_audio_39cfee39-4157-4c1c-b4da-195020d6e705.mp3:
+
+ [mp3 @ 000001fc974a8140] Invalid audio stream. Exactly one MP3 audio stream is required.
+[out#0/mp3 @ 000001fc970b1300] Could not write header (incorrect codec parameters ?): Invalid argument
+[af#0:0 @ 000001fc97026d00] Error sending frames to consumers: Invalid argument
+[af#0:0 @ 000001fc97026d00] Task finished with error code: -22 (Invalid argument)
+[af#0:0 @ 000001fc97026d00] Terminating thread with return code -22 (Invalid argument)
+[out#0/mp3 @ 000001fc970b1300] Nothing was written into output file, because at least one of its streams received no packets.
+
+
+The audio export failed, possibly because the codec specified for the video aac is not compatible with the given extension mp3. Please specify a valid 'codec' argument in write_audiofile or 'audio_codoc'argument in write_videofile. This would be 'libmp3lame' for mp3, 'libvorbis' for ogg...
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\audio\io\ffmpeg_audiowriter.py", line 111, in write_frames
+    self.proc.stdin.write(frames_array.tobytes())
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 774, in create_slideshow
+    video.write_videofile(
+    ~~~~~~~~~~~~~~~~~~~~~^
+        output_path,
+        ^^^^^^^^^^^^
+    ...<7 lines>...
+        logger=logger
+        ^^^^^^^^^^^^^
+    )
+    ^
+  File "<decorator-gen-62>", line 2, in write_videofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 53, in requires_duration
+    return func(clip, *args, **kwargs)
+  File "<decorator-gen-61>", line 2, in write_videofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 153, in wrapper
+    return func(clip, *new_args, **new_kwargs)
+  File "<decorator-gen-60>", line 2, in write_videofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 24, in convert_masks_to_RGB
+    return func(clip, *args, **kwargs)
+  File "<decorator-gen-59>", line 2, in write_videofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 102, in wrapper
+    return func(*new_args, **new_kwargs)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\video\VideoClip.py", line 379, in write_videofile
+    self.audio.write_audiofile(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        audiofile,
+        ^^^^^^^^^^
+    ...<6 lines>...
+        logger=logger,
+        ^^^^^^^^^^^^^^
+    )
+    ^
+  File "<decorator-gen-43>", line 2, in write_audiofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 53, in requires_duration
+    return func(clip, *args, **kwargs)
+  File "<decorator-gen-42>", line 2, in write_audiofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 102, in wrapper
+    return func(*new_args, **new_kwargs)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\audio\AudioClip.py", line 258, in write_audiofile
+    return ffmpeg_audiowrite(
+        self,
+    ...<8 lines>...
+        logger=logger,
+    )
+  File "<decorator-gen-9>", line 2, in ffmpeg_audiowrite
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 53, in requires_duration
+    return func(clip, *args, **kwargs)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\audio\io\ffmpeg_audiowriter.py", line 223, in ffmpeg_audiowrite
+    writer.write_frames(chunk)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\audio\io\ffmpeg_audiowriter.py", line 159, in write_frames
+    raise IOError(error)
+OSError: [Errno 32] Broken pipe
+
+MoviePy error: FFMPEG encountered the following error while writing file C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\temp_audio_39cfee39-4157-4c1c-b4da-195020d6e705.mp3:
+
+ [mp3 @ 000001fc974a8140] Invalid audio stream. Exactly one MP3 audio stream is required.
+[out#0/mp3 @ 000001fc970b1300] Could not write header (incorrect codec parameters ?): Invalid argument
+[af#0:0 @ 000001fc97026d00] Error sending frames to consumers: Invalid argument
+[af#0:0 @ 000001fc97026d00] Task finished with error code: -22 (Invalid argument)
+[af#0:0 @ 000001fc97026d00] Terminating thread with return code -22 (Invalid argument)
+[out#0/mp3 @ 000001fc970b1300] Nothing was written into output file, because at least one of its streams received no packets.
+
+
+The audio export failed, possibly because the codec specified for the video aac is not compatible with the given extension mp3. Please specify a valid 'codec' argument in write_audiofile or 'audio_codoc'argument in write_videofile. This would be 'libmp3lame' for mp3, 'libvorbis' for ogg...
+
+[2026-02-09 17:23:05.053276] Render Error: [Errno 32] Broken pipe
+
+MoviePy error: FFMPEG encountered the following error while writing file C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\temp_audio_39cfee39-4157-4c1c-b4da-195020d6e705.mp3:
+
+ [mp3 @ 000001fc974a8140] Invalid audio stream. Exactly one MP3 audio stream is required.
+[out#0/mp3 @ 000001fc970b1300] Could not write header (incorrect codec parameters ?): Invalid argument
+[af#0:0 @ 000001fc97026d00] Error sending frames to consumers: Invalid argument
+[af#0:0 @ 000001fc97026d00] Task finished with error code: -22 (Invalid argument)
+[af#0:0 @ 000001fc97026d00] Terminating thread with return code -22 (Invalid argument)
+[out#0/mp3 @ 000001fc970b1300] Nothing was written into output file, because at least one of its streams received no packets.
+
+
+The audio export failed, possibly because the codec specified for the video aac is not compatible with the given extension mp3. Please specify a valid 'codec' argument in write_audiofile or 'audio_codoc'argument in write_videofile. This would be 'libmp3lame' for mp3, 'libvorbis' for ogg...
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\audio\io\ffmpeg_audiowriter.py", line 111, in write_frames
+    self.proc.stdin.write(frames_array.tobytes())
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\app\routers\video.py", line 1140, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<11 lines>...
+        project_id=project_id
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 790, in create_slideshow
+    raise e
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 774, in create_slideshow
+    video.write_videofile(
+    ~~~~~~~~~~~~~~~~~~~~~^
+        output_path,
+        ^^^^^^^^^^^^
+    ...<7 lines>...
+        logger=logger
+        ^^^^^^^^^^^^^
+    )
+    ^
+  File "<decorator-gen-62>", line 2, in write_videofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 53, in requires_duration
+    return func(clip, *args, **kwargs)
+  File "<decorator-gen-61>", line 2, in write_videofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 153, in wrapper
+    return func(clip, *new_args, **new_kwargs)
+  File "<decorator-gen-60>", line 2, in write_videofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 24, in convert_masks_to_RGB
+    return func(clip, *args, **kwargs)
+  File "<decorator-gen-59>", line 2, in write_videofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 102, in wrapper
+    return func(*new_args, **new_kwargs)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\video\VideoClip.py", line 379, in write_videofile
+    self.audio.write_audiofile(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        audiofile,
+        ^^^^^^^^^^
+    ...<6 lines>...
+        logger=logger,
+        ^^^^^^^^^^^^^^
+    )
+    ^
+  File "<decorator-gen-43>", line 2, in write_audiofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 53, in requires_duration
+    return func(clip, *args, **kwargs)
+  File "<decorator-gen-42>", line 2, in write_audiofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 102, in wrapper
+    return func(*new_args, **new_kwargs)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\audio\AudioClip.py", line 258, in write_audiofile
+    return ffmpeg_audiowrite(
+        self,
+    ...<8 lines>...
+        logger=logger,
+    )
+  File "<decorator-gen-9>", line 2, in ffmpeg_audiowrite
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 53, in requires_duration
+    return func(clip, *args, **kwargs)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\audio\io\ffmpeg_audiowriter.py", line 223, in ffmpeg_audiowrite
+    writer.write_frames(chunk)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\audio\io\ffmpeg_audiowriter.py", line 159, in write_frames
+    raise IOError(error)
+OSError: [Errno 32] Broken pipe
+
+MoviePy error: FFMPEG encountered the following error while writing file C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\temp_audio_39cfee39-4157-4c1c-b4da-195020d6e705.mp3:
+
+ [mp3 @ 000001fc974a8140] Invalid audio stream. Exactly one MP3 audio stream is required.
+[out#0/mp3 @ 000001fc970b1300] Could not write header (incorrect codec parameters ?): Invalid argument
+[af#0:0 @ 000001fc97026d00] Error sending frames to consumers: Invalid argument
+[af#0:0 @ 000001fc97026d00] Task finished with error code: -22 (Invalid argument)
+[af#0:0 @ 000001fc97026d00] Terminating thread with return code -22 (Invalid argument)
+[out#0/mp3 @ 000001fc970b1300] Nothing was written into output file, because at least one of its streams received no packets.
+
+
+The audio export failed, possibly because the codec specified for the video aac is not compatible with the given extension mp3. Please specify a valid 'codec' argument in write_audiofile or 'audio_codoc'argument in write_videofile. This would be 'libmp3lame' for mp3, 'libvorbis' for ogg...
+
+[2026-02-09 17:27:18.768623] Starting render for project 70
+[2026-02-09 17:27:18.768637] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-02-09 17:27:19.001832] create_slideshow(PROJ=70) Effects: ['random', 'random', 'random', 'random', 'random']
+[2026-02-09 17:27:21.071185] RENDER_SETTINGS: font='GmarketSansBold', color='#00ff7b', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-09 17:27:23.115361] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-09 17:27:23.745307] Render Error: [Errno 32] Broken pipe
+
+MoviePy error: FFMPEG encountered the following error while writing file C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\temp_audio_4f9d1c6c-e55e-447f-984e-2ccc4bd08fb8.mp3:
+
+ [mp3 @ 0000020bf1658140] Invalid audio stream. Exactly one MP3 audio stream is required.
+[out#0/mp3 @ 0000020bf12c1300] Could not write header (incorrect codec parameters ?): Invalid argument
+[af#0:0 @ 0000020bf1236d00] Error sending frames to consumers: Invalid argument
+[af#0:0 @ 0000020bf1236d00] Task finished with error code: -22 (Invalid argument)
+[af#0:0 @ 0000020bf1236d00] Terminating thread with return code -22 (Invalid argument)
+[out#0/mp3 @ 0000020bf12c1300] Nothing was written into output file, because at least one of its streams received no packets.
+
+
+The audio export failed, possibly because the codec specified for the video aac is not compatible with the given extension mp3. Please specify a valid 'codec' argument in write_audiofile or 'audio_codoc'argument in write_videofile. This would be 'libmp3lame' for mp3, 'libvorbis' for ogg...
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\audio\io\ffmpeg_audiowriter.py", line 111, in write_frames
+    self.proc.stdin.write(frames_array.tobytes())
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 774, in create_slideshow
+    video.write_videofile(
+    ~~~~~~~~~~~~~~~~~~~~~^
+        output_path,
+        ^^^^^^^^^^^^
+    ...<7 lines>...
+        logger=logger
+        ^^^^^^^^^^^^^
+    )
+    ^
+  File "<decorator-gen-62>", line 2, in write_videofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 53, in requires_duration
+    return func(clip, *args, **kwargs)
+  File "<decorator-gen-61>", line 2, in write_videofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 153, in wrapper
+    return func(clip, *new_args, **new_kwargs)
+  File "<decorator-gen-60>", line 2, in write_videofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 24, in convert_masks_to_RGB
+    return func(clip, *args, **kwargs)
+  File "<decorator-gen-59>", line 2, in write_videofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 102, in wrapper
+    return func(*new_args, **new_kwargs)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\video\VideoClip.py", line 379, in write_videofile
+    self.audio.write_audiofile(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        audiofile,
+        ^^^^^^^^^^
+    ...<6 lines>...
+        logger=logger,
+        ^^^^^^^^^^^^^^
+    )
+    ^
+  File "<decorator-gen-43>", line 2, in write_audiofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 53, in requires_duration
+    return func(clip, *args, **kwargs)
+  File "<decorator-gen-42>", line 2, in write_audiofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 102, in wrapper
+    return func(*new_args, **new_kwargs)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\audio\AudioClip.py", line 258, in write_audiofile
+    return ffmpeg_audiowrite(
+        self,
+    ...<8 lines>...
+        logger=logger,
+    )
+  File "<decorator-gen-9>", line 2, in ffmpeg_audiowrite
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 53, in requires_duration
+    return func(clip, *args, **kwargs)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\audio\io\ffmpeg_audiowriter.py", line 223, in ffmpeg_audiowrite
+    writer.write_frames(chunk)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\audio\io\ffmpeg_audiowriter.py", line 159, in write_frames
+    raise IOError(error)
+OSError: [Errno 32] Broken pipe
+
+MoviePy error: FFMPEG encountered the following error while writing file C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\temp_audio_4f9d1c6c-e55e-447f-984e-2ccc4bd08fb8.mp3:
+
+ [mp3 @ 0000020bf1658140] Invalid audio stream. Exactly one MP3 audio stream is required.
+[out#0/mp3 @ 0000020bf12c1300] Could not write header (incorrect codec parameters ?): Invalid argument
+[af#0:0 @ 0000020bf1236d00] Error sending frames to consumers: Invalid argument
+[af#0:0 @ 0000020bf1236d00] Task finished with error code: -22 (Invalid argument)
+[af#0:0 @ 0000020bf1236d00] Terminating thread with return code -22 (Invalid argument)
+[out#0/mp3 @ 0000020bf12c1300] Nothing was written into output file, because at least one of its streams received no packets.
+
+
+The audio export failed, possibly because the codec specified for the video aac is not compatible with the given extension mp3. Please specify a valid 'codec' argument in write_audiofile or 'audio_codoc'argument in write_videofile. This would be 'libmp3lame' for mp3, 'libvorbis' for ogg...
+
+[2026-02-09 17:27:23.753626] Render Error: [Errno 32] Broken pipe
+
+MoviePy error: FFMPEG encountered the following error while writing file C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\temp_audio_4f9d1c6c-e55e-447f-984e-2ccc4bd08fb8.mp3:
+
+ [mp3 @ 0000020bf1658140] Invalid audio stream. Exactly one MP3 audio stream is required.
+[out#0/mp3 @ 0000020bf12c1300] Could not write header (incorrect codec parameters ?): Invalid argument
+[af#0:0 @ 0000020bf1236d00] Error sending frames to consumers: Invalid argument
+[af#0:0 @ 0000020bf1236d00] Task finished with error code: -22 (Invalid argument)
+[af#0:0 @ 0000020bf1236d00] Terminating thread with return code -22 (Invalid argument)
+[out#0/mp3 @ 0000020bf12c1300] Nothing was written into output file, because at least one of its streams received no packets.
+
+
+The audio export failed, possibly because the codec specified for the video aac is not compatible with the given extension mp3. Please specify a valid 'codec' argument in write_audiofile or 'audio_codoc'argument in write_videofile. This would be 'libmp3lame' for mp3, 'libvorbis' for ogg...
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\audio\io\ffmpeg_audiowriter.py", line 111, in write_frames
+    self.proc.stdin.write(frames_array.tobytes())
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\app\routers\video.py", line 1140, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<11 lines>...
+        project_id=project_id
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 790, in create_slideshow
+    raise e
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 774, in create_slideshow
+    video.write_videofile(
+    ~~~~~~~~~~~~~~~~~~~~~^
+        output_path,
+        ^^^^^^^^^^^^
+    ...<7 lines>...
+        logger=logger
+        ^^^^^^^^^^^^^
+    )
+    ^
+  File "<decorator-gen-62>", line 2, in write_videofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 53, in requires_duration
+    return func(clip, *args, **kwargs)
+  File "<decorator-gen-61>", line 2, in write_videofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 153, in wrapper
+    return func(clip, *new_args, **new_kwargs)
+  File "<decorator-gen-60>", line 2, in write_videofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 24, in convert_masks_to_RGB
+    return func(clip, *args, **kwargs)
+  File "<decorator-gen-59>", line 2, in write_videofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 102, in wrapper
+    return func(*new_args, **new_kwargs)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\video\VideoClip.py", line 379, in write_videofile
+    self.audio.write_audiofile(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        audiofile,
+        ^^^^^^^^^^
+    ...<6 lines>...
+        logger=logger,
+        ^^^^^^^^^^^^^^
+    )
+    ^
+  File "<decorator-gen-43>", line 2, in write_audiofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 53, in requires_duration
+    return func(clip, *args, **kwargs)
+  File "<decorator-gen-42>", line 2, in write_audiofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 102, in wrapper
+    return func(*new_args, **new_kwargs)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\audio\AudioClip.py", line 258, in write_audiofile
+    return ffmpeg_audiowrite(
+        self,
+    ...<8 lines>...
+        logger=logger,
+    )
+  File "<decorator-gen-9>", line 2, in ffmpeg_audiowrite
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 53, in requires_duration
+    return func(clip, *args, **kwargs)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\audio\io\ffmpeg_audiowriter.py", line 223, in ffmpeg_audiowrite
+    writer.write_frames(chunk)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\audio\io\ffmpeg_audiowriter.py", line 159, in write_frames
+    raise IOError(error)
+OSError: [Errno 32] Broken pipe
+
+MoviePy error: FFMPEG encountered the following error while writing file C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\temp_audio_4f9d1c6c-e55e-447f-984e-2ccc4bd08fb8.mp3:
+
+ [mp3 @ 0000020bf1658140] Invalid audio stream. Exactly one MP3 audio stream is required.
+[out#0/mp3 @ 0000020bf12c1300] Could not write header (incorrect codec parameters ?): Invalid argument
+[af#0:0 @ 0000020bf1236d00] Error sending frames to consumers: Invalid argument
+[af#0:0 @ 0000020bf1236d00] Task finished with error code: -22 (Invalid argument)
+[af#0:0 @ 0000020bf1236d00] Terminating thread with return code -22 (Invalid argument)
+[out#0/mp3 @ 0000020bf12c1300] Nothing was written into output file, because at least one of its streams received no packets.
+
+
+The audio export failed, possibly because the codec specified for the video aac is not compatible with the given extension mp3. Please specify a valid 'codec' argument in write_audiofile or 'audio_codoc'argument in write_videofile. This would be 'libmp3lame' for mp3, 'libvorbis' for ogg...
+
+[2026-02-09 17:27:44.898802] Starting render for project 70
+[2026-02-09 17:27:44.898819] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-02-09 17:27:45.117650] create_slideshow(PROJ=70) Effects: ['random', 'random', 'random', 'random', 'random']
+[2026-02-09 17:27:46.764675] RENDER_SETTINGS: font='GmarketSansBold', color='#00ff7b', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-09 17:27:48.583917] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-09 17:27:49.206100] Render Error: [Errno 32] Broken pipe
+
+MoviePy error: FFMPEG encountered the following error while writing file C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\temp_audio_13f45d9c-927e-47e9-a652-8416360df85e.mp3:
+
+ [mp3 @ 000002549e8d8140] Invalid audio stream. Exactly one MP3 audio stream is required.
+[out#0/mp3 @ 000002549e491300] Could not write header (incorrect codec parameters ?): Invalid argument
+[af#0:0 @ 000002549e406d00] Error sending frames to consumers: Invalid argument
+[af#0:0 @ 000002549e406d00] Task finished with error code: -22 (Invalid argument)
+[af#0:0 @ 000002549e406d00] Terminating thread with return code -22 (Invalid argument)
+[out#0/mp3 @ 000002549e491300] Nothing was written into output file, because at least one of its streams received no packets.
+
+
+The audio export failed, possibly because the codec specified for the video aac is not compatible with the given extension mp3. Please specify a valid 'codec' argument in write_audiofile or 'audio_codoc'argument in write_videofile. This would be 'libmp3lame' for mp3, 'libvorbis' for ogg...
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\audio\io\ffmpeg_audiowriter.py", line 111, in write_frames
+    self.proc.stdin.write(frames_array.tobytes())
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 774, in create_slideshow
+    video.write_videofile(
+    ~~~~~~~~~~~~~~~~~~~~~^
+        output_path,
+        ^^^^^^^^^^^^
+    ...<7 lines>...
+        logger=logger
+        ^^^^^^^^^^^^^
+    )
+    ^
+  File "<decorator-gen-62>", line 2, in write_videofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 53, in requires_duration
+    return func(clip, *args, **kwargs)
+  File "<decorator-gen-61>", line 2, in write_videofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 153, in wrapper
+    return func(clip, *new_args, **new_kwargs)
+  File "<decorator-gen-60>", line 2, in write_videofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 24, in convert_masks_to_RGB
+    return func(clip, *args, **kwargs)
+  File "<decorator-gen-59>", line 2, in write_videofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 102, in wrapper
+    return func(*new_args, **new_kwargs)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\video\VideoClip.py", line 379, in write_videofile
+    self.audio.write_audiofile(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        audiofile,
+        ^^^^^^^^^^
+    ...<6 lines>...
+        logger=logger,
+        ^^^^^^^^^^^^^^
+    )
+    ^
+  File "<decorator-gen-43>", line 2, in write_audiofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 53, in requires_duration
+    return func(clip, *args, **kwargs)
+  File "<decorator-gen-42>", line 2, in write_audiofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 102, in wrapper
+    return func(*new_args, **new_kwargs)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\audio\AudioClip.py", line 258, in write_audiofile
+    return ffmpeg_audiowrite(
+        self,
+    ...<8 lines>...
+        logger=logger,
+    )
+  File "<decorator-gen-9>", line 2, in ffmpeg_audiowrite
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 53, in requires_duration
+    return func(clip, *args, **kwargs)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\audio\io\ffmpeg_audiowriter.py", line 223, in ffmpeg_audiowrite
+    writer.write_frames(chunk)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\audio\io\ffmpeg_audiowriter.py", line 159, in write_frames
+    raise IOError(error)
+OSError: [Errno 32] Broken pipe
+
+MoviePy error: FFMPEG encountered the following error while writing file C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\temp_audio_13f45d9c-927e-47e9-a652-8416360df85e.mp3:
+
+ [mp3 @ 000002549e8d8140] Invalid audio stream. Exactly one MP3 audio stream is required.
+[out#0/mp3 @ 000002549e491300] Could not write header (incorrect codec parameters ?): Invalid argument
+[af#0:0 @ 000002549e406d00] Error sending frames to consumers: Invalid argument
+[af#0:0 @ 000002549e406d00] Task finished with error code: -22 (Invalid argument)
+[af#0:0 @ 000002549e406d00] Terminating thread with return code -22 (Invalid argument)
+[out#0/mp3 @ 000002549e491300] Nothing was written into output file, because at least one of its streams received no packets.
+
+
+The audio export failed, possibly because the codec specified for the video aac is not compatible with the given extension mp3. Please specify a valid 'codec' argument in write_audiofile or 'audio_codoc'argument in write_videofile. This would be 'libmp3lame' for mp3, 'libvorbis' for ogg...
+
+[2026-02-09 17:27:49.215924] Render Error: [Errno 32] Broken pipe
+
+MoviePy error: FFMPEG encountered the following error while writing file C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\temp_audio_13f45d9c-927e-47e9-a652-8416360df85e.mp3:
+
+ [mp3 @ 000002549e8d8140] Invalid audio stream. Exactly one MP3 audio stream is required.
+[out#0/mp3 @ 000002549e491300] Could not write header (incorrect codec parameters ?): Invalid argument
+[af#0:0 @ 000002549e406d00] Error sending frames to consumers: Invalid argument
+[af#0:0 @ 000002549e406d00] Task finished with error code: -22 (Invalid argument)
+[af#0:0 @ 000002549e406d00] Terminating thread with return code -22 (Invalid argument)
+[out#0/mp3 @ 000002549e491300] Nothing was written into output file, because at least one of its streams received no packets.
+
+
+The audio export failed, possibly because the codec specified for the video aac is not compatible with the given extension mp3. Please specify a valid 'codec' argument in write_audiofile or 'audio_codoc'argument in write_videofile. This would be 'libmp3lame' for mp3, 'libvorbis' for ogg...
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\audio\io\ffmpeg_audiowriter.py", line 111, in write_frames
+    self.proc.stdin.write(frames_array.tobytes())
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\app\routers\video.py", line 1140, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<11 lines>...
+        project_id=project_id
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 790, in create_slideshow
+    raise e
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 774, in create_slideshow
+    video.write_videofile(
+    ~~~~~~~~~~~~~~~~~~~~~^
+        output_path,
+        ^^^^^^^^^^^^
+    ...<7 lines>...
+        logger=logger
+        ^^^^^^^^^^^^^
+    )
+    ^
+  File "<decorator-gen-62>", line 2, in write_videofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 53, in requires_duration
+    return func(clip, *args, **kwargs)
+  File "<decorator-gen-61>", line 2, in write_videofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 153, in wrapper
+    return func(clip, *new_args, **new_kwargs)
+  File "<decorator-gen-60>", line 2, in write_videofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 24, in convert_masks_to_RGB
+    return func(clip, *args, **kwargs)
+  File "<decorator-gen-59>", line 2, in write_videofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 102, in wrapper
+    return func(*new_args, **new_kwargs)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\video\VideoClip.py", line 379, in write_videofile
+    self.audio.write_audiofile(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        audiofile,
+        ^^^^^^^^^^
+    ...<6 lines>...
+        logger=logger,
+        ^^^^^^^^^^^^^^
+    )
+    ^
+  File "<decorator-gen-43>", line 2, in write_audiofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 53, in requires_duration
+    return func(clip, *args, **kwargs)
+  File "<decorator-gen-42>", line 2, in write_audiofile
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 102, in wrapper
+    return func(*new_args, **new_kwargs)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\audio\AudioClip.py", line 258, in write_audiofile
+    return ffmpeg_audiowrite(
+        self,
+    ...<8 lines>...
+        logger=logger,
+    )
+  File "<decorator-gen-9>", line 2, in ffmpeg_audiowrite
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\decorators.py", line 53, in requires_duration
+    return func(clip, *args, **kwargs)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\audio\io\ffmpeg_audiowriter.py", line 223, in ffmpeg_audiowrite
+    writer.write_frames(chunk)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\moviepy\audio\io\ffmpeg_audiowriter.py", line 159, in write_frames
+    raise IOError(error)
+OSError: [Errno 32] Broken pipe
+
+MoviePy error: FFMPEG encountered the following error while writing file C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\temp_audio_13f45d9c-927e-47e9-a652-8416360df85e.mp3:
+
+ [mp3 @ 000002549e8d8140] Invalid audio stream. Exactly one MP3 audio stream is required.
+[out#0/mp3 @ 000002549e491300] Could not write header (incorrect codec parameters ?): Invalid argument
+[af#0:0 @ 000002549e406d00] Error sending frames to consumers: Invalid argument
+[af#0:0 @ 000002549e406d00] Task finished with error code: -22 (Invalid argument)
+[af#0:0 @ 000002549e406d00] Terminating thread with return code -22 (Invalid argument)
+[out#0/mp3 @ 000002549e491300] Nothing was written into output file, because at least one of its streams received no packets.
+
+
+The audio export failed, possibly because the codec specified for the video aac is not compatible with the given extension mp3. Please specify a valid 'codec' argument in write_audiofile or 'audio_codoc'argument in write_videofile. This would be 'libmp3lame' for mp3, 'libvorbis' for ogg...
+
+[2026-02-09 17:29:27.846771] Starting render for project 70
+[2026-02-09 17:29:27.846789] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-02-09 17:29:28.061343] create_slideshow(PROJ=70) Effects: ['random', 'random', 'random', 'random', 'random']
+[2026-02-09 17:29:29.925978] RENDER_SETTINGS: font='GmarketSansBold', color='#00ff7b', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-09 17:29:31.847310] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-09 20:30:04.265144] Starting render for project 70
+[2026-02-09 20:30:04.265340] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-02-09 20:30:04.618321] create_slideshow(PROJ=70) Effects: ['random', 'random', 'random', 'random', 'random']
+[2026-02-09 20:30:06.719854] RENDER_SETTINGS: font='GmarketSansBold', color='#00ff7b', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-09 20:30:08.819376] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-09 20:57:51.558944] Starting render for project 70
+[2026-02-09 20:57:51.558963] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-02-09 20:57:52.897079] create_slideshow(PROJ=70) Effects: ['random', 'random', 'random', 'random', 'random']
+[2026-02-09 20:57:55.154494] RENDER_SETTINGS: font='GmarketSansBold', color='#00ff7b', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-09 20:57:57.343777] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-09 21:49:17.902081] Starting render for project 70
+[2026-02-09 21:49:17.902094] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-02-09 21:49:18.211404] create_slideshow(PROJ=70) Effects: ['random', 'random', 'random', 'random', 'random']
+[2026-02-09 21:49:20.014600] RENDER_SETTINGS: font='GmarketSansBold', color='#00ff7b', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-09 21:49:21.818991] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-09 22:09:01.903023] Starting render for project 70
+[2026-02-09 22:09:01.903041] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-02-09 22:09:02.095402] create_slideshow(PROJ=70) Effects: ['random', 'random', 'random', 'random', 'random']
+[2026-02-09 22:09:03.956463] RENDER_SETTINGS: font='GmarketSansBold', color='#00ff7b', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-09 22:09:05.955002] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-09 22:25:53.187013] Starting render for project 70
+[2026-02-09 22:25:53.187025] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-02-09 22:25:53.417742] create_slideshow(PROJ=70) Effects: ['random', 'random', 'random', 'random', 'random']
+[2026-02-09 22:25:55.134779] RENDER_SETTINGS: font='GmarketSansBold', color='#00ff7b', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-09 22:25:57.142537] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-09 22:25:57.146094] Render Error: name 'num_threads' is not defined
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 783, in create_slideshow
+    threads=num_threads,
+            ^^^^^^^^^^^
+NameError: name 'num_threads' is not defined
+
+[2026-02-09 22:25:57.150103] Render Error: name 'num_threads' is not defined
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\app\routers\video.py", line 1167, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<11 lines>...
+        project_id=project_id
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 826, in create_slideshow
+    raise e
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 783, in create_slideshow
+    threads=num_threads,
+            ^^^^^^^^^^^
+NameError: name 'num_threads' is not defined
+
+[2026-02-09 22:26:07.401576] Starting render for project 70
+[2026-02-09 22:26:07.401587] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-02-09 22:26:07.626085] create_slideshow(PROJ=70) Effects: ['random', 'random', 'random', 'random', 'random']
+[2026-02-09 22:26:09.534261] RENDER_SETTINGS: font='GmarketSansBold', color='#00ff7b', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-09 22:26:11.331166] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-09 22:26:11.332959] Render Error: name 'num_threads' is not defined
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 783, in create_slideshow
+    threads=num_threads,
+            ^^^^^^^^^^^
+NameError: name 'num_threads' is not defined
+
+[2026-02-09 22:26:11.337248] Render Error: name 'num_threads' is not defined
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\app\routers\video.py", line 1167, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<11 lines>...
+        project_id=project_id
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 826, in create_slideshow
+    raise e
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 783, in create_slideshow
+    threads=num_threads,
+            ^^^^^^^^^^^
+NameError: name 'num_threads' is not defined
+
+[2026-02-09 22:26:19.110848] Starting render for project 70
+[2026-02-09 22:26:19.110865] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-02-09 22:26:19.335237] create_slideshow(PROJ=70) Effects: ['random', 'random', 'random', 'random', 'random']
+[2026-02-09 22:26:21.104390] RENDER_SETTINGS: font='GmarketSansBold', color='#00ff7b', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-09 22:26:22.942182] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-09 22:26:22.943914] Render Error: name 'num_threads' is not defined
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 783, in create_slideshow
+    threads=num_threads,
+            ^^^^^^^^^^^
+NameError: name 'num_threads' is not defined
+
+[2026-02-09 22:26:22.947139] Render Error: name 'num_threads' is not defined
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\app\routers\video.py", line 1167, in render_executor_func
+    video_path = video_service.create_slideshow(
+        images=images,
+    ...<11 lines>...
+        project_id=project_id
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 826, in create_slideshow
+    raise e
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 783, in create_slideshow
+    threads=num_threads,
+            ^^^^^^^^^^^
+NameError: name 'num_threads' is not defined
+
+[2026-02-09 22:30:57.940486] Starting render for project 70
+[2026-02-09 22:30:57.940506] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-02-09 22:30:58.191106] create_slideshow(PROJ=70) Effects: ['random', 'random', 'random', 'random', 'random']
+[2026-02-09 22:31:00.017606] RENDER_SETTINGS: font='GmarketSansBold', color='#00ff7b', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-09 22:31:01.854671] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-10 10:50:48.739438] Starting render for project 70
+[2026-02-10 10:50:48.739454] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-02-10 10:50:49.057080] create_slideshow(PROJ=70) Effects: ['random', 'random', 'random', 'random', 'random']
+[2026-02-10 10:50:50.829453] RENDER_SETTINGS: font='GmarketSansBold', color='#00ff7b', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-10 10:50:53.017516] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-10 17:24:37.818698] Starting render for project 70
+[2026-02-10 17:24:37.818872] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-02-10 17:24:39.212879] create_slideshow(PROJ=70) Effects: ['random', 'random', 'random', 'random', 'random']
+[2026-02-10 17:24:41.289192] RENDER_SETTINGS: font='GmarketSansBold', color='#00ff7b', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-10 17:24:43.374942] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-10 19:24:08.396599] Starting render for project 70
+[2026-02-10 19:24:08.396619] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-02-10 19:24:09.316826] create_slideshow(PROJ=70) Effects: ['random', 'random', 'random', 'random', 'random']
+[2026-02-10 19:24:12.017498] RENDER_SETTINGS: font='GmarketSansBold', color='#00ff7b', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-10 19:24:13.747130] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-10 20:36:11.896462] Starting render for project 70
+[2026-02-10 20:36:11.896479] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-02-10 20:36:12.214622] create_slideshow(PROJ=70) Effects: ['random', 'random', 'random', 'random', 'random']
+[2026-02-10 20:36:14.737148] RENDER_SETTINGS: font='GmarketSansBold', color='#00ff7b', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-10 20:36:16.382307] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-10 21:27:32.547613] Starting render for project 70
+[2026-02-10 21:27:32.547631] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-02-10 21:27:32.752970] create_slideshow(PROJ=70) Effects: ['random', 'random', 'random', 'random', 'random']
+[2026-02-10 21:27:35.193753] RENDER_SETTINGS: font='GmarketSansBold', color='#00ff7b', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-10 21:27:36.850880] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-10 22:03:24.931510] Starting render for project 70
+[2026-02-10 22:03:24.931521] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-02-10 22:03:25.117277] create_slideshow(PROJ=70) Effects: ['random', 'random', 'random', 'random', 'random']
+[2026-02-10 22:03:27.130822] RENDER_SETTINGS: font='GmarketSansBold', color='#00ff7b', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-10 22:03:29.309946] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-10 22:42:45.637276] Starting render for project 70
+[2026-02-10 22:42:45.637294] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-02-10 22:42:45.813726] create_slideshow(PROJ=70) Effects: ['random', 'random', 'zoom_in', 'zoom_out', 'none']
+[2026-02-10 22:42:47.516786] RENDER_SETTINGS: font='GmarketSansBold', color='#00ff7b', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-10 22:42:49.425139] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-10 23:11:31.247749] Starting render for project 70
+[2026-02-10 23:11:31.247763] Images: 5, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-02-10 23:11:31.438704] create_slideshow(PROJ=70) Effects: ['random', 'random', 'zoom_in', 'zoom_out', 'none']
+[2026-02-10 23:11:32.987794] RENDER_SETTINGS: font='GmarketSansBold', color='#00ff7b', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-02-10 23:11:35.788550] calling writes_videofile code in video_service (720p safe mode)

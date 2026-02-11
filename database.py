@@ -91,6 +91,12 @@ def init_db():
             all_video INTEGER DEFAULT 0,
             motion_method TEXT DEFAULT 'standard',
             video_scene_count INTEGER DEFAULT 0,
+            upload_privacy TEXT DEFAULT 'private',
+            upload_schedule_at TEXT,
+            youtube_channel_id INTEGER,
+            creation_mode TEXT DEFAULT 'default',
+            product_url TEXT,
+            topview_task_id TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (project_id) REFERENCES projects(id)
@@ -478,6 +484,28 @@ def migrate_db():
     # Channel Auth Migration
     try:
         cursor.execute("ALTER TABLE channels ADD COLUMN credentials_path TEXT")
+    except sqlite3.OperationalError:
+        pass
+
+    # [NEW] Upload options
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN upload_privacy TEXT DEFAULT 'private'")
+    except sqlite3.OperationalError: pass
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN upload_schedule_at TEXT")
+    except sqlite3.OperationalError: pass
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN youtube_channel_id INTEGER")
+    except sqlite3.OperationalError: pass
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN creation_mode TEXT DEFAULT 'default'")
+    except sqlite3.OperationalError: pass
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN product_url TEXT")
+    except sqlite3.OperationalError: pass
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN topview_task_id TEXT")
+    except sqlite3.OperationalError: pass
     except sqlite3.OperationalError:
         pass
         
@@ -990,6 +1018,81 @@ def get_script(project_id: int) -> Optional[Dict]:
     print(f"[DB_DEBUG] Script NOT FOUND for project_id: {project_id}")
     return None
 
+def save_script_structure(project_id: int, structure: Dict):
+    """대본 구조 저장"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # Identify if 'structure' key exists in input (wrapper)
+    actual_struct = structure.get("structure", structure)
+    
+    sections_json = json.dumps(actual_struct.get("sections", []), ensure_ascii=False)
+    
+    # Check existence
+    cursor.execute("SELECT id FROM script_structure WHERE project_id = ?", (project_id,))
+    row = cursor.fetchone()
+    
+    if row:
+        cursor.execute("""
+            UPDATE script_structure 
+            SET hook = ?, sections = ?, cta = ?, style = ?, duration = ?, created_at = CURRENT_TIMESTAMP
+            WHERE project_id = ?
+        """, (
+            actual_struct.get("hook"), 
+            sections_json, 
+            actual_struct.get("cta"), 
+            actual_struct.get("style"), 
+            actual_struct.get("duration"), 
+            project_id
+        ))
+    else:
+        cursor.execute("""
+            INSERT INTO script_structure (project_id, hook, sections, cta, style, duration)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            project_id, 
+            actual_struct.get("hook"), 
+            sections_json, 
+            actual_struct.get("cta"), 
+            actual_struct.get("style"), 
+            actual_struct.get("duration")
+        ))
+    
+    conn.commit()
+    conn.close()
+
+def get_script_structure(project_id: int) -> Optional[Dict]:
+    """대본 구조 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM script_structure WHERE project_id = ?", (project_id,))
+    row = cursor.fetchone()
+    conn.close()
+    
+    if row:
+        data = dict(row)
+        try:
+            sections = json.loads(data['sections']) if data['sections'] else []
+        except:
+            sections = []
+            
+        structure_dict = {
+             "hook": data.get("hook"),
+             "sections": sections,
+             "cta": data.get("cta"),
+             "style": data.get("style"),
+             "duration": data.get("duration")
+        }
+
+        # Return wrapper format expected by Autopilot AND flat format for Frontend
+        return {
+            "project_id": project_id,
+            "structure": structure_dict, # For Autopilot
+            **structure_dict             # For Frontend (mix-in)
+        }
+    return None
+    return None
+
 # ============ 이미지 프롬프트 ============
 
 def save_image_prompts(project_id: int, prompts: List[Dict]):
@@ -1046,8 +1149,11 @@ def get_image_prompts(project_id: int) -> List[Dict]:
         d['scene_title'] = d.get('scene_title') or ''
         d['video_url'] = d.get('video_url') or ''
         
-        # [DEBUG] Check persistence matches
-        print(f"[DEBUG_DB] Scene {d.get('scene_number')}: Title='{d.get('scene_title')}' (Type: {type(d.get('scene_title'))})")
+        # [DEBUG] Check persistence matches - including image_url for frontend display troubleshooting
+        scene_num = d.get('scene_number')
+        img_url = d.get('image_url')
+        vid_url = d.get('video_url')
+        print(f"[DEBUG_DB] Scene {scene_num}: image_url='{img_url}', video_url='{vid_url}'")
         
         prompts.append(d)
         
@@ -1359,7 +1465,9 @@ def update_project_setting(project_id: int, key: str, value: Any):
                     'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity',
                     'voice_provider', 'voice_speed', 'voice_multi_enabled', 'voice_mapping_json', 'intro_video_path', 
                     'thumbnail_style', 'thumbnail_font', 'thumbnail_font_size', 'thumbnail_color', 'thumbnail_full_state',
-                    'image_style', 'all_video', 'motion_method', 'video_scene_count']
+                    'image_style', 'all_video', 'motion_method', 'video_scene_count',
+                    'upload_privacy', 'upload_schedule_at', 'youtube_channel_id',
+                    'creation_mode', 'product_url', 'topview_task_id']
 
 
     if key not in allowed_keys:
@@ -1546,6 +1654,15 @@ def get_all_channels() -> List[Dict]:
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+def get_channel(channel_id: int) -> Optional[Dict]:
+    """특정 채널 정보 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM channels WHERE id = ?", (channel_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
 
 def get_project(project_id: int) -> Optional[Dict]:
     """특정 프로젝트 조회"""
@@ -1793,20 +1910,22 @@ def save_script_style_preset(style_key: str, prompt_value: str):
 # ===========================================
 
 def get_thumbnail_style_presets() -> Dict[str, Dict[str, Any]]:
-    """썸네일 스타일 프리셋 조회"""
+    """썸네일 스타일 프리셋 조회 (수정: prompt 키 보장)"""
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT style_key, prompt_value, image_url FROM thumbnail_style_presets")
+    cursor.execute("SELECT * FROM thumbnail_style_presets")
     rows = cursor.fetchall()
     conn.close()
     
-    return {
-        row['style_key']: {
-            "prompt": row['prompt_value'],
-            "image_url": row['image_url']
-        } 
-        for row in rows
-    }
+    result = {}
+    for row in rows:
+        row_dict = dict(row)
+        result[row_dict['style_key']] = {
+            'prompt': row_dict['prompt_value'], # Autopilot expects 'prompt'
+            'prompt_value': row_dict['prompt_value'], # Legacy/consistency
+            'image_url': row_dict.get('image_url')
+        }
+    return result
 
 def save_thumbnail_style_preset(style_key: str, prompt_value: str, image_url: str = None):
     """썸네일 스타일 프리셋 저장"""
@@ -2021,6 +2140,24 @@ def get_style_presets():
         }
     return result
 
+def get_style_preset(style_key: str) -> Optional[Dict]:
+    """단일 이미지 스타일 프리셋 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM style_presets WHERE style_key = ?", (style_key,))
+    row = cursor.fetchone()
+    conn.close()
+    
+    if row:
+        row_dict = dict(row)
+        return {
+            'style_key': row_dict['style_key'],
+            'prompt': row_dict['prompt_value'],
+            'image_url': row_dict.get('image_url')
+        }
+    return None
+
+
 def save_style_preset(style_key: str, prompt_value: str, image_url: str = None):
     """이미지 스타일 프리셋 저장"""
     conn = get_db()
@@ -2090,22 +2227,7 @@ def save_script_style_preset(style_key: str, prompt_value: str):
     conn.commit()
     conn.close()
 
-def get_thumbnail_style_presets():
-    """썸네일 스타일 프리셋 조회"""
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM thumbnail_style_presets")
-    rows = cursor.fetchall()
-    conn.close()
-    
-    result = {}
-    for row in rows:
-        row_dict = dict(row)
-        result[row_dict['style_key']] = {
-            'prompt_value': row_dict['prompt_value'],
-            'image_url': row_dict.get('image_url')
-        }
-    return result
+# Removed duplicate get_thumbnail_style_presets to avoid collision
 
 def save_thumbnail_style_preset(style_key: str, prompt_value: str, image_url: str = None):
     """썸네일 스타일 프리셋 저장"""
