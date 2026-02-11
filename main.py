@@ -135,12 +135,14 @@ from app.routers import video as video_router
 from app.routers import commerce as commerce_router  # [NEW]
 from app.routers import projects as projects_router # [NEW]
 from app.routers import channels as channels_router # [NEW]
+from app.routers import media as media_router # [NEW]
 
 app.include_router(autopilot_router.router)
 app.include_router(video_router.router)
 app.include_router(commerce_router.router)  # [NEW]
 app.include_router(projects_router.router) # [NEW]
 app.include_router(channels_router.router) # [NEW]
+app.include_router(media_router.router) # [NEW]
 
 @app.post("/api/settings/language")
 async def set_language(lang: str = Body(..., embed=True)):
