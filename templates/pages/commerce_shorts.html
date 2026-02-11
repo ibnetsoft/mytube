@@ -1,0 +1,735 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="h-[calc(100vh-80px)] overflow-y-auto p-6 custom-scrollbar">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold flex items-center gap-2">
+            <span>🛍️</span>
+            <span>커머스 쇼츠 제작</span>
+        </h2>
+        <div class="text-sm text-gray-500 dark:text-gray-400">
+            제품 URL만으로 프로모션 영상 생성
+        </div>
+    </div>
+
+    <!-- Progress Indicator -->
+    <div class="mb-8">
+        <div class="flex items-center justify-center gap-4">
+            <div class="flex items-center gap-2">
+                <div id="step-indicator-1"
+                    class="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold">1
+                </div>
+                <span class="text-sm font-medium">URL 입력</span>
+            </div>
+            <div class="w-16 h-1 bg-gray-300 dark:bg-gray-700"></div>
+            <div class="flex items-center gap-2">
+                <div id="step-indicator-2"
+                    class="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-700 text-gray-500 flex items-center justify-center font-bold">
+                    2</div>
+                <span class="text-sm text-gray-500">제품 정보</span>
+            </div>
+            <div class="w-16 h-1 bg-gray-300 dark:bg-gray-700"></div>
+            <div class="flex items-center gap-2">
+                <div id="step-indicator-3"
+                    class="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-700 text-gray-500 flex items-center justify-center font-bold">
+                    3</div>
+                <span class="text-sm text-gray-500">스타일 선택</span>
+            </div>
+            <div class="w-16 h-1 bg-gray-300 dark:bg-gray-700"></div>
+            <div class="flex items-center gap-2">
+                <div id="step-indicator-4"
+                    class="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-700 text-gray-500 flex items-center justify-center font-bold">
+                    4</div>
+                <span class="text-sm text-gray-500">생성</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="max-w-4xl mx-auto">
+
+        <!-- Step 1: URL Input -->
+        <div id="step-1" class="card p-6 mb-4">
+            <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+                <span>🔗</span>
+                <span>1단계: 제품 URL 입력</span>
+            </h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">제품 페이지 URL</label>
+                    <input type="text" id="product-url" class="input w-full"
+                        placeholder="https://smartstore.naver.com/..." />
+                    <p class="text-xs text-gray-500 mt-1">
+                        네이버 스마트스토어, 쿠팡, 11번가 등의 제품 페이지 URL을 입력하세요
+                    </p>
+                </div>
+                <button onclick="analyzeProduct()" class="btn-primary w-full py-3">
+                    <span>🔍</span>
+                    <span>제품 분석하기</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Step 2: Product Info (Hidden initially) -->
+        <div id="step-2" class="card p-6 mb-4 hidden">
+            <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+                <span>📦</span>
+                <span>2단계: 제품 정보 확인</span>
+            </h3>
+            <div id="product-info" class="space-y-4">
+                <!-- Will be populated by JS -->
+            </div>
+            <button onclick="goToStep3()" class="btn-primary w-full py-3 mt-4">
+                다음 단계 →
+            </button>
+        </div>
+
+        <!-- Step 3: Style Selection (Hidden initially) -->
+        <div id="step-3" class="card p-6 mb-4 hidden">
+            <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+                <span>🎨</span>
+                <span>3단계: 영상 스타일 커스터마이징</span>
+            </h3>
+            <div class="space-y-6">
+                <!-- 프리셋 선택 -->
+                <div>
+                    <label class="block text-sm font-medium mb-2">스타일 프리셋</label>
+                    <div id="style-presets" class="grid grid-cols-2 gap-3">
+                        <!-- Will be populated by JS -->
+                    </div>
+                </div>
+
+                <!-- 고급 옵션 토글 -->
+                <div>
+                    <button onclick="toggleAdvancedOptions()"
+                        class="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
+                        <span id="advanced-toggle-icon">▶</span>
+                        <span>고급 옵션</span>
+                    </button>
+                </div>
+
+                <!-- 고급 옵션 (접힌 상태) -->
+                <div id="advanced-options" class="hidden space-y-4 pl-4 border-l-2 border-blue-500">
+
+                    <!-- 모델 선택 -->
+                    <div>
+                        <label class="block text-sm font-medium mb-2">모델 타입</label>
+                        <select id="model-type" class="input w-full">
+                            <option value="">자동 선택</option>
+                            <option value="female_20s">여성 (20대)</option>
+                            <option value="female_30s">여성 (30대)</option>
+                            <option value="male_20s">남성 (20대)</option>
+                            <option value="male_30s">남성 (30대)</option>
+                            <option value="neutral">중성적</option>
+                        </select>
+                    </div>
+
+                    <!-- 배경 선택 -->
+                    <div>
+                        <label class="block text-sm font-medium mb-2">배경 타입</label>
+                        <select id="background-type" class="input w-full">
+                            <option value="">자동 선택</option>
+                            <option value="studio_clean">스튜디오 (깔끔)</option>
+                            <option value="studio_tech">스튜디오 (기술)</option>
+                            <option value="home">실내 (가정)</option>
+                            <option value="kitchen">주방</option>
+                            <option value="outdoor">야외</option>
+                            <option value="gradient">그라데이션</option>
+                        </select>
+                    </div>
+
+                    <!-- 음악 선택 -->
+                    <div>
+                        <label class="block text-sm font-medium mb-2">배경 음악</label>
+                        <select id="music-type" class="input w-full">
+                            <option value="">음악 없음</option>
+                            <option value="upbeat">경쾌한</option>
+                            <option value="calm">차분한</option>
+                            <option value="energetic">활기찬</option>
+                            <option value="corporate">기업용</option>
+                        </select>
+                    </div>
+
+                    <!-- 이미지 업로드 -->
+                    <div>
+                        <label class="block text-sm font-medium mb-2">추가 이미지 업로드</label>
+
+                        <!-- 드래그 앤 드롭 영역 -->
+                        <div id="upload-dropzone"
+                            class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center hover:border-blue-500 transition-all cursor-pointer"
+                            ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)"
+                            ondrop="handleDrop(event)" onclick="document.getElementById('custom-images').click()">
+                            <div class="text-4xl mb-2">📸</div>
+                            <p class="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                                클릭하거나 이미지를 드래그하세요
+                            </p>
+                            <p class="text-xs text-gray-500">
+                                최대 5장, JPG/PNG/WEBP (각 10MB 이하)
+                            </p>
+                        </div>
+
+                        <input type="file" id="custom-images" class="hidden"
+                            accept="image/jpeg,image/jpg,image/png,image/webp" multiple
+                            onchange="handleFileSelect(event)" />
+
+                        <!-- 업로드된 이미지 미리보기 -->
+                        <div id="uploaded-images-preview" class="mt-3 grid grid-cols-5 gap-2">
+                            <!-- Preview thumbnails will be inserted here -->
+                        </div>
+
+                        <!-- 업로드 진행 상태 -->
+                        <div id="upload-progress" class="hidden mt-2">
+                            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                <div id="upload-progress-bar" class="bg-blue-500 h-2 rounded-full transition-all"
+                                    style="width: 0%"></div>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1 text-center">업로드 중...</p>
+                        </div>
+                    </div>
+
+                    <!-- CTA 선택 -->
+                    <div>
+                        <label class="block text-sm font-medium mb-2">행동 유도 (CTA)</label>
+                        <select id="cta-type" class="input w-full">
+                            <option value="buy_now">지금 구매</option>
+                            <option value="learn_more">자세히 보기</option>
+                            <option value="limited_offer">한정 특가</option>
+                            <option value="new_arrival">신제품</option>
+                            <option value="discount">할인 중</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 핵심 메시지 -->
+                <div>
+                    <label class="block text-sm font-medium mb-2">핵심 메시지</label>
+                    <input type="text" id="message" class="input w-full" placeholder="예: 신제품 출시! 특별 할인 중" />
+                    <p class="text-xs text-gray-500 mt-1">
+                        영상에 표시될 주요 메시지를 입력하세요
+                    </p>
+                </div>
+            </div>
+            <button onclick="generateVideo()" class="btn-primary w-full py-3 mt-6">
+                <span>🎬</span>
+                <span>영상 생성하기</span>
+            </button>
+        </div>
+
+        <!-- Step 4: Generation Status (Hidden initially) -->
+        <div id="step-4" class="card p-6 mb-4 hidden">
+            <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+                <span>⏳</span>
+                <span>4단계: 영상 생성 중...</span>
+            </h3>
+            <div class="text-center py-8">
+                <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                <p class="text-gray-600 dark:text-gray-400">
+                    영상을 생성하고 있습니다. 약 2분 소요됩니다...
+                </p>
+                <div id="generation-status" class="mt-4 text-sm text-gray-500">
+                    <!-- Status updates -->
+                </div>
+            </div>
+        </div>
+
+        <!-- My Videos Section -->
+        <div class="card p-6">
+            <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+                <span>📹</span>
+                <span>내 커머스 영상</span>
+            </h3>
+            <div id="my-videos" class="space-y-3">
+                <p class="text-sm text-gray-500 text-center py-8">
+                    아직 생성된 영상이 없습니다
+                </p>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    let currentData = {
+        productUrl: '',
+        productInfo: null,
+        stylePreset: 'electronics',
+        message: '',
+        uploadedImages: []  // 업로드된 이미지 URL 저장
+    };
+
+    // ============ 이미지 업로드 관련 함수 ============
+
+    function handleDragOver(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.currentTarget.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900');
+    }
+
+    function handleDragLeave(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.currentTarget.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900');
+    }
+
+    function handleDrop(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.currentTarget.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900');
+
+        const files = event.dataTransfer.files;
+        if (files.length > 0) {
+            uploadImages(files);
+        }
+    }
+
+    function handleFileSelect(event) {
+        const files = event.target.files;
+        if (files.length > 0) {
+            uploadImages(files);
+        }
+    }
+
+    async function uploadImages(files) {
+        // 파일 개수 확인
+        if (files.length > 5) {
+            Utils.showToast('최대 5장까지 업로드 가능합니다', 'error');
+            return;
+        }
+
+        // 파일 크기 확인 (각 10MB)
+        for (let file of files) {
+            if (file.size > 10 * 1024 * 1024) {
+                Utils.showToast(`파일이 너무 큽니다: ${file.name} (최대 10MB)`, 'error');
+                return;
+            }
+        }
+
+        try {
+            // 진행 상태 표시
+            document.getElementById('upload-progress').classList.remove('hidden');
+            document.getElementById('upload-progress-bar').style.width = '0%';
+
+            const formData = new FormData();
+            for (let file of files) {
+                formData.append('files', file);
+            }
+
+            // 업로드 시작
+            const response = await fetch('/api/commerce/upload-images', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error('업로드 실패');
+            }
+
+            const data = await response.json();
+
+            // 진행 상태 완료
+            document.getElementById('upload-progress-bar').style.width = '100%';
+
+            // 업로드된 이미지 저장
+            currentData.uploadedImages = data.images;
+
+            // 미리보기 표시
+            displayUploadedImages(data.images);
+
+            Utils.showToast(`${data.count}장의 이미지가 업로드되었습니다`, 'success');
+
+            // 진행 상태 숨기기
+            setTimeout(() => {
+                document.getElementById('upload-progress').classList.add('hidden');
+            }, 1000);
+
+        } catch (error) {
+            console.error('Upload failed:', error);
+            Utils.showToast('이미지 업로드에 실패했습니다', 'error');
+            document.getElementById('upload-progress').classList.add('hidden');
+        }
+    }
+
+    function displayUploadedImages(imageUrls) {
+        const container = document.getElementById('uploaded-images-preview');
+
+        container.innerHTML = imageUrls.map((url, index) => `
+            <div class="relative group">
+                <img 
+                    src="${url}" 
+                    class="w-full h-20 object-cover rounded border-2 border-gray-300 dark:border-gray-600"
+                    alt="업로드 이미지 ${index + 1}"
+                />
+                <button 
+                    onclick="removeUploadedImage(${index})"
+                    class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                    ×
+                </button>
+            </div>
+        `).join('');
+    }
+
+    function removeUploadedImage(index) {
+        currentData.uploadedImages.splice(index, 1);
+        displayUploadedImages(currentData.uploadedImages);
+        Utils.showToast('이미지가 제거되었습니다', 'info');
+    }
+
+    // ============ 기존 함수들 ============
+
+
+    // Load style presets
+    async function loadStylePresets() {
+        try {
+            const response = await fetch('/api/commerce/style-presets');
+            const data = await response.json();
+
+            const container = document.getElementById('style-presets');
+            container.innerHTML = data.presets.map(preset => `
+            <button 
+                onclick="selectPreset('${preset.key}')" 
+                id="preset-${preset.key}"
+                class="p-4 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 transition-all text-left"
+            >
+                <div class="font-bold mb-1">${preset.name}</div>
+                <div class="text-xs text-gray-500">${preset.description}</div>
+            </button>
+        `).join('');
+
+            // Select default
+            selectPreset('electronics');
+        } catch (error) {
+            console.error('Failed to load presets:', error);
+        }
+    }
+
+    function selectPreset(key) {
+        currentData.stylePreset = key;
+
+        // Update UI
+        document.querySelectorAll('[id^="preset-"]').forEach(btn => {
+            btn.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900');
+            btn.classList.add('border-gray-300', 'dark:border-gray-600');
+        });
+
+        const selected = document.getElementById(`preset-${key}`);
+        if (selected) {
+            selected.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900');
+            selected.classList.remove('border-gray-300', 'dark:border-gray-600');
+        }
+    }
+
+    async function analyzeProduct() {
+        const url = document.getElementById('product-url').value.trim();
+
+        if (!url) {
+            alert('제품 URL을 입력해주세요');
+            return;
+        }
+
+        currentData.productUrl = url;
+
+        try {
+            Utils.showToast('제품 정보를 분석하고 있습니다...', 'info');
+
+            const response = await fetch('/api/commerce/analyze-product', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ product_url: url })
+            });
+
+            const data = await response.json();
+            currentData.productInfo = data;
+
+            // Display product info
+            document.getElementById('product-info').innerHTML = `
+            <div class="flex gap-4">
+                <div class="flex-shrink-0">
+                    <img src="${data.product_images[0] || '/static/img/placeholder.png'}" 
+                         class="w-32 h-32 object-cover rounded-lg" 
+                         alt="제품 이미지">
+                </div>
+                <div class="flex-1">
+                    <h4 class="font-bold text-lg mb-2">${data.product_name}</h4>
+                    <p class="text-blue-600 font-bold mb-2">${data.product_price}</p>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">${data.product_description}</p>
+                </div>
+            </div>
+            <div class="mt-4">
+                <p class="text-sm font-medium mb-2">추출된 이미지 (${data.product_images.length}장)</p>
+                <div class="flex gap-2">
+                    ${data.product_images.map((img, i) => `
+                        <img src="${img}" class="w-20 h-20 object-cover rounded border-2 border-gray-300" alt="이미지 ${i + 1}">
+                    `).join('')}
+                </div>
+            </div>
+        `;
+
+            // Show step 2
+            document.getElementById('step-2').classList.remove('hidden');
+            updateStepIndicator(2);
+
+            Utils.showToast('제품 정보를 불러왔습니다', 'success');
+
+            // Scroll to step 2
+            document.getElementById('step-2').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        } catch (error) {
+            console.error('Analysis failed:', error);
+            Utils.showToast('제품 분석에 실패했습니다', 'error');
+        }
+    }
+
+    function goToStep3() {
+        document.getElementById('step-3').classList.remove('hidden');
+        updateStepIndicator(3);
+        loadStylePresets();
+
+        // Scroll to step 3
+        document.getElementById('step-3').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function toggleAdvancedOptions() {
+        const options = document.getElementById('advanced-options');
+        const icon = document.getElementById('advanced-toggle-icon');
+
+        if (options.classList.contains('hidden')) {
+            options.classList.remove('hidden');
+            icon.textContent = '▼';
+        } else {
+            options.classList.add('hidden');
+            icon.textContent = '▶';
+        }
+    }
+
+    async function generateVideo() {
+        currentData.message = document.getElementById('message').value;
+
+        // 고급 옵션 수집
+        const modelType = document.getElementById('model-type')?.value || null;
+        const backgroundType = document.getElementById('background-type')?.value || null;
+        const musicType = document.getElementById('music-type')?.value || null;
+        const ctaType = document.getElementById('cta-type')?.value || 'buy_now';
+
+        // 제품 이미지와 업로드된 이미지 병합
+        let finalImages = [];
+        if (currentData.uploadedImages.length > 0) {
+            // 업로드된 이미지가 있으면 우선 사용
+            finalImages = currentData.uploadedImages;
+        } else if (currentData.productInfo && currentData.productInfo.product_images) {
+            // 없으면 제품 분석에서 추출한 이미지 사용
+            finalImages = currentData.productInfo.product_images;
+        }
+
+        try {
+            // Show step 4
+            document.getElementById('step-4').classList.remove('hidden');
+            updateStepIndicator(4);
+
+            // Scroll to step 4
+            document.getElementById('step-4').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+            const response = await fetch('/api/commerce/create-video', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    product_url: currentData.productUrl,
+                    product_name: currentData.productInfo?.product_name || '제품',
+                    product_price: currentData.productInfo?.product_price || '',
+                    product_description: currentData.productInfo?.product_description || '',
+                    product_images: finalImages,
+                    style_preset: currentData.stylePreset,
+                    model_type: modelType,
+                    background_type: backgroundType,
+                    music_type: musicType,
+                    cta: ctaType,
+                    message: currentData.message
+                })
+            });
+
+            const data = await response.json();
+
+            document.getElementById('generation-status').innerHTML = `
+            <p class="text-green-600 font-medium">✅ ${data.message}</p>
+            <p class="mt-2">영상 ID: ${data.video_id}</p>
+        `;
+
+            Utils.showToast('영상 생성이 시작되었습니다', 'success');
+
+            // Reload video list after a delay
+            setTimeout(loadMyVideos, 3000);
+
+        } catch (error) {
+            console.error('Generation failed:', error);
+            Utils.showToast('영상 생성에 실패했습니다', 'error');
+        }
+    }
+
+    async function loadMyVideos() {
+        try {
+            const response = await fetch('/api/commerce/videos');
+            const data = await response.json();
+
+            const container = document.getElementById('my-videos');
+
+            if (data.videos.length === 0) {
+                container.innerHTML = `
+                <p class="text-sm text-gray-500 text-center py-8">
+                    아직 생성된 영상이 없습니다
+                </p>
+            `;
+                return;
+            }
+
+            container.innerHTML = data.videos.map(video => `
+            <div class="flex gap-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-500 transition-all">
+                <!-- 썸네일/미리보기 -->
+                <div class="flex-shrink-0">
+                    ${video.video_url ? `
+                        <video 
+                            src="${video.video_url}" 
+                            class="w-32 h-48 object-cover rounded-lg cursor-pointer"
+                            onclick="playVideo('${video.video_url}')"
+                            onmouseover="this.play()" 
+                            onmouseout="this.pause(); this.currentTime=0;"
+                            muted
+                            loop
+                        ></video>
+                    ` : video.thumbnail_url ? `
+                        <img 
+                            src="${video.thumbnail_url}" 
+                            class="w-32 h-48 object-cover rounded-lg" 
+                            alt="썸네일"
+                        />
+                    ` : `
+                        <div class="w-32 h-48 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+                            <span class="text-4xl">🎬</span>
+                        </div>
+                    `}
+                </div>
+                
+                <!-- 정보 -->
+                <div class="flex-1">
+                    <h4 class="font-bold text-lg mb-1">${video.product_name || '제품명 없음'}</h4>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">${video.product_price || ''}</p>
+                    <p class="text-xs text-gray-500 mb-2">생성일: ${new Date(video.created_at).toLocaleDateString()}</p>
+                    
+                    <!-- 상태 배지 -->
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="px-2 py-1 rounded text-xs ${video.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                    video.status === 'processing' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                        video.status === 'failed' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                            'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                }">
+                            ${video.status === 'completed' ? '✅ 완료' :
+                    video.status === 'processing' ? '⏳ 생성 중' :
+                        video.status === 'failed' ? '❌ 실패' :
+                            '⏸️ 대기 중'
+                }
+                        </span>
+                        
+                        ${video.style_preset ? `
+                            <span class="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                ${video.style_preset}
+                            </span>
+                        ` : ''}
+                    </div>
+                    
+                    ${video.message ? `
+                        <p class="text-sm text-gray-600 dark:text-gray-400 italic">"${video.message}"</p>
+                    ` : ''}
+                    
+                    ${video.error_message ? `
+                        <p class="text-xs text-red-600 dark:text-red-400 mt-2">⚠️ ${video.error_message}</p>
+                    ` : ''}
+                </div>
+                
+                <!-- 액션 버튼 -->
+                <div class="flex flex-col gap-2">
+                    ${video.video_url ? `
+                        <button onclick="playVideo('${video.video_url}')" class="btn-primary px-3 py-2 text-sm whitespace-nowrap">
+                            ▶️ 재생
+                        </button>
+                        <a href="${video.video_url}" download class="btn-secondary px-3 py-2 text-sm text-center whitespace-nowrap">
+                            ⬇️ 다운로드
+                        </a>
+                    ` : video.status === 'processing' ? `
+                        <button onclick="refreshVideo(${video.id})" class="btn-secondary px-3 py-2 text-sm whitespace-nowrap">
+                            🔄 새로고침
+                        </button>
+                    ` : ''}
+                    <button onclick="deleteVideo(${video.id})" class="btn-danger px-3 py-2 text-sm whitespace-nowrap">
+                        🗑️ 삭제
+                    </button>
+                </div>
+            </div>
+        `).join('');
+
+        } catch (error) {
+            console.error('Failed to load videos:', error);
+        }
+    }
+
+    function playVideo(videoUrl) {
+        // 모달로 영상 재생
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50';
+        modal.onclick = () => modal.remove();
+
+        modal.innerHTML = `
+            <div class="relative max-w-2xl w-full p-4" onclick="event.stopPropagation()">
+                <button 
+                    onclick="this.closest('.fixed').remove()" 
+                    class="absolute top-2 right-2 bg-white dark:bg-gray-800 rounded-full w-10 h-10 flex items-center justify-center text-2xl hover:bg-gray-200 dark:hover:bg-gray-700 z-10"
+                >
+                    ×
+                </button>
+                <video 
+                    src="${videoUrl}" 
+                    class="w-full rounded-lg shadow-2xl" 
+                    controls 
+                    autoplay
+                ></video>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+    }
+
+    async function refreshVideo(videoId) {
+        Utils.showToast('영상 상태를 확인하고 있습니다...', 'info');
+        await loadMyVideos();
+    }
+
+    async function deleteVideo(videoId) {
+        if (!confirm('이 영상을 삭제하시겠습니까?')) return;
+
+        try {
+            await fetch(`/api/commerce/videos/${videoId}`, { method: 'DELETE' });
+            Utils.showToast('영상이 삭제되었습니다', 'success');
+            loadMyVideos();
+        } catch (error) {
+            console.error('Delete failed:', error);
+            Utils.showToast('삭제에 실패했습니다', 'error');
+        }
+    }
+
+    function updateStepIndicator(step) {
+        for (let i = 1; i <= 4; i++) {
+            const indicator = document.getElementById(`step-indicator-${i}`);
+            if (i <= step) {
+                indicator.classList.remove('bg-gray-300', 'dark:bg-gray-700', 'text-gray-500');
+                indicator.classList.add('bg-blue-500', 'text-white');
+            }
+        }
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+        loadMyVideos();
+    });
+</script>
+
+{% endblock %}

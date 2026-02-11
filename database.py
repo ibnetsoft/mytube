@@ -2259,3 +2259,136 @@ def save_thumbnail_style_preset(style_key: str, prompt_value: str, image_url: st
     
     conn.commit()
     conn.close()
+
+
+# ============================================
+# 커머스 비디오 관리 (TopView)
+# ============================================
+
+def create_commerce_video(video_data):
+    """커머스 비디오 레코드 생성"""
+    import json
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    product_images_json = json.dumps(video_data.get('product_images', []))
+    
+    cursor.execute("""
+        INSERT INTO commerce_videos (
+            product_url, product_name, product_price, product_description,
+            product_images, style_preset, model_type, background_type,
+            music_type, message, cta, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        video_data.get('product_url'),
+        video_data.get('product_name'),
+        video_data.get('product_price'),
+        video_data.get('product_description'),
+        product_images_json,
+        video_data.get('style_preset', 'electronics'),
+        video_data.get('model_type'),
+        video_data.get('background_type'),
+        video_data.get('music_type'),
+        video_data.get('message'),
+        video_data.get('cta', 'buy_now'),
+        video_data.get('status', 'pending')
+    ))
+    
+    video_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    
+    return video_id
+
+def update_commerce_video(video_id, updates):
+    """커머스 비디오 업데이트"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    set_clauses = []
+    values = []
+    
+    for key, value in updates.items():
+        set_clauses.append(f"{key} = ?")
+        values.append(value)
+    
+    set_clauses.append("updated_at = CURRENT_TIMESTAMP")
+    
+    query = f"""
+        UPDATE commerce_videos 
+        SET {', '.join(set_clauses)}
+        WHERE id = ?
+    """
+    
+    values.append(video_id)
+    
+    cursor.execute(query, values)
+    conn.commit()
+    conn.close()
+
+def get_commerce_video(video_id):
+    """특정 커머스 비디오 조회"""
+    import json
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT * FROM commerce_videos WHERE id = ?
+    """, (video_id,))
+    
+    row = cursor.fetchone()
+    conn.close()
+    
+    if not row:
+        return None
+    
+    video = dict(row)
+    
+    if video.get('product_images'):
+        try:
+            video['product_images'] = json.loads(video['product_images'])
+        except:
+            video['product_images'] = []
+    
+    return video
+
+def get_all_commerce_videos(limit=50):
+    """모든 커머스 비디오 조회"""
+    import json
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT * FROM commerce_videos 
+        ORDER BY created_at DESC 
+        LIMIT ?
+    """, (limit,))
+    
+    rows = cursor.fetchall()
+    conn.close()
+    
+    videos = []
+    for row in rows:
+        video = dict(row)
+        
+        if video.get('product_images'):
+            try:
+                video['product_images'] = json.loads(video['product_images'])
+            except:
+                video['product_images'] = []
+        
+        videos.append(video)
+    
+    return videos
+
+def delete_commerce_video(video_id):
+    """커머스 비디오 삭제"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        DELETE FROM commerce_videos WHERE id = ?
+    """, (video_id,))
+    
+    conn.commit()
+    conn.close()

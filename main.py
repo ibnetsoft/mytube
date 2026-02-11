@@ -93,6 +93,9 @@ app.add_middleware(
 # 템플릿 및 정적 파일
 templates = Jinja2Templates(directory=config.TEMPLATES_DIR)
 
+# 업로드 파일 서빙
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
 # i18n
 from services.i18n import Translator
 app_lang = os.environ.get("APP_LANG", "ko")
@@ -129,8 +132,10 @@ app.include_router(settings.router)  # [NEW]
 # Import Routers
 from app.routers import autopilot as autopilot_router
 from app.routers import video as video_router
+from app.routers import commerce as commerce_router  # [NEW]
 app.include_router(autopilot_router.router)
 app.include_router(video_router.router)
+app.include_router(commerce_router.router)  # [NEW]
 
 @app.post("/api/settings/language")
 async def set_language(lang: str = Body(..., embed=True)):
@@ -501,6 +506,15 @@ async def page_shorts(request: Request):
         "request": request,
         "page": "shorts",
         "title": "쇼츠 생성"
+    })
+
+@app.get("/commerce-shorts", response_class=HTMLResponse)
+async def page_commerce_shorts(request: Request):
+    """커머스 쇼츠 페이지"""
+    return templates.TemplateResponse("pages/commerce_shorts.html", {
+        "request": request,
+        "page": "commerce-shorts",
+        "title": "커머스 쇼츠"
     })
 
 @app.get("/settings", response_class=HTMLResponse)
