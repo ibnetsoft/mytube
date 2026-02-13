@@ -2,7 +2,7 @@
 PICADIRI STUDIO - FastAPI 메인 서버
 YouTube 영상 자동화 제작 플랫폼 (Python 기반)
 """
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Body, Request, Form, UploadFile, File
+from fastapi import FastAPI, Request, HTTPException, Form, BackgroundTasks, Body, Query, UploadFile, File
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
@@ -127,7 +127,6 @@ if os.path.exists(LANG_FILE):
             print(f"[I18N] Loaded saved language: {app_lang}")
 
 app.mount("/static", StaticFiles(directory=config.STATIC_DIR), name="static")
-app.include_router(settings.router)  # [NEW]
 
 # Import Routers
 from app.routers import autopilot as autopilot_router
@@ -139,6 +138,7 @@ from app.routers import media as media_router # [NEW]
 from app.routers import settings as settings_router # [NEW]
 from app.routers import repository as repository_router # [NEW]
 from app.routers import queue as queue_router # [NEW]
+from app.routers import webtoon as webtoon_router # [NEW]
 
 app.include_router(autopilot_router.router)
 app.include_router(video_router.router)
@@ -148,19 +148,9 @@ app.include_router(channels_router.router) # [NEW]
 app.include_router(media_router.router) # [NEW]
 app.include_router(settings_router.router) # [NEW]
 app.include_router(repository_router.router) # [NEW]
+app.include_router(webtoon_router.router) # [NEW]
 app.include_router(queue_router.router) # [NEW]
 
-@app.post("/api/settings/language")
-async def set_language(lang: str = Body(..., embed=True)):
-    """Change global language setting"""
-    if lang in ['ko', 'en', 'vi']:
-        translator.set_lang(lang)
-        templates.env.globals['current_lang'] = lang
-        # Persist
-        with open(LANG_FILE, "w") as f:
-            f.write(lang)
-        return {"status": "ok", "lang": lang}
-    return {"status": "error", "message": "Invalid language"}
 
 # output 폴더
 os.makedirs(config.OUTPUT_DIR, exist_ok=True)
@@ -3596,51 +3586,6 @@ async def continue_autopilot(
     background_tasks.add_task(autopilot_service.run_workflow, project['topic'], project_id, config_dict)
     return {"status": "ok", "project_id": project_id}
 
-class AutopilotQueueRequest(BaseModel):
-    topic: str
-    script_style: str
-    duration_seconds: int
-    auto_plan: bool = True
-    all_video: bool = False
-    motion_method: str = "standard"
-    video_scene_count: int = 0
-    visual_style: str = "realistic"
-    thumbnail_style: str = "face"
-
-@app.post("/api/projects/{project_id}/queue")
-async def add_to_queue(project_id: int, req: AutopilotQueueRequest):
-    """프로젝트를 제작 대기열에 추가"""
-    db.update_project(project_id, status="queued", topic=req.topic)
-    
-    # Save settings including auto_plan flag
-    settings = {
-        "script_style": req.script_style,
-        "duration_seconds": req.duration_seconds,
-        "auto_plan": req.auto_plan,
-        "auto_thumbnail": True,
-        "visual_style": req.visual_style, 
-        "thumbnail_style": req.thumbnail_style,
-        "all_video": 1 if req.all_video else 0,
-        "motion_method": req.motion_method,
-        "video_scene_count": req.video_scene_count
-    }
-    for k, v in settings.items():
-        db.update_project_setting(project_id, k, v)
-        
-    return {"status": "ok"}
-
-@app.get("/api/autopilot/queue")
-async def get_queue():
-    """대기 중인 프로젝트 목록 조회"""
-    projects = db.get_all_projects()
-    queued = [p for p in projects if p.get("status") == "queued"]
-    return {"projects": queued, "count": len(queued)}
-
-@app.post("/api/autopilot/batch-start")
-async def start_batch_processing(background_tasks: BackgroundTasks):
-    """대기열 일괄 처리 시작"""
-    background_tasks.add_task(autopilot_service.run_batch_workflow)
-    return {"status": "started", "message": "Batch processing started"}
 
 # ===========================================
 # ===========================================
@@ -3707,9 +3652,6 @@ async def create_plan_from_repository(req: RepositoryPlanRequest):
     
     return {"status": "ok", "project_id": project_id}
 
-
-if __name__ == "__main__":
-    import uvicorn
 
 
 @app.post("/api/project/{project_id}/scan-assets")
@@ -3991,21 +3933,14 @@ app.include_router(thumbnails_router.router)
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("🚀 피카디리스튜디오 v2.0 시작")
-    print("=" * 50)
+    print("🚀 PICADIRI STUDIO v2.0")
+    print("-" * 50)
 
     config.validate()
     
     # Initialize & Migrate Database
     db.init_db()
     db.migrate_db()
-
-
-
-    now_kst = config.get_kst_time()
-    print(f"📍 서버 시간(KST): {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"📍 서버: http://{config.HOST}:{config.PORT}")
-    print("=" * 50)
     
     # [NEW] Verify License & Membership
     from services.auth_service import auth_service
@@ -4028,9 +3963,14 @@ if __name__ == "__main__":
     from services.auto_publish_service import auto_publish_service
     auto_publish_service.start()
 
+    print(f"📍 서버 시간(KST): {config.get_kst_time().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"📍 서버 주소: http://{config.HOST}:{config.PORT}")
+    print("=" * 50)
+
     uvicorn.run(
         "main:app",
         host=config.HOST,
         port=config.PORT,
-        reload=config.DEBUG
+        reload=config.DEBUG,
+        log_level="info"
     )

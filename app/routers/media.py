@@ -48,3 +48,13 @@ async def generate_image_api(prompt: str = Body(..., embed=True), style: str = "
         return {"status": "success", "image_url": image_url}
     except Exception as e:
         raise HTTPException(500, str(e))
+
+from fastapi import Query
+from fastapi.responses import FileResponse
+
+@router.get("/view")
+async def view_media(path: str = Query(...)):
+    """로컬 파일 경로를 받아 스트리밍/다운로드 (이미지/영상 미리보기용)"""
+    if not os.path.exists(path):
+        raise HTTPException(404, f"File not found: {path}")
+    return FileResponse(path)

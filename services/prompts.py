@@ -217,45 +217,51 @@ JSON만 반환하세요."""
 - prompt_en은 영어로, 이미지 생성 AI에 바로 사용할 수 있는 형식으로 작성하세요.
 - JSON만 반환하세요."""
 
-    GEMINI_IMAGE_PROMPTS = """당신은 유튜브 영상 연출 전문가입니다.
-아래 대본을 **의미적 장면(Semantic Scene)** 단위로 분할해주세요.
-
-[핵심 원칙]
-1. **의미 기반 분할**: 주제, 화자, 분위기, 시공간이 바뀌는 지점에서 장면을 나눕니다.
-2. **시간 추정**: 각 장면의 대사 길이를 기준으로 예상 음성 시간을 계산합니다. (한글 약 6자/초)
-3. **페이싱 가이드**:
-   - 한 장면이 20초 이상이면 시각적으로 지루할 수 있으므로, 이미지 변화가 필요한 서브 포인트를 구분해주세요.
-   - 한 장면이 5초 미만이면 인접 장면과 병합을 검토하세요.
-4. **목표**: 대본의 흐름에 맞으면서도 시각적 몰입감을 유지하는 {num_scenes}개 내외의 장면
+    GEMINI_IMAGE_PROMPTS = """당신은 세계적인 영화 감독이자 촬영 감독(Cinematographer)입니다.
+아래 대본을 심층 분석하여, 최고의 시각적 스토리텔링을 위한 장면(Scene) 리스트를 작성해주세요.
 
 [대본]
 {script}
+
+[핵심 미션: Context-Aware Directing]
+1. 단순히 텍스트를 이미지로 바꾸는 것이 아닙니다. **대본의 감정선(Emotion)**과 **전후 맥락(Context)**을 깊이 파악하여 연출하세요.
+2. 각 장면의 분위기를 극대화할 수 있는 **카메라 무빙(Camera Movement)**과 **샷 사이즈(Shot Size)**를 전략적으로 선택하세요.
+   - **감정적 몰입/긴장**: Slow Zoom-in, Close-up
+   - **상황 공개/고독/웅장**: Slow Zoom-out (Pull back), Extreme Wide Shot
+   - **역동적 액션/혼란**: Handheld, Tracking Shot, Dutch Angle
+   - **평화/안정**: Static Shot (고정), Symmetry
+   - **시선 이동**: Pan Left/Right, Tilt Up/Down, Rack Focus (초점 이동)
+3. **연속성(Continuity)**: 이전 장면과의 시각적 흐름이 끊기지 않도록 고려하세요.
 
 {style_instruction}
 {character_instruction}
 {limit_instruction}
 
-다음 JSON 형식으로 출력해주세요:
+[출력 형식 (JSON)]
 {{
     "scenes": [
         {{
             "scene_number": 1,
-            "scene_title": "장면 요약 (짧은 제목, 예: '주인공의 등장')",
-            "scene_text": "해당 장면에서 나오는 대본의 전체 텍스트",
-            "script_start": "대본의 첫 어절 (예: '옛날')",
-            "script_end": "대본의 마지막 어절 (예: '있었습니다')",
+            "scene_title": "장면 요약 (예: '비밀을 알게 된 주인공')",
+            "scene_text": "대본 텍스트",
+            "script_start": "첫 어절",
+            "script_end": "끝 어절",
             "estimated_seconds": 15,
+            "visual_reasoning": "왜 이 연출을 선택했는지 (예: 긴장감을 고조시키기 위해 줌인 선택)",
             "prompt_ko": "이미지 묘사 (한글)",
-            "prompt_en": "{style_prefix}, (영어 묘사)"
-        }},
-        ...
+            "prompt_en": "{style_prefix}, [Detailed Visual Description], [Camera Angle & Movement], [Lighting & Atmosphere]"
+        }}
     ]
 }}
 
-- estimated_seconds: 해당 장면의 scene_text를 읽는 데 걸리는 예상 시간 (초)
-- **STRICT VISUAL STYLE**: 모든 prompt_en은 반드시 "{style_prefix}"로 시작해야 하며, 배경(Background), 인물(Characters), 소품(Props) 모두가 이 스타일에 완벽하게 부합해야 합니다. 배경만 실사로 나오지 않도록 주의하세요.
-- **NO TEXT ALLOWED**: 이미지 안에 어떠한 텍스트도 포함되지 않도록 묘사하세요.
-- JSON만 반환하세요.
+[작성 규칙 - Strict Rules]
+- **prompt_en 구성**: 
+  1. 스타일 프리픽스("{style_prefix}")로 시작할 것.
+  2. 피사체와 배경을 아주 구체적으로 묘사할 것.
+  3. **반드시** 문장 끝부분에 전문적인 **Cinematography Keywords**를 포함할 것.
+     (예: "Cinematic lighting, Shallow depth of field, Slow zoom in, Low angle shot, 4k, Highly detailed")
+- **NO TEXT**: 이미지 내에 글자, 말풍선, 자막이 절대 섞이지 않게 하세요.
+- **JSON Only**: 설명 없이 오직 JSON 데이터만 반환하세요.
 """
 
     GEMINI_SUCCESS_ANALYSIS = """당신은 유튜브 콘텐츠 및 바이럴 마케팅 전문가입니다.

@@ -1187,11 +1187,64 @@ async def render_project_video(
                         with open(ef_path, "r", encoding="utf-8") as f:
                             image_effects = json.load(f)
                         print(f"DEBUG_RENDER: Loaded {len(image_effects)} image effects from {ef_path}")
-                        print(f"DEBUG_RENDER: Effects Data: {image_effects}")
                     else:
                          print(f"DEBUG_RENDER: No image effects file found at {ef_path} or path is empty.")
                 except Exception as e:
                     print(f"Failed to load image effects: {e}")
+
+                # [NEW] Auto-parse Camera Effects from Prompts (Fallback)
+                if not image_effects:
+                    try:
+                        print("DEBUG_RENDER: Attempting to auto-parse camera effects from prompts...")
+                        # 1. Prepare Prompt Map (Filename -> Prompt Text)
+                        prompt_map = {}
+                        # Use images_data from outer scope (validated)
+                        target_list = images_data
+                        if isinstance(images_data, dict) and 'prompts' in images_data:
+                             target_list = images_data['prompts']
+                        
+                        if isinstance(target_list, list):
+                            for item in target_list:
+                                url = item.get('image_url', '') or item.get('video_url', '')
+                                if url:
+                                    basename = os.path.basename(url)
+                                    p_text = str(item.get('prompt_en', '')).lower()
+                                    prompt_map[basename] = p_text
+                                    try:
+                                        import urllib.parse
+                                        dec = urllib.parse.unquote(basename)
+                                        prompt_map[dec] = p_text
+                                    except: pass
+                        
+                        # 2. Map Effects to Actual Images in Timeline
+                        auto_effects = []
+                        # 'images' is the list of absolute file paths to be rendered (from outer scope)
+                        for img_path in images:
+                            fname = os.path.basename(img_path)
+                            p_text = prompt_map.get(fname, "")
+                            
+                            effect = 'none'
+                             # Priority matching
+                            if 'zoom in' in p_text or 'zoom-in' in p_text or 'slow zoom' in p_text:
+                                effect = 'zoom_in'
+                            elif 'zoom out' in p_text or 'zoom-out' in p_text or 'pull back' in p_text:
+                                effect = 'zoom_out'
+                            elif 'pan left' in p_text:
+                                effect = 'pan_left'
+                            elif 'pan right' in p_text:
+                                effect = 'pan_right'
+                            elif 'pan up' in p_text or 'tilt up' in p_text:
+                                effect = 'pan_up'
+                            elif 'pan down' in p_text or 'tilt down' in p_text:
+                                effect = 'pan_down'
+                            
+                            auto_effects.append(effect)
+                        
+                        if any(e != 'none' for e in auto_effects):
+                             image_effects = auto_effects
+                             print(f"DEBUG_RENDER: Auto-parsed effects success: {image_effects}")
+                    except Exception as e:
+                        print(f"DEBUG_RENDER: Auto-parsing effects failed: {e}")
 
                 # 3. 단일 패스 영상 생성
                 video_path = video_service.create_slideshow(

@@ -48,10 +48,9 @@ class TTSService:
         # Google Cloud Client 초기화 (설정된 경우)
         if self.google_credentials and os.path.exists(self.google_credentials) and texttospeech:
             try:
-                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.google_credentials
-                self.google_client = texttospeech.TextToSpeechClient()
+                self.google_client = texttospeech.TextToSpeechClient.from_service_account_json(self.google_credentials)
             except Exception as e:
-                print(f"Google Cloud TTS 초기화 실패: {e}")
+                print(f"Google TTS init warning: {e}")
                 self.google_client = None
         else:
             self.google_client = None
@@ -66,6 +65,57 @@ class TTSService:
                 print("OpenAI 라이브러리가 설치되지 않았습니다.")
             except Exception as e:
                 print(f"OpenAI Client 초기화 실패: {e}")
+
+    async def get_elevenlabs_voices(self) -> list:
+        """ElevenLabs API에서 사용 가능한 목소리 목록 조회"""
+        if not self.elevenlabs_key:
+            return []
+            
+        url = "https://api.elevenlabs.io/v1/voices"
+        headers = {
+            "xi-api-key": self.elevenlabs_key
+        }
+        
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(url, headers=headers)
+                if response.status_code == 200:
+                    data = response.json()
+                    return data.get("voices", [])
+                return []
+        except Exception as e:
+            print(f"ElevenLabs Voice List Error: {e}")
+            return []
+
+    async def generate_sound_effect(self, text: str, duration_seconds: Optional[float] = None) -> Optional[bytes]:
+        """ElevenLabs Sound Generation API를 사용하여 효과음 생성"""
+        if not self.elevenlabs_key:
+            print("ElevenLabs API Key missing")
+            return None
+            
+        url = "https://api.elevenlabs.io/v1/sound-generation"
+        headers = {
+            "xi-api-key": self.elevenlabs_key,
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "text": text,
+        }
+        if duration_seconds:
+            payload["duration_seconds"] = duration_seconds
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(url, json=payload, headers=headers)
+                
+                if response.status_code == 200:
+                    return response.content
+                else:
+                    print(f"ElevenLabs SFX Error: {response.text}")
+                    return None
+        except Exception as e:
+            print(f"ElevenLabs SFX Exception: {e}")
+            return None
 
     async def generate_elevenlabs(
         self,

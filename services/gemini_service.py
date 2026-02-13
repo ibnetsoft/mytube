@@ -75,6 +75,45 @@ class GeminiService:
                 error_msg = result.get('error', {}).get('message', str(result))
                 raise Exception(f"Gemini Vision API 오류: {error_msg}")
 
+    async def analyze_webtoon_panel(self, image_path: str) -> dict:
+        """웹툰 패널 한 칸을 분석하여 대사, 캐릭터, 연출 정보 추출"""
+        prompt = """
+        Analyze this webtoon panel image.
+        1. Extract all text/dialogue in Korean.
+        2. Identify who is speaking based on the dialogue and visual context. 
+           If the speaker's name is not explicitly shown, infer it from the context (e.g. Woman, Man, Boy, Girl, Narrator). 
+           Only use 'Unknown' if absolutely impossible to infer. Do NOT use 'None' if there is dialogue.
+        3. Describe the visual action and atmosphere briefly in English.
+           **CRITICAL**: Append specific Camera Movement keywords at the end. (e.g., "[Camera: Zoom in]", "[Camera: Pan left]", "[Camera: Static]")
+        4. Suggest appropriate sound effects (SFX) for this scene (e.g., Boom, Rain, Footsteps, Crowd noise) based on the visual and text.
+        
+        Return ONLY a JSON object in this format:
+        {
+            "dialogue": "extracted text here",
+            "character": "speaker name or 'Unknown'",
+            "visual_desc": "brief visual description in English",
+            "atmosphere": "e.g. dramatic, funny, scary",
+            "sound_effects": "suggested SFX list (comma separated) or 'None'"
+        }
+        """
+        
+        try:
+            with open(image_path, "rb") as f:
+                img_bytes = f.read()
+            
+            response_text = await self.generate_text_from_image(prompt, img_bytes, mime_type="image/jpeg")
+            
+            # JSON 파싱
+            import re
+            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group(0))
+            else:
+                return {"dialogue": "", "character": "None", "visual_desc": response_text, "atmosphere": "Neutral"}
+        except Exception as e:
+            print(f"Panel analysis failed: {e}")
+            return {"dialogue": "", "character": "None", "visual_desc": f"Error: {str(e)}", "atmosphere": "Error"}
+
     async def generate_image(
         self,
         prompt: str,

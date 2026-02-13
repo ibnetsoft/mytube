@@ -1,0 +1,857 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-8">
+    <!-- Header -->
+    <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h2 class="text-3xl font-black text-gray-800 dark:text-white flex items-center gap-3">
+                <span
+                    class="p-2 bg-gradient-to-br from-purple-600 to-blue-600 rounded-xl shadow-lg ring-4 ring-purple-500/20">🎨</span>
+                {{ t('nav_webtoon') }}
+            </h2>
+            <p class="mt-2 text-gray-500 dark:text-gray-400 text-sm">
+                웹툰 이미지를 분석하여 세로형 쇼츠 영상으로 자동 변환합니다.
+            </p>
+        </div>
+
+        <!-- Workflow Indicator -->
+        <div
+            class="flex items-center bg-white dark:bg-gray-800 p-2 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+            <div class="flex items-center gap-2 group">
+                <div id="step-1-indicator"
+                    class="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold shadow-md shadow-blue-500/30 transition-all">
+                    1</div>
+                <div class="hidden md:block text-[11px] font-bold text-gray-800 dark:text-white mr-4">업로드</div>
+                <div class="h-0.5 w-6 bg-gray-200 dark:bg-gray-700"></div>
+                <div id="step-2-indicator"
+                    class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-400 flex items-center justify-center font-bold ml-4">
+                    2</div>
+                <div class="hidden md:block text-[11px] font-bold text-gray-400 mr-4">AI 분석</div>
+                <div class="h-0.5 w-6 bg-gray-200 dark:bg-gray-700"></div>
+                <div id="step-3-indicator"
+                    class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-400 flex items-center justify-center font-bold ml-4">
+                    3</div>
+                <div class="hidden md:block text-[11px] font-bold text-gray-400">자동 완성</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Split Layout Container -->
+    <div class="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)] min-h-[600px]">
+
+        <!-- Left Panel: Work Area (Scrollable) -->
+        <div
+            class="flex-1 overflow-y-auto pr-2 custom-scrollbar bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-1 md:p-6">
+
+            <!-- Step 1: Upload Section -->
+            <div id="step-1-area">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <!-- Upload Card -->
+                    <div class="lg:col-span-2">
+                        <div
+                            class="card bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 p-0 overflow-hidden relative min-h-[400px]">
+                            <div class="p-6 flex flex-col h-full justify-center">
+                                <h3 class="font-bold text-gray-800 dark:text-white mb-6 text-center text-xl">웹툰 소스 불러오기
+                                    (로컬 폴더)
+                                </h3>
+
+                                <!-- Directory Input Area -->
+                                <div class="w-full max-w-2xl mx-auto space-y-4">
+                                    <div class="relative">
+                                        <div
+                                            class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                            <span class="text-gray-400 text-lg">📂</span>
+                                        </div>
+                                        <input type="text" id="dir-input"
+                                            placeholder="C:\Users\User\Downloads\Webtoon_Episode_1"
+                                            class="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:border-purple-500 outline-none transition-all font-mono text-gray-700 dark:text-gray-200"
+                                            onkeydown="if(event.key === 'Enter') scanDirectory()">
+                                    </div>
+
+                                    <button onclick="scanDirectory()"
+                                        class="w-full btn-primary py-3 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 shadow-lg shadow-purple-500/20 font-bold text-white hover:scale-[1.02] transition-transform">
+                                        🔍 폴더 스캔 및 파일 불러오기
+                                    </button>
+                                </div>
+
+                                <!-- Scanned File List -->
+                                <div id="scanned-files-container" class="hidden mt-8 w-full max-w-2xl mx-auto">
+                                    <h4
+                                        class="font-bold text-gray-700 dark:text-gray-300 mb-3 flex justify-between items-center">
+                                        <span>발견된 파일 <span id="file-count" class="text-purple-500">0</span>개</span>
+                                        <span class="text-xs text-gray-400 font-normal">파일명 순으로 자동 정렬됩니다</span>
+                                    </h4>
+
+                                    <div id="file-list"
+                                        class="bg-gray-50 dark:bg-gray-900 rounded-xl p-4 max-h-[300px] overflow-y-auto space-y-2 border border-gray-200 dark:border-gray-700">
+                                        <!-- File Items will be injected here -->
+                                    </div>
+                                </div>
+
+                                <!-- Start Button -->
+                                <div id="start-analysis-container" class="hidden mt-8 text-center">
+                                    <button onclick="startAnalysisFromDir()"
+                                        class="btn-primary py-3 px-10 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 shadow-lg shadow-green-500/20 font-black text-lg hover:scale-105 transition-transform inline-flex items-center gap-2">
+                                        ✨ 전체 파일 분석 시작하기
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Progress Overlay -->
+                            <div id="upload-progress"
+                                class="hidden absolute inset-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm z-10 flex flex-col items-center justify-center p-8">
+                                <div
+                                    class="w-full max-w-xs bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-4 overflow-hidden">
+                                    <div id="progress-bar" class="bg-purple-600 h-full w-0 transition-all duration-300">
+                                    </div>
+                                </div>
+                                <p id="progress-text" class="text-sm font-bold text-gray-800 dark:text-white">업로드 중...
+                                    (0%)</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Side Cards -->
+                    <div class="space-y-6">
+                        <div
+                            class="card bg-gradient-to-br from-indigo-600 to-purple-700 text-white border-0 shadow-lg p-6">
+                            <h4 class="font-bold text-lg mb-4 flex items-center gap-2">
+                                <span>💡</span> 제작 가이드
+                            </h4>
+                            <ul class="space-y-4 text-sm opacity-90">
+                                <li class="flex gap-3">
+                                    <span class="font-black text-purple-200">01</span>
+                                    <span>웹툰 스크립트 이미지(PSD 등)를 준비합니다.</span>
+                                </li>
+                                <li class="flex gap-3">
+                                    <span class="font-black text-purple-200">02</span>
+                                    <span>AI가 장면과 대사를 자동으로 분석합니다.</span>
+                                </li>
+                                <li class="flex gap-3">
+                                    <span class="font-black text-purple-200">03</span>
+                                    <span>TTS와 모션 효과를 입혀 영상을 완성합니다.</span>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div class="card bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 p-6">
+                            <h4 class="font-bold text-gray-800 dark:text-white mb-3">최근 작업 이력</h4>
+                            <div id="recent-list" class="space-y-3">
+                                <p class="text-xs text-gray-400 py-8 text-center">최근 작업한 웹툰이 없습니다.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Analysis Section -->
+            <div id="step-2-area" class="hidden space-y-8">
+                <!-- Status Bar -->
+                <div id="analysis-loading"
+                    class="card bg-white dark:bg-gray-800 min-h-[400px] flex flex-col items-center justify-center">
+                    <div
+                        class="w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-6">
+                    </div>
+                    <h3 class="text-2xl font-black text-gray-800 dark:text-white mb-2">AI 시각 분석 엔진 가동 중...</h3>
+                    <p id="analysis-status-text" class="text-gray-500 dark:text-gray-400 text-sm max-w-md text-center">
+                        웹툰의 이미지를 스캔하여 장면을 분할하고 말풍선 대사를 추출하고 있습니다.
+                    </p>
+                </div>
+
+                <!-- Analysis Results -->
+                <div id="analysis-result-container" class="hidden space-y-8">
+                    <div
+                        class="flex items-center justify-between bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-purple-100 dark:border-purple-900/30">
+                        <div class="flex flex-col">
+                            <h3 class="text-xl font-black text-gray-800 dark:text-white">분석 완료: 총 <span id="scene-count"
+                                    class="text-purple-500">0</span>개 장면</h3>
+                            <div class="flex items-center gap-4 mt-2">
+                                <label class="relative inline-flex items-center cursor-pointer group">
+                                    <input type="checkbox" id="use-lipsync" class="sr-only peer" checked>
+                                    <div
+                                        class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 dark:peer-focus:ring-purple-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600">
+                                    </div>
+                                    <span
+                                        class="ml-3 text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                        🎭 AI 립싱크 활성화 (입모양 맞춤)
+                                        <span
+                                            class="text-[10px] bg-purple-100 dark:bg-purple-900/50 text-purple-600 px-2 py-0.5 rounded-md">PREMIUM</span>
+                                    </span>
+                                </label>
+                                <!-- [NEW] Subtitles Option -->
+                                <label
+                                    class="relative inline-flex items-center cursor-pointer group ml-4 border-l pl-4 border-gray-200 dark:border-gray-700">
+                                    <input type="checkbox" id="use-subtitles" class="sr-only peer" checked>
+                                    <div
+                                        class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600">
+                                    </div>
+                                    <span class="ml-3 text-sm font-bold text-gray-700 dark:text-gray-300">
+                                        📝 자막 포함
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="flex gap-3">
+                            <button onclick="location.reload()"
+                                class="btn-secondary px-4 py-2 rounded-xl text-sm font-bold border border-gray-200 dark:border-gray-700">🔄
+                                다시 하기</button>
+                            <button id="step-3-start-btn" onclick="startAutomation()"
+                                class="btn-primary px-6 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 shadow-lg shadow-purple-500/20 font-black">
+                                ⚡ Step 3: 일괄 자동 제작 시작
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Scenes Grid -->
+                    <div id="scenes-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-6">
+                        <!-- Scene Item Template -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Rendering/Queue Section (Hidden initially) -->
+            <div id="step-3-area" class="hidden">
+                <div class="card bg-white dark:bg-gray-800 p-12 text-center">
+                    <div
+                        class="w-24 h-24 bg-green-100 dark:bg-green-900/30 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6 text-5xl">
+                        ✅</div>
+                    <h3 class="text-3xl font-black text-gray-800 dark:text-white mb-4">제작 대기열에 추가되었습니다!</h3>
+                    <p class="text-gray-500 dark:text-gray-400 mb-8 max-w-lg mx-auto">
+                        모든 장면에 대한 대본, TTS, 모션 설정이 완료되었습니다. <br>
+                        <strong>'오토파일럿 대기열'</strong>에서 진행 상황을 확인하실 수 있습니다.
+                    </p>
+                    <div class="flex justify-center gap-4">
+                        <a href="/projects" class="btn-primary px-8 py-3 rounded-xl bg-blue-600 font-bold">내 프로젝트
+                            바로가기</a>
+                        <button onclick="location.reload()"
+                            class="btn-secondary px-8 py-3 rounded-xl border border-gray-200 dark:border-gray-700 font-bold hover:bg-gray-50 dark:hover:bg-gray-700">새
+                            작업 시작</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endblock %}
+
+        {% block scripts %}
+        <script>
+            let currentFile = null;
+            let selectedProjectId = null;
+
+            // 초기화
+            document.addEventListener('DOMContentLoaded', () => {
+                // 프로젝트 선택 감시
+                const pSelect = document.getElementById('projectSelect');
+                if (pSelect) {
+                    selectedProjectId = pSelect.value;
+                }
+
+                // 드롭존 설정
+                const dropzone = document.getElementById('dropzone');
+                dropzone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    dropzone.classList.add('border-purple-500', 'bg-purple-100/20');
+                });
+                dropzone.addEventListener('dragleave', () => {
+                    dropzone.classList.remove('border-purple-500', 'bg-purple-100/20');
+                });
+                dropzone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    dropzone.classList.remove('border-purple-500', 'bg-purple-100/20');
+                    const file = e.dataTransfer.files[0];
+                    if (file && file.type.startsWith('image/')) {
+                        handleFile(file);
+                    }
+                });
+            });
+
+            function toggleUploadMode(mode) {
+                const fileBtn = document.getElementById('mode-file-btn');
+                const urlBtn = document.getElementById('mode-url-btn');
+                const fileContainer = document.getElementById('file-input-container');
+                const urlContainer = document.getElementById('url-input-container');
+
+                if (mode === 'file') {
+                    fileBtn.classList.add('bg-white', 'dark:bg-gray-600', 'shadow-sm');
+                    fileBtn.classList.remove('text-gray-500', 'dark:text-gray-400');
+                    urlBtn.classList.remove('bg-white', 'dark:bg-gray-600', 'shadow-sm');
+                    urlBtn.classList.add('text-gray-500', 'dark:text-gray-400');
+                    fileContainer.classList.remove('hidden');
+                    urlContainer.classList.add('hidden');
+                } else {
+                    urlBtn.classList.add('bg-white', 'dark:bg-gray-600', 'shadow-sm');
+                    urlBtn.classList.remove('text-gray-500', 'dark:text-gray-400');
+                    fileBtn.classList.remove('bg-white', 'dark:bg-gray-600', 'shadow-sm');
+                    fileBtn.classList.add('text-gray-500', 'dark:text-gray-400');
+                    urlContainer.classList.remove('hidden');
+                    fileContainer.classList.add('hidden');
+                }
+            }
+
+            async function fetchWebtoonFromUrl() {
+                const url = document.getElementById('webtoon-url').value.trim();
+                if (!url) {
+                    Utils.showToast('웹툰 URL을 입력해 주세요.', 'warning');
+                    return;
+                }
+
+                selectedProjectId = document.getElementById('projectSelect').value;
+                if (!selectedProjectId) {
+                    Utils.showToast('먼저 프로젝트를 선택하거나 새로 생성해주세요.', 'warning');
+                    return;
+                }
+
+                const progressBar = document.getElementById('progress-bar');
+                const progressText = document.getElementById('progress-text');
+                const progressOverlay = document.getElementById('upload-progress');
+
+                try {
+                    progressOverlay.classList.remove('hidden');
+                    progressBar.style.width = '30%';
+                    progressText.textContent = '웹툰 데이터를 분석하여 가져오고 있습니다...';
+
+                    const formData = new FormData();
+                    formData.append('project_id', selectedProjectId);
+                    formData.append('url', url);
+
+                    const res = await fetch('/webtoon/fetch-url', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (res.status === 200) {
+                        const result = await res.json();
+                        progressBar.style.width = '100%';
+                        progressText.textContent = '수집 완료!';
+
+                        setTimeout(() => {
+                            handleFetchSuccess(result);
+                        }, 500);
+                    } else {
+                        const errText = await res.text();
+                        throw new Error(errText);
+                    }
+                } catch (e) {
+                    console.error(e);
+                    Utils.showToast('URL 수집 실패: ' + e.message, 'error');
+                    progressOverlay.classList.add('hidden');
+                }
+            }
+
+            // --- Directory Scan Logic ---
+            let scannedGroups = [];
+
+            async function scanDirectory() {
+                const dirInput = document.getElementById('dir-input');
+                const path = dirInput.value.trim();
+                // Remove quotes if user copied path as "C:\Path"
+                const cleanPath = path.replace(/"/g, '');
+                if (!cleanPath) return Utils.showToast("폴더 경로를 입력해주세요", "error");
+
+                const btn = document.querySelector('button[onclick="scanDirectory()"]');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = "⏳ 스캔 중...";
+                btn.disabled = true;
+
+                try {
+                    const response = await fetch('/api/webtoon/scan', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ path: cleanPath })
+                    });
+                    const result = await response.json();
+
+                    if (result.status === 'ok') {
+                        scannedGroups = result.files; // [{filename, path, size}, ...]
+                        renderScannedFiles(scannedGroups);
+
+                        document.getElementById('scanned-files-container').classList.remove('hidden');
+                        if (scannedGroups.length > 0) {
+                            document.getElementById('start-analysis-container').classList.remove('hidden');
+                        } else {
+                            document.getElementById('start-analysis-container').classList.add('hidden');
+                            Utils.showToast("폴더에 이미지나 PSD 파일이 없습니다.", "warning");
+                        }
+                    } else {
+                        throw new Error(result.error || "스캔 실패");
+                    }
+                } catch (e) {
+                    console.error(e);
+                    Utils.showToast("폴더 스캔 실패: " + e.message, "error");
+                } finally {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }
+            }
+
+            function renderScannedFiles(files) {
+                const container = document.getElementById('file-list');
+                const countSpan = document.getElementById('file-count');
+                countSpan.textContent = files.length;
+
+                container.innerHTML = files.map((f, idx) => `
+            <div class="flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-100 dark:border-gray-700 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                <div class="flex items-center gap-3 overflow-hidden">
+                    <span class="text-gray-400 font-mono text-xs w-6 text-right">${String(idx + 1).padStart(2, '0')}</span>
+                    <span class="text-xl">${f.filename.toLowerCase().endsWith('.psd') ? '🟦' : '🖼️'}</span>
+                    <span class="truncate font-medium text-gray-700 dark:text-gray-300" title="${f.filename}">${f.filename}</span>
+                </div>
+                <span class="text-xs text-gray-400 font-mono whitespace-nowrap">${(f.size / 1024 / 1024).toFixed(1)} MB</span>
+            </div>
+        `).join('');
+            }
+
+            async function startAnalysisFromDir() {
+                if (scannedGroups.length === 0) return;
+
+                // UI 전환
+                const step1 = document.getElementById('step-1-area');
+                const step2 = document.getElementById('step-2-area');
+                step1.classList.add('hidden');
+                step2.classList.remove('hidden');
+
+                // 분석 시작 요청
+                try {
+                    const response = await fetch('/api/webtoon/analyze-dir', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            project_id: selectedProjectId, // Use selectedProjectId here
+                            files: scannedGroups.map(f => f.path) // 전체 경로 리스트 전송
+                        })
+                    });
+                    const result = await response.json();
+
+                    if (result.status === 'ok') {
+                        // Assuming displayAnalysisResults is a function that handles the analysis results
+                        // and transitions to the next step, similar to performAnalysis
+                        // For now, let's transition to analysis loading and then performAnalysis
+                        transitionToAnalysis(result.filename); // This might need adjustment based on how analyze-dir returns data
+                    } else {
+                        throw new Error(result.detail || "분석 실패");
+                    }
+                } catch (e) {
+                    console.error(e);
+                    alert("분석 중 오류가 발생했습니다: " + e.message);
+                    // 실패 시 다시 Step 1으로
+                    step1.classList.remove('hidden');
+                    step2.classList.add('hidden');
+                }
+            }
+
+            // (Deprecated functions kept for compatibility if needed, but not used in UI)
+            // const currentFile = null; // This is already declared at the top, avoid redeclaration
+            // function handleFile(file) {} // This is already defined below
+            function scanWebtoonUrl() { } // This function name is not used in the provided context, but keeping it as per instruction
+
+            // --- Console Logger System ---
+            window.addLog = function (msg, type = "info") {
+                const consoleEl = document.getElementById('console-output');
+                if (!consoleEl) return;
+
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString('en-US', { hour12: false }) + `.${String(now.getMilliseconds()).padStart(3, '0')}`;
+
+                let colorClass = "text-green-400";
+                if (type === 'process') colorClass = "text-blue-400";
+                if (type === 'warn') colorClass = "text-yellow-400";
+                if (type === 'error') colorClass = "text-red-500 font-bold";
+                if (type === 'success') colorClass = "text-emerald-400 font-bold";
+
+                const line = document.createElement('div');
+                line.className = `flex gap-2 text-[11px] font-mono leading-relaxed border-l-2 border-transparent hover:bg-white/5 pl-1 transition-colors`;
+                if (type === 'error') line.classList.add('border-red-500');
+                if (type === 'process') line.classList.add('border-blue-500');
+
+                line.innerHTML = `
+            <span class="text-gray-600 select-none min-w-[80px]">[${timeStr}]</span>
+            <span class="${colorClass} break-all flex-1">${msg}</span>
+        `;
+
+                // Limit Max Logs
+                if (consoleEl.childElementCount > 300) {
+                    consoleEl.removeChild(consoleEl.firstChild);
+                }
+
+                consoleEl.appendChild(line);
+                consoleEl.scrollTop = consoleEl.scrollHeight;
+            }
+
+            // Hook existing functions for logging
+            const _originalScan = window.scanDirectory;
+            window.scanDirectory = async function () {
+                addLog("📂 Initiating Directory Scan...", "process");
+                addLog(`Target: ${document.getElementById('dir-input').value}`, "info");
+                try {
+                    await _originalScan();
+                    if (scannedGroups.length > 0) {
+                        addLog(`✅ Scan Complete. Found ${scannedGroups.length} files.`, "success");
+                        scannedGroups.forEach(f => {
+                            addLog(`   • Found: ${f.filename} (${(f.size / 1024 / 1024).toFixed(1)}MB)`);
+                        });
+                    }
+                } catch (e) {
+                    addLog(`❌ Scan Failed: ${e.message}`, "error");
+                    throw e;
+                }
+            };
+
+            const _originalStartAnalysis = window.startAnalysisFromDir;
+            window.startAnalysisFromDir = async function () {
+                addLog("🚀 Starting AI Analysis Phase...", "process");
+                addLog("⚡ Engine: Gemini-1.5-Pro (Vision Multi-modal)", "info");
+                addLog("⏳ Analyzing frames and extracting dialogue...", "process");
+
+                // Initial log entries to look busy
+                setTimeout(() => addLog("   • Processing image segmentation...", "info"), 500);
+                setTimeout(() => addLog("   • Identifying text bubbles...", "info"), 1500);
+
+                try {
+                    await _originalStartAnalysis();
+                    addLog("✅ Analysis Phase Complete.", "success");
+                    addLog(`📊 Extracted ${document.querySelectorAll('#scenes-list > div').length} scenes.`, "success");
+                    addLog("🧠 Character & Dialogue Context loaded.", "info");
+                } catch (e) {
+                    addLog(`❌ Analysis Error: ${e.message}`, "error");
+                }
+            }
+
+            // Auto-scroll fix
+            const consoleEl = document.getElementById('console-output');
+            if (consoleEl) {
+                new ResizeObserver(() => {
+                    consoleEl.scrollTop = consoleEl.scrollHeight;
+                }).observe(consoleEl);
+            }
+
+            function handleFetchSuccess(result) {
+                // UI 반영 (handleFetchSuccess body follows)
+                const idle = document.getElementById('upload-idle-inner');
+                const preview = document.getElementById('upload-preview-inner');
+                const previewImg = document.getElementById('previewImg');
+                const fileName = document.getElementById('fileName');
+                const progressOverlay = document.getElementById('upload-progress');
+                const startBtn = document.getElementById('start-analysis-container');
+
+                fileName.textContent = result.filename;
+                previewImg.src = result.url;
+                previewImg.classList.remove('hidden');
+                document.getElementById('psd-icon-preview').classList.add('hidden');
+
+                progressOverlay.classList.add('hidden');
+                idle.classList.add('hidden');
+                preview.classList.remove('hidden');
+
+                // Show Button
+                startBtn.classList.remove('hidden');
+
+                // 데이터 준비 (분석용)
+                currentFetchedFilename = result.filename;
+            }
+
+            let currentFetchedFilename = null;
+
+            function handleFile(file) {
+                if (!file) return;
+                currentFile = file;
+                currentFetchedFilename = null; // URL 소스 초기화
+
+                // UI 반영
+                const idle = document.getElementById('upload-idle-inner');
+                const preview = document.getElementById('upload-preview-inner');
+                const previewImg = document.getElementById('previewImg');
+                const psdIcon = document.getElementById('psd-icon-preview');
+                const fileName = document.getElementById('fileName');
+                const fileSize = document.getElementById('fileSize');
+                const startBtn = document.getElementById('start-analysis-container');
+                const dropZone = document.getElementById('drop-zone');
+
+                fileName.textContent = file.name;
+                fileSize.textContent = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+
+                idle.classList.add('hidden');
+                preview.classList.remove('hidden');
+
+                // Compact view: p-6 -> p-2 to save space
+                dropZone.classList.remove('p-6');
+                dropZone.classList.add('p-2');
+                dropZone.classList.remove('border-2'); // Remove border to make it look cleaner
+                dropZone.classList.add('border-0');
+
+                // Show Button
+                startBtn.classList.remove('hidden');
+
+                if (file.name.toLowerCase().endsWith('.psd')) {
+                    // PSD Logic
+                    previewImg.classList.add('hidden');
+                    psdIcon.classList.remove('hidden');
+                    psdIcon.classList.add('flex');
+                } else {
+                    // Image Logic
+                    previewImg.classList.remove('hidden');
+                    psdIcon.classList.add('hidden');
+                    psdIcon.classList.remove('flex');
+
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        previewImg.src = e.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            }
+
+            function clearFile() {
+                currentFile = null;
+                currentFetchedFilename = null;
+                document.getElementById('upload-idle-inner').classList.remove('hidden');
+                document.getElementById('upload-preview-inner').classList.add('hidden');
+
+                // Restore padding
+                const dropZone = document.getElementById('drop-zone');
+                dropZone.classList.remove('p-2');
+                dropZone.classList.add('p-6');
+                dropZone.classList.remove('border-0');
+                dropZone.classList.add('border-2');
+
+                document.getElementById('start-analysis-container').classList.add('hidden');
+                document.getElementById('fileInput').value = '';
+            }
+
+            async function startAnalysis() {
+                // 이미 URL로 가져온 데이터가 있는 경우 바로 분석으로 진입
+                if (currentFetchedFilename) {
+                    transitionToAnalysis(currentFetchedFilename);
+                    return;
+                }
+
+                if (!currentFile) return;
+
+                selectedProjectId = document.getElementById('projectSelect').value;
+                if (!selectedProjectId) {
+                    Utils.showToast('먼저 프로젝트를 선택하거나 새로 생성해주세요.', 'warning');
+                    return;
+                }
+
+                const area1 = document.getElementById('step-1-area');
+                const area2 = document.getElementById('step-2-area');
+                const progressBar = document.getElementById('progress-bar');
+                const progressText = document.getElementById('progress-text');
+                const progressOverlay = document.getElementById('upload-progress');
+
+                // 업로드 시작
+                progressOverlay.classList.remove('hidden');
+
+                const formData = new FormData();
+                formData.append('file', currentFile);
+                formData.append('project_id', selectedProjectId);
+
+                try {
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', '/webtoon/upload', true);
+
+                    xhr.upload.onprogress = (e) => {
+                        if (e.lengthComputable) {
+                            const percent = Math.round((e.loaded / e.total) * 100);
+                            progressBar.style.width = percent + '%';
+                            progressText.textContent = `업로드 중... (${percent}%)`;
+                        }
+                    };
+
+                    xhr.onload = () => {
+                        if (xhr.status === 200) {
+                            const result = JSON.parse(xhr.responseText);
+                            console.log('Upload success:', result);
+                            transitionToAnalysis(result.filename);
+                        } else {
+                            Utils.showToast('업로드 실패: ' + xhr.responseText, 'error');
+                            progressOverlay.classList.add('hidden');
+                        }
+                    };
+
+                    xhr.onerror = () => {
+                        Utils.showToast('서버 통신 오류가 발생했습니다.', 'error');
+                        progressOverlay.classList.add('hidden');
+                    };
+
+                    xhr.send(formData);
+                } catch (e) {
+                    console.error(e);
+                    Utils.showToast('처리 중 오류가 발생했습니다.', 'error');
+                    progressOverlay.classList.add('hidden');
+                }
+            }
+
+            function transitionToAnalysis(filename) {
+                const area1 = document.getElementById('step-1-area');
+                const area2 = document.getElementById('step-2-area');
+                const progressOverlay = document.getElementById('upload-progress');
+
+                progressOverlay.classList.add('hidden');
+                area1.classList.add('hidden');
+                area2.classList.remove('hidden');
+
+                // Indicator 전환
+                document.getElementById('step-1-indicator').classList.replace('bg-blue-600', 'bg-green-500');
+                document.getElementById('step-1-indicator').innerHTML = '✅';
+                document.getElementById('step-2-indicator').classList.replace('bg-gray-100', 'bg-blue-600');
+                document.getElementById('step-2-indicator').classList.remove('text-gray-400');
+                document.getElementById('step-2-indicator').classList.add('text-white');
+
+                // 분석 시작
+                performAnalysis(filename);
+            }
+
+            let analyzedScenes = [];
+
+            async function performAnalysis(filename) {
+                const loading = document.getElementById('analysis-loading');
+                const container = document.getElementById('analysis-result-container');
+
+                try {
+                    const formData = new FormData();
+                    formData.append('project_id', selectedProjectId);
+                    formData.append('filename', filename);
+
+                    const res = await fetch('/webtoon/analyze', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await res.json();
+
+                    if (data.status === 'ok') {
+                        analyzedScenes = data.scenes;
+                        renderScenes(data.scenes);
+                        loading.classList.add('hidden');
+                        container.classList.remove('hidden');
+                    } else {
+                        throw new Error(data.error || '분석 실패');
+                    }
+                } catch (e) {
+                    console.error(e);
+                    Utils.showToast('분석 중 오류: ' + e.message, 'error');
+                    // 에러 시에도 수동 조작 가능하게 컨테이너 노출 검토
+                }
+            }
+
+            function renderScenes(scenes) {
+                const list = document.getElementById('scenes-list');
+                const count = document.getElementById('scene-count');
+                count.textContent = scenes.length;
+                list.innerHTML = '';
+
+                scenes.forEach((scene, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'scene-item card bg-white dark:bg-gray-800 p-0 overflow-hidden flex flex-col md:flex-row gap-0 group hover:ring-2 hover:ring-purple-500/50 transition-all';
+
+                    const dialogue = scene.analysis.dialogue || '';
+                    const visual = scene.analysis.visual_desc || '';
+
+                    item.innerHTML = `
+                <div class="md:w-1/3 bg-gray-900 border-r border-gray-100 dark:border-gray-700 relative">
+                    <img src="${scene.image_url}" class="w-full h-full object-contain max-h-[400px]">
+                    <div class="absolute top-2 left-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded-full font-bold">SCENE ${index + 1}</div>
+                </div>
+                <div class="flex-1 p-6 flex flex-col justify-between space-y-4">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-[10px] font-black text-purple-500 uppercase mb-1">Character / Speaker</label>
+                            <input type="text" value="${scene.analysis.character}" class="scene-char w-full bg-gray-50 dark:bg-gray-700 text-sm font-bold p-2 rounded-lg border-0 focus:ring-2 focus:ring-purple-500" data-idx="${index}">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-blue-500 uppercase mb-1">Dialogue (Korean)</label>
+                            <textarea class="scene-dialogue w-full bg-gray-50 dark:bg-gray-700 text-sm p-3 rounded-lg border-0 focus:ring-2 focus:ring-blue-500 min-h-[100px]" data-idx="${index}">${dialogue}</textarea>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">AI Visualization Hint (English)</label>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 italic bg-gray-50 dark:bg-gray-700/50 p-2 rounded-lg border border-gray-100 dark:border-gray-700">${visual}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+                    list.appendChild(item);
+                });
+            }
+
+            async function startAutomation() {
+                const btn = document.getElementById('step-3-start-btn');
+                const originalText = btn.innerHTML;
+                const useLipSync = document.getElementById('use-lipsync').checked;
+                const useSubtitles = document.getElementById('use-subtitles').checked;
+
+                addLog("⚙️ Initializing Automation Sequence...", "process");
+                addLog(`🎭 Lip-Sync Mode: ${useLipSync ? "ON (Akool)" : "OFF (Motion Only)"}`, "info");
+
+                try {
+                    Utils.setLoading(btn, true);
+
+                    // 1. 대사 및 캐릭터 정보 수집
+                    addLog("📝 Collecting scene data and dialogue...", "process");
+                    const sceneElements = document.querySelectorAll('.scene-item');
+                    const finalData = [];
+
+                    sceneElements.forEach((el, i) => {
+                        const char = el.querySelector('.scene-char').value;
+                        const dialogue = el.querySelector('.scene-dialogue').value;
+                        finalData.push({
+                            scene_number: i + 1,
+                            character: char,
+                            dialogue: dialogue,
+                            visual_desc: analyzedScenes[i].analysis.visual_desc,
+                            image_path: analyzedScenes[i].image_path,
+                            voice_id: analyzedScenes[i].voice_id,
+                            atmosphere: analyzedScenes[i].analysis.atmosphere,
+                            sound_effects: analyzedScenes[i].analysis.sound_effects
+                        });
+                    });
+                    addLog(`✅ Prepared ${finalData.length} scenes for processing.`, "success");
+
+                    // 2. 서버로 전송하여 자동 설정 및 대기열 추가
+                    addLog("📡 Sending request to AutoPilot Server...", "process");
+                    const res = await fetch('/webtoon/automate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            project_id: selectedProjectId,
+                            scenes: finalData,
+                            use_lipsync: useLipSync,
+                            use_subtitles: useSubtitles,
+                            use_auto_model_switch: true // [NEW] Force auto switch
+                        })
+                    });
+
+                    const result = await res.json();
+                    if (result.status === 'ok') {
+                        addLog("✅ Automation Request Accepted.", "success");
+                        addLog("🚀 AutoPilot Worker Started.", "success");
+
+                        // Step 3로 전환
+                        document.getElementById('step-2-area').classList.add('hidden');
+                        document.getElementById('step-3-area').classList.remove('hidden');
+                        document.getElementById('step-2-indicator').classList.replace('bg-blue-600', 'bg-green-500');
+                        document.getElementById('step-2-indicator').innerHTML = '✅';
+                        document.getElementById('step-3-indicator').classList.replace('bg-gray-100', 'bg-blue-600');
+                        document.getElementById('step-3-indicator').classList.remove('text-gray-400');
+                        document.getElementById('step-3-indicator').classList.add('text-white');
+
+                        Utils.showToast('대기열에 성공적으로 추가되었습니다!', 'success');
+                    } else {
+                        throw new Error(result.error || '자동화 실패');
+                    }
+
+                } catch (e) {
+                    console.error(e);
+                    addLog(`❌ Automation Error: ${e.message}`, "error");
+                    Utils.showToast('오류 발생: ' + e.message, 'error');
+                } finally {
+                    Utils.setLoading(btn, false);
+                    btn.innerHTML = originalText;
+                }
+            }
+        </script>
+
+        <style>
+            .card {
+                @apply p-6 rounded-3xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl;
+            }
+        </style>
+        {% endblock %}

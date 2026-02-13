@@ -246,11 +246,11 @@ const API = {
         },
 
         // 프로젝트 생성
-        async create(name, topic = null, target_language = 'ko') {
+        async create(name, topic = null, target_language = 'ko', app_mode = 'longform') {
             const response = await fetch('/api/projects', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, topic, target_language })
+                body: JSON.stringify({ name, topic, target_language, app_mode })
             });
             return response.json();
         },

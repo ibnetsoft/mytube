@@ -536,10 +536,17 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
         temp_audios = []
         import uuid
 
+        # [NEW] Load settings for overrides
+        p_settings = db.get_project_settings(project_id) or {}
+
         for i, p in enumerate(sorted_prompts):
             db.update_project(project_id, status=f"tts_{i+1}/{len(sorted_prompts)}")
             text = p.get('scene_text') or p.get('narrative') or p.get('script') or ""
             scene_num = p.get('scene_number')
+            
+            # [NEW] Voice Override
+            scene_voice = p_settings.get(f"scene_{scene_num}_voice")
+            current_voice_id = scene_voice if scene_voice else voice_id
 
             if not text:
                 scene_durations.append(3.0)
@@ -550,7 +557,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             
             try:
                 if provider == "elevenlabs":
-                    result = await tts_service.generate_elevenlabs(text, voice_id, scene_filename)
+                    result = await tts_service.generate_elevenlabs(text, current_voice_id, scene_filename)
                     if result and result.get("audio_path"):
                         audio_path = result["audio_path"]
                         duration = result.get("duration", 3.0)
@@ -574,9 +581,9 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                         cumulative_audio_time += 3.0
                 else:
                     s_out = None
-                    if provider == "openai": s_out = await tts_service.generate_openai(text, voice_id, model="tts-1", filename=scene_filename)
-                    elif provider == "gemini": s_out = await tts_service.generate_gemini(text, voice_id, filename=scene_filename)
-                    else: s_out = await tts_service.generate_google_cloud(text, voice_id, filename=scene_filename)
+                    if provider == "openai": s_out = await tts_service.generate_openai(text, current_voice_id, model="tts-1", filename=scene_filename)
+                    elif provider == "gemini": s_out = await tts_service.generate_gemini(text, current_voice_id, filename=scene_filename)
+                    else: s_out = await tts_service.generate_google_cloud(text, current_voice_id, filename=scene_filename)
                     
                     if s_out and os.path.exists(s_out):
                         temp_audios.append(s_out)
@@ -715,6 +722,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
 
         # Re-fetch prompts to get latest image/audio URLs
         image_prompts = db.get_image_prompts(project_id)
+        p_settings = db.get_project_settings(project_id) or {} # [NEW] Load settings
         
         for i, p in enumerate(image_prompts):
             is_vid = i < video_scene_count
@@ -728,20 +736,39 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             image_abs_path = os.path.join(config.OUTPUT_DIR, image_url.replace("/output/", ""))
             
             now = config.get_kst_time()
+            
+            # [Smart Engine Switch]
+            scene_text = p.get("scene_text", "").strip()
+            has_dialogue = bool(scene_text and len(scene_text) > 1 and scene_text != "None")
+            
+            # [NEW] Check LipSync Preference
+            use_lipsync_val = p_settings.get("use_lipsync")
+            use_lipsync = True
+            if use_lipsync_val is not None:
+                if isinstance(use_lipsync_val, str): use_lipsync = (use_lipsync_val.lower() == 'true' or use_lipsync_val == '1')
+                else: use_lipsync = bool(use_lipsync_val)
+
+            # "말할때는 akool (if enabled), 움직일땐 wan"
+            local_engine = "akool" if (has_dialogue and use_lipsync) else "wan"
+            
+            print(f"🤖 [Auto-Switch] Scene {scene_num}: Dialogue={has_dialogue} -> Engine={local_engine}")
+
             try:
-                if video_engine == "akool":
+                if local_engine == "akool":
                     audio_abs_path = scene_audio_map.get(scene_num)
                     if not audio_abs_path: 
-                        print(f"⚠️ [Akool] No audio found for scene {scene_num}. Skipping video.")
-                        continue
-                    
-                    video_bytes = await akool_service.generate_talking_avatar(image_abs_path, audio_abs_path)
-                    if video_bytes:
-                        filename = f"vid_akool_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.mp4"
-                        out = os.path.join(config.OUTPUT_DIR, filename)
-                        with open(out, 'wb') as f: f.write(video_bytes)
-                        db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
-                else:
+                        print(f"⚠️ [Akool] No audio found for scene {scene_num}. Switching to Wan.")
+                        local_engine = "wan" # Fallback if no audio
+                    else:
+                        video_bytes = await akool_service.generate_talking_avatar(image_abs_path, audio_abs_path)
+                        if video_bytes:
+                            filename = f"vid_akool_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.mp4"
+                            out = os.path.join(config.OUTPUT_DIR, filename)
+                            with open(out, 'wb') as f: f.write(video_bytes)
+                            db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
+                
+                if local_engine == "wan":
+                    # Wan / Replicate (Original logic)
                     # Wan / Replicate (Original logic)
                     print(f"📹 [Auto-Pilot] Generating Wan Video for Scene {scene_num}")
                     video_data = await replicate_service.generate_video_from_image(
@@ -948,21 +975,36 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
         settings = db.get_project_settings(project_id) or {}
         
         # 1. Load Subtitles (Prefer Saved)
+        # 1. Load Subtitles (Prefer Saved)
         subs = []
-        subtitle_path = settings.get("subtitle_path")
-        if subtitle_path and os.path.exists(subtitle_path):
-            try:
-                with open(subtitle_path, "r", encoding="utf-8") as f:
-                    subs = json.load(f)
-            except: pass
-            
-        if not subs:
-            print("🔍 [Auto-Pilot] No saved subtitles found. Generating via Whisper...")
-            audio_path = tts_data["audio_path"]
-            subs = video_service.generate_aligned_subtitles(audio_path, script_data["full_script"])
         
-        if not subs: 
-            subs = video_service.generate_smart_subtitles(script_data["full_script"], tts_data["duration"])
+        # [NEW] Check user preference for subtitles
+        use_sub_val = settings.get("use_subtitles")
+        use_subtitles = True # Default
+        if use_sub_val is not None:
+            if isinstance(use_sub_val, str): use_subtitles = (use_sub_val.lower() == 'true' or use_sub_val == '1')
+            else: use_subtitles = bool(use_sub_val)
+
+        if use_subtitles:
+            subtitle_path = settings.get("subtitle_path")
+            if subtitle_path and os.path.exists(subtitle_path):
+                try:
+                    with open(subtitle_path, "r", encoding="utf-8") as f:
+                        subs = json.load(f)
+                except: pass
+                
+            if not subs:
+                print("🔍 [Auto-Pilot] No saved subtitles found. Generating via Whisper...")
+                try:
+                    audio_path = tts_data["audio_path"]
+                    subs = video_service.generate_aligned_subtitles(audio_path, script_data["full_script"])
+                except Exception as sub_e: 
+                    print(f"⚠️ Subtitle Gen Error: {sub_e}")
+            
+            if not subs: 
+                subs = video_service.generate_smart_subtitles(script_data["full_script"], tts_data["duration"])
+        else:
+            print("🚫 [Auto-Pilot] Subtitles disabled manually.")
 
         # 2. Load Timeline Images
         # [FIX] Always use fresh DB data from image_prompts (includes video_url from Pass 3)
@@ -1366,4 +1408,30 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
         
         return subtitles
 
+    def get_queue_status(self):
+        """현재 대기열 상태 반환"""
+        projects = db.get_all_projects()
+        queued_projects = [p for p in projects if p.get("status") == "queued"]
+        processing_projects = [p for p in projects if p.get("status") not in ["done", "error", "queued", "draft", "created"]]
+        
+        return {
+            "is_running": self.is_batch_running,
+            "queued_count": len(queued_projects),
+            "processing_count": len(processing_projects),
+            "queued_items": queued_projects[:10],  # 상위 10개만
+            "current_items": processing_projects
+        }
+
+    def add_to_queue(self, project_id: int):
+        """프로젝트를 대기열에 추가"""
+        db.update_project(project_id, status="queued")
+
+    def clear_queue(self):
+        """대기열 비우기"""
+        projects = db.get_all_projects()
+        for p in projects:
+            if p.get("status") == "queued":
+                db.update_project(p['id'], status="draft")
+
 autopilot_service = AutoPilotService()
+

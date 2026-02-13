@@ -10,6 +10,9 @@ class ProjectCreate(BaseModel):
     name: str
     topic: Optional[str] = None
     target_language: Optional[str] = "ko"
+    app_mode: Optional[str] = "longform"
+    
+    # 디버그용 필드 추가 (필요시)
 
 
 class ProjectUpdate(BaseModel):
