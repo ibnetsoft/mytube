@@ -83,6 +83,9 @@ class AutoPilotService:
     async def run_workflow(self, keyword: str, project_id: int = None, config_dict: dict = None):
         """오토파일럿 전체 워크플로우 실행"""
         print(f"🚀 [Auto-Pilot] '{keyword}' 작업 시작")
+        start_dt = datetime.now()
+        db.update_project_setting(project_id, "stats_start_time", start_dt.strftime("%Y-%m-%d %H:%M:%S"))
+        
         self.config = config_dict or {}
         if "auto_plan" not in self.config:
             self.config["auto_plan"] = True  # Always generate plan data by default
@@ -175,8 +178,14 @@ class AutoPilotService:
                         await self._upload_video(project_id, abs_video_path)
                         db.update_project(project_id, status="uploaded")
             
+            # [NEW] Save Stats
+            end_dt = datetime.now()
+            duration_str = str(end_dt - start_dt).split('.')[0]
+            db.update_project_setting(project_id, "stats_end_time", end_dt.strftime("%Y-%m-%d %H:%M:%S"))
+            db.update_project_setting(project_id, "stats_total_duration", duration_str)
+            
             db.update_project(project_id, status="done")
-            print(f"✨ [Auto-Pilot] 작업 완료! (Project ID: {project_id})")
+            print(f"✨ [Auto-Pilot] 작업 완료! (ID: {project_id}, Time: {duration_str})")
 
         except Exception as e:
             print(f"❌ [Auto-Pilot] 오류 발생: {e}")
@@ -534,6 +543,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
         cumulative_audio_time = 0.0
         sorted_prompts = sorted(image_prompts, key=lambda x: x.get('scene_number', 0))
         temp_audios = []
+        used_voices = set() # [NEW] Track voices
         import uuid
 
         # [NEW] Load settings for overrides
@@ -547,6 +557,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             # [NEW] Voice Override
             scene_voice = p_settings.get(f"scene_{scene_num}_voice")
             current_voice_id = scene_voice if scene_voice else voice_id
+            used_voices.add(current_voice_id) # Collect
 
             if not text:
                 scene_durations.append(3.0)
@@ -701,6 +712,10 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                 db.update_project_setting(project_id, "timeline_images_path", tl_images_path)
                 
                 print(f"✅ [Auto-Pilot] Scene-based TTS & Subtitles Complete. Total: {total_duration:.2f}s, Scenes: {len(scene_durations)}")
+                
+                # [NEW] Save Stats
+                db.update_project_setting(project_id, "stats_audio_duration_sec", f"{total_duration:.2f}")
+                db.update_project_setting(project_id, "stats_used_voices", json.dumps(list(used_voices), ensure_ascii=False))
                 
             except Exception as e:
                 import traceback

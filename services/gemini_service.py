@@ -75,10 +75,16 @@ class GeminiService:
                 error_msg = result.get('error', {}).get('message', str(result))
                 raise Exception(f"Gemini Vision API 오류: {error_msg}")
 
-    async def analyze_webtoon_panel(self, image_path: str) -> dict:
+    async def analyze_webtoon_panel(self, image_path: str, context: Optional[str] = None) -> dict:
         """웹툰 패널 한 칸을 분석하여 대사, 캐릭터, 연출 정보 추출"""
-        prompt = """
+        
+        context_inst = ""
+        if context:
+            context_inst = f"\n[Story Context from Previous Episode]: {context}\nUse this to better identify characters and situation.\n"
+
+        prompt = f"""
         Analyze this webtoon panel image.
+        {context_inst}
         1. Extract all text/dialogue in Korean.
         2. Identify who is speaking based on the dialogue and visual context. 
            If the speaker's name is not explicitly shown, infer it from the context (e.g. Woman, Man, Boy, Girl, Narrator). 
@@ -88,13 +94,13 @@ class GeminiService:
         4. Suggest appropriate sound effects (SFX) for this scene (e.g., Boom, Rain, Footsteps, Crowd noise) based on the visual and text.
         
         Return ONLY a JSON object in this format:
-        {
+        {{
             "dialogue": "extracted text here",
             "character": "speaker name or 'Unknown'",
             "visual_desc": "brief visual description in English",
             "atmosphere": "e.g. dramatic, funny, scary",
             "sound_effects": "suggested SFX list (comma separated) or 'None'"
-        }
+        }}
         """
         
         try:

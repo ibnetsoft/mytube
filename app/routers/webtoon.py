@@ -426,7 +426,17 @@ async def automate_webtoon(req: WebtoonAutomateRequest):
         
         # 4. 설정 저장 (립싱크 및 자막 여부)
         db.update_project_setting(project_id, "use_lipsync", req.use_lipsync)
+        db.update_project_setting(project_id, "use_lipsync", req.use_lipsync)
         db.update_project_setting(project_id, "use_subtitles", req.use_subtitles)
+
+        # [NEW] Save Voice Mapping for future consistency
+        final_voice_map = {}
+        for s in req.scenes:
+            if s.character and s.voice_id and s.character != "None" and s.voice_id != "None":
+                 final_voice_map[s.character] = s.voice_id
+        
+        if final_voice_map:
+             db.update_project_setting(project_id, "voice_mapping_json", json.dumps(final_voice_map, ensure_ascii=False))
 
         # 5. 백그라운드 워커가 감지할 수 있도록 보장
         autopilot_service.add_to_queue(project_id)
@@ -478,6 +488,25 @@ async def analyze_directory(req: AnalyzeDirRequest):
         all_scenes = []
         global_scene_counter = 1
         
+        # [NEW] Load Previous Context for Continuity
+        prev_context = None
+        current_project = db.get_project(req.project_id)
+        if current_project and current_project.get("topic"):
+            topic = current_project["topic"]
+            conn = db.get_db()
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM projects WHERE topic = ? AND id != ? ORDER BY id DESC LIMIT 1", (topic, req.project_id))
+            row = cursor.fetchone()
+            if row:
+                prev_id = row["id"]
+                cursor.execute("SELECT full_script FROM scripts WHERE project_id = ?", (prev_id,))
+                script_row = cursor.fetchone()
+                if script_row and script_row["full_script"]:
+                     prev_context = script_row["full_script"][-500:] # Last 500 chars
+            conn.close()
+            if prev_context:
+                print(f"📖 [Webtoon] Loaded context from previous episode: {len(prev_context)} chars")
+        
         for file_path in req.files:
             if not os.path.exists(file_path):
                 continue
@@ -512,7 +541,8 @@ async def analyze_directory(req: AnalyzeDirRequest):
             # --- 3. Analysis ---
             for cut_path in cuts:
                 try:
-                    analysis = await gemini_service.analyze_webtoon_panel(cut_path)
+                    # Pass context to Gemini
+                    analysis = await gemini_service.analyze_webtoon_panel(cut_path, context=prev_context)
                 except Exception as e:
                     print(f"Gemini failed for {cut_path}: {e}")
                     analysis = {"dialogue": "", "character": "Unknown", "visual_desc": "Analysis failed", "atmosphere": "Error"}
@@ -563,7 +593,31 @@ async def analyze_directory(req: AnalyzeDirRequest):
         if not female_pool: female_pool = ["21m00Tcm4TlvDq8ikWAM", "EXAVITQu4vr4xnSDxMaL"]
         if not default_pool: default_pool = male_pool + female_pool
 
+        if not default_pool: default_pool = male_pool + female_pool
+
         char_voice_map = {}
+        
+        # [NEW] Load previous character voices for consistency
+        current_project = db.get_project(req.project_id)
+        if current_project and current_project.get("topic"):
+            topic = current_project["topic"]
+            # Find recent project with same topic
+            conn = db.get_db()
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM projects WHERE topic = ? AND id != ? ORDER BY id DESC LIMIT 1", (topic, req.project_id))
+            row = cursor.fetchone()
+            conn.close()
+            
+            if row:
+                prev_id = row["id"]
+                prev_settings = db.get_project_settings(prev_id) or {}
+                if prev_settings.get("voice_mapping_json"):
+                    try:
+                        loaded_map = json.loads(prev_settings["voice_mapping_json"])
+                        char_voice_map.update(loaded_map)
+                        print(f"📖 [Webtoon] Loaded {len(loaded_map)} character voices from Project {prev_id}")
+                    except: pass
+
         male_idx = 0
         female_idx = 0
         misc_idx = 0
