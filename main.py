@@ -954,6 +954,10 @@ class ApiKeySave(BaseModel):
     gemini: Optional[str] = None
     elevenlabs: Optional[str] = None
     typecast: Optional[str] = None
+    replicate: Optional[str] = None
+    topview: Optional[str] = None
+    akool_id: Optional[str] = None
+    akool_secret: Optional[str] = None
 
 @app.get("/api/settings/api-keys")
 async def get_api_keys():
@@ -964,22 +968,26 @@ async def get_api_keys():
 async def save_api_keys(req: ApiKeySave):
     """API 키 저장"""
     updated = []
+    
+    mapping = {
+        'youtube': 'YOUTUBE_API_KEY',
+        'gemini': 'GEMINI_API_KEY',
+        'elevenlabs': 'ELEVENLABS_API_KEY',
+        'typecast': 'TYPECAST_API_KEY',
+        'replicate': 'REPLICATE_API_TOKEN',
+        'topview': 'TOPVIEW_API_KEY',
+        'akool_id': 'AKOOL_CLIENT_ID',
+        'akool_secret': 'AKOOL_CLIENT_SECRET'
+    }
 
-    if req.youtube is not None and req.youtube.strip():
-        config.update_api_key('YOUTUBE_API_KEY', req.youtube.strip())
-        updated.append('youtube')
-
-    if req.gemini is not None and req.gemini.strip():
-        config.update_api_key('GEMINI_API_KEY', req.gemini.strip())
-        updated.append('gemini')
-
-    if req.elevenlabs is not None and req.elevenlabs.strip():
-        config.update_api_key('ELEVENLABS_API_KEY', req.elevenlabs.strip())
-        updated.append('elevenlabs')
-
-    if req.typecast is not None and req.typecast.strip():
-        config.update_api_key('TYPECAST_API_KEY', req.typecast.strip())
-        updated.append('typecast')
+    req_dict = req.dict()
+    print(f"📡 [API_KEY] Save request received. Fields present: {[k for k,v in req_dict.items() if v is not None]}")
+    for field, config_key in mapping.items():
+        val = req_dict.get(field)
+        if val is not None and val.strip():
+            print(f"🔑 [API_KEY] Updating {field} -> {config_key} (len: {len(val.strip())})")
+            config.update_api_key(config_key, val.strip())
+            updated.append(field)
 
     return {
         "status": "ok",
@@ -1854,34 +1862,8 @@ async def delete_template_api():
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
-@app.get("/api/settings/api-keys")
-async def get_api_keys_status():
-    """API 키 설정 상태 조회"""
-    return config.get_api_keys_status()
+# [REMOVED] Duplicate API key routes (Consolidated at line 960)
 
-@app.post("/api/settings/api-keys")
-async def save_api_keys(keys: dict = Body(...)):
-    """API 키 저장"""
-    try:
-        # Update keys if provided
-        if "youtube" in keys:
-             config.update_api_key("YOUTUBE_API_KEY", keys["youtube"])
-             
-        if "gemini" in keys:
-             config.update_api_key("GEMINI_API_KEY", keys["gemini"])
-             
-        if "elevenlabs" in keys:
-             config.update_api_key("ELEVENLABS_API_KEY", keys["elevenlabs"])
-             
-        if "replicate" in keys:
-             config.update_api_key("REPLICATE_API_TOKEN", keys["replicate"])
-             
-        return {"status": "ok", "keys": config.get_api_keys_status()}
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        print(f"[API_KEY_SAVE_ERROR] {e}")
-        return {"status": "error", "error": str(e)}
 
 @app.get("/api/health")
 async def health_check():

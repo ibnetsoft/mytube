@@ -6,10 +6,17 @@ from config import config
 
 class AkoolService:
     def __init__(self):
-        self.api_key = config.AKOOL_TOKEN
         self.base_url = "https://openapi.akool.com/api/v1"
         self._token = None
         self._token_expiry = 0
+
+    @property
+    def client_id(self):
+        return config.AKOOL_CLIENT_ID
+
+    @property
+    def client_secret(self):
+        return config.AKOOL_CLIENT_SECRET
 
     async def get_token(self):
         """API Key를 사용하여 액세스 토큰 획득 (필요한 경우)"""
@@ -19,7 +26,10 @@ class AkoolService:
             return self._token
 
         url = f"{self.base_url}/auth/token"
-        payload = {"apiKey": self.api_key}
+        payload = {
+            "clientId": self.client_id,
+            "clientSecret": self.client_secret
+        }
         
         async with httpx.AsyncClient() as client:
             try:

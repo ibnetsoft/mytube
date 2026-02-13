@@ -2,8 +2,25 @@ from fastapi import APIRouter, HTTPException, Body, Request
 from typing import List, Optional
 import database as db
 from app.models.project import ProjectCreate, ProjectUpdate, ProjectSettingUpdate, ProjectSettingsSave
+from pydantic import BaseModel
+
+class BulkDeleteRequest(BaseModel):
+    ids: List[int]
 
 router = APIRouter(prefix="/api", tags=["Projects"])
+
+@router.post("/projects/bulk-delete")
+async def bulk_delete_projects(req: BulkDeleteRequest):
+    try:
+        count = 0
+        for pid in req.ids:
+            try:
+                db.delete_project(pid)
+                count += 1
+            except: pass
+        return {"status": "success", "deleted_count": count}
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 @router.get("/projects")
 async def get_projects():

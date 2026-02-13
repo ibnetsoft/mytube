@@ -4,7 +4,7 @@ TopView API를 사용한 제품 프로모션 영상 생성
 """
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File
-from typing import List
+from typing import List, Optional
 import os
 import uuid
 from pathlib import Path
@@ -67,6 +67,21 @@ async def upload_images(files: List[UploadFile] = File(...)):
         raise HTTPException(500, f"업로드 실패: {str(e)}")
 
 
+# ============ 트렌드 검색 ============
+
+@router.get("/trends")
+async def get_amazon_trends():
+    """미국 아마존 트렌드 키워드 조회"""
+    try:
+        from services.gemini_service import GeminiService
+        gemini = GeminiService()
+        keywords = await gemini.generate_amazon_trends()
+        return {"status": "success", "keywords": keywords}
+    except Exception as e:
+        print(f"[Commerce] Trend Gen Error: {e}")
+        raise HTTPException(500, f"트렌드 조회 실패: {str(e)}")
+
+
 # ============ 제품 분석 ============
 
 @router.post("/analyze-product")
@@ -87,6 +102,37 @@ async def analyze_product(request: ProductAnalysisRequest):
     except Exception as e:
         print(f"[Commerce] Analysis error: {e}")
         raise HTTPException(500, f"제품 분석 실패: {str(e)}")
+
+
+# ============ 카피라이팅 생성 ============
+
+from pydantic import BaseModel
+class CommerceCopyRequest(BaseModel):
+    product_name: str
+    product_price: Optional[str] = None
+    product_description: Optional[str] = None
+
+@router.post("/generate-copy")
+async def generate_commerce_copy(req: CommerceCopyRequest):
+    """
+    제품 정보를 바탕으로 쇼츠 카피라이팅 3종 생성
+    """
+    try:
+        from services.gemini_service import GeminiService
+        gemini = GeminiService()
+        
+        info = {
+            "product_name": req.product_name,
+            "product_price": req.product_price,
+            "product_description": req.product_description
+        }
+        
+        result = await gemini.generate_commerce_copywriting(info)
+        return {"status": "success", **result}
+    except Exception as e:
+        print(f"[Commerce] Copy Gen Error: {e}")
+        raise HTTPException(500, f"카피라이팅 생성 실패: {str(e)}")
+
 
 
 # ============ 스타일 프리셋 ============

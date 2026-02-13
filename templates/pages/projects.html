@@ -1,8 +1,19 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="flex justify-end mb-6">
-    <button onclick="openProjectModal()" class="btn-primary flex items-center gap-2">
+<div class="flex justify-between items-center mb-6">
+    <!-- Bulk Actions -->
+    <div id="bulkActions"
+        class="hidden flex items-center gap-3 bg-white dark:bg-gray-800 px-4 py-1.5 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+        <span id="selectedCount" class="text-xs font-bold text-gray-700 dark:text-gray-300">0개 선택됨</span>
+        <div class="h-4 w-px bg-gray-300 dark:bg-gray-600"></div>
+        <button onclick="deleteSelectedProjects()"
+            class="text-red-600 hover:text-red-700 text-xs font-bold flex items-center gap-1">
+            <span>🗑️</span> 선택 삭제
+        </button>
+    </div>
+
+    <button onclick="openProjectModal()" class="btn-primary flex items-center gap-2 ml-auto">
         <span>+</span>
         <span>New Project</span>
     </button>
@@ -21,7 +32,13 @@
         <thead class="bg-gray-50 dark:bg-gray-700">
             <tr>
                 <th scope="col"
-                    class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap sticky left-0 bg-gray-50 dark:bg-gray-700 z-10">
+                    class="px-2 py-3 w-10 text-center sticky left-0 z-20 bg-gray-50 dark:bg-gray-700 border-r border-gray-100 dark:border-gray-600">
+                    <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)"
+                        class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer">
+                </th>
+                <th scope="col"
+                    class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap sticky z-10 bg-gray-50 dark:bg-gray-700 border-r border-gray-100 dark:border-gray-600"
+                    style="left: 40px;">
                     프로젝트명</th>
                 <th scope="col"
                     class="px-1 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap w-20">
@@ -174,8 +191,13 @@
             };
 
             return `
-            <tr class="hover:bg-gray-100 dark:hover:bg-gray-700 transition cursor-pointer group" onclick="selectAndGo('${p.id}')">
-                <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white sticky left-0 bg-white dark:bg-gray-800 group-hover:bg-gray-100 dark:group-hover:bg-gray-700 z-10 border-r dark:border-gray-700"
+            <tr class="hover:bg-gray-100 dark:hover:bg-gray-700 transition cursor-pointer group" onclick="if(!event.target.closest('input')) selectAndGo('${p.id}')">
+                <td class="px-2 py-3 text-center sticky left-0 z-20 bg-white dark:bg-gray-800 border-r border-gray-100 dark:border-gray-700 group-hover:bg-gray-100 dark:group-hover:bg-gray-700" onclick="event.stopPropagation()">
+                    <input type="checkbox" name="projectSelect" value="${p.id}" onchange="updateBulkActionState()" 
+                        class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer">
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white sticky z-10 bg-white dark:bg-gray-800 group-hover:bg-gray-100 dark:group-hover:bg-gray-700 border-r dark:border-gray-700"
+                    style="left: 40px;"
                     ondblclick="event.stopPropagation(); startInlineEdit(this, '${p.id}', 'name')">
                     <div class="flex items-center gap-2">
                         <span class="text-lg">📁</span>
@@ -428,6 +450,79 @@
         } catch (e) {
             console.error('공개 전환 실패:', e);
             Utils.showToast(`오류 발생: ${e.message}`, 'error');
+        }
+    }
+
+    // [NEW] Bulk Actions Logic
+    function toggleSelectAll(source) {
+        const checkboxes = document.getElementsByName('projectSelect');
+        for (let cb of checkboxes) {
+            cb.checked = source.checked;
+        }
+        updateBulkActionState();
+    }
+
+    function updateBulkActionState() {
+        const checkboxes = document.getElementsByName('projectSelect');
+        const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+        const bulkActions = document.getElementById('bulkActions');
+        const selectedCountSpan = document.getElementById('selectedCount');
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+
+        if (checkedCount > 0) {
+            bulkActions.classList.remove('hidden');
+            selectedCountSpan.textContent = `${checkedCount}개 선택됨`;
+        } else {
+            bulkActions.classList.add('hidden');
+        }
+
+        // Update Select All Checkbox state
+        if (checkboxes.length > 0 && checkedCount === checkboxes.length) {
+            selectAllCheckbox.checked = true;
+            selectAllCheckbox.indeterminate = false;
+        } else if (checkedCount > 0) {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = true;
+        } else {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
+        }
+    }
+
+    async function deleteSelectedProjects() {
+        const checkboxes = document.getElementsByName('projectSelect');
+        const selectedIds = Array.from(checkboxes).filter(cb => cb.checked).map(cb => parseInt(cb.value));
+
+        if (selectedIds.length === 0) return;
+
+        if (!confirm(`선택한 ${selectedIds.length}개의 프로젝트를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
+
+        try {
+            // Bulk Delete API Call
+            const res = await fetch('/api/projects/bulk-delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: selectedIds })
+            });
+
+            const data = await res.json();
+
+            if (res.ok && data.status === 'success') {
+                Utils.showToast(`${data.deleted_count}개 프로젝트 삭제 완료`, 'success');
+                // Reset Selection
+                document.getElementById('selectAllCheckbox').checked = false;
+                document.getElementById('selectAllCheckbox').indeterminate = false;
+                document.getElementById('bulkActions').classList.add('hidden');
+
+                loadProjectList();
+                // Sidebar refresh
+                if (window.loadProjects) window.loadProjects();
+            } else {
+                throw new Error(data.detail || '삭제 실패');
+            }
+        } catch (e) {
+            console.error('Bulk delete error:', e);
+            Utils.showToast(`삭제 중 오류 발생: ${e.message}`, 'error');
         }
     }
 

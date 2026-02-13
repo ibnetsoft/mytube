@@ -19,7 +19,9 @@ class Config:
     GOOGLE_APPLICATION_CREDENTIALS: str = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
     PEXELS_API_KEY: str = os.getenv("PEXELS_API_KEY", "") # Pexels Stock Video
     REPLICATE_API_TOKEN: str = os.getenv("REPLICATE_API_TOKEN", "") # Replicate AI Video
-    AKOOL_TOKEN: str = os.getenv("AKOOL_TOKEN", "") # Akool Creative AI
+    AKOOL_CLIENT_ID: str = os.getenv("AKOOL_CLIENT_ID", "") # Akool Client ID
+    AKOOL_CLIENT_SECRET: str = os.getenv("AKOOL_CLIENT_SECRET", "") # Akool Client Secret
+    AKOOL_TOKEN: str = os.getenv("AKOOL_TOKEN", "") # Legacy or direct access token
     TOPVIEW_API_KEY: str = os.getenv("TOPVIEW_API_KEY", "") # TopView AI
 
     # 서버 설정
@@ -93,7 +95,7 @@ class Config:
     @classmethod
     def update_api_key(cls, key_name: str, value: str):
         """API 키 런타임 업데이트 및 .env 파일 저장"""
-        valid_keys = ['YOUTUBE_API_KEY', 'GEMINI_API_KEY', 'ELEVENLABS_API_KEY', 'TYPECAST_API_KEY', 'GOOGLE_APPLICATION_CREDENTIALS', 'OPENAI_API_KEY', 'PEXELS_API_KEY', 'REPLICATE_API_TOKEN', 'TOPVIEW_API_KEY', 'AKOOL_TOKEN']
+        valid_keys = ['YOUTUBE_API_KEY', 'GEMINI_API_KEY', 'ELEVENLABS_API_KEY', 'TYPECAST_API_KEY', 'GOOGLE_APPLICATION_CREDENTIALS', 'OPENAI_API_KEY', 'PEXELS_API_KEY', 'REPLICATE_API_TOKEN', 'TOPVIEW_API_KEY', 'AKOOL_TOKEN', 'AKOOL_CLIENT_ID', 'AKOOL_CLIENT_SECRET']
 
         if key_name not in valid_keys:
             return False
@@ -126,55 +128,34 @@ class Config:
         with open(env_path, 'w', encoding='utf-8') as f:
             f.writelines(env_lines)
 
+        # [CRITICAL] 명시적으로 클래스 변수 재설정 (get_api_keys_status에서 참조함)
+        setattr(cls, key_name, value)
+        
         return True
+
+    @staticmethod
+    def mask_key(key: str) -> str:
+        """키 마스킹 유틸리티"""
+        if not key:
+            return ""
+        if len(key) <= 8:
+            return "*" * len(key)
+        return f"{key[:4]}****{key[-4:]}"
 
     @classmethod
     def get_api_keys_status(cls):
-        """API 키 상태 반환 (마스킹된 값)"""
-        def mask_key(key: str) -> str:
-            if not key:
-                return ""
-            if len(key) <= 8:
-                return "*" * len(key)
-            return key[:4] + "*" * (len(key) - 8) + key[-4:]
-
+        """API 키 상태 반환 (마스킹된 값 및 원본 값)"""
         return {
-            "youtube": {
-                "set": bool(cls.YOUTUBE_API_KEY),
-                "masked": mask_key(cls.YOUTUBE_API_KEY)
-            },
-            "gemini": {
-                "set": bool(cls.GEMINI_API_KEY),
-                "masked": mask_key(cls.GEMINI_API_KEY)
-            },
-            "elevenlabs": {
-                "set": bool(cls.ELEVENLABS_API_KEY),
-                "masked": mask_key(cls.ELEVENLABS_API_KEY)
-            },
-            "typecast": {
-                "set": bool(cls.TYPECAST_API_KEY),
-                "masked": mask_key(cls.TYPECAST_API_KEY)
-            },
-            "google_cloud": {
-                "set": bool(cls.GOOGLE_APPLICATION_CREDENTIALS),
-                "masked": mask_key(cls.GOOGLE_APPLICATION_CREDENTIALS)
-            },
-            "openai": {
-                "set": bool(cls.OPENAI_API_KEY),
-                "masked": mask_key(cls.OPENAI_API_KEY)
-            },
-            "replicate": {
-                "set": bool(cls.REPLICATE_API_TOKEN),
-                "masked": mask_key(cls.REPLICATE_API_TOKEN)
-            },
-            "akool": {
-                "set": bool(cls.AKOOL_TOKEN),
-                "masked": mask_key(cls.AKOOL_TOKEN)
-            },
-            "topview": {
-                "set": bool(cls.TOPVIEW_API_KEY),
-                "masked": mask_key(cls.TOPVIEW_API_KEY)
-            }
+            "youtube": {"set": bool(cls.YOUTUBE_API_KEY), "masked": cls.mask_key(cls.YOUTUBE_API_KEY), "value": cls.YOUTUBE_API_KEY},
+            "gemini": {"set": bool(cls.GEMINI_API_KEY), "masked": cls.mask_key(cls.GEMINI_API_KEY), "value": cls.GEMINI_API_KEY},
+            "elevenlabs": {"set": bool(cls.ELEVENLABS_API_KEY), "masked": cls.mask_key(cls.ELEVENLABS_API_KEY), "value": cls.ELEVENLABS_API_KEY},
+            "typecast": {"set": bool(cls.TYPECAST_API_KEY), "masked": cls.mask_key(cls.TYPECAST_API_KEY), "value": cls.TYPECAST_API_KEY},
+            "google_cloud": {"set": bool(cls.GOOGLE_APPLICATION_CREDENTIALS), "masked": cls.mask_key(cls.GOOGLE_APPLICATION_CREDENTIALS), "value": cls.GOOGLE_APPLICATION_CREDENTIALS},
+            "openai": {"set": bool(cls.OPENAI_API_KEY), "masked": cls.mask_key(cls.OPENAI_API_KEY), "value": cls.OPENAI_API_KEY},
+            "replicate": {"set": bool(cls.REPLICATE_API_TOKEN), "masked": cls.mask_key(cls.REPLICATE_API_TOKEN), "value": cls.REPLICATE_API_TOKEN},
+            "topview": {"set": bool(cls.TOPVIEW_API_KEY), "masked": cls.mask_key(cls.TOPVIEW_API_KEY), "value": cls.TOPVIEW_API_KEY},
+            "akool_id": {"set": bool(cls.AKOOL_CLIENT_ID), "masked": cls.mask_key(cls.AKOOL_CLIENT_ID), "value": cls.AKOOL_CLIENT_ID},
+            "akool_secret": {"set": bool(cls.AKOOL_CLIENT_SECRET), "masked": cls.mask_key(cls.AKOOL_CLIENT_SECRET), "value": cls.AKOOL_CLIENT_SECRET}
         }
 
 

@@ -590,6 +590,108 @@ class GeminiService:
             print(f"Trend keywords generation failed: {e}")
             return []
 
+    async def generate_commerce_copywriting(self, product_info: dict) -> dict:
+        """제품 정보를 바탕으로 쇼츠용 매운맛 카피라이팅 3종 생성"""
+        
+        prompt = f"""
+        당신은 100만 조회수를 만드는 숏폼 마케팅 천재 카피라이터입니다.
+        아래 제품 정보를 바탕으로 시청자를 즉시 사로잡는(Hooking) 쇼츠 대본 3가지를 작성하세요.
+        
+        [제품 정보]
+        - 제품명: {product_info.get('product_name')}
+        - 가격: {product_info.get('product_price')}
+        - 특징: {product_info.get('product_description')}
+        
+        [요구사항]
+        1. 3가지 전략으로 작성할 것:
+           A. [공감/고통] "아직도 00하세요? 이거 쓰면 해결됩니다." (문제 제기 -> 해결)
+           B. [결과/반전] "이거 하나 바꿨더니 00이 달라졌어요." (드라마틱한 변화 강조)
+           C. [충격/가성비] "사장님이 미쳤어요? 이 가격에 이게 된다고?" (가격 대비 성능 강조)
+           
+        2. 각 대본은 'Hook(3초) -> Body(설명) -> CTA(행동유도)' 구조를 가질 것.
+        3. 말투는 빠르고 강렬하게, 구어체 사용. (존댓말/반말 혼용 가능하나 자연스럽게)
+        4. 전체 길이는 읽었을 때 30초 이내 분량.
+        
+        [출력 형식]
+        오직 JSON 객체로 반환하세요:
+        {{
+            "copywriting": [
+                {{
+                    "type": "pain_point",
+                    "title": "공감형 (문제해결)",
+                    "hook": "...",
+                    "body": "...",
+                    "cta": "..."
+                }},
+                {{
+                    "type": "benefit",
+                    "title": "결과강조형 (비포애프터)",
+                    "hook": "...",
+                    "body": "...",
+                    "cta": "..."
+                }},
+                {{
+                    "type": "shock",
+                    "title": "충격형 (가성비끝판왕)",
+                    "hook": "...",
+                    "body": "...",
+                    "cta": "..."
+                }}
+            ]
+        }}
+        """
+        
+        try:
+            text = await self.generate_text(prompt, temperature=0.8)
+            import json
+            import re
+            
+            cleaned = re.sub(r'```json\s*|\s*```', '', text).strip()
+            match = re.search(r'\{[\s\S]*\}', cleaned)
+            if match:
+                return json.loads(match.group(0))
+            else:
+                return {"copywriting": []}
+                
+        except Exception as e:
+            print(f"Copywriting Gen Error: {e}")
+            return {"copywriting": []}
+
+    async def generate_amazon_trends(self) -> List[dict]:
+        """미국 아마존 트렌드 키워드 생성"""
+        from config import config
+        current_date = config.get_kst_time().strftime("%Y-%m-%d")
+        
+        prompt = f"""
+        Current Date: {current_date}
+        Target Market: USA (Amazon.com)
+        Role: Amazon Affiliate Marketing Expert
+        
+        Identify 5 high-potential, trending product keywords for Amazon Affiliate marketing right now.
+        Consider seasonality (holidays, weather), viral trends (TikTok/Instagram), and new tech releases.
+        
+        Return ONLY a JSON array of objects:
+        [
+            {{
+                "keyword": "search term",
+                "reason": "Why it sells now (short)"
+            }},
+            ...
+        ]
+        """
+        
+        try:
+            text = await self.generate_text(prompt, temperature=0.9)
+            import json, re
+            cleaned = re.sub(r'```json\s*|\s*```', '', text).strip()
+            match = re.search(r'\[[\s\S]*\]', cleaned)
+            if match:
+                return json.loads(match.group(0))
+            return []
+        except Exception as e:
+            print(f"Trend Gen Error: {e}")
+            return []
+
     async def generate_character_prompts_from_script(self, script: str, visual_style: str = "photorealistic") -> List[dict]:
         """대본을 분석하여 등장인물 정보 및 이미지 프롬프트 생성"""
         

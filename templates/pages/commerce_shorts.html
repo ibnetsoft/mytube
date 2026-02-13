@@ -50,6 +50,28 @@
     <!-- Main Content -->
     <div class="max-w-4xl mx-auto">
 
+        <!-- Step 0: US Amazon Trends -->
+        <div class="bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl shadow-sm border border-orange-100 p-6 mb-8">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-5">
+                <div>
+                    <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                        <span class="text-2xl">🇺🇸</span> 미국 아마존 떡상 아이템 발굴
+                    </h2>
+                    <p class="text-sm text-gray-600 mt-1">AI가 현재 시즌, 트렌드를 분석하여 구매 전환율 높은 키워드를 추출합니다.</p>
+                </div>
+                <button onclick="fetchAmazonTrends(this)"
+                    class="w-full md:w-auto bg-orange-500 hover:bg-orange-600 text-white px-5 py-2.5 rounded-lg font-bold transition-all flex items-center justify-center gap-2 shadow-sm hover:shadow-md">
+                    <span>🚀</span> 지금 뜨는 키워드 추출
+                </button>
+            </div>
+
+            <div id="trend-container"
+                class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 hidden animate-fade-in">
+                <!-- Cards injected here -->
+            </div>
+            <p class="text-right text-xs text-orange-400 mt-2">* 키워드 클릭 시 아마존 검색 결과로 이동합니다.</p>
+        </div>
+
         <!-- Step 1: URL Input -->
         <div id="step-1" class="card p-6 mb-4">
             <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
@@ -204,16 +226,59 @@
 
                 <!-- 핵심 메시지 -->
                 <div>
-                    <label class="block text-sm font-medium mb-2">핵심 메시지</label>
+                    <div class="flex justify-between items-end mb-2">
+                        <label class="block text-sm font-medium">핵심 메시지 (대본)</label>
+                        <button type="button" onclick="generateCopywriting(this)"
+                            class="text-xs bg-gradient-to-r from-purple-500 to-indigo-500 text-white px-3 py-1.5 rounded-full hover:shadow-lg transition-all flex items-center gap-1">
+                            <span>✨</span>
+                            <span>AI 매운맛 카피 생성</span>
+                        </button>
+                    </div>
                     <input type="text" id="message" class="input w-full" placeholder="예: 신제품 출시! 특별 할인 중" />
                     <p class="text-xs text-gray-500 mt-1">
-                        영상에 표시될 주요 메시지를 입력하세요
+                        영상에 사용될 멘트입니다. AI 생성을 눌러보세요.
                     </p>
+
+                    <!-- Copy Suggestions -->
+                    <div id="copy-suggestions" class="hidden mt-3 space-y-2 animate-fade-in">
+                        <!-- Filled by JS -->
+                    </div>
                 </div>
             </div>
-            <button onclick="generateVideo()" class="btn-primary w-full py-3 mt-6">
-                <span>🎬</span>
-                <span>영상 생성하기</span>
+
+            <!-- Video Engine Selection -->
+            <div class="mt-6 mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                <label class="block text-sm font-bold mb-3 flex items-center gap-2">
+                    <span>🎬 영상 생성 엔진 선택</span>
+                </label>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <label
+                        class="relative flex items-start p-3 border border-gray-200 bg-white rounded-lg cursor-pointer hover:border-blue-500 transition-all group has-[:checked]:border-blue-500 has-[:checked]:ring-1 has-[:checked]:ring-blue-500">
+                        <input type="radio" name="video_engine" value="topview" checked
+                            class="mt-1 text-blue-600 focus:ring-blue-500">
+                        <div class="ml-3">
+                            <span class="block text-sm font-bold text-gray-800">TopView AI (추천)</span>
+                            <span class="block text-xs text-gray-500 mt-1">제품 영상을 자동으로 편집하여 고품질 광고 영상을 제작합니다. (URL
+                                기반)</span>
+                        </div>
+                    </label>
+
+                    <label
+                        class="relative flex items-start p-3 border border-gray-200 bg-white rounded-lg cursor-pointer hover:border-purple-500 transition-all group has-[:checked]:border-purple-500 has-[:checked]:ring-1 has-[:checked]:ring-purple-500">
+                        <input type="radio" name="video_engine" value="akool"
+                            class="mt-1 text-purple-600 focus:ring-purple-500">
+                        <div class="ml-3">
+                            <span class="block text-sm font-bold text-purple-700">Akool Avatar (New)</span>
+                            <span class="block text-xs text-gray-500 mt-1">AI 아바타가 등장하여 제품을 직접 설명하는 영상을 생성합니다. (이미지
+                                기반)</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <button onclick="generateVideo()"
+                class="btn-primary w-full py-3 mt-6 text-lg font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all">
+                ✨ 숏폼 영상 생성 시작
             </button>
         </div>
 
@@ -504,24 +569,144 @@
         }
     }
 
+    // ============ 트렌드 검색 ============
+    async function fetchAmazonTrends(btn) {
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '<span>⏳</span> 분석 중...';
+        btn.disabled = true;
+
+        try {
+            const res = await fetch('/api/commerce/trends');
+            const data = await res.json();
+
+            if (data.status === 'success' && data.keywords) {
+                const container = document.getElementById('trend-container');
+                container.innerHTML = data.keywords.map(k => `
+                <a href="https://www.amazon.com/s?k=${encodeURIComponent(k.keyword)}" target="_blank"
+                   class="block p-3 border border-orange-200 bg-white rounded-lg hover:bg-orange-50 hover:shadow-md transition-all text-center group h-full flex flex-col justify-center">
+                    <div class="font-bold text-gray-800 text-sm mb-1 group-hover:text-orange-600 group-hover:underline line-clamp-2">${k.keyword}</div>
+                    <div class="text-xs text-orange-600 line-clamp-2 mt-auto">${k.reason}</div>
+                </a>
+            `).join('');
+
+                container.classList.remove('hidden');
+                Utils.showToast("트렌드 키워드 추출 완료! 클릭하여 검색하세요.", "success");
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast("트렌드 분석 실패: " + (e.message || "Unknown error"), "error");
+        } finally {
+            btn.innerHTML = originalHTML;
+            btn.disabled = false;
+        }
+    }
+
+    // ============ 카피라이팅 생성 ============
+    async function generateCopywriting(btn) {
+        if (!currentData.productInfo) {
+            alert("먼저 제품 분석(1단계)을 완료해주세요.");
+            return;
+        }
+
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '<span>⏳</span><span>생성 중...</span>';
+        btn.disabled = true;
+
+        try {
+            const response = await fetch('/api/commerce/generate-copy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    product_name: currentData.productInfo.product_name,
+                    product_price: currentData.productInfo.product_price,
+                    product_description: currentData.productInfo.product_description
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.status === 'success' && data.copywriting) {
+                const container = document.getElementById('copy-suggestions');
+                container.innerHTML = data.copywriting.map(copy => {
+                    const fullText = (copy.hook + " " + copy.body + " " + copy.cta).replace(/"/g, '&quot;');
+                    return `
+                <div onclick="applyCopy(this)" 
+                     data-text="${fullText}"
+                     class="group p-3 border border-purple-100 bg-white rounded-lg cursor-pointer hover:bg-purple-50 hover:border-purple-300 transition-all shadow-sm">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-xs font-bold text-white bg-purple-500 px-2 py-0.5 rounded-full">${copy.title}</span>
+                        <span class="text-xs text-gray-400 group-hover:text-purple-600 transition-colors">클릭하여 적용</span>
+                    </div>
+                    <p class="text-sm font-semibold text-gray-800 mb-1">"${copy.hook}"</p>
+                    <p class="text-xs text-gray-600 line-clamp-2">${copy.body}</p>
+                </div>
+                `;
+                }).join('');
+
+                container.classList.remove('hidden');
+                Utils.showToast("매운맛 카피 3종이 생성되었습니다!", "success");
+            } else {
+                throw new Error(data.message || "생성 실패");
+            }
+
+        } catch (error) {
+            console.error('Copywriting failed:', error);
+            Utils.showToast('카피라이팅 생성 실패: ' + error.message, 'error');
+        } finally {
+            btn.innerHTML = originalHTML;
+            btn.disabled = false;
+        }
+    }
+
+    function applyCopy(el) {
+        const text = el.getAttribute('data-text');
+        document.getElementById('message').value = text;
+
+        // Highlight effect
+        el.classList.add('ring-2', 'ring-purple-500');
+        setTimeout(() => el.classList.remove('ring-2', 'ring-purple-500'), 300);
+
+        Utils.showToast("대본이 적용되었습니다.", "info");
+    }
+
     async function generateVideo() {
         currentData.message = document.getElementById('message').value;
+        const videoEngine = document.querySelector('input[name="video_engine"]:checked')?.value || 'topview';
 
         // 고급 옵션 수집
         const modelType = document.getElementById('model-type')?.value || null;
         const backgroundType = document.getElementById('background-type')?.value || null;
         const musicType = document.getElementById('music-type')?.value || null;
-        const ctaType = document.getElementById('cta-type')?.value || 'buy_now';
+        // cta-type might not exist in HTML in some versions, check safely
+        const ctaTypeElement = document.getElementById('cta-type');
+        const ctaType = ctaTypeElement ? ctaTypeElement.value : 'buy_now';
 
         // 제품 이미지와 업로드된 이미지 병합
         let finalImages = [];
-        if (currentData.uploadedImages.length > 0) {
+        if (currentData.uploadedImages && currentData.uploadedImages.length > 0) {
             // 업로드된 이미지가 있으면 우선 사용
             finalImages = currentData.uploadedImages;
         } else if (currentData.productInfo && currentData.productInfo.product_images) {
             // 없으면 제품 분석에서 추출한 이미지 사용
             finalImages = currentData.productInfo.product_images;
         }
+
+        const payload = {
+            product_url: currentData.productUrl,
+            product_name: currentData.productInfo?.product_name || '제품',
+            product_price: currentData.productInfo?.product_price || '',
+            product_description: currentData.productInfo?.product_description || '',
+            product_images: finalImages,
+            style_preset: currentData.stylePreset,
+            result_video_ratio: "9:16",
+            message: currentData.message,
+            engine: videoEngine,
+
+            model_type: modelType,
+            background_type: backgroundType,
+            music_type: musicType,
+            cta: ctaType
+        };
 
         try {
             // Show step 4
@@ -534,36 +719,33 @@
             const response = await fetch('/api/commerce/create-video', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    product_url: currentData.productUrl,
-                    product_name: currentData.productInfo?.product_name || '제품',
-                    product_price: currentData.productInfo?.product_price || '',
-                    product_description: currentData.productInfo?.product_description || '',
-                    product_images: finalImages,
-                    style_preset: currentData.stylePreset,
-                    model_type: modelType,
-                    background_type: backgroundType,
-                    music_type: musicType,
-                    cta: ctaType,
-                    message: currentData.message
-                })
+                body: JSON.stringify(payload)
             });
 
             const data = await response.json();
 
-            document.getElementById('generation-status').innerHTML = `
-            <p class="text-green-600 font-medium">✅ ${data.message}</p>
-            <p class="mt-2">영상 ID: ${data.video_id}</p>
-        `;
+            if (data.status === 'success') {
+                document.getElementById('generation-status').innerHTML = `
+                    <p class="text-green-600 font-medium">✅ ${data.message}</p>
+                    <p class="text-xs text-gray-500 mt-1">엔진: ${videoEngine === 'akool' ? 'Akool Avatar' : 'TopView AI'}</p>
+                    <p class="mt-2 text-xs text-gray-400">Task ID: ${data.task_id || '-'}</p>
+                `;
 
-            Utils.showToast('영상 생성이 시작되었습니다', 'success');
+                Utils.showToast('영상 생성이 시작되었습니다', 'success');
 
-            // Reload video list after a delay
-            setTimeout(loadMyVideos, 3000);
+                // Reload video list after a delay
+                setTimeout(loadMyVideos, 3000);
+            } else {
+                throw new Error(data.message || 'Unknown error');
+            }
 
         } catch (error) {
             console.error('Generation failed:', error);
-            Utils.showToast('영상 생성에 실패했습니다', 'error');
+            Utils.showToast('영상 생성에 실패했습니다: ' + error.message, 'error');
+            document.getElementById('generation-status').innerHTML = `
+                <p class="text-red-600 font-medium">❌ 생성 실패</p>
+                <p class="text-xs text-gray-500 mt-1">${error.message}</p>
+            `;
         }
     }
 

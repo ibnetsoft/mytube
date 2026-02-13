@@ -209,19 +209,32 @@
                                         class="text-xs font-bold text-gray-700 dark:text-white flex items-center gap-1">
                                         <span>🎨 Akool API</span>
                                         <span class="text-[10px] text-gray-400 font-normal">(Avatar/Creative)</span>
-                                        <span id="akoolStatus" class="text-[10px] font-normal text-gray-400"></span>
+                                        <span id="akoolClientIdStatus"
+                                            class="text-[10px] font-normal text-gray-400"></span>
+                                        <span id="akoolClientSecretStatus"
+                                            class="text-[10px] font-normal text-gray-400"></span>
                                     </label>
                                     <span id="akoolConnectionStatus"
-                                        class="text-[10px] bg-gray-200 dark:bg-gray-700 px-1.5 rounded text-gray-500">미설정</span>
+                                        class="text-[10px] bg-gray-200 dark:bg-gray-700 px-1.5 rounded text-gray-500"></span>
                                 </div>
-                                <div class="flex gap-1">
-                                    <input type="password" id="akoolApiKey"
-                                        class="flex-1 input-field text-xs py-1 px-2 h-8" placeholder="API Token 입력">
-                                    <button onclick="toggleKeyVisibility('akoolApiKey')"
+
+                                <!-- Client ID -->
+                                <div class="flex gap-1 mb-1">
+                                    <input type="password" id="akoolClientId"
+                                        class="flex-1 input-field text-xs py-1 px-2 h-8" placeholder="Client ID 입력">
+                                    <button onclick="toggleKeyVisibility('akoolClientId')"
                                         class="btn-secondary px-2 h-8 text-xs">👁️</button>
                                 </div>
-                                <p id="akoolKeyMasked" class="text-[10px] text-gray-400 mt-0.5 truncate h-3">
-                                </p>
+                                <p id="akoolIdMasked" class="text-[9px] text-gray-400 mb-2 truncate h-3"></p>
+
+                                <!-- Client Secret -->
+                                <div class="flex gap-1">
+                                    <input type="password" id="akoolClientSecret"
+                                        class="flex-1 input-field text-xs py-1 px-2 h-8" placeholder="Client Secret 입력">
+                                    <button onclick="toggleKeyVisibility('akoolClientSecret')"
+                                        class="btn-secondary px-2 h-8 text-xs">👁️</button>
+                                </div>
+                                <p id="akoolSecretMasked" class="text-[9px] text-gray-400 mt-0.5 truncate h-3"></p>
                             </div>
                         </div>
 
@@ -691,18 +704,7 @@
             return;
         }
 
-        // 모드 전환 확인
-        const modeNames = {
-            'longform': '롱폼 (기본)',
-            'shorts': '쇼츠'
-        };
-
-        const confirmMessage = `⚠️ 모드 전환 확인\n\n현재: ${modeNames[currentMode]}\n변경: ${modeNames[mode]}\n\n모드를 전환하면:\n• 현재 선택된 프로젝트가 해제됩니다\n• 모든 페이지의 데이터가 초기화됩니다\n• "내 프로젝트"에서 프로젝트를 다시 선택해야 합니다\n\n계속하시겠습니까?`;
-
-        if (!confirm(confirmMessage)) {
-            // 사용자가 취소한 경우, 이전 모드로 되돌림
-            return;
-        }
+        // 모드 변경 적용 (팝업 제거됨)
 
         // 모드 변경 적용
         document.getElementById('appMode').value = mode;
@@ -742,9 +744,10 @@
 
     // Load All Settings
     async function loadAllSettings() {
-        await loadApiKeys();
-
         try {
+            await loadApiKeys();
+            await checkApiConnection();
+
             const res = await fetch('/api/settings');
             const data = await res.json();
 
@@ -758,15 +761,16 @@
                 document.getElementById('promptNews').value = data.script_styles.news || '';
                 document.getElementById('promptStory').value = data.script_styles.story || '';
                 document.getElementById('promptScriptMaster').value = data.script_styles.script_master || DEFAULT_SCRIPT_MASTER_PROMPT;
-                // [NEW]
                 document.getElementById('promptSeniorStory').value = data.script_styles.senior_story || '';
             }
 
-            // [NEW] App Mode
-            setAppMode(data.app_mode || 'longform');
+            if (data.app_mode) {
+                setAppMode(data.app_mode);
+            }
 
-            // [NEW] Template Image
             updateTemplatePreview(data.template_image_url);
+
+            Utils.showToast('설정을 불러왔습니다.', 'info');
         } catch (e) {
             console.error('설정 로드 실패:', e);
         }
@@ -774,27 +778,26 @@
 
     // Save All
     async function saveAllSettings() {
-        // Save Keys first
-        await saveApiKeys(); // This saves API keys to .env (via existing logic)
-
-        // Save Global Settings
-        const currentMode = document.getElementById('appMode').value;
-        const settings = {
-            app_mode: currentMode,
-            gemini_tts: {
-                voice_name: document.getElementById('geminiVoice').value,
-                language_code: document.getElementById('geminiLanguage').value,
-                style_prompt: document.getElementById('geminiStylePrompt').value
-            },
-            script_styles: {
-                news: document.getElementById('promptNews').value,
-                story: document.getElementById('promptStory').value,
-                script_master: document.getElementById('promptScriptMaster').value,
-                senior_story: document.getElementById('promptSeniorStory').value
-            }
-        };
-
         try {
+            // 1. API 키 먼저 저장
+            await saveApiKeys();
+
+            // 2. 일반 설정 수집
+            const settings = {
+                app_mode: document.getElementById('appMode').value,
+                gemini_tts: {
+                    voice_name: document.getElementById('geminiVoice').value,
+                    language_code: document.getElementById('geminiLanguage').value,
+                    style_prompt: document.getElementById('geminiStylePrompt').value
+                },
+                script_styles: {
+                    news: document.getElementById('promptNews').value,
+                    story: document.getElementById('promptStory').value,
+                    script_master: document.getElementById('promptScriptMaster').value,
+                    senior_story: document.getElementById('promptSeniorStory').value
+                }
+            };
+
             const res = await fetch('/api/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -803,230 +806,162 @@
 
             if (res.ok) {
                 const data = await res.json();
-
-                // 모드 변경 여부 확인 (서버에서 반환)
                 if (data.mode_changed) {
-                    console.log(`🔄 모드 전환 감지: ${data.previous_mode} → ${data.new_mode}`);
-
-                    // 1. 현재 프로젝트 선택 해제
-                    if (typeof setCurrentProject === 'function') {
-                        setCurrentProject(null);
-                    } else {
-                        window.currentProjectId = null;
-                        localStorage.removeItem('currentProjectId');
-                    }
-
-                    // 2. 모든 캐시 데이터 초기화
-                    const keysToRemove = [
-                        'scriptStructure',
-                        'fullScript',
-                        'imagePrompts',
-                        'characterPrompts',
-                        'trendKeywords',
-                        'topicPageState',
-                        'latestScriptStyle',
-                        'currentProjectId',
-                        'projectData',
-                        'audioData',
-                        'videoData',
-                        'thumbnailData',
-                        'metadataData'
-                    ];
-
-                    keysToRemove.forEach(key => {
-                        localStorage.removeItem(key);
-                        sessionStorage.removeItem(key);
-                    });
-
-                    // Utils.storage가 있다면 사용
-                    if (typeof Utils !== 'undefined' && Utils.storage) {
-                        keysToRemove.forEach(key => {
-                            Utils.storage.remove(key);
-                        });
-                    }
-
-                    // 3. UI 업데이트 - 프로젝트 정보 숨기기
-                    const elementsToHide = [
-                        'currentProjectInfo',
-                        'projectProgressHeader',
-                        'projectInfoCard'
-                    ];
-
-                    elementsToHide.forEach(id => {
-                        const element = document.getElementById(id);
-                        if (element) {
-                            element.classList.add('hidden');
-                        }
-                    });
-
-                    // 4. 프로젝트 선택 드롭다운 초기화
-                    const projectSelect = document.getElementById('projectSelect');
-                    if (projectSelect) {
-                        projectSelect.value = '';
-                        projectSelect.selectedIndex = 0;
-                    }
-
-                    // 5. 사용자에게 알림
-                    const modeNames = {
-                        'longform': '롱폼',
-                        'shorts': '쇼츠'
-                    };
-                    const newModeName = modeNames[data.new_mode] || data.new_mode;
-
-                    if (typeof Utils !== 'undefined' && Utils.showToast) {
-                        Utils.showToast(`✅ 설정 저장 완료!`, 'success');
-                        setTimeout(() => {
-                            Utils.showToast(`🔄 ${newModeName} 모드로 전환되었습니다. "내 프로젝트" 페이지에서 프로젝트를 선택해주세요.`, 'info', 5000);
-                        }, 500);
-                    } else {
-                        alert(`${newModeName} 모드로 전환되었습니다.\n\n모든 데이터가 초기화되었습니다.\n"내 프로젝트" 페이지에서 프로젝트를 다시 선택해주세요.`);
-                    }
-
-                    // 6. 페이지 새로고침 (네비게이션 메뉴 업데이트 등)
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 2000);
+                    Utils.showToast(`✅ 설정 저장 및 모드 전환 완료!`, 'success');
+                    setTimeout(() => window.location.reload(), 1500);
                 } else {
-                    // 모드 변경 없이 일반 설정만 저장된 경우
-                    if (typeof Utils !== 'undefined' && Utils.showToast) {
-                        Utils.showToast('✅ 설정이 저장되었습니다', 'success');
-                    } else {
-                        alert('설정이 저장되었습니다.');
-                    }
-                }
-            } else {
-                if (typeof Utils !== 'undefined' && Utils.showToast) {
-                    Utils.showToast('❌ 설정 저장 실패', 'error');
-                } else {
-                    alert('설정 저장에 실패했습니다.');
+                    Utils.showToast('✅ 모든 설정이 저장되었습니다', 'success');
+                    await loadApiKeys();
+                    await checkApiConnection();
                 }
             }
         } catch (e) {
             console.error('설정 저장 오류:', e);
-            if (typeof Utils !== 'undefined' && Utils.showToast) {
-                Utils.showToast('❌ 설정 저장 중 오류 발생', 'error');
-            } else {
-                alert('설정 저장 중 오류가 발생했습니다.');
-            }
+            Utils.showToast('❌ 설정 저장 중 오류가 발생했습니다.', 'error');
         }
     }
 
     // 키 보기/숨기기 토글
     function toggleKeyVisibility(inputId) {
+        console.log('👁️ [Settings] 토글 클릭:', inputId);
         const input = document.getElementById(inputId);
-        const eyeIcon = document.getElementById(inputId + '-eye');
-
-        if (input.type === 'password') {
-            input.type = 'text';
-            eyeIcon.textContent = '🙈';
-        } else {
-            input.type = 'password';
-            eyeIcon.textContent = '👁️';
+        if (input) {
+            const currentType = input.type;
+            input.type = currentType === 'password' ? 'text' : 'password';
+            console.log(`👁️ [Settings] ${inputId} 타입 변경: ${currentType} -> ${input.type}`);
         }
     }
 
     // API 키 상태 로드
     async function loadApiKeys() {
         try {
-            const keys = await API.apiKeys.get();
+            const data = await API.apiKeys.get();
+            console.log('📡 [Settings] 로드된 API 키 상태:', data);
 
-            // YouTube
-            if (keys.youtube) {
-                document.getElementById('youtubeStatus').innerHTML = keys.youtube.set
-                    ? '<span class="text-green-600">✅ 설정됨</span>'
-                    : '<span class="text-red-600">❌ 미설정</span>';
-                document.getElementById('youtubeKeyMasked').textContent = keys.youtube.masked
-                    ? `현재 키: ${keys.youtube.masked}`
-                    : '';
+            if (!data) return;
+
+            // 기본 키 상태 저장 객체 (서버에서 받은 원본 값을 기억)
+            window._originalApiValues = {};
+
+            // 기본 키들 업데이트
+            const standardKeys = {
+                'youtube': 'youtubeApiKey',
+                'gemini': 'geminiApiKey',
+                'elevenlabs': 'elevenlabsApiKey',
+                'replicate': 'replicateApiKey',
+                'topview': 'topviewApiKey'
+            };
+
+            for (const [key, inputId] of Object.entries(standardKeys)) {
+                if (data[key] && data[key].set) {
+                    window._originalApiValues[inputId] = data[key].value || "";
+                }
+                updateKeyStatus(key, data[key], inputId);
             }
 
-            // Gemini
-            if (keys.gemini) {
-                document.getElementById('geminiStatus').innerHTML = keys.gemini.set
-                    ? '<span class="text-green-600">✅ 설정됨</span>'
-                    : '<span class="text-red-600">❌ 미설정</span>';
-                document.getElementById('geminiKeyMasked').textContent = keys.gemini.masked
-                    ? `현재 키: ${keys.gemini.masked}`
-                    : '';
+            // Akool 특수 처리
+            const akoolConn = document.getElementById('akoolConnectionStatus');
+            const akoolIdSet = !!(data.akool_id && data.akool_id.set);
+            const akoolSecretSet = !!(data.akool_secret && data.akool_secret.set);
+
+            // Akool ID
+            const idStatus = document.getElementById('akoolClientIdStatus');
+            const idMasked = document.getElementById('akoolIdMasked');
+            const idInput = document.getElementById('akoolClientId');
+            if (idStatus) {
+                idStatus.innerHTML = akoolIdSet
+                    ? '<span class="status-badge status-on" style="background:transparent; color:#10b981; padding:0; margin-left:4px;">(ID ✅)</span>'
+                    : '<span class="status-badge status-off" style="background:transparent; color:#ef4444; padding:0; margin-left:4px;">(ID ❌)</span>';
+            }
+            if (idMasked) idMasked.innerText = akoolIdSet ? '현재 ID: ' + data.akool_id.masked : '';
+            if (idInput) {
+                const val = akoolIdSet ? (data.akool_id.value || "") : "";
+                window._originalApiValues['akoolClientId'] = val;
+                idInput.value = val;
             }
 
-            // ElevenLabs
-            if (keys.elevenlabs) {
-                document.getElementById('elevenlabsStatus').innerHTML = keys.elevenlabs.set
-                    ? '<span class="text-green-600">✅ 설정됨</span>'
-                    : '<span class="text-yellow-600">⚠️ 미설정</span>';
-                document.getElementById('elevenlabsKeyMasked').textContent = keys.elevenlabs.masked
-                    ? `현재 키: ${keys.elevenlabs.masked}`
-                    : '';
+            // Akool Secret
+            const secStatus = document.getElementById('akoolClientSecretStatus');
+            const secMasked = document.getElementById('akoolSecretMasked');
+            const secInput = document.getElementById('akoolClientSecret');
+            if (secStatus) {
+                secStatus.innerHTML = akoolSecretSet
+                    ? '<span class="status-badge status-on" style="background:transparent; color:#10b981; padding:0; margin-left:4px;">(Secret ✅)</span>'
+                    : '<span class="status-badge status-off" style="background:transparent; color:#ef4444; padding:0; margin-left:4px;">(Secret ❌)</span>';
+            }
+            if (secMasked) secMasked.innerText = akoolSecretSet ? '현재 Secret: ' + data.akool_secret.masked : '';
+            if (secInput) {
+                const val = akoolSecretSet ? (data.akool_secret.value || "") : "";
+                window._originalApiValues['akoolClientSecret'] = val;
+                secInput.value = val;
             }
 
-            // Replicate
-            if (keys.replicate) {
-                document.getElementById('replicateStatus').innerHTML = keys.replicate.set
-                    ? '<span class="text-green-600">✅ 설정됨</span>'
-                    : '<span class="text-yellow-600">⚠️ 미설정 (선택)</span>';
-                document.getElementById('replicateKeyMasked').textContent = keys.replicate.masked
-                    ? `현재 키: ${keys.replicate.masked}`
-                    : '';
+            if (akoolConn) {
+                if (akoolIdSet && akoolSecretSet) {
+                    akoolConn.innerHTML = '설정됨';
+                    akoolConn.className = 'text-[10px] bg-green-100 dark:bg-green-900/30 px-1.5 rounded text-green-600 dark:text-green-400';
+                } else {
+                    akoolConn.innerHTML = '미완성';
+                    akoolConn.className = 'text-[10px] bg-yellow-100 dark:bg-yellow-900/30 px-1.5 rounded text-yellow-600 dark:text-yellow-400';
+                }
             }
-
-            // TopView
-            if (keys.topview) {
-                document.getElementById('topviewStatus').innerHTML = keys.topview.set
-                    ? '<span class="text-green-600">✅ 설정됨</span>'
-                    : '<span class="text-yellow-600">⚠️ 미설정 (선택)</span>';
-                document.getElementById('topviewKeyMasked').textContent = keys.topview.masked
-                    ? `현재 키: ${keys.topview.masked}`
-                    : '';
-            }
-
-            // Akool
-            if (keys.akool) {
-                document.getElementById('akoolStatus').innerHTML = keys.akool.set
-                    ? '<span class="text-green-600">✅ 설정됨</span>'
-                    : '<span class="text-yellow-600">⚠️ 미설정 (선택)</span>';
-                document.getElementById('akoolKeyMasked').textContent = keys.akool.masked
-                    ? `현재 키: ${keys.akool.masked}`
-                    : '';
-            }
-
         } catch (e) {
             console.error('API 키 로드 오류:', e);
         }
     }
 
-    // API 키 저장 (Existing, modified to communicate saving)
+    function updateKeyStatus(keyPrefix, keyData, inputId) {
+        const statusEl = document.getElementById(`${keyPrefix}Status`);
+        const maskedEl = document.getElementById(`${keyPrefix}KeyMasked`);
+        const inputEl = document.getElementById(inputId);
+
+        const isSet = !!(keyData && keyData.set);
+
+        if (isSet) {
+            if (statusEl) statusEl.innerHTML = '<span class="status-badge status-on">✅ 설정됨</span>';
+            if (maskedEl) maskedEl.innerText = '현재 키: ' + keyData.masked;
+            if (inputEl) inputEl.value = keyData.value || "";
+        } else {
+            if (statusEl) statusEl.innerHTML = `<span class="status-badge status-off">❌ 미설정${keyPrefix === 'youtube' || keyPrefix === 'gemini' ? '' : ' (선택)'}</span>`;
+            if (maskedEl) maskedEl.innerText = '';
+            if (inputEl) inputEl.value = '';
+        }
+    }
+
+    // API 키 개별 저장
     async function saveApiKeys() {
         const keys = {};
+        const fields = {
+            'youtubeApiKey': 'youtube',
+            'geminiApiKey': 'gemini',
+            'elevenlabsApiKey': 'elevenlabs',
+            'replicateApiKey': 'replicate',
+            'topviewApiKey': 'topview',
+            'akoolClientId': 'akool_id',
+            'akoolClientSecret': 'akool_secret'
+        };
 
-        const youtube = document.getElementById('youtubeApiKey').value.trim();
-        const gemini = document.getElementById('geminiApiKey').value.trim();
-        const elevenlabs = document.getElementById('elevenlabsApiKey').value.trim();
-        const replicate = document.getElementById('replicateApiKey').value.trim();
-        const topview = document.getElementById('topviewApiKey').value.trim();
-        const akool = document.getElementById('akoolApiKey').value.trim();
+        for (const [id, apiKey] of Object.entries(fields)) {
+            const el = document.getElementById(id);
+            const val = el ? el.value.trim() : '';
 
-        if (youtube) keys.youtube = youtube;
-        if (gemini) keys.gemini = gemini;
-        if (elevenlabs) keys.elevenlabs = elevenlabs;
-        if (replicate) keys.replicate = replicate; // REPLICATE_API_TOKEN
-        if (topview) keys.topview = topview; // TOPVIEW_API_KEY
-        if (akool) keys.akool = akool; // AKOOL_TOKEN
+            // 원래 있던 마스킹된 값(원본)과 비교하여 다를 때만 저장 (즉, 직접 입력한 경우)
+            const originalVal = (window._originalApiValues || {})[id];
+
+            if (val && val !== originalVal) {
+                keys[apiKey] = val;
+            }
+        }
 
         if (Object.keys(keys).length > 0) {
+            console.log('🚀 [Settings] 변경된 API 키 저장 시도:', keys);
             try {
                 await API.apiKeys.save(keys);
-                document.getElementById('youtubeApiKey').value = '';
-                document.getElementById('geminiApiKey').value = '';
-                document.getElementById('elevenlabsApiKey').value = '';
-                document.getElementById('replicateApiKey').value = '';
-                document.getElementById('topviewApiKey').value = '';
-                document.getElementById('akoolApiKey').value = '';
+                Utils.showToast('변경된 API 키가 저장되었습니다.', 'success');
                 await loadApiKeys();
-                await checkApiConnection();
             } catch (e) {
-                console.error(e);
-                Utils.showToast('키 저장 실패', 'error');
+                console.error('API 키 저장 중 오류:', e);
+                Utils.showToast('API 키 저장 실패', 'error');
             }
         }
     }
@@ -1282,71 +1217,25 @@
         }
     }
 
-    // [NEW] 이미지 스타일 프리셋 관리
-    async function loadStylePresets() {
-        const list = document.getElementById('stylePresetList');
-        try {
-            const res = await fetch('/api/settings/style-presets');
-            const presets = await res.json();
-
-            list.innerHTML = Object.entries(presets).map(([key, val]) => `
-                <div class="bg-gray-50 dark:bg-gray-800/50 p-2 rounded-md border border-gray-100 dark:border-gray-700">
-                    <div class="flex justify-between items-center mb-1">
-                        <label class="text-[11px] font-bold text-gray-700 dark:text-gray-200 capitalize">${key}</label>
-                        <button onclick="saveOneStylePreset('${key}')" class="text-[10px] bg-blue-500 text-white px-2 py-0.5 rounded hover:bg-blue-600">💾 저장</button>
-                    </div>
-                    <textarea id="preset_${key}" class="input-field w-full text-[11px] font-mono leading-tight" rows="2">${val}</textarea>
-                </div>
-            `).join('');
-        } catch (e) {
-            console.error(e);
-            list.innerHTML = '<p class="text-red-500 text-xs">스타일을 불러오지 못했습니다.</p>';
-        }
-    }
-
-    async function saveOneStylePreset(key) {
-        const val = document.getElementById(`preset_${key}`).value;
-        try {
-            const res = await fetch('/api/settings/style-presets', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ style_key: key, prompt_value: val })
-            });
-
-            if (res.ok) {
-                Utils.showToast(`[${key}] 스타일이 저장되었습니다`, 'success');
-            } else {
-                Utils.showToast('저장 실패', 'error');
-            }
-        } catch (e) {
-            console.error(e);
-            Utils.showToast('오류 발생', 'error');
-        }
-    }
-
-    // [NEW] 이미지 스타일 프리셋 관리 (Updated)
+    // [NEW] 이미지 스타일 프리셋 관리 (최종 통합 버전)
     const DEFAULT_STYLE_KEYS = ['realistic', 'anime', 'cinematic', 'cartoon', 'oil_painting', 'watercolor', 'sketch', 'pixel_art', '3d'];
 
     async function loadStylePresets() {
         const list = document.getElementById('stylePresetList');
+        if (!list) return;
+
         try {
             const res = await fetch('/api/settings/style-presets');
             const presets = await res.json();
 
             list.innerHTML = Object.entries(presets).map(([key, data]) => {
-                // Compatibility check: data might be string (old) or object (new)
                 const prompt = typeof data === 'string' ? data : (data.prompt_value || '');
                 const imageUrl = typeof data === 'object' ? data.image_url : null;
 
                 const displayName = {
-                    'realistic': '리얼리스틱',
-                    'anime': '애니메이션',
-                    'cinematic': '시네마틱',
-                    'cartoon': '카툰',
-                    'oil_painting': '유화',
-                    'watercolor': '수채화',
-                    'sketch': '스케치',
-                    'pixel_art': '픽셀아트'
+                    'realistic': '리얼리스틱', 'anime': '애니메이션', 'cinematic': '시네마틱',
+                    'cartoon': '카툰', 'oil_painting': '유화', 'watercolor': '수채화',
+                    'sketch': '스케치', 'pixel_art': '픽셀아트', '3d': '3D'
                 }[key] || key;
 
                 const isDefault = DEFAULT_STYLE_KEYS.includes(key);
@@ -1357,12 +1246,9 @@
                             <div class="flex items-center gap-2">
                                 <div class="relative group/img cursor-pointer" onclick="document.getElementById('file_${key}').click()">
                                     ${imageUrl ?
-                        `<img id="img_preview_${key}" src="${imageUrl}" class="w-10 h-10 rounded border border-gray-300 object-cover bg-white" title="이미지 변경 (클릭)">`
-                        : `<span id="img_preview_${key}" class="w-10 h-10 rounded bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] text-gray-500 hover:bg-gray-300 transition-colors" title="이미지 업로드 (클릭)">No Img</span>`
+                        `<img id="img_preview_${key}" src="${imageUrl}" class="w-10 h-10 rounded border border-gray-300 object-cover bg-white" title="이미지 변경">`
+                        : `<span id="img_preview_${key}" class="w-10 h-10 rounded bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] text-gray-500 hover:bg-gray-300 transition-colors">No Img</span>`
                     }
-                                    <div class="absolute inset-0 bg-black/30 rounded flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity">
-                                        <span class="text-white text-[10px]">📷</span>
-                                    </div>
                                     <input type="file" id="file_${key}" class="hidden" accept="image/*" onchange="previewStyleImage(this, '${key}')">
                                 </div>
                                 <div>
@@ -1371,12 +1257,9 @@
                                 </div>
                             </div>
                             <div class="flex gap-1">
-                                <button onclick="toggleEditStylePreset('${key}')" id="edit_btn_${key}" class="text-[10px] bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600 transition-colors">✏️ 수정</button>
-                                <button onclick="saveOneStylePreset('${key}')" id="save_btn_${key}" class="hidden text-[10px] bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition-colors">💾 저장</button>
-                                ${!isDefault ?
-                        `<button onclick="deleteStylePreset('${key}')" class="text-[10px] bg-red-50 text-red-500 border border-red-200 px-2 py-1 rounded hover:bg-red-100 transition-colors" title="삭제">🗑️</button>`
-                        : ''
-                    }
+                                <button onclick="toggleEditStylePreset('${key}')" id="edit_btn_${key}" class="text-[10px] bg-yellow-500 text-white px-2 py-1 rounded">✏️ 수정</button>
+                                <button onclick="saveOneStylePreset('${key}')" id="save_btn_${key}" class="hidden text-[10px] bg-blue-500 text-white px-2 py-1 rounded">💾 저장</button>
+                                ${!isDefault ? `<button onclick="deleteStylePreset('${key}')" class="text-[10px] bg-red-50 text-red-500 border border-red-200 px-2 py-1 rounded">🗑️</button>` : ''}
                             </div>
                         </div>
                         <textarea id="preset_${key}" class="input-field w-full text-[11px] font-mono bg-gray-100 dark:bg-gray-900" rows="2" readonly>${prompt}</textarea>
@@ -1386,6 +1269,35 @@
         } catch (e) {
             console.error(e);
             list.innerHTML = '<p class="text-red-500 text-xs">스타일을 불러오지 못했습니다.</p>';
+        }
+    }
+
+    async function saveOneStylePreset(key) {
+        const textarea = document.getElementById(`preset_${key}`);
+        if (!textarea) return;
+        const val = textarea.value;
+
+        try {
+            const res = await fetch('/api/settings/style-presets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ style_key: key, prompt_value: val })
+            });
+
+            if (res.ok) {
+                Utils.showToast(`[${key}] 스타일이 저장되었습니다`, 'success');
+                // 저장 후 다시 읽기 전용으로
+                textarea.readOnly = true;
+                textarea.classList.remove('bg-white', 'dark:bg-gray-800');
+                textarea.classList.add('bg-gray-100', 'dark:bg-gray-900');
+                document.getElementById(`save_btn_${key}`).classList.add('hidden');
+                document.getElementById(`edit_btn_${key}`).innerText = '✏️ 수정';
+            } else {
+                Utils.showToast('저장 실패', 'error');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('오류 발생', 'error');
         }
     }
 
@@ -1993,7 +1905,6 @@
     document.addEventListener('DOMContentLoaded', () => {
         populateOptions();
         loadAllSettings();
-        checkApiConnection();
         loadChannels();
         loadStylePresets(); // [NEW] 스타일 프리셋 로드
         loadThumbnailStylePresets();
