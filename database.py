@@ -1884,13 +1884,11 @@ def get_all_knowledge_by_style(script_style: str) -> List[Dict]:
     conn.close()
     return [dict(row) for row in rows]
 
-# 초기화
-init_db()
-migrate_db()
 
-# 초기화
-init_db()
-migrate_db()
+# 초기화는 main.py 등에서 명시적으로 호출 권장
+# if __name__ == "__main__":
+#     init_db()
+#     migrate_db()
 # ===========================================
 # 이미지 스타일 프리셋 관리
 # ===========================================

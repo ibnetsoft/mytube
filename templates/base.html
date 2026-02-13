@@ -145,6 +145,15 @@
                         </a>
                     </li>
                     <li>
+                        <a href="/webtoon" id="nav-webtoon"
+                            class="sidebar-item {% if page == 'webtoon-studio' %}active{% endif %}">
+                            <span class="sidebar-icon">🎨</span>
+                            <span>{{ t('nav_webtoon') }}</span>
+                            <span
+                                class="ml-auto text-[8px] bg-red-500 text-white px-1.5 py-0.5 rounded-full font-black animate-pulse">NEW</span>
+                        </a>
+                    </li>
+                    <li>
                         <a href="/render" id="nav-render"
                             class="sidebar-item {% if page == 'render' %}active{% endif %}">
                             <span class="sidebar-icon">🎬</span>
@@ -561,7 +570,12 @@
 
                 // 2. 프로젝트 기본 정보 조회 및 표시
                 try {
-                    const project = await API.project.get(projectId);
+                    const res = await API.project.get(projectId);
+                    // [ROBUST] Handle both wrapped {project: ...} and direct object response
+                    const project = (res && res.project) ? res.project : res;
+
+                    if (!project || (!project.id && !project.name)) throw new Error("Invalid project data");
+
                     updateProjectInfo(project);
 
                     // Header Display Update
@@ -593,14 +607,13 @@
                         // 사용자 요청: 각 단계별 실제 데이터 존재 여부만 확인 (Strict Mode)
                         const settings = fullData.settings || {};
                         const steps = {
-                            'topic': !!fullData.project.topic,
-                            'thumbnail': !!(settings.thumbnail_url || settings.thumbnail_path || fullData.project?.thumbnail_url || fullData.project?.thumbnail_path), // Check all possible paths
-                            'plan': !!fullData.script_structure, // 기획 데이터가 있어야만 Green
-                            'script': !!fullData.script || (fullData.shorts && Object.keys(fullData.shorts).length > 0), // Longform OR Shorts
-                            'intro': !!settings.intro_video_path || !!settings.background_video_url, // 인트로 비디오 유무
+                            'topic': !!(fullData.project && fullData.project.topic),
+                            'thumbnail': !!(settings.thumbnail_url || settings.thumbnail_path || (fullData.project && (fullData.project.thumbnail_url || fullData.project.thumbnail_path))),
+                            'plan': !!fullData.script_structure,
+                            'script': !!fullData.script || (fullData.shorts && Object.keys(fullData.shorts).length > 0),
+                            'intro': !!settings.intro_video_path || !!settings.background_video_url,
                             'image': fullData.image_prompts && fullData.image_prompts.length > 0,
                             'tts': !!fullData.tts,
-
                             'subtitle': !!settings.subtitle_path || (fullData.tts && !!settings.subtitle_style_enum),
                             'render': project.status === 'rendered' || project.status === 'completed' || !!settings.video_path,
                             'upload': !!settings.is_uploaded
@@ -694,7 +707,16 @@
                 localStorage.removeItem('topicPageState'); // [NEW]
                 localStorage.removeItem('latestScriptStyle'); // Optional: reset style preference
 
-                const result = await API.project.create(name, topic || null, language); // [NEW] Pass language
+                // [NEW] Get Current Mode from Settings
+                let currentMode = 'longform';
+                try {
+                    // Cache busting to ensure fresh settings
+                    const res = await fetch('/api/settings?t=' + new Date().getTime());
+                    const settings = await res.json();
+                    currentMode = settings.app_mode || 'longform';
+                } catch (e) { console.error("Failed to load settings:", e); }
+
+                const result = await API.project.create(name, topic || null, language, currentMode); // [FIX] Pass app_mode
                 if (result.project_id) {
                     setCurrentProject(result.project_id);
                     closeProjectModal();
