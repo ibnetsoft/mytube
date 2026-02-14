@@ -58,15 +58,28 @@
 
                                 <!-- Directory Input Area -->
                                 <div class="w-full max-w-2xl mx-auto space-y-4">
-                                    <div class="relative">
-                                        <div
-                                            class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                            <span class="text-gray-400 text-lg">📂</span>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div class="relative">
+                                            <div
+                                                class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                                <span class="text-gray-400 text-lg">📂</span>
+                                            </div>
+                                            <input type="text" id="dir-input"
+                                                placeholder="C:\Users\User\Downloads\Episode_01"
+                                                class="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:border-purple-500 outline-none transition-all font-mono text-gray-700 dark:text-gray-200"
+                                                onkeydown="if(event.key === 'Enter') scanDirectory()">
                                         </div>
-                                        <input type="text" id="dir-input"
-                                            placeholder="C:\Users\User\Downloads\Webtoon_Episode_1"
-                                            class="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:border-purple-500 outline-none transition-all font-mono text-gray-700 dark:text-gray-200"
-                                            onkeydown="if(event.key === 'Enter') scanDirectory()">
+                                        <div class="relative">
+                                            <div
+                                                class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                                <span class="text-gray-400 text-lg">✂️</span>
+                                            </div>
+                                            <input type="text" id="psd-layer-input" placeholder="제외할 레이어 (예: 식자, 대사)"
+                                                class="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:border-purple-500 outline-none transition-all text-gray-700 dark:text-gray-200">
+                                            <div
+                                                class="absolute -top-6 left-0 text-[10px] font-bold text-blue-500 uppercase tracking-wider">
+                                                PSD 전용: 클린본 추출 레이어 명칭</div>
+                                        </div>
                                     </div>
 
                                     <button onclick="scanDirectory()"
@@ -207,6 +220,81 @@
                     <div id="scenes-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-6">
                         <!-- Scene Item Template -->
                     </div>
+
+                    <!-- [NEW] Global Character Manager (Moved to Bottom) -->
+                    <div id="character-manager"
+                        class="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm mt-8">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xl">👥</span>
+                                <h4 class="text-lg font-black text-gray-800 dark:text-white">프로젝트 등장인물 일괄 관리</h4>
+                            </div>
+                            <button onclick="addNewCharacterPrompt()"
+                                class="text-xs font-bold text-purple-500 hover:text-purple-600 px-3 py-1 rounded-lg border border-purple-500/20 hover:bg-purple-500/5 transition-all">
+                                ➕ 새 캐릭터 추가
+                            </button>
+                        </div>
+                        <div id="global-character-list" class="flex flex-wrap gap-2">
+                            <!-- Discovered characters populated by JS -->
+                            <div class="text-sm text-gray-400 py-2">분석 완료 후 캐릭터 목록이 표시됩니다.</div>
+                        </div>
+                    </div>
+
+                    <!-- [NEW] PSD Layer Debugging Section (Always rendered, hidden by JS logic if needed) -->
+                    <div id="layer-debug-container"
+                        class="bg-white dark:bg-gray-800 p-8 rounded-3xl border-2 border-dashed border-blue-200 dark:border-blue-900/50 shadow-2xl mt-12 transition-all duration-500 overflow-hidden"
+                        style="display: none;">
+                        <div
+                            class="flex items-center justify-between mb-8 border-b border-blue-50 dark:border-blue-900/20 pb-6">
+                            <div class="flex items-center gap-3">
+                                <div
+                                    class="w-10 h-10 bg-blue-500 text-white rounded-xl flex items-center justify-center text-xl shadow-lg shadow-blue-500/20">
+                                    🔍
+                                </div>
+                                <div>
+                                    <h4 class="text-xl font-black text-gray-800 dark:text-white">PSD 레이어 정밀 분석 리포트</h4>
+                                    <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">PSD
+                                        Layer Inspection & Debugging Information</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="flex h-3 w-3 relative">
+                                    <span
+                                        class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                    <span class="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
+                                </span>
+                                <span class="text-[11px] font-black text-blue-500 uppercase tracking-tighter">Live
+                                    Debugging Ready</span>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-8">
+                            <div id="layer-trace-area" class="hidden">
+                                <div class="flex items-center gap-2 mb-4">
+                                    <span class="text-lg">🚫</span>
+                                    <h5 class="text-xs font-black text-blue-600 uppercase tracking-widest">자동 필터링 및 제외된
+                                        레이어</h5>
+                                </div>
+                                <div id="trace-layer-list"
+                                    class="flex flex-wrap gap-2 p-6 bg-blue-50/50 dark:bg-blue-900/10 rounded-2xl border border-blue-100 dark:border-blue-800/30">
+                                    <!-- Populated by JS -->
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="flex items-center gap-2 mb-4">
+                                    <span class="text-lg">📄</span>
+                                    <h5 class="text-xs font-black text-gray-500 uppercase tracking-widest">파일별 레이어 구조 및
+                                        엔진 분석 상태</h5>
+                                </div>
+                                <div id="all-layers-area"
+                                    class="space-y-6 max-h-[600px] overflow-y-auto custom-scrollbar pr-2">
+                                    <!-- Populated by JS -->
+                                    <div class="text-center py-12 text-gray-400 italic">레이어 정보를 불러오는 중입니다...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -237,32 +325,38 @@
         <script>
             let currentFile = null;
             let selectedProjectId = null;
+            let discoveredCharacters = new Set(['주인공', '나레이션']); // Default
+            let analyzedScenes = [];
 
             // 초기화
             document.addEventListener('DOMContentLoaded', () => {
-                // 프로젝트 선택 감시
-                const pSelect = document.getElementById('projectSelect');
-                if (pSelect) {
-                    selectedProjectId = pSelect.value;
-                }
+                // 전역 프로젝트 상태와 동기화
+                selectedProjectId = getCurrentProject();
+
+                window.addEventListener('projectChanged', (e) => {
+                    selectedProjectId = e.detail.projectId;
+                    console.log('Webtoon Studio: Project changed to:', selectedProjectId);
+                });
 
                 // 드롭존 설정
                 const dropzone = document.getElementById('dropzone');
-                dropzone.addEventListener('dragover', (e) => {
-                    e.preventDefault();
-                    dropzone.classList.add('border-purple-500', 'bg-purple-100/20');
-                });
-                dropzone.addEventListener('dragleave', () => {
-                    dropzone.classList.remove('border-purple-500', 'bg-purple-100/20');
-                });
-                dropzone.addEventListener('drop', (e) => {
-                    e.preventDefault();
-                    dropzone.classList.remove('border-purple-500', 'bg-purple-100/20');
-                    const file = e.dataTransfer.files[0];
-                    if (file && file.type.startsWith('image/')) {
-                        handleFile(file);
-                    }
-                });
+                if (dropzone) {
+                    dropzone.addEventListener('dragover', (e) => {
+                        e.preventDefault();
+                        dropzone.classList.add('border-purple-500', 'bg-purple-100/20');
+                    });
+                    dropzone.addEventListener('dragleave', () => {
+                        dropzone.classList.remove('border-purple-500', 'bg-purple-100/20');
+                    });
+                    dropzone.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        dropzone.classList.remove('border-purple-500', 'bg-purple-100/20');
+                        const file = e.dataTransfer.files[0];
+                        if (file && file.type.startsWith('image/')) {
+                            handleFile(file);
+                        }
+                    });
+                }
             });
 
             function toggleUploadMode(mode) {
@@ -295,7 +389,9 @@
                     return;
                 }
 
-                selectedProjectId = document.getElementById('projectSelect').value;
+                // 최신 프로젝트 ID 확인
+                selectedProjectId = document.getElementById('projectSelect')?.value || getCurrentProject();
+
                 if (!selectedProjectId) {
                     Utils.showToast('먼저 프로젝트를 선택하거나 새로 생성해주세요.', 'warning');
                     return;
@@ -354,7 +450,7 @@
                 btn.disabled = true;
 
                 try {
-                    const response = await fetch('/api/webtoon/scan', {
+                    const response = await fetch('/webtoon/scan', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ path: cleanPath })
@@ -404,6 +500,14 @@
             async function startAnalysisFromDir() {
                 if (scannedGroups.length === 0) return;
 
+                // 최신 프로젝트 ID 확인
+                const projectId = selectedProjectId || getCurrentProject();
+
+                if (!projectId) {
+                    Utils.showToast("상단에서 프로젝트를 먼저 선택해주세요.", "warning");
+                    return;
+                }
+
                 // UI 전환
                 const step1 = document.getElementById('step-1-area');
                 const step2 = document.getElementById('step-2-area');
@@ -412,27 +516,61 @@
 
                 // 분석 시작 요청
                 try {
-                    const response = await fetch('/api/webtoon/analyze-dir', {
+                    const excludeLayer = document.getElementById('psd-layer-input').value.trim();
+                    console.log("🚀 Starting Batch Analysis with files:", scannedGroups.map(f => f.path));
+                    const response = await fetch('/webtoon/analyze-dir', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            project_id: selectedProjectId, // Use selectedProjectId here
-                            files: scannedGroups.map(f => f.path) // 전체 경로 리스트 전송
+                            project_id: projectId,
+                            files: scannedGroups.map(f => f.path),
+                            psd_exclude_layer: excludeLayer
                         })
                     });
+
                     const result = await response.json();
 
-                    if (result.status === 'ok') {
-                        // Assuming displayAnalysisResults is a function that handles the analysis results
-                        // and transitions to the next step, similar to performAnalysis
-                        // For now, let's transition to analysis loading and then performAnalysis
-                        transitionToAnalysis(result.filename); // This might need adjustment based on how analyze-dir returns data
+                    if (response.ok && result.status === 'ok') {
+                        // 분석 결과 직접 처리
+                        analyzedScenes = result.scenes;
+
+                        // Populate discovered characters
+                        result.scenes.forEach(s => {
+                            if (s.analysis.character && s.analysis.character !== 'Unknown' && s.analysis.character !== 'None') {
+                                discoveredCharacters.add(s.analysis.character);
+                            }
+                        });
+                        updateGlobalCharacterUI();
+
+                        renderScenes(result.scenes);
+
+                        // [NEW] PSD Layer Debugging UI population
+                        populateLayerDebugUI(result.layer_debug);
+
+                        document.getElementById('analysis-loading').classList.add('hidden');
+                        document.getElementById('analysis-result-container').classList.remove('hidden');
+
+                        // Indicator 전환
+                        document.getElementById('step-1-indicator').classList.replace('bg-blue-600', 'bg-green-500');
+                        document.getElementById('step-1-indicator').innerHTML = '✅';
+                        document.getElementById('step-2-indicator').classList.replace('bg-gray-100', 'bg-blue-600');
+                        document.getElementById('step-2-indicator').classList.remove('text-gray-400');
+                        document.getElementById('step-2-indicator').classList.add('text-white');
+
+                        addLog("✅ Analysis Phase Complete.", "success");
+                        addLog(`📊 Extracted ${result.scenes.length} scenes.`, "success");
                     } else {
-                        throw new Error(result.detail || "분석 실패");
+                        let errorMsg = result.detail || result.error || result.message || JSON.stringify(result);
+                        if (typeof errorMsg === 'object') {
+                            errorMsg = JSON.stringify(errorMsg);
+                        }
+                        throw new Error(errorMsg);
                     }
                 } catch (e) {
                     console.error(e);
-                    alert("분석 중 오류가 발생했습니다: " + e.message);
+                    let msg = e.message || "분석 도중 오류가 발생했습니다.";
+                    if (typeof msg === 'object') msg = JSON.stringify(msg);
+                    alert("분석 중 오류가 발생했습니다: " + msg);
                     // 실패 시 다시 Step 1으로
                     step1.classList.remove('hidden');
                     step2.classList.add('hidden');
@@ -626,7 +764,9 @@
 
                 if (!currentFile) return;
 
-                selectedProjectId = document.getElementById('projectSelect').value;
+                // 최신 프로젝트 ID 확인
+                selectedProjectId = document.getElementById('projectSelect')?.value || getCurrentProject();
+
                 if (!selectedProjectId) {
                     Utils.showToast('먼저 프로젝트를 선택하거나 새로 생성해주세요.', 'warning');
                     return;
@@ -701,16 +841,20 @@
                 performAnalysis(filename);
             }
 
-            let analyzedScenes = [];
 
             async function performAnalysis(filename) {
                 const loading = document.getElementById('analysis-loading');
                 const container = document.getElementById('analysis-result-container');
 
                 try {
+                    const analysisProjectId = selectedProjectId || getCurrentProject();
+                    const excludeLayer = document.getElementById('psd-layer-input').value.trim();
                     const formData = new FormData();
-                    formData.append('project_id', selectedProjectId);
+                    formData.append('project_id', analysisProjectId);
                     formData.append('filename', filename);
+                    if (excludeLayer) {
+                        formData.append('psd_exclude_layer', excludeLayer);
+                    }
 
                     const res = await fetch('/webtoon/analyze', {
                         method: 'POST',
@@ -720,7 +864,27 @@
 
                     if (data.status === 'ok') {
                         analyzedScenes = data.scenes;
+
+                        // [DEBUG] 숨겨진 레이어 정보 표시
+                        if (data.layer_trace && data.layer_trace.length > 0) {
+                            Utils.showToast(`${data.layer_trace.length}개의 레이어를 성공적으로 숨겼습니다: ${data.layer_trace.join(', ')}`, 'info');
+                        } else if (data.layer_debug && data.layer_debug.trace && data.layer_debug.trace.length > 0) {
+                            Utils.showToast(`${data.layer_debug.trace.length}개의 레이어를 숨겼습니다.`, 'info');
+                        }
+
+                        // Populate discovered characters
+                        data.scenes.forEach(s => {
+                            if (s.analysis.character && s.analysis.character !== 'Unknown' && s.analysis.character !== 'None') {
+                                discoveredCharacters.add(s.analysis.character);
+                            }
+                        });
+                        updateGlobalCharacterUI();
+
                         renderScenes(data.scenes);
+
+                        // [NEW] PSD Layer Debugging UI population (Single File)
+                        populateLayerDebugUI(data.layer_debug);
+
                         loading.classList.add('hidden');
                         container.classList.remove('hidden');
                     } else {
@@ -754,8 +918,15 @@
                 <div class="flex-1 p-6 flex flex-col justify-between space-y-4">
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-[10px] font-black text-purple-500 uppercase mb-1">Character / Speaker</label>
-                            <input type="text" value="${scene.analysis.character}" class="scene-char w-full bg-gray-50 dark:bg-gray-700 text-sm font-bold p-2 rounded-lg border-0 focus:ring-2 focus:ring-purple-500" data-idx="${index}">
+                            <label class="block text-[10px] font-black text-purple-500 uppercase mb-1">Character / Speaker (Who is speaking?)</label>
+                            <div class="scene-character-selector flex flex-wrap gap-1.5 mb-2" data-idx="${index}">
+                                ${renderCharacterPills(index, scene.analysis.character)}
+                            </div>
+                            <input type="text" value="${scene.analysis.character}" 
+                                class="scene-char-manual w-full bg-gray-50/50 dark:bg-gray-700/50 text-[10px] p-1.5 rounded-lg border border-dashed border-gray-200 dark:border-gray-600 text-gray-400 focus:text-gray-700 dark:focus:text-white focus:border-purple-500 outline-none" 
+                                placeholder="또는 직접 입력..."
+                                onchange="updateSceneCharacterManual(${index}, this.value)"
+                                data-idx="${index}">
                         </div>
                         <div>
                             <label class="block text-[10px] font-black text-blue-500 uppercase mb-1">Dialogue (Korean)</label>
@@ -770,6 +941,75 @@
             `;
                     list.appendChild(item);
                 });
+            }
+
+            function updateGlobalCharacterUI() {
+                const globalList = document.getElementById('global-character-list');
+                if (!globalList) return;
+
+                globalList.innerHTML = Array.from(discoveredCharacters).map(char => `
+                    <div class="px-3 py-1.5 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-full text-xs font-bold border border-purple-500/20 flex items-center gap-2 group">
+                        <span>${char}</span>
+                        <button onclick="removeGlobalCharacter('${char}')" class="opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-500">×</button>
+                    </div>
+                `).join('');
+                if (discoveredCharacters.size === 0) {
+                    globalList.innerHTML = '<div class="text-sm text-gray-400 py-2">캐릭터가 아직 발견되지 않았습니다.</div>';
+                }
+            }
+
+            function removeGlobalCharacter(name) {
+                discoveredCharacters.delete(name);
+                updateGlobalCharacterUI();
+                renderScenes(analyzedScenes); // Re-render to update pills
+            }
+
+            function addNewCharacterPrompt() {
+                const name = prompt("새로운 등장인물 이름을 입력하세요:");
+                if (name && name.trim()) {
+                    discoveredCharacters.add(name.trim());
+                    updateGlobalCharacterUI();
+                    renderScenes(analyzedScenes);
+                }
+            }
+
+            function renderCharacterPills(sceneIdx, selectedChar) {
+                const chars = Array.from(discoveredCharacters);
+                return chars.map(char => {
+                    const isActive = char === selectedChar;
+                    return `
+                        <button 
+                            onclick="selectSceneCharacter(${sceneIdx}, '${char}')"
+                            class="px-2 py-1 rounded-md text-[10px] font-bold transition-all ${isActive
+                            ? 'bg-purple-600 text-white shadow-md'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}">
+                            ${char}
+                        </button>
+                    `;
+                }).join('') + `
+                    <button 
+                        onclick="selectSceneCharacter(${sceneIdx}, 'Unknown')"
+                        class="px-2 py-1 rounded-md text-[10px] font-bold ${selectedChar === 'Unknown' ? 'bg-gray-400 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-400'}">
+                        ? Unknown
+                    </button>
+                `;
+            }
+
+            function selectSceneCharacter(idx, name) {
+                analyzedScenes[idx].analysis.character = name;
+                // Update specific scene UI without full re-render for performance
+                const selector = document.querySelector(`.scene-character-selector[data-idx="${idx}"]`);
+                const manualInput = document.querySelector(`.scene-char-manual[data-idx="${idx}"]`);
+                if (selector) selector.innerHTML = renderCharacterPills(idx, name);
+                if (manualInput) manualInput.value = name;
+            }
+
+            function updateSceneCharacterManual(idx, value) {
+                if (value.trim()) {
+                    discoveredCharacters.add(value.trim());
+                    updateGlobalCharacterUI();
+                    selectSceneCharacter(idx, value.trim());
+                }
             }
 
             async function startAutomation() {
@@ -790,11 +1030,11 @@
                     const finalData = [];
 
                     sceneElements.forEach((el, i) => {
-                        const char = el.querySelector('.scene-char').value;
+                        const char = el.querySelector('.scene-char-manual').value;
                         const dialogue = el.querySelector('.scene-dialogue').value;
                         finalData.push({
                             scene_number: i + 1,
-                            character: char,
+                            character: char || 'Unknown',
                             dialogue: dialogue,
                             visual_desc: analyzedScenes[i].analysis.visual_desc,
                             image_path: analyzedScenes[i].image_path,
@@ -807,11 +1047,13 @@
 
                     // 2. 서버로 전송하여 자동 설정 및 대기열 추가
                     addLog("📡 Sending request to AutoPilot Server...", "process");
+                    const automationProjectId = selectedProjectId || getCurrentProject();
+
                     const res = await fetch('/webtoon/automate', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            project_id: selectedProjectId,
+                            project_id: automationProjectId,
                             scenes: finalData,
                             use_lipsync: useLipSync,
                             use_subtitles: useSubtitles,
@@ -846,6 +1088,125 @@
                     Utils.setLoading(btn, false);
                     btn.innerHTML = originalText;
                 }
+            }
+            function populateLayerDebugUI(debugData) {
+                console.log("🛠️ Starting PSD Debug UI population. Data received:", debugData);
+                const layerContainer = document.getElementById('layer-debug-container');
+                const traceArea = document.getElementById('layer-trace-area');
+                const traceList = document.getElementById('trace-layer-list');
+                const allLayersArea = document.getElementById('all-layers-area');
+
+                if (!layerContainer) {
+                    console.error("❌ layer-debug-container not found in DOM!");
+                    return;
+                }
+
+                // Show container
+                layerContainer.style.display = 'block';
+
+                if (!debugData) {
+                    console.warn("⚠️ debugData is undefined. Python server restart required.");
+                    allLayersArea.innerHTML = `
+                        <div class="text-center py-16 bg-red-50 dark:bg-red-900/10 rounded-3xl border border-dashed border-red-200 dark:border-red-800">
+                            <div class="text-3xl mb-4">⚠️</div>
+                            <h3 class="text-lg font-black text-red-600 dark:text-red-400 mb-2">서버 재시작이 필요합니다</h3>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">
+                                프론트엔드 코드는 업데이트되었으나, 서버(Python) 코드가 아직 구버전입니다.<br>
+                                <strong>터미널에서 서버를 껐다가(Ctrl+C) 다시 실행해 주세요.</strong>
+                            </p>
+                            <button onclick="location.reload()" class="mt-6 px-4 py-2 bg-red-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest shadow-lg shadow-red-500/20">페이지 새로고침</button>
+                        </div>
+                    `;
+                    // Scroll to warning
+                    setTimeout(() => layerContainer.scrollIntoView({ behavior: 'smooth' }), 500);
+                    return;
+                }
+
+                // Show highlight effect
+                layerContainer.style.display = 'block';
+                layerContainer.classList.add('ring-8', 'ring-blue-500/20', 'animate-pulse');
+                setTimeout(() => layerContainer.classList.remove('ring-8', 'ring-blue-500/20', 'animate-pulse'), 4000);
+
+                // Scroll to debug info to ensure visibility
+                setTimeout(() => {
+                    layerContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 500);
+
+                // 1. Trace Data (Hidden Layers)
+                const traceData = debugData.trace || [];
+                if (traceData.length > 0) {
+                    traceArea.classList.remove('hidden');
+                    traceList.innerHTML = traceData.map(l =>
+                        `<span class="px-3 py-1.5 bg-blue-600 text-white text-[11px] font-black rounded-lg shadow-md border border-blue-400/30 transition-transform hover:scale-105 cursor-default">${l}</span>`
+                    ).join('');
+                } else {
+                    traceArea.classList.add('hidden');
+                    traceList.innerHTML = '';
+                }
+
+                // 2. All Layers (Tree)
+                let layersHtml = '';
+
+                const renderFileData = (filename, fileData) => {
+                    if (!fileData) return '';
+                    const layers = fileData.layers || [];
+                    const matched = fileData.matched || [];
+                    const method = fileData.method || 'status';
+
+                    return `
+                        <div class="bg-white dark:bg-gray-900 p-6 rounded-3xl border border-gray-100 dark:border-gray-800 mb-6 shadow-xl transition-all hover:border-blue-400/50">
+                            <div class="flex items-center justify-between mb-5 border-b pb-4 border-gray-50 dark:border-gray-800">
+                                <div class="flex items-center gap-3">
+                                    <span class="text-xl">📄</span>
+                                    <div>
+                                        <div class="text-[13px] font-black text-gray-800 dark:text-white">${filename}</div>
+                                        <div class="text-[9px] text-gray-400 font-bold uppercase tracking-widest">File Analysis Result</div>
+                                    </div>
+                                </div>
+                                <span class="text-[10px] font-mono px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-500 font-bold border border-blue-100 dark:border-blue-800 uppercase tracking-tighter">${method}</span>
+                            </div>
+                            <div class="space-y-5">
+                                ${matched.length > 0 ? `
+                                <div class="bg-blue-50 dark:bg-blue-900/10 p-4 rounded-2xl border border-blue-100 dark:border-blue-800/30">
+                                    <div class="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span> MATCHED & HIDDEN LAYERS
+                                    </div>
+                                    <div class="flex flex-wrap gap-2">
+                                        ${matched.map(m => `<span class="px-2 py-1 bg-blue-600 text-white text-[10px] font-bold rounded-md shadow-sm">${m}</span>`).join('')}
+                                    </div>
+                                </div>` : ''}
+                                
+                                <div>
+                                    <div class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span> FULL LAYER TREE (MAX 50)
+                                    </div>
+                                    <div class="flex flex-wrap gap-1.5">
+                                        ${layers.map(l => `<span class="px-2 py-1 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-[10px] font-medium rounded-md border border-gray-100 dark:border-gray-700/50 hover:bg-gray-100 transition-colors cursor-default">${l}</span>`).join('')}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                };
+
+                if (debugData.all_files && typeof debugData.all_files === 'object') {
+                    for (const [filename, fileData] of Object.entries(debugData.all_files)) {
+                        layersHtml += renderFileData(filename, fileData);
+                    }
+                } else if (debugData.all) {
+                    if (Array.isArray(debugData.all)) {
+                        layersHtml = `
+                            <div class="bg-gray-50 dark:bg-gray-800/50 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 flex flex-wrap gap-1.5">
+                                ${debugData.all.map(l => `<span class="px-2 py-1 bg-white dark:bg-gray-700 text-gray-500 text-[10px] rounded-md border border-gray-200 dark:border-gray-600">${typeof l === 'string' ? l : JSON.stringify(l)}</span>`).join('')}
+                            </div>
+                        `;
+                    } else {
+                        layersHtml = renderFileData("Current Analysis", debugData.all);
+                    }
+                }
+
+                allLayersArea.innerHTML = layersHtml || '<div class="text-center py-20 text-gray-400 bg-gray-50 dark:bg-gray-900 rounded-3xl border border-dashed border-gray-200 dark:border-gray-800">분석된 레이어 정보가 없습니다. (PSD 파일이 아니거나 레이어가 발견되지 않음)</div>';
+                console.log("✅ PSD Debug UI Rendered.");
             }
         </script>
 

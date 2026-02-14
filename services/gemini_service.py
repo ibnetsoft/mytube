@@ -17,8 +17,11 @@ from services.prompts import prompts
 
 class GeminiService:
     def __init__(self):
-        self.api_key = config.GEMINI_API_KEY
         self.base_url = "https://generativelanguage.googleapis.com/v1beta"
+
+    @property
+    def api_key(self):
+        return config.GEMINI_API_KEY
 
     async def generate_text(self, prompt: str, temperature: float = 0.7) -> str:
         """텍스트 생성"""
@@ -85,21 +88,28 @@ class GeminiService:
         prompt = f"""
         Analyze this webtoon panel image.
         {context_inst}
-        1. Extract all text/dialogue in Korean.
+        1. Extract all text/dialogue in Korean. 
+           **EXCLUDE**: 
+           - Legal notices, copyright warnings (e.g., "※본 작품은 저작권 법에 의해...", "불법 복제 금지"), logo credits, or watermarks.
+           - **Onomatopoeia or stylized sound effect text** (e.g., "쾅!", "털썩", "슈우우", "덜덜"). These are visual sound effects, NOT dialogue.
+           **INCLUDE**: Only actual character speech or narrative text meant to be read aloud.
         2. Identify who is speaking based on the dialogue and visual context. 
-           If the speaker's name is not explicitly shown, infer it from the context (e.g. Woman, Man, Boy, Girl, Narrator). 
-           Only use 'Unknown' if absolutely impossible to infer. Do NOT use 'None' if there is dialogue.
+           - Use the provided context to keep character names consistent.
+           - If the speaker's name is not explicitly shown, infer it from the context (e.g. Woman, Man, Boy, Girl, Narrator). 
+           - Only use 'Unknown' if absolutely impossible to infer. Do NOT use 'None' if there is dialogue.
         3. Describe the visual action and atmosphere briefly in English.
-           **CRITICAL**: Append specific Camera Movement keywords at the end. (e.g., "[Camera: Zoom in]", "[Camera: Pan left]", "[Camera: Static]")
-        4. Suggest appropriate sound effects (SFX) for this scene (e.g., Boom, Rain, Footsteps, Crowd noise) based on the visual and text.
-        
+           - Append specific Camera Movement keywords at the end. (e.g., "[Camera: Zoom in]", "[Camera: Pan left]", "[Camera: Static]")
+        4. Suggest appropriate sound effects (SFX) for this scene (e.g., Boom, Rain, Footsteps, Crowd noise).
+        5. **is_meaningless**: Set to true if this image contains NO story content (e.g., only a copyright notice, only a studio logo, or just a transition effect with no action).
+
         Return ONLY a JSON object in this format:
         {{
-            "dialogue": "extracted text here",
+            "dialogue": "extracted speech text here (empty if only SFX/copyright/logo)",
             "character": "speaker name or 'Unknown'",
             "visual_desc": "brief visual description in English",
             "atmosphere": "e.g. dramatic, funny, scary",
-            "sound_effects": "suggested SFX list (comma separated) or 'None'"
+            "sound_effects": "suggested SFX list (comma separated) or 'None'",
+            "is_meaningless": false
         }}
         """
         

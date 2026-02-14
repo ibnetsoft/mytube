@@ -55,6 +55,7 @@ class Config:
     # Output/Logs/DB must live in BASE_DIR (Writeable)
     OUTPUT_DIR = os.path.join(BASE_DIR, "output")
     LOG_DIR = os.path.join(BASE_DIR, "logs")
+    MEDIA_DIR = OUTPUT_DIR # Alias for now
     
     # 하드코딩된 상수 관리
     # [FIX] Better font discovery for Windows

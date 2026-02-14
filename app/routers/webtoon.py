@@ -1,7 +1,7 @@
 
 from fastapi import APIRouter, Request, HTTPException, UploadFile, File, Form
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 import os
 import shutil
 import json
@@ -10,6 +10,7 @@ import re
 import io
 import time
 import httpx
+import urllib.parse
 from PIL import Image
 import numpy as np
 from config import config
@@ -20,6 +21,7 @@ from services.tts_service import tts_service
 from pydantic import BaseModel
 from typing import List, List as PyList, Optional
 
+import unicodedata
 from services.i18n import Translator
 from services.auth_service import auth_service
 
@@ -213,108 +215,303 @@ async def upload_webtoon(
 @router.post("/analyze")
 async def analyze_webtoon(
     project_id: int = Form(...),
-    filename: str = Form(...)
+    filename: str = Form(...),
+    psd_exclude_layer: Optional[str] = Form(None)
 ):
     """웹툰 이미지 슬라이싱 및 AI 분석 (OCR + Scene Description)"""
     try:
         project_dir = os.path.join(config.OUTPUT_DIR, str(project_id))
         webtoon_path = os.path.join(project_dir, "webtoon_originals", filename)
         sliced_dir = os.path.join(project_dir, "webtoon_sliced")
+        
+        # [CRITICAL] 이전 분석 결과 물리적으로 삭제하여 캐시 및 찌꺼기 방지
+        if os.path.exists(sliced_dir):
+            shutil.rmtree(sliced_dir)
         os.makedirs(sliced_dir, exist_ok=True)
         
         if not os.path.exists(webtoon_path):
             raise HTTPException(404, "Webtoon file not found")
             
-        # 1. Image Slicing
-        cuts = slice_webtoon(webtoon_path, sliced_dir)
+        def normalize_name(s):
+            if not s: return ""
+            # NFC/NFKC 통합
+            s = unicodedata.normalize('NFKC', str(s))
+            # 공백 및 제어문자 제거, 소문자화 (한글/영문/숫자/일부특수문자 유지)
+            s = "".join(c for c in s if not c.isspace() and ord(c) > 31).lower()
+            return s
+
+        layer_trace = []
+        debug_all_layers = {}
+
+        # 1. Image Slicing (PSD handling for clean images)
+        analysis_image_path = webtoon_path
+        clean_image_path = None
+        ext = os.path.splitext(filename)[1].lower()
+        temp_dir = os.path.join(config.MEDIA_DIR, "temp")
+        os.makedirs(temp_dir, exist_ok=True)
         
-        # 2. AI Analysis for each cut
-        scenes = []
-        for i, cut_path in enumerate(cuts):
+        if ext == '.psd':
+            from psd_tools import PSDImage
+            import uuid
+            
             try:
-                analysis = await gemini_service.analyze_webtoon_panel(cut_path)
+                # 1. 분석용 (전체 레이어)
+                psd_ana = PSDImage.open(webtoon_path)
+                ana_png = os.path.join(temp_dir, f"ana_{uuid.uuid4().hex}.png")
+                comp_ana = psd_ana.composite()
+                if not comp_ana: comp_ana = Image.fromarray(psd_ana.numpy())
+                comp_ana.save(ana_png)
+                analysis_image_path = ana_png
+                
+                # 2. 영상용 (지정 레이어 제외)
+                clean_image_path = ana_png # Default
+                matched_layers = []
+                
+                # PSD인 경우 모든 레이어 구조를 항상 디버그 정보에 포함
+                all_layers_list = [l.name for l in psd_ana.descendants() if l.name][:100]
+                debug_all_layers = {
+                    "layers": all_layers_list,
+                    "matched": [],
+                    "keywords": [],
+                    "method": "analysis_only"
+                }
+
+                if psd_exclude_layer:
+                    psd_cln = PSDImage.open(webtoon_path)
+                    raw_keywords = [k.strip() for k in re.split(r'[,，\s\n]+', psd_exclude_layer) if k.strip()]
+                    keywords = [normalize_name(k) for k in raw_keywords]
+                    print(f"🔍 [PSD Match] Keywords: {keywords}")
+                    
+                    found_any = False
+                    for layer in psd_cln.descendants():
+                        if not layer.name: continue
+                        name_norm = normalize_name(layer.name)
+                        
+                        if any(k in name_norm for k in keywords):
+                            if layer.visible: # 이미 꺼진 건 무시
+                                print(f"👉 [PSD Filter] Hiding: '{layer.name}' (norm: {name_norm})")
+                                layer.visible = False
+                                layer_trace.append(layer.name)
+                                matched_layers.append(layer.name)
+                                # 하위 레이어까지 재귀적으로 강제 은닉
+                                if hasattr(layer, 'descendants'):
+                                    for child in layer.descendants():
+                                        child.visible = False
+                                found_any = True
+                    
+                    if found_any:
+                        cln_png = os.path.join(temp_dir, f"cln_{uuid.uuid4().hex}.png")
+                        try:
+                            comp_cln = psd_cln.composite()
+                        except:
+                            comp_cln = None
+
+                        method = "composite"
+                        if not comp_cln:
+                            method = "manual_merge"
+                            print("   [PSD] Main composite failed. Starting Manual Merge Fallback...")
+                            # 바탕을 흰색(solid)으로 시작
+                            canvas = Image.new("RGBA", psd_cln.size, (255, 255, 255, 255))
+                            for l in psd_cln:
+                                if l.visible:
+                                    try:
+                                        l_img = l.composite()
+                                        if l_img:
+                                            canvas.alpha_composite(l_img.convert("RGBA"))
+                                    except:
+                                        pass
+                            comp_cln = canvas.convert("RGB")
+                        
+                        if comp_cln.mode != 'RGB':
+                            comp_cln = comp_cln.convert('RGB')
+                        comp_cln.save(cln_png)
+                        clean_image_path = cln_png
+                        debug_all_layers = {
+                            "layers": [l.name for l in psd_cln.descendants() if l.name][:100],
+                            "matched": matched_layers,
+                            "keywords": keywords,
+                            "method": method
+                        }
+                    else:
+                        print(f"   [PSD] No layer matched from {keywords}")
+                        all_names = [l.name for l in psd_cln.descendants() if l.name][:50]
+                        debug_all_layers = {
+                            "layers": all_names,
+                            "matched": [],
+                            "keywords": keywords,
+                            "method": "none_matched"
+                        }
+                
+            except Exception as e:
+                print(f"PSD PROCESS ERROR: {e}")
+                import traceback
+                traceback.print_exc()
+                clean_image_path = webtoon_path
+        else:
+            clean_image_path = webtoon_path
+
+        cuts = slice_webtoon(analysis_image_path, sliced_dir, clean_image_path=clean_image_path)
+        
+        # Temp PNG cleanup
+        if ext == '.psd':
+            for p in [analysis_image_path, clean_image_path]:
+                if p and p.startswith(temp_dir) and os.path.exists(p):
+                    try: os.remove(p)
+                    except: pass
+        
+        # 2. AI Analysis for each cut with context passing
+        scenes = []
+        context = ""
+        for i, cut_info in enumerate(cuts):
+            video_path = cut_info["video"]
+            analysis_path = cut_info["analysis"]
+            
+            try:
+                analysis = await gemini_service.analyze_webtoon_panel(analysis_path, context=context)
+                
+                # Skip meaningless panels (copyright, blank, etc.)
+                is_meaningless = analysis.get('is_meaningless') is True
+                dialogue = analysis.get('dialogue', '').strip()
+                
+                # Extra safety: check for copyright keywords if dialogue is provided
+                copyright_keywords = ["저작권", "무단 전재", "illegal copy", "all rights reserved", "무단 복제"]
+                if any(k in dialogue for k in copyright_keywords) and len(dialogue) < 100:
+                    is_meaningless = True
+
+                if is_meaningless:
+                    print(f"Skipping meaningless panel {i}: {analysis.get('visual_desc')}")
+                    continue
+
+                # Update context for next panel to improve character consistency
+                speaker = analysis.get('character', 'Unknown')
+                if dialogue:
+                    context = f"Last seen: {speaker} said \"{dialogue[:100]}\"."
+                
+                import time
+                ts = int(time.time())
+                scenes.append({
+                    "scene_number": len(scenes) + 1,
+                    "image_path": video_path,
+                    "image_url": f"/api/media/view?path={urllib.parse.quote(video_path)}&t={ts}",
+                    "analysis": analysis
+                })
             except Exception as e:
                 print(f"Gemini evaluation failed for cut {i}: {e}")
-                analysis = {"dialogue": "", "character": "None", "visual_desc": "Error during analysis", "atmosphere": "Error"}
-
-            scenes.append({
-                "scene_number": i + 1,
-                "image_path": cut_path,
-                "image_url": f"/api/media/view?path={urllib.parse.quote(cut_path)}",
-                "analysis": analysis
-            })
+                import time
+                ts = int(time.time())
+                scenes.append({
+                    "scene_number": len(scenes) + 1,
+                    "image_path": video_path,
+                    "image_url": f"/api/media/view?path={urllib.parse.quote(video_path)}&t={ts}",
+                    "analysis": {"dialogue": "", "character": "None", "visual_desc": "Error during analysis", "atmosphere": "Error"}
+                })
             
-        return {
+        response_data = {
             "status": "ok",
-            "scenes": scenes
+            "scenes": scenes,
+            "layer_debug": {
+                "trace": layer_trace,
+                "all": debug_all_layers # Removed slice [:100] as it can be a dict
+            }
         }
+        return response_data
     except Exception as e:
         print(f"Analyze error: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(500, str(e))
 
-def slice_webtoon(image_path: str, output_dir: str, min_padding=30, start_idx=1):
+def slice_webtoon(image_path: str, output_dir: str, min_padding=30, start_idx=1, clean_image_path: str = None):
     """
     웹툰 긴 이미지를 칸별로 분할.
-    수평 픽셀의 표준편차가 낮은 구간(배경색 구간)을 절단점으로 인식.
+    clean_image_path가 제공되면, image_path(원본)로 절단점을 찾고 두 이미지 모두를 잘라냅니다.
     """
     try:
         img = Image.open(image_path)
+        clean_img = Image.open(clean_image_path) if clean_image_path else None
     except Exception as e:
-        print(f"Error opening image {image_path}: {e}")
+        print(f"Error opening images: {e}")
         return []
 
     if img.mode != 'RGB':
         img = img.convert('RGB')
+    if clean_img and clean_img.mode != 'RGB':
+        clean_img = clean_img.convert('RGB')
         
     img_np = np.array(img.convert('L')) # Grayscale
     
     # 각 행의 표준편차 계산
     row_stds = np.std(img_np, axis=1)
     
-    # 표준편차가 낮은 행(여백) 찾기 (임계값 5 미만)
-    is_blank = row_stds < 5
-    
-    cuts = []
-    start_y = 0
-    in_panel = False
+    # 표준편차가 낮은 행(여백) 찾기 (임계값 3 미만으로 더 민감하게)
+    is_blank = row_stds < 3
     
     h, w = img_np.shape
     
-    # 단순한 split 알고리즘 (개선 가능)
-    # 픽셀 단위 루프는 느릴 수 있으므로 최적화 필요하지만 일단 유지
-    for y in range(h):
-        if not is_blank[y] and not in_panel:
-            # 패널 시작 (여백 종료)
-            start_y = max(0, y - 10) # 좀 더 여유
-            in_panel = True
-        elif is_blank[y] and in_panel:
-            # 패널 종료 (여백 시작)
-            if y - start_y > 150: # 최소 높이 상향
-                end_y = min(h, y + 10)
-                
-                # 이미지 잘라내기
-                cut = img.crop((0, start_y, w, end_y))
-                
-                # 순차적 파일명 생성 (start_idx 반영)
-                current_idx = start_idx + len(cuts)
-                cut_filename = f"scene_{current_idx:03d}.jpg"
-                cut_path = os.path.join(output_dir, cut_filename)
-                
-                cut.save(cut_path, "JPEG", quality=95)
-                cuts.append(cut_path)
-                
-                in_panel = False
+    # 여백 구간 탐지
+    blank_threshold = 25 
+    blank_runs = []
+    run_start = -1
     
-    # 마지막 조각 처리
-    if in_panel:
-        if h - start_y > 150:
-            cut = img.crop((0, start_y, w, h))
-            current_idx = start_idx + len(cuts)
-            cut_filename = f"scene_{current_idx:03d}.jpg"
-            cut_path = os.path.join(output_dir, cut_filename)
-            cut.save(cut_path, "JPEG", quality=95)
-            cuts.append(cut_path)
+    for y in range(h):
+        if is_blank[y]:
+            if run_start == -1: run_start = y
+        else:
+            if run_start != -1:
+                if y - run_start >= blank_threshold:
+                    blank_runs.append((run_start, y))
+                run_start = -1
+    if run_start != -1 and h - run_start >= blank_threshold:
+        blank_runs.append((run_start, h))
+
+    # 절단점을 기준으로 조각 범위 결정
+    panel_ranges = []
+    if not blank_runs:
+        panel_ranges = [(0, h)]
+    else:
+        last_y = 0
+        for start, end in blank_runs:
+            if start - last_y > 100:
+                panel_ranges.append((last_y, start))
+            last_y = end
+        if h - last_y > 100:
+            panel_ranges.append((last_y, h))
+
+    cuts = []
+    for i, (p_start, p_end) in enumerate(panel_ranges):
+        p_start = max(0, p_start - 5)
+        p_end = min(h, p_end + 5)
+        
+        # 원본 이미지 잘라내기 (분석용)
+        cut_full = img.crop((0, p_start, w, p_end))
+        
+        # 정밀 필터링 (완전 단색 이미지만 거름)
+        cut_gray = np.array(cut_full.convert('L'))
+        if np.std(cut_gray) < 2: 
+            print(f"      - Skipping uniform panel (std={np.std(cut_gray):.2f})")
+            continue
             
+        current_idx = start_idx + len(cuts)
+        
+        # 파일 저장
+        analysis_filename = f"scene_{current_idx:03d}_ana.jpg"
+        analysis_path = os.path.join(output_dir, analysis_filename)
+        cut_full.save(analysis_path, "JPEG", quality=95)
+        
+        video_path = analysis_path # 기본값
+        
+        if clean_img:
+            # 클린 이미지 잘라내기 (영상용)
+            cut_clean = clean_img.crop((0, p_start, w, p_end))
+            video_filename = f"scene_{current_idx:03d}.jpg"
+            video_path = os.path.join(output_dir, video_filename)
+            cut_clean.save(video_path, "JPEG", quality=95)
+        
+        cuts.append({
+            "video": video_path,
+            "analysis": analysis_path
+        })
+                
     return cuts
 
 class WebtoonScene(BaseModel):
@@ -333,6 +530,7 @@ class ScanRequest(BaseModel):
 class AnalyzeDirRequest(BaseModel):
     project_id: int
     files: List[str]
+    psd_exclude_layer: Optional[str] = None
 
 class WebtoonAutomateRequest(BaseModel):
     project_id: int
@@ -479,17 +677,34 @@ async def analyze_directory(req: AnalyzeDirRequest):
     try:
         project_dir = os.path.join(config.OUTPUT_DIR, str(req.project_id))
         sliced_base_dir = os.path.join(project_dir, "webtoon_sliced")
+        
+        # [CRITICAL] 일괄 분석 시에도 기존 자른 이미지 폴더를 비워서 캐시 꼬임 방지
+        if os.path.exists(sliced_base_dir):
+            shutil.rmtree(sliced_base_dir)
         os.makedirs(sliced_base_dir, exist_ok=True)
         
         # Temp dir for PSD conversion
         temp_dir = os.path.join(project_dir, "temp_psd_conversion")
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
         os.makedirs(temp_dir, exist_ok=True)
+        
+        print(f"🚀 [Webtoon Dir] Start analysis for {len(req.files)} files. Project: {req.project_id}")
+
+        layer_trace = [] # Initialize layer_trace for the entire batch
+        debug_all_layers = {} # 파일별 레이어 목록
+        
+        def normalize_name(s):
+            if not s: return ""
+            # NFC/NFKC 통합
+            s = unicodedata.normalize('NFKC', str(s))
+            # 공백 및 제어문자 제거, 소문자화 (한글/영문/숫자/일부특수문자 유지)
+            s = "".join(c for c in s if not c.isspace() and ord(c) > 31).lower()
+            return s
         
         all_scenes = []
         global_scene_counter = 1
-        
-        # [NEW] Load Previous Context for Continuity
-        prev_context = None
+        current_context = "" # Initialize context for Gemini
         current_project = db.get_project(req.project_id)
         if current_project and current_project.get("topic"):
             topic = current_project["topic"]
@@ -502,65 +717,191 @@ async def analyze_directory(req: AnalyzeDirRequest):
                 cursor.execute("SELECT full_script FROM scripts WHERE project_id = ?", (prev_id,))
                 script_row = cursor.fetchone()
                 if script_row and script_row["full_script"]:
-                     prev_context = script_row["full_script"][-500:] # Last 500 chars
+                     current_context = script_row["full_script"][-500:] # Last 500 chars (Previous episode context)
             conn.close()
-            if prev_context:
-                print(f"📖 [Webtoon] Loaded context from previous episode: {len(prev_context)} chars")
+            if current_context:
+                print(f"📖 [Webtoon] Loaded context from previous episode: {len(current_context)} chars")
         
         for file_path in req.files:
+            print(f"  - Processing file: {file_path}")
             if not os.path.exists(file_path):
+                print(f"    ⚠️ File NOT found: {file_path}")
                 continue
                 
             ext = os.path.splitext(file_path)[1].lower()
-            target_image_path = file_path
+            analysis_image_path = file_path
+            clean_image_path = None
             
-            # --- 1. PSD Handling (In-place or Temp) ---
+            print(f"    Ext: {ext}")
             if ext == '.psd':
                 try:
                     from psd_tools import PSDImage
                     import uuid
-                    # PSD -> PNG Temp
-                    temp_png_name = f"{uuid.uuid4().hex}.png"
-                    temp_png_path = os.path.join(temp_dir, temp_png_name)
                     
-                    psd = PSDImage.open(file_path)
-                    composite = psd.composite()
-                    if not composite: 
-                        composite = Image.fromarray(psd.numpy())
+                    # 1. Full Image (Analysis)
+                    psd_ana = PSDImage.open(file_path)
+                    full_png_path = os.path.join(temp_dir, f"ana_{uuid.uuid4().hex}.png")
+                    comp_ana = psd_ana.composite()
+                    if not comp_ana: comp_ana = Image.fromarray(psd_ana.numpy())
+                    comp_ana.save(full_png_path)
+                    analysis_image_path = full_png_path
                     
-                    composite.save(temp_png_path)
-                    target_image_path = temp_png_path
+                    # PSD인 경우 모든 레이어 구조를 항상 디버그 정보에 포함
+                    all_layers_batch = [l.name for l in psd_ana.descendants() if l.name][:50]
+                    debug_all_layers[os.path.basename(file_path)] = {
+                        "layers": all_layers_batch,
+                        "matched": [],
+                        "keywords": [],
+                        "method": "analysis_only"
+                    }
+
+                    # 2. Clean Image (Filtered)
+                    clean_image_path = full_png_path # Default
+                    if req.psd_exclude_layer:
+                        psd_cln = PSDImage.open(file_path) # Fresh open for clean image
+                        raw_keywords = [k.strip() for k in re.split(r'[,，\s\n]+', req.psd_exclude_layer) if k.strip()]
+                        keywords = [normalize_name(k) for k in raw_keywords]
+                        
+                        found_any = False
+                        keywords_debug = keywords
+                        matched_trace = []
+                        
+                        for layer in psd_cln.descendants():
+                            if not layer.name: continue
+                            name_norm = normalize_name(layer.name)
+                            if any(k in name_norm for k in keywords):
+                                if layer.visible:
+                                    print(f"👉 [PSD Dir Filter] Hiding: '{layer.name}' (norm: {name_norm})")
+                                    layer.visible = False
+                                    layer_trace.append(f"{os.path.basename(file_path)}: {layer.name}") 
+                                    matched_trace.append(layer.name)
+                                    # 하위 레이어까지 재귀적으로 강제 은닉
+                                    if hasattr(layer, 'descendants'):
+                                        for child in layer.descendants():
+                                            child.visible = False
+                                    found_any = True
+                        
+                        if found_any:
+                            clean_png_path = os.path.join(temp_dir, f"cln_{uuid.uuid4().hex}.png")
+                            try:
+                                comp_cln = psd_cln.composite()
+                            except:
+                                comp_cln = None
+
+                            method = "composite"
+                            if not comp_cln:
+                                method = "manual_merge"
+                                print(f"   [PSD Dir] Main composite failed for {file_path}. Manual Merge started...")
+                                # 흰색 배경으로 시작 (255 alpha)
+                                canvas = Image.new("RGBA", psd_cln.size, (255, 255, 255, 255))
+                                for l in psd_cln:
+                                    if l.visible:
+                                        try:
+                                            l_img = l.composite()
+                                            if l_img:
+                                                canvas.alpha_composite(l_img.convert("RGBA"))
+                                        except:
+                                            pass
+                                comp_cln = canvas.convert("RGB")
+                                
+                            if comp_cln.mode != 'RGB': comp_cln = comp_cln.convert('RGB')
+                            comp_cln.save(clean_png_path)
+                            clean_image_path = clean_png_path
+                            debug_all_layers[os.path.basename(file_path)] = {
+                                "layers": [l.name for l in psd_cln.descendants() if l.name][:50],
+                                "matched": matched_trace,
+                                "keywords": keywords_debug,
+                                "method": method
+                            }
+                        else:
+                            print(f"   [PSD Dir] No layer matched from {keywords} in {file_path}")
+                            all_names = [l.name for l in psd_cln.descendants() if l.name][:20]
+                            debug_all_layers[os.path.basename(file_path)] = {
+                                "layers": all_names,
+                                "matched": [],
+                                "keywords": keywords,
+                                "method": "none_matched"
+                            }
+                            clean_image_path = full_png_path
+                    else:
+                         clean_image_path = full_png_path
+                        
                 except Exception as e:
                     print(f"Failed to process PSD {file_path}: {e}")
+                    import traceback
+                    traceback.print_exc()
                     continue
+            else: # For non-PSD files, analysis and clean image are the same
+                clean_image_path = file_path
+                debug_all_layers[os.path.basename(file_path)] = {
+                    "layers": ["(Not a PSD file - flattened image)"],
+                    "matched": [],
+                    "keywords": [],
+                    "method": "flattened_image"
+                }
             
-            # --- 2. Slicing with continuous numbering ---
-            # start_idx를 넘겨주어 Scene 번호가 이어지게 함
-            cuts = slice_webtoon(target_image_path, sliced_base_dir, start_idx=global_scene_counter)
+            # --- 2. Slicing ---
+            print(f"    ✂️ Slicing: {analysis_image_path}")
+            cuts = slice_webtoon(analysis_image_path, sliced_base_dir, start_idx=global_scene_counter, clean_image_path=clean_image_path)
+            print(f"    ✅ Found {len(cuts)} scenes in this file.")
             
-            # --- 3. Analysis ---
-            for cut_path in cuts:
+            # [CRITICAL FIX] 글로벌 카운터 업데이트 - 이 작업이 없으면 다음 파일이 이전 파일을 덮어씀
+            global_scene_counter += len(cuts)
+            
+            # --- 3. Analysis with dynamic context tracking ---
+            for cut_info in cuts:
+                v_path = cut_info["video"]
+                a_path = cut_info["analysis"]
+                
+                print(f"    🔍 Analyzing scene {len(all_scenes) + 1}...")
                 try:
-                    # Pass context to Gemini
-                    analysis = await gemini_service.analyze_webtoon_panel(cut_path, context=prev_context)
+                    # Pass running context to Gemini (Analyze the one WITH text)
+                    analysis = await gemini_service.analyze_webtoon_panel(a_path, context=current_context)
+                    
+                    # Skip meaningless panels (copyright, blank, logos, etc.)
+                    is_meaningless = analysis.get('is_meaningless') is True
+                    dialogue = analysis.get('dialogue', '').strip()
+                    
+                    # Safer keyword filtering
+                    copyright_keywords = ["저작권", "무단 전재", "illegal copy", "all rights reserved", "무단 복제", "RK STUDIO"]
+                    if any(k in dialogue for k in copyright_keywords) and len(dialogue) < 120:
+                        is_meaningless = True
+                    
+                    if is_meaningless:
+                        print(f"Skipping meaningless panel: {analysis.get('visual_desc')}")
+                        continue
+
+                    # Update context for BETTER character identification in the next panel
+                    speaker = analysis.get('character', 'Unknown')
+                    if dialogue:
+                        current_context = f"Current context: {speaker} is talking. Recent dialogue: \"{dialogue[:80]}\"."
+                    elif speaker != "Unknown":
+                        current_context = f"Current context: {speaker} is visible or acting."
+
+                    import time
+                    ts = int(time.time())
+                    all_scenes.append({
+                        "scene_number": len(all_scenes) + 1,
+                        "image_path": v_path,
+                        "image_url": f"/api/media/view?path={urllib.parse.quote(v_path)}&t={ts}",
+                        "analysis": analysis
+                    })
                 except Exception as e:
-                    print(f"Gemini failed for {cut_path}: {e}")
-                    analysis = {"dialogue": "", "character": "Unknown", "visual_desc": "Analysis failed", "atmosphere": "Error"}
-
-                all_scenes.append({
-                    "scene_number": global_scene_counter,
-                    "image_path": cut_path,
-                    "image_url": f"/api/media/view?path={urllib.parse.quote(cut_path)}",
-                    "analysis": analysis
-                })
-                global_scene_counter += 1
+                    print(f"Gemini failed for {a_path}: {e}")
+                    import time
+                    ts = int(time.time())
+                    all_scenes.append({
+                        "scene_number": len(all_scenes) + 1,
+                        "image_path": v_path,
+                        "image_url": f"/api/media/view?path={urllib.parse.quote(v_path)}&t={ts}",
+                        "analysis": {"dialogue": "", "character": "Unknown", "visual_desc": "Analysis failed", "atmosphere": "Error"}
+                    })
             
-            # Clean up temp PNG
-            if ext == '.psd' and target_image_path.startswith(temp_dir):
-                try:
-                    os.remove(target_image_path)
-                except: pass
-
+            # Clean up temp PNGs
+            for p in [analysis_image_path, clean_image_path]:
+                if p and p.startswith(temp_dir) and os.path.exists(p):
+                    try: os.remove(p)
+                    except: pass
         # --- 4. Auto Voice Assignment (ElevenLabs API Integrated) ---
         from services.tts_service import tts_service
         
@@ -682,7 +1023,11 @@ async def analyze_directory(req: AnalyzeDirRequest):
             "scenes": all_scenes_result,
             "total_scenes": len(all_scenes_result),
             "filename": "batch_process",
-            "character_map": char_voice_map # Frontend can display this mapping
+            "character_map": char_voice_map,
+            "layer_debug": {
+                "trace": layer_trace,
+                "all_files": debug_all_layers
+            }
         }
     except Exception as e:
         print(f"Analyze Directory Error: {e}")

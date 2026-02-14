@@ -35,4 +35,5 @@ replicate>=0.30.0
 aiohttp
 pydub
 openai>=1.0.0
+psd-tools>=1.12.1
 
