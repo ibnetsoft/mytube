@@ -170,6 +170,10 @@ async def startup_event():
         db.init_db()
         db.migrate_db()
         db.reset_rendering_status() # [FIX] Stuck rendering status reset
+        
+        # [NEW] Start Autopilot Batch Worker
+        asyncio.create_task(autopilot_service.start_batch_worker())
+        
         print(f"[Startup] DB Initialized. Membership: {auth_service.get_membership()}")
     except Exception as e:
         print(f"[Startup] Setup Failed: {e}")
@@ -3915,7 +3919,7 @@ app.include_router(thumbnails_router.router)
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("🚀 PICADIRI STUDIO v2.0")
+    print("PICADIRI STUDIO v2.0")
     print("-" * 50)
 
     config.validate()

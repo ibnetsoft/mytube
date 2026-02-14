@@ -86,16 +86,17 @@ class ReplicateService:
 
     async def _generate_basic(self, image_path: str, prompt: str, duration: float = 5.0):
         """기본 Wan 2.1 생성 (wavespeedai/wan-2.1-i2v-720p)"""
-        input_data = {
-            "image": open(image_path, "rb"),
-            "prompt": prompt,
-            "size": "1280x720",
-            "duration": 5, # Standard 5s
-            "fast_mode": "Balanced"
-        }
+        with open(image_path, "rb") as img_file:
+            input_data = {
+                "image": img_file,
+                "prompt": prompt,
+                "size": "1280x720",
+                "duration": 5, # Standard 5s
+                "fast_mode": "Balanced"
+            }
 
-        loop = asyncio.get_event_loop()
-        output = await loop.run_in_executor(None, self._run_replicate, input_data)
+            loop = asyncio.get_event_loop()
+            output = await loop.run_in_executor(None, self._run_replicate, input_data)
         
         if output:
             url = output[0] if isinstance(output, list) else output

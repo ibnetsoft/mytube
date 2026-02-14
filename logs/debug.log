@@ -2576,3 +2576,162 @@ NameError: name 'num_threads' is not defined
 [2026-02-10 23:11:31.438704] create_slideshow(PROJ=70) Effects: ['random', 'random', 'zoom_in', 'zoom_out', 'none']
 [2026-02-10 23:11:32.987794] RENDER_SETTINGS: font='GmarketSansBold', color='#00ff7b', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
 [2026-02-10 23:11:35.788550] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-14 18:33:13.367461] create_slideshow(PROJ=78) Effects: None
+[2026-02-14 18:33:15.025645] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-14 19:05:02.159471] create_slideshow(PROJ=78) Effects: None
+[2026-02-14 19:05:06.292760] RENDER_SETTINGS: font='GmarketSansBold', color='white', style='Basic_White', stroke_color='#000000', stroke_enabled=1, stroke_width=0.7999999999999999, bg_enabled=None
+[2026-02-14 19:05:07.066675] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-14 19:06:40.604196] Render Error: 'CompositeAudioClip' object has no attribute 'fps'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 815, in create_slideshow
+    video.audio.write_audiofile(temp_audio_export_path, codec="pcm_s16le", logger=None)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<decorator-gen-45>", line 2, in write_audiofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 54, in requires_duration
+    return f(clip, *a, **k)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\audio\AudioClip.py", line 192, in write_audiofile
+    if not self.fps:
+           ^^^^^^^^
+AttributeError: 'CompositeAudioClip' object has no attribute 'fps'
+
+[2026-02-14 22:28:14.043224] create_slideshow(PROJ=78) Effects: None
+[2026-02-14 22:28:15.806730] RENDER_SETTINGS: font='GmarketSansBold', color='white', style='Basic_White', stroke_color='#000000', stroke_enabled=1, stroke_width=0.7999999999999999, bg_enabled=None
+[2026-02-14 22:28:16.411280] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-14 22:29:25.419054] Render Error: 'CompositeAudioClip' object has no attribute 'fps'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 815, in create_slideshow
+    video.audio.write_audiofile(temp_audio_export_path, codec="pcm_s16le", logger=None)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<decorator-gen-45>", line 2, in write_audiofile
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\decorators.py", line 54, in requires_duration
+    return f(clip, *a, **k)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\audio\AudioClip.py", line 192, in write_audiofile
+    if not self.fps:
+           ^^^^^^^^
+AttributeError: 'CompositeAudioClip' object has no attribute 'fps'
+
+[2026-02-14 22:34:06.930122] create_slideshow(PROJ=78) Effects: None
+[2026-02-14 22:34:08.810754] RENDER_SETTINGS: font='GmarketSansBold', color='white', style='Basic_White', stroke_color='#000000', stroke_enabled=1, stroke_width=0.7999999999999999, bg_enabled=None
+[2026-02-14 22:34:09.425498] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-14 23:00:20.825262] Starting render for project 78
+[2026-02-14 23:00:20.825276] Images: 4, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_78.mp3
+[2026-02-14 23:00:20.928731] Render Error: cannot import name 'AudioFileClip' from 'moviepy' (C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\__init__.py)
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\app\routers\video.py", line 1134, in render_executor_func
+    audio_seg = pydub.AudioSegment.from_file(audio_path)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\pydub\audio_segment.py", line 728, in from_file
+    info = mediainfo_json(orig_file, read_ahead_limit=read_ahead_limit)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\pydub\utils.py", line 274, in mediainfo_json
+    res = Popen(command, stdin=stdin_parameter, stdout=PIPE, stderr=PIPE)
+  File "C:\Program Files\Python313\Lib\subprocess.py", line 1039, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\subprocess.py", line 1554, in _execute_child
+    hp, ht, pid, tid = _winapi.CreateProcess(executable, args,
+                       ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+                             # no special security
+                             ^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+                             cwd,
+                             ^^^^
+                             startupinfo)
+                             ^^^^^^^^^^^^
+FileNotFoundError: [WinError 2] 지정된 파일을 찾을 수 없습니다
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\app\routers\video.py", line 1137, in render_executor_func
+    from moviepy import AudioFileClip
+ImportError: cannot import name 'AudioFileClip' from 'moviepy' (C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\__init__.py)
+
+[2026-02-14 23:03:04.154188] Starting render for project 78
+[2026-02-14 23:03:04.154212] Images: 4, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_78.mp3
+[2026-02-14 23:03:04.215453] Render Error: cannot import name 'AudioFileClip' from 'moviepy' (C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\__init__.py)
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\app\routers\video.py", line 1134, in render_executor_func
+    audio_seg = pydub.AudioSegment.from_file(audio_path)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\pydub\audio_segment.py", line 728, in from_file
+    info = mediainfo_json(orig_file, read_ahead_limit=read_ahead_limit)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\pydub\utils.py", line 274, in mediainfo_json
+    res = Popen(command, stdin=stdin_parameter, stdout=PIPE, stderr=PIPE)
+  File "C:\Program Files\Python313\Lib\subprocess.py", line 1039, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\subprocess.py", line 1554, in _execute_child
+    hp, ht, pid, tid = _winapi.CreateProcess(executable, args,
+                       ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+                             # no special security
+                             ^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+                             cwd,
+                             ^^^^
+                             startupinfo)
+                             ^^^^^^^^^^^^
+FileNotFoundError: [WinError 2] 지정된 파일을 찾을 수 없습니다
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\app\routers\video.py", line 1137, in render_executor_func
+    from moviepy import AudioFileClip
+ImportError: cannot import name 'AudioFileClip' from 'moviepy' (C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\__init__.py)
+
+[2026-02-14 23:08:08.484937] Starting render for project 78
+[2026-02-14 23:08:08.484955] Images: 4, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_78.mp3
+[2026-02-14 23:08:08.531246] Render Error: cannot import name 'AudioFileClip' from 'moviepy' (C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\__init__.py)
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\app\routers\video.py", line 1134, in render_executor_func
+    audio_seg = pydub.AudioSegment.from_file(audio_path)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\pydub\audio_segment.py", line 728, in from_file
+    info = mediainfo_json(orig_file, read_ahead_limit=read_ahead_limit)
+  File "C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\pydub\utils.py", line 274, in mediainfo_json
+    res = Popen(command, stdin=stdin_parameter, stdout=PIPE, stderr=PIPE)
+  File "C:\Program Files\Python313\Lib\subprocess.py", line 1039, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\subprocess.py", line 1554, in _execute_child
+    hp, ht, pid, tid = _winapi.CreateProcess(executable, args,
+                       ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+                             # no special security
+                             ^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+                             cwd,
+                             ^^^^
+                             startupinfo)
+                             ^^^^^^^^^^^^
+FileNotFoundError: [WinError 2] 지정된 파일을 찾을 수 없습니다
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\app\routers\video.py", line 1137, in render_executor_func
+    from moviepy import AudioFileClip
+ImportError: cannot import name 'AudioFileClip' from 'moviepy' (C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\moviepy\__init__.py)
+
+[2026-02-14 23:21:25.764782] Starting render for project 78
+[2026-02-14 23:21:25.764798] Images: 4, Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_78.mp3
+[2026-02-14 23:21:25.939140] create_slideshow(PROJ=78) Effects: ['none', 'none', 'none', 'none']
+[2026-02-14 23:21:28.359300] RENDER_SETTINGS: font='GmarketSansBold', color='white', style='Basic_White', stroke_color='#000000', stroke_enabled=1, stroke_width=0.7999999999999999, bg_enabled=1
+[2026-02-14 23:21:28.361343] calling writes_videofile code in video_service (720p safe mode)

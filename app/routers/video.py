@@ -16,6 +16,7 @@ from config import config
 import database as db
 from services.video_service import video_service
 from services.storage_service import storage_service
+from services.replicate_service import replicate_service
 
 router = APIRouter(prefix="/api", tags=["video"])
 
@@ -897,22 +898,46 @@ async def render_project_video(
         
         # [FIX] Patch loaded images with latest video_url from DB
         # This ensures we use generated videos even if timeline.json still points to static images
+        # 3. 비디오 에셋 업그레이드 (이미지 -> 비디오) + [NEW] Auto-Generate Wan Logic
         if images and images_data:
             print(f"DEBUG: Checking for video upgrades for {len(images)} scenes...")
-            # Create lookup map: Using Basename as Key for robust matching
+            
+            # [Step 1] Load Scene Settings (for Engine Check)
+            # [Step 1] Load Scene Settings (for Engine Check)
+            scene_data_map = {}
+            try:
+                p_settings = db.get_project_settings(project_id) or {}
+                scenes_json = p_settings.get('webtoon_scenes_json')
+                if scenes_json:
+                    s_data = json.loads(scenes_json)
+                    for s in s_data:
+                        # Map by image path basename if available (Robust)
+                        img_p = s.get('image_path')
+                        if img_p:
+                            bname = os.path.basename(img_p)
+                            scene_data_map[bname] = s
+            except Exception as e:
+                print(f"DEBUG_RENDER: Failed to load scene data map: {e}")
+
+            # Create lookup map: Using Basename for matching
             img_to_video = {}
+            prompt_map = {} # For generation prompt
+            
             for p in images_data:
                 v_url = p.get('video_url')
                 i_url = p.get('image_url')
+                prompt = p.get('prompt_en', "Cinematic motion")
                 
-                if v_url and i_url:
+                if i_url:
                     base_name = os.path.basename(i_url)
-                    img_to_video[base_name] = v_url
-            
+                    prompt_map[base_name] = prompt
+                    if v_url:
+                        img_to_video[base_name] = v_url
+
             patched_images = []
             upgraded_count = 0
             
-            for img_path in images:
+            for idx, img_path in enumerate(images):
                 base_name = os.path.basename(img_path)
                 found_video = False
                 
@@ -932,15 +957,84 @@ async def render_project_video(
                     if v_path and os.path.exists(v_path):
                         patched_images.append(v_path)
                         # if img_path != v_path:
-                        upgraded_count += 1
+                        if True: # Always count as upgrade if using video
+                            upgraded_count += 1
                         found_video = True
                 
+                # [NEW] Auto-Generate Wan Video if assigned but missing (Lazy Rendering)
+                if not found_video:
+                    s_data = scene_data_map.get(base_name, {})
+                    engine_req = s_data.get('engine_override', 'image')
+
+                    if engine_req == 'wan':
+                        # [ENHANCE] Append Camera Motion to Prompt
+                        effect_req = str(s_data.get('effect_override', 'static')).lower()
+                        
+                        # 1. Camera Motion Prefix
+                        motion_prefix = ""
+                        if effect_req in ['pan_down', 'pan_down (vertical scan)', 'tilt_down']:
+                            motion_prefix = "Camera pans down from top to bottom, strictly vertical scrolling motion, revealing the scene downwards, "
+                        elif effect_req in ['pan_up', 'pan_up (vertical scan)', 'tilt_up']:
+                            motion_prefix = "Camera pans up from bottom to top, strictly vertical scrolling motion, "
+                        elif effect_req == 'zoom_in':
+                             motion_prefix = "Slow cinematic zoom in, focusing on the center, highly detailed, "
+                        elif effect_req == 'zoom_out':
+                             motion_prefix = "Slow cinematic zoom out, revealing more of the surroundings, "
+                        elif effect_req == 'pan_left':
+                             motion_prefix = "Slow camera pan to the left, horizontal scrolling, "
+                        elif effect_req == 'pan_right':
+                             motion_prefix = "Slow camera pan to the right, horizontal scrolling, "
+                        
+                        # 2. Detailed Motion Description (Creative Prompt)
+                        # This comes from the 'Internal Content Motion' field in the UI
+                        content_motion = s_data.get('motion_desc', '').strip()
+                        if content_motion and content_motion != '[AI Motion Auto-generated]':
+                            # Add strictly to prompt
+                            content_motion = f"{content_motion}, "
+                        else:
+                            content_motion = ""
+
+                        # 3. Base Image Prompt
+                        base_prompt = prompt_map.get(base_name, "Cinematic video, high quality, smooth motion")
+                        
+                        # Combine: Camera Motion + Content Motion + Base Visuals
+                        final_prompt = f"{motion_prefix}{content_motion}{base_prompt}"
+                        
+                        # Cleanup
+                        final_prompt = final_prompt.replace("  ", " ").replace(", ,", ",").strip()
+                        
+                        print(f"🚀 [Auto-Generate] Wan required for {base_name}. Prompt: {final_prompt[:100]}... (Effect: {effect_req})")
+                        
+                        try:
+                            # Blocking Call (we are in async def, so await is fine)
+                            video_bytes = await replicate_service.generate_video_from_image(
+                                image_path=img_path,
+                                prompt=final_prompt, # Enhanced Prompt
+                                method="standard" # Default to standard 5s
+                            )
+                            
+                            if video_bytes:
+                                timestamp = int(time.time())
+                                new_filename = f"wan_auto_{project_id}_{idx}_{timestamp}.mp4"
+                                new_path = os.path.join(config.OUTPUT_DIR, new_filename)
+                                with open(new_path, "wb") as f:
+                                    f.write(video_bytes)
+                                
+                                print(f"✅ [Auto-Generate] Wan Video Created: {new_filename}")
+                                patched_images.append(new_path)
+                                upgraded_count += 1
+                                found_video = True
+                            else:
+                                print(f"❌ [Auto-Generate] Failed to generate bytes. Fallback to image.")
+                        except Exception as e:
+                             print(f"❌ [Auto-Generate] Error during generation: {e}")
+
                 # Keep original if no upgrade found
                 if not found_video:
                     patched_images.append(img_path)
             
             if upgraded_count > 0:
-                print(f"DEBUG: Upgraded {upgraded_count} scene(s) to video assets.")
+                print(f"DEBUG: Upgraded {upgraded_count} scene(s) to video assets (including auto-generated).")
                 images = patched_images
 
         if not images:
@@ -1074,10 +1168,27 @@ async def render_project_video(
                 audio_duration = 0.0
                 try:
                     import pydub
+                    # [FIX] Set Pydub executable path explicitly if available
+                    if hasattr(config, "FFMPEG_PATH") and config.FFMPEG_PATH:
+                         pydub.AudioSegment.converter = config.FFMPEG_PATH
+                         # ffprobe is also needed sometimes. imageio_ffmpeg doesn't expose it directly usually?
+                         # Just setting converter helps for processing, but info needs probe.
+
                     audio_seg = pydub.AudioSegment.from_file(audio_path)
                     audio_duration = audio_seg.duration_seconds
-                except:
-                    from moviepy import AudioFileClip
+                except Exception as p_err:
+                    print(f"DEBUG_RENDER: Pydub failed ({p_err}). Fallback to MoviePy.")
+                    try:
+                        # Try MoviePy v2 structure
+                        from moviepy import AudioFileClip
+                    except ImportError:
+                        try:
+                            # Try MoviePy v1 structure
+                            from moviepy.editor import AudioFileClip
+                        except ImportError:
+                             # Last resort
+                             from moviepy.audio.io.AudioFileClip import AudioFileClip
+
                     with AudioFileClip(audio_path) as audio_clip:
                         audio_duration = audio_clip.duration
                 

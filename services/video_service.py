@@ -28,7 +28,9 @@ class VideoService:
         thumbnail_path: Optional[str] = None,  # [NEW] Baked-in Thumbnail
         fade_in_flags: Optional[List[bool]] = None,  # [NEW] Fade-in effect per image
         image_effects: Optional[List[str]] = None,   # [NEW] Ken Burns Effects
-        intro_video_path: Optional[str] = None   # [NEW] Intro Video Prepend
+        intro_video_path: Optional[str] = None,   # [NEW] Intro Video Prepend
+        sfx_map: Optional[dict] = None,          # [NEW] Scene SFX Map {scene_num: sfx_path}
+        focal_point_ys: Optional[List[float]] = None # [NEW] Smart Focus Point (0.0 - 1.0)
     ) -> str:
         """
         이미지 슬라이드쇼 영상 생성 (시네마틱 프레임 적용)
@@ -318,8 +320,13 @@ class VideoService:
                     is_vertical = target_h > target_w
 
                     if is_vertical:
-                        # For Shorts/Vertical: Use Cinematic Frame (Fit + Blur BG) to avoid aggressive cropping of landscape images
-                        processed_img_path = self._create_cinematic_frame(img_path, resolution)
+                        # [NEW] Smart focal point retrieval
+                        focal_y = 0.5
+                        if focal_point_ys and i < len(focal_point_ys):
+                            focal_y = focal_point_ys[i]
+
+                        # For Shorts/Vertical: Use Cinematic Frame (Fit Width + Smart Crop Focal Point)
+                        processed_img_path = self._create_cinematic_frame(img_path, resolution, focal_point_y=focal_y)
                     else:
                         # For Landscape: Use Fill (Crop) as before
                         processed_img_path = self._resize_image_to_fill(img_path, resolution)
@@ -330,7 +337,7 @@ class VideoService:
     
                     # [CHANGED] Explicitly convert to VideoClip to ensure lambda resize works for animation
                     # MoviePy 2.0: ImageClip is already a Clip. w/duration.
-                    clip = ImageClip(processed_img_path).with_duration(dur)
+                    clip = ImageClip(processed_img_path).with_duration(dur).with_fps(30)
                     
                 # [NEW] Apply fade-in effect if requested (Works for both Video and Image)
                 if fade_in_flags and i < len(fade_in_flags) and fade_in_flags[i]:
@@ -431,6 +438,32 @@ class VideoService:
                         pass
 
                 clips.append(clip)
+                
+                # [NEW] Scene SFX Handling
+                if sfx_map:
+                    s_idx = i + 1
+                    sfx_p = sfx_map.get(s_idx) or sfx_map.get(str(s_idx))
+                    if sfx_p and os.path.exists(sfx_p):
+                         try:
+                             from moviepy.audio.io.AudioFileClip import AudioFileClip
+                             sfx_clip = AudioFileClip(sfx_p)
+                             # Overlay SFX on the current clip's duration
+                             # MoviePy 2.x: CompositeAudioClip needed, or set_audio with addition
+                             # For simplicity, we'll collect these overlays and apply at the end or track them.
+                             # But here clips is a list of VideoClips.
+                             # Let's attach it to the clip's audio.
+                             if clip.audio:
+                                 from moviepy.audio.AudioClip import CompositeAudioClip
+                                 # Mix original audio (e.g. silence or background) with SFX
+                                 # We need to ensure SFX doesn't exceed clip duration
+                                 sfx_clip = sfx_clip.with_duration(min(sfx_clip.duration, dur))
+                                 clip = clip.with_audio(CompositeAudioClip([clip.audio, sfx_clip]))
+                             else:
+                                 clip = clip.with_audio(sfx_clip.with_duration(min(sfx_clip.duration, dur)))
+                             print(f"🔊 [SFX] Applied to Scene {i+1}: {os.path.basename(sfx_p)}")
+                         except Exception as se:
+                             print(f"SFX Overlay Error: {se}")
+
                 current_duration += dur
 
         if not clips and video is None:
@@ -527,8 +560,15 @@ class VideoService:
             print(f"Baking thumbnail into video: {thumbnail_path}")
             try:
                 # 1. Prepare Thumbnail Clip
+                # [NEW] Check for focal point
+                focal_y = 0.5
+                # The 'i' variable is not available here, as this is for the single thumbnail.
+                # If focal_point_ys is meant for the thumbnail, it should be passed directly or be the first element.
+                # Assuming focal_point_ys is for the main image sequence, and thumbnail might have its own or default.
+                # For now, we'll use a default focal_y for the thumbnail.
+                
                 # Use _create_cinematic_frame to ensure it fits resolution beautifully
-                baked_thumb_path = self._create_cinematic_frame(thumbnail_path, resolution)
+                baked_thumb_path = self._create_cinematic_frame(thumbnail_path, resolution, focal_point_y=focal_y)
                 temp_files.append(baked_thumb_path)
                 
                 thumb_clip = ImageClip(baked_thumb_path).with_duration(0.1) # 0.1s duration
@@ -559,18 +599,31 @@ class VideoService:
             
             # [CHANGED] 비율 기반 폰트 크기 (영상 높이의 %)
             font_size_percent = s_settings.get("font_size", 5.0)  # 기본 5%
-            # [FIX] Percentage system with Safety Gap
+            font_size_percent = s_settings.get("font_size", 5.0)
+            v_h = video.h if hasattr(video, 'h') else (resolution[1] if isinstance(resolution, (list, tuple)) else 1080)
+            f_size = int(v_h * (float(font_size_percent) / 100.0))
             # UI Slider is 1.0 ~ 15.0 (Percent)
             # DB might have 30 (Legacy Pixel? or Error?) -> Treat > 20 as Pixel
             if 0.1 <= font_size_percent <= 20:
                 # Percentage mode (normal usage, 0.1% ~ 20%)
-                # [FIX] Apply 1.9x scaling (tuned from 2.5) to match HTML Preview (WYSIWYG)
+                # [FIX] Apply 1.3x scaling (Reduced from 1.9) to prevent overflow
                 # Browser CSS px vs PIL font size difference requires larger multiplier
-                f_size = int(video.h * (font_size_percent / 100) * 1.9)
+                f_size = int(video.h * (font_size_percent / 100) * 1.3)
+                
+                # [SAFETY] Limit font size based on width (especially for Shorts)
+                # Ensure roughly 10 chars fit in width? No, just cap max pixel size.
+                max_width_limit = int(video.w * 0.15) # Max 15% of width per character approx
+                if f_size > max_width_limit:
+                    f_size = max_width_limit
             else:
                 # Pixel mode (Legacy or explicit large pixel values)
                 # e.g. 30 -> 30px (Tiny, but safe)
                 f_size = int(font_size_percent)
+            
+            # [FIX] Handle 0 font size (Disable Subtitles)
+            if f_size <= 0:
+                 print("DEBUG_RENDER: Subtitle font size 0 detected. Disabling subtitles.")
+                 subtitles = []
             
             # [DEBUG] Force Log to file to confirm actual value
             try:
@@ -604,7 +657,7 @@ class VideoService:
                 # [FIX] Scale stroke width based on resolution to match HTML Preview
                 # Preview box is approx 360-400px high. Render is 1080px+.
                 # Scale Factor = Video Height / 360
-                scale_factor = video.h / 360.0
+                scale_factor = v_h / 360.0
                 s_stroke_width = s_stroke_width * scale_factor
                 print(f"DEBUG_RENDER: Scaled Stroke Width: {raw_stroke_width} -> {s_stroke_width:.2f} (Factor: {scale_factor:.2f})")
             
@@ -615,6 +668,9 @@ class VideoService:
             except: pass
 
             for sub in subtitles:
+                if not isinstance(sub, dict):
+                    print(f"⚠️ [WARNING] Invalid subtitle format (not a dict): {sub}")
+                    continue
                 try:
                     # [NEW] Enhanced Background Logic
                     bg_enabled = bool(int(s_settings.get("bg_enabled", 1)) == 1)
@@ -767,7 +823,8 @@ class VideoService:
             if video.audio:
                 print(f"DEBUG: Exporting audio to {temp_audio_export_path}")
                 # Use WAV for maximum stability in intermediate pass
-                video.audio.write_audiofile(temp_audio_export_path, codec="pcm_s16le", logger=None)
+                # [FIX] MoviePy 2.0: explicitly provide 'fps' (sample rate) as attribute is removed
+                video.audio.write_audiofile(temp_audio_export_path, fps=44100, codec="pcm_s16le", logger=None)
                 
                 # 3. Merge
                 print(f"DEBUG: Merging video and audio...")
@@ -826,7 +883,7 @@ class VideoService:
         return output_path
 
         
-    def _create_cinematic_frame(self, image_path: str, target_size: tuple, template_path: str = None):
+    def _create_cinematic_frame(self, image_path: str, target_size: tuple, template_path: str = None, focal_point_y: float = 0.5):
         """
         [MODIFIED] Vertical Aspect Ratio Logic 2.0 (Legacy Name, New Logic - User Request)
         - No Blur Background (Black Background instead)
@@ -847,19 +904,14 @@ class VideoService:
 
             img_w, img_h = img.size
             
-            # [LOGIC] Fit (Contain) - Proportional resize to fit ENTIRE image within target
-            # This avoids cropping at the cost of potential bars (Letterbox/Pillarbox)
-            img_ratio = img_w / img_h
-            target_ratio = target_w / target_h
+            # [LOGIC] Fit Width (Fill horizontally) - User Request 2.0
+            # Ensure the image always fills the left/right of the vertical frame (9:16).
+            # If the image is 'wide' (4:3), it results in Letterbox (Top/Bottom Black bars).
+            # If the image is 'tall' (9:21), it results in Center Crop (Top/Bottom cut).
             
-            if img_ratio > target_ratio:
-                # Image is wider (e.g. 4:3 image in 9:16 video) -> Fit Width
-                new_w = target_w
-                new_h = int(new_w / img_ratio)
-            else:
-                # Image is taller (e.g. 9:21 image in 9:16 video) -> Fit Height
-                new_h = target_h
-                new_w = int(new_h * img_ratio)
+            # Always Fit to Width
+            new_w = target_w
+            new_h = int(new_w * (img_h / img_w))
             
             # High-quality Resize
             img_resized = img.resize((new_w, new_h), Image.LANCZOS)
@@ -867,9 +919,24 @@ class VideoService:
             # Create Black Background
             bg = Image.new('RGB', (target_w, target_h), (0, 0, 0))
             
-            # Center on Background
+            # [SMART FOCUS CROP] - Corrected User Request
+            # Instead of simple centering, use the focal_point_y (0.0 to 1.0)
+            # target_h // 2 is the center of the viewport. 
+            # We want (new_h * focal_point_y) to be at that center.
             x_offset = (target_w - new_w) // 2
-            y_offset = (target_h - new_h) // 2
+            
+            if new_h > target_h:
+                # Tall image (needs cropping)
+                # target_h / 2 = focal_point_y * new_h + y_offset
+                y_offset = int(target_h / 2 - (new_h * focal_point_y))
+                # Clamp to avoid gaps
+                min_y = target_h - new_h
+                max_y = 0
+                y_offset = max(min_y, min(max_y, y_offset))
+            else:
+                # Wide/Short image (needs letterbox)
+                y_offset = (target_h - new_h) // 2
+
             bg.paste(img_resized, (x_offset, y_offset))
             
             # Template Overlay
@@ -1005,7 +1072,12 @@ class VideoService:
             
             # 매칭 실패하거나 스크립트 없으면 AI 결과 그대로 사용
             if not final_words:
-                final_words = [{"word": w.word, "start": w.start, "end": w.end} for w in ai_words]
+                final_words = []
+                for w in ai_words:
+                    if hasattr(w, 'word'):
+                        final_words.append({"word": w.word, "start": w.start, "end": w.end})
+                    elif isinstance(w, dict):
+                        final_words.append({"word": w.get("word", ""), "start": w.get("start", 0), "end": w.get("end", 0)})
 
             # [IMPROVED] Smart Semantic Segmentation (2-Line Limit Rule)
             # 1. 절대 한계: 40자 (2줄 초과 방지)
@@ -2205,6 +2277,305 @@ class VideoService:
         print(f"DEBUG: Pre-processing video: {input_path} -> {output_path}")
         subprocess.run(cmd, check=True, startupinfo=startupinfo)
         return output_path
+
+    def _detect_and_split_panels(self, image_path: str) -> List[str]:
+        """
+        [Smart Splitting]
+        세로로 긴 웹툰 이미지를 분석하여, 컷(Panel) 사이의 여백(Gutter)을 기준으로 
+        여러 개의 개별 이미지 파일로 분리하여 저장하고 경로 리스트를 반환함.
+        """
+        try:
+            from PIL import Image, ImageChops
+            import numpy as np
+            
+            img = Image.open(image_path).convert('RGB')
+            w, h = img.size
+            
+            # 이미지가 충분히 길지 않으면 분할 시도 X
+            if h < w * 1.5:
+                return []
+
+            # 이미지를 Numpy 배열로 변환 (속도 최적화)
+            # 1. Grayscale 변환
+            gray = img.convert('L')
+            # 2. 임계값 기준으로 이진화 (배경색 감지) - 배경이 흰색이거나 검은색일 가능성이 높음
+            #    단순하게 행 단위의 픽셀 표준편차가 매우 낮으면 '여백'으로 간주
+            
+            # 행 단위 분석을 위해 픽셀 데이터 로드
+            pixels = np.array(gray)
+            
+            # 각 행(Row)의 표준편차 계산 (행 내의 색상 변화가 적으면 단색 배경일 확률 높음)
+            # std < 5 정도면 거의 단색
+            row_std = np.std(pixels, axis=1)
+            row_mean = np.mean(pixels, axis=1)
+            
+            # 컷 분할 지점 찾기
+            # 여백이라고 판단되는 구간: 표준편차가 낮고 (단색), 밝기가 일정함
+            is_gutter = row_std < 5.0 
+            
+            # 컷의 시작과 끝을 찾음
+            panels = []
+            start_y = 0
+            in_panel = False
+            
+            # 최소 컷 높이 (너무 작은 조각은 무시)
+            min_panel_height = h * 0.1 
+            
+            for y in range(h):
+                is_row_gutter = is_gutter[y]
+                
+                if not is_row_gutter:
+                    # 내용이 있는 행
+                    if not in_panel:
+                        start_y = y
+                        in_panel = True
+                else:
+                    # 여백인 행
+                    if in_panel:
+                        # 컷이 끝남
+                        end_y = y
+                        if (end_y - start_y) > min_panel_height:
+                            panels.append((0, start_y, w, end_y))
+                        in_panel = False
+            
+            # 마지막 컷 처리
+            if in_panel:
+                if (h - start_y) > min_panel_height:
+                    panels.append((0, start_y, w, h))
+            
+            # 분할된 컷이 1개 이하거나 없으면 스플릿 실패로 간주 (그냥 통이미지)
+            if len(panels) <= 1:
+                return []
+                
+            print(f"🧩 [Smart Split] Detected {len(panels)} panels in {os.path.basename(image_path)}")
+            
+            # 이미지 자르기 및 임시 저장
+            split_paths = []
+            base_name = os.path.splitext(os.path.basename(image_path))[0]
+            temp_dir = os.path.join(self.output_dir, "temp_splits")
+            os.makedirs(temp_dir, exist_ok=True)
+            
+            for i, box in enumerate(panels):
+                panel_img = img.crop(box)
+                out_path = os.path.join(temp_dir, f"{base_name}_panel_{i}.png")
+                panel_img.save(out_path)
+                split_paths.append(out_path)
+                
+            return split_paths
+            
+        except Exception as e:
+            print(f"⚠️ Smart Split Failed: {e}")
+            return []
+
+    async def create_image_motion_video(
+        self,
+        image_path: str,
+        duration: float,
+        motion_type: str = "zoom_in",
+        width: int = 1080,
+        height: int = 1920
+    ) -> bytes:
+        """
+        정지 이미지를 입력받아 Pan/Zoom 모션이 적용된 짧은 비디오(.mp4) 바이트를 반환
+        - [UPDATED] 세로 이미지의 경우, '스마트 컷 분할'을 우선 시도함.
+          분할이 감지되면 Pan Down 대신 [컷 전환] 방식으로 영상을 생성함.
+        """
+        import tempfile
+        try:
+            from moviepy.editor import ImageClip, CompositeVideoClip, ColorClip, concatenate_videoclips
+        except ImportError:
+            from moviepy.video.VideoClip import ImageClip, ColorClip
+            from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip, concatenate_videoclips
+
+        if not os.path.exists(image_path):
+            return None
+
+        try:
+            # 0. [SMART CHECK] 세로 이미지 & Pan 계열 요청 시 -> 컷 분할 시도
+            is_vertical_motion = motion_type in ["pan_down", "pan_up", "zoom_in"] # Zoom도 포함해서 검사
+            
+            split_files = []
+            if is_vertical_motion:
+                # 컷 분할 시도
+                split_files = self._detect_and_split_panels(image_path)
+            
+            # -----------------------------------------------------
+            # CASE A: 컷이 분할됨 (여러 장면으로 구성된 웹툰)
+            # -----------------------------------------------------
+            if split_files:
+                print(f"🎬 [Smart Transition] Generating sequence video for {len(split_files)} panels.")
+                clips = []
+                # 시간을 컷 수만큼 n등분 (최소 2초 보장)
+                clip_duration = max(2.0, duration / len(split_files))
+                
+                for idx, p_path in enumerate(split_files):
+                    # 각 컷에 대해 재귀적으로 모션 비디오 생성 (Zoom In 등 단조로운 모션 적용)
+                    # 여기서는 간단히 Zoom In을 적용
+                    # 재귀 호출 시 무한루프 방지를 위해 motion_type을 'static'이나 'zoom_in'으로 고정하고 split 체크 안 함
+                    # 하지만 편의상 내부 로직 재활용
+                    
+                    # 각 컷을 독립적인 클립으로 생성
+                    p_clip = ImageClip(p_path).set_duration(clip_duration)
+                    p_w, p_h = p_clip.size
+                    
+                    # 1. Resize to cover (Aspect Fill)
+                    scale = max(width/p_w, height/p_h)
+                    p_clip_resized = p_clip.resize(scale)
+                    p_clip_centered = p_clip_resized.set_position(('center', 'center'))
+                    p_clip_cropped = p_clip_centered.crop(width=width, height=height, x_center=width/2, y_center=height/2)
+                    
+                    # 2. Slight Zoom Effect for each panel
+                    p_final = p_clip_cropped.resize(lambda t: 1 + 0.05 * t) # very subtle zoom
+                    
+                    clips.append(p_final)
+                
+                # 컷 연결 (Concatenate)
+                final_video = concatenate_videoclips(clips, method="compose")
+                # 전체 길이 조정 (필요 시)
+                if final_video.duration != duration:
+                     # 속도 조절보다는 그냥 컷 길이를 합친걸 우선시하거나, 요청 길이에 맞춤
+                     # 여기선 요청 길이에 맞게 최종 clip 속도 조절은 복잡하므로, 
+                     # 그냥 만들어진 길이대로 가거나, 마지막에 set_duration(duration)을 시도.
+                     pass
+                
+                # Write
+                with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
+                    temp_filename = tmp.name
+                
+                final_video.write_videofile(temp_filename, fps=30, codec='libx264', audio=False, preset='ultrafast', logger=None)
+                with open(temp_filename, "rb") as f: v_bytes = f.read()
+                os.remove(temp_filename)
+                
+                # Clean up splits
+                for sp in split_files:
+                    try: os.remove(sp)
+                    except: pass
+                    
+                return v_bytes
+
+
+            # -----------------------------------------------------
+            # CASE B: 단일 이미지 (기존 Pan/Zoom 로직)
+            # -----------------------------------------------------        
+            # 1. Load Image
+            img_clip = ImageClip(image_path).set_duration(duration)
+            
+            # [CRITICAL] 좌우 여백 제거를 위한 Auto-Crop (Trim Black/White Borders)
+            # MoviePy의 crop (margin) 기능을 사용하거나 PIL로 전처리
+            # 여기서는 간단히 PIL로 Auto-Trim 후 다시 로드하는 방식 사용 (가장 확실함)
+            
+            from PIL import Image, ImageChops
+            pil_img = Image.open(image_path).convert('RGB')
+            bg = Image.new(pil_img.mode, pil_img.size, pil_img.getpixel((0,0)))
+            diff = ImageChops.difference(pil_img, bg)
+            bbox = diff.getbbox()
+            if bbox:
+                # 테두리가 있다면 잘라냄 (약간의 여유를 두고)
+                pil_img = pil_img.crop(bbox)
+                
+            # PIL 이미지를 Numpy Array로 변환하여 ImageClip 생성
+            import numpy as np
+            img_clip = ImageClip(np.array(pil_img)).set_duration(duration)
+            
+            img_w, img_h = img_clip.size
+            
+            # [CRITICAL] 무조건 좌우를 꽉 채우도록 강제 (Force Fill Width)
+            # 만약 이미지 너비가 목표 너비보다 작다면 확대
+            # 항상 width=1080에 맞춤 (Aspect Ratio 유지)
+            scale_to_fill = width / float(img_w)
+            
+            # 이미지가 너무 작아서 깨지는걸 방지하려면 여기서 보정 가능하지만, 
+            # 사용자 요구사항은 "빈틈 없음"이 우선이므로 무조건 확대
+            new_w = width
+            new_h = int(img_h * scale_to_fill)
+            
+            img_resized = img_clip.resize(width=new_w)
+            
+            # 2. Determine Scaling & Position Logic based on Motion Type
+            # (기존 Pan/Zoom 로직 그대로 유지...)
+            final_clip = None
+            
+            if motion_type in ["pan_down", "pan_up"]:
+                
+                if new_h > height:
+                    max_scroll = -(new_h - height)
+                    if motion_type == "pan_down":
+                        # Top to Bottom
+                        pos_func = lambda t: ('center', int(0 + (max_scroll - 0) * (t / duration)))
+                    else: 
+                        # Bottom to Top
+                        pos_func = lambda t: ('center', int(max_scroll + (0 - max_scroll) * (t / duration)))
+                    final_clip = img_resized.set_position(pos_func)
+                else:
+                    final_clip = img_resized.set_position(('center', 'center'))
+
+            elif motion_type in ["pan_left", "pan_right"]:
+                # 가로 이미지 대응 (Fit Height Override)
+                # 위에서 이미 Fit Width를 해버려서... 가로 Pan일 경우 다시 계산해야 함.
+                # 하지만 일단 '빈틈 없음'이 최우선이므로, Fit Width 상태에서 상하로 잘린 부분을 무시하고...
+                # 아, 가로 Pan은 '좌우 스크롤'이므로 Height를 맞춰야 함.
+                
+                # Re-calculate specifically for Horizontal Pan
+                scale_h = height / float(img_h)
+                new_h_pan = height
+                new_w_pan = int(img_w * scale_h)
+                img_resized_h = img_clip.resize(height=new_h_pan)
+                
+                if new_w_pan > width:
+                    max_scroll = -(new_w_pan - width)
+                    if motion_type == "pan_right":
+                        pos_func = lambda t: (int(0 + (max_scroll - 0) * (t / duration)), 'center')
+                    else: 
+                        pos_func = lambda t: (int(max_scroll + (0 - max_scroll) * (t / duration)), 'center')
+                    final_clip = img_resized_h.set_position(pos_func)
+                else:
+                     final_clip = img_resized_h.set_position(('center', 'center'))
+
+            elif motion_type in ["zoom_in", "zoom_out", "static"]:
+                # 이미 Fit Width 상태임.
+                # Center Crop needed?
+                # Fit Width만 했으므로 높이가 화면보다 크면 위아래가 넘침 -> Center Crop 필요
+                # 높이가 화면보다 작으면 -> 위아래 검은 여백 생김 -> 근데 '빈틈 없게' 요구사항 위배
+                # 따라서 Zoom 모드에서도 'Crop to Fill'을 해야 함.
+                
+                target_ratio = width / height
+                img_ratio = img_w / img_h
+                if img_ratio > target_ratio: 
+                    # 이미지가 더 옆으로 김 -> 높이 기준 확대
+                    base_clip = img_clip.resize(height=height)
+                else: 
+                    # 이미지가 위아래로 김 -> 너비 기준 확대 (이미 위에서 함)
+                    base_clip = img_clip.resize(width=width)
+                
+                base_clip = base_clip.crop(x_center=base_clip.w/2, y_center=base_clip.h/2, width=width, height=height)
+                
+                if motion_type == "zoom_in": final_clip = base_clip.resize(lambda t: 1 + 0.15 * (t / duration))
+                elif motion_type == "zoom_out": final_clip = base_clip.resize(lambda t: 1.15 - 0.15 * (t / duration))
+                else: final_clip = base_clip
+            else:
+                 final_clip = img_clip.resize(height=height).set_position(('center', 'center'))
+
+            bg = ColorClip(size=(width, height), color=(0,0,0)).set_duration(duration)
+            if final_clip:
+                if motion_type in ["zoom_in", "zoom_out", "static"]:
+                     final_clip = final_clip.set_position(('center', 'center'))
+                video = CompositeVideoClip([bg, final_clip], size=(width, height))
+            else:
+                video = bg
+
+            with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
+                temp_filename = tmp.name
+            video.write_videofile(temp_filename, fps=30, codec='libx264', audio=False, preset='ultrafast', logger=None)
+            with open(temp_filename, "rb") as f: video_bytes = f.read()
+            try: os.remove(temp_filename); video.close()
+            except: pass
+            return video_bytes
+
+        except Exception as e:
+            print(f"❌ Error creating motion video: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
 
 # 싱글톤 인스턴스
 video_service = VideoService()

@@ -1,5 +1,6 @@
 
-from fastapi import APIRouter, Request, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Request, HTTPException, UploadFile, File, Form, Body
+from typing import List, Dict
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, JSONResponse
 import os
@@ -372,14 +373,23 @@ async def analyze_webtoon(
                 # Skip meaningless panels (copyright, blank, etc.)
                 is_meaningless = analysis.get('is_meaningless') is True
                 dialogue = analysis.get('dialogue', '').strip()
+                visual = analysis.get('visual_desc', '').lower()
                 
                 # Extra safety: check for copyright keywords if dialogue is provided
-                copyright_keywords = ["저작권", "무단 전재", "illegal copy", "all rights reserved", "무단 복제"]
-                if any(k in dialogue for k in copyright_keywords) and len(dialogue) < 100:
+                copyright_keywords = [
+                    "저작권", "무단 전재", "illegal copy", "all rights reserved", "무단 복제", "RK STUDIO",
+                    "studio", "webtoon", "episode", "next time", "to be continued", "copyright", "scan", "watermark"
+                ]
+                
+                if "completely dark" in visual or "completely black" in visual or "blank panel" in visual:
+                    if not dialogue:
+                        is_meaningless = True
+
+                if any(k in dialogue for k in copyright_keywords) and len(dialogue) < 150:
                     is_meaningless = True
 
                 if is_meaningless:
-                    print(f"Skipping meaningless panel {i}: {analysis.get('visual_desc')}")
+                    print(f"Skipping meaningless panel {i} (Visual: {visual})")
                     continue
 
                 # Update context for next panel to improve character consistency
@@ -393,7 +403,8 @@ async def analyze_webtoon(
                     "scene_number": len(scenes) + 1,
                     "image_path": video_path,
                     "image_url": f"/api/media/view?path={urllib.parse.quote(video_path)}&t={ts}",
-                    "analysis": analysis
+                    "analysis": analysis,
+                    "focal_point_y": analysis.get("focal_point_y", 0.5)
                 })
             except Exception as e:
                 print(f"Gemini evaluation failed for cut {i}: {e}")
@@ -439,17 +450,20 @@ def slice_webtoon(image_path: str, output_dir: str, min_padding=30, start_idx=1,
         clean_img = clean_img.convert('RGB')
         
     img_np = np.array(img.convert('L')) # Grayscale
-    
-    # 각 행의 표준편차 계산
-    row_stds = np.std(img_np, axis=1)
-    
-    # 표준편차가 낮은 행(여백) 찾기 (임계값 3 미만으로 더 민감하게)
-    is_blank = row_stds < 3
-    
     h, w = img_np.shape
     
+    # [IMPROVED] 여백 감지 로직 개선
+    # 단순 std만 보는 게 아니라, 평균 밝기가 매우 높거나(흰색) 매우 낮은(검은색) 경우도 고려
+    row_stds = np.std(img_np, axis=1)
+    row_means = np.mean(img_np, axis=1)
+    
+    # 여백 조건: (표준편차가 매우 낮음) AND (밝기가 아주 밝거나 아주 어두움)
+    # std < 5 (좀 더 여유있게)
+    # mean > 240 (흰색) or mean < 15 (검은색)
+    is_blank = (row_stds < 5) & ((row_means > 240) | (row_means < 15))
+    
     # 여백 구간 탐지
-    blank_threshold = 25 
+    blank_threshold = 30 # 최소 30픽셀 이상이어야 여백으로 인정
     blank_runs = []
     run_start = -1
     
@@ -467,28 +481,51 @@ def slice_webtoon(image_path: str, output_dir: str, min_padding=30, start_idx=1,
     # 절단점을 기준으로 조각 범위 결정
     panel_ranges = []
     if not blank_runs:
+        # 여백이 아예 없으면 통으로 1장
         panel_ranges = [(0, h)]
     else:
         last_y = 0
         for start, end in blank_runs:
-            if start - last_y > 100:
+            # 여백 시작점(start)까지가 하나의 컷
+            # 단, 컷의 높이가 최소 50px은 되어야 함
+            if start - last_y > 50:
                 panel_ranges.append((last_y, start))
-            last_y = end
-        if h - last_y > 100:
+            last_y = end # 여백 끝점(end)부터 다음 컷 시작
+            
+        # 마지막 남은 부분 처리
+        if h - last_y > 50:
             panel_ranges.append((last_y, h))
 
     cuts = []
     for i, (p_start, p_end) in enumerate(panel_ranges):
+        # 약간의 여백 포함 (위아래 5px) - 단 이미지 범위 내에서
         p_start = max(0, p_start - 5)
         p_end = min(h, p_end + 5)
         
         # 원본 이미지 잘라내기 (분석용)
         cut_full = img.crop((0, p_start, w, p_end))
         
-        # 정밀 필터링 (완전 단색 이미지만 거름)
+        # [REFINED] 정밀 필터링 강화 (짜투리 제거)
         cut_gray = np.array(cut_full.convert('L'))
-        if np.std(cut_gray) < 2: 
-            print(f"      - Skipping uniform panel (std={np.std(cut_gray):.2f})")
+        std_val = np.std(cut_gray)
+        mean_val = np.mean(cut_gray)
+        h_cut, w_cut = float(cut_gray.shape[0]), float(cut_gray.shape[1])
+        
+        # 1. 너무 작은 조각 제거 (높이 100px 미만)
+        if h_cut < 100:
+            print(f"      - Skipping too small panel (h={h_cut})")
+            continue
+
+        # 2. 단색(검은색/흰색) 배경 제거
+        # std가 적당히 낮으면서(10 미만), 평균 밝기가 양극단(어둡거나 밝음)인 경우
+        is_dark_junk = (mean_val < 30) and (std_val < 10)  # 검은색 띠
+        is_light_junk = (mean_val > 225) and (std_val < 10) # 흰색 여백
+        
+        # 3. 거의 완벽한 단색 (노이즈 포함)
+        is_flat = std_val < 3.0
+        
+        if is_dark_junk or is_light_junk or is_flat:
+            print(f"      - Skipping junk panel (std={std_val:.2f}, mean={mean_val:.2f})")
             continue
             
         current_idx = start_idx + len(cuts)
@@ -502,6 +539,7 @@ def slice_webtoon(image_path: str, output_dir: str, min_padding=30, start_idx=1,
         
         if clean_img:
             # 클린 이미지 잘라내기 (영상용)
+            # 좌표는 원본과 동일하게 사용
             cut_clean = clean_img.crop((0, p_start, w, p_end))
             video_filename = f"scene_{current_idx:03d}.jpg"
             video_path = os.path.join(output_dir, video_filename)
@@ -512,6 +550,13 @@ def slice_webtoon(image_path: str, output_dir: str, min_padding=30, start_idx=1,
             "analysis": analysis_path
         })
                 
+    if not cuts:
+         print("⚠️ No cuts found after slicing. Fallback to using the whole image.")
+         # 전체 이미지를 하나로 저장해서라도 반환
+         full_ana_path = os.path.join(output_dir, "scene_001_ana.jpg")
+         img.save(full_ana_path, "JPEG")
+         cuts.append({"video": full_ana_path, "analysis": full_ana_path})
+         
     return cuts
 
 class WebtoonScene(BaseModel):
@@ -523,6 +568,10 @@ class WebtoonScene(BaseModel):
     voice_id: Optional[str] = None
     atmosphere: Optional[str] = None
     sound_effects: Optional[str] = None
+    focal_point_y: Optional[float] = 0.5
+    engine_override: Optional[str] = None
+    effect_override: Optional[str] = None
+    motion_desc: Optional[str] = None
 
 class ScanRequest(BaseModel):
     path: str
@@ -537,6 +586,21 @@ class WebtoonAutomateRequest(BaseModel):
     scenes: List[WebtoonScene]
     use_lipsync: bool = True
     use_subtitles: bool = True
+    character_map: Optional[dict] = None
+
+class WebtoonPlanRequest(BaseModel):
+    project_id: int
+    scenes: List[dict]
+
+@router.post("/generate-plan")
+async def generate_webtoon_plan(req: WebtoonPlanRequest):
+    """장면별 대사/묘사를 바탕으로 비디오 제작 기획서(기술 사양) 생성"""
+    try:
+        plan = await gemini_service.generate_webtoon_plan(req.scenes)
+        return {"status": "ok", "plan": plan}
+    except Exception as e:
+        print(f"Plan Gen Error: {e}")
+        raise HTTPException(500, str(e))
 
 @router.post("/automate")
 async def automate_webtoon(req: WebtoonAutomateRequest):
@@ -565,8 +629,19 @@ async def automate_webtoon(req: WebtoonAutomateRequest):
             
             # 매칭 정보 저장 (Project Settings - Legacy)
             db.update_project_setting(project_id, f"scene_{i+1}_image", filename)
-            db.update_project_setting(project_id, f"scene_{i+1}_motion", "zoom_in")
+            
+            # Use overrides if present, else default to zoom_in
+            motion = s.effect_override or "zoom_in"
+            db.update_project_setting(project_id, f"scene_{i+1}_motion", motion)
             db.update_project_setting(project_id, f"scene_{i+1}_motion_speed", "3.3")
+            
+            # Engine override per scene (if supported by autopilot_service later)
+            if s.engine_override:
+                db.update_project_setting(project_id, f"scene_{i+1}_engine", s.engine_override)
+            
+            # [NEW] Save special motion description for Wan engine
+            if s.motion_desc:
+                db.update_project_setting(project_id, f"scene_{i+1}_motion_desc", s.motion_desc)
             
             # [NEW] Save Scene Voice
             if s.voice_id and s.voice_id != "None":
@@ -599,14 +674,15 @@ async def automate_webtoon(req: WebtoonAutomateRequest):
                 "scene_text": s.dialogue,
                 "prompt_en": f"{s.visual_desc}", 
                 "image_url": f"/output/{str(project_id)}/assets/image/{filename}",
-                "narrative": s.dialogue
+                "narrative": s.dialogue,
+                "focal_point_y": s.focal_point_y
             })
             
         # 3. 이미지 프롬프트 테이블 일괄 저장
         db.save_image_prompts(project_id, image_prompts)
 
         # 4. 프로젝트 설정 및 오토파일럿 플래그 업데이트
-        db.update_project(project_id, script=full_script, status="queued") # 바로 대기열로!
+        db.update_project(project_id, status="queued") # 바로 대기열로!
         db.update_project_setting(project_id, "script", full_script)
         db.update_project_setting(project_id, "auto_plan", False)
         db.update_project_setting(project_id, "app_mode", "shorts") 
@@ -624,18 +700,12 @@ async def automate_webtoon(req: WebtoonAutomateRequest):
         
         # 4. 설정 저장 (립싱크 및 자막 여부)
         db.update_project_setting(project_id, "use_lipsync", req.use_lipsync)
-        db.update_project_setting(project_id, "use_lipsync", req.use_lipsync)
         db.update_project_setting(project_id, "use_subtitles", req.use_subtitles)
 
         # [NEW] Save Voice Mapping for future consistency
-        final_voice_map = {}
-        for s in req.scenes:
-            if s.character and s.voice_id and s.character != "None" and s.voice_id != "None":
-                 final_voice_map[s.character] = s.voice_id
+        if req.character_map:
+            db.update_project_setting(project_id, "voice_mapping_json", json.dumps(req.character_map, ensure_ascii=False))
         
-        if final_voice_map:
-             db.update_project_setting(project_id, "voice_mapping_json", json.dumps(final_voice_map, ensure_ascii=False))
-
         # 5. 백그라운드 워커가 감지할 수 있도록 보장
         autopilot_service.add_to_queue(project_id)
         
@@ -861,14 +931,24 @@ async def analyze_directory(req: AnalyzeDirRequest):
                     # Skip meaningless panels (copyright, blank, logos, etc.)
                     is_meaningless = analysis.get('is_meaningless') is True
                     dialogue = analysis.get('dialogue', '').strip()
+                    visual = analysis.get('visual_desc', '').lower()
                     
                     # Safer keyword filtering
-                    copyright_keywords = ["저작권", "무단 전재", "illegal copy", "all rights reserved", "무단 복제", "RK STUDIO"]
-                    if any(k in dialogue for k in copyright_keywords) and len(dialogue) < 120:
+                    copyright_keywords = [
+                        "저작권", "무단 전재", "illegal copy", "all rights reserved", "무단 복제", "RK STUDIO", 
+                        "studio", "webtoon", "episode", "next time", "to be continued", "copyright", "scan", "watermark"
+                    ]
+                    
+                    # 추가적인 시각적 판별 (완전 어두운 배경 등)
+                    if "completely dark" in visual or "completely black" in visual or "blank panel" in visual:
+                        if not dialogue: # 대사가 없으면 진짜 짜투리
+                            is_meaningless = True
+
+                    if any(k in dialogue for k in copyright_keywords) and len(dialogue) < 150:
                         is_meaningless = True
                     
                     if is_meaningless:
-                        print(f"Skipping meaningless panel: {analysis.get('visual_desc')}")
+                        print(f"Skipping meaningless panel (Visual: {visual})")
                         continue
 
                     # Update context for BETTER character identification in the next panel
@@ -884,7 +964,8 @@ async def analyze_directory(req: AnalyzeDirRequest):
                         "scene_number": len(all_scenes) + 1,
                         "image_path": v_path,
                         "image_url": f"/api/media/view?path={urllib.parse.quote(v_path)}&t={ts}",
-                        "analysis": analysis
+                        "analysis": analysis,
+                        "focal_point_y": analysis.get("focal_point_y", 0.5)
                     })
                 except Exception as e:
                     print(f"Gemini failed for {a_path}: {e}")
@@ -1034,3 +1115,28 @@ async def analyze_directory(req: AnalyzeDirRequest):
         import traceback
         traceback.print_exc()
         raise HTTPException(500, str(e))
+
+@router.post("/save-analysis")
+async def save_webtoon_analysis(
+    project_id: int = Body(...),
+    scenes: List[Dict] = Body(...)
+):
+    """분석 결과(장면) 저장"""
+    try:
+        scenes_json = json.dumps(scenes, ensure_ascii=False)
+        db.update_project_setting(project_id, "webtoon_scenes_json", scenes_json)
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@router.get("/get-analysis/{project_id}")
+async def get_webtoon_analysis(project_id: int):
+    """저장된 분석 결과(장면) 조회"""
+    try:
+        settings = db.get_project_settings(project_id)
+        if settings and settings.get("webtoon_scenes_json"):
+            scenes = json.loads(settings["webtoon_scenes_json"])
+            return {"status": "ok", "scenes": scenes}
+        return {"status": "ok", "scenes": []}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}

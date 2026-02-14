@@ -100,7 +100,10 @@ class GeminiService:
         3. Describe the visual action and atmosphere briefly in English.
            - Append specific Camera Movement keywords at the end. (e.g., "[Camera: Zoom in]", "[Camera: Pan left]", "[Camera: Static]")
         4. Suggest appropriate sound effects (SFX) for this scene (e.g., Boom, Rain, Footsteps, Crowd noise).
-        5. **is_meaningless**: Set to true if this image contains NO story content (e.g., only a copyright notice, only a studio logo, or just a transition effect with no action).
+        5. **focal_point_y**: A normalized value (float 0.0 to 1.0) indicating the vertical center of the most important subject (e.g., character's eyes/face, main object).
+           - 0.0 is top, 1.0 is bottom.
+           - This will be used to crop tall vertical panels without cutting through heads or waists.
+        6. **is_meaningless**: Set to true if this image contains NO story content.
 
         Return ONLY a JSON object in this format:
         {{
@@ -109,6 +112,7 @@ class GeminiService:
             "visual_desc": "brief visual description in English",
             "atmosphere": "e.g. dramatic, funny, scary",
             "sound_effects": "suggested SFX list (comma separated) or 'None'",
+            "focal_point_y": 0.5,
             "is_meaningless": false
         }}
         """
@@ -129,6 +133,131 @@ class GeminiService:
         except Exception as e:
             print(f"Panel analysis failed: {e}")
             return {"dialogue": "", "character": "None", "visual_desc": f"Error: {str(e)}", "atmosphere": "Error"}
+
+    async def generate_webtoon_plan(self, scenes: List[dict]) -> dict:
+        """분석된 패널 정보를 바탕으로 비디오 제작을 위한 기획/기술 제안서 생성"""
+        
+        scenes_preview = []
+        for s in scenes:
+            # Handle both object and dict
+            if hasattr(s, 'get'):
+                sc = s
+            else:
+                sc = s.dict() if hasattr(s, 'dict') else vars(s)
+            
+            # [CRITICAL] Fake Description Injection with VARIETY
+            # 정보가 족할 때 획일적인 'Pan Down'만 나오지 않도록, 가짜 묘사를 상황별로 다르게 주입하여
+            # Gemini가 다양한 연출(Wan, Zoom, Shake 등)을 제안하도록 유도함.
+            raw_desc = str(sc.get('visual_desc') or '')
+            
+            # 정보가 정말 없거나 분석 실패인 경우
+            if not raw_desc or "Analysis failed" in raw_desc or len(raw_desc) < 5:
+                 import random
+                 idx = sc.get('idx', 0)
+                 
+                 # 씬 번호 기반으로 다양성 부여 (단순 랜덤은 아님)
+                 styles = [
+                     ("Dynamic Action", "Intense movement, sparks flying, high tension.", "Mysterious"),
+                     ("Emotional Close-up", "Character's face showing deep emotion, tears or anger.", "Sad/Angry"),
+                     ("Wide Atmosphere", "A vast landscape with weather effects like rain or wind.", "Grand"),
+                     ("Shocking Twist", "Sudden impact, screen shaking, dramatic zoom.", "Tense")
+                 ]
+                 
+                 # 씬 호에 따라 스타일 순환
+                 style_name, style_desc, style_mood = styles[idx % len(styles)]
+                 
+                 fake_desc = f"A {style_name} webtoon panel. {style_desc}"
+                 d_text = sc.get('dialogue', '')
+                 if d_text: fake_desc += f" Characters are saying: '{d_text}'"
+                 
+                 sc['visual_desc'] = fake_desc
+                 sc['atmosphere'] = style_mood
+
+                
+            scenes_preview.append({
+                "scene_number": sc.get("scene_number"),
+                "dialogue": sc.get("dialogue"),
+                "visual_desc": sc.get("visual_desc"),
+                "character": sc.get("character"),
+                "sound_effects": sc.get("sound_effects")
+            })
+            
+        scenes_json = json.dumps(scenes_preview, ensure_ascii=False)
+        
+        prompt = f"""
+        당신은 웹툰 기반 비디오 제작 감독입니다. 
+        제공된 웹툰 장면 분석 데이터를 바탕으로, 고퀄리티 영상을 만들기 위한 '제작 제안서(Production Plan)'를 작성하세요.
+        
+        [입력 데이터 (장면 리스트)]
+        {scenes_json}
+        
+        [기획 시 고려 사항]
+        [비디오 엔진 선택 및 연출 원칙 (Visual Hierarchy)]
+        1. **이미지 비율 및 구도 분석 (CRITICAL)**:
+           - **세로로 긴 이미지(Vertical)**: 절대로 중간을 잘라내지 마세요. 전체를 보여주기 위해 **'pan_down' (위에서 아래로 훑기)** 또는 **'pan_up'** 효과를 필수적으로 사용하세요. (예: 추락, 전신 샷, 하늘에서 땅으로 이어지는 배경)
+           - **가로 여백 부족**: 원본의 좌우가 잘리지 않도록 유지하고, 부족한 부분은 AI Outpainting으로 채운다고 가정하고 프롬프트를 작성하세요.
+
+        2. **Visual Action > Dialogue (우선순위 역전)**:
+           - 대사가 있더라도, 시각적으로 **추락(falling), 전신 동작, 전투, 폭발** 등 강한 물리적 움직임이 묘사된 경우 **립싱크(Akool)를 금지**하고 **Wan (Motion)** 또는 **Image (Pan/Tilt)**를 선택하세요.
+
+        3. **Hyper-Detailed Motion Prompting (Wan 엔진 전용)**:
+           - 단순한 "Fire"나 "Wind" 대신 다음 3단계 레이어로 묘사하세요:
+             * **[Main]**: 주요 피사체의 큰 동작 (예: Woman standing in intense chaos)
+             * **[Sub]**: 디테일한 움직임 (예: Hair blowing wildly, Flag flapping aggressively, Blood dripping)
+             * **[Env]**: 환경적 효과 (예: Fire embers flying horizontally, Dark smoke rising)
+           - `visual_desc`가 없거나 부족하면, **대사의 분위기(implied mood)**와 **일반적인 웹툰 연출(Standard Cinematic)**을 상상해서라도 채워넣으세요. 빈칸 금지.
+
+        [비상 대처 매뉴얼 (CREATIVE RECOVERY PROTOCOL)]
+        - 만약 `visual_desc`가 "Analysis failed"이거나 정보가 부족한 경우라도, **절대 "정보 부족"이라고 말하거나 획일적인 "Pan Down"만 반복하지 마세요.**
+        - 대신 **"다양한 연출 시나리오(Creative Scenarios)"**를 상상해서 적용하세요:
+          1. **Zoom In/Out**: 인물의 감정이나 디테일 강조.
+          2. **Shake**: 충격, 긴장, 전투 상황 암시.
+          3. **Wan (Motion)**: 바람, 불꽃, 비, 마법 효과 등을 상상해서 추가.
+          4. **Pan Down/Up/Left/Right**: 배경이나 전신 훑기. (남발 금지)
+        - **Rationale**: "시각적 정보 부재로 인해, 대사의 뉘앙스에 맞춰 극적인 Zoom In 연출을 선택함." 처럼 **당신의 창의적인 결정 이유**를 적으세요.
+        - **Motion Desc**: "Dramatic camera work, intense atmosphere." 등 상상력을 발휘하세요.
+
+        [엔진 가이드]
+        - **image**: 기본적인 2D 모션. (Zoom, Pan, Shake 등 다양하게 활용)
+        - **wan**: 불, 물, 마법, 전투 등 동적인 요소가 필요할 때 과감하게 사용.
+        - **akool**: 오직 '얼굴 클로즈업'이면서 '정적인 대화'일 때만 제한적으로 사용.
+
+        [출력 형식]
+        반드시 JSON 형식으로만 응답하세요:
+        {{
+            "overall_strategy": "전체적인 연출 컨셉 (한국어)",
+            "bgm_style": "추천 BGM 스타일 (한국어)",
+            "character_plan": [ ... ],
+            "scene_plans": [
+                {{
+                    "scene_number": 1,
+                    "engine": "image" | "wan" | "akool",
+                    "effect": "zoom_in" | "zoom_out" | "pan_left" | "pan_right" | "tilt_up" | "tilt_down" | "pan_down" | "pan_up" | "static" | "shake",
+                    "motion_desc": "Wan 사용 시: '[Main] ..., [Sub] ..., [Env] ...' 형식의 3단계 상세 묘사. 정보 부족 시 상상해서라도 작성. (English)",
+                    "rationale": "연출 근거. '정보 부족' 표현 절대 금지. 대신 '이미지 분석에 따른 연출' 또는 '대사 분위기에 맞춘 연출'로 작성. (한국어)",
+                    "sfx_priority": "High" | "Normal",
+                    "cropping_advice": "구도 조언 (예: 세로가 길므로 위에서부터 훑어내리기)",
+                    "voice_name": "ElevenLabs Voice Name (e.g. Rachel, Adam, Josh, Dorothy, Nicole, Fin) - Choose based on character gender/age/personality"
+                }}
+            ]
+        }}
+        """
+        
+        try:
+            text = await self.generate_text(prompt, temperature=0.7)
+            
+            # JSON 파싱
+            import re
+            json_match = re.search(r'\{[\s\S]*\}', text)
+            if json_match:
+                try:
+                    return json.loads(json_match.group())
+                except:
+                    pass
+            return {{ "overall_strategy": "Plan parsing failed", "raw": text }}
+        except Exception as e:
+            print(f"Plan Generation Error: {e}")
+            return {{ "overall_strategy": f"Error: {str(e)}" }}
 
     async def generate_image(
         self,

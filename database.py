@@ -180,6 +180,7 @@ def init_db():
             prompt_ko TEXT,
             prompt_en TEXT,
             image_url TEXT,
+            focal_point_y REAL DEFAULT 0.5,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (project_id) REFERENCES projects(id)
         )
@@ -413,6 +414,24 @@ def migrate_db():
     if 'background_video_url' not in columns:
         print("[Migration] Adding background_video_url column to project_settings table...")
         cursor.execute("ALTER TABLE project_settings ADD COLUMN background_video_url TEXT")
+
+    # Webtoon & Video Engine Options
+    for col, col_type in [
+        ("video_engine", "TEXT DEFAULT 'wan'"),
+        ("use_lipsync", "INTEGER DEFAULT 1"),
+        ("use_subtitles", "INTEGER DEFAULT 1"),
+        ("webtoon_scenes_json", "TEXT")
+    ]:
+        try:
+            cursor.execute(f"ALTER TABLE project_settings ADD COLUMN {col} {col_type}")
+            print(f"[Migration] Added {col} to project_settings")
+        except sqlite3.OperationalError:
+            pass
+
+    # [NEW] Webtoon Focal Point
+    try:
+        cursor.execute("ALTER TABLE image_prompts ADD COLUMN focal_point_y REAL DEFAULT 0.5")
+    except sqlite3.OperationalError: pass
 
     # 마이그레이션: project_settings 테이블에 is_uploaded 컬럼 추가
     if 'is_uploaded' not in columns:
@@ -1146,8 +1165,8 @@ def save_image_prompts(project_id: int, prompts: List[Dict]):
     for i, prompt in enumerate(prompts):
         cursor.execute("""
             INSERT INTO image_prompts
-            (project_id, scene_number, scene_text, prompt_ko, prompt_en, image_url, script_start, script_end, scene_title, video_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (project_id, scene_number, scene_text, prompt_ko, prompt_en, image_url, script_start, script_end, scene_title, video_url, focal_point_y)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             project_id,
             i + 1,
@@ -1158,7 +1177,8 @@ def save_image_prompts(project_id: int, prompts: List[Dict]):
             prompt.get('script_start') or '',
             prompt.get('script_end') or '',
             prompt.get('scene_title') or '', # scene_title
-            prompt.get('video_url') or '' # video_url
+            prompt.get('video_url') or '', # video_url
+            prompt.get('focal_point_y', 0.5)
         ))
 
     conn.commit()
@@ -1189,6 +1209,7 @@ def get_image_prompts(project_id: int) -> List[Dict]:
         d['script_end'] = d.get('script_end') or ''
         d['scene_title'] = d.get('scene_title') or ''
         d['video_url'] = d.get('video_url') or ''
+        d['focal_point_y'] = d.get('focal_point_y') if d.get('focal_point_y') is not None else 0.5
         
         # [DEBUG] Check persistence matches - including image_url for frontend display troubleshooting
         scene_num = d.get('scene_number')
@@ -1508,7 +1529,7 @@ def update_project_setting(project_id: int, key: str, value: Any):
                     'thumbnail_style', 'thumbnail_font', 'thumbnail_font_size', 'thumbnail_color', 'thumbnail_full_state',
                     'image_style', 'all_video', 'motion_method', 'video_scene_count',
                     'upload_privacy', 'upload_schedule_at', 'youtube_channel_id',
-                    'creation_mode', 'product_url', 'topview_task_id']
+                    'creation_mode', 'product_url', 'topview_task_id', 'video_engine', 'use_lipsync', 'use_subtitles', 'webtoon_scenes_json']
 
 
     if key not in allowed_keys:

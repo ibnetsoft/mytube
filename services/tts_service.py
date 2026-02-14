@@ -258,6 +258,36 @@ class TTSService:
                 return await self.generate_elevenlabs(text, "4JJwo477JUAx3HV0T7n7", filename, return_alignment)
             else:
                 raise Exception(f"ElevenLabs API 오류: {response.text}")
+
+    async def generate_sound_effect(self, text: str, duration_seconds: float = None, prompt_influence: float = 0.3) -> Optional[bytes]:
+        """ElevenLabs Sound Effects 생성"""
+        load_dotenv(override=True)
+        api_key = os.getenv("ELEVENLABS_API_KEY")
+        if not api_key:
+            return None
+
+        url = "https://api.elevenlabs.io/v1/sound-generation"
+        headers = {
+            "xi-api-key": api_key,
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "text": text,
+            "duration_seconds": duration_seconds,
+            "prompt_influence": prompt_influence
+        }
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            try:
+                response = await client.post(url, headers=headers, json=payload)
+                if response.status_code == 200:
+                    return response.content
+                else:
+                    print(f"❌ ElevenLabs SFX Error: {response.status_code} - {response.text}")
+                    return None
+            except Exception as e:
+                print(f"❌ ElevenLabs SFX Exception: {e}")
+                return None
     
     def _chars_to_words_alignment(self, characters: list, start_times: list, end_times: list) -> list:
         """문자 단위 타이밍을 단어 단위로 변환"""

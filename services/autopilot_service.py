@@ -131,6 +131,14 @@ class AutoPilotService:
                 db.update_project(project_id, status="scripted")
                 current_status = "scripted"
 
+            # [RE-SYNC] Webtoon mode transition: if it's queued/scripted but came from webtoon studio
+            if current_status in ["queued", "scripted", "scripting"]:
+                # Check if we have image prompts but no videos
+                prompts = db.get_image_prompts(project_id)
+                if prompts:
+                    current_status = "characters_ready"
+                    print(f"🎞️ [Auto-Pilot] Found existing image prompts. Moving to Asset Generation.")
+
             # 4.5 캐릭터 추출 (일관성 유지용)
             if current_status == "scripted":
                 script_data = db.get_script(project_id)
@@ -529,19 +537,29 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
         provider = config_dict.get("voice_provider")
         voice_id = config_dict.get("voice_id")
         
+        sorted_prompts = sorted(image_prompts, key=lambda x: x.get('scene_number', 0))
+        
         if not provider or not voice_id:
-             p_settings = db.get_project_settings(project_id) or db.get_project_settings(1) or {}
-             if not provider: provider = p_settings.get("voice_provider", "google_cloud")
-             if not voice_id: voice_id = p_settings.get("voice_id") or p_settings.get("voice_name", "ko-KR-Neural2-A")
+             p_settings = db.get_project_settings(project_id) or {}
+             provider = p_settings.get("voice_provider")
+             voice_id = p_settings.get("voice_id") or p_settings.get("voice_name")
+             
+             # Fallback logic: If any scene has SFX, prioritize ElevenLabs
+             has_sfx = any(p.get("sound_effects") not in [None, 'None', 'Unknown'] for p in sorted_prompts)
+             if not provider and has_sfx:
+                 provider = "elevenlabs"
+                 if not voice_id:
+                     voice_id = "4JJwo477JUAx3HV0T7n7" # Default ElevenLabs voice
+             
+             # Ultimate Fallback
+             if not provider: provider = "google_cloud"
+             if not voice_id: voice_id = "ko-KR-Neural2-A"
         
-        # [NEW] Collect scene audio mappings for Pass 3
         scene_audio_map = {} # scene_number -> local_audio_path
-        
         scene_audio_files = []
         scene_durations = []
         all_alignments = []
         cumulative_audio_time = 0.0
-        sorted_prompts = sorted(image_prompts, key=lambda x: x.get('scene_number', 0))
         temp_audios = []
         used_voices = set() # [NEW] Track voices
         import uuid
@@ -615,7 +633,40 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                         scene_durations.append(3.0)
                         cumulative_audio_time += 3.0
 
+                # [NEW] Auto SFX Generation (if missing) 
+                # First try to find in image_prompts (if column exists) or webtoon_scenes_json
+                s_desc = p.get('sound_effects')
+                if not s_desc:
+                    # Try to extract from webtoon_scenes_json
+                    w_json = p_settings.get('webtoon_scenes_json')
+                    if w_json:
+                        try:
+                            w_scenes = json.loads(w_json)
+                            if i < len(w_scenes):
+                                s_desc = w_scenes[i].get('sound_effects')
+                        except: pass
+
+                sfx_k = f"scene_{scene_num}_sfx"
+                if s_desc and s_desc not in ['None', 'Unknown'] and len(s_desc) > 2 and not p_settings.get(sfx_k):
+                    try:
+                        sfx_p_str = re.sub(r'[^\w\s,]', '', s_desc)
+                        print(f"🔊 [Auto-Pilot] Generating SFX for scene {scene_num}: {sfx_p_str}")
+                        sfx_d = await tts_service.generate_sound_effect(sfx_p_str[:100])
+                        if sfx_d:
+                            sfx_dr = os.path.join(config.OUTPUT_DIR, str(project_id), "assets", "sound")
+                            os.makedirs(sfx_dr, exist_ok=True)
+                            sfx_fn = f"sfx_scene_{scene_num:03d}_auto.mp3"
+                            sfx_pth = os.path.join(sfx_dr, sfx_fn)
+                            with open(sfx_pth, "wb") as f:
+                                f.write(sfx_d)
+                            db.update_project_setting(project_id, sfx_k, sfx_fn)
+                            print(f"✅ [Auto-Pilot] SFX Saved: {sfx_fn}")
+                    except Exception as se:
+                        print(f"⚠️ [Auto-Pilot] SFX Gen failed: {se}")
+
             except Exception as e:
+                import traceback
+                traceback.print_exc()
                 print(f"⚠️ Scene {i} TTS Error: {e}")
                 scene_durations.append(3.0)
                 cumulative_audio_time += 3.0
@@ -635,7 +686,8 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
         total_duration = 0.0
         if scene_audio_files:
             try:
-                from moviepy import concatenate_audioclips, AudioFileClip
+                from moviepy.audio.AudioClip import concatenate_audioclips
+                from moviepy.audio.io.AudioFileClip import AudioFileClip
                 clips = [AudioFileClip(f) for f in scene_audio_files]
                 final_clip = concatenate_audioclips(clips)
                 final_clip.write_audiofile(final_audio_path, logger=None)
@@ -725,11 +777,6 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
         else:
              print("❌ No audio generated.")
         
-        # Cleanup temps
-        for f in temp_audios:
-            try: os.remove(f)
-            except: pass
-
         # [NEW] Pass 3: Video Generation (Now we have both Images and Audio)
         print("📹 [Auto-Pilot] Pass 3: Generating Video Components...")
         video_engine = config_dict.get("video_engine", "wan")
@@ -762,19 +809,79 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             if use_lipsync_val is not None:
                 if isinstance(use_lipsync_val, str): use_lipsync = (use_lipsync_val.lower() == 'true' or use_lipsync_val == '1')
                 else: use_lipsync = bool(use_lipsync_val)
-
-            # "말할때는 akool (if enabled), 움직일땐 wan"
-            local_engine = "akool" if (has_dialogue and use_lipsync) else "wan"
-            
-            print(f"🤖 [Auto-Switch] Scene {scene_num}: Dialogue={has_dialogue} -> Engine={local_engine}")
-
             try:
+                # [SMART ENGINE SWITCH]
+                # Priority:
+                # 1. Manual Override (from planning/settings)
+                # 2. Logic (Dialogue + Lipsync -> Akool, else -> Wan)
+                
+                manual_engine = p_settings.get(f"scene_{scene_num}_engine")
+                if manual_engine in ["wan", "akool", "image"]:
+                    local_engine = manual_engine
+                    print(f"🎯 [Manual Override] Scene {scene_num} -> {local_engine}")
+                else:
+                    local_engine = "akool" if (has_dialogue and use_lipsync) else "wan"
+                
+                # [EXPERIMENTAL] 건너뛰기 로직 보완 -> [UPDATED] Image 엔진도 비디오 파일 생성 (2D Pan/Zoom)
+                if local_engine == "image":
+                    print(f"🖼️ [Image-Only] Scene {scene_num} using 2D Pan/Zoom Motion...")
+                    # Motion type determined by manual override or default 'zoom_in'
+                    motion_type = p_settings.get(f"scene_{scene_num}_motion", "zoom_in")
+                    
+                    # Create 2D Motion Video
+                    motion_bytes = await video_service.create_image_motion_video(
+                        image_path=image_abs_path,
+                        duration=video_duration,
+                        motion_type=motion_type,
+                        width=1080, height=1920 # Default vertical shorts
+                    )
+                    
+                    if motion_bytes:
+                        filename = f"vid_img_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.mp4"
+                        out = os.path.join(config.OUTPUT_DIR, filename)
+                        with open(out, 'wb') as f: f.write(motion_bytes)
+                        db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
+                    continue
+
+                # [SPECIAL] 만약 Wan 모드이고 매뉴얼 효과가 있으면 프롬프트 보강
+                base_visual = p.get('prompt_en') or p.get('visual_desc') or "Cinematic motion"
+                manual_motion_desc = p_settings.get(f"scene_{scene_num}_motion_desc")
+                
+                if local_engine == "wan":
+                    if manual_motion_desc:
+                        # 사용자/AI가 지정한 구체적인 움직임(예: 불길이 활활 타오름)이 있으면 이를 우선시
+                        final_prompt = f"{base_visual}, {manual_motion_desc}"
+                        print(f"🔥 [Wan Content Motion] Scene {scene_num}: {manual_motion_desc}")
+                    else:
+                        final_prompt = f"{base_visual}, smooth motion"
+                    
+                    # 카메라 이동 추가
+                    manual_motion = p_settings.get(f"scene_{scene_num}_motion")
+                    if manual_motion:
+                        motion_map = {
+                            "zoom_in": "dramatic zoom in",
+                            "zoom_out": "dramatic zoom out",
+                            "pan_left": "cinematic pan left",
+                            "pan_right": "cinematic pan right",
+                            "tilt_up": "cinematic tilt up",
+                            "tilt_down": "cinematic tilt down",
+                            "shake": "handheld camera shake"
+                        }
+                        if manual_motion in motion_map:
+                            final_prompt += f", {motion_map[manual_motion]}"
+                            print(f"🎬 [Wan Camera Move] Scene {scene_num}: {manual_motion}")
+                else:
+                    final_prompt = base_visual
+
+                print(f"🤖 [Auto-Switch] Scene {scene_num}: Dialogue={has_dialogue} -> Engine={local_engine}")
+
                 if local_engine == "akool":
                     audio_abs_path = scene_audio_map.get(scene_num)
                     if not audio_abs_path: 
                         print(f"⚠️ [Akool] No audio found for scene {scene_num}. Switching to Wan.")
                         local_engine = "wan" # Fallback if no audio
                     else:
+                        print(f"🎭 [Akool] Generating Talking Avatar for Scene {scene_num}...")
                         video_bytes = await akool_service.generate_talking_avatar(image_abs_path, audio_abs_path)
                         if video_bytes:
                             filename = f"vid_akool_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.mp4"
@@ -783,12 +890,11 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                             db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
                 
                 if local_engine == "wan":
-                    # Wan / Replicate (Original logic)
-                    # Wan / Replicate (Original logic)
+                    # Wan / Replicate (Enhanced for Camera Moves)
                     print(f"📹 [Auto-Pilot] Generating Wan Video for Scene {scene_num}")
                     video_data = await replicate_service.generate_video_from_image(
                         image_abs_path, 
-                        prompt=f"Cinematic motion, {p.get('prompt_en', '')}",
+                        prompt=final_prompt,
                         duration=video_duration,
                         method=motion_method
                     )
@@ -799,6 +905,11 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                         db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
             except Exception as ve:
                 print(f"⚠️ [Auto-Pilot] Video generation failed for Scene {scene_num}: {ve}")
+
+        # Cleanup temps
+        for f in temp_audios:
+            try: os.remove(f)
+            except: pass
 
     async def _generate_thumbnail(self, project_id: int, script: str, config_dict: dict):
         """대본 기반 썸네일 자동 기획 및 생성"""
@@ -1000,7 +1111,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             if isinstance(use_sub_val, str): use_subtitles = (use_sub_val.lower() == 'true' or use_sub_val == '1')
             else: use_subtitles = bool(use_sub_val)
 
-        if use_subtitles:
+        if use_subtitles and tts_data:
             subtitle_path = settings.get("subtitle_path")
             if subtitle_path and os.path.exists(subtitle_path):
                 try:
@@ -1018,8 +1129,10 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             
             if not subs: 
                 subs = video_service.generate_smart_subtitles(script_data["full_script"], tts_data["duration"])
-        else:
+        elif not use_subtitles:
             print("🚫 [Auto-Pilot] Subtitles disabled manually.")
+        else:
+            print("⚠️ [Auto-Pilot] Cannot generate subtitles: TTS data missing.")
 
         # 2. Load Timeline Images
         # [FIX] Always use fresh DB data from image_prompts (includes video_url from Pass 3)
@@ -1042,7 +1155,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                 images.append(fpath)
                 print(f"📸 [Auto-Pilot] Scene {img.get('scene_number')}: Using {'video' if best_url.endswith('.mp4') else 'image'} - {os.path.basename(fpath)}")
                 
-        audio_path = tts_data["audio_path"]
+        audio_path = tts_data["audio_path"] if tts_data else None
         output_filename = f"autopilot_{project_id}_{config.get_kst_time().strftime('%H%M%S')}.mp4"
 
         # [IMPROVED] Calculate Durations from Start Timings
@@ -1050,7 +1163,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
         timings_path = settings.get("image_timings_path")
         
         smart_sync_enabled = False
-        if timings_path and os.path.exists(timings_path):
+        if tts_data and timings_path and os.path.exists(timings_path):
             try:
                 with open(timings_path, "r", encoding="utf-8") as f:
                     loaded_starts = json.load(f)
@@ -1093,7 +1206,8 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
 
         # 2. Fallback to Simple N-Division
         if not smart_sync_enabled:
-            image_durations = tts_data["duration"] / len(images) if images else 5.0
+            total_dur = tts_data["duration"] if tts_data else (len(images) * 5.0)
+            image_durations = total_dur / len(images) if images else 5.0
             print(f"⚠️ [Auto-Pilot] Fallback to N-Division Sync ({image_durations if not isinstance(image_durations, list) else 'list'}s per image)")
         
         # [NEW] Determine Resolution based on App Mode
@@ -1101,10 +1215,25 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
         resolution = (1920, 1080) if app_mode == "longform" else (1080, 1920)
         print(f"🎬 [Auto-Pilot] Rendering video with resolution: {resolution} (Mode: {app_mode})")
 
+        # [NEW] Collect SFX Mapping
+        sfx_map = {}
+        for i, img_obj in enumerate(sorted_prompts):
+            s_num = img_obj.get("scene_number")
+            sfx_filename = settings.get(f"scene_{s_num}_sfx")
+            if sfx_filename:
+                # Resolve path
+                sfx_abs_path = os.path.join(config.OUTPUT_DIR, str(project_id), "assets", "sound", sfx_filename)
+                if os.path.exists(sfx_abs_path):
+                    sfx_map[s_num] = sfx_abs_path
+
+        # [NEW] Collect Focal Points
+        f_points = [p.get("focal_point_y", 0.5) for p in sorted_prompts]
+
         final_path = video_service.create_slideshow(
             images=images, audio_path=audio_path, output_filename=output_filename,
             duration_per_image=image_durations, subtitles=subs, project_id=project_id,
-            resolution=resolution
+            resolution=resolution, subtitle_settings=settings, sfx_map=sfx_map,
+            focal_point_ys=f_points
         )
 
         db.update_project_setting(project_id, "video_path", f"/output/{output_filename}")
@@ -1447,6 +1576,53 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
         for p in projects:
             if p.get("status") == "queued":
                 db.update_project(p['id'], status="draft")
+
+    async def start_batch_worker(self):
+        """[NEW] 프로젝트 대기열을 감시하고 순차적으로 처리하는 워커"""
+        if self.is_batch_running:
+            print("🚀 [Auto-Pilot] Batch worker already running.")
+            return
+
+        self.is_batch_running = True
+        print("🚀 [Auto-Pilot] Batch worker started.")
+
+        while True:
+            try:
+                # 1. 'queued' 상태인 프로젝트 찾기
+                projects = db.get_all_projects()
+                queued = [p for p in projects if p.get("status") == "queued"]
+
+                if queued:
+                    target = queued[0]
+                    target_pid = target['id']
+                    target_topic = target.get('topic', 'Auto-Webtoon')
+
+                    print(f"📦 [Auto-Pilot] Processing queued project {target_pid} ({target_topic})...")
+                    
+                    # 2. 실행 상태로 전이 (run_workflow가 인식할 수 있게)
+                    p_settings = db.get_project_settings(target_pid) or {}
+                    
+                    # 대본이 있으면 바로 에셋 생성 단계로, 없으면 처음부터
+                    if p_settings.get("script") and len(p_settings.get("script").strip()) > 10:
+                        db.update_project(target_pid, status="scripted")
+                    else:
+                        db.update_project(target_pid, status="created")
+
+                    # Ensure app_mode compatibility
+                    if "mode" not in p_settings and "app_mode" in p_settings:
+                        p_settings["mode"] = p_settings["app_mode"]
+
+                    await self.run_workflow(target_topic, project_id=target_pid, config_dict=p_settings)
+                    
+                    print(f"✅ [Auto-Pilot] Project {target_pid} processing complete.")
+                
+                await asyncio.sleep(10) # 10초마다 확인
+                
+            except Exception as e:
+                print(f"❌ [Auto-Pilot] Batch worker error: {e}")
+                import traceback
+                traceback.print_exc()
+                await asyncio.sleep(20) # 에러 시 좀 더 길게 대기
 
 autopilot_service = AutoPilotService()
 
