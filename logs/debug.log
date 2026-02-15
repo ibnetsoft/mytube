@@ -2735,3 +2735,168 @@ ImportError: cannot import name 'AudioFileClip' from 'moviepy' (C:\Users\kimse\A
 [2026-02-14 23:21:25.939140] create_slideshow(PROJ=78) Effects: ['none', 'none', 'none', 'none']
 [2026-02-14 23:21:28.359300] RENDER_SETTINGS: font='GmarketSansBold', color='white', style='Basic_White', stroke_color='#000000', stroke_enabled=1, stroke_width=0.7999999999999999, bg_enabled=1
 [2026-02-14 23:21:28.361343] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-15 17:13:25.774210] create_slideshow(PROJ=78) Effects: None
+[2026-02-15 17:13:27.622129] RENDER_SETTINGS: font='GmarketSansBold', color='white', style='Basic_White', stroke_color='#000000', stroke_enabled=1, stroke_width=0.7999999999999999, bg_enabled=None
+[2026-02-15 17:13:28.077361] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-15 17:29:51.900832] create_slideshow(PROJ=78) Effects: None
+[2026-02-15 17:29:53.603823] RENDER_SETTINGS: font='GmarketSansBold', color='white', style='Basic_White', stroke_color='#000000', stroke_enabled=1, stroke_width=0.7999999999999999, bg_enabled=None
+[2026-02-15 17:29:54.069251] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-15 17:56:20.900080] create_slideshow(PROJ=78) Effects: None
+[2026-02-15 17:56:22.608173] RENDER_SETTINGS: font='GmarketSansBold', color='white', style='Basic_White', stroke_color='#000000', stroke_enabled=1, stroke_width=0.7999999999999999, bg_enabled=None
+[2026-02-15 17:56:23.069351] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-15 18:01:42.577202] create_slideshow(PROJ=78) Effects: ['random', 'random', 'random', 'random']
+[2026-02-15 18:01:44.329504] RENDER_SETTINGS: font='GmarketSansBold', color='white', style='Basic_White', stroke_color='#000000', stroke_enabled=1, stroke_width=0.7999999999999999, bg_enabled=None
+[2026-02-15 18:01:44.792438] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-15 18:14:05.431983] create_slideshow(PROJ=78) Effects: ['random', 'random', 'random', 'random']
+[2026-02-15 18:14:07.199407] RENDER_SETTINGS: font='GmarketSansBold', color='white', style='Basic_White', stroke_color='#000000', stroke_enabled=1, stroke_width=0.7999999999999999, bg_enabled=None
+[2026-02-15 18:14:07.698311] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-15 18:36:53.501777] 📦 [Auto-Pilot] Worker found queued project 78 (None)...
+[2026-02-15 18:36:53.506161] 📜 [Auto-Pilot] Setting PID 78 to 'scripted' because script exists.
+[2026-02-15 18:36:53.522421] ⚙️ [Auto-Pilot] Start run_workflow for project 78 (Keyword: None)
+[2026-02-15 18:36:53.526657] 🔋 [Auto-Pilot] all_video flag detected in config for PID 78
+[2026-02-15 18:36:53.555110] 🔍 [DEBUG] _generate_assets START: all_video=True, motion_method=standard
+[2026-02-15 18:36:53.555605] 🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating 4 video scenes.
+[2026-02-15 18:36:53.556089] 🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: 4, Engine: akool 🚀🚀🚀
+[2026-02-15 18:37:09.267950] 📹 [Auto-Pilot] Pass 3: Generating Video Components... Count: 4, Engine: akool
+[2026-02-15 18:37:09.287632]   > Scene 1: is_vid=True, has_image=True
+[2026-02-15 18:37:14.806917] ⚠️ [Auto-Pilot] Video generation failed for Scene 1: Akool Authentication failed.
+[2026-02-15 18:37:14.807453]   > Scene 2: is_vid=True, has_image=True
+[2026-02-15 18:37:20.237981] ⚠️ [Auto-Pilot] Video generation failed for Scene 2: Akool Authentication failed.
+[2026-02-15 18:37:20.238731]   > Scene 3: is_vid=True, has_image=True
+[2026-02-15 18:37:25.484667] ⚠️ [Auto-Pilot] Video generation failed for Scene 3: Akool Authentication failed.
+[2026-02-15 18:37:25.485242]   > Scene 4: is_vid=True, has_image=True
+[2026-02-15 18:37:30.482881] ⚠️ [Auto-Pilot] Video generation failed for Scene 4: Akool Authentication failed.
+[2026-02-15 18:37:30.544273] create_slideshow(PROJ=78) Effects: ['random', 'random', 'random', 'random']
+[2026-02-15 18:37:32.412028] RENDER_SETTINGS: font='GmarketSansBold', color='white', style='Basic_White', stroke_color='#000000', stroke_enabled=1, stroke_width=0.7999999999999999, bg_enabled=None
+[2026-02-15 18:37:32.926465] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-15 21:10:05.753259] 📦 [Auto-Pilot] Worker found queued project 78 (None)...
+[2026-02-15 21:10:05.758609] 📜 [Auto-Pilot] Setting PID 78 to 'scripted' because script exists.
+[2026-02-15 21:10:05.771984] ⚙️ [Auto-Pilot] Start run_workflow for project 78 (Keyword: None)
+[2026-02-15 21:10:05.777540] 🔋 [Auto-Pilot] all_video flag detected in config for PID 78
+[2026-02-15 21:10:05.810517] 🔍 [DEBUG] _generate_assets START: all_video=True, motion_method=standard
+[2026-02-15 21:10:05.811162] 🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating 4 video scenes.
+[2026-02-15 21:10:05.811666] 🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: 4, Engine: akool 🚀🚀🚀
+[2026-02-15 21:16:36.372405] 📦 [Auto-Pilot] Worker found queued project 78 (None)...
+[2026-02-15 21:16:36.376547] 📜 [Auto-Pilot] Setting PID 78 to 'scripted' because script exists.
+[2026-02-15 21:16:36.390812] ⚙️ [Auto-Pilot] Start run_workflow for project 78 (Keyword: None)
+[2026-02-15 21:16:36.394671] 🔋 [Auto-Pilot] all_video flag detected in config for PID 78
+[2026-02-15 21:16:36.419564] 🔍 [DEBUG] _generate_assets START: all_video=True, motion_method=standard
+[2026-02-15 21:16:36.420030] 🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating 4 video scenes.
+[2026-02-15 21:16:36.420512] 🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: 4, Engine: akool 🚀🚀🚀
+[2026-02-15 21:16:51.618201] 📹 [Auto-Pilot] Pass 3: Generating Video Components... Count: 4, Engine: akool
+[2026-02-15 21:16:51.625903]   > Scene 1: is_vid=True, has_image=True
+[2026-02-15 21:16:51.633088] 🎭 [Akool] Generating Talking Avatar for Scene 1...
+[2026-02-15 21:16:57.015276] ⚠️ [Akool] Error for scene 1: Akool Authentication failed.. Falling back to Wan...
+[2026-02-15 21:19:18.848174] ✅ Successfully generated Wan video for Scene 1
+[2026-02-15 21:19:18.848732]   > Scene 2: is_vid=True, has_image=True
+[2026-02-15 21:19:18.857018] 🎭 [Akool] Generating Talking Avatar for Scene 2...
+[2026-02-15 21:19:24.484512] ⚠️ [Akool] Error for scene 2: Akool Authentication failed.. Falling back to Wan...
+[2026-02-15 21:21:34.061022] ✅ Successfully generated Wan video for Scene 2
+[2026-02-15 21:21:34.061518]   > Scene 3: is_vid=True, has_image=True
+[2026-02-15 21:21:34.069842] 🎭 [Akool] Generating Talking Avatar for Scene 3...
+[2026-02-15 21:21:38.988690] ⚠️ [Akool] Error for scene 3: Akool Authentication failed.. Falling back to Wan...
+[2026-02-15 21:24:13.897991] ✅ Successfully generated Wan video for Scene 3
+[2026-02-15 21:24:13.898655]   > Scene 4: is_vid=True, has_image=True
+[2026-02-15 21:24:13.919945] 🎭 [Akool] Generating Talking Avatar for Scene 4...
+[2026-02-15 21:24:19.013080] ⚠️ [Akool] Error for scene 4: Akool Authentication failed.. Falling back to Wan...
+[2026-02-15 21:24:21.312233] ⚠️ [Auto-Pilot] Video generation failed for Scene 4: ReplicateError Details:
+title: Insufficient credit
+status: 402
+detail: You have insufficient credit to run this model. Go to https://replicate.com/account/billing#billing to purchase credit. Once you purchase credit, please wait a few minutes before trying again.
+[2026-02-15 21:24:21.401461] 🎞️ [Render] Scene 1: Effect=pan_down
+[2026-02-15 21:24:21.401961] 🎞️ [Render] Scene 2: Effect=pan_up
+[2026-02-15 21:24:21.402445] 🎞️ [Render] Scene 3: Effect=pan_up
+[2026-02-15 21:24:21.402918] 🎞️ [Render] Scene 4: Effect=pan_right
+[2026-02-15 21:24:21.403410] create_slideshow(PROJ=78) Effects: ['pan_down', 'pan_up', 'pan_up', 'pan_right']
+[2026-02-15 21:24:24.575831] RENDER_SETTINGS: font='GmarketSansBold', color='white', style='Basic_White', stroke_color='#000000', stroke_enabled=1, stroke_width=0.7999999999999999, bg_enabled=None
+[2026-02-15 21:24:25.063399] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-15 21:34:27.333543] 📦 [Auto-Pilot] Worker found queued project 78 (None)...
+[2026-02-15 21:34:27.338476] 📜 [Auto-Pilot] Setting PID 78 to 'scripted' because script exists.
+[2026-02-15 21:34:27.351262] ⚙️ [Auto-Pilot] Start run_workflow for project 78 (Keyword: None)
+[2026-02-15 21:34:27.355233] 🔋 [Auto-Pilot] all_video flag detected in config for PID 78
+[2026-02-15 21:34:27.433869] 🔍 [DEBUG] _generate_assets START: all_video=True, motion_method=standard
+[2026-02-15 21:34:27.434851] 🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating 4 video scenes.
+[2026-02-15 21:34:27.436125] 🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: 4, Engine: akool 🚀🚀🚀
+[2026-02-15 21:34:42.942857] 📹 [Auto-Pilot] Pass 3: Generating Video Components... Count: 4, Engine: akool
+[2026-02-15 21:34:42.950825]   > Scene 1: is_vid=True, has_image=True
+[2026-02-15 21:34:42.957988] 🎭 [Akool] Generating Talking Avatar for Scene 1...
+[2026-02-15 21:35:00.022345] ⚠️ [Akool] Error for scene 1: Failed to host assets for Akool.. Falling back to Wan...
+[2026-02-15 21:35:03.004010] ⚠️ [Auto-Pilot] Video generation failed for Scene 1: ReplicateError Details:
+title: Insufficient credit
+status: 402
+detail: You have insufficient credit to run this model. Go to https://replicate.com/account/billing#billing to purchase credit. Once you purchase credit, please wait a few minutes before trying again.
+[2026-02-15 21:35:03.004641]   > Scene 2: is_vid=True, has_image=True
+[2026-02-15 21:35:03.013531] 🎭 [Akool] Generating Talking Avatar for Scene 2...
+[2026-02-15 21:35:08.758400] ⚠️ [Akool] Error for scene 2: Failed to host assets for Akool.. Falling back to Wan...
+[2026-02-15 21:35:24.174514] ⚠️ [Auto-Pilot] Video generation failed for Scene 2: ReplicateError Details:
+title: Insufficient credit
+status: 402
+detail: You have insufficient credit to run this model. Go to https://replicate.com/account/billing#billing to purchase credit. Once you purchase credit, please wait a few minutes before trying again.
+[2026-02-15 21:35:24.175084]   > Scene 3: is_vid=True, has_image=True
+[2026-02-15 21:35:24.195911] 🎭 [Akool] Generating Talking Avatar for Scene 3...
+[2026-02-15 21:51:31.637826] 📦 [Auto-Pilot] Worker found queued project 78 (None)...
+[2026-02-15 21:51:31.643311] 📜 [Auto-Pilot] Setting PID 78 to 'scripted' because script exists.
+[2026-02-15 21:51:31.657328] ⚙️ [Auto-Pilot] Start run_workflow for project 78 (Keyword: None)
+[2026-02-15 21:51:31.661844] 🔋 [Auto-Pilot] all_video flag detected in config for PID 78
+[2026-02-15 21:51:31.698041] 🔍 [DEBUG] _generate_assets START: all_video=True, motion_method=standard
+[2026-02-15 21:51:31.698574] 🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating 4 video scenes.
+[2026-02-15 21:51:31.699064] 🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: 4, Engine: akool 🚀🚀🚀
+[2026-02-15 21:51:47.233891] 📹 [Auto-Pilot] Pass 3: Generating Video Components... Count: 4, Engine: akool
+[2026-02-15 21:51:47.242448]   > Scene 1: is_vid=True, has_image=True
+[2026-02-15 21:51:47.249728] 🎭 [Akool] Generating Talking Avatar for Scene 1...
+[2026-02-15 21:52:04.385535] ⚠️ [Akool] Error for scene 1: Failed to host assets for Akool.. Falling back to Wan...
+[2026-02-15 21:52:16.754586]   > Scene 2: is_vid=True, has_image=True
+[2026-02-15 21:52:16.763129] 🎭 [Akool] Generating Talking Avatar for Scene 2...
+[2026-02-15 21:52:42.076322] ⚠️ [Akool] Error for scene 2: Akool Authentication failed.. Falling back to Wan...
+[2026-02-15 21:52:52.363814]   > Scene 3: is_vid=True, has_image=True
+[2026-02-15 21:52:52.371366] 🎭 [Akool] Generating Talking Avatar for Scene 3...
+[2026-02-15 21:53:06.035087] ⚠️ [Akool] Error for scene 3: Akool Authentication failed.. Falling back to Wan...
+[2026-02-15 21:53:14.525355]   > Scene 4: is_vid=True, has_image=True
+[2026-02-15 21:53:14.533713] 🎭 [Akool] Generating Talking Avatar for Scene 4...
+[2026-02-15 21:53:31.068959] ⚠️ [Akool] Error for scene 4: Akool Authentication failed.. Falling back to Wan...
+[2026-02-15 21:53:40.008342] 🎞️ [Render] Scene 1: Effect=zoom_in
+[2026-02-15 21:53:40.008870] 🎞️ [Render] Scene 2: Effect=pan_up
+[2026-02-15 21:53:40.009336] 🎞️ [Render] Scene 3: Effect=pan_right
+[2026-02-15 21:53:40.009799] 🎞️ [Render] Scene 4: Effect=pan_right
+[2026-02-15 21:53:40.010253] create_slideshow(PROJ=78) Effects: ['zoom_in', 'pan_up', 'pan_right', 'pan_right']
+[2026-02-15 22:06:36.432538] 📦 [Auto-Pilot] Worker found queued project 78 (None)...
+[2026-02-15 22:06:36.436415] 📜 [Auto-Pilot] Setting PID 78 to 'scripted' because script exists.
+[2026-02-15 22:06:36.456299] ⚙️ [Auto-Pilot] Start run_workflow for project 78 (Keyword: None)
+[2026-02-15 22:06:36.460657] 🔋 [Auto-Pilot] all_video flag detected in config for PID 78
+[2026-02-15 22:06:36.485838] 🔍 [DEBUG] _generate_assets START: all_video=True, motion_method=standard
+[2026-02-15 22:06:36.486353] 🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating 4 video scenes.
+[2026-02-15 22:06:36.486819] 🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: 4, Engine: akool 🚀🚀🚀
+[2026-02-15 22:06:52.764576] 📹 [Auto-Pilot] Pass 3: Generating Video Components... Count: 4, Engine: akool
+[2026-02-15 22:06:52.773534]   > Scene 1: is_vid=True, has_image=True
+[2026-02-15 22:06:52.781018] 🎭 [Akool] Generating Talking Avatar for Scene 1...
+[2026-02-15 22:06:58.358125] ⚠️ [Akool] Error for scene 1: Failed to host assets for Akool.. Falling back to Wan...
+[2026-02-15 22:07:01.310039] ⚠️ [Auto-Pilot] Video generation failed for Scene 1: ReplicateError Details:
+title: Insufficient credit
+status: 402
+detail: You have insufficient credit to run this model. Go to https://replicate.com/account/billing#billing to purchase credit. Once you purchase credit, please wait a few minutes before trying again.
+[2026-02-15 22:07:01.310674]   > Scene 2: is_vid=True, has_image=True
+[2026-02-15 22:07:01.321147] 🎭 [Akool] Generating Talking Avatar for Scene 2...
+[2026-02-15 22:07:29.027176] ⚠️ [Akool] Error for scene 2: Failed to host assets for Akool.. Falling back to Wan...
+[2026-02-15 22:07:31.800006] ⚠️ [Auto-Pilot] Video generation failed for Scene 2: ReplicateError Details:
+title: Insufficient credit
+status: 402
+detail: You have insufficient credit to run this model. Go to https://replicate.com/account/billing#billing to purchase credit. Once you purchase credit, please wait a few minutes before trying again.
+[2026-02-15 22:07:31.800625]   > Scene 3: is_vid=True, has_image=True
+[2026-02-15 22:07:31.809670] 🎭 [Akool] Generating Talking Avatar for Scene 3...
+[2026-02-15 22:07:43.737481] ⚠️ [Akool] Error for scene 3: Failed to host assets for Akool.. Falling back to Wan...
+[2026-02-15 22:07:45.884089] ⚠️ [Auto-Pilot] Video generation failed for Scene 3: ReplicateError Details:
+title: Insufficient credit
+status: 402
+detail: You have insufficient credit to run this model. Go to https://replicate.com/account/billing#billing to purchase credit. Once you purchase credit, please wait a few minutes before trying again.
+[2026-02-15 22:07:45.884628]   > Scene 4: is_vid=True, has_image=True
+[2026-02-15 22:07:45.919536] 🎭 [Akool] Generating Talking Avatar for Scene 4...
+[2026-02-15 22:08:02.112909] ⚠️ [Akool] Error for scene 4: Failed to host assets for Akool.. Falling back to Wan...
+[2026-02-15 22:08:04.493180] ⚠️ [Auto-Pilot] Video generation failed for Scene 4: ReplicateError Details:
+title: Insufficient credit
+status: 402
+detail: You have insufficient credit to run this model. Go to https://replicate.com/account/billing#billing to purchase credit. Once you purchase credit, please wait a few minutes before trying again.
+[2026-02-15 22:08:04.583325] 🎞️ [Render] Scene 1: Effect=pan_down
+[2026-02-15 22:08:04.583884] 🎞️ [Render] Scene 2: Effect=pan_right
+[2026-02-15 22:08:04.584454] 🎞️ [Render] Scene 3: Effect=pan_left
+[2026-02-15 22:08:04.585038] 🎞️ [Render] Scene 4: Effect=zoom_out
+[2026-02-15 22:08:04.585690] create_slideshow(PROJ=78) Effects: ['pan_down', 'pan_right', 'pan_left', 'zoom_out']

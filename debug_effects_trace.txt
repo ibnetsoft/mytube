@@ -429,3 +429,58 @@ Img[0] EffectRaw: none -> Safe: none (Dur:5.712, FPS:24)
 Img[1] EffectRaw: none -> Safe: none (Dur:9.52, FPS:24)
 Img[2] EffectRaw: none -> Safe: none (Dur:8.313000000000002, FPS:24)
 Img[3] EffectRaw: none -> Safe: none (Dur:8.014999999999997, FPS:24)
+Img[0] EffectRaw: N/A -> Safe: none (Dur:6.177, FPS:24)
+Img[1] EffectRaw: N/A -> Safe: none (Dur:9.613, FPS:24)
+Img[2] EffectRaw: N/A -> Safe: none (Dur:7.152000000000001, FPS:24)
+Img[3] EffectRaw: N/A -> Safe: none (Dur:7.698, FPS:24)
+Img[0] EffectRaw: N/A -> Safe: none (Dur:5.248, FPS:24)
+Img[1] EffectRaw: N/A -> Safe: none (Dur:9.892, FPS:24)
+Img[2] EffectRaw: N/A -> Safe: none (Dur:7.57, FPS:24)
+Img[3] EffectRaw: N/A -> Safe: none (Dur:8.120000000000001, FPS:24)
+Img[0] EffectRaw: N/A -> Safe: none (Dur:5.898, FPS:24)
+Img[1] EffectRaw: N/A -> Safe: none (Dur:10.541999999999998, FPS:24)
+Img[2] EffectRaw: N/A -> Safe: none (Dur:8.081, FPS:24)
+Img[3] EffectRaw: N/A -> Safe: none (Dur:7.888999999999999, FPS:24)
+Img[0] EffectRaw: random -> Safe: random (Dur:5.712, FPS:24)
+  -> Random Selection for Img[0]: pan_right
+Img[0] ERROR applying effect 'pan_right': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[1] EffectRaw: random -> Safe: random (Dur:9.845, FPS:24)
+  -> Random Selection for Img[1]: pan_right
+Img[1] ERROR applying effect 'pan_right': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[2] EffectRaw: random -> Safe: random (Dur:7.4769999999999985, FPS:24)
+  -> Random Selection for Img[2]: zoom_out
+Img[2] ERROR applying effect 'zoom_out': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[3] EffectRaw: random -> Safe: random (Dur:7.476000000000003, FPS:24)
+  -> Random Selection for Img[3]: pan_left
+Img[3] ERROR applying effect 'pan_left': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[0] EffectRaw: random -> Safe: random (Dur:6.084, FPS:24)
+  -> Random Selection for Img[0]: pan_left
+Img[0] ERROR applying effect 'pan_left': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[1] EffectRaw: random -> Safe: random (Dur:10.217000000000002, FPS:24)
+  -> Random Selection for Img[1]: pan_left
+Img[1] ERROR applying effect 'pan_left': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[2] EffectRaw: random -> Safe: random (Dur:7.477, FPS:24)
+  -> Random Selection for Img[2]: pan_right
+Img[2] ERROR applying effect 'pan_right': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[3] EffectRaw: random -> Safe: random (Dur:8.011999999999997, FPS:24)
+  -> Random Selection for Img[3]: zoom_in
+Img[3] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[0] EffectRaw: random -> Safe: random (Dur:5.201, FPS:24)
+  -> Random Selection for Img[0]: zoom_in
+Img[0] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[1] EffectRaw: random -> Safe: random (Dur:10.169999999999998, FPS:24)
+  -> Random Selection for Img[1]: pan_left
+Img[1] ERROR applying effect 'pan_left': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[2] EffectRaw: random -> Safe: random (Dur:8.730999999999998, FPS:24)
+  -> Random Selection for Img[2]: zoom_in
+Img[2] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[3] EffectRaw: random -> Safe: random (Dur:8.108000000000004, FPS:24)
+  -> Random Selection for Img[3]: pan_right
+Img[3] ERROR applying effect 'pan_right': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[0] EffectRaw: none -> Safe: none (Dur:5.759, FPS:24)
+Img[1] EffectRaw: none -> Safe: none (Dur:9.195, FPS:24)
+Img[2] EffectRaw: none -> Safe: none (Dur:7.663, FPS:24)
+Img[3] EffectRaw: pan_right -> Safe: pan_right (Dur:7.873000000000001, FPS:24)
+Img[3] ERROR applying effect 'pan_right': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[0] EffectRaw: none -> Safe: none (Dur:5.48, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:5.526, FPS:24)

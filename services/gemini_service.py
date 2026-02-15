@@ -111,6 +111,7 @@ class GeminiService:
             "dialogue": "extracted speech text here (empty if only SFX/copyright/logo)",
             "character": "speaker name or 'Unknown'",
             "visual_desc": "brief visual description in English",
+            "motion_desc": "DETAILED description for AI Video Generation (Wan 2.1). Focus on movement (e.g. 'Hair blowing in wind', 'Fire flickering', 'Tears falling', 'Sword swinging'). ALSO include Camera Movement (e.g. 'Slow Pan Down along the body', 'Reviewing from top to bottom').",
             "atmosphere": "e.g. dramatic, funny, scary",
             "sound_effects": "suggested SFX list (comma separated) or 'None'",
             "focal_point_y": 0.5,

@@ -320,13 +320,20 @@ class VideoService:
                     is_vertical = target_h > target_w
 
                     if is_vertical:
+                        # [NEW] Check if we need to preserve tall height for vertical panning
+                        is_tall_pan = False
+                        if image_effects and i < len(image_effects):
+                             eff_check = str(image_effects[i]).lower().replace(" ", "_")
+                             if eff_check in ['pan_up', 'pan_down', 'scroll_down', 'scroll_up']:
+                                 is_tall_pan = True
+
                         # [NEW] Smart focal point retrieval
                         focal_y = 0.5
                         if focal_point_ys and i < len(focal_point_ys):
                             focal_y = focal_point_ys[i]
 
                         # For Shorts/Vertical: Use Cinematic Frame (Fit Width + Smart Crop Focal Point)
-                        processed_img_path = self._create_cinematic_frame(img_path, resolution, focal_point_y=focal_y)
+                        processed_img_path = self._create_cinematic_frame(img_path, resolution, focal_point_y=focal_y, allow_tall=is_tall_pan)
                     else:
                         # For Landscape: Use Fill (Crop) as before
                         processed_img_path = self._resize_image_to_fill(img_path, resolution)
@@ -361,23 +368,47 @@ class VideoService:
                         df.write(f"Img[{i}] EffectRaw: {image_effects[i] if image_effects and i < len(image_effects) else 'N/A'} -> Safe: {safe_effect} (Dur:{dur}, FPS:{fps})\n")
                 except: pass
                 
-                # Force disable effect for Video clips OR Vertical (Shorts) content as per user request
-                is_vertical_render = resolution[1] > resolution[0]
-                if is_video_asset or is_vertical_render:
+                # Force disable effect ONLY for Video clips. 
+                # [FIX] Allow effects for images in Vertical (Shorts) mode to provide motion.
+                if is_video_asset:
                      safe_effect = 'none'
                 
                 if safe_effect == 'random':
                     import random
-                    # Random logic: Select one, log it
-                    safe_effect = random.choice(['zoom_in', 'zoom_out', 'pan_left', 'pan_right']) # [FIX] Update safe_effect directly
+                    # [MODIFIED] Include vertical pans in random selection
+                    safe_effect = random.choice(['zoom_in', 'zoom_out', 'pan_left', 'pan_right', 'pan_up', 'pan_down'])
                     try:
                         with open("debug_effects_trace.txt", "a", encoding="utf-8") as df:
                             df.write(f"  -> Random Selection for Img[{i}]: {safe_effect}\n")
                     except: pass
                 
+                # [NEW] Normalize/Alias effects for unified motor control
+                if safe_effect in ['scroll_down', 'tilt_down', 'pan_down_move']: 
+                    safe_effect = 'pan_up'   # Camera moves Down = Look Bottom
+                if safe_effect in ['scroll_up', 'tilt_up', 'pan_up_move']: 
+                    safe_effect = 'pan_down' # Camera moves Up = Look Top
+
                 if safe_effect and safe_effect != 'none':
                     effect = safe_effect
 
+                # [NEW] Handle positioning for TALL assets (Webtoon support)
+                # If it's a tall image and no specific effect (or static), ensure we look at the focal point instead of just the top.
+                if (not effect or effect == 'none') and is_vertical and processed_img_path and 'tall' in os.path.basename(processed_img_path):
+                    try:
+                        cur_h = clip.h
+                        # Calculate y_offset to center the focal point in the viewport
+                        y_offset = int(target_h / 2 - (cur_h * focal_point_y))
+                        # Clamp to ensure image covers the background
+                        min_y = target_h - cur_h
+                        max_y = 0
+                        y_pos = max(min_y, min(max_y, y_offset))
+                        clip = clip.with_position((0, y_pos))
+                        # Wrap in composite to fix the viewport size
+                        clip = CompositeVideoClip([clip], size=(target_w, target_h)).with_duration(dur)
+                        print(f"  → Applied focal-point positioning to tall static item #{i+1} (y={y_pos})")
+                    except Exception as pe:
+                        print(f"Positioning Error: {pe}")
+                
                 if effect:
                     print(f"DEBUG_RENDER: Image[{i}] Applying Effect '{effect}' (FPS={fps}, Dur={dur}s)")
 
@@ -489,12 +520,21 @@ class VideoService:
 
         # 오디오 추가
         if audio_path and os.path.exists(audio_path):
+            # [FIX] Enhanced Audio Mixing (Narration + SFX + BGM)
             audio = AudioFileClip(audio_path)
+            
+            # [NEW] Background Music (BGM) Overlay
+            bgm_path = subtitle_settings.get("bgm_path") # Passed through settings or direct param
+            if bgm_path and os.path.exists(bgm_path):
+                try:
+                    bgm_clip = AudioFileClip(bgm_path).with_duration(audio.duration).with_volume(0.3) # 30% volume
+                    from moviepy.audio.AudioClip import CompositeAudioClip
+                    audio = CompositeAudioClip([audio, bgm_clip])
+                    print(f"🎵 [BGM] Mixed into final: {os.path.basename(bgm_path)}")
+                except Exception as bge:
+                    print(f"BGM Mixing Error: {bge}")
 
             # 오디오 길이에 맞춰 비디오 조절
-            # 오디오 길이에 맞춰 비디오 조절
-            # [FIX] MoviePy's audio.duration might be inaccurate for variable bitrate or speed-changed audio.
-            # Use pydub to verify actual duration if possible.
             check_duration = audio.duration
             try:
                 import pydub
@@ -504,24 +544,15 @@ class VideoService:
             
             # Adjust video duration to match audio duration
             if audio.duration > video.duration:
-                # Video is shorter than audio, extend last image
-                # [FIX] Use pydub duration for check if available, or rely on moviepy's audio.duration
-                # Use a tolerance (e.g. 1.0s) because visual slideshow doesn't need to be frame-perfect to audio end
-                if check_duration > video.duration + 1.0:
-                    print(f"DEBUG: Audio ({check_duration:.2f}s) is significantly longer than video ({video.duration:.2f}s). Extending last clip.")
-                    # 비디오가 짧으면 마지막 이미지 연장
+                if check_duration > video.duration + 0.5:
+                    print(f"DEBUG: Audio ({check_duration:.2f}s) is longer than video. Extending last clip.")
                     last_dur = duration_per_image[-1] if isinstance(duration_per_image, list) else duration_per_image
-                    last_clip = clips[-1].with_duration(
-                        check_duration - video.duration + last_dur
-                    )
+                    last_clip = clips[-1].with_duration(check_duration - video.duration + last_dur)
                     clips[-1] = last_clip
                     video = concatenate_videoclips(clips, method="compose")
-                else:
-                    print(f"DEBUG: Video ({video.duration:.2f}s) roughly matches Audio ({check_duration:.2f}s). Skipping extension.")
                 
-            elif video.duration > audio.duration + 0.5:
-                # [FIX] Video is significantly longer than audio (Sync Issue Safety Net)
-                print(f"DEBUG: Video ({video.duration}s) is longer than Audio ({audio.duration}s). Trimming video.")
+            elif video.duration > audio.duration + 0.3:
+                print(f"DEBUG: Video ({video.duration}s) is longer than Audio. Trimming.")
                 video = video.with_subclip(0, audio.duration)
 
             video = video.with_audio(audio)
@@ -606,9 +637,9 @@ class VideoService:
             # DB might have 30 (Legacy Pixel? or Error?) -> Treat > 20 as Pixel
             if 0.1 <= font_size_percent <= 20:
                 # Percentage mode (normal usage, 0.1% ~ 20%)
-                # [FIX] Apply 1.3x scaling (Reduced from 1.9) to prevent overflow
-                # Browser CSS px vs PIL font size difference requires larger multiplier
-                f_size = int(video.h * (font_size_percent / 100) * 1.3)
+                # [FIX] Apply 1.0x scaling (Reduced from 1.3) specifically for clean look
+                # UI Slider is 1.0 ~ 15.0 (Percent)
+                f_size = int(video.h * (font_size_percent / 100) * 1.0)
                 
                 # [SAFETY] Limit font size based on width (especially for Shorts)
                 # Ensure roughly 10 chars fit in width? No, just cap max pixel size.
@@ -883,13 +914,10 @@ class VideoService:
         return output_path
 
         
-    def _create_cinematic_frame(self, image_path: str, target_size: tuple, template_path: str = None, focal_point_y: float = 0.5):
+    def _create_cinematic_frame(self, image_path: str, target_size: tuple, template_path: str = None, focal_point_y: float = 0.5, allow_tall: bool = False):
         """
-        [MODIFIED] Vertical Aspect Ratio Logic 2.0 (Legacy Name, New Logic - User Request)
-        - No Blur Background (Black Background instead)
-        - Fit Width: Ensure Left/Right are filled completely.
-        - If image is shorter (e.g. 3:4) -> Letterbox (Top/Bottom Black)
-        - If image is taller (e.g. 9:21) -> Center Crop (Top/Bottom Cut)
+        [MODIFIED] Vertical Aspect Ratio Logic 2.0
+        - If allow_tall=True -> No Crop vertically (Keep full height for Panning)
         """
         from PIL import Image
         import uuid
@@ -898,16 +926,11 @@ class VideoService:
             target_w, target_h = target_size
             img = Image.open(image_path)
             
-            # Convert to RGB (in case of RGBA/P mode)
+            # Convert to RGB
             if img.mode != 'RGB':
                 img = img.convert('RGB')
 
             img_w, img_h = img.size
-            
-            # [LOGIC] Fit Width (Fill horizontally) - User Request 2.0
-            # Ensure the image always fills the left/right of the vertical frame (9:16).
-            # If the image is 'wide' (4:3), it results in Letterbox (Top/Bottom Black bars).
-            # If the image is 'tall' (9:21), it results in Center Crop (Top/Bottom cut).
             
             # Always Fit to Width
             new_w = target_w
@@ -916,18 +939,24 @@ class VideoService:
             # High-quality Resize
             img_resized = img.resize((new_w, new_h), Image.LANCZOS)
             
+            # [AUTO-DETECT TALL] If image is significantly taller than target, forced allow_tall
+            # This prevents the 'cropping culprit' from destroying resolution before panning.
+            is_exceptionally_tall = new_h > target_h * 1.5
+            
+            if (allow_tall or is_exceptionally_tall) and new_h > target_h:
+                # [NEW] Skip cropping onto target_h background. Just return the resized full tall image.
+                out_fn = f"cinematic_tall_{uuid.uuid4().hex[:8]}.jpg"
+                out_path = os.path.join(config.OUTPUT_DIR, out_fn)
+                img_resized.save(out_path, quality=90)
+                return out_path
+
             # Create Black Background
             bg = Image.new('RGB', (target_w, target_h), (0, 0, 0))
             
-            # [SMART FOCUS CROP] - Corrected User Request
-            # Instead of simple centering, use the focal_point_y (0.0 to 1.0)
-            # target_h // 2 is the center of the viewport. 
-            # We want (new_h * focal_point_y) to be at that center.
             x_offset = (target_w - new_w) // 2
             
             if new_h > target_h:
                 # Tall image (needs cropping)
-                # target_h / 2 = focal_point_y * new_h + y_offset
                 y_offset = int(target_h / 2 - (new_h * focal_point_y))
                 # Clamp to avoid gaps
                 min_y = target_h - new_h

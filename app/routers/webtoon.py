@@ -912,14 +912,20 @@ async def automate_webtoon(req: WebtoonAutomateRequest):
                     print(f"❌ SFX Generation failed for scene {i+1}: {e}")
 
             # [핵심] 이미지 프롬프트 테이블 저장 (AutoPilot 필수 데이터)
+            # [핵심] 이미지 프롬프트 테이블 저장 (AutoPilot 필수 데이터)
             image_prompts.append({
                 "scene_number": i + 1,
                 "scene_text": s.dialogue,
                 "prompt_en": f"{s.visual_desc}", 
                 "image_url": f"/output/{str(project_id)}/assets/image/{filename}",
                 "narrative": s.dialogue,
-                "focal_point_y": s.focal_point_y
+                "focal_point_y": s.focal_point_y,
+                "motion_desc": s.motion_desc # [NEW] Store motion description
             })
+
+            # [NEW] Save motion desc to settings for direct access by Autopilot
+            if s.motion_desc:
+                db.update_project_setting(project_id, f"scene_{i+1}_motion_desc", s.motion_desc)
             
         # 3. 이미지 프롬프트 테이블 일괄 저장
         db.save_image_prompts(project_id, image_prompts)
@@ -932,14 +938,13 @@ async def automate_webtoon(req: WebtoonAutomateRequest):
         db.update_project_setting(project_id, "auto_tts", 1)      # TTS 자동 생성 활성화
         db.update_project_setting(project_id, "auto_render", 1)   # 렌더링 자동 시작 활성화
         
-        # [NEW] 립싱크(Akool) 엔진 설정
+        # [NEW] 립싱크(Akool) 및 동영상(Wan) 엔진 설정
         if req.use_lipsync:
             db.update_project_setting(project_id, "video_engine", "akool")
             db.update_project_setting(project_id, "all_video", 1) # 모든 장면을 비디오(립싱크)화
-            print(f"🎭 [Webtoon] Lip-sync enabled for project {project_id}")
         else:
             db.update_project_setting(project_id, "video_engine", "wan") # 기본 모션 엔진
-            db.update_project_setting(project_id, "all_video", 0)
+            db.update_project_setting(project_id, "all_video", 1) # [FIX] 웹툰 모드에서는 모든 장면을 비디오(Wan/Motion)화 하도록 강제
         
         # 4. 설정 저장 (립싱크 및 자막 여부)
         db.update_project_setting(project_id, "use_lipsync", req.use_lipsync)

@@ -74,6 +74,17 @@ def split_text_to_subtitle_chunks(text: str, max_chars_per_line: int = 20, max_l
     return chunks
 
 
+def log_debug(msg: str):
+    """Explicitly write to debug.log for external monitoring"""
+    print(msg)
+    try:
+        from config import config
+        from datetime import datetime
+        with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.now()}] {msg}\n")
+    except:
+        pass
+
 class AutoPilotService:
     def __init__(self):
         self.search_url = f"{config.YOUTUBE_BASE_URL}/search"
@@ -97,6 +108,23 @@ class AutoPilotService:
         
         try:
             # 1~2. 소재 발굴 및 프로젝트 생성
+            log_debug(f"⚙️ [Auto-Pilot] Start run_workflow for project {project_id} (Keyword: {keyword})")
+            start_dt = datetime.now()
+            
+            # [FIX] Load latest project settings BEFORE modifying self.config
+            if project_id:
+                p_settings = db.get_project_settings(project_id) or {}
+                # Update self.config with DB settings
+                if config_dict:
+                    p_settings.update(config_dict)
+                self.config = p_settings
+            else:
+                self.config = config_dict or {}
+            
+            # Force all_video if needed
+            if self.config.get("all_video"):
+                 log_debug(f"🔋 [Auto-Pilot] all_video flag detected in config for PID {project_id}")
+
             if not project_id:
                 video = await self._find_best_material(keyword)
                 if not video: return
@@ -153,6 +181,8 @@ class AutoPilotService:
                 
                 # 5-1. 영상 소스 생성
                 db.update_project(project_id, status="generating_assets")
+                # [FIX] Force all_video=True to ensure dynamic assets (Wan/Akool) are used
+                self.config["all_video"] = True 
                 await self._generate_assets(project_id, full_script, self.config)
                 
                 # [NEW] Ensure Metadata exists (Title, Description) - Re-run if skipped earlier
@@ -441,6 +471,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
     async def _generate_assets(self, project_id: int, script: str, config_dict: dict):
         all_video = config_dict.get("all_video", False)
         motion_method = config_dict.get("motion_method", "standard")
+        video_engine = config_dict.get("video_engine", "wan")
         image_style_key = config_dict.get("image_style", config_dict.get("visual_style", "realistic"))
 
         
@@ -470,12 +501,18 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             print(f"🖼️ [Auto-Pilot] Generated {len(image_prompts)} image prompts")
 
         # Determine how many scenes to make as video
+        log_debug(f"🔍 [DEBUG] _generate_assets START: all_video={all_video}, motion_method={motion_method}")
+        
         if all_video:
             video_scene_count = len(image_prompts)
-            print(f"🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating {video_scene_count} video scenes.")
+            log_debug(f"🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating {video_scene_count} video scenes.")
         else:
             video_scene_count = config_dict.get("video_scene_count", 0)
-            print(f"🎬 [Auto-Pilot] Video scene count set to: {video_scene_count}")
+            log_debug(f"🎬 [Auto-Pilot] Video scene count set to: {video_scene_count}")
+        
+        # [NEW] Force loud debug for all_video to see if it's really working
+        if all_video or video_scene_count > 0:
+             log_debug(f"🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: {video_scene_count}, Engine: {video_engine} 🚀🚀🚀")
 
         # 2. Assets (Video/Image)
         from services.replicate_service import replicate_service
@@ -625,15 +662,19 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                         temp_audios.append(s_out)
                         scene_audio_files.append(s_out)
                         scene_audio_map[scene_num] = s_out
-                        
                         try:
-                            from moviepy import AudioFileClip
+                            try:
+                                from moviepy import AudioFileClip
+                            except ImportError:
+                                from moviepy.audio.io.AudioFileClip import AudioFileClip
+                                
                             ac = AudioFileClip(s_out)
                             dur = ac.duration
                             scene_durations.append(dur)
                             cumulative_audio_time += dur
                             ac.close()
-                        except:
+                        except Exception as ae:
+                            print(f"Audio check failed: {ae}")
                             scene_durations.append(3.0)
                             cumulative_audio_time += 3.0
                     else:
@@ -750,7 +791,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                 
                 if all_alignments:
                     # 단어 타이밍을 2줄 자막으로 변환
-                    auto_subtitles = self._alignment_to_subtitles(all_alignments, max_chars=40)
+                    auto_subtitles = self._alignment_to_subtitles(all_alignments, max_chars=25)
                     print(f"📝 [Auto-Pilot] Generated {len(auto_subtitles)} subtitles from TTS alignment (PRECISE)")
                 else:
                     # 기존 로직: Scene 기반 균등 분할
@@ -785,16 +826,6 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                     json.dump(auto_subtitles, f, ensure_ascii=False, indent=2)
                 db.update_project_setting(project_id, "subtitle_path", sub_path)
 
-                # 3. Save Timeline Images (Order mapping)
-                timeline_images = [p.get('video_url') or p.get('image_url') for p in sorted_prompts]
-                # Filter out None/Empty
-                timeline_images = [img for img in timeline_images if img]
-                
-                tl_images_path = os.path.join(config.OUTPUT_DIR, f"timeline_images_{project_id}.json")
-                with open(tl_images_path, "w", encoding="utf-8") as f:
-                    json.dump(timeline_images, f, ensure_ascii=False, indent=2)
-                db.update_project_setting(project_id, "timeline_images_path", tl_images_path)
-                
                 print(f"✅ [Auto-Pilot] Scene-based TTS & Subtitles Complete. Total: {total_duration:.2f}s, Scenes: {len(scene_durations)}")
                 
                 # [NEW] Save Stats
@@ -810,8 +841,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
              print("❌ No audio generated.")
         
         # [NEW] Pass 3: Video Generation (Now we have both Images and Audio)
-        print("📹 [Auto-Pilot] Pass 3: Generating Video Components...")
-        video_engine = config_dict.get("video_engine", "wan")
+        log_debug(f"📹 [Auto-Pilot] Pass 3: Generating Video Components... Count: {video_scene_count}, Engine: {video_engine}")
         from services.akool_service import akool_service
 
         # Re-fetch prompts to get latest image/audio URLs
@@ -820,6 +850,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
         
         for i, p in enumerate(image_prompts):
             is_vid = i < video_scene_count
+            log_debug(f"  > Scene {p.get('scene_number')}: is_vid={is_vid}, has_image={bool(p.get('image_url'))}")
             if not is_vid: continue
             
             scene_num = p.get("scene_number")
@@ -904,39 +935,68 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                             print(f"🎬 [Wan Camera Move] Scene {scene_num}: {manual_motion}")
                 else:
                     final_prompt = base_visual
-
                 print(f"🤖 [Auto-Switch] Scene {scene_num}: Dialogue={has_dialogue} -> Engine={local_engine}")
 
                 if local_engine == "akool":
                     audio_abs_path = scene_audio_map.get(scene_num)
-                    if not audio_abs_path: 
-                        print(f"⚠️ [Akool] No audio found for scene {scene_num}. Switching to Wan.")
+                    if not audio_abs_path:
+                        log_debug(f"⚠️ [Akool] No audio found for scene {scene_num}. Switching to Wan.")
                         local_engine = "wan" # Fallback if no audio
                     else:
-                        print(f"🎭 [Akool] Generating Talking Avatar for Scene {scene_num}...")
-                        video_bytes = await akool_service.generate_talking_avatar(image_abs_path, audio_abs_path)
-                        if video_bytes:
-                            filename = f"vid_akool_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.mp4"
-                            out = os.path.join(config.OUTPUT_DIR, filename)
-                            with open(out, 'wb') as f: f.write(video_bytes)
-                            db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
+                        try:
+                            log_debug(f"🎭 [Akool] Generating Talking Avatar for Scene {scene_num}...")
+                            video_bytes = await akool_service.generate_talking_avatar(image_abs_path, audio_abs_path)
+                            if video_bytes:
+                                filename = f"vid_akool_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.mp4"
+                                out = os.path.join(config.OUTPUT_DIR, filename)
+                                with open(out, 'wb') as f: f.write(video_bytes)
+                                db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
+                                log_debug(f"✅ [Akool] LipSync Success for Scene {scene_num}")
+                        except Exception as ak_e:
+                            log_debug(f"⚠️ [Akool] Error for scene {scene_num}: {ak_e}. Falling back to Wan...")
+                            local_engine = "wan" # Fallback to Wan on Akool error
                 
-                if local_engine == "wan":
                     # Wan / Replicate (Enhanced for Camera Moves)
-                    print(f"📹 [Auto-Pilot] Generating Wan Video for Scene {scene_num}")
-                    video_data = await replicate_service.generate_video_from_image(
-                        image_abs_path, 
-                        prompt=final_prompt,
-                        duration=video_duration,
-                        method=motion_method
-                    )
-                    if video_data:
-                        filename = f"vid_wan_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.mp4"
-                        out = os.path.join(config.OUTPUT_DIR, filename)
-                        with open(out, 'wb') as f: f.write(video_data)
-                        db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
+                    try:
+                        print(f"📹 [Auto-Pilot] Generating Wan Video for Scene {scene_num}")
+                        video_data = await replicate_service.generate_video_from_image(
+                            image_abs_path, 
+                            prompt=final_prompt,
+                            duration=video_duration,
+                            method=motion_method
+                        )
+                        if video_data:
+                            filename = f"vid_wan_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.mp4"
+                            out = os.path.join(config.OUTPUT_DIR, filename)
+                            with open(out, 'wb') as f: f.write(video_data)
+                            db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
+                            with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
+                                df.write(f"[{datetime.now()}] ✅ Successfully generated Wan video for Scene {scene_num}\n")
+                    except Exception as wan_e:
+                        # [STRICT QUALITY CONTROL] User demands High-End Motion (Wan 2.1).
+                        # Do NOT fall back to static 2D motion. Raise error to stop process until credits are refilled.
+                        err_msg = f"❌ [Wan] Critical Error: {wan_e} (Likely Insufficient Credits). Process halted to preserve quality."
+                        print(err_msg)
+                        raise wan_e # Rethrow to stop autopilot
             except Exception as ve:
-                print(f"⚠️ [Auto-Pilot] Video generation failed for Scene {scene_num}: {ve}")
+                err_msg = f"⚠️ [Auto-Pilot] Video generation failed for Scene {scene_num}: {ve}"
+                print(err_msg)
+                with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
+                    df.write(f"[{datetime.now()}] {err_msg}\n")
+
+        # [NEW] Pass 4: Finalize Timeline (AFTER video generation)
+        print("🎞️ [Auto-Pilot] Pass 4: Finalizing Timeline Mapping...")
+        updated_prompts = db.get_image_prompts(project_id)
+        sorted_updated = sorted(updated_prompts, key=lambda x: x.get('scene_number', 0))
+        
+        timeline_images = [p.get('video_url') or p.get('image_url') for p in sorted_updated]
+        timeline_images = [img for img in timeline_images if img]
+        
+        tl_images_path = os.path.join(config.OUTPUT_DIR, f"timeline_images_{project_id}.json")
+        with open(tl_images_path, "w", encoding="utf-8") as f:
+            json.dump(timeline_images, f, ensure_ascii=False, indent=2)
+        db.update_project_setting(project_id, "timeline_images_path", tl_images_path)
+        print(f"✅ [Auto-Pilot] Timeline Finalized with {len(timeline_images)} assets.")
 
         # Cleanup temps
         for f in temp_audios:
@@ -1039,7 +1099,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                 print(msg)
                 try:
                     with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
-                        df.write(f"[{datetime.datetime.now()}] {msg}\n")
+                        df.write(f"[{datetime.now()}] {msg}\n")
                 except: pass
                 
                 # [FALLBACK] Try a safe, generic prompt if the specific one was blocked
@@ -1105,14 +1165,14 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                 print(msg)
                 try:
                     with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
-                        df.write(f"[{datetime.datetime.now()}] {msg}\n")
+                        df.write(f"[{datetime.now()}] {msg}\n")
                 except: pass
             else:
                 msg = "❌ [Auto-Pilot] 썸네일 텍스트 합성 실패 (create_thumbnail returned False)"
                 print(msg)
                 try:
                     with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
-                        df.write(f"[{datetime.datetime.now()}] {msg}\n")
+                        df.write(f"[{datetime.now()}] {msg}\n")
                 except: pass
             
             try: os.remove(bg_path)
@@ -1123,7 +1183,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             print(msg)
             try:
                 with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
-                    df.write(f"[{datetime.datetime.now()}] {msg}\n")
+                    df.write(f"[{datetime.now()}] {msg}\n")
             except: pass
 
     async def _render_video(self, project_id: int):
@@ -1261,14 +1321,51 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             except Exception as e:
                 print(f"⚠️ Failed to parse SFX mapping: {e}")
 
-        # [NEW] Collect Focal Points
-        f_points = [p.get("focal_point_y", 0.5) for p in sorted_prompts]
+        # [NEW] Handle BGM (Download if URL exists)
+        bgm_url = settings.get("bgm_url")
+        bgm_path = None
+        if bgm_url:
+            try:
+                import requests
+                bgm_filename = f"bgm_{project_id}.mp3"
+                local_bgm_path = os.path.join(config.OUTPUT_DIR, str(project_id), "assets", "sound", bgm_filename)
+                os.makedirs(os.path.dirname(local_bgm_path), exist_ok=True)
+                
+                if not os.path.exists(local_bgm_path):
+                    print(f"🎵 [Auto-Pilot] Downloading BGM: {bgm_url}")
+                    r = requests.get(bgm_url, timeout=30)
+                    if r.status_code == 200:
+                        with open(local_bgm_path, "wb") as f:
+                            f.write(r.content)
+                
+                if os.path.exists(local_bgm_path):
+                    bgm_path = local_bgm_path
+                    # Inject into settings so video_service can find it
+                    settings["bgm_path"] = bgm_path
+            except Exception as bgme:
+                print(f"⚠️ BGM Download failed: {bgme}")
+
+        # [NEW] Collect Focal Points and Motions
+        f_points = []
+        effects = []
+        for i, img in enumerate(sorted_prompts):
+            s_num = img.get('scene_number')
+            f_points.append(img.get("focal_point_y", 0.5))
+            
+            # Fetch motion from settings (saved from webtoon producer or manual)
+            eff = settings.get(f"scene_{s_num}_motion")
+            if not eff or eff == 'random':
+                # Default to random if not specified
+                import random
+                eff = random.choice(['zoom_in', 'zoom_out', 'pan_up', 'pan_down', 'pan_left', 'pan_right'])
+            effects.append(eff)
+            log_debug(f"🎞️ [Render] Scene {s_num}: Effect={eff}")
 
         final_path = video_service.create_slideshow(
             images=images, audio_path=audio_path, output_filename=output_filename,
             duration_per_image=image_durations, subtitles=subs, project_id=project_id,
             resolution=resolution, subtitle_settings=settings, sfx_map=sfx_map,
-            focal_point_ys=f_points
+            focal_point_ys=f_points, image_effects=effects
         )
 
         db.update_project_setting(project_id, "video_path", f"/output/{output_filename}")
@@ -1522,7 +1619,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             self.is_batch_running = False
             print("🛑 [Batch] 일괄 제작 프로세스 종료")
     
-    def _alignment_to_subtitles(self, alignments: list, max_chars: int = 40) -> list:
+    def _alignment_to_subtitles(self, alignments: list, max_chars: int = 25) -> list:
         """
         단어 타이밍 정보를 2줄 자막으로 변환 (정밀 싱크)
         
@@ -1632,15 +1729,17 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                     target_pid = target['id']
                     target_topic = target.get('topic', 'Auto-Webtoon')
 
-                    print(f"📦 [Auto-Pilot] Processing queued project {target_pid} ({target_topic})...")
+                    log_debug(f"📦 [Auto-Pilot] Worker found queued project {target_pid} ({target_topic})...")
                     
                     # 2. 실행 상태로 전이 (run_workflow가 인식할 수 있게)
                     p_settings = db.get_project_settings(target_pid) or {}
                     
                     # 대본이 있으면 바로 에셋 생성 단계로, 없으면 처음부터
                     if p_settings.get("script") and len(p_settings.get("script").strip()) > 10:
+                        log_debug(f"📜 [Auto-Pilot] Setting PID {target_pid} to 'scripted' because script exists.")
                         db.update_project(target_pid, status="scripted")
                     else:
+                        log_debug(f"🆕 [Auto-Pilot] Setting PID {target_pid} to 'created'.")
                         db.update_project(target_pid, status="created")
 
                     # Ensure app_mode compatibility

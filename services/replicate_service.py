@@ -86,11 +86,23 @@ class ReplicateService:
 
     async def _generate_basic(self, image_path: str, prompt: str, duration: float = 5.0):
         """기본 Wan 2.1 생성 (wavespeedai/wan-2.1-i2v-720p)"""
+        from PIL import Image
+        
+        # [NEW] Detect Aspect Ratio for Wan 2.1
+        target_size = "1280x720" # Default Landscape
+        try:
+            with Image.open(image_path) as img:
+                w, h = img.size
+                if h > w:
+                    target_size = "720x1280" # Vertical
+                    print(f"📐 [Video Gen] Vertical Image Detected. Using {target_size}")
+        except: pass
+
         with open(image_path, "rb") as img_file:
             input_data = {
                 "image": img_file,
                 "prompt": prompt,
-                "size": "1280x720",
+                "size": target_size,
                 "duration": 5, # Standard 5s
                 "fast_mode": "Balanced"
             }
