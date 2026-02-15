@@ -663,6 +663,10 @@ def migrate_db():
     try:
         cursor.execute("ALTER TABLE project_settings ADD COLUMN voice_mapping_json TEXT")
     except sqlite3.OperationalError: pass
+    
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN sfx_mapping_json TEXT")
+    except sqlite3.OperationalError: pass
 
     # [NEW] Thumbnail Style Persistence
     # [NEW] Thumbnail Full Settings Persistence
@@ -1429,7 +1433,8 @@ def save_project_settings(project_id: int, settings: Dict):
                     'subtitle_base_color', 'subtitle_pos_y', 'subtitle_pos_x', 'subtitle_bg_enabled', 'subtitle_stroke_enabled',
                     'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity',
                     'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity',
-                    'voice_provider', 'voice_speed', 'voice_multi_enabled', 'voice_mapping_json', 'app_mode', 'intro_video_path', 'thumbnail_style', 'image_style']: # [NEW]
+                    'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity',
+                    'voice_provider', 'voice_speed', 'voice_multi_enabled', 'voice_mapping_json', 'sfx_mapping_json', 'app_mode', 'intro_video_path', 'thumbnail_style', 'image_style']: # [NEW]
             if key in settings:
                 fields.append(f"{key} = ?")
                 values.append(settings[key])
@@ -1525,7 +1530,7 @@ def update_project_setting(project_id: int, key: str, value: Any):
                     'subtitle_path', 'image_timings_path', 'timeline_images_path', 'image_effects_path', 'app_mode',
                     'subtitle_base_color', 'subtitle_pos_y', 'subtitle_pos_x', 'subtitle_bg_enabled', 'subtitle_stroke_enabled',
                     'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity',
-                    'voice_provider', 'voice_speed', 'voice_multi_enabled', 'voice_mapping_json', 'intro_video_path', 
+                    'voice_provider', 'voice_speed', 'voice_multi_enabled', 'voice_mapping_json', 'sfx_mapping_json', 'intro_video_path', 
                     'thumbnail_style', 'thumbnail_font', 'thumbnail_font_size', 'thumbnail_color', 'thumbnail_full_state',
                     'image_style', 'all_video', 'motion_method', 'video_scene_count',
                     'upload_privacy', 'upload_schedule_at', 'youtube_channel_id',

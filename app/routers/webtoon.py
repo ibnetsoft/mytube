@@ -26,6 +26,186 @@ import unicodedata
 from services.i18n import Translator
 from services.auth_service import auth_service
 
+def finalize_scene_analysis(scene: Dict, voice_consistency_map: Dict, eleven_voices: List = None) -> Dict:
+    """
+    AI 분석 결과에 일관성을 부여하고, 유실된 데이터(성우, 효과음 등)를 보정하는 최종 단계.
+    """
+    analysis = scene.get('analysis', {})
+    
+    # 1. 캐릭터 이름 정규화 및 성우 배정
+    raw_char = str(analysis.get('character', 'Unknown')).strip()
+    if raw_char.lower() in ["none", "null", "undefined", "", "none "]: raw_char = "Unknown"
+    
+    # Narrator variants + Defaulting Unknown speech to Narration
+    char_lower = raw_char.lower()
+    dialogue = str(analysis.get('dialogue', '')).strip()
+    
+    narrator_keywords = ['narrator', 'narration', '내레이션', '해설', 'unknown', 'none', '', 'undefined']
+    if any(char_lower == kw for kw in narrator_keywords):
+        if dialogue:
+            norm_char = "내레이션"
+        else:
+            norm_char = "Unknown"
+    else:
+        norm_char = raw_char.replace("'", "").replace('"', "")
+
+    # Sync to analysis
+    analysis['character'] = norm_char
+    
+    # 2. Voice ID/Name 배정 (일관성 유지가 1순위)
+    suggested_voice = analysis.get('voice_recommendation') or {}
+    final_voice_id = str(suggested_voice.get('id', '')).strip()
+    final_voice_name = str(suggested_voice.get('name', '')).strip()
+    
+    # "None" 문자열 필터링
+    if final_voice_id.lower() in ["none", "null", "", "unknown"]: final_voice_id = None
+    if final_voice_name.lower() in ["none", "null", "", "unknown voice"]: final_voice_name = None
+
+    # 일관성 맵 확인
+    if norm_char != "Unknown" and norm_char in voice_consistency_map:
+        existing = voice_consistency_map[norm_char]
+        if isinstance(existing, dict):
+            final_voice_id = existing.get("id")
+            final_voice_name = existing.get("name")
+        else:
+            final_voice_id = existing # legacy string
+    
+    # [MODIFIED] 내레이션(Narrator) 일관성 강제: 무조건 Brian 성우 사용
+    if norm_char == "내레이션":
+        final_voice_id = "nPczCjzI2devNBz1zQrb"
+        final_voice_name = "Brian"
+
+    # [NEW] 신규 캐릭터 자동 성우 할당 (맵에 없고 내레이션도 아닌 경우)
+    if not final_voice_id and norm_char != "Unknown":
+        # 성별 및 나이 감지 (간단한 키워드 기반)
+        lower_char = norm_char.lower()
+        is_female = any(x in lower_char for x in ['girl', 'woman', 'female', '엄마', '그녀', '소녀', '여자', '누나', '언니', 'lady', 'miss', 'wife', 'rachel', 'bella', 'nicole'])
+        
+        # 기본 풀 (백엔드 하드코딩된 안정적인 성우들)
+        female_pool = ["21m00Tcm4TlvDq8ikWAM", "EXAVITQu4vr4xnSDxMaL", "AZnzlk1XhkbcUvJdpS9D", "z9fAnlkUCjS8Inj9L65X"] # Rachel, Bella, Nicole, Dorothy
+        male_pool = ["ErXwobaYiN019PkySvjV", "TxGEqnHWrfWFTfGW9XjX", "bIHbv24qawwzYvFyYv6f", "N2lVS1wzCLPce5hNBy94"] # Antoni, Josh, Adam, Josh (alt)
+
+        # 실제 ElevenLabs 데이터가 있으면 활용
+        if eleven_voices:
+            f_list = [v['voice_id'] for v in eleven_voices if v.get('labels', {}).get('gender') == 'female']
+            m_list = [v['voice_id'] for v in eleven_voices if v.get('labels', {}).get('gender') == 'male']
+            if f_list: female_pool = f_list
+            if m_list: male_pool = m_list
+
+        # 결정적 할당 (캐릭터 이름 해시값 사용)
+        import hashlib
+        h = int(hashlib.md5(norm_char.encode()).hexdigest(), 16)
+        if is_female:
+            final_voice_id = female_pool[h % len(female_pool)]
+        else:
+            final_voice_id = male_pool[h % len(male_pool)]
+
+    # 2.5 voice_consistency_map 업데이트 (다음 씬에서 동일 캐릭터가 나오면 같은 성우 사용)
+    if norm_char != "Unknown" and final_voice_id:
+        voice_consistency_map[norm_char] = {"id": final_voice_id, "name": final_voice_name or "Assigning..."}
+
+    # 3. 보이스 이름 유실 복구 (ElevenLabs 기반)
+    # final_voice_name이 비어있거나 "None"인 경우 강제 복구
+    if not final_voice_name or str(final_voice_name).lower() in ["none", "null", "unknown voice", "unknown", "generic description"]:
+        if eleven_voices and final_voice_id and final_voice_id not in ["unknown", "None"]:
+            for v in eleven_voices:
+                if v.get("voice_id") == final_voice_id:
+                    final_voice_name = v.get("name")
+                    break
+        
+        if not final_voice_name or str(final_voice_name).lower() in ["none", "null"]:
+            fallback_names = {
+                "ErXwobaYiN019PkySvjV": "Antoni (Male)",
+                "TxGEqnHWrfWFTfGW9XjX": "Josh (Male)",
+                "21m00Tcm4TlvDq8ikWAM": "Rachel (Female)",
+                "EXAVITQu4vr4xnSDxMaL": "Bella (Female)",
+                "nPczCjzI2devNBz1zQrb": "Brian (Narrator)"
+            }
+            final_voice_name = fallback_names.get(final_voice_id, "Default Character Voice")
+
+    # Update Scene Root and Analysis
+    scene['voice_id'] = final_voice_id or "unknown"
+    scene['voice_name'] = str(final_voice_name or "Default Character Voice")
+    
+    if 'voice_recommendation' not in analysis: analysis['voice_recommendation'] = {}
+    analysis['voice_recommendation']['id'] = final_voice_id or "unknown"
+    analysis['voice_recommendation']['name'] = str(final_voice_name or "Default Character Voice")
+
+    # [NEW] Final "Nuclear" anti-None check for UI strings
+    if str(scene.get('voice_name','')).lower() in ["none", "null", "unknown", "", "undefined"]:
+        scene['voice_name'] = "Default Character Voice"
+        analysis['voice_recommendation']['name'] = "Default Character Voice"
+    
+    # Final cleanup for voice_id to avoid "null" in JSON
+    if not scene['voice_id'] or str(scene['voice_id']).lower() in ["none", "null"]:
+        scene['voice_id'] = "unknown"
+
+    # 4. 오디오 디렉션 (효과음/배경음) 스마트 보정
+    aud = scene.get('audio_direction') or analysis.get('audio_direction') or {}
+    sfx_val = str(aud.get('sfx_prompt', '')).strip()
+    bgm_val = str(aud.get('bgm_mood', '')).strip()
+    atmosphere = str(analysis.get('atmosphere', '')).lower()
+    dialogue = str(analysis.get('dialogue', '')).lower()
+    visual = str(analysis.get('visual_desc', '')).lower()
+    
+    # [NEW] 영어 묘사(Visual Desc)도 키워드 검사에 활용 (더 넓은 범위의 감지)
+    combined_desc = f"{dialogue} {visual}"
+
+    # SFX 보정: 'None' 문자열이거나 비어있을 때만 검사
+    if not sfx_val or sfx_val.lower() in ['none', 'null', '', 'no sound', 'silence']:
+        sfx = ""
+        # 명확한 소리 유발 키워드가 있을 때만 보충
+        if any(x in combined_desc for x in ["쾅", "폭발", "bang", "boom", "explosion", "clash", "sword", "impact", "검술", "부딪히는"]): sfx = "Cinematic impact and clashing"
+        elif any(x in combined_desc for x in ["슈", "woosh", "wind", "피융", "fly", "motion blur"]): sfx = "Fast whoosh motion"
+        elif any(x in combined_desc for x in ["터벅", "step", "발자국", "walk", "running"]): sfx = "Footsteps"
+        elif any(x in combined_desc for x in ["웃음", "laugh", "chuckle", "smile"]): sfx = "Subtle background laughter"
+        
+        if sfx:
+            aud['sfx_prompt'] = sfx
+            aud['has_sfx'] = True
+        else:
+            # 실효성 없는 Silence는 빈칸으로 유지하여 "의도된 침묵" 허용
+            aud['sfx_prompt'] = ""
+            aud['has_sfx'] = False
+    else:
+        # 이미 값이 있으면 (AI가 직접 적은 경우) 유지
+        aud['has_sfx'] = True
+
+    # BGM 보정: 분위기가 정말 있을 때만 추천
+    if not bgm_val or bgm_val.lower() in ['none', 'null', 'silence', '']:
+        # 무조건 Cinematic을 넣지 않고, 의미 있는 분위기일 때만 반영
+        meaningful_atm = atmosphere and atmosphere not in ["none", "unknown", "static", "blank", "neutral"]
+        if meaningful_atm:
+            aud['bgm_mood'] = atmosphere.capitalize()
+        # 시각적 묘사에 강한 키워드가 있으면 추가 추천
+        elif any(x in visual for x in ["clash", "fight", "war", "battle", "sword"]):
+             aud['bgm_mood'] = "Epic Battle"
+        else:
+            aud['bgm_mood'] = "" # 평범한 장면은 비워둠 (침묵 허용)
+
+    scene['audio_direction'] = aud
+    analysis['audio_direction'] = aud
+
+    # 5. 성우 설정 (톤/이유) 스마트 보정
+    vs = scene.get('voice_settings') or analysis.get('voice_settings') or {}
+    if not vs or not vs.get('reason') or str(vs.get('reason')).lower() in ["none", "null", "why this tone?", ""]:
+        # [NEW] 더 구체적인 이유 생성
+        atm_reason = atmosphere.capitalize() if atmosphere not in ["none", "unknown"] else "natural"
+        vs_reason = f"Matching {norm_char}'s {atm_reason} tone in this scene."
+        if not vs or not isinstance(vs, dict): vs = {"stability": 0.5, "similarity_boost": 0.75, "speed": 1.0}
+        vs['reason'] = vs_reason
+    
+    scene['voice_settings'] = vs
+    analysis['voice_settings'] = vs
+    scene['analysis'] = analysis # Ensure synced
+    
+    # [NEW] Final "Nuclear" anti-None check for UI
+    if str(scene.get('voice_name')).lower() in ["none", "null", "unknown", ""]:
+        scene['voice_name'] = "Default Character Voice"
+        analysis['voice_recommendation']['name'] = "Default Character Voice"
+
+    return scene
+
 router = APIRouter(prefix="/webtoon", tags=["Webtoon Studio"])
 templates = Jinja2Templates(directory="templates")
 
@@ -360,6 +540,45 @@ async def analyze_webtoon(
                     try: os.remove(p)
                     except: pass
         
+        # [NEW] Prepare Voice Options for AI Recommendation
+        voice_options_str = None
+        try:
+            voices = await tts_service.get_elevenlabs_voices()
+            if voices:
+                v_list = []
+                # Limit to top 40 to avoid token overflow
+                for v in voices[:40]:
+                    labels = v.get('labels', {})
+                    # Simplify labels
+                    traits = []
+                    if 'gender' in labels: traits.append(labels['gender'])
+                    if 'age' in labels: traits.append(labels['age'])
+                    if 'accent' in labels: traits.append(labels['accent'])
+                    if 'description' in labels: traits.append(labels['description']) # Some use description
+                    
+                    trait_str = ", ".join(traits) if traits else "General"
+                    v_list.append(f"- Name: {v['name']} (ID: {v['voice_id']}) - {trait_str}")
+                
+                voice_options_str = "\n".join(v_list)
+        except Exception as e:
+            print(f"⚠️ Failed to load voices for recommendation: {str(e)}")
+
+        # [NEW] Pre-fetch context and voices
+        eleven_voices = []
+        try: eleven_voices = await tts_service.get_elevenlabs_voices()
+        except: pass
+
+        voice_consistency_map = {}
+        try:
+            p_set = db.get_project_settings(project_id) if project_id else {}
+            if p_set and p_set.get('voice_mapping_json'):
+                raw_map = json.loads(p_set.get('voice_mapping_json'))
+                # Normalize format to dict
+                for k, v in raw_map.items():
+                    if isinstance(v, dict): voice_consistency_map[k] = v
+                    else: voice_consistency_map[k] = {"id": v, "name": "Unknown Voice"}
+        except: pass
+
         # 2. AI Analysis for each cut with context passing
         scenes = []
         context = ""
@@ -368,7 +587,7 @@ async def analyze_webtoon(
             analysis_path = cut_info["analysis"]
             
             try:
-                analysis = await gemini_service.analyze_webtoon_panel(analysis_path, context=context)
+                analysis = await gemini_service.analyze_webtoon_panel(analysis_path, context=context, voice_options=voice_options_str)
                 
                 # Skip meaningless panels (copyright, blank, etc.)
                 is_meaningless = analysis.get('is_meaningless') is True
@@ -392,20 +611,33 @@ async def analyze_webtoon(
                     print(f"Skipping meaningless panel {i} (Visual: {visual})")
                     continue
 
-                # Update context for next panel to improve character consistency
-                speaker = analysis.get('character', 'Unknown')
-                if dialogue:
-                    context = f"Last seen: {speaker} said \"{dialogue[:100]}\"."
-                
                 import time
                 ts = int(time.time())
-                scenes.append({
+                scene = {
                     "scene_number": len(scenes) + 1,
                     "image_path": video_path,
                     "image_url": f"/api/media/view?path={urllib.parse.quote(video_path)}&t={ts}",
                     "analysis": analysis,
                     "focal_point_y": analysis.get("focal_point_y", 0.5)
-                })
+                }
+
+                # [REF ACTOR] Use centralized helper for consistency & fallbacks
+                finalize_scene_analysis(scene, voice_consistency_map, eleven_voices)
+                
+                # Update map and save to DB for future consistency
+                norm_char = scene['analysis']['character']
+                if norm_char != "Unknown":
+                    voice_consistency_map[norm_char] = {"id": scene['voice_id'], "name": scene['voice_name']}
+                    try:
+                        db.update_project_setting(project_id, "voice_mapping_json", json.dumps(voice_consistency_map, ensure_ascii=False))
+                    except: pass
+
+                # Update context for next panel
+                if dialogue:
+                    context = f"Last seen: {norm_char} said \"{dialogue[:100]}\"."
+                
+                scenes.append(scene)
+
             except Exception as e:
                 print(f"Gemini evaluation failed for cut {i}: {e}")
                 import time
@@ -414,7 +646,7 @@ async def analyze_webtoon(
                     "scene_number": len(scenes) + 1,
                     "image_path": video_path,
                     "image_url": f"/api/media/view?path={urllib.parse.quote(video_path)}&t={ts}",
-                    "analysis": {"dialogue": "", "character": "None", "visual_desc": "Error during analysis", "atmosphere": "Error"}
+                    "analysis": {"dialogue": "", "character": "Unknown", "visual_desc": "Error during analysis", "atmosphere": "Error"}
                 })
             
         response_data = {
@@ -572,6 +804,8 @@ class WebtoonScene(BaseModel):
     engine_override: Optional[str] = None
     effect_override: Optional[str] = None
     motion_desc: Optional[str] = None
+    voice_settings: Optional[dict] = None
+    audio_direction: Optional[dict] = None
 
 class ScanRequest(BaseModel):
     path: str
@@ -646,6 +880,15 @@ async def automate_webtoon(req: WebtoonAutomateRequest):
             # [NEW] Save Scene Voice
             if s.voice_id and s.voice_id != "None":
                 db.update_project_setting(project_id, f"scene_{i+1}_voice", s.voice_id)
+
+            # [NEW] Save Voice Settings (Tone/Speed)
+            if s.voice_settings:
+                # Ensure it's JSON string for DB storage
+                try:
+                    vs_json = json.dumps(s.voice_settings)
+                    db.update_project_setting(project_id, f"scene_{i+1}_voice_settings", vs_json)
+                except:
+                    pass
 
 
             # --- Auto SFX Generation (ElevenLabs) ---
@@ -792,6 +1035,46 @@ async def analyze_directory(req: AnalyzeDirRequest):
             if current_context:
                 print(f"📖 [Webtoon] Loaded context from previous episode: {len(current_context)} chars")
         
+        # [NEW] Prepare Voice Options for AI Recommendation
+        voice_options_str = None
+        try:
+            voices = await tts_service.get_elevenlabs_voices()
+            if voices:
+                v_list = []
+                # Limit to top 40 to avoid token overflow
+                for v in voices[:40]:
+                    labels = v.get('labels', {})
+                    # Simplify labels
+                    traits = []
+                    if 'gender' in labels: traits.append(labels['gender'])
+                    if 'age' in labels: traits.append(labels['age'])
+                    if 'accent' in labels: traits.append(labels['accent'])
+                    if 'description' in labels: traits.append(labels['description']) # Some use description
+                    
+                    trait_str = ", ".join(traits) if traits else "General"
+                    v_list.append(f"- Name: {v['name']} (ID: {v['voice_id']}) - {trait_str}")
+                
+                voice_options_str = "\n".join(v_list)
+                print(f"🎤 [Webtoon] Loaded {len(v_list)} voices for recommendation.")
+        except Exception as e:
+            print(f"⚠️ Failed to load voices for recommendation: {e}")
+
+        # [NEW] Load Voice Consistency Map ONCE for the batch
+        voice_consistency_map = {}
+        try:
+            p_set = db.get_project_settings(req.project_id) if req.project_id else {}
+            if p_set and p_set.get('voice_mapping_json'):
+                start_map = json.loads(p_set.get('voice_mapping_json'))
+                # Validate format (id vs dict)
+                for k, v in start_map.items():
+                    if isinstance(v, dict) and "id" in v:
+                        voice_consistency_map[k] = v
+                    elif isinstance(v, str):
+                        # Convert legacy format (id string) to dict
+                        voice_consistency_map[k] = {"id": v, "name": "Unknown Voice"}
+        except Exception as e:
+            print(f"⚠️ Failed to load voice map: {e}")
+
         for file_path in req.files:
             print(f"  - Processing file: {file_path}")
             if not os.path.exists(file_path):
@@ -924,9 +1207,27 @@ async def analyze_directory(req: AnalyzeDirRequest):
                 a_path = cut_info["analysis"]
                 
                 print(f"    🔍 Analyzing scene {len(all_scenes) + 1}...")
+                print(f"      - Context length: {len(current_context) if current_context else 0}")
+                print(f"      - Voice options available: {'Yes' if voice_options_str else 'NO'}")
                 try:
+                    # [NEW] Prepare Known Characters context
+                    known_chars_str = ""
+                    if voice_consistency_map:
+                        known_chars_list = []
+                        for name, data in voice_consistency_map.items():
+                            voice_name = data.get("name", "Unknown Voice")
+                            known_chars_list.append(f"- {name} (Voice: {voice_name})")
+                        if known_chars_list:
+                            known_chars_str = "\n[KNOWN CHARACTERS IN THIS EPISODE]\n" + "\n".join(known_chars_list) + "\nTry to reuse these character names if they appear.\n"
+                    
+                    final_context = (current_context or "") + known_chars_str
+
                     # Pass running context to Gemini (Analyze the one WITH text)
-                    analysis = await gemini_service.analyze_webtoon_panel(a_path, context=current_context)
+                    analysis = await gemini_service.analyze_webtoon_panel(a_path, context=final_context, voice_options=voice_options_str)
+                    print(f"DEBUG: Analyzed scene. Keys present: {list(analysis.keys())}")
+                    print(f"DEBUG: audio_direction: {analysis.get('audio_direction')}")
+                    print(f"DEBUG: voice_recommendation: {analysis.get('voice_recommendation')}")
+
                     
                     # Skip meaningless panels (copyright, blank, logos, etc.)
                     is_meaningless = analysis.get('is_meaningless') is True
@@ -951,13 +1252,6 @@ async def analyze_directory(req: AnalyzeDirRequest):
                         print(f"Skipping meaningless panel (Visual: {visual})")
                         continue
 
-                    # Update context for BETTER character identification in the next panel
-                    speaker = analysis.get('character', 'Unknown')
-                    if dialogue:
-                        current_context = f"Current context: {speaker} is talking. Recent dialogue: \"{dialogue[:80]}\"."
-                    elif speaker != "Unknown":
-                        current_context = f"Current context: {speaker} is visible or acting."
-
                     import time
                     ts = int(time.time())
                     all_scenes.append({
@@ -967,6 +1261,9 @@ async def analyze_directory(req: AnalyzeDirRequest):
                         "analysis": analysis,
                         "focal_point_y": analysis.get("focal_point_y", 0.5)
                     })
+                    
+                    print(f"    ✅ Scene {len(all_scenes)} analysis complete.")
+
                 except Exception as e:
                     print(f"Gemini failed for {a_path}: {e}")
                     import time
@@ -1050,48 +1347,19 @@ async def analyze_directory(req: AnalyzeDirRequest):
 
         all_scenes_result = [] # Rebuild list to ensure order
         
-        # Pre-scan for characters to build map first (for consistency across scenes)
-        # But here we iterate scenes and assign on fly, maintaining map. Same effect.
-        
+        # 2. Finalize all scenes using the enriched map
         for sc in all_scenes:
-            raw_char = sc['analysis'].get('character', 'Unknown')
-            # Normalize
-            if raw_char in char_normalization:
-                norm_char = char_normalization[raw_char]
-            else:
-                norm_char = raw_char.strip().replace("'", "").replace('"', "")
+            # [REF ACTOR] Centralized finalization (Character Normalization, Consistency, Fallbacks)
+            finalize_scene_analysis(sc, char_voice_map, eleven_voices)
             
-            # Update analysis result with normalized name
-            sc['analysis']['character'] = norm_char
-            
-            # Assign Voice ID if new character
-            if norm_char not in char_voice_map:
-                lower_char = norm_char.lower()
-                
-                # Narrator / Unknown -> Reliable Neutral Voice (Usually Male 0)
-                if norm_char in ['내레이션', 'Unknown', 'None']:
-                     char_voice_map[norm_char] = male_pool[0] 
-                
-                # Female Characters
-                elif any(x in lower_char for x in ['girl', 'woman', 'female', '엄마', '그녀', '소녀', '여자', '누나', '언니', 'lady', 'miss', 'wife']):
-                     voice = female_pool[female_idx % len(female_pool)]
-                     char_voice_map[norm_char] = voice
-                     female_idx += 1
-                
-                # Male Characters
-                elif any(x in lower_char for x in ['boy', 'man', 'male', '아빠', '그', '소년', '남자', '형', '오빠', 'gentleman', 'mr', 'husband']):
-                     voice = male_pool[male_idx % len(male_pool)]
-                     char_voice_map[norm_char] = voice
-                     male_idx += 1
-                
-                # Others -> Round Robin from Default Pool
-                else:
-                     voice = default_pool[misc_idx % len(default_pool)]
-                     char_voice_map[norm_char] = voice
-                     misc_idx += 1
-            
-            # Assign the determined voice_id to the scene
-            sc['voice_id'] = char_voice_map[norm_char]
+            # [NEW] Persist map updates back to DB (important for consistency across project)
+            norm_char = sc['analysis'].get('character')
+            if norm_char and norm_char != "Unknown":
+                char_voice_map[norm_char] = {"id": sc['voice_id'], "name": sc['voice_name']}
+                try:
+                    db.update_project_setting(req.project_id, "voice_mapping_json", json.dumps(char_voice_map, ensure_ascii=False))
+                except: pass
+
             all_scenes_result.append(sc)
 
         # Clean up temp dir
@@ -1131,12 +1399,34 @@ async def save_webtoon_analysis(
 
 @router.get("/get-analysis/{project_id}")
 async def get_webtoon_analysis(project_id: int):
-    """저장된 분석 결과(장면) 조회"""
+    """저장된 분석 결과(장면) 조회 (유실 데이터 보정 포함)"""
     try:
         settings = db.get_project_settings(project_id)
         if settings and settings.get("webtoon_scenes_json"):
             scenes = json.loads(settings["webtoon_scenes_json"])
+            
+            # [HEAL] 보이스 일관성 맵 로드
+            char_voice_map = {}
+            if settings.get("voice_mapping_json"):
+                try: char_voice_map = json.loads(settings["voice_mapping_json"])
+                except: pass
+            
+            # ElevenLabs 데이터 (보정용)
+            try: eleven_voices = await tts_service.get_elevenlabs_voices()
+            except: eleven_voices = []
+            
+            # 로드된 모든 장면에 대해 일관성 및 유실 데이터 보정 실행
+            for sc in scenes:
+                # [REF ACTOR] Centralized finalization (Character Normalization, Consistency, Fallbacks)
+                finalize_scene_analysis(sc, char_voice_map, eleven_voices)
+                
+                # 맵 업데이트 (새로운 캐릭터 발견 시 대비)
+                norm_char = sc['analysis'].get('character')
+                if norm_char and norm_char != "Unknown":
+                    char_voice_map[norm_char] = {"id": sc['voice_id'], "name": sc['voice_name']}
+
             return {"status": "ok", "scenes": scenes}
         return {"status": "ok", "scenes": []}
     except Exception as e:
+        print(f"Get Analysis Error: {e}")
         return {"status": "error", "message": str(e)}

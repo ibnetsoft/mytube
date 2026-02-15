@@ -122,7 +122,8 @@ class TTSService:
         text: str,
         voice_id: str = "4JJwo477JUAx3HV0T7n7",
         filename: str = "tts_output.mp3",
-        return_alignment: bool = True
+        return_alignment: bool = True,
+        voice_settings: Optional[dict] = None
     ) -> dict:
         """
         ElevenLabs TTS 생성 (with timestamps for subtitle alignment)
@@ -149,7 +150,7 @@ class TTSService:
             
             for i, chunk in enumerate(chunks):
                 chunk_filename = f"temp_{i}_{filename}"
-                result = await self.generate_elevenlabs(chunk, voice_id, chunk_filename, return_alignment)
+                result = await self.generate_elevenlabs(chunk, voice_id, chunk_filename, return_alignment, voice_settings)
                 
                 if result and result.get("audio_path"):
                     chunk_files.append(result["audio_path"])
@@ -197,13 +198,22 @@ class TTSService:
             "Content-Type": "application/json"
         }
 
+        # [NEW] Voice Settings Override
+        final_settings = {
+            "stability": 0.5,
+            "similarity_boost": 0.75
+        }
+        speed_factor = 1.0
+        
+        if voice_settings:
+            final_settings["stability"] = float(voice_settings.get("stability", 0.5))
+            final_settings["similarity_boost"] = float(voice_settings.get("similarity_boost", 0.75))
+            speed_factor = float(voice_settings.get("speed", 1.0))
+
         payload = {
             "text": text,
             "model_id": "eleven_multilingual_v2",
-            "voice_settings": {
-                "stability": 0.5,
-                "similarity_boost": 0.75
-            }
+            "voice_settings": final_settings
         }
 
         output_path = os.path.join(self.output_dir, filename)
@@ -241,6 +251,64 @@ class TTSService:
                     if alignment_data:
                         audio_duration = alignment_data[-1]["end"]
                 
+                # [NEW] Speed Adjustment Post-Processing
+                if speed_factor != 1.0 and os.path.exists(output_path):
+                    try:
+                        print(f"⏩ Adjusting audio speed by {speed_factor}x...")
+                        import subprocess
+                        
+                        # Try to find ffmpeg via imageio_ffmpeg (installed with moviepy)
+                        ffmpeg_exe = "ffmpeg"
+                        try:
+                            import imageio_ffmpeg
+                            ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+                        except:
+                            pass
+                            
+                        temp_speed_path = output_path.replace(".mp3", "_speed.mp3")
+                        
+                        # Use ffmpeg via subprocess for speed change
+                        # -y: overwrite
+                        # -vn: disable video
+                        # filter:a "atempo=X"
+                        
+                        cmd = [
+                            ffmpeg_exe, "-y", "-i", output_path,
+                            "-filter:a", f"atempo={speed_factor}",
+                            "-vn", temp_speed_path
+                        ]
+                        
+                        # Prevent console window on Windows
+                        startupinfo = None
+                        if os.name == 'nt':
+                            startupinfo = subprocess.STARTUPINFO()
+                            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                        
+                        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, startupinfo=startupinfo)
+                        
+                        if os.path.exists(temp_speed_path):
+                            # Replace original
+                            try:
+                                os.remove(output_path)
+                                os.rename(temp_speed_path, output_path)
+                            except OSError:
+                                # Sometimes windows locks file, use shutil move fallback
+                                import shutil
+                                shutil.move(temp_speed_path, output_path)
+                            
+                            # Update Duration
+                            audio_duration = audio_duration / speed_factor
+                            
+                            # Update Alignment Timestamps
+                            if alignment_data:
+                                for word in alignment_data:
+                                    word["start"] = word["start"] / speed_factor
+                                    word["end"] = word["end"] / speed_factor
+                                
+                            print(f"✅ Speed adjustment complete. New duration: {audio_duration:.2f}s")
+                    except Exception as e:
+                        print(f"⚠️ Failed to adjust audio speed: {e}")
+
                 # 타이밍 정보 저장
                 alignment_path = output_path.replace(".mp3", "_alignment.json")
                 with open(alignment_path, "w", encoding="utf-8") as f:
@@ -259,11 +327,39 @@ class TTSService:
             else:
                 raise Exception(f"ElevenLabs API 오류: {response.text}")
 
-    async def generate_sound_effect(self, text: str, duration_seconds: float = None, prompt_influence: float = 0.3) -> Optional[bytes]:
-        """ElevenLabs Sound Effects 생성"""
+
+
+
+    async def get_elevenlabs_voices(self) -> list:
+        """ElevenLabs 사용 가능한 음성 목록 조회"""
         load_dotenv(override=True)
         api_key = os.getenv("ELEVENLABS_API_KEY")
         if not api_key:
+            return []
+
+        url = "https://api.elevenlabs.io/v1/voices"
+        headers = {"xi-api-key": api_key}
+        
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            try:
+                response = await client.get(url, headers=headers)
+                if response.status_code == 200:
+                    data = response.json()
+                    return data.get("voices", [])
+                else:
+                    print(f"⚠️ ElevenLabs Voices Error: {response.status_code}")
+                    return []
+            except Exception as e:
+                print(f"⚠️ Failed to fetch ElevenLabs voices: {e}")
+                return []
+
+    async def generate_sound_effect(self, text: str, duration_seconds: float = None) -> Optional[bytes]:
+        """ElevenLabs Sound Effects 생성"""
+        load_dotenv(override=True)
+        api_key = os.getenv("ELEVENLABS_API_KEY")
+        
+        if not api_key:
+            print("❌ ElevenLabs API Key Missing for SFX")
             return None
 
         url = "https://api.elevenlabs.io/v1/sound-generation"
@@ -271,14 +367,20 @@ class TTSService:
             "xi-api-key": api_key,
             "Content-Type": "application/json"
         }
-        payload = {
-            "text": text,
-            "duration_seconds": duration_seconds,
-            "prompt_influence": prompt_influence
-        }
 
+        # [NOTE] ElevenLabs SFX API limits prompt length and has uncertain duration control
+        # Currently, duration_seconds is 'prompt influence' or similar in some versions, 
+        # but the standard endpoint is text -> audio.
+        
+        payload = {
+            "text": text[:200], # Limit prompt length
+            "duration_seconds": duration_seconds or 3.0, # Approximate if supported, otherwise ignored
+            "prompt_influence": 0.3 # Default balanced
+        }
+        
         async with httpx.AsyncClient(timeout=60.0) as client:
             try:
+                # Use verify=False if certificate issues arise, but standard shouldn't need it
                 response = await client.post(url, headers=headers, json=payload)
                 if response.status_code == 200:
                     return response.content

@@ -1155,11 +1155,61 @@
                         <!-- [NEW] Voice Name Display -->
                         <div>
                             <label class="block text-[10px] font-black text-green-500 uppercase mb-1">🎙️ Voice Actor (ElevenLabs Recommendation)</label>
-                            <input type="text" value="${scene.voice_name || ''}" 
-                                onchange="analyzedScenes[${index}].voice_name = this.value"
-                                class="w-full bg-green-50/50 dark:bg-green-900/20 text-[10px] p-2 rounded-lg border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 font-bold placeholder-green-300 focus:ring-2 focus:ring-green-500 outline-none" 
-                                placeholder="AI will suggest voice name here...">
+                            ${(() => {
+                            // [HEAL] Enforce Brian for Narrator at Render time if missing
+                            if (scene.analysis && scene.analysis.character === '내레이션' && (!scene.voice_name || scene.voice_name.toLowerCase() === 'none')) {
+                                scene.voice_name = 'Brian';
+                            }
+
+                            // Fallback to nested analysis data if top-level voice_name is missing (for older projects)
+                            let vName = scene.voice_name || (scene.analysis?.voice_recommendation?.name) || '';
+                            if (vName.toLowerCase() === 'none' || vName.toLowerCase() === 'null') vName = '';
+
+                            return `<input type="text" value="${vName}" 
+                                    onchange="analyzedScenes[${index}].voice_name = this.value"
+                                    class="w-full bg-green-50/50 dark:bg-green-900/20 text-[10px] p-2 rounded-lg border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 font-bold placeholder-green-300 focus:ring-2 focus:ring-green-500 outline-none" 
+                                    placeholder="AI will suggest voice name here...">`;
+                        })()}
+                                
+                             <!-- AI Voice Settings Display -->
+                             <div class="mt-2 text-[10px] text-green-600 bg-green-50 dark:bg-green-900/10 p-2 rounded border border-green-100 dark:border-green-800/30">
+                                ${((s) => {
+                            if (!s) return '<span class="text-gray-400">No specific voice settings.</span>';
+                            try {
+                                // Handle if it comes as string or object
+                                const vs = typeof s === 'string' ? JSON.parse(s) : s;
+                                return `
+                                        <div class="flex flex-wrap gap-2 items-center">
+                                            <span class="font-bold">✨ Reason:</span> <span class="text-gray-600 dark:text-gray-400 italic">"${vs.reason || 'N/A'}"</span>
+                                            <div class="w-full h-px bg-green-200 dark:bg-green-800/30 my-1"></div>
+                                            <span class="font-bold">⚡ Speed:</span> <span>${vs.speed || 1.0}x</span>
+                                            <span class="ml-2 font-bold">🎯 Stability:</span> <span>${vs.stability || 0.5}</span>
+                                            <span class="ml-2 font-bold">🌊 Boost:</span> <span>${vs.similarity_boost || 0.75}</span>
+                                        </div>
+                                        `;
+                            } catch (e) { return '<span class="text-red-400">Invalid settings format</span>'; }
+                        })(scene.voice_settings)}
+                             </div>
                         </div>
+                        
+                        <!-- [NEW] Audio Direction Display -->
+                        <div>
+                             <label class="block text-[10px] font-black text-blue-500 uppercase mb-1">🎵 Audio Direction (SFX / BGM)</label>
+                             <div class="bg-blue-50 dark:bg-blue-900/10 p-2 rounded border border-blue-100 dark:border-blue-800/30 text-[10px]">
+                                ${((aud) => {
+                            if (!aud || (!aud.sfx_prompt && !aud.bgm_mood)) return '<span class="text-gray-400">No audio direction.</span>';
+                            let html = '';
+                            if (aud.sfx_prompt) {
+                                html += `<div class="mb-1"><span class="font-bold text-blue-700 dark:text-blue-300">🔊 SFX Prompt:</span> <span class="text-gray-600 dark:text-gray-300">${aud.sfx_prompt}</span></div>`;
+                            }
+                            if (aud.bgm_mood) {
+                                html += `<div><span class="font-bold text-purple-600 dark:text-purple-300">🎼 BGM Mood:</span> <span class="text-gray-600 dark:text-gray-300">${aud.bgm_mood}</span></div>`;
+                            }
+                            return html;
+                        })(scene.audio_direction || {})}
+                             </div>
+                        </div>
+
                         </div>
                         <div>
                             <label class="block text-[10px] font-black text-orange-400 uppercase mb-1">Internal Content Motion (for Wan Engine)</label>
@@ -1341,7 +1391,9 @@
                             atmosphere: analyzedScenes[i].analysis.atmosphere,
                             sound_effects: analyzedScenes[i].analysis.sound_effects,
                             engine_override: analyzedScenes[i].engine_override,
-                            effect_override: analyzedScenes[i].effect_override
+                            effect_override: analyzedScenes[i].effect_override,
+                            voice_settings: analyzedScenes[i].voice_settings || {},
+                            audio_direction: analyzedScenes[i].audio_direction || {}
                         });
                     });
                     addLog(`✅ Prepared ${finalData.length} scenes for processing.`, "success");
@@ -1866,7 +1918,8 @@
                         motion_desc: plan.motion_desc || plan.Motion_Desc || plan.Motion_desc || '[AI Motion Auto-generated]',
                         rationale: plan.rationale || plan.Rationale || '[AI Rationale Auto-generated]',
                         cropping_advice: plan.cropping_advice || plan.Cropping_advice || plan.Cropping_Advice || '',
-                        voice_name: plan.voice_name || plan.Voice_Name || plan.Voice_name || ''
+                        voice_name: plan.voice_name || plan.Voice_Name || plan.Voice_name || '',
+                        audio_direction: plan.audio_direction || plan.Audio_Direction || null
                     };
 
                     // Force Sequential Matching (Ignore scene_number -> Trust array order)
@@ -1879,7 +1932,35 @@
                         analyzedScenes[idx].motion_desc = p.motion_desc;
                         analyzedScenes[idx].rationale = p.rationale;
                         analyzedScenes[idx].cropping_advice = p.cropping_advice;
-                        analyzedScenes[idx].voice_name = p.voice_name;
+
+                        // [FIX] Only overwrite if plan has a VALID voice name
+                        if (p.voice_name &&
+                            p.voice_name.toLowerCase() !== 'none' &&
+                            p.voice_name.toLowerCase() !== 'unknown voice' &&
+                            p.voice_name.toLowerCase() !== 'silence') {
+                            analyzedScenes[idx].voice_name = p.voice_name;
+                        }
+
+                        // [NEW] NARRATOR CONSISTENCY: Always force Brian if character is 내레이션
+                        // Corrected Path: analyzedScenes[idx].analysis.character
+                        if (analyzedScenes[idx].analysis && analyzedScenes[idx].analysis.character === '내레이션') {
+                            analyzedScenes[idx].voice_name = 'Brian';
+                        }
+
+                        // [NEW] Apply Audio Direction from Plan if available
+                        if (p.audio_direction) {
+                            const aud = analyzedScenes[idx].audio_direction || {};
+                            const p_aud = p.audio_direction;
+
+                            const final_sfx = p_aud.sfx_prompt || p_aud.Sfx_Prompt || '';
+                            const final_bgm = p_aud.bgm_mood || p_aud.Bgm_Mood || '';
+
+                            if (final_sfx && final_sfx.toLowerCase() !== 'none') aud.sfx_prompt = final_sfx;
+                            if (final_bgm && final_bgm.toLowerCase() !== 'none') aud.bgm_mood = final_bgm;
+
+                            analyzedScenes[idx].audio_direction = aud;
+                            if (analyzedScenes[idx].analysis) analyzedScenes[idx].analysis.audio_direction = aud;
+                        }
 
                         // SFX reinforcement
                         if (plan.sfx_priority === 'High' && (!analyzedScenes[idx].analysis.sound_effects || analyzedScenes[idx].analysis.sound_effects === 'None')) {

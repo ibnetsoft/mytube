@@ -78,12 +78,12 @@ class GeminiService:
                 error_msg = result.get('error', {}).get('message', str(result))
                 raise Exception(f"Gemini Vision API 오류: {error_msg}")
 
-    async def analyze_webtoon_panel(self, image_path: str, context: Optional[str] = None) -> dict:
+    async def analyze_webtoon_panel(self, image_path: str, context: Optional[str] = None, voice_options: Optional[str] = None) -> dict:
         """웹툰 패널 한 칸을 분석하여 대사, 캐릭터, 연출 정보 추출"""
         
         context_inst = ""
         if context:
-            context_inst = f"\n[Story Context from Previous Episode]: {context}\nUse this to better identify characters and situation.\n"
+            context_inst = f"\n{context}\n"
 
         prompt = f"""
         Analyze this webtoon panel image.
@@ -94,8 +94,9 @@ class GeminiService:
            - **Onomatopoeia or stylized sound effect text** (e.g., "쾅!", "털썩", "슈우우", "덜덜"). These are visual sound effects, NOT dialogue.
            **INCLUDE**: Only actual character speech or narrative text meant to be read aloud.
         2. Identify who is speaking based on the dialogue and visual context. 
-           - Use the provided context to keep character names consistent.
-           - If the speaker's name is not explicitly shown, infer it from the context (e.g. Woman, Man, Boy, Girl, Narrator). 
+           - **CRITICAL**: Check the [KNOWN CHARACTERS] list in the context. If the character matches, YOU MUST USE THE EXACT SAME NAME.
+           - Do NOT use generic names like "Man" or "Woman" if they match a known character (e.g. "Hero", "Jin-woo").
+           - If the speaker's name is not explicitly shown, infer it from the context.
            - Only use 'Unknown' if absolutely impossible to infer. Do NOT use 'None' if there is dialogue.
         3. Describe the visual action and atmosphere briefly in English.
            - Append specific Camera Movement keywords at the end. (e.g., "[Camera: Zoom in]", "[Camera: Pan left]", "[Camera: Static]")
@@ -113,8 +114,47 @@ class GeminiService:
             "atmosphere": "e.g. dramatic, funny, scary",
             "sound_effects": "suggested SFX list (comma separated) or 'None'",
             "focal_point_y": 0.5,
-            "is_meaningless": false
+            "is_meaningless": false,
+            "voice_recommendation": {{ "id": "voice_id_here", "name": "voice_name_here", "reason": "reason" }},
+            "voice_settings": {{ "stability": 0.5, "similarity_boost": 0.75, "speed": 1.0, "reason": "why this tone?" }},
+            "audio_direction": {{ "sfx_prompt": "detailed english description for sound generation", "bgm_mood": "e.g. suspense, happy, sad", "has_sfx": true }}
         }}
+        """
+        
+
+
+        prompt += """
+        [AUDIO DIRECTION GUIDE]
+        1. **sfx_prompt**: 
+           - MANDATORY if there is a visible sound effect text (e.g. "WOOSH") or clear action.
+           - Generate a detailed English prompt for ElevenLabs. 
+           - Format: "Footsteps on gravel, slow pace" or "Heavy rain with thunder".
+           - Keep it under 100 characters.
+        2. **bgm_mood**: Suggest the background music mood for this scene (e.g., "Tense", "Joyful").
+        3. **has_sfx**: Set to true if a specific sound effect is required.
+
+        [VOICE RECOMMENDATION GUIDE]
+        """
+        
+        if voice_options:
+            prompt += f"""
+            - Select the best voice from this list:
+            {voice_options}
+            """
+        else:
+            prompt += """
+            - Suggest a generic voice type (e.g. "Deep Male", "Soft Female", "Child").
+            - Return "id": "unknown", "name": "Generic Description".
+            """
+
+        prompt += """
+        [CRITICAL RULES]
+        - **NEVER** return actual `null` or empty strings for required fields in JSON structure.
+        - **sfx_prompt**: Provide a sound description if there is action. If silent, return "Silence".
+        - **bgm_mood**: Suggest a mood if the scene has a clear atmosphere. If neutral or static, return "Silence".
+        - If unsure, provide a best guess based on the visual context.
+        
+        RETURN JSON ONLY.
         """
         
         try:
@@ -122,17 +162,46 @@ class GeminiService:
                 img_bytes = f.read()
             
             response_text = await self.generate_text_from_image(prompt, img_bytes, mime_type="image/jpeg")
+            print(f"DEBUG: Gemini RAW response for panel: {response_text[:400]}...")
+
+            print(f"DEBUG: Gemini RAW response for panel: {response_text[:300]}...")
+
             
             # JSON 파싱
             import re
             json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            
+            result = {}
             if json_match:
-                return json.loads(json_match.group(0))
-            else:
-                return {"dialogue": "", "character": "None", "visual_desc": response_text, "atmosphere": "Neutral"}
+                try:
+                    result = json.loads(json_match.group(0))
+                except json.JSONDecodeError:
+                    print(f"JSON Decode Error in Panel Analysis. Raw: {response_text[:100]}...")
+                    pass
+            
+            # [CRITICAL] Ensure mandatory fields exist for UI
+            if "audio_direction" not in result:
+                result["audio_direction"] = {"sfx_prompt": "", "bgm_mood": "", "has_sfx": False}
+            if "voice_recommendation" not in result:
+                result["voice_recommendation"] = {}
+                
+            # Basic fallbacks if completely failed
+            if not result.get("visual_desc"):
+                 result["visual_desc"] = response_text if not json_match else "Analysis parsing failed"
+            
+            return result
+            
         except Exception as e:
             print(f"Panel analysis failed: {e}")
-            return {"dialogue": "", "character": "None", "visual_desc": f"Error: {str(e)}", "atmosphere": "Error"}
+            # Ensure safe return even on crash
+            return {
+                "dialogue": "", 
+                "character": "None", 
+                "visual_desc": f"Error: {str(e)}", 
+                "atmosphere": "Error",
+                "audio_direction": {"sfx_prompt": "", "bgm_mood": "Error", "has_sfx": False},
+                "voice_recommendation": {}
+            }
 
     async def generate_webtoon_plan(self, scenes: List[dict]) -> dict:
         """분석된 패널 정보를 바탕으로 비디오 제작을 위한 기획/기술 제안서 생성"""
@@ -185,59 +254,57 @@ class GeminiService:
         scenes_json = json.dumps(scenes_preview, ensure_ascii=False)
         
         prompt = f"""
-        당신은 웹툰 기반 비디오 제작 감독입니다. 
-        제공된 웹툰 장면 분석 데이터를 바탕으로, 고퀄리티 영상을 만들기 위한 '제작 제안서(Production Plan)'를 작성하세요.
-        
-        [입력 데이터 (장면 리스트)]
+        # ROLE: Hollywood Trailer Editor & VFX Supervisor
+        You are creating a high-end cinematic video plan based on webtoon scenes.
+        Your goal is to transform static images into a dynamic, immersive video experience using advanced AI video generation tools (Wan 2.1).
+
+        [INPUT DATA]
         {scenes_json}
+
+        [CRITICAL INSTRUCTION FOR 'motion_desc']
+        The 'motion_desc' field is the DIRECT PROMPT for the AI Video Generator (Wan 2.1).
+        It MUST be highly detailed, creative, and written in ENGLISH.
         
-        [기획 시 고려 사항]
-        [비디오 엔진 선택 및 연출 원칙 (Visual Hierarchy)]
-        1. **이미지 비율 및 구도 분석 (CRITICAL)**:
-           - **세로로 긴 이미지(Vertical)**: 절대로 중간을 잘라내지 마세요. 전체를 보여주기 위해 **'pan_down' (위에서 아래로 훑기)** 또는 **'pan_up'** 효과를 필수적으로 사용하세요. (예: 추락, 전신 샷, 하늘에서 땅으로 이어지는 배경)
-           - **가로 여백 부족**: 원본의 좌우가 잘리지 않도록 유지하고, 부족한 부분은 AI Outpainting으로 채운다고 가정하고 프롬프트를 작성하세요.
+        DO NOT use generic terms like "moving", "animated", or "talking".
+        Instead, use "cinematic vocabulary" to describe:
+        1. **Micro-Motions**: "Subtle eye trembling", "Hair gently swaying in wind", "Fists clenching", "Tears welling up", "Chest heaving with breath".
+        2. **Camera Movement**: "Slow dolly zoom", "Handheld camera shake", "Low angle tilt up", "Rapid crash zoom", "Smooth tracking shot".
+        3. **Atmosphere & Lighting**: "Dust particles floating in god rays", "Flickering neon lights in background", "Dark ominous shadows stretching", "Sparks flying from fire".
+        4. **Action**: "Explosive debris flying", "Sword slashing with motion blur", "Magic energy swirling spirally".
 
-        2. **Visual Action > Dialogue (우선순위 역전)**:
-           - 대사가 있더라도, 시각적으로 **추락(falling), 전신 동작, 전투, 폭발** 등 강한 물리적 움직임이 묘사된 경우 **립싱크(Akool)를 금지**하고 **Wan (Motion)** 또는 **Image (Pan/Tilt)**를 선택하세요.
+        [SCENE ANALYSIS GUIDELINES]
+        - **Contextual Inference**: If the dialogue is angry, add "Camera shaking, intense red lighting, joyful sparks". If sad, "Slow rain falling, gloomy blue filter".
+        - **Vertical Images**: IF the image is vertical (portrait), you MUST use 'pan_down' or 'pan_up' to reveal the full content.
+        - **Static Dialogue**: IF the scene is just talking, add "Subtle breathing motion, blinking eyes, natural head movement" to keep it alive.
+        - **Audio Direction**: Suggest immersive Sound Effects (SFX) and Background Music (BGM) that match the visual intensity. 
+          sfx_prompt should include specific sounds (e.g., "Heavy footsteps on metal").
+          bgm_mood should describe the tone (e.g., "Tense orchestral").
+          **CRITICAL**: For 'sfx_prompt' or 'bgm_mood', NEVER return "None" or "null". If silent, use "Silence".
+        - **Voice Recommendations (CONSISTENCY IS LAW)**: 
+          - **NEVER** use "Silence" or "None" as a voice_name. 
+          - The SAME character MUST use the EXACT SAME voice name in every scene they appear.
+          - DO NOT mix voices for the same person (e.g., No switching between Adam and Josh).
+          - **NARRATOR (내레이션)**: ALWAYS use "Brian".
 
-        3. **Hyper-Detailed Motion Prompting (Wan 엔진 전용)**:
-           - 단순한 "Fire"나 "Wind" 대신 다음 3단계 레이어로 묘사하세요:
-             * **[Main]**: 주요 피사체의 큰 동작 (예: Woman standing in intense chaos)
-             * **[Sub]**: 디테일한 움직임 (예: Hair blowing wildly, Flag flapping aggressively, Blood dripping)
-             * **[Env]**: 환경적 효과 (예: Fire embers flying horizontally, Dark smoke rising)
-           - `visual_desc`가 없거나 부족하면, **대사의 분위기(implied mood)**와 **일반적인 웹툰 연출(Standard Cinematic)**을 상상해서라도 채워넣으세요. 빈칸 금지.
-
-        [비상 대처 매뉴얼 (CREATIVE RECOVERY PROTOCOL)]
-        - 만약 `visual_desc`가 "Analysis failed"이거나 정보가 부족한 경우라도, **절대 "정보 부족"이라고 말하거나 획일적인 "Pan Down"만 반복하지 마세요.**
-        - 대신 **"다양한 연출 시나리오(Creative Scenarios)"**를 상상해서 적용하세요:
-          1. **Zoom In/Out**: 인물의 감정이나 디테일 강조.
-          2. **Shake**: 충격, 긴장, 전투 상황 암시.
-          3. **Wan (Motion)**: 바람, 불꽃, 비, 마법 효과 등을 상상해서 추가.
-          4. **Pan Down/Up/Left/Right**: 배경이나 전신 훑기. (남발 금지)
-        - **Rationale**: "시각적 정보 부재로 인해, 대사의 뉘앙스에 맞춰 극적인 Zoom In 연출을 선택함." 처럼 **당신의 창의적인 결정 이유**를 적으세요.
-        - **Motion Desc**: "Dramatic camera work, intense atmosphere." 등 상상력을 발휘하세요.
-
-        [엔진 가이드]
-        - **image**: 기본적인 2D 모션. (Zoom, Pan, Shake 등 다양하게 활용)
-        - **wan**: 불, 물, 마법, 전투 등 동적인 요소가 필요할 때 과감하게 사용.
-        - **akool**: 오직 '얼굴 클로즈업'이면서 '정적인 대화'일 때만 제한적으로 사용.
-
-        [출력 형식]
-        반드시 JSON 형식으로만 응답하세요:
+        [OUTPUT FORMAT (JSON ONLY)]
         {{
-            "overall_strategy": "전체적인 연출 컨셉 (한국어)",
-            "bgm_style": "추천 BGM 스타일 (한국어)",
+            "overall_strategy": "Overall direction summary (Korean)",
+            "bgm_style": "Recommended BGM style (Korean)",
             "character_plan": [ ... ],
             "scene_plans": [
                 {{
                     "scene_number": 1,
                     "engine": "image" | "wan" | "akool",
                     "effect": "zoom_in" | "zoom_out" | "pan_left" | "pan_right" | "tilt_up" | "tilt_down" | "pan_down" | "pan_up" | "static" | "shake",
-                    "motion_desc": "Wan 사용 시: '[Main] ..., [Sub] ..., [Env] ...' 형식의 3단계 상세 묘사. 정보 부족 시 상상해서라도 작성. (English)",
-                    "rationale": "연출 근거. '정보 부족' 표현 절대 금지. 대신 '이미지 분석에 따른 연출' 또는 '대사 분위기에 맞춘 연출'로 작성. (한국어)",
+                    "motion_desc": "HIGHLY DETAILED ENGLISH PROMPT. (e.g., 'Cinematic extreme close-up of eye, pupil dilating, intense fear, camera slowly zooming in, dark moody lighting')",
+                    "rationale": "Reason for direction (Korean). Focus on emotional impact.",
                     "sfx_priority": "High" | "Normal",
-                    "cropping_advice": "구도 조언 (예: 세로가 길므로 위에서부터 훑어내리기)",
-                    "voice_name": "ElevenLabs Voice Name (e.g. Rachel, Adam, Josh, Dorothy, Nicole, Fin) - Choose based on character gender/age/personality"
+                    "cropping_advice": "Composition advice (Korean)",
+                    "voice_name": "ElevenLabs Voice Name (e.g. Rachel, Adam, Josh, Dorothy, Nicole, Fin)",
+                    "audio_direction": {{
+                        "sfx_prompt": "Detailed English SFX prompt for ElevenLabs generation (e.g. 'Swords clashing with sparks, metallic ringing')",
+                        "bgm_mood": "Mood description for BGM (e.g. 'Epic battle orchestral, fast pace')" 
+                    }}
                 }}
             ]
         }}

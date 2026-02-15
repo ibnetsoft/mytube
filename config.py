@@ -25,7 +25,7 @@ class Config:
     TOPVIEW_API_KEY: str = os.getenv("TOPVIEW_API_KEY", "") # TopView AI
 
     # 서버 설정
-    HOST = os.getenv("HOST", "127.0.0.1")
+    HOST = os.getenv("HOST", "0.0.0.0")
     PORT = int(os.getenv("PORT", 8000))
     DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 

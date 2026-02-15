@@ -575,7 +575,14 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             # [NEW] Voice Override
             scene_voice = p_settings.get(f"scene_{scene_num}_voice")
             current_voice_id = scene_voice if scene_voice else voice_id
-            used_voices.add(current_voice_id) # Collect
+            # [NEW] Voice Settings (Stability, Speed)
+            voice_settings = None
+            vs_json = p_settings.get(f"scene_{scene_num}_voice_settings")
+            if vs_json:
+                try:
+                    voice_settings = json.loads(vs_json)
+                except:
+                    pass
 
             if not text:
                 scene_durations.append(3.0)
@@ -586,7 +593,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             
             try:
                 if provider == "elevenlabs":
-                    result = await tts_service.generate_elevenlabs(text, current_voice_id, scene_filename)
+                    result = await tts_service.generate_elevenlabs(text, current_voice_id, scene_filename, voice_settings=voice_settings)
                     if result and result.get("audio_path"):
                         audio_path = result["audio_path"]
                         duration = result.get("duration", 3.0)
@@ -635,19 +642,41 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
 
                 # [NEW] Auto SFX Generation (if missing) 
                 # First try to find in image_prompts (if column exists) or webtoon_scenes_json
+                # [NEW] sfx_mapping_json 로드 (루프 밖에서 하면 좋지만, 중단 재시작 고려하여 매번 로드/저장 안전하게)
+                sfx_map_json = p_settings.get("sfx_mapping_json")
+                sfx_mapping = {}
+                if sfx_map_json:
+                    try: sfx_mapping = json.loads(sfx_map_json)
+                    except: pass
+                
+                # Check 1: Image Prompt Column 'sound_effects'
                 s_desc = p.get('sound_effects')
+                
+                # Check 2: Webtoon JSON 'sound_effects' OR 'audio_direction'
                 if not s_desc:
-                    # Try to extract from webtoon_scenes_json
                     w_json = p_settings.get('webtoon_scenes_json')
                     if w_json:
                         try:
                             w_scenes = json.loads(w_json)
                             if i < len(w_scenes):
-                                s_desc = w_scenes[i].get('sound_effects')
+                                # Prioritize new audio_direction
+                                ad = w_scenes[i].get('audio_direction', {})
+                                if ad and ad.get('has_sfx') and ad.get('sfx_prompt'):
+                                    s_desc = ad.get('sfx_prompt')
+                                else:
+                                    s_desc = w_scenes[i].get('sound_effects')
                         except: pass
 
-                sfx_k = f"scene_{scene_num}_sfx"
-                if s_desc and s_desc not in ['None', 'Unknown'] and len(s_desc) > 2 and not p_settings.get(sfx_k):
+                # Check if already generated in mapping
+                # s_desc가 있고, 매핑에 없거나 파일이 없을 때 생성
+                sfx_exists = str(scene_num) in sfx_mapping
+                if sfx_exists:
+                    # 파일 존재 확인
+                    sfx_chk_path = os.path.join(config.OUTPUT_DIR, str(project_id), "assets", "sound", sfx_mapping[str(scene_num)])
+                    if not os.path.exists(sfx_chk_path):
+                        sfx_exists = False
+
+                if not sfx_exists and s_desc and s_desc not in ['None', 'Unknown'] and len(s_desc) > 2:
                     try:
                         sfx_p_str = re.sub(r'[^\w\s,]', '', s_desc)
                         print(f"🔊 [Auto-Pilot] Generating SFX for scene {scene_num}: {sfx_p_str}")
@@ -659,7 +688,10 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                             sfx_pth = os.path.join(sfx_dr, sfx_fn)
                             with open(sfx_pth, "wb") as f:
                                 f.write(sfx_d)
-                            db.update_project_setting(project_id, sfx_k, sfx_fn)
+                            
+                            # Update Mapping and Save
+                            sfx_mapping[str(scene_num)] = sfx_fn
+                            db.update_project_setting(project_id, "sfx_mapping_json", json.dumps(sfx_mapping, ensure_ascii=False))
                             print(f"✅ [Auto-Pilot] SFX Saved: {sfx_fn}")
                     except Exception as se:
                         print(f"⚠️ [Auto-Pilot] SFX Gen failed: {se}")
@@ -1216,15 +1248,18 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
         print(f"🎬 [Auto-Pilot] Rendering video with resolution: {resolution} (Mode: {app_mode})")
 
         # [NEW] Collect SFX Mapping
+        # [NEW] Collect SFX Mapping from JSON
         sfx_map = {}
-        for i, img_obj in enumerate(sorted_prompts):
-            s_num = img_obj.get("scene_number")
-            sfx_filename = settings.get(f"scene_{s_num}_sfx")
-            if sfx_filename:
-                # Resolve path
-                sfx_abs_path = os.path.join(config.OUTPUT_DIR, str(project_id), "assets", "sound", sfx_filename)
-                if os.path.exists(sfx_abs_path):
-                    sfx_map[s_num] = sfx_abs_path
+        sfx_map_json = settings.get("sfx_mapping_json")
+        if sfx_map_json:
+            try:
+                raw_sfx_map = json.loads(sfx_map_json)
+                for s_num_str, sfx_filename in raw_sfx_map.items():
+                    sfx_abs_path = os.path.join(config.OUTPUT_DIR, str(project_id), "assets", "sound", sfx_filename)
+                    if os.path.exists(sfx_abs_path):
+                         sfx_map[str(s_num_str)] = sfx_abs_path
+            except Exception as e:
+                print(f"⚠️ Failed to parse SFX mapping: {e}")
 
         # [NEW] Collect Focal Points
         f_points = [p.get("focal_point_y", 0.5) for p in sorted_prompts]
