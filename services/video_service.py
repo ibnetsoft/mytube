@@ -11,6 +11,28 @@ class VideoService:
     def __init__(self):
         self.output_dir = config.OUTPUT_DIR
 
+    def _get_video_info(self, path):
+        """Helper to get video dimensions safely"""
+        import imageio_ffmpeg
+        import subprocess
+        try:
+            ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+            probe_exe = ffmpeg_exe.replace("ffmpeg", "ffprobe")
+            cmd = [probe_exe, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", path]
+            
+            startupinfo = None
+            if os.name == 'nt':
+                 startupinfo = subprocess.STARTUPINFO()
+                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+
+            res = subprocess.run(cmd, capture_output=True, text=True, startupinfo=startupinfo)
+            if res.returncode == 0 and res.stdout:
+                w, h = map(int, res.stdout.strip().split(","))
+                return w, h
+        except Exception as e:
+            print(f"Probe Error: {e}")
+        return None, None
+
     def create_slideshow(
         self,
         images: List[str],
@@ -171,7 +193,14 @@ class VideoService:
         # Audio Load First to determine duration
         audio = None
         if audio_path and os.path.exists(audio_path):
-             audio = AudioFileClip(audio_path)
+             try:
+                 print(f"DEBUG: Loading Audio: {audio_path}")
+                 audio = AudioFileClip(audio_path)
+                 print(f"DEBUG: Audio Loaded. Duration: {audio.duration}")
+             except Exception as ae:
+                 print(f"ERROR: Audio Load Failed: {ae}")
+                 # Critical? Maybe fallback to silent?
+                 audio = None
              
         # [NEW] Check for Template Image (Overlay)
         template_path = None
@@ -199,6 +228,8 @@ class VideoService:
                     print(f"DEBUG: Using Template Image: {template_path}")
         except Exception as e:
             print(f"Failed to load template settings: {e}")
+        
+        print("DEBUG: Template Load Complete")
              
         if background_video_url:
              print(f"DEBUG: Using Background Video: {background_video_url}")
@@ -245,6 +276,8 @@ class VideoService:
                  print(f"Background Video Error: {e}")
                  # Fallback to images if failed
                  pass
+        
+        print("DEBUG: Background Video Logic Complete")
 
         # Veo 통합을 위한 임시 헬퍼 (Sync -> Async 호출)
         def run_async(coro):
@@ -280,9 +313,44 @@ class VideoService:
                         # [FIX] FFMPEG Pre-process to avoid MoviePy Hangs
                         target_w, target_h = resolution
                         dur = duration_per_image[i] if isinstance(duration_per_image, list) else duration_per_image
-                        
-                        # Call helper
-                        processed_path = self._preprocess_video_with_ffmpeg(img_path, target_w, target_h, fps=fps)
+
+                        # [NEW] Check if pan_down/pan_up is requested for this video asset
+                        req_effect = ''
+                        if image_effects and i < len(image_effects):
+                            req_effect = str(image_effects[i]).lower().replace(" ", "_")
+
+                        # [AUTO-CORRECT] Tall Video Detection (Force Pan)
+                        vw, vh = self._get_video_info(img_path)
+                        if vw and vh:
+                            var = vw / vh
+                            tar = target_w / target_h
+                            # If video is taller than target (e.g. 9:32 vs 9:16), force pan to show all
+                            if var < tar * 0.9: 
+                                if req_effect not in ['pan_up', 'scroll_up', 'pan_down', 'scroll_down']:
+                                    print(f"  ✨ [Auto-Pan] Tall Video Detected ({vw}x{vh}). Forcing 'pan_down'.")
+                                    req_effect = 'pan_down'
+                                    if image_effects and i < len(image_effects):
+                                        image_effects[i] = 'pan_down'
+
+                        is_tall_pan_video = req_effect in ['pan_down', 'pan_up', 'scroll_down', 'scroll_up']
+
+                        if is_tall_pan_video:
+                            # --- Full-Travel Pan for Tall Videos ---
+                            pan_dir = "up" if req_effect in ['pan_up', 'scroll_up'] else "down"
+                            print(f"↕️ [TallPan Video] effect={req_effect}, dir={pan_dir}, dur={dur:.1f}s")
+                            processed_path = self._preprocess_video_tall_pan(
+                                img_path, target_w, target_h, duration=dur, fps=fps, direction=pan_dir
+                            )
+                            # effect already baked in → disable further effect application
+                            if image_effects is not None and i < len(image_effects):
+                                image_effects[i] = 'none'
+                        else:
+                            # --- Normal center-crop preprocess ---
+                            processed_path = self._preprocess_video_with_ffmpeg(img_path, target_w, target_h, fps=fps)
+                            # Disable remaining effects for video
+                            if image_effects is not None and i < len(image_effects):
+                                image_effects[i] = 'none'
+
                         temp_files.append(processed_path)
                         
                         # Load clean clip
@@ -296,16 +364,13 @@ class VideoService:
                             
                         clip = clip.with_duration(dur)
                         
-                        # Disable effects
-                        if image_effects is not None:
-                             if i < len(image_effects): image_effects[i] = 'none'
-                             
                     except Exception as e:
                         print(f"Failed to load video asset {img_path}: {e}")
                         pass
 
                 # [FIX] Logic to handle Video vs Image asset paths
                 processed_img_path = None
+                is_vertical = False  # [FIX] Initialize here to prevent UnboundLocalError for video assets
                 if is_video_asset:
                     if clip is not None:
                          # Video asset loaded successfully, no further image processing needed for 'processed_img_path'
@@ -372,7 +437,46 @@ class VideoService:
                 # [FIX] Allow effects for images in Vertical (Shorts) mode to provide motion.
                 if is_video_asset:
                      safe_effect = 'none'
-                
+
+                # [NEW] Level 2: Gemini Vision 자동 분류
+                # safe_effect == 'auto_classify' 또는 'auto' 일 때 Gemini로 분류
+                if safe_effect in ('auto_classify', 'auto') and not is_video_asset:
+                    try:
+                        from services.gemini_service import gemini_service as _gs
+                        import asyncio
+                        # 동기 컨텍스트에서 async 함수 호출
+                        try:
+                            loop = asyncio.get_event_loop()
+                            if loop.is_running():
+                                import concurrent.futures
+                                with concurrent.futures.ThreadPoolExecutor() as pool:
+                                    future = pool.submit(asyncio.run, _gs.classify_asset_type(img_path))
+                                    cls_result = future.result(timeout=30)
+                            else:
+                                cls_result = loop.run_until_complete(_gs.classify_asset_type(img_path))
+                        except RuntimeError:
+                            cls_result = asyncio.run(_gs.classify_asset_type(img_path))
+
+                        rec_effect = cls_result.get("recommended_effect", "ken_burns")
+                        # split_zoom → 이미 _detect_and_split_panels에서 처리되므로 ken_burns로 fallback
+                        if rec_effect == "split_zoom":
+                            rec_effect = "ken_burns"
+                        # ken_burns → zoom_in으로 매핑
+                        if rec_effect == "ken_burns":
+                            rec_effect = "zoom_in"
+                        safe_effect = rec_effect
+                        print(f"  🤖 [AutoClassify] Img[{i+1}]: {cls_result['asset_type']} → {safe_effect} (conf={cls_result['confidence']:.2f}, src={cls_result['source']})")
+                        # image_effects 배열도 업데이트 (is_tall_pan 재계산용)
+                        if image_effects and i < len(image_effects):
+                            image_effects[i] = safe_effect
+                        # is_tall_pan 재계산
+                        if not is_video_asset:
+                            if safe_effect in ['pan_up', 'pan_down']:
+                                is_tall_pan = True
+                    except Exception as ce:
+                        print(f"  ⚠️ [AutoClassify] Failed ({ce}), using zoom_in fallback")
+                        safe_effect = 'zoom_in'
+
                 if safe_effect == 'random':
                     import random
                     # [MODIFIED] Include vertical pans in random selection
@@ -428,37 +532,74 @@ class VideoService:
                             clip = CompositeVideoClip([clip.with_position('center')], size=(w,h)).with_duration(dur)
                             
                         elif effect.startswith('pan_'):
-                            # Pan Scale: 1.2 (Tuned for visibility without extreme cropping)
-                            pan_zoom = 1.2
-                            clip = vfx.resize(clip, pan_zoom)
-                            new_w, new_h = clip.w, clip.h
-                            
-                            # Max movement range
-                            max_x = new_w - w
-                            max_y = new_h - h
-                            
-                            # Centered fixed coords
-                            center_y = -max_y / 2
-                            center_x = -max_x / 2
+                            # [FIX v2] Tall image detection: use actual clip height vs viewport height.
+                            # Do NOT rely on filename containing 'tall' — files get renamed (e.g. scene_001.jpg)
+                            # and the 'tall' hint is lost. Instead, check if clip is actually taller than viewport.
+                            is_tall_clip = (
+                                is_tall_pan and
+                                clip.h > h  # clip.h = actual image pixel height, h = target viewport height
+                            )
+                            print(f"  [PAN DEBUG] effect={effect}, is_tall_pan={is_tall_pan}, clip.h={clip.h}, viewport_h={h}, is_tall_clip={is_tall_clip}")
 
-                            if effect == 'pan_left':
-                                # Start: 0 (Left aligned) -> End: -max_x (Right aligned, so image moves Left)
-                                clip = clip.with_position(lambda t: (int(0 - max_x * (t / dur)), int(center_y)))
-                                
-                            elif effect == 'pan_right':
-                                # Start: -max_x -> End: 0
-                                clip = clip.with_position(lambda t: (int(-max_x + max_x * (t / dur)), int(center_y)))
-                                
-                            elif effect == 'pan_up':
-                                # Start: 0 -> End: -max_y
-                                clip = clip.with_position(lambda t: (int(center_x), int(0 - max_y * (t / dur))))
-                                
-                            elif effect == 'pan_down':
-                                # Start: -max_y -> End: 0
-                                clip = clip.with_position(lambda t: (int(center_x), int(-max_y + max_y * (t / dur))))
-                            
-                            # Wrap (ensure Composite uses with_duration)
-                            clip = CompositeVideoClip([clip], size=(w,h)).with_duration(dur)
+                            if is_tall_clip and effect in ('pan_down', 'pan_up'):
+                                # --- TRUE VERTICAL SCROLL (세로 긴 이미지 전체를 스크롤) ---
+                                # clip.h is the full tall image height (e.g. 3000px for a 1080x1920 target)
+                                # w, h are the target viewport size (e.g. 1080 x 1920)
+                                new_w, new_h = clip.w, clip.h
+                                max_scroll = new_h - h  # total scrollable pixels
+
+                                if max_scroll > 0:
+                                    if effect == 'pan_down':
+                                        # Top -> Bottom (image moves upward, revealing bottom)
+                                        clip = clip.with_position(
+                                            lambda t, _ms=max_scroll, _dur=dur, _x_off=int((w - new_w) / 2): (
+                                                _x_off,
+                                                int(0 - _ms * (t / _dur))
+                                            )
+                                        )
+                                    else:  # pan_up
+                                        # Bottom -> Top
+                                        clip = clip.with_position(
+                                            lambda t, _ms=max_scroll, _dur=dur, _x_off=int((w - new_w) / 2): (
+                                                _x_off,
+                                                int(-_ms + _ms * (t / _dur))
+                                            )
+                                        )
+                                    clip = CompositeVideoClip([clip], size=(w, h)).with_duration(dur)
+                                    print(f"  → [TRUE PAN] Tall scroll applied: effect={effect}, tall_h={new_h}px, viewport_h={h}px, scroll={max_scroll}px")
+                                else:
+                                    # Image height <= viewport height -> fallback center
+                                    clip = clip.with_position(('center', 'center'))
+                                    clip = CompositeVideoClip([clip], size=(w, h)).with_duration(dur)
+
+                            else:
+                                # --- STANDARD PAN (1.2x zoom + small movement) ---
+                                pan_zoom = 1.2
+                                clip = vfx.resize(clip, pan_zoom)
+                                new_w, new_h = clip.w, clip.h
+
+                                # Max movement range
+                                max_x = new_w - w
+                                max_y = new_h - h
+
+                                # Centered fixed coords
+                                center_y = -max_y / 2
+                                center_x = -max_x / 2
+
+                                if effect == 'pan_left':
+                                    clip = clip.with_position(lambda t, _mx=max_x, _cy=center_y, _dur=dur: (int(0 - _mx * (t / _dur)), int(_cy)))
+
+                                elif effect == 'pan_right':
+                                    clip = clip.with_position(lambda t, _mx=max_x, _cy=center_y, _dur=dur: (int(-_mx + _mx * (t / _dur)), int(_cy)))
+
+                                elif effect == 'pan_up':
+                                    clip = clip.with_position(lambda t, _my=max_y, _cx=center_x, _dur=dur: (int(_cx), int(0 - _my * (t / _dur))))
+
+                                elif effect == 'pan_down':
+                                    clip = clip.with_position(lambda t, _my=max_y, _cx=center_x, _dur=dur: (int(_cx), int(-_my + _my * (t / _dur))))
+
+                                # Wrap
+                                clip = CompositeVideoClip([clip], size=(w, h)).with_duration(dur)
 
                     except Exception as e:
                         print(f"Effect Error: {e}")
@@ -2307,12 +2448,117 @@ class VideoService:
         subprocess.run(cmd, check=True, startupinfo=startupinfo)
         return output_path
 
-    def _detect_and_split_panels(self, image_path: str) -> List[str]:
+    def _preprocess_video_tall_pan(self, input_path, width, height, duration, fps=30, direction="down"):
+        """
+        [NEW] 세로로 긴 영상(예: 9:32)에 대해 Full-Travel Pan 효과 적용.
+        - Width를 프레임 너비에 맞게 확대 (Height는 비율 유지, 크롭 없음)
+        - Top→Bottom 또는 Bottom→Top 전체 스크롤을 FFmpeg crop 필터로 구현
+        - 출력: 지정된 width x height 해상도의 pan 영상 mp4
+
+        direction: "down" (위→아래) or "up" (아래→위)
+        """
+        import subprocess
+        import uuid
+        import imageio_ffmpeg
+        from PIL import Image
+
+        ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+        output_path = os.path.join(self.output_dir, f"video_tall_pan_{uuid.uuid4()}.mp4")
+
+        # 원본 영상의 실제 해상도 조회
+        probe_cmd = [
+            ffmpeg_exe, "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=width,height",
+            "-of", "csv=p=0",
+            "-i", input_path
+        ]
+        startupinfo = None
+        if os.name == 'nt':
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+
+        try:
+            # ffprobe 대신 ffmpeg를 이용해 메타데이터 출력
+            probe_exe = ffmpeg_exe.replace("ffmpeg", "ffprobe")
+            probe_result = subprocess.run(
+                [probe_exe, "-v", "error", "-select_streams", "v:0",
+                 "-show_entries", "stream=width,height", "-of", "csv=p=0", input_path],
+                capture_output=True, text=True, startupinfo=startupinfo
+            )
+            parts = probe_result.stdout.strip().split(",")
+            orig_w, orig_h = int(parts[0]), int(parts[1])
+        except Exception as e:
+            print(f"[TallPan] probe failed ({e}), falling back to PIL")
+            try:
+                img = Image.open(input_path)
+                orig_w, orig_h = img.size
+            except:
+                # 최후 수단: 일반 preprocess로 fallback
+                return self._preprocess_video_with_ffmpeg(input_path, width, height, fps)
+
+        # width 기준으로 확대 시 새 높이 계산
+        scale_factor = width / orig_w
+        scaled_h = int(orig_h * scale_factor)
+
+        if scaled_h <= height:
+            # 충분히 길지 않으면 일반 처리
+            print(f"[TallPan] Not tall enough (scaled_h={scaled_h} <= frame_h={height}), using normal preprocess.")
+            return self._preprocess_video_with_ffmpeg(input_path, width, height, fps)
+
+        # 이동 가능한 총 픽셀량
+        scroll_total = scaled_h - height
+
+        print(f"↕️ [TallPan] orig={orig_w}x{orig_h} → scaled={width}x{scaled_h}, scroll={scroll_total}px over {duration:.1f}s, dir={direction}")
+
+        # FFmpeg zoompan 필터로 Full-Travel Pan 구현
+        # crop 필터를 사용해 y 시작위치를 시간에 따라 선형 이동
+        # crop=w:h:x:y  → x=0(고정), y=0→scroll_total (down) 또는 y=scroll_total→0 (up)
+        #
+        # 'n': 현재 프레임 번호, 'r': fps → t = n/r
+        # y(t) = (t / duration) * scroll_total
+        #
+        # scale 먼저 실행 후 crop으로 팬 구현
+        total_frames = int(duration * fps)
+
+        if direction == "down":
+            # y: 0 → scroll_total  (영상의 위→아래로 보임)
+            y_expr = f"(n/{total_frames})*{scroll_total}"
+        else:
+            # y: scroll_total → 0  (영상의 아래→위로 보임)
+            y_expr = f"{scroll_total}-(n/{total_frames})*{scroll_total}"
+
+        vf_filter = (
+            f"scale={width}:{scaled_h}:flags=lanczos,"
+            f"fps={fps},"
+            f"crop={width}:{height}:0:'{y_expr}'"
+        )
+
+        cmd = [
+            ffmpeg_exe, "-y",
+            "-i", input_path,
+            "-t", str(duration),
+            "-vf", vf_filter,
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-crf", "22",
+            "-an",
+            output_path
+        ]
+
+        print(f"[TallPan] FFmpeg cmd: {' '.join(cmd[:8])} ...")
+        subprocess.run(cmd, check=True, startupinfo=startupinfo)
+        print(f"✅ [TallPan] Done: {output_path}")
+        return output_path
+
+    def _detect_and_split_panels(self, image_path: str, auto_split: bool = True) -> List[str]:
         """
         [Smart Splitting]
         세로로 긴 웹툰 이미지를 분석하여, 컷(Panel) 사이의 여백(Gutter)을 기준으로 
         여러 개의 개별 이미지 파일로 분리하여 저장하고 경로 리스트를 반환함.
         """
+        if not auto_split:
+            return []
         try:
             from PIL import Image, ImageChops
             import numpy as np
@@ -2402,7 +2648,11 @@ class VideoService:
         duration: float,
         motion_type: str = "zoom_in",
         width: int = 1080,
-        height: int = 1920
+        height: int = 1920,
+        # [NEW] Webtoon Config
+        auto_split: bool = True,
+        smart_pan: bool = True,
+        convert_zoom: bool = True
     ) -> bytes:
         """
         정지 이미지를 입력받아 Pan/Zoom 모션이 적용된 짧은 비디오(.mp4) 바이트를 반환
@@ -2420,41 +2670,80 @@ class VideoService:
             return None
 
         try:
-            # 0. [SMART CHECK] 세로 이미지 & Pan 계열 요청 시 -> 컷 분할 시도
-            is_vertical_motion = motion_type in ["pan_down", "pan_up", "zoom_in"] # Zoom도 포함해서 검사
+            # 0. [SMART CHECK] 세로 이미지 & Pan 계열 요청 시 -> 컷 분할 시도 (auto_split=True일 때만)
+            is_vertical_motion = motion_type in ["pan_down", "pan_up", "zoom_in"] 
             
             split_files = []
-            if is_vertical_motion:
+            if is_vertical_motion and auto_split:
                 # 컷 분할 시도
-                split_files = self._detect_and_split_panels(image_path)
+                split_files = self._detect_and_split_panels(image_path, auto_split=auto_split)
             
             # -----------------------------------------------------
             # CASE A: 컷이 분할됨 (여러 장면으로 구성된 웹툰)
             # -----------------------------------------------------
             if split_files:
-                print(f"🎬 [Smart Transition] Generating sequence video for {len(split_files)} panels.")
+                print(f"🎬 [Smart Transition] Generating sequence video for {len(split_files)} panels (Smart Pan: {smart_pan}).")
                 clips = []
                 # 시간을 컷 수만큼 n등분 (최소 2초 보장)
                 clip_duration = max(2.0, duration / len(split_files))
                 
                 for idx, p_path in enumerate(split_files):
-                    # 각 컷에 대해 재귀적으로 모션 비디오 생성 (Zoom In 등 단조로운 모션 적용)
-                    # 여기서는 간단히 Zoom In을 적용
-                    # 재귀 호출 시 무한루프 방지를 위해 motion_type을 'static'이나 'zoom_in'으로 고정하고 split 체크 안 함
-                    # 하지만 편의상 내부 로직 재활용
+                    # Check global settings
+                    # (In a real scenario, we should pass settings to this method. 
+                    #  For now, assume default TRUE unless we query DB, but that's expensive here.
+                    #  Actually, the caller (autopilot or image_gen) should pass this config.)
+                    
+                    # Since method signature is fixed, we'll retrieve it if possible or default to TRUE
+                    # For performance, we assume True as per user request "Auto-apply"
                     
                     # 각 컷을 독립적인 클립으로 생성
                     p_clip = ImageClip(p_path).set_duration(clip_duration)
                     p_w, p_h = p_clip.size
                     
-                    # 1. Resize to cover (Aspect Fill)
-                    scale = max(width/p_w, height/p_h)
-                    p_clip_resized = p_clip.resize(scale)
-                    p_clip_centered = p_clip_resized.set_position(('center', 'center'))
-                    p_clip_cropped = p_clip_centered.crop(width=width, height=height, x_center=width/2, y_center=height/2)
+                    target_ratio = width / height
+                    panel_ratio = p_w / p_h
                     
-                    # 2. Slight Zoom Effect for each panel
-                    p_final = p_clip_cropped.resize(lambda t: 1 + 0.05 * t) # very subtle zoom
+                    # [SMART FIX] If panel is significantly taller, use Pan Down instead of Crop (Only if enabled)
+                    # Tolerance 1.2x taller than target aspect
+                    if smart_pan and panel_ratio < target_ratio * 0.85: 
+                        # TALL PANEL -> Pan Down
+                        # Resize width to match screen width
+                        scale_fac = width / float(p_w)
+                        new_h = int(p_h * scale_fac)
+                        p_resized = p_clip.resize(width=width)
+                        
+                        # Calculate Pan Scroll (Top -> Bottom)
+                        # Center X is fixed, Center Y moves
+                        # Initial Y: align top (y=0) -> Center Y = new_h/2
+                        # Final Y: align bottom (y=height-new_h) -> Center Y = height - new_h/2 ?? No.
+                        # set_position using lambda t
+                        if new_h > height:
+                            max_scroll = new_h - height
+                            # lambda t: ('center', -int(max_scroll * (t / clip_duration))) -- relative to top-left?
+                            # MoviePy set_position keys: 'center', 'top', 'bottom'... or (x, y)
+                            # (x, y) coordinates of the top-left corner of the clip.
+                            
+                            # Start: Top aligned -> (0, 0)
+                            # End: Bottom aligned -> (0, height - new_h)
+                            p_final = p_resized.set_position(lambda t: ('center', int(0 - (max_scroll) * (t / clip_duration))))
+                            
+                            # Composite with background to ensure frame size
+                            p_final = CompositeVideoClip([p_final], size=(width, height))
+                        else:
+                            # Matches width but height is smaller? (Wide panel logic)
+                            # Should not happen in 'taller' branch, but safe fallback
+                            p_final = p_resized.set_position(('center', 'center'))
+                            p_final = CompositeVideoClip([p_final], size=(width, height))
+
+                    else:
+                        # STANDARD (Roughly fits or is wider) -> Center Crop + Zoom
+                        scale = max(width/p_w, height/p_h)
+                        p_clip_resized = p_clip.resize(scale)
+                        p_clip_centered = p_clip_resized.set_position(('center', 'center'))
+                        p_clip_cropped = p_clip_centered.crop(width=width, height=height, x_center=width/2, y_center=height/2)
+                        
+                        # Slight Zoom Effect
+                        p_final = p_clip_cropped.resize(lambda t: 1 + 0.05 * t)
                     
                     clips.append(p_final)
                 
@@ -2507,6 +2796,15 @@ class VideoService:
             img_clip = ImageClip(np.array(pil_img)).set_duration(duration)
             
             img_w, img_h = img_clip.size
+            
+            # [SMART OVERRIDE] If image is significantly tall (Vertical Panel) and motion is 'zoom_in' (default),
+            # force it to 'pan_down' to avoid cropping the top/bottom content.
+            # Only if convert_zoom is enabled.
+            img_ratio = img_w / img_h
+            target_ratio = width / height
+            if convert_zoom and img_ratio < target_ratio * 0.8 and motion_type == "zoom_in":
+                print(f"↕️ [Auto-Convert] Tall image detected with Zoom-In. Switching to Pan-Down.")
+                motion_type = "pan_down"
             
             # [CRITICAL] 무조건 좌우를 꽉 채우도록 강제 (Force Fill Width)
             # 만약 이미지 너비가 목표 너비보다 작다면 확대

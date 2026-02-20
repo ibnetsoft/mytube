@@ -25,6 +25,7 @@ from typing import List, List as PyList, Optional
 import unicodedata
 from services.i18n import Translator
 from services.auth_service import auth_service
+from services.replicate_service import replicate_service
 
 def finalize_scene_analysis(scene: Dict, voice_consistency_map: Dict, eleven_voices: List = None) -> Dict:
     """
@@ -40,7 +41,7 @@ def finalize_scene_analysis(scene: Dict, voice_consistency_map: Dict, eleven_voi
     char_lower = raw_char.lower()
     dialogue = str(analysis.get('dialogue', '')).strip()
     
-    narrator_keywords = ['narrator', 'narration', '내레이션', '해설', 'unknown', 'none', '', 'undefined']
+    narrator_keywords = ['narrator', 'narration', '내레이션', '해설', 'unknown', 'unknown voice', 'none', '', 'undefined']
     if any(char_lower == kw for kw in narrator_keywords):
         if dialogue:
             norm_char = "내레이션"
@@ -196,6 +197,13 @@ def finalize_scene_analysis(scene: Dict, voice_consistency_map: Dict, eleven_voi
         vs['reason'] = vs_reason
     
     scene['voice_settings'] = vs
+    # Flattening for WebtoonScene model compatibility
+    scene['visual_desc'] = analysis.get('visual_desc', '')
+    scene['character'] = analysis.get('character', 'Unknown')
+    scene['dialogue'] = analysis.get('dialogue', '')
+    scene['atmosphere'] = analysis.get('atmosphere', '')
+    scene['sound_effects'] = analysis.get('sound_effects', '')
+
     analysis['voice_settings'] = vs
     scene['analysis'] = analysis # Ensure synced
     
@@ -312,7 +320,7 @@ async def fetch_webtoon_url(
                 "status": "ok",
                 "filename": filename,
                 "path": file_path,
-                "url": f"/api/media/view?path={file_path}"
+                "url": f"/api/media/v?path={file_path}"
             }
             
     except Exception as e:
@@ -371,7 +379,7 @@ async def upload_webtoon(
                 "filename": png_filename, # 분석 단계에서는 이 PNG를 사용하게 됨
                 "original_filename": original_filename,
                 "path": png_path,
-                "url": f"/api/media/view?path={urllib.parse.quote(png_path)}"
+                "url": f"/api/media/v?path={urllib.parse.quote(png_path)}"
             }
             
         else:
@@ -384,13 +392,65 @@ async def upload_webtoon(
                 "status": "ok",
                 "filename": original_filename,
                 "path": file_path,
-                "url": f"/api/media/view?path={urllib.parse.quote(file_path)}"
+                "url": f"/api/media/v?path={urllib.parse.quote(file_path)}"
             }
             
     except Exception as e:
         print(f"Upload error: {e}")
         import traceback
         traceback.print_exc()
+        raise HTTPException(500, str(e))
+
+@router.post("/classify-scenes")
+async def classify_webtoon_scenes(
+    scenes: List[Dict] = Body(...),
+    project_id: int = Body(...)
+):
+    """장면별 이미지 유형(Type 1-6) 자동 분류"""
+    try:
+        classified_scenes = []
+        for i, scene in enumerate(scenes):
+            analysis = scene.get('analysis', {})
+            visual_desc = str(analysis.get('visual_desc', '')).lower()
+            img_path = scene.get('image_path')
+            
+            # Default Type
+            scene_type = "3" # Small/Regular
+            type_label = "Type 3: 일반/작은 컷"
+            
+            # 1. 이미지 비율 기반 물리적 분류
+            if img_path and os.path.exists(img_path):
+                try:
+                    with Image.open(img_path) as img:
+                        w, h = img.size
+                        ratio = w / h
+                        
+                        if ratio < 0.6: # 세로로 매우 김
+                            scene_type = "1"
+                            type_label = "Type 1: 세로로 긴 컷 (패닝)"
+                        elif ratio > 1.2: # 가로로 넓음
+                            scene_type = "2"
+                            type_label = "Type 2: 가로형 컷 (확장/크롭)"
+                except: pass
+            
+            # 2. 내용 기반 보정 (키워드 매칭)
+            if any(x in visual_desc for x in ["battle", "fight", "falling", "epic", "space", "sky", "chapel"]):
+                if scene_type == "1": type_label += " (전투/공간)"
+            
+            if any(x in visual_desc for x in ["close-up", "portrait", "eyes", "talking", "dialogue"]):
+                if scene_type != "1":
+                    scene_type = "2"
+                    type_label = "Type 2: 클로즈업/대화"
+
+            # 3. 레이어 정보가 있으면 Type 5 (Depth) 고려 가능 (여기서는 기본 1-3 위주)
+            
+            scene['scene_type'] = scene_type
+            scene['type_label'] = type_label
+            classified_scenes.append(scene)
+            
+        return {"status": "ok", "scenes": classified_scenes}
+    except Exception as e:
+        print(f"Classification error: {e}")
         raise HTTPException(500, str(e))
 
 @router.post("/analyze")
@@ -616,7 +676,8 @@ async def analyze_webtoon(
                 scene = {
                     "scene_number": len(scenes) + 1,
                     "image_path": video_path,
-                    "image_url": f"/api/media/view?path={urllib.parse.quote(video_path)}&t={ts}",
+                    "original_image_path": cut_info.get("original", video_path),  # [NEW] Full original
+                    "image_url": f"/api/media/v?path={urllib.parse.quote(video_path)}&t={ts}",
                     "analysis": analysis,
                     "focal_point_y": analysis.get("focal_point_y", 0.5)
                 }
@@ -645,7 +706,7 @@ async def analyze_webtoon(
                 scenes.append({
                     "scene_number": len(scenes) + 1,
                     "image_path": video_path,
-                    "image_url": f"/api/media/view?path={urllib.parse.quote(video_path)}&t={ts}",
+                    "image_url": f"/api/media/v?path={urllib.parse.quote(video_path)}&t={ts}",
                     "analysis": {"dialogue": "", "character": "Unknown", "visual_desc": "Error during analysis", "atmosphere": "Error"}
                 })
             
@@ -664,7 +725,7 @@ async def analyze_webtoon(
         traceback.print_exc()
         raise HTTPException(500, str(e))
 
-def slice_webtoon(image_path: str, output_dir: str, min_padding=30, start_idx=1, clean_image_path: str = None):
+def slice_webtoon(image_path: str, output_dir: str, min_padding=30, start_idx=1, clean_image_path: str = None, original_full_path: str = None):
     """
     웹툰 긴 이미지를 칸별로 분할.
     clean_image_path가 제공되면, image_path(원본)로 절단점을 찾고 두 이미지 모두를 잘라냅니다.
@@ -760,12 +821,27 @@ def slice_webtoon(image_path: str, output_dir: str, min_padding=30, start_idx=1,
             print(f"      - Skipping junk panel (std={std_val:.2f}, mean={mean_val:.2f})")
             continue
             
+        # [OPTIMIZED] Resize for Vision AI (Gemini doesn't need 8MB images)
+        # Max Dimension 1280px is sufficient for dialogue extraction & visual analysis
+        max_dim = 1280
+        w_cut, h_cut = cut_full.size
+        if w_cut > max_dim or h_cut > max_dim:
+            if w_cut > h_cut:
+                new_w = max_dim
+                new_h = int(h_cut * (max_dim / w_cut))
+            else:
+                new_h = max_dim
+                new_w = int(w_cut * (max_dim / h_cut))
+            cut_full_resised = cut_full.resize((new_w, new_h), Image.LANCZOS)
+        else:
+            cut_full_resised = cut_full
+            
         current_idx = start_idx + len(cuts)
         
-        # 파일 저장
+        # 파일 저장 (분석용 - 용량 축소)
         analysis_filename = f"scene_{current_idx:03d}_ana.jpg"
         analysis_path = os.path.join(output_dir, analysis_filename)
-        cut_full.save(analysis_path, "JPEG", quality=95)
+        cut_full_resised.save(analysis_path, "JPEG", quality=85) # Quality 85 is enough
         
         video_path = analysis_path # 기본값
         
@@ -779,7 +855,8 @@ def slice_webtoon(image_path: str, output_dir: str, min_padding=30, start_idx=1,
         
         cuts.append({
             "video": video_path,
-            "analysis": analysis_path
+            "analysis": analysis_path,
+            "original": original_full_path or clean_image_path or image_path  # [NEW] Full original image for Wan 2.1
         })
                 
     if not cuts:
@@ -797,6 +874,7 @@ class WebtoonScene(BaseModel):
     dialogue: str
     visual_desc: str
     image_path: str
+    original_image_path: Optional[str] = None  # [NEW] Full-height original image for Wan 2.1
     voice_id: Optional[str] = None
     atmosphere: Optional[str] = None
     sound_effects: Optional[str] = None
@@ -831,6 +909,14 @@ async def generate_webtoon_plan(req: WebtoonPlanRequest):
     """장면별 대사/묘사를 바탕으로 비디오 제작 기획서(기술 사양) 생성"""
     try:
         plan = await gemini_service.generate_webtoon_plan(req.scenes)
+        
+        # [NEW] Save Plan to Project Settings
+        try:
+            plan_json = json.dumps(plan, ensure_ascii=False)
+            db.update_project_setting(req.project_id, "webtoon_plan_json", plan_json)
+        except Exception as se:
+            print(f"Failed to save plan: {se}")
+
         return {"status": "ok", "plan": plan}
     except Exception as e:
         print(f"Plan Gen Error: {e}")
@@ -868,6 +954,19 @@ async def automate_webtoon(req: WebtoonAutomateRequest):
             motion = s.effect_override or "zoom_in"
             db.update_project_setting(project_id, f"scene_{i+1}_motion", motion)
             db.update_project_setting(project_id, f"scene_{i+1}_motion_speed", "3.3")
+            
+            # [NEW] Save original full-height image for Wan 2.1 (prevents character cropping)
+            # If original_image_path exists and differs from image_path, copy it as wan asset
+            orig_img_path = s.original_image_path
+            if orig_img_path and orig_img_path != s.image_path and os.path.exists(orig_img_path):
+                wan_filename = f"scene_{i+1:03d}_wan.jpg"
+                wan_dest = os.path.join(asset_dir, wan_filename)
+                shutil.copy2(orig_img_path, wan_dest)
+                db.update_project_setting(project_id, f"scene_{i+1}_wan_image", wan_filename)
+                print(f"✅ [Wan Asset] Scene {i+1}: Saved full original image → {wan_filename}")
+            else:
+                # Fallback: use the panel image (may crop characters)
+                db.update_project_setting(project_id, f"scene_{i+1}_wan_image", "")
             
             # Engine override per scene (if supported by autopilot_service later)
             if s.engine_override:
@@ -966,25 +1065,31 @@ async def automate_webtoon(req: WebtoonAutomateRequest):
 @router.post("/scan")
 async def scan_directory(req: ScanRequest):
     """로컬 디렉토리의 웹툰 파일 스캔"""
+    print(f"📂 [Scan] Received request to scan: {req.path}")
     if not os.path.exists(req.path):
-        return JSONResponse({"status": "error", "error": "Path does not exist"}, status_code=404)
+        print(f"❌ [Scan] Path does not exist: {req.path}")
+        return JSONResponse({"status": "error", "error": f"Path does not exist: {req.path}"}, status_code=404)
     
     files = []
     try:
         # 파일명 기준 정렬 (1화_001, 1화_002 순서 보장)
         file_list = sorted(os.listdir(req.path))
+        print(f"🔍 [Scan] Found {len(file_list)} items in directory.")
         
+        valid_exts = ['.psd', '.png', '.jpg', '.jpeg', '.webp']
         for f in file_list:
             full_path = os.path.join(req.path, f)
             if os.path.isfile(full_path):
                 ext = os.path.splitext(f)[1].lower()
-                if ext in ['.psd', '.png', '.jpg', '.jpeg', '.webp']:
+                if ext in valid_exts:
                     files.append({
                         "filename": f,
                         "path": full_path,
                         "size": os.path.getsize(full_path)
                     })
+        print(f"✅ [Scan] Returning {len(files)} valid image/PSD files.")
     except Exception as e:
+         print(f"❌ [Scan] Error during scan: {str(e)}")
          return JSONResponse({"status": "error", "error": str(e)}, status_code=500)
     
     return {"status": "ok", "files": files}
@@ -1007,6 +1112,8 @@ async def analyze_directory(req: AnalyzeDirRequest):
             shutil.rmtree(temp_dir)
         os.makedirs(temp_dir, exist_ok=True)
         
+        # [NEW] Set status to processing and clear error flag
+        db.update_project(req.project_id, status="processing")
         print(f"🚀 [Webtoon Dir] Start analysis for {len(req.files)} files. Project: {req.project_id}")
 
         layer_trace = [] # Initialize layer_trace for the entire batch
@@ -1080,8 +1187,8 @@ async def analyze_directory(req: AnalyzeDirRequest):
         except Exception as e:
             print(f"⚠️ Failed to load voice map: {e}")
 
-        for file_path in req.files:
-            print(f"  - Processing file: {file_path}")
+        for i, file_path in enumerate(req.files):
+            print(f"  📂 [{i+1}/{len(req.files)}] Processing file: {file_path}")
             if not os.path.exists(file_path):
                 print(f"    ⚠️ File NOT found: {file_path}")
                 continue
@@ -1262,7 +1369,8 @@ async def analyze_directory(req: AnalyzeDirRequest):
                     all_scenes.append({
                         "scene_number": len(all_scenes) + 1,
                         "image_path": v_path,
-                        "image_url": f"/api/media/view?path={urllib.parse.quote(v_path)}&t={ts}",
+                        "original_image_path": cut_info.get("original", v_path),  # [NEW] Full original for Wan
+                        "image_url": f"/api/media/v?path={urllib.parse.quote(v_path)}&t={ts}",
                         "analysis": analysis,
                         "focal_point_y": analysis.get("focal_point_y", 0.5)
                     })
@@ -1276,7 +1384,7 @@ async def analyze_directory(req: AnalyzeDirRequest):
                     all_scenes.append({
                         "scene_number": len(all_scenes) + 1,
                         "image_path": v_path,
-                        "image_url": f"/api/media/view?path={urllib.parse.quote(v_path)}&t={ts}",
+                        "image_url": f"/api/media/v?path={urllib.parse.quote(v_path)}&t={ts}",
                         "analysis": {"dialogue": "", "character": "Unknown", "visual_desc": "Analysis failed", "atmosphere": "Error"}
                     })
             
@@ -1372,6 +1480,9 @@ async def analyze_directory(req: AnalyzeDirRequest):
             shutil.rmtree(temp_dir)
         except: pass
             
+        # [NEW] Mark project as completed
+        db.update_project(req.project_id, status="completed")
+        
         return {
             "status": "ok",
             "scenes": all_scenes_result,
@@ -1385,6 +1496,8 @@ async def analyze_directory(req: AnalyzeDirRequest):
         }
     except Exception as e:
         print(f"Analyze Directory Error: {e}")
+        # [NEW] Mark project as error
+        db.update_project(req.project_id, status="error")
         import traceback
         traceback.print_exc()
         raise HTTPException(500, str(e))
@@ -1430,8 +1543,150 @@ async def get_webtoon_analysis(project_id: int):
                 if norm_char and norm_char != "Unknown":
                     char_voice_map[norm_char] = {"id": sc['voice_id'], "name": sc['voice_name']}
 
-            return {"status": "ok", "scenes": scenes}
+            # [NEW] Load Saved Plan
+            plan = None
+            if settings.get("webtoon_plan_json"):
+                try: plan = json.loads(settings["webtoon_plan_json"])
+                except: pass
+
+            return {"status": "ok", "scenes": scenes, "plan": plan}
         return {"status": "ok", "scenes": []}
     except Exception as e:
         print(f"Get Analysis Error: {e}")
         return {"status": "error", "message": str(e)}
+
+
+@router.post("/optimize-image")
+async def optimize_webtoon_image(file: UploadFile = File(...), prompt_type: str = Form(None)):
+    """
+    Step 1: Webtoon Image Optimization (9:16) - Upload Version
+    """
+    try:
+        contents = await file.read()
+        return await _process_webtoon_image(io.BytesIO(contents), prompt_type)
+    except Exception as e:
+        print(f"Error optimizing image (upload): {e}")
+        raise HTTPException(500, f"Image optimization failed: {str(e)}")
+
+class LocalImageRequest(BaseModel):
+    file_path: str
+
+@router.post("/optimize-local-image")
+async def optimize_local_image(request: LocalImageRequest):
+    """
+    Step 1: Webtoon Image Optimization (9:16) - Local File Version
+    """
+    try:
+        if not os.path.exists(request.file_path):
+            raise HTTPException(404, "File not found")
+            
+        with open(request.file_path, "rb") as f:
+            contents = f.read()
+            
+        return await _process_webtoon_image(io.BytesIO(contents))
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"Error optimizing image (local): {e}")
+        raise HTTPException(500, f"Image optimization failed: {str(e)}")
+
+async def _process_webtoon_image(img_io, prompt_type=None):
+    """Core Logic for Webtoon Image Optimization"""
+    try:
+        img = Image.open(img_io).convert("RGB")
+    except Exception:
+        raise HTTPException(400, "Invalid image file")
+        
+    width, height = img.size
+    aspect_ratio = width / height
+    
+    # 2. Target Dimensions (9:16)
+    TARGET_W, TARGET_H = 1080, 1920
+    target_ar = TARGET_W / TARGET_H
+    
+    # 3. Create Canvas (Black background)
+    canvas = Image.new("RGB", (TARGET_W, TARGET_H), (0, 0, 0))
+    mask = Image.new("L", (TARGET_W, TARGET_H), 255) # Default: All White (Inpaint Everything)
+    
+    # 4. Resize & Paste Logic
+    if aspect_ratio > target_ar:
+        # Case 1: Wider (Horizontal or Standard Vertical) -> Fit Width
+        new_w = TARGET_W
+        new_h = int(height * (TARGET_W / width))
+        resized_img = img.resize((new_w, new_h), Image.LANCZOS)
+        
+        # Center Vertically
+        y_offset = (TARGET_H - new_h) // 2
+        canvas.paste(resized_img, (0, y_offset))
+        
+        # Mask
+        mask_draw = Image.new("L", (new_w, new_h), 0) # Black (Keep)
+        mask.paste(mask_draw, (0, y_offset))
+        
+        # Classification
+        cut_type = "horizontal" if aspect_ratio > 0.8 else "vertical_wide"
+
+    else:
+        # Case 2: Taller (Ultra Vertical) -> Fit Height
+        new_h = TARGET_H
+        new_w = int(width * (TARGET_H / height))
+        resized_img = img.resize((new_w, new_h), Image.LANCZOS)
+        
+        # Center Horizontally
+        x_offset = (TARGET_W - new_w) // 2
+        canvas.paste(resized_img, (x_offset, 0))
+        
+        # Mask
+        mask_draw = Image.new("L", (new_w, new_h), 0)
+        mask.paste(mask_draw, (x_offset, 0))
+        
+        cut_type = "vertical"
+
+    # 5. Prepare Prompt based on Type
+    if cut_type == "horizontal" or cut_type == "vertical_wide":
+        # Horizontal (Wide) Logic
+        default_horiz = (
+            "Expand background vertically to fit 9:16, keep characters unchanged, "
+            "match original lighting and color tone, natural environment continuation, "
+            "high detail, static image, no motion, webtoon style, high resolution, " 
+            "seamless extension"
+        )
+        prompt = db.get_global_setting("webtoon_horizontal_prompt", default_horiz)
+    else:
+        # Vertical Logic
+        default_vert = (
+            "Preserve full original composition, fit into 9:16 vertical canvas, "
+            "no distortion, extend background naturally if needed, "
+            "maintain original webtoon art style, high resolution, clean edges, "
+            "no motion, no animation, static illustration"
+        )
+        prompt = db.get_global_setting("webtoon_vertical_prompt", default_vert)
+        
+    # 6. Save Canvas & Mask to Buffer for Upload
+    canvas_buffer = io.BytesIO()
+    canvas.save(canvas_buffer, format="PNG")
+    canvas_buffer.seek(0)
+    
+    mask_buffer = io.BytesIO()
+    mask.save(mask_buffer, format="PNG")
+    mask_buffer.seek(0)
+    
+    # 7. Call Replicate (Outpainting)
+    print(f"🎨 [Webtoon] Optimizing Image ({cut_type}): {width}x{height} -> 1080x1920")
+    
+    result_url = await replicate_service.outpaint_image(
+        canvas_buffer, 
+        mask_buffer, 
+        prompt
+    )
+    
+    if not result_url:
+        raise Exception("Image generation failed (No URL returned)")
+        
+    return {
+        "status": "success",
+        "original_url": None, 
+        "optimized_url": result_url,
+        "type": cut_type,
+        "prompt_used": prompt
+    }
