@@ -15,6 +15,17 @@ class GlobalSettings(BaseModel):
     app_mode: Optional[str] = None
     gemini_tts: Optional[Dict[str, Any]] = None
     script_styles: Optional[Dict[str, Any]] = None
+    # [NEW] Webtoon Settings
+    webtoon_auto_split: Optional[bool] = None
+    webtoon_smart_pan: Optional[bool] = None
+    webtoon_convert_zoom: Optional[bool] = None
+    webtoon_plan_prompt: Optional[str] = None
+    webtoon_vertical_prompt: Optional[str] = None
+    webtoon_horizontal_prompt: Optional[str] = None
+    webtoon_motion_pan: Optional[str] = None
+    webtoon_motion_zoom: Optional[str] = None
+    webtoon_motion_action: Optional[str] = None
+    video_engine: Optional[str] = None # 'wan' or 'akool'
 
 @router.get("")
 async def get_global_settings_api():
@@ -24,7 +35,18 @@ async def get_global_settings_api():
         "app_mode": db.get_global_setting("app_mode", None), # Use None to allow fallback
         "gemini_tts": db.get_global_setting("gemini_tts", {}),
         "script_styles": db.get_global_setting("script_styles", {}),
-        "template_image_url": db.get_global_setting("template_image_url")
+        "template_image_url": db.get_global_setting("template_image_url"),
+        # [NEW] Webtoon
+        "webtoon_auto_split": db.get_global_setting("webtoon_auto_split", True, value_type="bool"),
+        "webtoon_smart_pan": db.get_global_setting("webtoon_smart_pan", True, value_type="bool"),
+        "webtoon_convert_zoom": db.get_global_setting("webtoon_convert_zoom", True, value_type="bool"),
+        "webtoon_plan_prompt": db.get_global_setting("webtoon_plan_prompt", ""),
+        "webtoon_vertical_prompt": db.get_global_setting("webtoon_vertical_prompt", ""),
+        "webtoon_horizontal_prompt": db.get_global_setting("webtoon_horizontal_prompt", ""),
+        "webtoon_motion_pan": db.get_global_setting("webtoon_motion_pan", ""),
+        "webtoon_motion_zoom": db.get_global_setting("webtoon_motion_zoom", ""),
+        "webtoon_motion_action": db.get_global_setting("webtoon_motion_action", ""),
+        "video_engine": db.get_global_setting("video_engine", "wan")
     }
     
     # 2. Load Default Settings (stored in Project 1 by convention)
@@ -46,6 +68,18 @@ async def get_global_settings_api():
     merged["gemini_tts"] = global_conf["gemini_tts"]
     merged["script_styles"] = global_conf["script_styles"]
     merged["template_image_url"] = global_conf["template_image_url"]
+
+    # [NEW] Webtoon
+    merged["webtoon_auto_split"] = global_conf["webtoon_auto_split"]
+    merged["webtoon_smart_pan"] = global_conf["webtoon_smart_pan"]
+    merged["webtoon_convert_zoom"] = global_conf["webtoon_convert_zoom"]
+    merged["webtoon_plan_prompt"] = global_conf["webtoon_plan_prompt"]
+    merged["webtoon_vertical_prompt"] = global_conf["webtoon_vertical_prompt"]
+    merged["webtoon_horizontal_prompt"] = global_conf["webtoon_horizontal_prompt"]
+    merged["webtoon_motion_pan"] = global_conf["webtoon_motion_pan"]
+    merged["webtoon_motion_zoom"] = global_conf["webtoon_motion_zoom"]
+    merged["webtoon_motion_action"] = global_conf["webtoon_motion_action"]
+    merged["video_engine"] = global_conf["video_engine"]
     
     return merged
 
@@ -61,6 +95,28 @@ async def save_global_settings_api(settings: GlobalSettings):
         db.save_global_setting("gemini_tts", settings.gemini_tts)
     if settings.script_styles:
         db.save_global_setting("script_styles", settings.script_styles)
+
+    # [NEW] Webtoon Save
+    if settings.webtoon_auto_split is not None:
+        db.save_global_setting("webtoon_auto_split", settings.webtoon_auto_split)
+    if settings.webtoon_smart_pan is not None:
+        db.save_global_setting("webtoon_smart_pan", settings.webtoon_smart_pan)
+    if settings.webtoon_convert_zoom is not None:
+        db.save_global_setting("webtoon_convert_zoom", settings.webtoon_convert_zoom)
+    if settings.webtoon_plan_prompt is not None:
+        db.save_global_setting("webtoon_plan_prompt", settings.webtoon_plan_prompt)
+    if settings.webtoon_vertical_prompt is not None:
+        db.save_global_setting("webtoon_vertical_prompt", settings.webtoon_vertical_prompt)
+    if settings.webtoon_horizontal_prompt is not None:
+        db.save_global_setting("webtoon_horizontal_prompt", settings.webtoon_horizontal_prompt)
+    if settings.webtoon_motion_pan is not None:
+        db.save_global_setting("webtoon_motion_pan", settings.webtoon_motion_pan)
+    if settings.webtoon_motion_zoom is not None:
+        db.save_global_setting("webtoon_motion_zoom", settings.webtoon_motion_zoom)
+    if settings.webtoon_motion_action is not None:
+        db.save_global_setting("webtoon_motion_action", settings.webtoon_motion_action)
+    if settings.video_engine is not None:
+        db.save_global_setting("video_engine", settings.video_engine)
     
     # 모드 변경 여부 반환
     mode_changed = previous_mode != settings.app_mode if settings.app_mode else False

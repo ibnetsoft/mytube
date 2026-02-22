@@ -2900,3 +2900,366 @@ detail: You have insufficient credit to run this model. Go to https://replicate.
 [2026-02-15 22:08:04.584454] 🎞️ [Render] Scene 3: Effect=pan_left
 [2026-02-15 22:08:04.585038] 🎞️ [Render] Scene 4: Effect=zoom_out
 [2026-02-15 22:08:04.585690] create_slideshow(PROJ=78) Effects: ['pan_down', 'pan_right', 'pan_left', 'zoom_out']
+[2026-02-16 23:35:03.276918] 📦 [Auto-Pilot] Worker found queued project 78 (None)...
+[2026-02-16 23:35:03.281436] 📜 [Auto-Pilot] Setting PID 78 to 'scripted' because script exists.
+[2026-02-16 23:35:03.294959] ⚙️ [Auto-Pilot] Start run_workflow for project 78 (Keyword: None)
+[2026-02-16 23:35:03.299119] 🔋 [Auto-Pilot] all_video flag detected in config for PID 78
+[2026-02-16 23:35:03.325894] 🔍 [DEBUG] _generate_assets START: all_video=True, motion_method=standard
+[2026-02-16 23:35:03.326407] 🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating 4 video scenes.
+[2026-02-16 23:35:03.326889] 🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: 4, Engine: akool 🚀🚀🚀
+[2026-02-16 23:35:21.122897] 📹 [Auto-Pilot] Pass 3: Generating Video Components... Count: 4, Engine: akool
+[2026-02-16 23:35:21.130517]   > Scene 1: is_vid=True, has_image=True
+[2026-02-16 23:35:21.137605] 🎭 [Akool] Generating Talking Avatar for Scene 1...
+[2026-02-16 23:35:38.775039] ⚠️ [Akool] Error for scene 1: Failed to host assets for Akool.. Falling back to Wan...
+[2026-02-16 23:37:16.734716] ✅ Successfully generated Wan video for Scene 1
+[2026-02-16 23:37:16.735198]   > Scene 2: is_vid=True, has_image=True
+[2026-02-16 23:37:16.743262] 🎭 [Akool] Generating Talking Avatar for Scene 2...
+[2026-02-16 23:37:38.237629] ⚠️ [Akool] Error for scene 2: Akool Authentication failed.. Falling back to Wan...
+[2026-02-16 23:39:13.439114] ✅ Successfully generated Wan video for Scene 2
+[2026-02-16 23:39:13.439693]   > Scene 3: is_vid=True, has_image=True
+[2026-02-16 23:39:13.447942] 🎭 [Akool] Generating Talking Avatar for Scene 3...
+[2026-02-16 23:39:17.317619] ⚠️ [Akool] Error for scene 3: Failed to host assets for Akool.. Falling back to Wan...
+[2026-02-16 23:40:55.415052] ✅ Successfully generated Wan video for Scene 3
+[2026-02-16 23:40:55.415658]   > Scene 4: is_vid=True, has_image=True
+[2026-02-16 23:40:55.424291] 🎭 [Akool] Generating Talking Avatar for Scene 4...
+[2026-02-16 23:41:00.649659] ⚠️ [Akool] Error for scene 4: Akool Authentication failed.. Falling back to Wan...
+[2026-02-16 23:42:46.729715] ✅ Successfully generated Wan video for Scene 4
+[2026-02-16 23:42:46.788081] 🎞️ [Render] Scene 1: Effect=pan_left
+[2026-02-16 23:42:46.788763] 🎞️ [Render] Scene 2: Effect=zoom_in
+[2026-02-16 23:42:46.789284] 🎞️ [Render] Scene 3: Effect=zoom_out
+[2026-02-16 23:42:46.789727] 🎞️ [Render] Scene 4: Effect=pan_left
+[2026-02-16 23:42:46.790200] create_slideshow(PROJ=78) Effects: ['pan_left', 'zoom_in', 'zoom_out', 'pan_left']
+[2026-02-17 13:38:28.141168] 📦 [Auto-Pilot] Worker found queued project 78 (None)...
+[2026-02-17 13:38:28.146065] 📜 [Auto-Pilot] Setting PID 78 to 'scripted' because script exists.
+[2026-02-17 13:38:28.159511] ⚙️ [Auto-Pilot] Start run_workflow for project 78 (Keyword: None)
+[2026-02-17 13:38:28.163765] 🔋 [Auto-Pilot] all_video flag detected in config for PID 78
+[2026-02-17 13:38:28.191094] 🔍 [DEBUG] _generate_assets START: all_video=True, motion_method=standard
+[2026-02-17 13:38:28.191554] 🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating 4 video scenes.
+[2026-02-17 13:38:28.191977] 🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: 4, Engine: akool 🚀🚀🚀
+[2026-02-17 13:38:44.246463] 📹 [Auto-Pilot] Pass 3: Generating Video Components... Count: 4, Engine: akool
+[2026-02-17 13:38:44.254277]   > Scene 1: is_vid=True, has_image=True
+[2026-02-17 13:38:44.262606] 🎭 [Akool] Generating Talking Avatar for Scene 1...
+[2026-02-17 13:38:49.058868] ⚠️ [Akool] Error for scene 1: Akool Authentication failed.. Falling back to Wan...
+[2026-02-17 13:40:30.146098] ✅ Successfully generated Wan video for Scene 1
+[2026-02-17 13:40:30.146902]   > Scene 2: is_vid=True, has_image=True
+[2026-02-17 13:40:30.154543] 🎭 [Akool] Generating Talking Avatar for Scene 2...
+[2026-02-17 13:40:36.375965] ⚠️ [Akool] Error for scene 2: Akool Authentication failed.. Falling back to Wan...
+[2026-02-17 13:42:09.559890] ✅ Successfully generated Wan video for Scene 2
+[2026-02-17 13:42:09.560402]   > Scene 3: is_vid=True, has_image=True
+[2026-02-17 13:42:09.568974] 🎭 [Akool] Generating Talking Avatar for Scene 3...
+[2026-02-17 13:42:14.407322] ⚠️ [Akool] Error for scene 3: Akool Authentication failed.. Falling back to Wan...
+[2026-02-17 13:43:48.224780] ✅ Successfully generated Wan video for Scene 3
+[2026-02-17 13:43:48.225573]   > Scene 4: is_vid=True, has_image=True
+[2026-02-17 13:43:48.233412] 🎭 [Akool] Generating Talking Avatar for Scene 4...
+[2026-02-17 13:43:53.080126] ⚠️ [Akool] Error for scene 4: Akool Authentication failed.. Falling back to Wan...
+[2026-02-17 13:45:41.263737] ✅ Successfully generated Wan video for Scene 4
+[2026-02-17 13:45:41.317281] 🎞️ [Render] Scene 1: Effect=pan_down
+[2026-02-17 13:45:41.317757] 🎞️ [Render] Scene 2: Effect=zoom_in
+[2026-02-17 13:45:41.318200] 🎞️ [Render] Scene 3: Effect=pan_left
+[2026-02-17 13:45:41.318654] 🎞️ [Render] Scene 4: Effect=pan_down
+[2026-02-17 13:45:41.319165] create_slideshow(PROJ=78) Effects: ['pan_down', 'zoom_in', 'pan_left', 'pan_down']
+[2026-02-17 13:45:42.922822] ❌ [Auto-Pilot] CRITICAL ERROR in run_workflow:
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\autopilot_service.py", line 207, in run_workflow
+    await self._render_video(project_id)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\autopilot_service.py", line 1427, in _render_video
+    final_path = video_service.create_slideshow(
+        images=images, audio_path=audio_path, output_filename=output_filename,
+    ...<2 lines>...
+        focal_point_ys=f_points, image_effects=effects
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 407, in create_slideshow
+    if (not effect or effect == 'none') and is_vertical and processed_img_path and 'tall' in os.path.basename(processed_img_path):
+                                            ^^^^^^^^^^^
+UnboundLocalError: cannot access local variable 'is_vertical' where it is not associated with a value
+
+[2026-02-18 16:39:35.409016] 📦 [Auto-Pilot] Worker found queued project 78 (None)...
+[2026-02-18 16:39:35.413892] 📜 [Auto-Pilot] Setting PID 78 to 'scripted' because script exists.
+[2026-02-18 16:39:35.430502] ⚙️ [Auto-Pilot] Start run_workflow for project 78 (Keyword: None)
+[2026-02-18 16:39:35.435046] 🔋 [Auto-Pilot] all_video flag detected in config for PID 78
+[2026-02-18 16:39:35.463930] 🔍 [DEBUG] _generate_assets START: all_video=True, motion_method=standard
+[2026-02-18 16:39:35.464429] 🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating 2 video scenes.
+[2026-02-18 16:39:35.464912] 🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: 2, Engine: akool 🚀🚀🚀
+[2026-02-18 16:39:46.572088] 📹 [Auto-Pilot] Pass 3: Generating Video Components... Count: 2, Engine: akool
+[2026-02-18 16:39:46.579861]   > Scene 1: is_vid=True, has_image=True
+[2026-02-18 16:39:46.587374] 🎭 [Akool] Generating Talking Avatar for Scene 1...
+[2026-02-18 16:40:02.359037] ⚠️ [Akool] Error for scene 1: Akool Authentication failed.. Falling back to Wan...
+[2026-02-18 16:41:37.287420] ✅ Successfully generated Wan video for Scene 1
+[2026-02-18 16:41:37.287942]   > Scene 2: is_vid=True, has_image=True
+[2026-02-18 16:41:37.297652] 🎭 [Akool] Generating Talking Avatar for Scene 2...
+[2026-02-18 16:41:42.583321] ⚠️ [Akool] Error for scene 2: Akool Authentication failed.. Falling back to Wan...
+[2026-02-18 16:44:42.651952] ✅ Successfully generated Wan video for Scene 2
+[2026-02-18 16:44:42.704949] 🎞️ [Render] Scene 1: Effect=pan_left
+[2026-02-18 16:44:42.705423] 🎞️ [Render] Scene 2: Effect=zoom_in
+[2026-02-18 16:44:42.713056] create_slideshow(PROJ=78) Effects: ['pan_left', 'zoom_in']
+[2026-02-18 16:44:44.793732] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-19 14:01:26.439053] 📦 [Auto-Pilot] Worker found queued project 78 (None)...
+[2026-02-19 14:01:26.444152] 📜 [Auto-Pilot] Setting PID 78 to 'scripted' because script exists.
+[2026-02-19 14:01:26.458001] ⚙️ [Auto-Pilot] Start run_workflow for project 78 (Keyword: None)
+[2026-02-19 14:01:26.461943] 🔋 [Auto-Pilot] all_video flag detected in config for PID 78
+[2026-02-19 14:01:26.488097] 🔍 [DEBUG] _generate_assets START: all_video=True, motion_method=standard
+[2026-02-19 14:01:26.488577] 🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating 2 video scenes.
+[2026-02-19 14:01:26.489020] 🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: 2, Engine: akool 🚀🚀🚀
+[2026-02-19 14:01:35.707504] 📹 [Auto-Pilot] Pass 3: Generating Video Components... Count: 2, Engine: akool
+[2026-02-19 14:01:35.714971]   > Scene 1: is_vid=True, has_image=True
+[2026-02-19 14:01:35.723240] 🎭 [Akool] Generating Talking Avatar for Scene 1...
+[2026-02-19 14:01:56.101587] ⚠️ [Akool] Error for scene 1: Akool Authentication failed.. Falling back to Wan...
+[2026-02-19 14:03:32.054725] ✅ Successfully generated Wan video for Scene 1
+[2026-02-19 14:03:32.055208]   > Scene 2: is_vid=True, has_image=True
+[2026-02-19 14:03:32.063057] 🎭 [Akool] Generating Talking Avatar for Scene 2...
+[2026-02-19 14:03:53.897630] ⚠️ [Akool] Error for scene 2: Akool Authentication failed.. Falling back to Wan...
+[2026-02-19 14:05:30.705028] ✅ Successfully generated Wan video for Scene 2
+[2026-02-19 14:05:30.753976] 🎞️ [Render] Scene 1: Effect=zoom_in
+[2026-02-19 14:05:30.754536] 🎞️ [Render] Scene 2: Effect=pan_left
+[2026-02-19 14:05:30.755029] create_slideshow(PROJ=78) Effects: ['zoom_in', 'pan_left']
+[2026-02-19 14:05:32.525726] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-19 23:36:45.704220] 📦 [Auto-Pilot] Worker found queued project 78 (None)...
+[2026-02-19 23:36:45.708607] 📜 [Auto-Pilot] Setting PID 78 to 'scripted' because script exists.
+[2026-02-19 23:36:45.721498] ⚙️ [Auto-Pilot] Start run_workflow for project 78 (Keyword: None)
+[2026-02-19 23:36:45.725451] 🔋 [Auto-Pilot] all_video flag detected in config for PID 78
+[2026-02-19 23:36:45.751303] 🔍 [DEBUG] _generate_assets START: all_video=True, motion_method=standard
+[2026-02-19 23:36:45.751824] 🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating 2 video scenes.
+[2026-02-19 23:36:45.752281] 🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: 2, Engine: akool 🚀🚀🚀
+[2026-02-19 23:36:56.070480] 📹 [Auto-Pilot] Pass 3: Generating Video Components... Count: 2, Engine: akool
+[2026-02-19 23:36:56.079249]   > Scene 1: is_vid=True, has_image=True
+[2026-02-19 23:36:56.087186] 🎭 [Akool] Generating Talking Avatar for Scene 1...
+[2026-02-19 23:37:01.576454] ⚠️ [Akool] Error for scene 1: Akool Authentication failed.. Falling back to Wan...
+[2026-02-19 23:38:59.380260] ✅ Successfully generated Wan video for Scene 1
+[2026-02-19 23:38:59.380731]   > Scene 2: is_vid=True, has_image=True
+[2026-02-19 23:38:59.389027] 🎭 [Akool] Generating Talking Avatar for Scene 2...
+[2026-02-19 23:39:21.925089] ⚠️ [Akool] Error for scene 2: Akool Authentication failed.. Falling back to Wan...
+[2026-02-19 23:41:00.412471] ✅ Successfully generated Wan video for Scene 2
+[2026-02-19 23:41:00.460268] 🎞️ [Render] Scene 1: Effect=pan_down
+[2026-02-19 23:41:00.460781] 🎞️ [Render] Scene 2: Effect=pan_up
+[2026-02-19 23:41:00.461227] create_slideshow(PROJ=78) Effects: ['pan_down', 'pan_up']
+[2026-02-19 23:41:02.359767] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-20 10:26:25.268273] 📦 [Auto-Pilot] Worker found queued project 78 (None)...
+[2026-02-20 10:26:25.272826] 📜 [Auto-Pilot] Setting PID 78 to 'scripted' because script exists.
+[2026-02-20 10:26:25.285814] ⚙️ [Auto-Pilot] Start run_workflow for project 78 (Keyword: None)
+[2026-02-20 10:26:25.290176] 🔋 [Auto-Pilot] all_video flag detected in config for PID 78
+[2026-02-20 10:26:25.317701] 🔍 [DEBUG] _generate_assets START: all_video=True, motion_method=standard
+[2026-02-20 10:26:25.318178] 🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating 2 video scenes.
+[2026-02-20 10:26:25.318600] 🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: 2, Engine: wan 🚀🚀🚀
+[2026-02-20 10:26:33.679907] 📹 [Auto-Pilot] Pass 3: Generating Video Components... Count: 2, Engine: wan
+[2026-02-20 10:26:33.687960]   > Scene 1: is_vid=True, has_image=True
+[2026-02-20 10:26:33.695647]   > Scene 2: is_vid=True, has_image=True
+[2026-02-20 10:26:33.751029] 🎞️ [Render] Scene 1: Effect=auto_classify
+[2026-02-20 10:26:33.751511] 🎞️ [Render] Scene 2: Effect=auto_classify
+[2026-02-20 10:26:33.751996] create_slideshow(PROJ=78) Effects: ['auto_classify', 'auto_classify']
+[2026-02-20 10:26:36.268747] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-20 15:51:50.664767] 📦 [Auto-Pilot] Worker found queued project 78 (None)...
+[2026-02-20 15:51:50.670722] 📜 [Auto-Pilot] Setting PID 78 to 'scripted' because script exists.
+[2026-02-20 15:51:50.685763] ⚙️ [Auto-Pilot] Start run_workflow for project 78 (Keyword: None)
+[2026-02-20 15:51:50.690892] 🔋 [Auto-Pilot] all_video flag detected in config for PID 78
+[2026-02-20 15:51:50.724196] 🔍 [DEBUG] _generate_assets START: all_video=True, motion_method=standard
+[2026-02-20 15:51:50.725322] 🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating 2 video scenes.
+[2026-02-20 15:51:50.725996] 🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: 2, Engine: akool 🚀🚀🚀
+[2026-02-20 15:52:00.112735] 📹 [Auto-Pilot] Pass 3: Generating Video Components... Count: 2, Engine: akool
+[2026-02-20 15:52:00.121762]   > Scene 1: is_vid=True, has_image=True
+[2026-02-20 15:52:00.129352] 🎭 [Akool] Generating Talking Avatar for Scene 1...
+[2026-02-20 15:52:16.986174] ⚠️ [Akool] Error for scene 1: Akool Authentication failed.. Falling back to Wan...
+[2026-02-20 15:54:03.462449] ✅ Successfully generated Wan video for Scene 1
+[2026-02-20 15:54:03.462982]   > Scene 2: is_vid=True, has_image=True
+[2026-02-20 15:54:03.472691] 🎭 [Akool] Generating Talking Avatar for Scene 2...
+[2026-02-20 15:54:09.329635] ⚠️ [Akool] Error for scene 2: Akool Authentication failed.. Falling back to Wan...
+[2026-02-20 15:55:55.092524] ✅ Successfully generated Wan video for Scene 2
+[2026-02-20 15:55:55.148659] 🎞️ [Render] Scene 1: Effect=auto_classify
+[2026-02-20 15:55:55.149134] 🎞️ [Render] Scene 2: Effect=auto_classify
+[2026-02-20 15:55:55.155778] create_slideshow(PROJ=78) Effects: ['auto_classify', 'auto_classify']
+[2026-02-20 15:55:57.020281] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-20 16:23:03.651121] 📦 [Auto-Pilot] Worker found queued project 78 (None)...
+[2026-02-20 16:23:03.655286] 📜 [Auto-Pilot] Setting PID 78 to 'scripted' because script exists.
+[2026-02-20 16:23:03.668064] ⚙️ [Auto-Pilot] Start run_workflow for project 78 (Keyword: None)
+[2026-02-20 16:23:03.671938] 🔋 [Auto-Pilot] all_video flag detected in config for PID 78
+[2026-02-20 16:23:03.700142] 🔍 [DEBUG] _generate_assets START: all_video=True, motion_method=standard
+[2026-02-20 16:23:03.700682] 🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating 2 video scenes.
+[2026-02-20 16:23:03.701110] 🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: 2, Engine: akool 🚀🚀🚀
+[2026-02-20 16:23:12.328897] 📹 [Auto-Pilot] Pass 3: Generating Video Components... Count: 2, Engine: akool
+[2026-02-20 16:23:12.336663]   > Scene 1: is_vid=True, has_image=True
+[2026-02-20 16:23:12.344344] 🎭 [Akool] Generating Talking Avatar for Scene 1...
+[2026-02-20 16:23:17.406446] ⚠️ [Akool] Error for scene 1: Akool Authentication failed.. Falling back to Wan...
+[2026-02-20 16:23:55.799733] ⚠️ [Auto-Pilot] Video generation failed for Scene 1: ReplicateError Details:
+status: 429
+detail: Request was throttled. Your rate limit for creating predictions is reduced to 6 requests per minute with a burst of 1 requests while you have less than $5.0 in credit. Your rate limit resets in ~10s.
+[2026-02-20 16:23:55.800367]   > Scene 2: is_vid=True, has_image=True
+[2026-02-20 16:23:55.808875] 🎭 [Akool] Generating Talking Avatar for Scene 2...
+[2026-02-20 16:24:21.660119] ⚠️ [Akool] Error for scene 2: Akool Authentication failed.. Falling back to Wan...
+[2026-02-20 16:26:54.953568] ✅ Successfully generated Wan video for Scene 2
+[2026-02-20 16:26:55.003878] 🎞️ [Render] Scene 1: Effect=auto_classify
+[2026-02-20 16:26:55.004338] 🎞️ [Render] Scene 2: Effect=auto_classify
+[2026-02-20 16:26:55.006885] create_slideshow(PROJ=78) Effects: ['auto_classify', 'auto_classify']
+[2026-02-20 16:26:57.285761] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-20 16:33:47.057427] 📦 [Auto-Pilot] Worker found queued project 78 (None)...
+[2026-02-20 16:33:47.062761] 📜 [Auto-Pilot] Setting PID 78 to 'scripted' because script exists.
+[2026-02-20 16:33:47.076393] ⚙️ [Auto-Pilot] Start run_workflow for project 78 (Keyword: None)
+[2026-02-20 16:33:47.081723] 🔋 [Auto-Pilot] all_video flag detected in config for PID 78
+[2026-02-20 16:33:47.108741] 🔍 [DEBUG] _generate_assets START: all_video=True, motion_method=standard
+[2026-02-20 16:33:47.109195] 🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating 2 video scenes.
+[2026-02-20 16:33:47.109607] 🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: 2, Engine: wan 🚀🚀🚀
+[2026-02-20 16:33:55.952698] 📹 [Auto-Pilot] Pass 3: Generating Video Components... Count: 2, Engine: wan
+[2026-02-20 16:33:55.961002]   > Scene 1: is_vid=True, has_image=True
+[2026-02-20 16:33:55.968999]   > Scene 2: is_vid=True, has_image=True
+[2026-02-20 16:33:56.021712] 🎞️ [Render] Scene 1: Effect=auto_classify
+[2026-02-20 16:33:56.022453] 🎞️ [Render] Scene 2: Effect=auto_classify
+[2026-02-20 16:33:56.023136] create_slideshow(PROJ=78) Effects: ['auto_classify', 'auto_classify']
+[2026-02-20 16:33:58.598227] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-21 21:04:41.596392] 📦 [Auto-Pilot] Worker found queued project 78 (None)...
+[2026-02-21 21:04:41.600795] 📜 [Auto-Pilot] Setting PID 78 to 'scripted' because script exists.
+[2026-02-21 21:04:41.614753] ⚙️ [Auto-Pilot] Start run_workflow for project 78 (Keyword: None)
+[2026-02-21 21:04:41.618894] 🔋 [Auto-Pilot] all_video flag detected in config for PID 78
+[2026-02-21 21:04:41.648941] 🔍 [DEBUG] _generate_assets START: all_video=True, motion_method=standard
+[2026-02-21 21:04:41.649485] 🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating 2 video scenes.
+[2026-02-21 21:04:41.649931] 🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: 2, Engine: akool 🚀🚀🚀
+[2026-02-21 21:04:54.744709] 📹 [Auto-Pilot] Pass 3: Generating Video Components... Count: 2, Engine: akool
+[2026-02-21 21:04:54.753728]   > Scene 1: is_vid=True, has_image=True
+[2026-02-21 21:04:54.761948] 🎭 [Akool] Generating Talking Avatar for Scene 1...
+[2026-02-21 21:04:59.772923] ⚠️ [Akool] Error for scene 1: Akool Authentication failed.. Falling back to Wan...
+[2026-02-21 21:06:37.466921] ✅ Successfully generated Wan video for Scene 1
+[2026-02-21 21:06:37.467427]   > Scene 2: is_vid=True, has_image=True
+[2026-02-21 21:06:37.475829] 🎭 [Akool] Generating Talking Avatar for Scene 2...
+[2026-02-21 21:06:42.799573] ⚠️ [Akool] Error for scene 2: Akool Authentication failed.. Falling back to Wan...
+[2026-02-21 21:08:23.427619] ✅ Successfully generated Wan video for Scene 2
+[2026-02-21 21:08:23.477306] 🎞️ [Render] Scene 1: Effect=auto_classify
+[2026-02-21 21:08:23.477824] 🎞️ [Render] Scene 2: Effect=auto_classify
+[2026-02-21 21:08:23.478643] create_slideshow(PROJ=78) Effects: ['auto_classify', 'auto_classify']
+[2026-02-21 21:08:25.518887] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-21 22:30:41.740453] 📦 [Auto-Pilot] Worker found queued project 78 (None)...
+[2026-02-21 22:30:41.746208] 📜 [Auto-Pilot] Setting PID 78 to 'scripted' because script exists.
+[2026-02-21 22:30:41.761584] ⚙️ [Auto-Pilot] Start run_workflow for project 78 (Keyword: None)
+[2026-02-21 22:30:41.765830] 🔋 [Auto-Pilot] all_video flag detected in config for PID 78
+[2026-02-21 22:30:41.795522] 🔍 [DEBUG] _generate_assets START: all_video=True, motion_method=standard
+[2026-02-21 22:30:41.796281] 🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating 2 video scenes.
+[2026-02-21 22:30:41.796901] 🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: 2, Engine: wan 🚀🚀🚀
+[2026-02-21 22:30:51.082514] 📹 [Auto-Pilot] Pass 3: Generating Video Components... Count: 2, Engine: wan
+[2026-02-21 22:30:51.090569]   > Scene 1: is_vid=True, has_image=True
+[2026-02-21 22:30:51.099070]   > Scene 2: is_vid=True, has_image=True
+[2026-02-21 22:30:51.151125] 🎞️ [Render] Scene 1: Effect=auto_classify
+[2026-02-21 22:30:51.151613] 🎞️ [Render] Scene 2: Effect=auto_classify
+[2026-02-21 22:30:51.154489] create_slideshow(PROJ=78) Effects: ['auto_classify', 'auto_classify']
+[2026-02-21 22:30:52.616205] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-21 22:57:08.216636] 📦 [Auto-Pilot] Worker found queued project 78 (None)...
+[2026-02-21 22:57:08.221057] 📜 [Auto-Pilot] Setting PID 78 to 'scripted' because script exists.
+[2026-02-21 22:57:08.236112] ⚙️ [Auto-Pilot] Start run_workflow for project 78 (Keyword: None)
+[2026-02-21 22:57:08.239797] 🔋 [Auto-Pilot] all_video flag detected in config for PID 78
+[2026-02-21 22:57:08.265205] 🔍 [DEBUG] _generate_assets START: all_video=True, motion_method=standard
+[2026-02-21 22:57:08.265785] 🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating 2 video scenes.
+[2026-02-21 22:57:08.266207] 🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: 2, Engine: wan 🚀🚀🚀
+[2026-02-21 22:57:16.222963] 📹 [Auto-Pilot] Pass 3: Generating Video Components... Count: 2, Engine: wan
+[2026-02-21 22:57:16.230656]   > Scene 1: is_vid=True, has_image=True
+[2026-02-21 22:57:16.238519]   > Scene 2: is_vid=True, has_image=True
+[2026-02-21 22:57:16.287543] 🎞️ [Render] Scene 1: Effect=auto_classify
+[2026-02-21 22:57:16.288044] 🎞️ [Render] Scene 2: Effect=auto_classify
+[2026-02-21 22:57:16.288504] create_slideshow(PROJ=78) Effects: ['auto_classify', 'auto_classify']
+[2026-02-21 22:57:17.566151] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-22 00:38:53.039367] 📦 [Auto-Pilot] Worker found queued project 78 (None)...
+[2026-02-22 00:38:53.043581] 📜 [Auto-Pilot] Setting PID 78 to 'scripted' because script exists.
+[2026-02-22 00:38:53.055533] ⚙️ [Auto-Pilot] Start run_workflow for project 78 (Keyword: None)
+[2026-02-22 00:38:53.059223] 🔋 [Auto-Pilot] all_video flag detected in config for PID 78
+[2026-02-22 00:38:53.083385] 🔍 [DEBUG] _generate_assets START: all_video=True, motion_method=standard
+[2026-02-22 00:38:53.083852] 🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating 2 video scenes.
+[2026-02-22 00:38:53.084256] 🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: 2, Engine: wan 🚀🚀🚀
+[2026-02-22 00:39:03.309372] 📹 [Auto-Pilot] Pass 3: Generating Video Components... Count: 2, Engine: wan
+[2026-02-22 00:39:03.317186]   > Scene 1: is_vid=True, has_image=True
+[2026-02-22 00:39:03.324370]   > Scene 2: is_vid=True, has_image=True
+[2026-02-22 00:39:03.366949] 🎞️ [Render] Scene 1: Effect=auto_classify
+[2026-02-22 00:39:03.367373] 🎞️ [Render] Scene 2: Effect=auto_classify
+[2026-02-22 00:39:03.367817] create_slideshow(PROJ=78) Effects: ['auto_classify', 'auto_classify']
+[2026-02-22 00:39:04.632334] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-22 09:00:16.000315] 📦 [Auto-Pilot] Worker found queued project 78 (None)...
+[2026-02-22 09:00:16.005560] 📜 [Auto-Pilot] Setting PID 78 to 'scripted' because script exists.
+[2026-02-22 09:00:16.022547] ⚙️ [Auto-Pilot] Start run_workflow for project 78 (Keyword: None)
+[2026-02-22 09:00:16.026442] 🔋 [Auto-Pilot] all_video flag detected in config for PID 78
+[2026-02-22 09:00:16.051233] 🔍 [DEBUG] _generate_assets START: all_video=True, motion_method=standard
+[2026-02-22 09:00:16.051690] 🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating 2 video scenes.
+[2026-02-22 09:00:16.052117] 🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: 2, Engine: wan 🚀🚀🚀
+[2026-02-22 09:00:24.614651] 📹 [Auto-Pilot] Pass 3: Generating Video Components... Count: 2, Engine: wan
+[2026-02-22 09:00:24.621860]   > Scene 1: is_vid=True, has_image=True
+[2026-02-22 09:00:24.629322]   > Scene 2: is_vid=True, has_image=True
+[2026-02-22 09:00:26.078192] 🎞️ [Render] Scene 1: Effect=auto_classify
+[2026-02-22 09:00:26.078757] 🎞️ [Render] Scene 2: Effect=auto_classify
+[2026-02-22 09:00:26.079239] create_slideshow(PROJ=78) Effects: ['auto_classify', 'auto_classify']
+[2026-02-22 09:00:28.376937] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-22 10:04:34.623158] 📦 [Auto-Pilot] Worker found queued project 78 (None)...
+[2026-02-22 10:04:34.627960] 📜 [Auto-Pilot] Setting PID 78 to 'scripted' because script exists.
+[2026-02-22 10:04:34.649363] ⚙️ [Auto-Pilot] Start run_workflow for project 78 (Keyword: None)
+[2026-02-22 10:04:34.655081] 🔋 [Auto-Pilot] all_video flag detected in config for PID 78
+[2026-02-22 10:04:34.681334] 🔍 [DEBUG] _generate_assets START: all_video=True, motion_method=standard
+[2026-02-22 10:04:34.681762] 🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating 2 video scenes.
+[2026-02-22 10:04:34.682155] 🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: 2, Engine: wan 🚀🚀🚀
+[2026-02-22 10:04:41.494851] 📹 [Auto-Pilot] Pass 3: Generating Video Components... Count: 2, Engine: wan
+[2026-02-22 10:04:41.502861]   > Scene 1: is_vid=True, has_image=True
+[2026-02-22 10:04:41.521017]   > Scene 2: is_vid=True, has_image=True
+[2026-02-22 10:04:43.503703] 🎞️ [Render] Scene 1: Effect=pan_down
+[2026-02-22 10:04:43.504247] 🎞️ [Render] Scene 2: Effect=pan_down
+[2026-02-22 10:04:43.504764] create_slideshow(PROJ=78) Effects: ['pan_down', 'pan_down']
+[2026-02-22 10:04:45.916315] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-22 11:06:50.562313] create_slideshow(PROJ=None) Effects: None
+[2026-02-22 11:07:55.708865] create_slideshow(PROJ=None) Effects: ['pan_down']
+[2026-02-22 11:07:58.436386] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-22 12:42:55.982440] create_slideshow(PROJ=None) Effects: ['pan_down']
+[2026-02-22 12:42:58.523666] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-22 12:51:25.165904] 📦 [Auto-Pilot] Worker found queued project 78 (None)...
+[2026-02-22 12:51:25.172246] 📜 [Auto-Pilot] Setting PID 78 to 'scripted' because script exists.
+[2026-02-22 12:51:25.190675] ⚙️ [Auto-Pilot] Start run_workflow for project 78 (Keyword: None)
+[2026-02-22 12:51:25.195454] 🔋 [Auto-Pilot] all_video flag detected in config for PID 78
+[2026-02-22 12:51:25.225178] 🔍 [DEBUG] _generate_assets START: all_video=True, motion_method=standard
+[2026-02-22 12:51:25.225648] 🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating 2 video scenes.
+[2026-02-22 12:51:25.226170] 🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: 2, Engine: wan 🚀🚀🚀
+[2026-02-22 12:51:32.040185] 📹 [Auto-Pilot] Pass 3: Generating Video Components... Count: 2, Engine: wan
+[2026-02-22 12:51:32.050022]   > Scene 1: is_vid=True, has_image=True
+[2026-02-22 12:51:32.067277]   > Scene 2: is_vid=True, has_image=True
+[2026-02-22 12:51:32.265113] 🎞️ [Render] Scene 1: Effect=pan_down
+[2026-02-22 12:51:32.265642] 🎞️ [Render] Scene 2: Effect=pan_down
+[2026-02-22 12:51:32.274816] create_slideshow(PROJ=78) Effects: ['pan_down', 'pan_down']
+[2026-02-22 12:51:34.678701] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-22 14:30:28.587161] create_slideshow(PROJ=None) Effects: ['pan_down']
+[2026-02-22 14:30:30.782201] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-22 16:42:56.326795] ⚙️ [Auto-Pilot] Start run_workflow for project None (Keyword: 78)
+[2026-02-22 16:44:40.951011] create_slideshow(PROJ=None) Effects: ['pan_down', 'pan_down']
+[2026-02-22 16:44:45.860407] calling writes_videofile code in video_service (720p safe mode)
+[2026-02-22 17:38:52.894927] 📦 [Auto-Pilot] Worker found queued project 78 (None)...
+[2026-02-22 17:38:52.899861] 📜 [Auto-Pilot] Setting PID 78 to 'scripted' because script exists.
+[2026-02-22 17:38:52.914849] ⚙️ [Auto-Pilot] Start run_workflow for project 78 (Keyword: None)
+[2026-02-22 17:38:52.919794] 🔋 [Auto-Pilot] all_video flag detected in config for PID 78
+[2026-02-22 17:38:52.946622] 🔍 [DEBUG] _generate_assets START: all_video=True, motion_method=standard
+[2026-02-22 17:38:52.947125] 🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating 2 video scenes.
+[2026-02-22 17:38:52.947602] 🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: 2, Engine: wan 🚀🚀🚀
+[2026-02-22 17:38:59.540109] 📹 [Auto-Pilot] Pass 3: Generating Video Components... Count: 2, Engine: wan
+[2026-02-22 17:38:59.547338]   > Scene 1: is_vid=True, has_image=True
+[2026-02-22 17:38:59.563867]   > Scene 2: is_vid=True, has_image=True
+[2026-02-22 17:39:00.140657] 🎞️ [Render] Scene 1: Effect=pan_down
+[2026-02-22 17:39:00.141194] 🎞️ [Render] Scene 2: Effect=pan_down
+[2026-02-22 17:39:00.141711] create_slideshow(PROJ=78) Effects: ['pan_down', 'pan_down']
+[2026-02-22 17:39:00.477578] ❌ [Auto-Pilot] CRITICAL ERROR in run_workflow:
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\autopilot_service.py", line 207, in run_workflow
+    await self._render_video(project_id)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\autopilot_service.py", line 1511, in _render_video
+    final_path = video_service.create_slideshow(
+        images=images, audio_path=audio_path, output_filename=output_filename,
+    ...<2 lines>...
+        focal_point_ys=f_points, image_effects=effects
+    )
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\video_service.py", line 676, in create_slideshow
+    raise ValueError("유효한 이미지나 배경 동영상이 없습니다")
+ValueError: 유효한 이미지나 배경 동영상이 없습니다
+
+[2026-02-22 20:51:00.532685] ⚙️ [Auto-Pilot] Start run_workflow for project None (Keyword: 78)
+[2026-02-22 20:51:49.034113] 🔍 [DEBUG] _generate_assets START: all_video=True, motion_method=standard
+[2026-02-22 20:51:49.034656] 🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating 114 video scenes.
+[2026-02-22 20:51:49.035093] 🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: 114, Engine: wan 🚀🚀🚀
+[2026-02-22 20:59:25.622305] create_slideshow(PROJ=None) Effects: ['pan_down', 'pan_down']
+[2026-02-22 21:11:53.238275] 📦 [Auto-Pilot] Worker found queued project 78 (None)...
+[2026-02-22 21:11:53.242370] 📜 [Auto-Pilot] Setting PID 78 to 'scripted' because script exists.
+[2026-02-22 21:11:53.276385] ⚙️ [Auto-Pilot] Start run_workflow for project 78 (Keyword: None)
+[2026-02-22 21:11:53.281832] 🔋 [Auto-Pilot] all_video flag detected in config for PID 78
+[2026-02-22 21:11:53.305853] 🔍 [DEBUG] _generate_assets START: all_video=True, motion_method=standard
+[2026-02-22 21:11:53.306327] 🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating 2 video scenes.
+[2026-02-22 21:11:53.306765] 🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: 2, Engine: wan 🚀🚀🚀
+[2026-02-22 21:12:01.551387] 📹 [Auto-Pilot] Pass 3: Generating Video Components... Count: 2, Engine: wan
+[2026-02-22 21:12:01.558206]   > Scene 1: is_vid=True, has_image=True
+[2026-02-22 21:12:01.574847]   > Scene 2: is_vid=True, has_image=True
+[2026-02-22 21:12:02.455874] 🎞️ [Render] Scene 1: Effect=pan_down
+[2026-02-22 21:12:02.456408] 🎞️ [Render] Scene 2: Effect=pan_down
+[2026-02-22 21:12:02.456854] create_slideshow(PROJ=78) Effects: ['pan_down', 'pan_down']
+[2026-02-22 21:12:10.298853] calling writes_videofile code in video_service (720p safe mode)

@@ -139,6 +139,7 @@ from app.routers import settings as settings_router # [NEW]
 from app.routers import repository as repository_router # [NEW]
 from app.routers import queue as queue_router # [NEW]
 from app.routers import webtoon as webtoon_router # [NEW]
+from app.routers import audio as audio_router # [NEW]
 
 app.include_router(autopilot_router.router)
 app.include_router(video_router.router)
@@ -150,6 +151,7 @@ app.include_router(settings_router.router) # [NEW]
 app.include_router(repository_router.router) # [NEW]
 app.include_router(webtoon_router.router) # [NEW]
 app.include_router(queue_router.router) # [NEW]
+app.include_router(audio_router.router) # [NEW]
 
 
 # output 폴더
@@ -278,6 +280,15 @@ async def page_image_gen(request: Request):
         "request": request,
         "page": "image-gen",
         "title": "이미지 생성"
+    })
+
+@app.get("/audio-gen", response_class=HTMLResponse)
+async def page_audio_gen(request: Request):
+    """오디오 생성 페이지"""
+    return templates.TemplateResponse("pages/audio_gen.html", {
+        "request": request,
+        "page": "audio-gen",
+        "title": "오디오 생성"
     })
 
 @app.get("/video-gen", response_class=HTMLResponse)
@@ -1013,22 +1024,58 @@ async def get_global_settings():
     settings = settings_service.get_settings()
     
     # 2. Merge DB global settings (Project 1)
-    # Project 1 acts as the container for global preferences synced from other projects
     try:
         db_settings = db.get_project_settings(1)
         if db_settings:
             settings.update(db_settings)
     except Exception as e:
         print(f"Failed to merge DB settings: {e}")
-        
+    
+    # 3. Override app_mode from global_settings table (authoritative source)
+    db_app_mode = db.get_global_setting("app_mode")
+    if db_app_mode:
+        settings["app_mode"] = db_app_mode
+    
+    # 4. Webtoon settings from global_settings table
+    settings["webtoon_auto_split"] = db.get_global_setting("webtoon_auto_split", True)
+    settings["webtoon_smart_pan"] = db.get_global_setting("webtoon_smart_pan", True)
+    settings["webtoon_convert_zoom"] = db.get_global_setting("webtoon_convert_zoom", True)
+    
     return settings
 
 @app.post("/api/settings")
 async def save_global_settings(data: Dict[str, Any] = Body(...)):
     """글로벌 설정 저장"""
     from services.settings_service import settings_service
+    
+    # 1. Track previous mode for change detection
+    previous_mode = db.get_global_setting("app_mode", "longform")
+    
+    # 2. Save app_mode to global_settings DB table (authoritative source)
+    new_mode = data.get("app_mode")
+    if new_mode:
+        db.save_global_setting("app_mode", new_mode)
+    
+    # 3. Save webtoon settings to global_settings DB table
+    if "webtoon_auto_split" in data:
+        db.save_global_setting("webtoon_auto_split", data["webtoon_auto_split"])
+    if "webtoon_smart_pan" in data:
+        db.save_global_setting("webtoon_smart_pan", data["webtoon_smart_pan"])
+    if "webtoon_convert_zoom" in data:
+        db.save_global_setting("webtoon_convert_zoom", data["webtoon_convert_zoom"])
+    
+    # 4. Save remaining settings to JSON file
     settings_service.save_settings(data)
-    return {"status": "ok"}
+    
+    # 5. Detect mode change
+    mode_changed = (new_mode is not None) and (previous_mode != new_mode)
+    
+    return {
+        "status": "ok",
+        "mode_changed": mode_changed,
+        "previous_mode": previous_mode,
+        "new_mode": new_mode
+    }
 
 
 # ===========================================

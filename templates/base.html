@@ -42,20 +42,17 @@
 <body class="bg-gray-100 dark:bg-gray-900 min-h-screen">
     <div class="flex">
         <!-- 사이드바 -->
-        <aside class="w-64 bg-white dark:bg-gray-800 min-h-screen fixed left-0 top-0 shadow-lg z-40">
+        <aside class="w-64 bg-white dark:bg-gray-800 h-screen fixed left-0 top-0 shadow-lg z-40 flex flex-col">
             <!-- 로고 -->
-            <div class="p-3 border-b border-gray-200 dark:border-gray-800">
+            <div class="px-3 py-2 border-b border-gray-200 dark:border-gray-800 shrink-0">
                 <a href="/" class="flex flex-col gap-0.5">
-                    <span class="text-xs font-black tracking-widest text-blue-500 uppercase">{{ membership }}</span>
-                    <span class="text-lg font-bold text-gray-800 dark:text-white">{{ t('app_name') }}</span>
+                    <span class="text-[10px] font-black tracking-widest text-blue-500 uppercase">{{ membership }}</span>
+                    <span class="text-base font-bold text-gray-800 dark:text-white">{{ t('app_name') }}</span>
                 </a>
             </div>
 
-            <!-- Project Progress Header (Moved to Main Area) -->
-
-
             <!-- 프로젝트 선택 -->
-            <div class="px-3 py-1.5 border-b border-gray-200 dark:border-gray-700">
+            <div class="px-3 py-1.5 border-b border-gray-200 dark:border-gray-700 shrink-0">
                 <div class="flex items-center justify-between mb-1">
                     <span class="text-[10px] font-medium text-gray-500 dark:text-gray-400">{{ t('cur_project_label')
                         }}</span>
@@ -64,17 +61,17 @@
                         }}</button>
                 </div>
                 <select id="projectSelect" onchange="onProjectChange(this.value)"
-                    class="w-full text-sm p-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-800 dark:text-white">
+                    class="w-full text-xs p-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-800 dark:text-white">
                     <option value="">{{ t('select_project_placeholder') }}</option>
                 </select>
-                <div id="currentProjectInfo" class="mt-2 text-xs text-gray-500 hidden">
+                <div id="currentProjectInfo" class="mt-1 text-[10px] text-gray-500 hidden">
                     <span id="projectStatus"></span>
                 </div>
             </div>
 
-            <!-- 네비게이션 -->
-            <nav class="px-2 py-1">
-                <ul class="space-y-0">
+            <!-- 네비게이션 (Scrollable) -->
+            <nav class="px-2 py-1 flex-1 overflow-y-auto custom-scrollbar">
+                <ul class="space-y-0 text-[11px]">
                     <li>
                         <a href="/projects" id="nav-projects"
                             class="sidebar-item {% if page == 'projects' %}active{% endif %}">
@@ -93,6 +90,13 @@
                             class="sidebar-item {% if page == 'repository' %}active{% endif %}">
                             <span class="sidebar-icon">💾</span>
                             <span>{{ t('nav_repository') }}</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/webtoon" id="nav-webtoon"
+                            class="sidebar-item {% if page == 'webtoon-studio' %}active{% endif %}">
+                            <span class="sidebar-icon">🖌️</span>
+                            <span>{{ t('nav_webtoon') }}</span>
                         </a>
                     </li>
                     <li>
@@ -124,6 +128,13 @@
                         </a>
                     </li>
                     <li>
+                        <a href="/audio-gen" id="nav-audio"
+                            class="sidebar-item {% if page == 'audio-gen' %}active{% endif %}">
+                            <span class="sidebar-icon">🎵</span>
+                            <span>Audio Studio</span>
+                        </a>
+                    </li>
+                    <li>
                         <a href="/thumbnail" id="nav-thumbnail"
                             class="sidebar-item {% if page == 'thumbnail' %}active{% endif %}">
                             <span class="sidebar-icon">🎨</span>
@@ -142,15 +153,6 @@
                             class="sidebar-item {% if page == 'subtitle-gen' %}active{% endif %}">
                             <span class="sidebar-icon">📝</span>
                             <span>{{ t('nav_subtitle') }}</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/webtoon" id="nav-webtoon"
-                            class="sidebar-item {% if page == 'webtoon-studio' %}active{% endif %}">
-                            <span class="sidebar-icon">🎨</span>
-                            <span>{{ t('nav_webtoon') }}</span>
-                            <span
-                                class="ml-auto text-[8px] bg-red-500 text-white px-1.5 py-0.5 rounded-full font-black animate-pulse">NEW</span>
                         </a>
                     </li>
                     <li>
@@ -183,7 +185,7 @@
                             <span>{{ t('nav_shorts') }}</span>
                         </a>
                     </li>
-                    <li class="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                    <li class="mt-1 pt-1 border-t border-gray-200 dark:border-gray-700">
                         <a href="/commerce-shorts" id="nav-commerce-shorts"
                             class="sidebar-item bg-gradient-to-r from-orange-500/10 to-yellow-500/10 border border-orange-500/30 {% if page == 'commerce-shorts' %}active{% endif %}">
                             <span class="sidebar-icon">🛍️</span>
@@ -191,10 +193,10 @@
                                 class="bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-yellow-400 font-bold">커머스
                                 쇼츠</span>
                             <span
-                                class="ml-auto text-[10px] bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded">New</span>
+                                class="ml-auto text-[8px] bg-orange-500/20 text-orange-400 px-1 py-0.5 rounded">New</span>
                         </a>
                     </li>
-                    <li class="mt-1 pt-1">
+                    <li class="mt-0.5 pt-0.5">
                         <a href="/autopilot" id="nav-autopilot"
                             class="sidebar-item bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 {% if page == 'autopilot' %}active{% endif %}">
                             <span class="sidebar-icon">🤖</span>
@@ -202,42 +204,52 @@
                                 class="bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-400 font-bold">{{
                                 t('nav_autopilot') }}</span>
                             <span
-                                class="ml-auto text-[10px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded">Beta</span>
+                                class="ml-auto text-[8px] bg-purple-500/20 text-purple-400 px-1 py-0.5 rounded">Beta</span>
                         </a>
                     </li>
-                    <li class="mt-1 pt-1">
+                    <li class="mt-0.5 pt-0.5">
                         <a href="/settings" id="nav-settings"
                             class="sidebar-item {% if page == 'settings' %}active{% endif %}">
                             <span class="sidebar-icon">⚙️</span>
                             <span>{{ t('nav_settings') }}</span>
                         </a>
                     </li>
+                    <li class="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+                        <a href="https://wallet.airing.work/" target="_blank"
+                            class="sidebar-item group hover:bg-blue-500/10 transition-all">
+                            <span class="sidebar-icon grayscale group-hover:grayscale-0">💎</span>
+                            <span class="font-black text-blue-500">WALLET</span>
+                            <span class="ml-auto opacity-30">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14">
+                                    </path>
+                                </svg>
+                            </span>
+                        </a>
+                    </li>
                 </ul>
             </nav>
 
-            <div class="px-3 pb-1">
-                <button onclick="toggleTheme()"
-                    class="w-full flex items-center justify-center gap-2 p-1 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-[10px] font-medium">
-                    <span class="dark:hidden">{{ t('theme_light') }}</span>
-                    <span class="hidden dark:inline">{{ t('theme_dark') }}</span>
-                </button>
-            </div>
+            <!-- Bottom Area (Theme + API Status) - Fixed at bottom of flex column -->
+            <div class="shrink-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+                <div class="px-3 py-2">
+                    <button onclick="toggleTheme()"
+                        class="w-full flex items-center justify-center gap-2 p-1 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-[10px] font-medium">
+                        <span class="dark:hidden">{{ t('theme_light') }}</span>
+                        <span class="hidden dark:inline">{{ t('theme_dark') }}</span>
+                    </button>
+                </div>
 
-            <!-- API 상태 -->
-            <div
-                class="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-white dark:from-gray-800 to-transparent pt-8">
-                <div id="apiStatus" class="text-xs text-gray-500 dark:text-gray-400">
-                    <div class="flex items-center gap-2 mb-1">
-                        <span id="statusDot" class="w-2 h-2 rounded-full bg-gray-400"></span>
-                        <span>{{ t('api_status_checking') }}</span>
+                <!-- API 상태 -->
+                <div class="px-4 pb-4 pt-1">
+                    <div id="apiStatus" class="text-xs text-gray-500 dark:text-gray-400">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span id="statusDot" class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+                            <span class="text-[10px]">{{ t('api_status_checking') }}</span>
+                        </div>
                     </div>
                 </div>
-                {% if not is_independent %}
-                <div
-                    class="mt-2 p-2 bg-blue-500/10 rounded-lg border border-blue-500/20 text-[10px] text-blue-600 dark:text-blue-400 font-bold">
-                    {{ t('msg_independent_promo') | safe }}
-                </div>
-                {% endif %}
             </div>
         </aside>
 
@@ -770,37 +782,134 @@
 
                 // Elements to toggle
                 const navPlan = document.getElementById('nav-plan');
+                const navScript = document.getElementById('nav-script');
                 const navIntro = document.getElementById('nav-intro');
+
+                const navImage = document.getElementById('nav-image');
+                const navThumbnail = document.getElementById('nav-thumbnail');
+                const navTts = document.getElementById('nav-tts');
+                const navSubtitle = document.getElementById('nav-subtitle');
+                const navRender = document.getElementById('nav-render');
 
                 const navTitle = document.getElementById('nav-title');
                 const navShorts = document.getElementById('nav-shorts');
-                const navScript = document.getElementById('nav-script');
+                const navWebtoon = document.getElementById('nav-webtoon');
+                const navCommerce = document.getElementById('nav-commerce-shorts');
                 const navTopic = document.getElementById('nav-topic');
+                const navRepository = document.getElementById('nav-repository'); // [NEW] Add repository
+                const navUpload = document.getElementById('nav-upload'); // [NEW] To hide upload/reserve in webtoon
+                const navAutopilot = document.getElementById('nav-autopilot'); // [NEW] Hide in webtoon mode
 
-                if (mode === 'shorts') {
-                    // Shorts Mode: Show Planner (USER REQUEST), but Hide Intro, BGM, Title, Shorts-Extraction
-                    // if (navPlan) navPlan.parentElement.classList.add('hidden'); // [MODIFIED] Show planner for shorts
-                    if (navIntro) navIntro.parentElement.classList.add('hidden');
+                // Helper to hide/show
+                const setVisible = (el, show) => {
+                    if (!el) return;
+                    // Check if parent matches li or just toggle logic
+                    if (show) el.parentElement.classList.remove('hidden');
+                    else el.parentElement.classList.add('hidden');
+                };
 
-                    if (navTitle) navTitle.parentElement.classList.add('hidden');
+                if (mode === 'commerce') {
+                    // Commerce Mode: Hide almost everything except Commerce & Topic
+                    setVisible(navCommerce, true);
 
-                    // Hide the 'Shorts Extraction' tool because we are building shorts directly
-                    if (navShorts) navShorts.parentElement.classList.add('hidden');
+                    setVisible(navPlan, false);
+                    setVisible(navScript, false);
+                    setVisible(navIntro, false);
+                    setVisible(navImage, false);
+                    setVisible(navThumbnail, false);
+                    setVisible(navTts, false);
+                    setVisible(navSubtitle, false);
+                    setVisible(navRender, false);
+                    setVisible(navTitle, false);
+                    setVisible(navShorts, false);
+                    setVisible(navWebtoon, false);
+                    // Commerce might need topic? User didn't say to hide it for commerce, but let's keep it visible or follow pattern. 
+                    // Previous code had: Commerce Mode: Hide almost everything except Commerce & Topic. 
+                    // Let's assume navTopic stays for Commerce unless specified otherwise.
+                    setVisible(navTopic, true);
+                    setVisible(navRepository, true);
+                    setVisible(navUpload, true);
+
+                } else if (mode === 'shorts') {
+                    // Shorts Mode
+                    setVisible(navCommerce, false);
+                    setVisible(navWebtoon, false);
+
+                    // Hide specifics
+                    setVisible(navIntro, false);
+                    setVisible(navTitle, false);
+                    setVisible(navShorts, false);
+
+                    // Show standard steps
+                    setVisible(navPlan, true);
+                    setVisible(navScript, true);
+                    setVisible(navImage, true);
+                    setVisible(navThumbnail, true);
+                    setVisible(navTts, true);
+                    setVisible(navSubtitle, true);
+                    setVisible(navRender, true);
+                    setVisible(navTopic, true);
+                    setVisible(navRepository, true);
+                    setVisible(navUpload, true);
 
                     // Rename Script Gen
                     if (navScript) {
-                        navScript.querySelector('span:last-child').textContent = "{{ t('nav_script_shorts') }}";
+                        navScript.querySelector('span:last-child').innerText = "{{ t('nav_script_shorts') }}";
                     }
+
+                } else if (mode === 'webtoon') {
+                    // Webtoon Mode [USER REQUEST: Hide Topic, Repo, Plan, Thumb, Upload]
+                    setVisible(navCommerce, false);
+                    setVisible(navWebtoon, true);
+
+                    // Hide specifics for Webtoon
+                    setVisible(navTopic, false);
+                    setVisible(navRepository, false);
+                    setVisible(navPlan, false);
+                    setVisible(navThumbnail, false);
+                    setVisible(navUpload, false);
+
+                    setVisible(navIntro, false);
+                    setVisible(navTitle, false);
+                    setVisible(navShorts, false);
+
+                    // Show remaining steps
+                    setVisible(navScript, true);
+                    setVisible(navImage, true);
+                    setVisible(navTts, true);
+                    setVisible(navSubtitle, true);
+                    setVisible(navRender, true);
+
+                    // 오토파일럿 숨김 (웹툰 모드에선 불필요)
+                    setVisible(navAutopilot, false);
+
+                    // Rename Script Gen
+                    if (navScript) {
+                        navScript.querySelector('span:last-child').innerText = "{{ t('nav_script_webtoon') }}";
+                    }
+
                 } else {
                     // Longform Mode: Show everything (default)
-                    if (navPlan) navPlan.parentElement.classList.remove('hidden');
-                    if (navIntro) navIntro.parentElement.classList.remove('hidden');
+                    setVisible(navCommerce, false);
 
-                    if (navTitle) navTitle.parentElement.classList.remove('hidden');
-                    if (navShorts) navShorts.parentElement.classList.remove('hidden');
+                    setVisible(navPlan, true);
+                    setVisible(navScript, true);
+                    setVisible(navIntro, true);
+                    setVisible(navImage, true);
+                    setVisible(navThumbnail, true);
+                    setVisible(navTts, true);
+                    setVisible(navSubtitle, true);
+                    setVisible(navRender, true);
+                    setVisible(navTitle, true);
+                    setVisible(navShorts, true);
+                    setVisible(navWebtoon, true);
+                    setVisible(navTopic, true);
+                    setVisible(navRepository, true);
+                    setVisible(navUpload, true);
+                    setVisible(navAutopilot, true); // 롱폼에서는 오토파일럿 표시
 
                     if (navScript) {
-                        navScript.querySelector('span:last-child').textContent = "{{ t('nav_script') }}";
+                        navScript.querySelector('span:last-child').innerText = "{{ t('nav_script') }}";
                     }
                 }
 
@@ -844,6 +953,7 @@
                 label.classList.add('text-gray-400');
             }
         };
+
 
         // 초기화
         loadProjects();

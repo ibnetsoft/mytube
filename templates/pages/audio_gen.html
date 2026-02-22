@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card mb-6">
+    <div class="flex flex-wrap items-center justify-between gap-6 mb-6">
+        <h3 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <span>🎵</span> Audio Studio (SFX & BGM)
+        </h3>
+
+        <div class="flex gap-2">
+            <button onclick="analyzeAudio()" id="analyzeBtn"
+                class="btn-primary flex items-center gap-2 bg-gradient-to-r from-pink-500 to-rose-500">
+                <span>🤖</span> Analyze Scenes (Auto-Fill Prompts)
+            </button>
+            <button onclick="saveAudioPrompts()" id="saveBtn" class="btn-secondary flex items-center gap-2">
+                <span>💾</span> Save All Prompts
+            </button>
+        </div>
+    </div>
+
+    <!-- Audio Settings -->
+    <div class="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg border border-gray-200 dark:border-gray-600 mb-6">
+        <h4 class="font-bold text-sm mb-2 text-gray-700 dark:text-gray-300">Global Settings</h4>
+        <div class="flex gap-6">
+            <label class="flex items-center gap-2">
+                <input type="checkbox" id="autoGenerateBoth" class="rounded text-pink-500 focus:ring-pink-500">
+                <span class="text-sm">Generate Both SFX & BGM per scene</span>
+            </label>
+            <label class="flex items-center gap-2">
+                <span class="text-sm">Default Duration:</span>
+                <select id="defaultDuration" class="text-xs border-gray-300 rounded">
+                    <option value="5">5s (SFX)</option>
+                    <option value="10">10s</option>
+                    <option value="30">30s (BGM)</option>
+                </select>
+            </label>
+        </div>
+    </div>
+
+    <!-- Scene List -->
+    <div id="sceneList" class="space-y-4">
+        <!-- Scenes will be rendered here -->
+        <div class="text-center py-10 text-gray-400">
+            Loading scenes...
+        </div>
+    </div>
+</div>
+
+<script>
+    let audioScenes = [];
+    let currentAspectRatio = '16:9'; // Default
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+        loadScenes();
+    });
+
+    async function loadScenes() {
+        const projectId = getCurrentProject();
+        if (!projectId) return;
+
+        try {
+            // [NEW] Fetch Project Settings for Aspect Ratio
+            try {
+                const sRes = await fetch(`/api/project-settings/${projectId}`);
+                if (sRes.ok) {
+                    const settings = await sRes.json();
+                    currentAspectRatio = settings.aspect_ratio || '16:9';
+                }
+            } catch (e) {
+                console.warn("Failed to load project settings for aspect ratio", e);
+            }
+
+            const res = await fetch(`/api/projects/${projectId}/image-prompts`); // Re-use existing endpoint to get scenes
+            const data = await res.json();
+
+            if (data.prompts) {
+                audioScenes = data.prompts;
+                renderSceneList();
+            }
+        } catch (e) {
+            console.error("Failed to load scenes:", e);
+            document.getElementById('sceneList').innerHTML = `<p class="text-red-500 text-center">Failed to load scenes.</p>`;
+        }
+    }
+
+    function renderSceneList() {
+        const container = document.getElementById('sceneList');
+        if (audioScenes.length === 0) {
+            container.innerHTML = `<p class="text-gray-500 text-center py-10">No scenes found. Please generate image prompts first.</p>`;
+            return;
+        }
+
+        container.innerHTML = audioScenes.map((scene, i) => `
+            <div id="scene-card-${i}" class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+                <div class="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+                    <span class="font-bold text-gray-700 dark:text-gray-300">Scene ${scene.scene_number}</span>
+                    <span class="text-xs text-gray-500 truncate max-w-[300px]">${scene.scene_text || 'No Text'}</span>
+                </div>
+                
+                <div class="p-4 grid grid-cols-1 md:grid-cols-12 gap-6">
+                    <!-- Left: Preview -->
+                    <div class="md:col-span-3">
+                        <!-- Dynamic Aspect Ratio -->
+                        <!-- Reduced size: max-width 128px -->
+                        <div class="bg-gray-100 dark:bg-black rounded overflow-hidden border border-gray-200 dark:border-gray-700 relative group"
+                             style="aspect-ratio: ${currentAspectRatio.replace(':', '/')}; width: 100%; max-width: 128px;">
+                            ${scene.image_url ? `<img src="${scene.image_url}" class="w-full h-full object-cover">` : `<div class="flex items-center justify-center h-full text-xs text-gray-400">No Image</div>`}
+                            <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs p-2 text-center">
+                                ${scene.prompt_en || 'No visual description'}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Audio Controls -->
+                    <div class="md:col-span-9 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        
+                        <!-- SFX Column -->
+                        <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded border border-blue-100 dark:border-blue-800">
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="text-xs font-bold text-blue-700 dark:text-blue-300">🔊 Sound Effects (SFX)</label>
+                                <button onclick="generateAudio(${i}, 'sfx')" id="btn-sfx-${i}" class="text-[10px] bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded">
+                                    Generate
+                                </button>
+                            </div>
+                            <textarea id="sfx-prompt-${i}" rows="2" 
+                                class="w-full text-xs p-2 rounded border border-blue-200 dark:border-blue-700 focus:ring-blue-500 mb-2"
+                                placeholder="e.g. Footsteps on gravel, wind blowing">${scene.sfx_prompt || ''}</textarea>
+                            
+                            <!-- Player -->
+                            <div id="player-sfx-${i}" class="min-h-[32px]">
+                                ${scene.sfx_url ? `
+                                    <audio controls src="${scene.sfx_url}" class="w-full h-8"></audio>
+                                    <a href="${scene.sfx_url}" download class="text-[10px] text-blue-500 underline ml-1">Download</a>
+                                ` : `<span class="text-[10px] text-gray-400">No Audio</span>`}
+                            </div>
+                        </div>
+
+                        <!-- BGM Column -->
+                        <div class="bg-purple-50 dark:bg-purple-900/20 p-3 rounded border border-purple-100 dark:border-purple-800">
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="text-xs font-bold text-purple-700 dark:text-purple-300">🎵 Background Music (BGM)</label>
+                                <button onclick="generateAudio(${i}, 'bgm')" id="btn-bgm-${i}" class="text-[10px] bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded">
+                                    Generate
+                                </button>
+                            </div>
+                            <textarea id="bgm-prompt-${i}" rows="2" 
+                                class="w-full text-xs p-2 rounded border border-purple-200 dark:border-purple-700 focus:ring-purple-500 mb-2"
+                                placeholder="e.g. Suspenseful ambient drone, slow tempo">${scene.bgm_prompt || ''}</textarea>
+
+                            <!-- Player -->
+                            <div id="player-bgm-${i}" class="min-h-[32px]">
+                                ${scene.bgm_url ? `
+                                    <audio controls src="${scene.bgm_url}" class="w-full h-8"></audio>
+                                    <a href="${scene.bgm_url}" download class="text-[10px] text-purple-500 underline ml-1">Download</a>
+                                ` : `<span class="text-[10px] text-gray-400">No Audio</span>`}
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function analyzeAudio() {
+        const projectId = getCurrentProject();
+        const btn = document.getElementById('analyzeBtn');
+
+        btn.disabled = true;
+        btn.innerHTML = `<span class="animate-spin">⏳</span> Analyzing...`;
+
+        try {
+            const res = await fetch('/api/audio/analyze-scenes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ project_id: projectId })
+            });
+
+            const result = await res.json();
+            if (result.status === 'success') {
+                Utils.showToast(`${result.count} Scenes Analyzed!`, 'success');
+                loadScenes(); // Refresh
+            } else {
+                throw new Error(result.detail || "Analysis Failed");
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast("Analysis Failed: " + e.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = `<span>🤖</span> Analyze Scenes (Auto-Fill Prompts)`;
+        }
+    }
+
+    async function generateAudio(index, type) {
+        const projectId = getCurrentProject();
+        const scene = audioScenes[index];
+        const promptInput = document.getElementById(`${type}-prompt-${index}`);
+        const prompt = promptInput.value;
+        const btn = document.getElementById(`btn-${type}-${index}`);
+        const playerDiv = document.getElementById(`player-${type}-${index}`);
+
+        if (!prompt) {
+            Utils.showToast(`Please enter a ${type.toUpperCase()} prompt`, 'warning');
+            promptInput.focus();
+            return;
+        }
+
+        // Duration?
+        let duration = type === 'sfx' ? 5 : 10; // Default
+        const globalDur = document.getElementById('defaultDuration').value;
+        if (globalDur) duration = parseInt(globalDur);
+
+        // UI Loading
+        const originalText = btn.innerText;
+        btn.disabled = true;
+        btn.innerText = "⏳...";
+        playerDiv.innerHTML = `<span class="text-xs text-gray-500 animate-pulse">Generating...</span>`;
+
+        try {
+            // Save prompt first
+
+            // Generate
+            const res = await fetch('/api/audio/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    project_id: projectId,
+                    scene_number: scene.scene_number,
+                    type: type,
+                    prompt: prompt,
+                    duration: duration
+                })
+            });
+
+            const result = await res.json();
+            if (result.status === 'success') {
+                // Update Local Data
+                if (type === 'sfx') scene.sfx_url = result.audio_url;
+                else scene.bgm_url = result.audio_url;
+
+                // Update Player
+                playerDiv.innerHTML = `
+                    <audio controls src="${result.audio_url}" class="w-full h-8" autoplay></audio>
+                    <a href="${result.audio_url}" download class="text-[10px] text-${type === 'sfx' ? 'blue' : 'purple'}-500 underline ml-1">Download</a>
+                `;
+
+                Utils.showToast(`${type.toUpperCase()} Generated!`, 'success');
+            } else {
+                throw new Error(result.detail || "Generation Failed");
+            }
+
+        } catch (e) {
+            console.error(e);
+            Utils.showToast("Generation Error: " + e.message, 'error');
+            playerDiv.innerHTML = `<span class="text-xs text-red-500">Error: ${e.message}</span>`;
+        } finally {
+            btn.disabled = false;
+            btn.innerText = originalText;
+        }
+    }
+
+    async function saveAudioPrompts() {
+        const projectId = getCurrentProject();
+        const btn = document.getElementById('saveBtn');
+        btn.disabled = true;
+        btn.innerHTML = "Saving...";
+
+        let success = 0;
+        for (let i = 0; i < audioScenes.length; i++) {
+            const sfx = document.getElementById(`sfx-prompt-${i}`).value;
+            const bgm = document.getElementById(`bgm-prompt-${i}`).value;
+
+            // Only update if changed? For now just update all
+            try {
+                await fetch('/api/audio/update-prompt', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        project_id: projectId,
+                        scene_number: audioScenes[i].scene_number,
+                        sfx_prompt: sfx,
+                        bgm_prompt: bgm
+                    })
+                });
+                success++;
+            } catch (e) { console.error(e); }
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = `<span>💾</span> Save All Prompts`;
+        Utils.showToast(`Saved ${success} prompts`, 'success');
+    }
+
+</script>
+{% endblock %}

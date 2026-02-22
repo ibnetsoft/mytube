@@ -484,3 +484,50 @@ Img[3] EffectRaw: pan_right -> Safe: pan_right (Dur:7.873000000000001, FPS:24)
 Img[3] ERROR applying effect 'pan_right': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
 Img[0] EffectRaw: none -> Safe: none (Dur:5.48, FPS:24)
 Img[0] EffectRaw: none -> Safe: none (Dur:5.526, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:5.666, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:5.666, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:7.059, FPS:24)
+Img[1] EffectRaw: none -> Safe: none (Dur:10.730999999999998, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:7.523, FPS:24)
+Img[1] EffectRaw: none -> Safe: none (Dur:10.607, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:6.873, FPS:24)
+Img[1] EffectRaw: none -> Safe: none (Dur:10.576999999999998, FPS:24)
+Img[0] EffectRaw: auto_classify -> Safe: auto_classify (Dur:8.127, FPS:24)
+Img[1] EffectRaw: auto_classify -> Safe: auto_classify (Dur:9.193, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:7.012, FPS:24)
+Img[1] EffectRaw: none -> Safe: none (Dur:10.518, FPS:24)
+Img[0] EffectRaw: auto_classify -> Safe: auto_classify (Dur:7.895, FPS:24)
+Img[1] EffectRaw: none -> Safe: none (Dur:10.915, FPS:24)
+Img[0] EffectRaw: auto_classify -> Safe: auto_classify (Dur:8.173, FPS:24)
+Img[1] EffectRaw: auto_classify -> Safe: auto_classify (Dur:10.296999999999999, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:7.152, FPS:24)
+Img[1] EffectRaw: none -> Safe: none (Dur:9.168, FPS:24)
+Img[0] EffectRaw: auto_classify -> Safe: auto_classify (Dur:8.034, FPS:24)
+Img[0] ERROR applying effect 'pan_down': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[1] EffectRaw: auto_classify -> Safe: auto_classify (Dur:10.795999999999998, FPS:24)
+Img[1] ERROR applying effect 'pan_down': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[0] EffectRaw: auto_classify -> Safe: auto_classify (Dur:6.92, FPS:24)
+Img[0] ERROR applying effect 'pan_down': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[1] EffectRaw: auto_classify -> Safe: auto_classify (Dur:9.9, FPS:24)
+Img[1] ERROR applying effect 'pan_down': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[0] EffectRaw: auto_classify -> Safe: auto_classify (Dur:6.92, FPS:24)
+Img[0] ERROR applying effect 'pan_down': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[1] EffectRaw: auto_classify -> Safe: auto_classify (Dur:9.9, FPS:24)
+Img[1] ERROR applying effect 'pan_down': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[0] EffectRaw: none -> Safe: none (Dur:7.105, FPS:24)
+Img[1] EffectRaw: none -> Safe: none (Dur:9.665, FPS:24)
+Img[0] EffectRaw: pan_down -> Safe: pan_down (Dur:7.848, FPS:24)
+Img[0] ERROR applying effect 'pan_down': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[1] EffectRaw: pan_down -> Safe: pan_down (Dur:13.362000000000002, FPS:24)
+Img[1] ERROR applying effect 'pan_down': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[0] EffectRaw: pan_down -> Safe: pan_down (Dur:5.0, FPS:30)
+Img[0] EffectRaw: pan_down -> Safe: pan_down (Dur:5.0, FPS:30)
+Img[0] EffectRaw: pan_down -> Safe: pan_down (Dur:8.313, FPS:24)
+Img[0] ERROR applying effect 'pan_down': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[1] EffectRaw: pan_down -> Safe: pan_down (Dur:12.666999999999996, FPS:24)
+Img[1] ERROR applying effect 'pan_down': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[0] EffectRaw: pan_down -> Safe: pan_down (Dur:5.0, FPS:30)
+Img[0] EffectRaw: pan_down -> Safe: pan_down (Dur:5.0, FPS:30)
+Img[1] EffectRaw: pan_down -> Safe: pan_down (Dur:5.0, FPS:30)
+Img[0] EffectRaw: pan_down -> Safe: pan_down (Dur:8.313, FPS:24)
+Img[1] EffectRaw: pan_down -> Safe: pan_down (Dur:12.196999999999997, FPS:24)

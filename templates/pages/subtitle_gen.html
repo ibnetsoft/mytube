@@ -424,6 +424,120 @@
                     <!-- Video player will be inserted here -->
                 </div>
             </div>
+
+            <!-- [NEW] BGM / SFX 설정 섹션 -->
+            <div id="bgmSfxSection"
+                class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1">
+                        🎵 BGM / SFX 설정
+                    </h3>
+                    <button onclick="toggleBgmSection()" id="bgmSectionToggle"
+                        class="text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition">
+                        ▲ 접기
+                    </button>
+                </div>
+
+                <div id="bgmSectionBody" class="flex flex-col gap-2">
+                    <!-- BGM 설정 -->
+                    <div class="bg-gray-50 dark:bg-gray-900 rounded p-2 border border-gray-200 dark:border-gray-700">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-[10px] font-bold text-purple-600 dark:text-purple-400">🎶 BGM
+                                (배경음악)</span>
+                            <div class="flex items-center gap-1">
+                                <label class="text-[9px] text-gray-500">볼륨</label>
+                                <input type="range" id="bgmVolumeSlider" min="0" max="100" value="30"
+                                    class="w-16 h-1 accent-purple-500" oninput="updateBgmVolume(this.value)"
+                                    title="BGM 볼륨 (0~100%)">
+                                <span id="bgmVolumeLabel" class="text-[9px] text-gray-500 w-6 text-right">30%</span>
+                            </div>
+                        </div>
+
+                        <!-- BGM 파일 상태 표시 -->
+                        <div id="bgmStatusBar" class="flex items-center gap-2 mb-2">
+                            <span id="bgmFileLabel" class="text-[10px] text-gray-400 flex-1 truncate italic">설정된 BGM
+                                없음</span>
+                            <button id="bgmClearBtn" onclick="clearBgm()"
+                                class="hidden text-[9px] text-red-400 hover:text-red-600">✕ 제거</button>
+                        </div>
+
+                        <!-- BGM 미리듣기 -->
+                        <audio id="bgmPreviewPlayer" class="hidden w-full h-6" controls></audio>
+
+                        <!-- BGM 소스 방법 탭 -->
+                        <div class="flex gap-1 mb-2">
+                            <button onclick="setBgmInputMode('upload')" id="bgmTabUpload"
+                                class="flex-1 text-[9px] py-0.5 rounded border bg-purple-100 dark:bg-purple-900 border-purple-300 text-purple-700 dark:text-purple-300 font-bold">
+                                📂 파일 업로드
+                            </button>
+                            <button onclick="setBgmInputMode('url')" id="bgmTabUrl"
+                                class="flex-1 text-[9px] py-0.5 rounded border border-gray-300 dark:border-gray-600 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                🔗 URL 입력
+                            </button>
+                            <button onclick="setBgmInputMode('generated')" id="bgmTabGenerated"
+                                class="flex-1 text-[9px] py-0.5 rounded border border-gray-300 dark:border-gray-600 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                ✨ 생성됨
+                            </button>
+                        </div>
+
+                        <!-- 파일 업로드 모드 -->
+                        <div id="bgmInputUpload" class="bgm-input-panel">
+                            <label
+                                class="flex items-center justify-center gap-1 w-full py-1.5 border-2 border-dashed border-purple-300 dark:border-purple-700 rounded cursor-pointer hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition text-[9px] text-purple-600 dark:text-purple-400">
+                                <span>📂 BGM 파일 선택 (mp3, wav, m4a)</span>
+                                <input type="file" class="hidden" accept="audio/*" onchange="handleBgmUpload(this)">
+                            </label>
+                        </div>
+
+                        <!-- URL 입력 모드 -->
+                        <div id="bgmInputUrl" class="bgm-input-panel hidden">
+                            <div class="flex gap-1">
+                                <input type="text" id="bgmUrlInput" placeholder="https://... (MP3 URL)"
+                                    class="flex-1 text-[10px] p-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+                                <button onclick="applyBgmUrl()"
+                                    class="px-2 text-[9px] bg-purple-600 text-white rounded hover:bg-purple-700">적용</button>
+                            </div>
+                        </div>
+
+                        <!-- 생성된 BGM 목록 모드 -->
+                        <div id="bgmInputGenerated" class="bgm-input-panel hidden">
+                            <button onclick="loadGeneratedBgmList()"
+                                class="w-full text-[9px] py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300">
+                                🔄 audio_gen에서 생성한 BGM 불러오기
+                            </button>
+                            <div id="generatedBgmList" class="mt-1 space-y-1 max-h-20 overflow-y-auto"></div>
+                        </div>
+                    </div>
+
+                    <!-- SFX 설정 (간략) -->
+                    <div class="bg-gray-50 dark:bg-gray-900 rounded p-2 border border-gray-200 dark:border-gray-700">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-[10px] font-bold text-blue-600 dark:text-blue-400">🔊 SFX (효과음)</span>
+                            <label class="flex items-center gap-1 cursor-pointer">
+                                <input type="checkbox" id="sfxEnabledToggle" onchange="toggleSfx(this)"
+                                    class="w-3 h-3 accent-blue-500">
+                                <span class="text-[9px] text-gray-500">사용</span>
+                            </label>
+                        </div>
+                        <div id="sfxPanel" class="hidden">
+                            <label
+                                class="flex items-center justify-center gap-1 w-full py-1.5 border-2 border-dashed border-blue-300 dark:border-blue-700 rounded cursor-pointer hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition text-[9px] text-blue-600 dark:text-blue-400">
+                                <span>📂 SFX 파일 선택</span>
+                                <input type="file" class="hidden" accept="audio/*" onchange="handleSfxUpload(this)">
+                            </label>
+                            <div id="sfxStatusBar" class="mt-1 text-[9px] text-gray-400">설정된 SFX 없음</div>
+                        </div>
+                    </div>
+
+                    <!-- 렌더링 참고 안내 -->
+                    <div
+                        class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded p-1.5">
+                        <p class="text-[9px] text-amber-700 dark:text-amber-400">
+                            💡 BGM은 <strong>영상 렌더링</strong> 시 자동으로 포함됩니다. 영상 길이에 맞게 BGM이 루프/페이드 처리됩니다.
+                        </p>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -445,6 +559,19 @@
     let selectedIndex = -1;
     let imageTimings = []; // [NEW] Image Start Times based on backend Pacing
     let imageEffects = []; // [NEW] Zoom/Pan Effects (1:1 with images)
+
+    // BGM / SFX State
+    let bgmState = {
+        url: null,       // 최종 URL (서버 or 외부)
+        volume: 0.3,     // 0.0 ~ 1.0
+        enabled: false,  // BGM 사용 여부
+        filename: null   // 표시용 파일명
+    };
+    let sfxState = {
+        url: null,
+        enabled: false,
+        filename: null
+    };
 
 
     // --- Initialization ---
@@ -521,6 +648,7 @@
 
         // Load Data
         await loadProjectAndSubtitles();
+        loadBgmSettings(); // BGM/SFX 설정 복원
 
         // [New] Auto Generate if empty
         if (!subtitles || subtitles.length === 0) {
@@ -534,42 +662,8 @@
         if (previewEl) makeDraggable(previewEl);
     });
 
-    // (Deleted legacy duplicate function)
+    // renderSubtitles 구현은 아래에 있음
 
-    function renderSubtitles() {
-        const list = document.getElementById('subtitleList');
-        if (!list) return;
-
-        if (subtitles.length === 0) {
-            list.innerHTML = `
-                <div class='flex flex-col items-center justify-center h-40 text-gray-400 gap-3'>
-                    <p class="text-xs">자막이 없습니다.</p>
-                    <button onclick="generateSubtitles()" class="btn-primary py-1.5 px-4 text-xs">
-                        ✨ AI 자막 생성 (자동)
-                    </button>
-                </div>`;
-            return;
-        }
-
-        // 1. Calculate Image Assignments
-        const assignments = new Array(subtitles.length).fill(-1);
-        if (imageTimings && imageTimings.length > 0) {
-            for (let i = 0; i < imageTimings.length; i++) {
-                // Assign image i to subtitles starting from imageTimings[i]
-                // ... logic ...
-            }
-        }
-        // Actually, logic is usually rendering list items. 
-        // Let's keep original renderSubtitles structure but since I'm replacing a chunk, I must be careful not to delete logic.
-        // Wait, I am replacing lines 410-1410? No, that's too big.
-        // The user tool usage says EndLine: 1410. That's huge.
-        // I should break this down.
-        // First, I will ADD the Utils function at the top.
-        // Then I will update renderImageStrip and previewImage separately.
-    }
-
-
-    // (Deleted legacy duplicate function)
 
     function renderSubtitles() {
         const list = document.getElementById('subtitleList');
@@ -2043,14 +2137,25 @@
 
             // 1. Request Render
             // Note: API expects resolution, use_subtitles, etc. Defaulting for now.
+            const renderPayload = {
+                project_id: projectId,
+                use_subtitles: true,
+                resolution: "1080p" // or load from settings
+            };
+            // BGM 설정 포함
+            if (bgmState.enabled && bgmState.url) {
+                renderPayload.bgm_url = bgmState.url;
+                renderPayload.bgm_volume = bgmState.volume;
+            }
+            // SFX 설정 포함
+            if (sfxState.enabled && sfxState.url) {
+                renderPayload.sfx_url = sfxState.url;
+            }
+
             const res = await fetch(`/api/projects/${projectId}/render`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    project_id: projectId,
-                    use_subtitles: true,
-                    resolution: "1080p" // or load from settings
-                })
+                body: JSON.stringify(renderPayload)
             });
             const data = await res.json();
 
@@ -2648,6 +2753,238 @@
         const val = el.checked ? 1 : 0;
         API.project.updateSetting(projectId, 'subtitle_stroke_enabled', val);
         updateSubtitlePreview();
+    }
+
+    // ============================================================
+    // BGM / SFX 관리 함수들
+    // ============================================================
+
+    function toggleBgmSection() {
+        const body = document.getElementById('bgmSectionBody');
+        const btn = document.getElementById('bgmSectionToggle');
+        if (!body || !btn) return;
+        const isHidden = body.classList.toggle('hidden');
+        btn.textContent = isHidden ? '▼ 펼치기' : '▲ 접기';
+    }
+
+    function setBgmInputMode(mode) {
+        // 모든 패널 숨기기
+        document.querySelectorAll('.bgm-input-panel').forEach(el => el.classList.add('hidden'));
+        // 모든 탭 스타일 초기화
+        ['bgmTabUpload', 'bgmTabUrl', 'bgmTabGenerated'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.className = 'flex-1 text-[9px] py-0.5 rounded border border-gray-300 dark:border-gray-600 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700';
+            }
+        });
+
+        // 선택 모드 활성화
+        const panelMap = { upload: 'bgmInputUpload', url: 'bgmInputUrl', generated: 'bgmInputGenerated' };
+        const tabMap = { upload: 'bgmTabUpload', url: 'bgmTabUrl', generated: 'bgmTabGenerated' };
+
+        const panel = document.getElementById(panelMap[mode]);
+        const tab = document.getElementById(tabMap[mode]);
+        if (panel) panel.classList.remove('hidden');
+        if (tab) tab.className = 'flex-1 text-[9px] py-0.5 rounded border bg-purple-100 dark:bg-purple-900 border-purple-300 text-purple-700 dark:text-purple-300 font-bold';
+    }
+
+    function updateBgmVolume(val) {
+        bgmState.volume = parseInt(val) / 100;
+        const label = document.getElementById('bgmVolumeLabel');
+        if (label) label.textContent = val + '%';
+
+        // 미리듣기 플레이어 볼륨도 업데이트
+        const player = document.getElementById('bgmPreviewPlayer');
+        if (player) player.volume = bgmState.volume;
+
+        // DB 저장
+        if (projectId) {
+            API.project.updateSetting(projectId, 'bgm_volume', bgmState.volume);
+        }
+    }
+
+    async function handleBgmUpload(input) {
+        if (!input.files || input.files.length === 0) return;
+        const file = input.files[0];
+
+        Utils.showToast('BGM 파일 업로드 중...', 'info');
+
+        // FormData로 서버에 업로드
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('project_id', projectId);
+        formData.append('type', 'bgm');
+
+        try {
+            const res = await fetch('/api/audio/upload-audio', { method: 'POST', body: formData });
+
+            const data = await res.json();
+
+            if (res.ok && data.url) {
+                setBgmSource(data.url, file.name);
+                Utils.showToast('BGM 업로드 완료!', 'success');
+            } else {
+                // 서버 업로드 실패 시 로컬 Object URL로 미리듣기만
+                const objectUrl = URL.createObjectURL(file);
+                setBgmSource(objectUrl, file.name, true);
+                Utils.showToast('서버 저장은 불가하지만 로컬에서 미리들을 수 있습니다.', 'warning');
+            }
+        } catch (e) {
+            // 네트워크 에러 시 로컬 Object URL 사용
+            const objectUrl = URL.createObjectURL(file);
+            setBgmSource(objectUrl, file.name, true);
+        }
+    }
+
+    function applyBgmUrl() {
+        const urlInput = document.getElementById('bgmUrlInput');
+        if (!urlInput || !urlInput.value.trim()) return;
+        const url = urlInput.value.trim();
+        setBgmSource(url, url.split('/').pop() || 'BGM URL');
+    }
+
+    function setBgmSource(url, filename, isLocal = false) {
+        bgmState.url = url;
+        bgmState.enabled = true;
+        bgmState.filename = filename;
+
+        // 상태바 업데이트
+        const label = document.getElementById('bgmFileLabel');
+        const clearBtn = document.getElementById('bgmClearBtn');
+        const player = document.getElementById('bgmPreviewPlayer');
+
+        if (label) {
+            label.textContent = `🎶 ${filename}${isLocal ? ' (로컬만)' : ''}`;
+            label.classList.remove('text-gray-400', 'italic');
+            label.classList.add('text-purple-600', 'font-bold');
+        }
+        if (clearBtn) clearBtn.classList.remove('hidden');
+        if (player) {
+            player.src = url;
+            player.volume = bgmState.volume;
+            player.classList.remove('hidden');
+        }
+
+        // DB 저장 (로컬 Object URL은 임시이므로 저장 안함)
+        if (!isLocal && projectId) {
+            API.project.updateSetting(projectId, 'bgm_url', url);
+        }
+    }
+
+    function clearBgm() {
+        bgmState.url = null;
+        bgmState.enabled = false;
+        bgmState.filename = null;
+
+        const label = document.getElementById('bgmFileLabel');
+        const clearBtn = document.getElementById('bgmClearBtn');
+        const player = document.getElementById('bgmPreviewPlayer');
+
+        if (label) {
+            label.textContent = '설정된 BGM 없음';
+            label.className = 'text-[10px] text-gray-400 flex-1 truncate italic';
+        }
+        if (clearBtn) clearBtn.classList.add('hidden');
+        if (player) {
+            player.src = '';
+            player.classList.add('hidden');
+        }
+
+        if (projectId) {
+            API.project.updateSetting(projectId, 'bgm_url', '');
+        }
+        Utils.showToast('BGM이 제거되었습니다.', 'info');
+    }
+
+    async function loadGeneratedBgmList() {
+        const listEl = document.getElementById('generatedBgmList');
+        if (!listEl || !projectId) return;
+
+        listEl.innerHTML = '<div class="text-[9px] text-gray-400 text-center py-1">로딩 중...</div>';
+
+        try {
+            const res = await fetch(`/api/audio/projects/${projectId}/audio-assets`);
+            if (!res.ok) throw new Error('로드 실패');
+            const data = await res.json();
+            const bgmList = (data.bgm_files || []);
+
+            if (bgmList.length === 0) {
+                listEl.innerHTML = '<div class="text-[9px] text-gray-400 text-center py-1">생성된 BGM 없음 (audio_gen 페이지에서 생성하세요)</div>';
+                return;
+            }
+
+            listEl.innerHTML = bgmList.map((item, i) => `
+                <div class="flex items-center gap-1 p-1 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                     onclick="setBgmSource('${item.url}', '${item.name}')">
+                    <span class="text-[9px] text-gray-500 w-4">${i + 1}</span>
+                    <span class="text-[9px] text-gray-700 dark:text-gray-300 flex-1 truncate">🎶 ${item.name}</span>
+                    <span class="text-[8px] text-gray-400">${item.duration || '?'}s</span>
+                </div>
+            `).join('');
+        } catch (e) {
+            listEl.innerHTML = `<div class="text-[9px] text-red-400">${e.message}</div>`;
+        }
+    }
+
+    function toggleSfx(el) {
+        sfxState.enabled = el.checked;
+        const panel = document.getElementById('sfxPanel');
+        if (panel) {
+            panel.classList.toggle('hidden', !sfxState.enabled);
+        }
+    }
+
+    async function handleSfxUpload(input) {
+        if (!input.files || input.files.length === 0) return;
+        const file = input.files[0];
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('project_id', projectId);
+        formData.append('type', 'sfx');
+
+        try {
+            const res = await fetch('/api/audio/upload-audio', { method: 'POST', body: formData });
+
+            const data = await res.json();
+
+            sfxState.url = (res.ok && data.url) ? data.url : URL.createObjectURL(file);
+            sfxState.filename = file.name;
+
+            const statusEl = document.getElementById('sfxStatusBar');
+            if (statusEl) statusEl.textContent = `🔊 ${file.name}`;
+
+            if (res.ok && data.url && projectId) {
+                API.project.updateSetting(projectId, 'sfx_url', data.url);
+            }
+            Utils.showToast('SFX 설정 완료!', 'success');
+        } catch (e) {
+            Utils.showToast('SFX 업로드 실패: ' + e.message, 'error');
+        }
+    }
+
+    // BGM 설정값 로드 (페이지 로드 시 기존 설정 복원)
+    async function loadBgmSettings() {
+        if (!projectId) return;
+        try {
+            const res = await fetch(`/api/projects/${projectId}/settings`);
+            if (!res.ok) return;
+            const data = await res.json();
+            const s = data.settings || {};
+
+            if (s.bgm_url) {
+                setBgmSource(s.bgm_url, s.bgm_url.split('/').pop() || 'BGM');
+            }
+            if (s.bgm_volume !== undefined) {
+                bgmState.volume = parseFloat(s.bgm_volume) || 0.3;
+                const slider = document.getElementById('bgmVolumeSlider');
+                const label = document.getElementById('bgmVolumeLabel');
+                if (slider) slider.value = Math.round(bgmState.volume * 100);
+                if (label) label.textContent = Math.round(bgmState.volume * 100) + '%';
+            }
+        } catch (e) {
+            console.log('[BGM] Settings load failed:', e.message);
+        }
     }
 </script>
 {% endblock %}

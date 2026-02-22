@@ -10,6 +10,7 @@ import base64
 import os
 import json
 import re
+import database as db
 
 from config import config
 from services.prompts import prompts
@@ -68,7 +69,7 @@ class GeminiService:
             }
         }
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(url, json=payload)
             result = response.json()
 
@@ -76,6 +77,7 @@ class GeminiService:
                 return result["candidates"][0]["content"]["parts"][0]["text"]
             else:
                 error_msg = result.get('error', {}).get('message', str(result))
+                print(f"❌ [Gemini Vision] API Error: {error_msg}")
                 raise Exception(f"Gemini Vision API 오류: {error_msg}")
 
     async def analyze_webtoon_panel(self, image_path: str, context: Optional[str] = None, voice_options: Optional[str] = None) -> dict:
@@ -86,39 +88,45 @@ class GeminiService:
             context_inst = f"\n{context}\n"
 
         prompt = f"""
-        Analyze this webtoon panel image.
+        Analyze this webtoon panel image for High-End AI Video Generation (Wan 2.1).
         {context_inst}
-        1. Extract all text/dialogue in Korean. 
-           **EXCLUDE**: 
-           - Legal notices, copyright warnings (e.g., "※본 작품은 저작권 법에 의해...", "불법 복제 금지"), logo credits, or watermarks.
-           - **Onomatopoeia or stylized sound effect text** (e.g., "쾅!", "털썩", "슈우우", "덜덜"). These are visual sound effects, NOT dialogue.
-           **INCLUDE**: Only actual character speech or narrative text meant to be read aloud.
-        2. Identify who is speaking based on the dialogue and visual context. 
-           - **CRITICAL**: Check the [KNOWN CHARACTERS] list in the context. If the character matches, YOU MUST USE THE EXACT SAME NAME.
-           - Do NOT use generic names like "Man" or "Woman" if they match a known character (e.g. "Hero", "Jin-woo").
-           - If the speaker's name is not explicitly shown, infer it from the context.
-           - Only use 'Unknown' if absolutely impossible to infer. Do NOT use 'None' if there is dialogue.
-        3. Describe the visual action and atmosphere briefly in English.
-           - Append specific Camera Movement keywords at the end. (e.g., "[Camera: Zoom in]", "[Camera: Pan left]", "[Camera: Static]")
-        4. Suggest appropriate sound effects (SFX) for this scene (e.g., Boom, Rain, Footsteps, Crowd noise).
-        5. **focal_point_y**: A normalized value (float 0.0 to 1.0) indicating the vertical center of the most important subject (e.g., character's eyes/face, main object).
-           - 0.0 is top, 1.0 is bottom.
-           - This will be used to crop tall vertical panels without cutting through heads or waists.
-        6. **is_meaningless**: Set to true if this image contains NO story content.
+
+        [CORE PRODUCTION RULES (MUST FOLLOW)]
+        0. Base Master Setting (Common for all cuts):
+           "Vertical cinematic animation, 9:16 aspect ratio, 1080x1920, smooth camera movement, subtle parallax depth effect, soft volumetric lighting, atmospheric particles, high quality anime webtoon style, dramatic color grading, film grain subtle, slow cinematic motion, emotional pacing."
+        
+        1. Cut Type Classification & Motion Guide:
+           - VERTICAL LONG (Action/Chapel/Drop): Purpose "Show Space". -> Action: "Slow upward/downward camera pan, 2.5D depth parallax, foreground separation, glowing light rays."
+           - HORIZONTAL WIDE (Dialogue/Close-up): Method "Outpainting extension" or "Cinema Crop". -> Action: "Focus on facial expression, slow push-in, soft rim light, cinematic depth of field."
+           - SMALL/EMPTY: Method "Fill Space". -> Action: "Place center, extend matching background, slow cinematic zoom, minimal motion, elegant tone."
+        
+        2. Context-Specific Add-ons:
+           - Battle: "embers floating, dynamic light flicker, slight camera shake."
+           - Divine: "holy golden light beams, divine glow, soft bloom effect."
+           - Emotion: "slow zoom-in toward eyes, soft light, subtle breathing motion."
+
+        [TASKS]
+        1. Extract Dialogue in Korean (Exclude legal/watermarks/sfx-text).
+        2. Identify Character (Check context characters).
+        3. Determine Cut Category (Long, Wide, or Small).
+        4. Generate **motion_desc**: 
+           - MANDATORY: Include the Base Master Setting (0).
+           - Combine with Category Guide (1) and Scene Add-ons (2).
+           - Describe secondary animations (hair blowing, embers, etc.).
+        5. Suggest SFX & BGM mood.
 
         Return ONLY a JSON object in this format:
         {{
-            "dialogue": "extracted speech text here (empty if only SFX/copyright/logo)",
-            "character": "speaker name or 'Unknown'",
+            "cut_type": "Long | Wide | Small",
+            "dialogue": "Korean text",
+            "character": "speaker name",
             "visual_desc": "brief visual description in English",
-            "motion_desc": "DETAILED description for AI Video Generation (Wan 2.1). Focus on movement (e.g. 'Hair blowing in wind', 'Fire flickering', 'Tears falling', 'Sword swinging'). ALSO include Camera Movement (e.g. 'Slow Pan Down along the body', 'Reviewing from top to bottom').",
-            "atmosphere": "e.g. dramatic, funny, scary",
-            "sound_effects": "suggested SFX list (comma separated) or 'None'",
+            "motion_desc": "FULL PRODUCTION PROMPT: [Base Master Settings] + [Cut-Specific Motion Guide] + [Scene Action Details]. Make it a single, fluid cinematic prompt in English for Wan 2.1 Video AI.",
             "focal_point_y": 0.5,
-            "is_meaningless": false,
-            "voice_recommendation": {{ "id": "voice_id_here", "name": "voice_name_here", "reason": "reason" }},
-            "voice_settings": {{ "stability": 0.5, "similarity_boost": 0.75, "speed": 1.0, "reason": "why this tone?" }},
-            "audio_direction": {{ "sfx_prompt": "detailed english description for sound generation", "bgm_mood": "e.g. suspense, happy, sad", "has_sfx": true }}
+            "atmosphere": "mood",
+            "sound_effects": "comma separated sfx",
+            "voice_recommendation": {{ "id": "voice_id", "name": "voice_name", "reason": "reason" }},
+            "audio_direction": {{ "sfx_prompt": "details for sound gen", "bgm_mood": "mood", "has_sfx": true }}
         }}
         """
         
@@ -162,7 +170,13 @@ class GeminiService:
             with open(image_path, "rb") as f:
                 img_bytes = f.read()
             
-            response_text = await self.generate_text_from_image(prompt, img_bytes, mime_type="image/jpeg")
+            # [FIX] 확장자에 따라 mime_type 자동 감지 (PNG를 JPEG로 잘못 보내면 API 오류 발생)
+            ext = os.path.splitext(image_path)[1].lower()
+            mime_map = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp'}
+            mime_type = mime_map.get(ext, 'image/jpeg')
+            print(f"🔍 [Gemini] Analyzing panel: {os.path.basename(image_path)} (mime: {mime_type})")
+            
+            response_text = await self.generate_text_from_image(prompt, img_bytes, mime_type=mime_type)
             print(f"DEBUG: Gemini RAW response for panel: {response_text[:400]}...")
 
             print(f"DEBUG: Gemini RAW response for panel: {response_text[:300]}...")
@@ -215,101 +229,72 @@ class GeminiService:
             else:
                 sc = s.dict() if hasattr(s, 'dict') else vars(s)
             
-            # [CRITICAL] Fake Description Injection with VARIETY
-            # 정보가 족할 때 획일적인 'Pan Down'만 나오지 않도록, 가짜 묘사를 상황별로 다르게 주입하여
-            # Gemini가 다양한 연출(Wan, Zoom, Shake 등)을 제안하도록 유도함.
-            raw_desc = str(sc.get('visual_desc') or '')
-            
-            # 정보가 정말 없거나 분석 실패인 경우
-            if not raw_desc or "Analysis failed" in raw_desc or len(raw_desc) < 5:
-                 import random
-                 idx = sc.get('idx', 0)
-                 
-                 # 씬 번호 기반으로 다양성 부여 (단순 랜덤은 아님)
-                 styles = [
-                     ("Dynamic Action", "Intense movement, sparks flying, high tension.", "Mysterious"),
-                     ("Emotional Close-up", "Character's face showing deep emotion, tears or anger.", "Sad/Angry"),
-                     ("Wide Atmosphere", "A vast landscape with weather effects like rain or wind.", "Grand"),
-                     ("Shocking Twist", "Sudden impact, screen shaking, dramatic zoom.", "Tense")
-                 ]
-                 
-                 # 씬 호에 따라 스타일 순환
-                 style_name, style_desc, style_mood = styles[idx % len(styles)]
-                 
-                 fake_desc = f"A {style_name} webtoon panel. {style_desc}"
-                 d_text = sc.get('dialogue', '')
-                 if d_text: fake_desc += f" Characters are saying: '{d_text}'"
-                 
-                 sc['visual_desc'] = fake_desc
-                 sc['atmosphere'] = style_mood
-
-                
             scenes_preview.append({
+                "idx": sc.get("idx", 0),
                 "scene_number": sc.get("scene_number"),
                 "dialogue": sc.get("dialogue"),
                 "visual_desc": sc.get("visual_desc"),
                 "character": sc.get("character"),
-                "sound_effects": sc.get("sound_effects")
+                "scene_type": sc.get("scene_type", "3") # User classified type
             })
             
         scenes_json = json.dumps(scenes_preview, ensure_ascii=False)
         
-        prompt = f"""
-        # ROLE: Hollywood Trailer Editor & VFX Supervisor
-        You are creating a high-end cinematic video plan based on webtoon scenes.
-        Your goal is to transform static images into a dynamic, immersive video experience using advanced AI video generation tools (Wan 2.1).
-
-        [INPUT DATA]
-        {scenes_json}
-
-        [CRITICAL INSTRUCTION FOR 'motion_desc']
-        The 'motion_desc' field is the DIRECT PROMPT for the AI Video Generator (Wan 2.1).
-        It MUST be highly detailed, creative, and written in ENGLISH.
+        # [NEW] Load prompt from Settings
+        prompt_template = db.get_global_setting("webtoon_plan_prompt", "")
         
-        DO NOT use generic terms like "moving", "animated", or "talking".
-        Instead, use "cinematic vocabulary" to describe:
-        1. **Micro-Motions**: "Subtle eye trembling", "Hair gently swaying in wind", "Fists clenching", "Tears welling up", "Chest heaving with breath".
-        2. **Camera Movement**: "Slow dolly zoom", "Handheld camera shake", "Low angle tilt up", "Rapid crash zoom", "Smooth tracking shot".
-        3. **Atmosphere & Lighting**: "Dust particles floating in god rays", "Flickering neon lights in background", "Dark ominous shadows stretching", "Sparks flying from fire".
-        4. **Action**: "Explosive debris flying", "Sword slashing with motion blur", "Magic energy swirling spirally".
+        if not prompt_template or len(prompt_template.strip()) < 10:
+            prompt_template = """
+        # ROLE: Hollywood Trailer Editor & VFX Supervisor
+        You are creating a high-end cinematic video production plan for a webtoon.
+        Follow the [USER CINEMATIC MASTER GUIDE] strictly when generating specifications for each scene.
 
-        [SCENE ANALYSIS GUIDELINES]
-        - **Contextual Inference**: If the dialogue is angry, add "Camera shaking, intense red lighting, joyful sparks". If sad, "Slow rain falling, gloomy blue filter".
-        - **Vertical Images**: IF the image is vertical (portrait), you MUST use 'pan_down' or 'pan_up' to reveal the full content.
-        - **Static Dialogue**: IF the scene is just talking, add "Subtle breathing motion, blinking eyes, natural head movement" to keep it alive.
-        - **Audio Direction**: Suggest immersive Sound Effects (SFX) and Background Music (BGM) that match the visual intensity. 
-          sfx_prompt should include specific sounds (e.g., "Heavy footsteps on metal").
-          bgm_mood should describe the tone (e.g., "Tense orchestral").
-          **CRITICAL**: For 'sfx_prompt' or 'bgm_mood', NEVER return "None" or "null". If silent, use "Silence".
-        - **Voice Recommendations (CONSISTENCY IS LAW)**: 
-          - **NEVER** use "Silence" or "None" as a voice_name. 
-          - The SAME character MUST use the EXACT SAME voice name in every scene they appear.
-          - DO NOT mix voices for the same person (e.g., No switching between Adam and Josh).
-          - **NARRATOR (내레이션)**: ALWAYS use "Brian".
+        [INPUT DATA (JSON SCENES)]
+        [[SCENES_JSON]]
+
+        [USER CINEMATIC MASTER GUIDE (STRICT ADHERENCE)]
+        0. Base Master Setting (Common for ALL cuts):
+           "Vertical cinematic animation, 9:16 aspect ratio, 1080x1920, smooth camera movement, subtle parallax depth effect, soft volumetric lighting, atmospheric particles, high quality anime webtoon style, dramatic color grading, film grain subtle, slow cinematic motion, emotional pacing."
+
+        1. Production Types (scene_type):
+           - TYPE 1 (Vertical Long): "Show Space" -> slow upward/downward camera pan, 2.5D depth parallax, foreground separation, glowing light rays.
+           - TYPE 2 (Horizontal Wide): "Outpainting or Cinema Crop" -> Expand background to 9:16 or Vertical Crop focusing on faces/eyes, slow push-in, soft rim light.
+           - TYPE 3 (Small/Empty): "Fill Space" -> Place center, extend matching background, slow cinematic zoom, minimal motion.
+           - TYPE 4 (Transition): "Consistency" -> Fade with particles, slow cross-dissolve, motion blur.
+           - TYPE 5 (PSD Depth): "3D Illusion" -> Separate foreground/mid/background, strong parallax, 3D camera move.
+           - TYPE 6 (Unified Tone): High-end animated trailer look, soft contrast, warm highlights.
+
+        [CORE INSTRUCTIONS]
+        1. **overall_strategy**: Summarize the production direction in Korean.
+        2. **bgm_style**: Recommend BGM style in Korean.
+        3. **scene_specifications**: For each scene, generate:
+           - **scene_number**: The number from input.
+           - **engine**: "wan" (motion), "akool" (lipsync), or "image" (2D).
+           - **effect**: "pan_down", "pan_up", "zoom_in", "zoom_out", "static".
+           - **motion**: FULL CINEMATIC PROMPT in English. Combine Master Setting (0) + Type Specific Guide (1-6) + Scene Context.
+           - **rationale**: Why this choice (e.g., "Tall image detected, using Type 1 Pan Down").
+           - **cropping_advice**: How to frame to 9:16 without losing key info (Korean).
 
         [OUTPUT FORMAT (JSON ONLY)]
-        {{
+        {
             "overall_strategy": "Overall direction summary (Korean)",
             "bgm_style": "Recommended BGM style (Korean)",
-            "character_plan": [ ... ],
-            "scene_plans": [
-                {{
+            "scene_specifications": [
+                {
                     "scene_number": 1,
-                    "engine": "image" | "wan" | "akool",
-                    "effect": "zoom_in" | "zoom_out" | "pan_left" | "pan_right" | "tilt_up" | "tilt_down" | "pan_down" | "pan_up" | "static" | "shake",
-                    "motion_desc": "HIGHLY DETAILED ENGLISH PROMPT. (e.g., 'Cinematic extreme close-up of eye, pupil dilating, intense fear, camera slowly zooming in, dark moody lighting')",
-                    "rationale": "Reason for direction (Korean). Focus on emotional impact.",
-                    "sfx_priority": "High" | "Normal",
-                    "cropping_advice": "Composition advice (Korean)",
-                    "voice_name": "ElevenLabs Voice Name (e.g. Rachel, Adam, Josh, Dorothy, Nicole, Fin)",
-                    "audio_direction": {{
-                        "sfx_prompt": "Detailed English SFX prompt for ElevenLabs generation (e.g. 'Swords clashing with sparks, metallic ringing')",
-                        "bgm_mood": "Mood description for BGM (e.g. 'Epic battle orchestral, fast pace')" 
-                    }}
-                }}
+                    "engine": "wan | akool | image",
+                    "effect": "zoom_in | pan_down | ...",
+                    "motion": "Detailed cinematic prompt in English",
+                    "rationale": "Reason for this setup (Korean)",
+                    "cropping_advice": "Advice for 9:16 framing (Korean)"
+                }
             ]
-        }}
+        }
+        
+        **IMPORTANT**: For NARRATOR (내레이션), always use the voice 'Brian'. Same character = Same voice.
         """
+
+        prompt = prompt_template.replace("[[SCENES_JSON]]", scenes_json)
         
         try:
             text = await self.generate_text(prompt, temperature=0.7)
@@ -322,10 +307,10 @@ class GeminiService:
                     return json.loads(json_match.group())
                 except:
                     pass
-            return {{ "overall_strategy": "Plan parsing failed", "raw": text }}
+            return { "overall_strategy": "Plan parsing failed", "raw": text, "scene_specifications": [] }
         except Exception as e:
             print(f"Plan Generation Error: {e}")
-            return {{ "overall_strategy": f"Error: {str(e)}" }}
+            return { "overall_strategy": f"Error: {str(e)}", "scene_specifications": [] }
 
     async def generate_image(
         self,
@@ -1411,6 +1396,243 @@ class GeminiService:
                 return {"error": "JSON Parsing Failed", "raw": text}
         except Exception as e:
             return {"error": str(e)}
+
+    # ============================================================
+    # [NEW] Level 2: Gemini Vision 기반 자산 유형 자동 분류
+    # ============================================================
+
+    # 유형 → 효과 매핑 테이블
+    ASSET_EFFECT_MAP = {
+        "tall_scene":   "pan_down",   # 세로로 긴 단일 장면 → Full-travel pan down
+        "comic_panel":  "split_zoom", # 만화/웹툰 컷 모음 → 컷별 순차 zoom-in
+        "fast_cut":     "none",       # 빠른 컷 편집 영상 → 효과 없음 (그대로)
+        "normal":       "ken_burns",  # 일반 이미지/영상 → Ken Burns zoom
+    }
+
+    async def classify_asset_type(
+        self,
+        asset_path: str,
+        extra_hint: str = ""
+    ) -> dict:
+        """
+        [Level 2] 이미지 또는 영상 파일을 Gemini Vision으로 분석하여
+        유형과 권장 영상 효과를 반환합니다.
+
+        Parameters:
+            asset_path: 이미지(.jpg/.png) 또는 영상(.mp4/.mov) 파일 경로
+            extra_hint: 추가 힌트 텍스트 (예: "웹툰 컷이 포함된 이미지")
+
+        Returns:
+            {
+                "asset_type": "tall_scene" | "comic_panel" | "fast_cut" | "normal",
+                "recommended_effect": "pan_down" | "split_zoom" | "none" | "ken_burns",
+                "confidence": 0.0 ~ 1.0,
+                "reason": "분류 이유 설명",
+                "aspect_ratio_hint": "tall" | "wide" | "square",  # 규칙 기반 보조 정보
+                "source": "gemini" | "rule_based" | "fallback"
+            }
+        """
+        import os
+
+        if not os.path.exists(asset_path):
+            return self._classify_fallback("파일 없음")
+
+        ext = os.path.splitext(asset_path)[1].lower()
+        is_video = ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm']
+
+        # --- Step 1: 규칙 기반 선처리 (빠른 필터) ---
+        rule_result = self._classify_by_rules(asset_path, is_video)
+        if rule_result.get("confidence", 0) >= 0.95:
+            # 규칙으로 충분히 확신하면 Gemini 호출 생략
+            print(f"🔍 [Level1 Rule] {os.path.basename(asset_path)} → {rule_result['asset_type']} (conf={rule_result['confidence']:.2f})")
+            return rule_result
+
+        # --- Step 2: 이미지/프레임 추출 ---
+        try:
+            image_bytes, mime_type = self._extract_frame_bytes(asset_path, is_video)
+        except Exception as e:
+            print(f"⚠️ [Classify] Frame extraction failed: {e}")
+            return rule_result if rule_result else self._classify_fallback(str(e))
+
+        # --- Step 3: Gemini Vision 분류 ---
+        hint_text = f"\n추가 힌트: {extra_hint}" if extra_hint else ""
+        prompt = f"""아래 이미지를 분석하여 영상 제작 용도로 사용할 자산 유형을 정확히 분류해주세요.{hint_text}
+
+분류 기준:
+1. **tall_scene**: 세로로 매우 긴 단일 장면 이미지/영상 (위아래로 스크롤해서 봐야 하는 구조, 만화 칸 없이 하나의 장면이 이어짐)
+2. **comic_panel**: 웹툰/만화처럼 여러 컷(칸)이 격자나 수직으로 나열된 이미지 (각 컷 사이에 여백이나 테두리가 있음)
+3. **fast_cut**: 빠르게 여러 장면이 교차 편집된 영상 (이미 역동적 편집이 포함됨)
+4. **normal**: 일반적인 사진/일러스트/AI 생성 이미지 (16:9, 1:1, 9:16 비율의 단일 장면)
+
+**반드시 아래 JSON 형식으로만 답하세요** (다른 텍스트 없이):
+{{"asset_type": "tall_scene|comic_panel|fast_cut|normal", "confidence": 0.0~1.0, "reason": "한 줄 이유"}}"""
+
+        try:
+            raw = await self.generate_text_from_image(prompt, image_bytes, mime_type)
+            parsed = self._parse_json_from_text(raw)
+
+            asset_type = parsed.get("asset_type", "normal")
+            # 유효한 타입인지 검증
+            if asset_type not in self.ASSET_EFFECT_MAP:
+                asset_type = "normal"
+
+            confidence = float(parsed.get("confidence", 0.7))
+            reason = parsed.get("reason", "")
+
+            # 규칙 기반 결과와 Gemini 결과가 충돌하면 confidence 낮춤
+            if rule_result.get("asset_type") and rule_result["asset_type"] != asset_type:
+                confidence = min(confidence, 0.65)
+                reason += f" [규칙 기반: {rule_result['asset_type']}와 상충]"
+
+            result = {
+                "asset_type": asset_type,
+                "recommended_effect": self.ASSET_EFFECT_MAP.get(asset_type, "ken_burns"),
+                "confidence": confidence,
+                "reason": reason,
+                "aspect_ratio_hint": rule_result.get("aspect_ratio_hint", "unknown"),
+                "source": "gemini"
+            }
+            print(f"🤖 [Level2 Gemini] {os.path.basename(asset_path)} → {asset_type} (conf={confidence:.2f}) | {reason}")
+            return result
+
+        except Exception as e:
+            print(f"⚠️ [Classify] Gemini failed: {e}. Using rule result.")
+            return rule_result if rule_result else self._classify_fallback(str(e))
+
+    def _classify_by_rules(self, asset_path: str, is_video: bool) -> dict:
+        """규칙 기반 선분류 (빠른 메타데이터 분석)"""
+        import os
+        try:
+            if is_video:
+                # 영상: ffprobe로 해상도 조회
+                import subprocess
+                import imageio_ffmpeg
+                ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+                probe_exe = ffmpeg_exe.replace("ffmpeg", "ffprobe")
+                startupinfo = None
+                if os.name == 'nt':
+                    startupinfo = subprocess.STARTUPINFO()
+                    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                result = subprocess.run(
+                    [probe_exe, "-v", "error", "-select_streams", "v:0",
+                     "-show_entries", "stream=width,height,duration",
+                     "-of", "csv=p=0", asset_path],
+                    capture_output=True, text=True, startupinfo=startupinfo
+                )
+                parts = result.stdout.strip().split(",")
+                w, h = int(parts[0]), int(parts[1])
+                dur = float(parts[2]) if len(parts) > 2 else 0.0
+            else:
+                # 이미지: PIL로 해상도 조회
+                from PIL import Image
+                img = Image.open(asset_path)
+                w, h = img.size
+                dur = 0.0
+
+            ratio = h / w if w > 0 else 1.0
+
+            # 종횡비 기반 분류
+            if ratio >= 2.0:
+                # 세로 2배 이상 → tall_scene 확신
+                return {
+                    "asset_type": "tall_scene",
+                    "recommended_effect": "pan_down",
+                    "confidence": 0.95,
+                    "reason": f"종횡비 {ratio:.2f} ≥ 2.0 → 세로로 긴 장면",
+                    "aspect_ratio_hint": "tall",
+                    "source": "rule_based"
+                }
+            elif ratio >= 1.5:
+                # 세로 이미지 (일반 9:16 등) → Gemini에 위임
+                return {
+                    "asset_type": "normal",
+                    "recommended_effect": "ken_burns",
+                    "confidence": 0.5,
+                    "reason": f"종횡비 {ratio:.2f} (세로형, 추가 분석 필요)",
+                    "aspect_ratio_hint": "tall",
+                    "source": "rule_based"
+                }
+            elif ratio < 0.7:
+                # 가로로 긴 이미지
+                return {
+                    "asset_type": "normal",
+                    "recommended_effect": "ken_burns",
+                    "confidence": 0.7,
+                    "reason": f"종횡비 {ratio:.2f} → 가로 이미지",
+                    "aspect_ratio_hint": "wide",
+                    "source": "rule_based"
+                }
+            else:
+                # 정사각형에 가까운 비율 → 판단 보류
+                return {
+                    "asset_type": "normal",
+                    "recommended_effect": "ken_burns",
+                    "confidence": 0.4,
+                    "reason": f"종횡비 {ratio:.2f} → 일반",
+                    "aspect_ratio_hint": "square",
+                    "source": "rule_based"
+                }
+        except Exception as e:
+            return self._classify_fallback(str(e))
+
+    def _extract_frame_bytes(self, asset_path: str, is_video: bool) -> tuple:
+        """이미지/영상에서 분석용 이미지 바이트 추출"""
+        import os
+        if is_video:
+            # 영상: 첫 프레임 추출 (ffmpeg)
+            import subprocess
+            import tempfile
+            import imageio_ffmpeg
+            ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+                frame_path = tmp.name
+            startupinfo = None
+            if os.name == 'nt':
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            subprocess.run([
+                ffmpeg_exe, "-y", "-i", asset_path,
+                "-vframes", "1", "-q:v", "2", frame_path
+            ], check=True, capture_output=True, startupinfo=startupinfo)
+            with open(frame_path, "rb") as f:
+                data = f.read()
+            os.remove(frame_path)
+            return data, "image/jpeg"
+        else:
+            # 이미지: 단순 읽기 (크기 제한 적용)
+            from PIL import Image
+            import io
+            img = Image.open(asset_path).convert("RGB")
+            # 너무 크면 축소 (Gemini 용량 제한 고려)
+            max_dim = 1024
+            if max(img.size) > max_dim:
+                img.thumbnail((max_dim, max_dim), Image.LANCZOS)
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=85)
+            ext = os.path.splitext(asset_path)[1].lower()
+            mime = "image/png" if ext == ".png" else "image/jpeg"
+            return buf.getvalue(), mime
+
+    def _classify_fallback(self, reason: str = "") -> dict:
+        """분류 실패 시 안전한 기본값 반환"""
+        return {
+            "asset_type": "normal",
+            "recommended_effect": "ken_burns",
+            "confidence": 0.0,
+            "reason": f"분류 실패 (fallback): {reason}",
+            "aspect_ratio_hint": "unknown",
+            "source": "fallback"
+        }
+
+    def _parse_json_from_text(self, text: str) -> dict:
+        """텍스트에서 JSON 추출"""
+        import json
+        import re
+        json_match = re.search(r'\{[\s\S]*\}', text)
+        if json_match:
+            return json.loads(json_match.group())
+        return {}
+
 
 # 싱글톤 인스턴스
 gemini_service = GeminiService()

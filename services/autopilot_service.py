@@ -5,6 +5,7 @@ import os
 import random
 from datetime import datetime, timedelta
 import httpx
+from typing import List, Dict, Union, Optional, Any
 from config import config
 import database as db
 from services.gemini_service import gemini_service
@@ -226,7 +227,16 @@ class AutoPilotService:
             print(f"✨ [Auto-Pilot] 작업 완료! (ID: {project_id}, Time: {duration_str})")
 
         except Exception as e:
+            import traceback
+            err_details = traceback.format_exc()
             print(f"❌ [Auto-Pilot] 오류 발생: {e}")
+            print(err_details)
+            
+            try:
+                with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
+                    df.write(f"[{datetime.now()}] ❌ [Auto-Pilot] CRITICAL ERROR in run_workflow:\n{err_details}\n")
+            except: pass
+            
             db.update_project(project_id, status="error")
 
     async def _extract_characters(self, project_id: int, script_text: str, config_dict: dict = None):
@@ -860,6 +870,17 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             if not image_url: continue
             image_abs_path = os.path.join(config.OUTPUT_DIR, image_url.replace("/output/", ""))
             
+            # [FIX] Skip re-generation if video already exists (e.g. generated on image gen page)
+            existing_video_url = p.get("video_url")
+            if existing_video_url:
+                existing_video_path = os.path.join(config.OUTPUT_DIR, existing_video_url.replace("/output/", ""))
+                if os.path.exists(existing_video_path):
+                    print(f"  ⏭️ [Auto-Pilot] Scene {scene_num}: Video already exists → SKIP re-generation. ({os.path.basename(existing_video_path)})")
+                    continue  # Use existing video, don't regenerate
+                else:
+                    print(f"  ⚠️ [Auto-Pilot] Scene {scene_num}: video_url set but file missing → Regenerating.")
+
+            
             now = config.get_kst_time()
             
             # [Smart Engine Switch]
@@ -891,12 +912,22 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                     # Motion type determined by manual override or default 'zoom_in'
                     motion_type = p_settings.get(f"scene_{scene_num}_motion", "zoom_in")
                     
+                    # [NEW] Webtoon Settings from DB (Global Preference)
+                    # p_settings might have project specific override, but for now we trust Global Settings
+                    # Default: True
+                    w_auto = db.get_global_setting("webtoon_auto_split", True, value_type="bool")
+                    w_pan = db.get_global_setting("webtoon_smart_pan", True, value_type="bool")
+                    w_zoom = db.get_global_setting("webtoon_convert_zoom", True, value_type="bool")
+
                     # Create 2D Motion Video
                     motion_bytes = await video_service.create_image_motion_video(
                         image_path=image_abs_path,
                         duration=video_duration,
                         motion_type=motion_type,
-                        width=1080, height=1920 # Default vertical shorts
+                        width=1080, height=1920, # Default vertical shorts
+                        auto_split=w_auto,
+                        smart_pan=w_pan,
+                        convert_zoom=w_zoom
                     )
                     
                     if motion_bytes:
@@ -906,33 +937,52 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                         db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
                     continue
 
-                # [SPECIAL] 만약 Wan 모드이고 매뉴얼 효과가 있으면 프롬프트 보강
-                base_visual = p.get('prompt_en') or p.get('visual_desc') or "Cinematic motion"
+                # [USER MASTER SETTING APPLIED]
+                # GEMINI가 분석한 motion_desc(사용자 원칙이 반영된 상세 지침)를 우선 사용
+                base_visual = p.get('motion_desc') or p.get('prompt_en') or p.get('visual_desc') or "Cinematic motion"
                 manual_motion_desc = p_settings.get(f"scene_{scene_num}_motion_desc")
                 
                 if local_engine == "wan":
                     if manual_motion_desc:
-                        # 사용자/AI가 지정한 구체적인 움직임(예: 불길이 활활 타오름)이 있으면 이를 우선시
+                        # 사용자가 수동으로 입력한 모션 묘사가 있으면 결합
                         final_prompt = f"{base_visual}, {manual_motion_desc}"
-                        print(f"🔥 [Wan Content Motion] Scene {scene_num}: {manual_motion_desc}")
+                        print(f"🔥 [Wan Content Motion Override] Scene {scene_num}: {manual_motion_desc}")
                     else:
-                        final_prompt = f"{base_visual}, smooth motion"
+                        # AI가 생성한 motion_desc를 그대로 사용 (이미 충분히 상세함)
+                        final_prompt = base_visual
+                        print(f"🎬 [Wan Production Prompt] Scene {scene_num}: {final_prompt[:100]}...")
                     
                     # 카메라 이동 추가
                     manual_motion = p_settings.get(f"scene_{scene_num}_motion")
                     if manual_motion:
+                        # [NEW] Webtoon Motion Prompt Integration
+                        # Retrieve custom prompts from Global Settings
+                        w_pan_prompt = db.get_global_setting("webtoon_motion_pan", "Slow upward cinematic camera pan, subtle 2.5D parallax depth effect, soft volumetric lighting, floating dust particles, epic dramatic atmosphere, smooth motion, no distortion")
+                        w_zoom_prompt = db.get_global_setting("webtoon_motion_zoom", "Slow push-in camera movement, focus on character’s eyes, subtle breathing motion, soft rim lighting, cinematic depth of field, emotional atmosphere")
+                        w_action_prompt = db.get_global_setting("webtoon_motion_action", "Strong parallax effect, embers floating in the air, light flicker from fire, slight cinematic camera shake, intense dramatic lighting, high energy atmosphere")
+
+                        # Map standard motion keys to Webtoon Styles
                         motion_map = {
-                            "zoom_in": "dramatic zoom in",
-                            "zoom_out": "dramatic zoom out",
+                            "zoom_in": w_zoom_prompt,
+                            "zoom_out": "dramatic zoom out", # Keep generic for now or map to zoom?
                             "pan_left": "cinematic pan left",
                             "pan_right": "cinematic pan right",
-                            "tilt_up": "cinematic tilt up",
-                            "tilt_down": "cinematic tilt down",
-                            "shake": "handheld camera shake"
+                            "pan_up": w_pan_prompt, # Map 'pan_up' to Vertical Pan style
+                            "pan_down": w_pan_prompt, # Map 'pan_down' to Vertical Pan style
+                            "tilt_up": w_pan_prompt,
+                            "tilt_down": w_pan_prompt,
+                            "shake": w_action_prompt, # Map 'shake' to Action style
+                            "action": w_action_prompt, # Explicit 'action' key if used
+                            "dynamic": w_action_prompt
                         }
+
                         if manual_motion in motion_map:
-                            final_prompt += f", {motion_map[manual_motion]}"
-                            print(f"🎬 [Wan Camera Move] Scene {scene_num}: {manual_motion}")
+                            selected_prompt = motion_map[manual_motion]
+                            final_prompt += f", {selected_prompt}"
+                            print(f"🎬 [Wan Camera Move] Scene {scene_num}: {manual_motion} -> {selected_prompt[:50]}...")
+                        else:
+                            # Fallback for unmapped standard motions
+                            final_prompt += f", {manual_motion.replace('_', ' ')} motion"
                 else:
                     final_prompt = base_visual
                 print(f"🤖 [Auto-Switch] Scene {scene_num}: Dialogue={has_dialogue} -> Engine={local_engine}")
@@ -957,27 +1007,73 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                             local_engine = "wan" # Fallback to Wan on Akool error
                 
                     # Wan / Replicate (Enhanced for Camera Moves)
-                    try:
-                        print(f"📹 [Auto-Pilot] Generating Wan Video for Scene {scene_num}")
-                        video_data = await replicate_service.generate_video_from_image(
-                            image_abs_path, 
-                            prompt=final_prompt,
-                            duration=video_duration,
-                            method=motion_method
-                        )
-                        if video_data:
-                            filename = f"vid_wan_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.mp4"
-                            out = os.path.join(config.OUTPUT_DIR, filename)
-                            with open(out, 'wb') as f: f.write(video_data)
-                            db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
-                            with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
-                                df.write(f"[{datetime.now()}] ✅ Successfully generated Wan video for Scene {scene_num}\n")
-                    except Exception as wan_e:
-                        # [STRICT QUALITY CONTROL] User demands High-End Motion (Wan 2.1).
-                        # Do NOT fall back to static 2D motion. Raise error to stop process until credits are refilled.
-                        err_msg = f"❌ [Wan] Critical Error: {wan_e} (Likely Insufficient Credits). Process halted to preserve quality."
-                        print(err_msg)
-                        raise wan_e # Rethrow to stop autopilot
+                    # [NEW] Dual Engine Support: Check User Preference
+                    preferred_engine = p_settings.get("video_engine", "wan") # 'wan' or 'akool'
+                    
+                    if preferred_engine == "akool":
+                        try:
+                            print(f"📹 [Auto-Pilot] Generating Video via Akool I2V for Scene {scene_num}")
+                            video_data = await akool_service.generate_i2v(image_abs_path, final_prompt)
+                            
+                            if video_data:
+                                filename = f"vid_akool_i2v_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.mp4"
+                                out = os.path.join(config.OUTPUT_DIR, filename)
+                                with open(out, 'wb') as f: f.write(video_data)
+                                db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
+                                print(f"✅ [Akool] I2V Success for Scene {scene_num}")
+                            else:
+                                raise Exception("Empty data returned from Akool I2V")
+                                
+                        except Exception as ak_i2v_e:
+                            print(f"⚠️ [Akool] I2V Failed: {ak_i2v_e}. Fallback to Replicate(Wan)...")
+                            # Fallback logic below (it will flow into Replicate block if we structure it right, 
+                            # or we duplicate call here. Let's redirect to Replicate block)
+                            preferred_engine = "wan" 
+
+                    if preferred_engine == "wan":
+                        # [FIX] Skip Wan for Vertical Pan scenes (preserve aspect ratio)
+                        manual_motion = p_settings.get(f"scene_{scene_num}_motion")
+                        if manual_motion in ["pan_down", "pan_up", "vertical_pan"]:
+                            print(f"⏩ [Auto-Pilot] Scene {scene_num} is Vertical Pan ({manual_motion}). Skipping Wan to preserve full resolution.")
+                            continue
+
+                        try:
+                            print(f"📹 [Auto-Pilot] Generating Wan Video for Scene {scene_num}")
+                            
+                            # [FIX] Use full original image for Wan 2.1 if available (prevents character cropping)
+                            wan_asset_filename = p_settings.get(f"scene_{scene_num}_wan_image", "")
+                            if wan_asset_filename:
+                                wan_asset_dir = os.path.join(config.OUTPUT_DIR, str(project_id), "assets", "image")
+                                wan_image_path = os.path.join(wan_asset_dir, wan_asset_filename)
+                                if os.path.exists(wan_image_path):
+                                    print(f"  🎯 [Wan] Using FULL original image: {wan_asset_filename}")
+                                    wan_source_path = wan_image_path
+                                else:
+                                    wan_source_path = image_abs_path
+                                    print(f"  ⚠️ [Wan] wan_asset not found, fallback to sliced: {os.path.basename(image_abs_path)}")
+                            else:
+                                wan_source_path = image_abs_path
+                                print(f"  ℹ️ [Wan] No wan_asset configured. Using sliced panel: {os.path.basename(image_abs_path)}")
+                            
+                            video_data = await replicate_service.generate_video_from_image(
+                                wan_source_path, 
+                                prompt=final_prompt,
+                                duration=video_duration,
+                                method=motion_method
+                            )
+                            if video_data:
+                                filename = f"vid_wan_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.mp4"
+                                out = os.path.join(config.OUTPUT_DIR, filename)
+                                with open(out, 'wb') as f: f.write(video_data)
+                                db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
+                                with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
+                                    df.write(f"[{datetime.now()}] ✅ Successfully generated Wan video for Scene {scene_num}\n")
+                        except Exception as wan_e:
+                            # [STRICT QUALITY CONTROL] User demands High-End Motion (Wan 2.1).
+                            # Do NOT fall back to static 2D motion. Raise error to stop process until credits are refilled.
+                            err_msg = f"❌ [Wan] Critical Error: {wan_e} (Likely Insufficient Credits). Process halted to preserve quality."
+                            print(err_msg)
+                            raise wan_e # Rethrow to stop autopilot
             except Exception as ve:
                 err_msg = f"⚠️ [Auto-Pilot] Video generation failed for Scene {scene_num}: {ve}"
                 print(err_msg)
@@ -1233,19 +1329,69 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
         images = []
         sorted_prompts = sorted(images_data, key=lambda x: x.get('scene_number', 0))
         for img in sorted_prompts:
-            # Priority: video_url (motion video) > image_url (static image)
-            best_url = img.get("video_url") or img.get("image_url")
-            if not best_url: 
-                continue
-            # Convert web path to absolute path
-            if best_url.startswith("/output/"):
-                fpath = os.path.join(config.OUTPUT_DIR, best_url.replace("/output/", ""))
-            else:
-                fpath = os.path.join(config.OUTPUT_DIR, best_url.split("/")[-1])
+            # Priority: video_url (motion video) > wan_image (Original Tall) > image_url (Sliced Image)
+            video_url = img.get("video_url")
+            image_url = img.get("image_url")
+            scene_num = img.get('scene_number')
             
-            if os.path.exists(fpath): 
-                images.append(fpath)
-                print(f"📸 [Auto-Pilot] Scene {img.get('scene_number')}: Using {'video' if best_url.endswith('.mp4') else 'image'} - {os.path.basename(fpath)}")
+            # [FIX] Check for forced original image (for Vertical Pan)
+            wan_asset_filename = settings.get(f"scene_{scene_num}_wan_image")
+            wan_path = None
+            if wan_asset_filename:
+                 wan_path_check = os.path.join(config.OUTPUT_DIR, str(project_id), "assets", "image", wan_asset_filename)
+                 if os.path.exists(wan_path_check):
+                     wan_path = wan_path_check
+
+            best_path = None
+
+            # Priority Logic Refined:
+            # 1. Existing Video (video_url) -> Use generated video
+            # 2. Vertical Pan (Type 1) -> Force Original Tall Image (wan_path) to allow scrolling if no video
+            # 3. Sliced Panel (image_url) -> Use standard panel
+
+            check_path = None
+            manual_motion = settings.get(f"scene_{scene_num}_motion")
+            is_vertical_pan = manual_motion in ["pan_down", "pan_up", "vertical_pan"]
+            
+            if not video_url:
+                # [FIX] If DB fails to save video_url, directly check file system
+                import glob
+                manual_files = glob.glob(os.path.join(config.OUTPUT_DIR, f"vid_*_{project_id}_{scene_num}_*.mp4"))
+                if manual_files:
+                    manual_files.sort(key=os.path.getmtime, reverse=True)
+                    video_url = manual_files[0]
+                    print(f"📸 [Auto-Pilot] Scene {scene_num}: Found unlinked manual video: {os.path.basename(video_url)}")
+
+            if video_url:
+                if video_url.startswith("/output/"):
+                    fpath = os.path.join(config.OUTPUT_DIR, video_url.replace("/output/", ""))
+                else:
+                    fpath = os.path.join(config.OUTPUT_DIR, video_url.split("/")[-1])
+                
+                if os.path.exists(fpath):
+                    best_path = fpath
+                    print(f"📸 [Auto-Pilot] Scene {scene_num}: Using VIDEO - {os.path.basename(fpath)}")
+                    
+            elif is_vertical_pan and wan_path:
+                 best_path = wan_path
+                 print(f"📸 [Auto-Pilot] Scene {scene_num}: Vertical Pan detected. FORCING Original Tall Image - {wan_asset_filename}")
+            
+            # Note: wan_path is usually the FULL original strip. 
+            # If not panning, we should use the sliced panel (image_url) to focus on the specific cut.
+            # So we do NOT fallback to wan_path unless it's a pan.
+
+            if not best_path and image_url:
+                 if image_url.startswith("/output/"):
+                    fpath = os.path.join(config.OUTPUT_DIR, image_url.replace("/output/", ""))
+                 else:
+                    fpath = os.path.join(config.OUTPUT_DIR, image_url.split("/")[-1])
+                 
+                 if os.path.exists(fpath):
+                     best_path = fpath
+                     print(f"📸 [Auto-Pilot] Scene {scene_num}: Using Sliced Image (Fallback) - {os.path.basename(fpath)}")
+
+            if best_path: 
+                images.append(best_path)
                 
         audio_path = tts_data["audio_path"] if tts_data else None
         output_filename = f"autopilot_{project_id}_{config.get_kst_time().strftime('%H%M%S')}.mp4"
@@ -1355,9 +1501,10 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             # Fetch motion from settings (saved from webtoon producer or manual)
             eff = settings.get(f"scene_{s_num}_motion")
             if not eff or eff == 'random':
-                # Default to random if not specified
-                import random
-                eff = random.choice(['zoom_in', 'zoom_out', 'pan_up', 'pan_down', 'pan_left', 'pan_right'])
+                # [NEW] Level 2: Gemini Vision 자동 분류로 최적 효과 선택
+                # video_service.create_slideshow에서 'auto_classify' 감지 시
+                # classify_asset_type()을 호출하여 자동 결정
+                eff = 'auto_classify'
             effects.append(eff)
             log_debug(f"🎞️ [Render] Scene {s_num}: Effect={eff}")
 
@@ -1708,6 +1855,80 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
         for p in projects:
             if p.get("status") == "queued":
                 db.update_project(p['id'], status="draft")
+
+    async def generate_production_plan(self, scenes: List[Dict]) -> Dict:
+        """
+        Gemini를 사용하여 웹툰 장면 목록을 기반으로 비디오 제작 기획서를 생성합니다.
+        """
+        print(f"📋 [Auto-Pilot] Generating Production Plan for {len(scenes)} scenes...")
+        
+        # 1. Prepare Context & Analyze Image Types (Simple Logic)
+        scene_context = []
+        for s in scenes:
+            scene_context.append({
+                "scene_number": s.get('scene_number'),
+                "visual_desc": s.get('analysis', {}).get('visual_desc', ''),
+                "atmosphere": s.get('analysis', {}).get('atmosphere', ''),
+                "dialogue": s.get('analysis', {}).get('dialogue', ''),
+                "type": s.get('scene_type', '3'), # 1: Vertical, 2: Horizontal, 3: Regular
+            })
+            
+        prompt = f"""
+        You are a professional Video Director specializing in Webtoon-to-Video implementation.
+        Review the following {len(scenes)} scenes from a webtoon and create a technical production plan.
+        
+        Target Output Format (JSON):
+        {{
+            "overall_strategy": "Brief direction for the video tone and pacing.",
+            "bgm_style": "Recommended background music style and mood.",
+            "scene_specifications": [
+                {{
+                    "scene_number": 1,
+                    "engine": "wan" or "akool", 
+                    "motion": "Detailed description of camera movement (e.g., Slow pan down from sky)",
+                    "effect": "pan_down" or "pan_up" or "zoom_in" or "zoom_out" or "static",
+                    "rationale": "Why this motion/engine?",
+                    "cropping_advice": "Focus on [object] or [character face]"
+                }}
+            ]
+        }}
+        
+        Rules:
+        1. 'wan' engine is best for general cinematic motion and scenery. 'akool' is ONLY for scenes with talking character face (lip-sync).
+        2. If 'type' is '1' (Vertical), prefer 'pan_down' or 'pan_up' to show the full height.
+        3. If 'type' is '2' (Horizontal), prefer 'pan_left', 'pan_right' or static zoom.
+        4. If dialogue exists and it looks like a close-up, consider 'akool' for lip-sync, otherwise use 'wan' with camera motion.
+        
+        Scenes Data:
+        {json.dumps(scene_context, ensure_ascii=False, indent=2)}
+        """
+        
+        try:
+            # Call Gemini
+            resp = await gemini_service.generate_text(prompt)
+            
+            # Parse JSON
+            # Clean up potential markdown blocks
+            clean_json = resp.replace("```json", "").replace("```", "").strip()
+            
+            # Handle potential extra text
+            start_idx = clean_json.find('{')
+            end_idx = clean_json.rfind('}')
+            if start_idx != -1 and end_idx != -1:
+                clean_json = clean_json[start_idx:end_idx+1]
+                
+            plan = json.loads(clean_json)
+            return plan
+        except Exception as e:
+            print(f"❌ [Auto-Pilot] Plan Generation Failed: {e}")
+            import traceback
+            traceback.print_exc()
+            # Return dummy plan
+            return {
+                "overall_strategy": "Plan generation failed. Please try again or proceed manually.",
+                "bgm_style": "Casual",
+                "scene_specifications": []
+            }
 
     async def start_batch_worker(self):
         """[NEW] 프로젝트 대기열을 감시하고 순차적으로 처리하는 워커"""

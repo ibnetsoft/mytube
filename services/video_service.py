@@ -12,25 +12,44 @@ class VideoService:
         self.output_dir = config.OUTPUT_DIR
 
     def _get_video_info(self, path):
-        """Helper to get video dimensions safely"""
+        """Helper to get video dimensions safely using ffmpeg (no ffprobe dependency)"""
         import imageio_ffmpeg
         import subprocess
+        import re
+        
         try:
             ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
-            probe_exe = ffmpeg_exe.replace("ffmpeg", "ffprobe")
-            cmd = [probe_exe, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", path]
+            # Just run ffmpeg -i to get metadata from stderr
+            cmd = [ffmpeg_exe, "-i", path]
             
             startupinfo = None
             if os.name == 'nt':
                  startupinfo = subprocess.STARTUPINFO()
                  startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 
-            res = subprocess.run(cmd, capture_output=True, text=True, startupinfo=startupinfo)
-            if res.returncode == 0 and res.stdout:
-                w, h = map(int, res.stdout.strip().split(","))
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, startupinfo=startupinfo)
+            output = res.stderr or ""
+            # print(f"DEBUG PROBE {path}: {output[:100]}...") # Debug logging
+            
+            # Search in stderr for pattern like "Video: h264, ..., 1080x1920, ..."
+            # Note: The output format can vary, but usually "Video:" line contains resolution
+            # Standard: Stream #0:0: Video: h264 (Main), yuv420p, 1280x720, ...
+            
+            # Using robust regex to find resolution in Video stream line
+            # Look for "Video:" then later digits 'x' digits
+            match = re.search(r"Video:.*? (\d{2,5})x(\d{2,5})", output)
+            if match:
+                w, h = map(int, match.groups())
                 return w, h
+                
+            # Fallback: simple search for likely resolution format if not on Video line (riskier but useful)
+            match = re.search(r" (\d{3,5})x(\d{3,5}) ", output)
+            if match:
+                 w, h = map(int, match.groups())
+                 return w, h
         except Exception as e:
-            print(f"Probe Error: {e}")
+            print(f"Probe Error for {path}: {e}")
+            
         return None, None
 
     def create_slideshow(
@@ -321,11 +340,13 @@ class VideoService:
 
                         # [AUTO-CORRECT] Tall Video Detection (Force Pan)
                         vw, vh = self._get_video_info(img_path)
+                        print(f"DEBUG: Video Probe '{os.path.basename(img_path)}': {vw}x{vh} (Target: {target_w}x{target_h})")
+                        
                         if vw and vh:
                             var = vw / vh
                             tar = target_w / target_h
-                            # If video is taller than target (e.g. 9:32 vs 9:16), force pan to show all
-                            if var < tar * 0.9: 
+                            # If video is taller/narrower than target (e.g. 9:32 < 9:16), force pan
+                            if var < tar: 
                                 if req_effect not in ['pan_up', 'scroll_up', 'pan_down', 'scroll_down']:
                                     print(f"  ✨ [Auto-Pan] Tall Video Detected ({vw}x{vh}). Forcing 'pan_down'.")
                                     req_effect = 'pan_down'
@@ -333,6 +354,7 @@ class VideoService:
                                         image_effects[i] = 'pan_down'
 
                         is_tall_pan_video = req_effect in ['pan_down', 'pan_up', 'scroll_down', 'scroll_up']
+                        is_tall_pan = is_tall_pan_video # [FIX] Sync variable name for panning logic below
 
                         if is_tall_pan_video:
                             # --- Full-Travel Pan for Tall Videos ---
@@ -341,9 +363,7 @@ class VideoService:
                             processed_path = self._preprocess_video_tall_pan(
                                 img_path, target_w, target_h, duration=dur, fps=fps, direction=pan_dir
                             )
-                            # effect already baked in → disable further effect application
-                            if image_effects is not None and i < len(image_effects):
-                                image_effects[i] = 'none'
+                            # MoviePy with_position will handle the actual pan movement, do not disable the effect
                         else:
                             # --- Normal center-crop preprocess ---
                             processed_path = self._preprocess_video_with_ffmpeg(img_path, target_w, target_h, fps=fps)
@@ -387,29 +407,43 @@ class VideoService:
                     if is_vertical:
                         # [NEW] Check if we need to preserve tall height for vertical panning
                         is_tall_pan = False
+                        eff_check = ""
                         if image_effects and i < len(image_effects):
                              eff_check = str(image_effects[i]).lower().replace(" ", "_")
                              if eff_check in ['pan_up', 'pan_down', 'scroll_down', 'scroll_up']:
                                  is_tall_pan = True
 
-                        # [NEW] Smart focal point retrieval
-                        focal_y = 0.5
-                        if focal_point_ys and i < len(focal_point_ys):
-                            focal_y = focal_point_ys[i]
+                        # Extract duration early
+                        dur = duration_per_image[i] if isinstance(duration_per_image, list) else duration_per_image
 
-                        # For Shorts/Vertical: Use Cinematic Frame (Fit Width + Smart Crop Focal Point)
-                        processed_img_path = self._create_cinematic_frame(img_path, resolution, focal_point_y=focal_y, allow_tall=is_tall_pan)
+                        if is_tall_pan:
+                             # Use FFmpeg Preprocess for consistent Pan effect on Images
+                             pan_dir = "up" if eff_check in ['pan_up', 'scroll_up'] else "down"
+                             print(f"↕️ [TallPan Image] effect={eff_check}, dir={pan_dir}, dur={dur:.1f}s")
+                             processed_path = self._preprocess_video_tall_pan(
+                                 img_path, target_w, target_h, duration=dur, fps=fps, direction=pan_dir
+                             )
+                             clip = VideoFileClip(processed_path).without_audio()
+                             temp_files.append(processed_path)
+                             # (MoviePy에서 with_position으로 실제 움직임을 줄 것이므로 effect를 'none'으로 지우지 않음)
+                        else:
+                             # [NEW] Smart focal point retrieval
+                             focal_y = 0.5
+                             if focal_point_ys and i < len(focal_point_ys):
+                                 focal_y = focal_point_ys[i]
+    
+                             # For Shorts/Vertical: Use Cinematic Frame (Fit Width + Smart Crop Focal Point)
+                             processed_img_path = self._create_cinematic_frame(img_path, resolution, focal_point_y=focal_y, allow_tall=False)
+                             temp_files.append(processed_img_path)
+                             
+                             # Explicitly convert to VideoClip
+                             clip = ImageClip(processed_img_path).with_duration(dur).with_fps(30)
                     else:
+                        dur = duration_per_image[i] if isinstance(duration_per_image, list) else duration_per_image
                         # For Landscape: Use Fill (Crop) as before
                         processed_img_path = self._resize_image_to_fill(img_path, resolution)
-                    temp_files.append(processed_img_path)
-                    
-                    # Get specific duration for this image
-                    dur = duration_per_image[i] if isinstance(duration_per_image, list) else duration_per_image
-    
-                    # [CHANGED] Explicitly convert to VideoClip to ensure lambda resize works for animation
-                    # MoviePy 2.0: ImageClip is already a Clip. w/duration.
-                    clip = ImageClip(processed_img_path).with_duration(dur).with_fps(30)
+                        temp_files.append(processed_img_path)
+                        clip = ImageClip(processed_img_path).with_duration(dur).with_fps(30)
                     
                 # [NEW] Apply fade-in effect if requested (Works for both Video and Image)
                 if fade_in_flags and i < len(fade_in_flags) and fade_in_flags[i]:
@@ -433,9 +467,9 @@ class VideoService:
                         df.write(f"Img[{i}] EffectRaw: {image_effects[i] if image_effects and i < len(image_effects) else 'N/A'} -> Safe: {safe_effect} (Dur:{dur}, FPS:{fps})\n")
                 except: pass
                 
-                # Force disable effect ONLY for Video clips. 
-                # [FIX] Allow effects for images in Vertical (Shorts) mode to provide motion.
-                if is_video_asset:
+                # Force disable effect ONLY for NORMAL Video clips. 
+                # [FIX] Allow effects for images in Vertical (Shorts) mode, and also for TALL videos that need panning!
+                if is_video_asset and not (safe_effect in ['pan_down', 'pan_up', 'scroll_down', 'scroll_up']):
                      safe_effect = 'none'
 
                 # [NEW] Level 2: Gemini Vision 자동 분류
@@ -517,7 +551,7 @@ class VideoService:
                     print(f"DEBUG_RENDER: Image[{i}] Applying Effect '{effect}' (FPS={fps}, Dur={dur}s)")
 
                     try:
-                        w, h = clip.w, clip.h # Original/Target size (1920, 1080)
+                        w, h = target_w, target_h # [FIX] Use target viewport size, not clip size, because tall clips have clip.h > target_h
                         
                         if effect == 'zoom_in':
                             # Center Zoom: 1.0 -> 1.15 (Tuned for better framing)
@@ -537,14 +571,14 @@ class VideoService:
                             # and the 'tall' hint is lost. Instead, check if clip is actually taller than viewport.
                             is_tall_clip = (
                                 is_tall_pan and
-                                clip.h > h  # clip.h = actual image pixel height, h = target viewport height
+                                clip.h > h  # clip.h = actual clip pixel height, h = viewport height
                             )
                             print(f"  [PAN DEBUG] effect={effect}, is_tall_pan={is_tall_pan}, clip.h={clip.h}, viewport_h={h}, is_tall_clip={is_tall_clip}")
 
                             if is_tall_clip and effect in ('pan_down', 'pan_up'):
                                 # --- TRUE VERTICAL SCROLL (세로 긴 이미지 전체를 스크롤) ---
                                 # clip.h is the full tall image height (e.g. 3000px for a 1080x1920 target)
-                                # w, h are the target viewport size (e.g. 1080 x 1920)
+                                # w, h are the target viewport size
                                 new_w, new_h = clip.w, clip.h
                                 max_scroll = new_h - h  # total scrollable pixels
 
@@ -1080,11 +1114,7 @@ class VideoService:
             # High-quality Resize
             img_resized = img.resize((new_w, new_h), Image.LANCZOS)
             
-            # [AUTO-DETECT TALL] If image is significantly taller than target, forced allow_tall
-            # This prevents the 'cropping culprit' from destroying resolution before panning.
-            is_exceptionally_tall = new_h > target_h * 1.5
-            
-            if (allow_tall or is_exceptionally_tall) and new_h > target_h:
+            if allow_tall and new_h > target_h:
                 # [NEW] Skip cropping onto target_h background. Just return the resized full tall image.
                 out_fn = f"cinematic_tall_{uuid.uuid4().hex[:8]}.jpg"
                 out_path = os.path.join(config.OUTPUT_DIR, out_fn)
@@ -2465,35 +2495,32 @@ class VideoService:
         ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
         output_path = os.path.join(self.output_dir, f"video_tall_pan_{uuid.uuid4()}.mp4")
 
-        # 원본 영상의 실제 해상도 조회
-        probe_cmd = [
-            ffmpeg_exe, "-v", "error",
-            "-select_streams", "v:0",
-            "-show_entries", "stream=width,height",
-            "-of", "csv=p=0",
-            "-i", input_path
-        ]
+        import cv2
+        cmd_probe = [ffmpeg_exe, "-i", input_path] # Keep for print/debug if needed
+        
         startupinfo = None
         if os.name == 'nt':
-            startupinfo = subprocess.STARTUPINFO()
-            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-
+             startupinfo = subprocess.STARTUPINFO()
+             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+             
         try:
-            # ffprobe 대신 ffmpeg를 이용해 메타데이터 출력
-            probe_exe = ffmpeg_exe.replace("ffmpeg", "ffprobe")
-            probe_result = subprocess.run(
-                [probe_exe, "-v", "error", "-select_streams", "v:0",
-                 "-show_entries", "stream=width,height", "-of", "csv=p=0", input_path],
-                capture_output=True, text=True, startupinfo=startupinfo
-            )
-            parts = probe_result.stdout.strip().split(",")
-            orig_w, orig_h = int(parts[0]), int(parts[1])
+            # Use OpenCV to get accurate video dimensions
+            cap = cv2.VideoCapture(input_path)
+            orig_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            orig_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            cap.release()
+            
+            if orig_w <= 0 or orig_h <= 0:
+                raise ValueError(f"CV2 returned invalid dimensions: {orig_w}x{orig_h}")
+                
+                     
         except Exception as e:
-            print(f"[TallPan] probe failed ({e}), falling back to PIL")
+            print(f"[TallPan] probe failed ({e}), trying PIL fallback...")
             try:
                 img = Image.open(input_path)
                 orig_w, orig_h = img.size
             except:
+                print(f"[TallPan] Final Fallback: {e}")
                 # 최후 수단: 일반 preprocess로 fallback
                 return self._preprocess_video_with_ffmpeg(input_path, width, height, fps)
 
@@ -2506,45 +2533,34 @@ class VideoService:
             print(f"[TallPan] Not tall enough (scaled_h={scaled_h} <= frame_h={height}), using normal preprocess.")
             return self._preprocess_video_with_ffmpeg(input_path, width, height, fps)
 
-        # 이동 가능한 총 픽셀량
-        scroll_total = scaled_h - height
+        # FFMPEG에서는 Pan(좌표 이동)을 직접 하지 않고,
+        # 단순히 폭(Width)을 맞추고 원래의 세로 비율(Height)을 살려둔 '길다란 비디오'를 만듭니다.
+        # 실제 움직임(Pan)은 MoviePy의 `with_position`을 통해 부드럽게 스크롤됩니다. (루핑 문제 해결)
 
-        print(f"↕️ [TallPan] orig={orig_w}x{orig_h} → scaled={width}x{scaled_h}, scroll={scroll_total}px over {duration:.1f}s, dir={direction}")
-
-        # FFmpeg zoompan 필터로 Full-Travel Pan 구현
-        # crop 필터를 사용해 y 시작위치를 시간에 따라 선형 이동
-        # crop=w:h:x:y  → x=0(고정), y=0→scroll_total (down) 또는 y=scroll_total→0 (up)
-        #
-        # 'n': 현재 프레임 번호, 'r': fps → t = n/r
-        # y(t) = (t / duration) * scroll_total
-        #
-        # scale 먼저 실행 후 crop으로 팬 구현
-        total_frames = int(duration * fps)
-
-        if direction == "down":
-            # y: 0 → scroll_total  (영상의 위→아래로 보임)
-            y_expr = f"(n/{total_frames})*{scroll_total}"
-        else:
-            # y: scroll_total → 0  (영상의 아래→위로 보임)
-            y_expr = f"{scroll_total}-(n/{total_frames})*{scroll_total}"
-
-        vf_filter = (
-            f"scale={width}:{scaled_h}:flags=lanczos,"
-            f"fps={fps},"
-            f"crop={width}:{height}:0:'{y_expr}'"
-        )
-
+        vf_filter = f"scale={width}:{scaled_h}"
+        
         cmd = [
-            ffmpeg_exe, "-y",
-            "-i", input_path,
-            "-t", str(duration),
+            ffmpeg_exe, "-y"
+        ]
+
+        # 이미지인지 비디오인지 확장자로 판단
+        is_video = input_path.lower().endswith(('.mp4', '.mov', '.avi', '.mkv', '.webm'))
+
+        if is_video:
+            # 비디오면 짧을 수 있으므로 스트림 루프(무한 반복)
+            cmd.extend(["-stream_loop", "-1", "-t", str(duration), "-i", input_path])
+        else:
+            # 이미지면 루프와 프레임레이트 옵션
+            cmd.extend(["-loop", "1", "-framerate", str(fps), "-t", str(duration), "-i", input_path])
+
+        cmd.extend([
             "-vf", vf_filter,
             "-c:v", "libx264",
             "-preset", "ultrafast",
             "-crf", "22",
             "-an",
             output_path
-        ]
+        ])
 
         print(f"[TallPan] FFmpeg cmd: {' '.join(cmd[:8])} ...")
         subprocess.run(cmd, check=True, startupinfo=startupinfo)

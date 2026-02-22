@@ -153,7 +153,9 @@
                 document.querySelector('.overflow-x-auto').classList.add('hidden');
 
                 document.querySelector('#emptySection h3').textContent =
-                    targetMode === 'shorts' ? '쇼츠 프로젝트가 없습니다' : '롱폼 프로젝트가 없습니다';
+                    targetMode === 'shorts' ? '쇼츠 프로젝트가 없습니다' :
+                        targetMode === 'webtoon' ? '웹툰 프로젝트가 없습니다' :
+                            targetMode === 'commerce' ? '커머스 쇼츠 프로젝트가 없습니다' : '롱폼 프로젝트가 없습니다';
                 return;
             } else {
                 document.querySelector('.overflow-x-auto').classList.remove('hidden');

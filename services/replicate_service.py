@@ -28,13 +28,19 @@ class ReplicateService:
         print(f"🎬 [Video Gen] Method: {method}, Image: {os.path.basename(image_path)}")
 
         try:
-            # [PROMPT ENGINEERING] Enhance prompt for better motion
-            base_prompt = prompt if prompt else "Cinematic video, high quality, smooth motion"
+            # [USER MASTER SETTING APPLIED]
+            base_master = "Vertical cinematic animation, 9:16 aspect ratio, 1080x1920, smooth camera movement, subtle parallax depth effect, soft volumetric lighting, atmospheric particles, high quality anime webtoon style, dramatic color grading, film grain subtle, slow cinematic motion, emotional pacing"
+            
+            if prompt:
+                # 씬별 특정 프롬프트가 있으면 마스터와 결합
+                base_prompt = f"{base_master}, {prompt}"
+            else:
+                base_prompt = base_master
             
             # Add strong motion keywords if not present
             motion_keywords = ["motion", "moving", "pan", "zoom", "walking", "running", "flying", "dynamic"]
             if not any(k in base_prompt.lower() for k in motion_keywords):
-                base_prompt += ", dynamic camera movement, detailed motion, 4k"
+                base_prompt += ", dynamic movement, 4k"
 
             if method == "slowmo":
                 # For 8s slowmo (interpolated from 5s), we need the source 5s to have clear movement.
@@ -85,16 +91,16 @@ class ReplicateService:
             raise e
 
     async def _generate_basic(self, image_path: str, prompt: str, duration: float = 5.0):
-        """기본 Wan 2.1 생성 (wavespeedai/wan-2.1-i2v-720p)"""
+        """기본 Wan 2.1 생성 (wavespeedai/wan-2.1-i2v-480p)"""
         from PIL import Image
         
-        # [NEW] Detect Aspect Ratio for Wan 2.1
-        target_size = "1280x720" # Default Landscape
+        # [NEW] Detect Aspect Ratio for Wan 2.1 (480p)
+        target_size = "832x480" # Default Landscape (16:9 approx)
         try:
             with Image.open(image_path) as img:
                 w, h = img.size
                 if h > w:
-                    target_size = "720x1280" # Vertical
+                    target_size = "480x832" # Vertical (9:16 approx)
                     print(f"📐 [Video Gen] Vertical Image Detected. Using {target_size}")
         except: pass
 
@@ -126,7 +132,7 @@ class ReplicateService:
         for attempt in range(max_retries):
             try:
                 return replicate.run(
-                    "wavespeedai/wan-2.1-i2v-720p",
+                    "wavespeedai/wan-2.1-i2v-480p",
                     input=input_data
                 )
             except Exception as e:
@@ -139,6 +145,86 @@ class ReplicateService:
                         continue
                 print(f"❌ [Replicate] Error: {e}")
                 raise e
+
+    # [NEW] Audio Generation Methods
+    async def generate_music(self, prompt: str, duration: int = 8):
+        """Generate BGM using Meta's MusicGen"""
+        if not self.check_api_key(): raise Exception("Replicate API Key missing")
+        
+        print(f"🎵 [Audio Gen] Music: {prompt} ({duration}s)")
+        input_data = {
+            "prompt": prompt,
+            "duration": duration,
+            "model_version": "stereo-large"
+        }
+        
+        loop = asyncio.get_event_loop()
+        output = await loop.run_in_executor(None, self._run_replicate_model, "meta/musicgen:b05b1dff1d8c6dc63d14b0cdb42135378dcb87f6373b0d3d341ede46e59e2b38", input_data)
+        
+        if output:
+            return await self._download_video(str(output)) # Audio URL handling is same
+        return None
+
+    async def generate_sfx(self, prompt: str, duration: int = 5):
+        """Generate SFX using AudioLDM"""
+        if not self.check_api_key(): raise Exception("Replicate API Key missing")
+        
+        print(f"🔊 [Audio Gen] SFX: {prompt}")
+        input_data = {
+            "text": prompt,
+            "duration": str(duration),
+            "n_candidates": 1,
+            "guidance_scale": 2.5
+        }
+        
+        loop = asyncio.get_event_loop()
+        # AudioLDM model
+        output = await loop.run_in_executor(None, self._run_replicate_model, "haoheliu/audio-ldm:b613999cd14778be19f729227568165d77682de94132cc225c57b497b0959828", input_data)
+        
+        if output:
+            return await self._download_video(str(output))
+        return None
+
+    async def outpaint_image(self, image_file, mask_file, prompt: str):
+        """
+        Extend/Outpaint image using SDXL Inpainting
+        - image_file: File-like object or URL
+        - mask_file: File-like object or URL (White=Inpaint, Black=Keep)
+        """
+        if not self.check_api_key(): raise Exception("Replicate API Key missing")
+        
+        print(f"🎨 [Image Gen] Outpainting: {prompt[:50]}...")
+
+        # SDXL Inpainting Model
+        model = "stability-ai/stable-diffusion-inpainting:c28b92a7ecd66eee1e7d03f0b0c608034f54817a5840e6c5u2e6522778377721" 
+        # Using SD 2.0 Inpainting as it's stable and specific for inpainting tasks
+        # Or switch to SDXL if needed for higher res: "diffusers/sdxl-inpainting-0.1"
+        # Let's use a very standard one:
+        
+        input_data = {
+            "prompt": prompt,
+            "image": image_file,
+            "mask": mask_file,
+            "num_inference_steps": 30,
+            "guidance_scale": 7.5,
+            "scheduler": "K_EULER_ANCESTRAL"
+        }
+        
+        loop = asyncio.get_event_loop()
+        output = await loop.run_in_executor(None, self._run_replicate_model, model, input_data)
+        
+        if output and len(output) > 0:
+            # Output is usually a list of URLs
+            return str(output[0])
+        return None
+
+    def _run_replicate_model(self, model_id, input_data):
+        """Generic runner for any model"""
+        try:
+            return replicate.run(model_id, input=input_data)
+        except Exception as e:
+            print(f"❌ [Replicate] Model Error ({model_id}): {e}")
+            raise e
 
     async def _download_video(self, url):
         """URL에서 비디오 다운로드 후 로컬 저장"""

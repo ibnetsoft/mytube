@@ -42,6 +42,9 @@
             <button onclick="switchTab('data')" id="tab-data" class="tab-button">
                 🗂️ 데이터 관리
             </button>
+            <button onclick="switchTab('webtoon')" id="tab-webtoon" class="tab-button">
+                🎨 웹툰 설정
+            </button>
         </div>
     </div>
 
@@ -315,6 +318,14 @@
                                 class="px-4 py-1.5 rounded-md text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
                                 📱 쇼츠
                             </button>
+                            <button id="btnModeWebtoon" onclick="setAppMode('webtoon')"
+                                class="px-4 py-1.5 rounded-md text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+                                🖌️ 웹툰
+                            </button>
+                            <button id="btnModeCommerce" onclick="setAppMode('commerce')"
+                                class="px-4 py-1.5 rounded-md text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+                                🛍️ 커머스
+                            </button>
                         </div>
                         <div class="mt-2 space-y-1">
                             <p class="text-[10px] text-gray-500 dark:text-gray-400">
@@ -566,6 +577,171 @@
         </div>
         <!-- End Data Tab -->
 
+        <!-- Webtoon Settings Tab -->
+        <div id="tab-content-webtoon" class="tab-content">
+            <div class="card p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+                <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-4">🎨 웹툰 영상화 설정</h3>
+
+                <!-- [NEW] Workflow Description Block -->
+                <div
+                    class="bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg mb-4 text-xs text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800">
+                    <strong>📢 작업 방식 안내 (PSD 자동 추출)</strong>
+                    <p class="mt-1 leading-relaxed">
+                        이 시스템은 사용자가 컷별로 이미지를 하나씩 업로드하는 방식이 아닙니다.<br>
+                        <strong>PSD 원본 파일이 저장된 디렉토리 경로</strong>와 <strong>추출할 레이어명</strong>을 지정해주시면,<br>
+                        시스템이 해당 폴더 내의 PSD 파일들에서 <strong>자동으로 이미지를 추출</strong>하여 영상화 작업을 시작합니다.<br>
+                        (AI는 추출된 이미지를 받아 [최적화 &rarr; 영상 변환 &rarr; 최종 합성]을 순차적으로 진행합니다.)
+                    </p>
+                </div>
+
+
+
+                <!-- [NEW] Webtoon Plan Prompt -->
+                <div class="card p-4 shadow-sm border border-gray-200 dark:border-gray-700 mt-4">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                            <span>📝 웹툰 기획 프롬프트 설정 (Webtoon Plan Prompt)</span>
+                        </h3>
+                        <button onclick="resetWebtoonPrompt()"
+                            class="text-[10px] text-gray-400 hover:text-gray-600 underline">
+                            기본값으로 초기화
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-500 mb-2">
+                        웹툰 기획서 생성 시 AI에게 전달되는 프롬프트입니다. `[[SCENES_JSON]]` 부분에 장면 데이터가 들어갑니다.
+                    </p>
+                    <textarea id="ws_plan_prompt"
+                        class="w-full h-96 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-600 rounded-md p-3 text-xs font-mono leading-relaxed focus:ring-2 focus:ring-purple-500 outline-none resize-none custom-scrollbar"
+                        placeholder="프롬프트를 입력하세요..."></textarea>
+                </div>
+
+                <!-- Webtoon Image Optimization Prompts -->
+                <div class="card p-4 shadow-sm border border-gray-200 dark:border-gray-700 mt-4">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                            <span>✨ 이미지 최적화 (Step 1) 프롬프트 설정</span>
+                        </h3>
+                        <button onclick="resetWebtoonOptPrompts()"
+                            class="text-[10px] text-gray-400 hover:text-gray-600 underline">
+                            기본값으로 초기화
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-xs font-bold text-gray-700 dark:text-gray-300 block mb-1">
+                                🟦 세로형 (Vertical/Standard) 최적화
+                            </label>
+                            <textarea id="ws_vertical_prompt" rows="6"
+                                class="input-field w-full text-xs font-mono"></textarea>
+                            <p class="text-[10px] text-gray-400 mt-1">
+                                * 세로형 이미지의 여백 확장 및 화질 개선 시 사용됩니다.
+                            </p>
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-gray-700 dark:text-gray-300 block mb-1">
+                                🟧 가로형 (Horizontal/Wide) 확장
+                            </label>
+                            <textarea id="ws_horizontal_prompt" rows="6"
+                                class="input-field w-full text-xs font-mono"></textarea>
+                            <p class="text-[10px] text-gray-400 mt-1">
+                                * 가로형 이미지를 9:16으로 확장(Outpainting)할 때 사용됩니다.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- [NEW] AI Video Engine Selection -->
+                <div class="card p-4 shadow-sm border border-gray-200 dark:border-gray-700 mt-4">
+                    <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-3 flex items-center gap-2">
+                        <span>🎞️ 영상 생성 AI 엔진 선택</span>
+                        <span
+                            class="text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded border border-purple-200">중요</span>
+                    </h3>
+
+                    <div class="flex gap-4">
+                        <!-- Option A: Replicate -->
+                        <label
+                            class="flex items-start gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer flex-1 transition-colors">
+                            <input type="radio" name="ws_video_engine" value="wan" class="mt-1" checked>
+                            <div>
+                                <div class="font-bold text-sm text-gray-800 dark:text-gray-200">Replicate (Wan 2.1)
+                                </div>
+                                <div class="text-xs text-gray-500 mt-1">
+                                    ✅ 검증된 품질, 안정적<br>
+                                    기본 설정입니다. Wan 2.1 모델을 사용하여 웹툰 스타일에 최적화된 모션을 생성합니다.
+                                </div>
+                            </div>
+                        </label>
+
+                        <!-- Option B: Akool -->
+                        <label
+                            class="flex items-start gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer flex-1 transition-colors">
+                            <input type="radio" name="ws_video_engine" value="akool">
+                            <div>
+                                <div class="font-bold text-sm text-gray-800 dark:text-gray-200">Akool (Alternative)
+                                </div>
+                                <div class="text-xs text-gray-500 mt-1">
+                                    🔄 대안 엔진<br>
+                                    Replicate가 불안정하거나 크레딧이 부족할 때 사용하세요. Akool의 영상 생성 API를 사용합니다.
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- [NEW] Webtoon Video Motion Prompts -->
+                <div class="card p-4 shadow-sm border border-gray-200 dark:border-gray-700 mt-4">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                            <span>🎥 영상 변환 (Step 2) 모션 프롬프트 설정</span>
+                        </h3>
+                        <button onclick="resetWebtoonMotionPrompts()"
+                            class="text-[10px] text-gray-400 hover:text-gray-600 underline">
+                            기본값으로 초기화
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <!-- Pan -->
+                        <div>
+                            <label class="text-xs font-bold text-gray-700 dark:text-gray-300 block mb-1">
+                                ⬆️ 패닝 (Pan: 세로 긴 컷)
+                            </label>
+                            <textarea id="ws_motion_pan" rows="8"
+                                class="input-field w-full text-xs font-mono leading-tight"></textarea>
+                            <p class="text-[10px] text-gray-400 mt-1">
+                                * 세로로 긴 컷을 천천히 훑어보는 영상 변환 시 사용
+                            </p>
+                        </div>
+                        <!-- Zoom -->
+                        <div>
+                            <label class="text-xs font-bold text-gray-700 dark:text-gray-300 block mb-1">
+                                🔍 줌인 (Zoom: 감정/클로즈업)
+                            </label>
+                            <textarea id="ws_motion_zoom" rows="8"
+                                class="input-field w-full text-xs font-mono leading-tight"></textarea>
+                            <p class="text-[10px] text-gray-400 mt-1">
+                                * 캐릭터 얼굴이나 감정을 강조하는 줌인 효과 시 사용
+                            </p>
+                        </div>
+                        <!-- Action -->
+                        <div>
+                            <label class="text-xs font-bold text-gray-700 dark:text-gray-300 block mb-1">
+                                💥 액션/다이나믹 (Action: 전투/강조)
+                            </label>
+                            <textarea id="ws_motion_action" rows="8"
+                                class="input-field w-full text-xs font-mono leading-tight"></textarea>
+                            <p class="text-[10px] text-gray-400 mt-1">
+                                * 전투씬 등 역동적인 움직임과 입자 효과가 필요할 때 사용
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- End Webtoon Tab -->
+
     </div>
 </div>
 </div>
@@ -649,6 +825,8 @@
             loadScriptStylePresets();
         } else if (tabName === 'thumbnail-styles') {
             loadThumbnailStylePresets();
+        } else if (tabName === 'webtoon') {
+            loadWebtoonSettings();
         }
     }
 
@@ -776,6 +954,30 @@
         }
     }
 
+    // [NEW] Load Webtoon Settings
+    async function loadWebtoonSettings() {
+        try {
+            const res = await fetch('/api/settings');
+            const data = await res.json();
+
+            // Default to true if not set
+            const autoSplit = data.webtoon_auto_split; // expecting boolean or string 'true'/'false'
+            const smartPan = data.webtoon_smart_pan;
+            const convertZoom = data.webtoon_convert_zoom;
+
+            // Helper to check truthiness safely (defaults to TRUE)
+            const isTrue = (val) => val === undefined || val === null || val === true || val === 'true';
+
+            document.getElementById('ws_auto_split').checked = isTrue(autoSplit);
+            document.getElementById('ws_smart_pan').checked = isTrue(smartPan);
+            document.getElementById('ws_convert_zoom').checked = isTrue(convertZoom);
+
+        } catch (e) {
+            console.error('Webtoon 설정 로드 실패:', e);
+            Utils.showToast('웹툰 설정을 불러오지 못했습니다.', 'error');
+        }
+    }
+
     // Save All
     async function saveAllSettings() {
         try {
@@ -795,7 +997,11 @@
                     story: document.getElementById('promptStory').value,
                     script_master: document.getElementById('promptScriptMaster').value,
                     senior_story: document.getElementById('promptSeniorStory').value
-                }
+                },
+                // [NEW] Webtoon Settings
+                webtoon_auto_split: document.getElementById('ws_auto_split').checked,
+                webtoon_smart_pan: document.getElementById('ws_smart_pan').checked,
+                webtoon_convert_zoom: document.getElementById('ws_convert_zoom').checked
             };
 
             const res = await fetch('/api/settings', {
@@ -1842,6 +2048,152 @@
         }
     }
 
+    // [NEW] Webtoon Plan Prompt Management
+    const DEFAULT_WEBTOON_PLAN_PROMPT = `
+# ROLE: Hollywood Trailer Editor & VFX Supervisor
+You are creating a high-end cinematic video production plan for a webtoon.
+Follow the [USER CINEMATIC MASTER GUIDE] strictly when generating specifications for each scene.
+
+[INPUT DATA (JSON SCENES)]
+[[SCENES_JSON]]
+
+[USER CINEMATIC MASTER GUIDE (STRICT ADHERENCE)]
+0. Base Master Setting (Common for ALL cuts):
+   "Vertical cinematic animation, 9:16 aspect ratio, 1080x1920, smooth camera movement, subtle parallax depth effect, soft volumetric lighting, atmospheric particles, high quality anime webtoon style, dramatic color grading, film grain subtle, slow cinematic motion, emotional pacing."
+
+1. Production Types (scene_type):
+   - TYPE 1 (Vertical Long): "Show Space" -> slow upward/downward camera pan, 2.5D depth parallax, foreground separation, glowing light rays.
+   - TYPE 2 (Horizontal Wide): "Outpainting or Cinema Crop" -> Expand background to 9:16 or Vertical Crop focusing on faces/eyes, slow push-in, soft rim light.
+   - TYPE 3 (Small/Empty): "Fill Space" -> Place center, extend matching background, slow cinematic zoom, minimal motion.
+   - TYPE 4 (Transition): "Consistency" -> Fade with particles, slow cross-dissolve, motion blur.
+   - TYPE 5 (PSD Depth): "3D Illusion" -> Separate foreground/mid/background, strong parallax, 3D camera move.
+   - TYPE 6 (Unified Tone): High-end animated trailer look, soft contrast, warm highlights.
+
+[CORE INSTRUCTIONS]
+1. **overall_strategy**: Summarize the production direction in Korean.
+2. **bgm_style**: Recommend BGM style in Korean.
+3. **scene_specifications**: For each scene, generate:
+   - **scene_number**: The number from input.
+   - **engine**: "wan" (motion), "akool" (lipsync), or "image" (2D).
+   - **effect**: "pan_down", "pan_up", "zoom_in", "zoom_out", "static".
+   - **motion**: FULL CINEMATIC PROMPT in English. Combine Master Setting (0) + Type Specific Guide (1-6) + Scene Context.
+   - **rationale**: Why this choice (e.g., "Tall image detected, using Type 1 Pan Down").
+   - **cropping_advice**: How to frame to 9:16 without losing key info (Korean).
+
+[OUTPUT FORMAT (JSON ONLY)]
+{
+    "overall_strategy": "Overall direction summary (Korean)",
+    "bgm_style": "Recommended BGM style (Korean)",
+    "scene_specifications": [
+        {
+            "scene_number": 1,
+            "engine": "wan | akool | image",
+            "effect": "zoom_in | pan_down | ...",
+            "motion": "Detailed cinematic prompt in English",
+            "rationale": "Reason for this setup (Korean)",
+            "cropping_advice": "Advice for 9:16 framing (Korean)"
+        }
+    ]
+}
+
+**IMPORTANT**: For NARRATOR (내레이션), always use the voice 'Brian'. Same character = Same voice.
+`.trim();
+
+    // [NEW] Default Webtoon Optimization Prompts
+    const DEFAULT_WEBTOON_VERTICAL_PROMPT = "Preserve full original composition, fit into 9:16 vertical canvas, no distortion, extend background naturally if needed, maintain original webtoon art style, high resolution, clean edges, no motion, no animation, static illustration";
+    // [NEW] Default Webtoon Motion Prompts
+    const DEFAULT_WEBTOON_MOTION_PAN = "Slow upward cinematic camera pan, subtle 2.5D parallax depth effect, soft volumetric lighting, floating dust particles, epic dramatic atmosphere, smooth motion, no distortion";
+    const DEFAULT_WEBTOON_MOTION_ZOOM = "Slow push-in camera movement, focus on character’s eyes, subtle breathing motion, soft rim lighting, cinematic depth of field, emotional atmosphere";
+    const DEFAULT_WEBTOON_MOTION_ACTION = "Strong parallax effect, embers floating in the air, light flicker from fire, slight cinematic camera shake, intense dramatic lighting, high energy atmosphere";
+
+    async function loadWebtoonSettings() {
+        try {
+            const res = await fetch('/api/settings');
+            const data = await res.json();
+
+            // setCheckbox('ws_auto_split', data.webtoon_auto_split ?? true);
+            // setCheckbox('ws_smart_pan', data.webtoon_smart_pan ?? true);
+            // setCheckbox('ws_convert_zoom', data.webtoon_convert_zoom ?? true);
+
+            // Plan Prompt
+            const promptEl = document.getElementById('ws_plan_prompt');
+            if (promptEl) {
+                promptEl.value = data.webtoon_plan_prompt || DEFAULT_WEBTOON_PLAN_PROMPT;
+            }
+
+            // [NEW] Opt Prompts
+            const vertEl = document.getElementById('ws_vertical_prompt');
+            const horizEl = document.getElementById('ws_horizontal_prompt');
+            if (vertEl) vertEl.value = data.webtoon_vertical_prompt || DEFAULT_WEBTOON_VERTICAL_PROMPT;
+            if (horizEl) horizEl.value = data.webtoon_horizontal_prompt || DEFAULT_WEBTOON_HORIZONTAL_PROMPT;
+
+            // [NEW] Motion Prompts
+            const panEl = document.getElementById('ws_motion_pan');
+            const zoomEl = document.getElementById('ws_motion_zoom');
+            const actionEl = document.getElementById('ws_motion_action');
+            if (panEl) panEl.value = data.webtoon_motion_pan || DEFAULT_WEBTOON_MOTION_PAN;
+            if (zoomEl) zoomEl.value = data.webtoon_motion_zoom || DEFAULT_WEBTOON_MOTION_ZOOM;
+            if (actionEl) actionEl.value = data.webtoon_motion_action || DEFAULT_WEBTOON_MOTION_ACTION;
+
+            // [NEW] Video Engine
+            const engine = data.video_engine || "wan";
+            const radio = document.querySelector(`input[name="ws_video_engine"][value="${engine}"]`);
+            if (radio) radio.checked = true;
+
+        } catch (e) {
+            console.error('웹툰 설정 로드 실패:', e);
+        }
+    }
+
+    function resetWebtoonPrompt() {
+        if (confirm('기본 기획 프롬프트로 초기화하시겠습니까?')) {
+            document.getElementById('ws_plan_prompt').value = DEFAULT_WEBTOON_PLAN_PROMPT;
+        }
+    }
+
+    function resetWebtoonOptPrompts() {
+        if (confirm('이미지 최적화 프롬프트를 기본값으로 초기화하시겠습니까?')) {
+            document.getElementById('ws_vertical_prompt').value = DEFAULT_WEBTOON_VERTICAL_PROMPT;
+            document.getElementById('ws_horizontal_prompt').value = DEFAULT_WEBTOON_HORIZONTAL_PROMPT;
+        }
+    }
+
+    function resetWebtoonMotionPrompts() {
+        if (confirm('모션 프롬프트를 기본값으로 초기화하시겠습니까?')) {
+            document.getElementById('ws_motion_pan').value = DEFAULT_WEBTOON_MOTION_PAN;
+            document.getElementById('ws_motion_zoom').value = DEFAULT_WEBTOON_MOTION_ZOOM;
+            document.getElementById('ws_motion_action').value = DEFAULT_WEBTOON_MOTION_ACTION;
+        }
+    }
+
+    function setCheckbox(id, val) {
+        const el = document.getElementById(id);
+        if (el) el.checked = !!val;
+    }
+
+    // [MODIFIED] saveAllSettings to include Webtoon Prompt
+
+
+    // [NEW] setAppMode to handle 'webtoon'
+    function setAppMode(mode) {
+        document.getElementById('appMode').value = mode;
+
+        const updateBtn = (btnId, active) => {
+            const btn = document.getElementById(btnId);
+            if (!btn) return;
+            if (active) {
+                btn.className = "px-4 py-1.5 rounded-md text-xs font-bold transition-all bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-white";
+            } else {
+                btn.className = "px-4 py-1.5 rounded-md text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200";
+            }
+        };
+
+        updateBtn('btnModeLong', mode === 'longform');
+        updateBtn('btnModeShort', mode === 'shorts');
+        updateBtn('btnModeWebtoon', mode === 'webtoon');
+        updateBtn('btnModeCommerce', mode === 'commerce');
+    }
+
     // [NEW] ElevenLabs Voice List
     async function refreshElevenVoices() {
         const listEl = document.getElementById('elevenVoiceList');
@@ -1898,6 +2250,118 @@
         } else {
             container.classList.add('hidden');
             if (btn) btn.textContent = '목소리 목록 보기 ▼';
+        }
+    }
+
+    // [FINAL OVERRIDE] Ensure saveAllSettings handles EVERYTHING
+    async function saveAllSettings() {
+        try {
+            // 1. API Keys (Always save first)
+            await saveApiKeys();
+
+            // 2. Gather All Global Settings
+            const safeVal = (id) => document.getElementById(id)?.value || '';
+            const safeCheck = (id) => document.getElementById(id)?.checked ?? false;
+
+            const settings = {
+                // Base Settings
+                app_mode: safeVal('appMode'),
+
+                // Gemini TTS
+                gemini_tts: {
+                    voice_name: safeVal('geminiVoice'),
+                    language_code: safeVal('geminiLanguage'),
+                    style_prompt: safeVal('geminiStylePrompt')
+                },
+
+                // Script Styles
+                script_styles: {
+                    news: safeVal('promptNews'),
+                    story: safeVal('promptStory'),
+                    script_master: safeVal('promptScriptMaster'),
+                    senior_story: safeVal('promptSeniorStory')
+                },
+
+                // Webtoon Settings
+                // webtoon_auto_split: safeCheck('ws_auto_split'),
+                // webtoon_smart_pan: safeCheck('ws_smart_pan'),
+                // webtoon_convert_zoom: safeCheck('ws_convert_zoom'),
+                // webtoon_smart_pan: safeCheck('ws_smart_pan'),
+                // webtoon_convert_zoom: safeCheck('ws_convert_zoom'),
+                webtoon_plan_prompt: safeVal('ws_plan_prompt'),
+                webtoon_vertical_prompt: safeVal('ws_vertical_prompt'),
+                webtoon_horizontal_prompt: safeVal('ws_horizontal_prompt'),
+                webtoon_motion_pan: safeVal('ws_motion_pan'),
+                webtoon_motion_zoom: safeVal('ws_motion_zoom'),
+                webtoon_motion_action: safeVal('ws_motion_action'),
+                video_engine: document.querySelector('input[name="ws_video_engine"]:checked')?.value || "wan"
+            };
+
+            const res = await fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settings)
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data.mode_changed) {
+                    Utils.showToast(`✅ 설정 저장 및 모드 전환 완료!`, 'success');
+                    setTimeout(() => window.location.reload(), 1500);
+                } else {
+                    Utils.showToast('✅ 모든 설정이 저장되었습니다', 'success');
+                    // Refresh checks
+                    await loadApiKeys();
+                    await checkApiConnection();
+                }
+            } else {
+                Utils.showToast('저장 실패', 'error');
+            }
+        } catch (e) {
+            console.error('설정 저장 오류:', e);
+            Utils.showToast('❌ 설정 저장 중 오류가 발생했습니다.', 'error');
+        }
+    }
+
+    // [FINAL OVERRIDE] Ensure loadAllSettings calls Webtoon settings
+    const originalLoadAllSettings = loadAllSettings;
+    // Wait, reusing name causes recursion if we are not careful or if let/const. 
+    // Browsers hoist function declarations. The last one overrides.
+    // So we just redefine it.
+
+    async function loadAllSettings() {
+        try {
+            await loadApiKeys();
+            await checkApiConnection();
+
+            const res = await fetch('/api/settings');
+            const data = await res.json();
+
+            // Base Settings
+            if (data.app_mode) setAppMode(data.app_mode);
+            if (data.template_image_url) updateTemplatePreview(data.template_image_url);
+
+            // Gemini TTS
+            if (data.gemini_tts) {
+                if (document.getElementById('geminiVoice')) document.getElementById('geminiVoice').value = data.gemini_tts.voice_name || 'Puck';
+                if (document.getElementById('geminiLanguage')) document.getElementById('geminiLanguage').value = data.gemini_tts.language_code || 'ko-KR';
+                if (document.getElementById('geminiStylePrompt')) document.getElementById('geminiStylePrompt').value = data.gemini_tts.style_prompt || '';
+            }
+
+            // Script Styles
+            if (data.script_styles) {
+                if (document.getElementById('promptNews')) document.getElementById('promptNews').value = data.script_styles.news || '';
+                if (document.getElementById('promptStory')) document.getElementById('promptStory').value = data.script_styles.story || '';
+                if (document.getElementById('promptScriptMaster')) document.getElementById('promptScriptMaster').value = data.script_styles.script_master || DEFAULT_SCRIPT_MASTER_PROMPT;
+                if (document.getElementById('promptSeniorStory')) document.getElementById('promptSeniorStory').value = data.script_styles.senior_story || '';
+            }
+
+            // Webtoon Settings
+            await loadWebtoonSettings();
+
+            Utils.showToast('설정을 불러왔습니다.', 'info');
+        } catch (e) {
+            console.error('설정 로드 실패:', e);
         }
     }
 

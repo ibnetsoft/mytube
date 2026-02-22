@@ -639,6 +639,20 @@ def migrate_db():
         cursor.execute("ALTER TABLE project_settings ADD COLUMN subtitle_bg_opacity REAL DEFAULT 0.5")
     except sqlite3.OperationalError: pass
 
+    # [NEW] Webtoon Settings Persistence
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN webtoon_auto_split TEXT DEFAULT 'true'")
+    except sqlite3.OperationalError: pass
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN webtoon_plan_json TEXT")
+    except sqlite3.OperationalError: pass
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN webtoon_smart_pan TEXT DEFAULT 'true'")
+    except sqlite3.OperationalError: pass
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN webtoon_convert_zoom TEXT DEFAULT 'true'")
+    except sqlite3.OperationalError: pass
+
     cursor.execute("PRAGMA table_info(image_prompts)")
     img_columns = [info[1] for info in cursor.fetchall()]
     
@@ -1434,7 +1448,8 @@ def save_project_settings(project_id: int, settings: Dict):
                     'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity',
                     'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity',
                     'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity',
-                    'voice_provider', 'voice_speed', 'voice_multi_enabled', 'voice_mapping_json', 'sfx_mapping_json', 'app_mode', 'intro_video_path', 'thumbnail_style', 'image_style']: # [NEW]
+                    'voice_provider', 'voice_speed', 'voice_multi_enabled', 'voice_mapping_json', 'sfx_mapping_json', 'app_mode', 'intro_video_path', 'thumbnail_style', 'image_style',
+                    'webtoon_auto_split', 'webtoon_smart_pan', 'webtoon_convert_zoom', 'webtoon_scenes_json']: # [NEW] Webtoon
             if key in settings:
                 fields.append(f"{key} = ?")
                 values.append(settings[key])
@@ -1521,26 +1536,18 @@ def update_project_setting(project_id: int, key: str, value: Any):
     conn = get_db()
     cursor = conn.cursor()
 
-    allowed_keys = ['title', 'description', 'thumbnail_text', 'thumbnail_url', 'duration_seconds', 'aspect_ratio',
-                    'script', 'hashtags', 'voice_tone', 'voice_name', 'voice_language', 'voice_style_prompt', 
-                    'video_command', 'video_path', 'is_uploaded', 
-                    'image_style_prompt', 'subtitle_font', 'subtitle_color', 'target_language', 'subtitle_style_enum',
-                    'subtitle_font_size', 'subtitle_stroke_color', 'subtitle_stroke_width', 'subtitle_position_y', 'youtube_video_id', 'is_published', 'background_video_url',
-                    'character_ref_text', 'character_ref_image_path', 'script_style',
-                    'subtitle_path', 'image_timings_path', 'timeline_images_path', 'image_effects_path', 'app_mode',
-                    'subtitle_base_color', 'subtitle_pos_y', 'subtitle_pos_x', 'subtitle_bg_enabled', 'subtitle_stroke_enabled',
-                    'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity',
-                    'voice_provider', 'voice_speed', 'voice_multi_enabled', 'voice_mapping_json', 'sfx_mapping_json', 'intro_video_path', 
-                    'thumbnail_style', 'thumbnail_font', 'thumbnail_font_size', 'thumbnail_color', 'thumbnail_full_state',
-                    'image_style', 'all_video', 'motion_method', 'video_scene_count',
-                    'upload_privacy', 'upload_schedule_at', 'youtube_channel_id',
-                    'creation_mode', 'product_url', 'topview_task_id', 'video_engine', 'use_lipsync', 'use_subtitles', 'webtoon_scenes_json']
+    cursor.execute("PRAGMA table_info(project_settings)")
+    existing_cols = [col[1] for col in cursor.fetchall()]
 
-
-    if key not in allowed_keys:
-        print(f"[DB] Key '{key}' not in allowed_keys: {allowed_keys}")
-        conn.close()
-        return False
+    if key not in existing_cols:
+        # 동적 키 (예: scene_1_motion)는 테이블 스키마에 즉시 추가
+        try:
+            cursor.execute(f"ALTER TABLE project_settings ADD COLUMN {key} TEXT")
+            print(f"[DB] Added new dynamic column: {key}")
+        except Exception as e:
+            print(f"[DB] Failed to add dynamic column '{key}': {e}")
+            conn.close()
+            return False
 
     import time
     max_retries = 3
@@ -1792,7 +1799,7 @@ def save_global_setting(key: str, value: Any):
     conn.commit()
     conn.close()
 
-def get_global_setting(key: str, default: Any = None) -> Any:
+def get_global_setting(key: str, default: Any = None, value_type: str = None) -> Any:
     """글로벌 설정 조회"""
     conn = get_db()
     cursor = conn.cursor()
@@ -1803,9 +1810,19 @@ def get_global_setting(key: str, default: Any = None) -> Any:
     if row:
         val = row['value']
         try:
-            return json.loads(val)
+            parsed = json.loads(val)
         except:
-            return val
+            parsed = val
+        
+        # Handle bool type conversion
+        if value_type == "bool":
+            if isinstance(parsed, bool):
+                return parsed
+            if isinstance(parsed, str):
+                return parsed.lower() in ('true', '1', 'yes')
+            return bool(parsed)
+        
+        return parsed
     return default
 
 def get_subtitle_defaults() -> Dict:
@@ -2105,6 +2122,12 @@ def get_image_prompts(project_id: int):
         d['scene_title'] = d.get('scene_title') or ''
         d['video_url'] = d.get('video_url') or ''
         
+        # [NEW] Audio Fields
+        d['sfx_prompt'] = d.get('sfx_prompt') or ''
+        d['bgm_prompt'] = d.get('bgm_prompt') or ''
+        d['sfx_url'] = d.get('sfx_url') or ''
+        d['bgm_url'] = d.get('bgm_url') or ''
+        
         # print(f"[DEBUG_OVERRIDE] Scene {d.get('scene_number')}: '{d.get('scene_title')}'")
         
         prompts.append(d)
@@ -2127,12 +2150,12 @@ def save_image_prompts(project_id: int, prompts: list):
         s_end = prompt.get('script_end') or ''
         s_title = prompt.get('scene_title') or ''
         
-        print(f"[DEBUG_OVERRIDE_SAVE] Saving Scene {i+1}: '{s_title}' Keys={list(prompt.keys())}")
+        # print(f"[DEBUG_OVERRIDE_SAVE] Saving Scene {i+1}: '{s_title}' Keys={list(prompt.keys())}")
         
         cursor.execute("""
             INSERT INTO image_prompts
-            (project_id, scene_number, scene_text, prompt_ko, prompt_en, image_url, script_start, script_end, scene_title, video_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (project_id, scene_number, scene_text, prompt_ko, prompt_en, image_url, script_start, script_end, scene_title, video_url, sfx_prompt, bgm_prompt, sfx_url, bgm_url)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             project_id,
             i + 1,
@@ -2143,7 +2166,11 @@ def save_image_prompts(project_id: int, prompts: list):
             s_start,
             s_end,
             s_title,
-            prompt.get('video_url', '')
+            prompt.get('video_url', ''),
+            prompt.get('sfx_prompt', ''),
+            prompt.get('bgm_prompt', ''),
+            prompt.get('sfx_url', ''),
+            prompt.get('bgm_url', '')
         ))
 
     conn.commit()

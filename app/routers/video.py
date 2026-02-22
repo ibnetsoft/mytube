@@ -283,9 +283,11 @@ async def get_subtitles(project_id: int):
             "audio_url": web_url,
             "audio_duration": audio_duration,
             "images": source_images,
+            "source_images": source_images,       # [FIX] frontend references data.source_images
             "timeline_images": timeline_images,
             "image_timings": image_timings,
-            "image_effects": image_effects
+            "image_effects": image_effects,
+            "settings": settings or {}            # [FIX] frontend references data.settings for font/style
         }
 
     except Exception as e:
