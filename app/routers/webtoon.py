@@ -866,8 +866,26 @@ def slice_webtoon(image_path: str, output_dir: str, min_padding=30, start_idx=1,
          img.save(full_ana_path, "JPEG")
          cuts.append({"video": full_ana_path, "analysis": full_ana_path})
          
+    # [NEW] AI 기반 파이프라인 1단계: Auto-crop (검은색 테두리 등 여백 제거)
+    from services.video_service import video_service
+    video_paths = []
+    for c in cuts:
+        if "video" in c and os.path.exists(c["video"]):
+            # 원본 보존 없이 바로 덮어쓰기 (용량 절약 및 일관성)
+            video_service.auto_crop_image(c["video"])
+            video_paths.append(c["video"])
+            
+    # [NEW] AI 기반 파이프라인 2단계: 연속 씬 합성 (Scene Synthesis)
+    if video_paths:
+        merged_video_paths = set(video_service.auto_merge_continuous_images(video_paths))
+        final_cuts = []
+        for c in cuts:
+            if "video" in c and c["video"] in merged_video_paths:
+                c["analysis"] = c["video"] # 합쳐진 이미지를 분석용으로 같이 사용
+                final_cuts.append(c)
+        cuts = final_cuts
+         
     return cuts
-
 class WebtoonScene(BaseModel):
     scene_number: int
     character: str

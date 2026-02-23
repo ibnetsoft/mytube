@@ -366,7 +366,7 @@ class VideoService:
                             # MoviePy with_position will handle the actual pan movement, do not disable the effect
                         else:
                             # --- Normal center-crop preprocess ---
-                            processed_path = self._preprocess_video_with_ffmpeg(img_path, target_w, target_h, fps=fps)
+                            processed_path = self._preprocess_video_with_ffmpeg(img_path, target_w, target_h, fps=fps, duration=dur)
                             # Disable remaining effects for video
                             if image_effects is not None and i < len(image_effects):
                                 image_effects[i] = 'none'
@@ -2438,7 +2438,7 @@ class VideoService:
             print(f"Slow-mo exception: {e}")
             return video_path
 
-    def _preprocess_video_with_ffmpeg(self, input_path, width, height, fps=30):
+    def _preprocess_video_with_ffmpeg(self, input_path, width, height, fps=30, duration=None):
         """
         Use FFMPEG CLI to resize, crop, and re-encode video to target resolution.
         This bypasses MoviePy's heavy resizing and decoding issues.
@@ -2456,9 +2456,23 @@ class VideoService:
         # fps for consistency
         vf_filter = f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},fps={fps}"
         
-        cmd = [
-            ffmpeg_exe, "-y",
-            "-i", input_path,
+        cmd = [ffmpeg_exe, "-y"]
+        
+        is_video = input_path.lower().endswith(('.mp4', '.mov', '.avi', '.mkv', '.webm'))
+        
+        if is_video:
+            if duration is not None:
+                cmd.extend(["-stream_loop", "-1", "-t", str(duration)])
+            cmd.extend(["-i", input_path])
+        else:
+            cmd.extend(["-loop", "1", "-framerate", str(fps)])
+            if duration is not None:
+                cmd.extend(["-t", str(duration)])
+            else:
+                cmd.extend(["-t", "5"]) # Defaults to 5 seconds if not specified
+            cmd.extend(["-i", input_path])
+        
+        cmd.extend([
             "-vf", vf_filter,
             "-c:v", "libx264",
             # [SAFE MODE] Use ultrafast preset for pre-processing stability
@@ -2466,7 +2480,7 @@ class VideoService:
             "-crf", "23",
             "-an", # No Audio
             output_path
-        ]
+        ])
         
         # Hide console window on Windows
         startupinfo = None
@@ -2474,7 +2488,7 @@ class VideoService:
              startupinfo = subprocess.STARTUPINFO()
              startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
              
-        print(f"DEBUG: Pre-processing video: {input_path} -> {output_path}")
+        print(f"DEBUG: Pre-processing video/image: {input_path} -> {output_path}")
         subprocess.run(cmd, check=True, startupinfo=startupinfo)
         return output_path
 
@@ -2522,7 +2536,7 @@ class VideoService:
             except:
                 print(f"[TallPan] Final Fallback: {e}")
                 # 최후 수단: 일반 preprocess로 fallback
-                return self._preprocess_video_with_ffmpeg(input_path, width, height, fps)
+                return self._preprocess_video_with_ffmpeg(input_path, width, height, fps, duration=duration)
 
         # width 기준으로 확대 시 새 높이 계산
         scale_factor = width / orig_w
@@ -2531,7 +2545,7 @@ class VideoService:
         if scaled_h <= height:
             # 충분히 길지 않으면 일반 처리
             print(f"[TallPan] Not tall enough (scaled_h={scaled_h} <= frame_h={height}), using normal preprocess.")
-            return self._preprocess_video_with_ffmpeg(input_path, width, height, fps)
+            return self._preprocess_video_with_ffmpeg(input_path, width, height, fps, duration=duration)
 
         # FFMPEG에서는 Pan(좌표 이동)을 직접 하지 않고,
         # 단순히 폭(Width)을 맞추고 원래의 세로 비율(Height)을 살려둔 '길다란 비디오'를 만듭니다.
@@ -2919,6 +2933,181 @@ class VideoService:
             import traceback
             traceback.print_exc()
             return None
+
+    def auto_crop_image(self, image_path: str, border_color="auto", tolerance=15) -> str:
+        """
+        [NEW] OpenCV를 사용하여 이미지 상하좌우의 단색(검정/흰색) 여백(레터박스)을 자동으로 찾아 잘라냅니다.
+        """
+        import cv2
+        import numpy as np
+        try:
+            # OpenCV는 한글 경로 문제가 있을 수 있으므로 numpy로 우회 로드
+            stream = open(image_path, "rb")
+            bytes = bytearray(stream.read())
+            numpyarray = np.asarray(bytes, dtype=np.uint8)
+            img = cv2.imdecode(numpyarray, cv2.IMREAD_UNCHANGED)
+            stream.close()
+
+            if img is None:
+                print(f"Failed to load image for cropping: {image_path}")
+                return image_path
+
+            # 알파 채널 무시 (BGR 변환)
+            if len(img.shape) == 3 and img.shape[2] == 4:
+                img_bgr = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+            elif len(img.shape) == 3 and img.shape[2] == 3:
+                img_bgr = img
+            else:
+                img_bgr = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+
+            gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+
+            # border_color 결정: (좌상단 픽셀 색상 및 4모서리 참조)
+            if border_color == "auto":
+                # 좌상단 픽셀 기준
+                bg_color = gray[0, 0]
+                if bg_color < 50: border_color = "black"
+                elif bg_color > 200: border_color = "white"
+                else: 
+                    print(f"Background color is ambiguous (value: {bg_color}). Skipping crop.")
+                    return image_path
+
+            if border_color == "black":
+                _, thresh = cv2.threshold(gray, tolerance, 255, cv2.THRESH_BINARY)
+            else: # white
+                _, thresh = cv2.threshold(gray, 255 - tolerance, 255, cv2.THRESH_BINARY_INV)
+
+            # 외곽선 찾기
+            contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if not contours:
+                return image_path
+
+            # 가장 큰 영역 찾기 (모든 내용을 포함하는 Bounding Box)
+            min_x, min_y = img.shape[1], img.shape[0]
+            max_x, max_y = 0, 0
+            
+            for cnt in contours:
+                x, y, w, h = cv2.boundingRect(cnt)
+                # 너무 작은 노이즈 무시
+                if w < 10 or h < 10: continue
+                min_x = min(min_x, x)
+                min_y = min(min_y, y)
+                max_x = max(max_x, x + w)
+                max_y = max(max_y, y + h)
+
+            # 만약 박스가 전체 이미지 크기거나 유효하지 않으면 패스
+            if min_x >= max_x or min_y >= max_y:
+                return image_path
+            if min_x == 0 and min_y == 0 and max_x == img.shape[1] and max_y == img.shape[0]:
+                return image_path
+
+            # 크롭 시작
+            cropped = img[min_y:max_y, min_x:max_x]
+            
+            # 원본 덮어쓰기 (크롭된 이미지 저장)
+            _, encoded_img = cv2.imencode(os.path.splitext(image_path)[1], cropped)
+            with open(image_path, "wb") as f:
+                encoded_img.tofile(f)
+                
+            print(f"✅ [Video Service] Auto-cropped image: {image_path} (new size: {cropped.shape[1]}x{cropped.shape[0]})")
+            return image_path
+            
+        except Exception as e:
+            print(f"❌ [Video Service] Auto crop failed for {image_path}: {e}")
+            import traceback
+            traceback.print_exc()
+            return image_path
+
+    def auto_merge_continuous_images(self, image_paths: list[str], threshold: float = 18.0) -> list[str]:
+        """
+        [NEW] 세로로 분할된 컷들이 시각적으로 이어진 그림인지 판단하고,
+        이어진 컷들은 세로로 병합하여 하나의 파일(상단 컷)로 덮어씌웁니다.
+        병합되어 남은 최종 파일 경로 리스트를 반환합니다.
+        """
+        import cv2
+        import numpy as np
+        import os
+
+        if not image_paths or len(image_paths) < 2:
+            return image_paths
+
+        def load_image(path):
+            try:
+                stream = open(path, "rb")
+                bytes = bytearray(stream.read())
+                numpyarray = np.asarray(bytes, dtype=np.uint8)
+                img = cv2.imdecode(numpyarray, cv2.IMREAD_UNCHANGED)
+                stream.close()
+                return img
+            except:
+                return None
+
+        def save_image(img, path):
+            _, encoded_img = cv2.imencode(os.path.splitext(path)[1], img)
+            with open(path, "wb") as f:
+                encoded_img.tofile(f)
+
+        merged_paths = []
+        current_img = load_image(image_paths[0])
+        current_path = image_paths[0]
+
+        if current_img is None:
+            return image_paths 
+
+        merged_paths.append(current_path)
+
+        for i in range(1, len(image_paths)):
+            next_path = image_paths[i]
+            next_img = load_image(next_path)
+            
+            if next_img is None:
+                merged_paths.append(next_path)
+                current_img = None
+                continue
+                
+            can_merge = False
+            if current_img is not None:
+                h1, w1 = current_img.shape[:2]
+                h2, w2 = next_img.shape[:2]
+                
+                # 채널 비교 (RGBA/RGB)
+                c1 = current_img.shape[2] if len(current_img.shape) == 3 else 1
+                c2 = next_img.shape[2] if len(next_img.shape) == 3 else 1
+                
+                # 좌우 폭 차이가 15% 이하일 때만 병합 검사
+                if c1 == c2 and abs(w1 - w2) / max(w1, w2) <= 0.15:
+                    target_w = max(w1, w2)
+                    img1_eval = cv2.resize(current_img, (target_w, h1)) if w1 != target_w else current_img
+                    img2_eval = cv2.resize(next_img, (target_w, h2)) if w2 != target_w else next_img
+                    
+                    # 맞닿는 경계선 5픽셀 단위 색상차 분석
+                    bottom_edge = img1_eval[-5:, :]
+                    top_edge = img2_eval[:5, :]
+                    
+                    diff = np.mean(np.abs(bottom_edge.astype(np.float32) - top_edge.astype(np.float32)))
+                    if diff < threshold:
+                        can_merge = True
+
+            if can_merge:
+                target_w = max(w1, w2)
+                img1_cat = cv2.resize(current_img, (target_w, h1)) if w1 != target_w else current_img
+                img2_cat = cv2.resize(next_img, (target_w, h2)) if w2 != target_w else next_img
+                
+                # 세로로 바로 이어붙임 (V-stack)
+                merged_img = np.vstack((img1_cat, img2_cat))
+                save_image(merged_img, current_path)
+                current_img = merged_img
+                print(f"🔗 [Video Service] Scene merged: {current_path} + {next_path} (Diff: {diff:.2f})")
+                
+                # next_path는 합쳐졌으므로 원본 삭제 (또는 무시)
+                try: os.remove(next_path)
+                except: pass
+            else:
+                merged_paths.append(next_path)
+                current_img = next_img
+                current_path = next_path
+                
+        return merged_paths
 
 # 싱글톤 인스턴스
 video_service = VideoService()
