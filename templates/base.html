@@ -537,7 +537,10 @@
 
                 select.innerHTML = '<option value="">프로젝트 선택...</option>';
 
-                data.projects.forEach(p => {
+                const mode = window.APP_MODE || 'longform';
+                const filteredProjects = data.projects.filter(p => (p.app_mode || 'longform') === mode);
+
+                filteredProjects.forEach(p => {
                     const option = document.createElement('option');
                     option.value = p.id;
                     option.textContent = `${p.name} (${statusLabels[p.status] || p.status})`;
@@ -902,7 +905,7 @@
                     setVisible(navRender, true);
                     setVisible(navTitle, true);
                     setVisible(navShorts, true);
-                    setVisible(navWebtoon, true);
+                    setVisible(navWebtoon, false);
                     setVisible(navTopic, true);
                     setVisible(navRepository, true);
                     setVisible(navUpload, true);
@@ -956,9 +959,12 @@
 
 
         // 초기화
-        loadProjects();
-        checkApiStatus();
-        applyAppModeToNav();
+        async function initApp() {
+            await applyAppModeToNav();
+            await loadProjects();
+            checkApiStatus();
+        }
+        initApp();
     </script>
 </body>
 
