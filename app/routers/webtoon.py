@@ -1,12 +1,9 @@
-
 from fastapi import APIRouter, Request, HTTPException, UploadFile, File, Form, Body
-from typing import List, Dict
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 import os
 import shutil
 import json
-import base64
 import re
 import io
 import time
@@ -14,233 +11,52 @@ import httpx
 import urllib.parse
 from PIL import Image
 import numpy as np
+from typing import List, Dict, Optional
+
 from config import config
 import database as db
 from services.gemini_service import gemini_service
 from services.autopilot_service import autopilot_service
 from services.tts_service import tts_service
-from pydantic import BaseModel
-from typing import List, List as PyList, Optional
-
-import unicodedata
-from services.i18n import Translator
 from services.auth_service import auth_service
 from services.replicate_service import replicate_service
+from services.webtoon_service import (
+    finalize_scene_analysis, slice_webtoon, process_webtoon_image,
+    analyze_directory_service, automate_webtoon_service, fetch_webtoon_url_service
+)
+from app.models.webtoon import (
+    WebtoonScene, ScanRequest, AnalyzeDirRequest, 
+    WebtoonAutomateRequest, WebtoonPlanRequest, LocalImageRequest
+)
+from services.video_builder_service import (
+    analyze_scenes_for_director, get_png_files_from_folder
+)
 
-def finalize_scene_analysis(scene: Dict, voice_consistency_map: Dict, eleven_voices: List = None) -> Dict:
-    """
-    AI 분석 결과에 일관성을 부여하고, 유실된 데이터(성우, 효과음 등)를 보정하는 최종 단계.
-    """
-    analysis = scene.get('analysis', {})
-    
-    # 1. 캐릭터 이름 정규화 및 성우 배정
-    raw_char = str(analysis.get('character', 'Unknown')).strip()
-    if raw_char.lower() in ["none", "null", "undefined", "", "none "]: raw_char = "Unknown"
-    
-    # Narrator variants + Defaulting Unknown speech to Narration
-    char_lower = raw_char.lower()
-    dialogue = str(analysis.get('dialogue', '')).strip()
-    
-    narrator_keywords = ['narrator', 'narration', '내레이션', '해설', 'unknown', 'unknown voice', 'none', '', 'undefined']
-    if any(char_lower == kw for kw in narrator_keywords):
-        if dialogue:
-            norm_char = "내레이션"
-        else:
-            norm_char = "Unknown"
-    else:
-        norm_char = raw_char.replace("'", "").replace('"', "")
-
-    # Sync to analysis
-    analysis['character'] = norm_char
-    
-    # 2. Voice ID/Name 배정 (일관성 유지가 1순위)
-    suggested_voice = analysis.get('voice_recommendation') or {}
-    final_voice_id = str(suggested_voice.get('id', '')).strip()
-    final_voice_name = str(suggested_voice.get('name', '')).strip()
-    
-    # "None" 문자열 필터링
-    if final_voice_id.lower() in ["none", "null", "", "unknown"]: final_voice_id = None
-    if final_voice_name.lower() in ["none", "null", "", "unknown voice"]: final_voice_name = None
-
-    # 일관성 맵 확인
-    if norm_char != "Unknown" and norm_char in voice_consistency_map:
-        existing = voice_consistency_map[norm_char]
-        if isinstance(existing, dict):
-            final_voice_id = existing.get("id")
-            final_voice_name = existing.get("name")
-        else:
-            final_voice_id = existing # legacy string
-    
-    # [MODIFIED] 내레이션(Narrator) 일관성 강제: 무조건 Brian 성우 사용
-    if norm_char == "내레이션":
-        final_voice_id = "nPczCjzI2devNBz1zQrb"
-        final_voice_name = "Brian"
-
-    # [NEW] 신규 캐릭터 자동 성우 할당 (맵에 없고 내레이션도 아닌 경우)
-    if not final_voice_id and norm_char != "Unknown":
-        # 성별 및 나이 감지 (간단한 키워드 기반)
-        lower_char = norm_char.lower()
-        is_female = any(x in lower_char for x in ['girl', 'woman', 'female', '엄마', '그녀', '소녀', '여자', '누나', '언니', 'lady', 'miss', 'wife', 'rachel', 'bella', 'nicole'])
-        
-        # 기본 풀 (백엔드 하드코딩된 안정적인 성우들)
-        female_pool = ["21m00Tcm4TlvDq8ikWAM", "EXAVITQu4vr4xnSDxMaL", "AZnzlk1XhkbcUvJdpS9D", "z9fAnlkUCjS8Inj9L65X"] # Rachel, Bella, Nicole, Dorothy
-        male_pool = ["ErXwobaYiN019PkySvjV", "TxGEqnHWrfWFTfGW9XjX", "bIHbv24qawwzYvFyYv6f", "N2lVS1wzCLPce5hNBy94"] # Antoni, Josh, Adam, Josh (alt)
-
-        # 실제 ElevenLabs 데이터가 있으면 활용
-        if eleven_voices:
-            f_list = [v['voice_id'] for v in eleven_voices if v.get('labels', {}).get('gender') == 'female']
-            m_list = [v['voice_id'] for v in eleven_voices if v.get('labels', {}).get('gender') == 'male']
-            if f_list: female_pool = f_list
-            if m_list: male_pool = m_list
-
-        # 결정적 할당 (캐릭터 이름 해시값 사용)
-        import hashlib
-        h = int(hashlib.md5(norm_char.encode()).hexdigest(), 16)
-        if is_female:
-            final_voice_id = female_pool[h % len(female_pool)]
-        else:
-            final_voice_id = male_pool[h % len(male_pool)]
-
-    # 2.5 voice_consistency_map 업데이트 (다음 씬에서 동일 캐릭터가 나오면 같은 성우 사용)
-    if norm_char != "Unknown" and final_voice_id:
-        voice_consistency_map[norm_char] = {"id": final_voice_id, "name": final_voice_name or "Assigning..."}
-
-    # 3. 보이스 이름 유실 복구 (ElevenLabs 기반)
-    # final_voice_name이 비어있거나 "None"인 경우 강제 복구
-    if not final_voice_name or str(final_voice_name).lower() in ["none", "null", "unknown voice", "unknown", "generic description"]:
-        if eleven_voices and final_voice_id and final_voice_id not in ["unknown", "None"]:
-            for v in eleven_voices:
-                if v.get("voice_id") == final_voice_id:
-                    final_voice_name = v.get("name")
-                    break
-        
-        if not final_voice_name or str(final_voice_name).lower() in ["none", "null"]:
-            fallback_names = {
-                "ErXwobaYiN019PkySvjV": "Antoni (Male)",
-                "TxGEqnHWrfWFTfGW9XjX": "Josh (Male)",
-                "21m00Tcm4TlvDq8ikWAM": "Rachel (Female)",
-                "EXAVITQu4vr4xnSDxMaL": "Bella (Female)",
-                "nPczCjzI2devNBz1zQrb": "Brian (Narrator)"
-            }
-            final_voice_name = fallback_names.get(final_voice_id, "Default Character Voice")
-
-    # Update Scene Root and Analysis
-    scene['voice_id'] = final_voice_id or "unknown"
-    scene['voice_name'] = str(final_voice_name or "Default Character Voice")
-    
-    if 'voice_recommendation' not in analysis: analysis['voice_recommendation'] = {}
-    analysis['voice_recommendation']['id'] = final_voice_id or "unknown"
-    analysis['voice_recommendation']['name'] = str(final_voice_name or "Default Character Voice")
-
-    # [NEW] Final "Nuclear" anti-None check for UI strings
-    if str(scene.get('voice_name','')).lower() in ["none", "null", "unknown", "", "undefined"]:
-        scene['voice_name'] = "Default Character Voice"
-        analysis['voice_recommendation']['name'] = "Default Character Voice"
-    
-    # Final cleanup for voice_id to avoid "null" in JSON
-    if not scene['voice_id'] or str(scene['voice_id']).lower() in ["none", "null"]:
-        scene['voice_id'] = "unknown"
-
-    # 4. 오디오 디렉션 (효과음/배경음) 스마트 보정
-    aud = scene.get('audio_direction') or analysis.get('audio_direction') or {}
-    sfx_val = str(aud.get('sfx_prompt', '')).strip()
-    bgm_val = str(aud.get('bgm_mood', '')).strip()
-    atmosphere = str(analysis.get('atmosphere', '')).lower()
-    dialogue = str(analysis.get('dialogue', '')).lower()
-    visual = str(analysis.get('visual_desc', '')).lower()
-    
-    # [NEW] 영어 묘사(Visual Desc)도 키워드 검사에 활용 (더 넓은 범위의 감지)
-    combined_desc = f"{dialogue} {visual}"
-
-    # SFX 보정: 'None' 문자열이거나 비어있을 때만 검사
-    if not sfx_val or sfx_val.lower() in ['none', 'null', '', 'no sound', 'silence']:
-        sfx = ""
-        # 명확한 소리 유발 키워드가 있을 때만 보충
-        if any(x in combined_desc for x in ["쾅", "폭발", "bang", "boom", "explosion", "clash", "sword", "impact", "검술", "부딪히는"]): sfx = "Cinematic impact and clashing"
-        elif any(x in combined_desc for x in ["슈", "woosh", "wind", "피융", "fly", "motion blur"]): sfx = "Fast whoosh motion"
-        elif any(x in combined_desc for x in ["터벅", "step", "발자국", "walk", "running"]): sfx = "Footsteps"
-        elif any(x in combined_desc for x in ["웃음", "laugh", "chuckle", "smile"]): sfx = "Subtle background laughter"
-        
-        if sfx:
-            aud['sfx_prompt'] = sfx
-            aud['has_sfx'] = True
-        else:
-            # 실효성 없는 Silence는 빈칸으로 유지하여 "의도된 침묵" 허용
-            aud['sfx_prompt'] = ""
-            aud['has_sfx'] = False
-    else:
-        # 이미 값이 있으면 (AI가 직접 적은 경우) 유지
-        aud['has_sfx'] = True
-
-    # BGM 보정: 분위기가 정말 있을 때만 추천
-    if not bgm_val or bgm_val.lower() in ['none', 'null', 'silence', '']:
-        # 무조건 Cinematic을 넣지 않고, 의미 있는 분위기일 때만 반영
-        meaningful_atm = atmosphere and atmosphere not in ["none", "unknown", "static", "blank", "neutral"]
-        if meaningful_atm:
-            aud['bgm_mood'] = atmosphere.capitalize()
-        # 시각적 묘사에 강한 키워드가 있으면 추가 추천
-        elif any(x in visual for x in ["clash", "fight", "war", "battle", "sword"]):
-             aud['bgm_mood'] = "Epic Battle"
-        else:
-            aud['bgm_mood'] = "" # 평범한 장면은 비워둠 (침묵 허용)
-
-    scene['audio_direction'] = aud
-    analysis['audio_direction'] = aud
-
-    # 5. 성우 설정 (톤/이유) 스마트 보정
-    vs = scene.get('voice_settings') or analysis.get('voice_settings') or {}
-    if not vs or not vs.get('reason') or str(vs.get('reason')).lower() in ["none", "null", "why this tone?", ""]:
-        # [NEW] 더 구체적인 이유 생성
-        atm_reason = atmosphere.capitalize() if atmosphere not in ["none", "unknown"] else "natural"
-        vs_reason = f"Matching {norm_char}'s {atm_reason} tone in this scene."
-        if not vs or not isinstance(vs, dict): vs = {"stability": 0.5, "similarity_boost": 0.75, "speed": 1.0}
-        vs['reason'] = vs_reason
-    
-    scene['voice_settings'] = vs
-    # Flattening for WebtoonScene model compatibility
-    scene['visual_desc'] = analysis.get('visual_desc', '')
-    scene['character'] = analysis.get('character', 'Unknown')
-    scene['dialogue'] = analysis.get('dialogue', '')
-    scene['atmosphere'] = analysis.get('atmosphere', '')
-    scene['sound_effects'] = analysis.get('sound_effects', '')
-
-    analysis['voice_settings'] = vs
-    scene['analysis'] = analysis # Ensure synced
-    
-    # [NEW] Final "Nuclear" anti-None check for UI
-    if str(scene.get('voice_name')).lower() in ["none", "null", "unknown", ""]:
-        scene['voice_name'] = "Default Character Voice"
-        analysis['voice_recommendation']['name'] = "Default Character Voice"
-
-    return scene
 
 router = APIRouter(prefix="/webtoon", tags=["Webtoon Studio"])
 templates = Jinja2Templates(directory="templates")
 
-# i18n 및 전역 변수 설정 (base.html 호환성)
-app_lang = os.environ.get("APP_LANG", "ko")
-LANG_FILE = "language.pref"
-if os.path.exists(LANG_FILE):
-    try:
-        with open(LANG_FILE, "r") as f:
-            saved_lang = f.read().strip()
-            if saved_lang in ['ko', 'en', 'vi']:
-                app_lang = saved_lang
-    except: pass
 
-translator = Translator(app_lang)
-templates.env.globals['t'] = translator.t
-templates.env.globals['current_lang'] = app_lang
+# ✅ 공유 app_state에서 translator 가져오기 (main.py와 동일한 인스턴스)
+from services import app_state as _app_state
+
 templates.env.globals['membership'] = auth_service.get_membership()
 templates.env.globals['is_independent'] = auth_service.is_independent()
 
 @router.get("", response_class=HTMLResponse)
 async def webtoon_studio_page(request: Request):
     """웹툰 스튜디오 메인 페이지"""
+    # 매 요청마다 최신 translator를 컨텍스트에 직접 주입
+    # Jinja2에서 컨텍스트 변수 > env.globals 이므로 항상 올바른 언어 반영
+    tr = _app_state.get_translator()
+    t_func = tr.t if tr else (lambda k: k)
+    lang = tr.lang if tr else 'ko'
     return templates.TemplateResponse("pages/webtoon_studio.html", {
         "request": request,
         "title": "Webtoon Studio",
-        "page": "webtoon-studio"
+        "page": "webtoon-studio",
+        "t": t_func,
+        "current_lang": lang,
     })
 
 @router.post("/fetch-url")
@@ -250,83 +66,11 @@ async def fetch_webtoon_url(
 ):
     """네이버 웹툰 URL에서 이미지를 크롤링하여 저장"""
     try:
-        if "comic.naver.com" not in url:
-            raise HTTPException(400, "Only Naver Webtoon URLs are supported currently.")
-
-        # 1. 페이지 소스 가져오기
-        async with httpx.AsyncClient() as client:
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            }
-            res = await client.get(url, headers=headers)
-            if res.status_code != 200:
-                raise HTTPException(500, f"Failed to fetch page: {res.status_code}")
-            
-            html = res.text
-            
-            # 2. 이미지 URL 추출 (네이버 웹툰은 img_tag 또는 script 내에 존재)
-            # 보통 <div class="wt_viewer"> 내의 <img> 태그나 data-src에 있음
-            img_urls = re.findall(r'src="(https://image-comic\.pstatic\.net/webtoon/[^"]+)"', html)
-            if not img_urls:
-                # data-src 패턴 시도
-                img_urls = re.findall(r'data-src="(https://image-comic\.pstatic\.net/webtoon/[^"]+)"', html)
-            
-            if not img_urls:
-                raise HTTPException(404, "No webtoon images found in the provided URL.")
-
-            # 중복 제거 및 순서 유지
-            seen = set()
-            img_urls = [x for x in img_urls if not (x in seen or seen.add(x))]
-
-            # 3. 이미지 다운로드 및 병합 (Vertical Stitching)
-            project_dir = os.path.join(config.OUTPUT_DIR, str(project_id))
-            webtoon_dir = os.path.join(project_dir, "webtoon_originals")
-            os.makedirs(webtoon_dir, exist_ok=True)
-            
-            downloaded_images = []
-            
-            # Naver image servers check Referer
-            img_headers = headers.copy()
-            img_headers["Referer"] = "https://comic.naver.com/"
-
-            for i, img_url in enumerate(img_urls):
-                img_res = await client.get(img_url, headers=img_headers)
-                if img_res.status_code == 200:
-                    img_data = Image.open(io.BytesIO(img_res.content))
-                    downloaded_images.append(img_data)
-                
-            if not downloaded_images:
-                raise HTTPException(500, "Failed to download any images.")
-
-            # 4. 이미지 세로로 합치기
-            total_width = max(img.width for img in downloaded_images)
-            total_height = sum(img.height for img in downloaded_images)
-            
-            merged_img = Image.new('RGB', (total_width, total_height), (255, 255, 255))
-            y_offset = 0
-            for img in downloaded_images:
-                # 가비 호환을 위해 RGB 변환
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-                merged_img.paste(img, (0, y_offset))
-                y_offset += img.height
-
-            # 5. 저장
-            filename = f"webtoon_merged_{int(time.time())}.jpg"
-            file_path = os.path.join(webtoon_dir, filename)
-            merged_img.save(file_path, "JPEG", quality=90)
-            
-            return {
-                "status": "ok",
-                "filename": filename,
-                "path": file_path,
-                "url": f"/api/media/v?path={file_path}"
-            }
-            
+        return await fetch_webtoon_url_service(project_id, url)
+    except HTTPException as he:
+        raise he
     except Exception as e:
         print(f"Fetch URL error: {e}")
-        import traceback
-        traceback.print_exc()
         raise HTTPException(500, str(e))
 
 import urllib.parse
@@ -457,7 +201,8 @@ async def classify_webtoon_scenes(
 async def analyze_webtoon(
     project_id: int = Form(...),
     filename: str = Form(...),
-    psd_exclude_layer: Optional[str] = Form(None)
+    psd_exclude_layer: Optional[str] = Form(None),
+    skip_ai: Optional[bool] = Form(False)
 ):
     """웹툰 이미지 슬라이싱 및 AI 분석 (OCR + Scene Description)"""
     try:
@@ -488,9 +233,6 @@ async def analyze_webtoon(
         analysis_image_path = webtoon_path
         clean_image_path = None
         ext = os.path.splitext(filename)[1].lower()
-        temp_dir = os.path.join(config.MEDIA_DIR, "temp")
-        os.makedirs(temp_dir, exist_ok=True)
-        
         if ext == '.psd':
             from psd_tools import PSDImage
             import uuid
@@ -498,7 +240,7 @@ async def analyze_webtoon(
             try:
                 # 1. 분석용 (전체 레이어)
                 psd_ana = PSDImage.open(webtoon_path)
-                ana_png = os.path.join(temp_dir, f"ana_{uuid.uuid4().hex}.png")
+                ana_png = os.path.join(sliced_dir, f"full_{uuid.uuid4().hex}.png")
                 comp_ana = psd_ana.composite()
                 if not comp_ana: comp_ana = Image.fromarray(psd_ana.numpy())
                 comp_ana.save(ana_png)
@@ -541,7 +283,7 @@ async def analyze_webtoon(
                                 found_any = True
                     
                     if found_any:
-                        cln_png = os.path.join(temp_dir, f"cln_{uuid.uuid4().hex}.png")
+                        cln_png = os.path.join(sliced_dir, f"cln_{uuid.uuid4().hex}.png")
                         try:
                             comp_cln = psd_cln.composite()
                         except:
@@ -593,12 +335,7 @@ async def analyze_webtoon(
 
         cuts = slice_webtoon(analysis_image_path, sliced_dir, clean_image_path=clean_image_path)
         
-        # Temp PNG cleanup
-        if ext == '.psd':
-            for p in [analysis_image_path, clean_image_path]:
-                if p and p.startswith(temp_dir) and os.path.exists(p):
-                    try: os.remove(p)
-                    except: pass
+        # Temp PNG cleanup removed to keep files available for UI display
         
         # [NEW] Prepare Voice Options for AI Recommendation
         voice_options_str = None
@@ -646,6 +383,24 @@ async def analyze_webtoon(
             video_path = cut_info["video"]
             analysis_path = cut_info["analysis"]
             
+            if skip_ai:
+                # [NEW] AI 분석 생략 모드 (Review first)
+                scenes.append({
+                    "scene_number": i + 1,
+                    "image_path": video_path,
+                    "analysis_path": analysis_path, # 나중 분석을 위해 저장
+                    "original_image_path": clean_image_path,
+                    "original_image_url": f"/api/media/v?path={urllib.parse.quote(clean_image_path)}&t={ts}",
+                    "image_url": f"/api/media/v?path={urllib.parse.quote(video_path)}&t={ts}",
+                    "analysis": {
+                        "dialogue": "", "character": "Unknown", "visual_desc": "Waiting for analysis...", 
+                        "atmosphere": "Normal", "is_meaningless": False
+                    },
+                    "voice_id": "nPczCjzI2devNBz1zQrb", # Brian default
+                    "voice_name": "Brian"
+                })
+                continue
+            
             try:
                 analysis = await gemini_service.analyze_webtoon_panel(analysis_path, context=context, voice_options=voice_options_str)
                 
@@ -671,12 +426,11 @@ async def analyze_webtoon(
                     print(f"Skipping meaningless panel {i} (Visual: {visual})")
                     continue
 
-                import time
-                ts = int(time.time())
                 scene = {
                     "scene_number": len(scenes) + 1,
                     "image_path": video_path,
-                    "original_image_path": cut_info.get("original", video_path),  # [NEW] Full original
+                    "original_image_path": clean_image_path,  # [NEW] Full original
+                    "original_image_url": f"/api/media/v?path={urllib.parse.quote(clean_image_path)}&t={ts}",
                     "image_url": f"/api/media/v?path={urllib.parse.quote(video_path)}&t={ts}",
                     "analysis": analysis,
                     "focal_point_y": analysis.get("focal_point_y", 0.5)
@@ -706,6 +460,8 @@ async def analyze_webtoon(
                 scenes.append({
                     "scene_number": len(scenes) + 1,
                     "image_path": video_path,
+                    "original_image_path": clean_image_path,
+                    "original_image_url": f"/api/media/v?path={urllib.parse.quote(clean_image_path)}&t={ts}",
                     "image_url": f"/api/media/v?path={urllib.parse.quote(video_path)}&t={ts}",
                     "analysis": {"dialogue": "", "character": "Unknown", "visual_desc": "Error during analysis", "atmosphere": "Error"}
                 })
@@ -725,208 +481,62 @@ async def analyze_webtoon(
         traceback.print_exc()
         raise HTTPException(500, str(e))
 
-def slice_webtoon(image_path: str, output_dir: str, min_padding=30, start_idx=1, clean_image_path: str = None, original_full_path: str = None):
-    """
-    웹툰 긴 이미지를 칸별로 분할.
-    clean_image_path가 제공되면, image_path(원본)로 절단점을 찾고 두 이미지 모두를 잘라냅니다.
-    """
-    try:
-        img = Image.open(image_path)
-        clean_img = Image.open(clean_image_path) if clean_image_path else None
-    except Exception as e:
-        print(f"Error opening images: {e}")
-        return []
 
-    if img.mode != 'RGB':
-        img = img.convert('RGB')
-    if clean_img and clean_img.mode != 'RGB':
-        clean_img = clean_img.convert('RGB')
-        
-    img_np = np.array(img.convert('L')) # Grayscale
-    h, w = img_np.shape
-    
-    # [IMPROVED] 여백 감지 로직 개선
-    # 단순 std만 보는 게 아니라, 평균 밝기가 매우 높거나(흰색) 매우 낮은(검은색) 경우도 고려
-    row_stds = np.std(img_np, axis=1)
-    row_means = np.mean(img_np, axis=1)
-    
-    # 여백 조건: (표준편차가 매우 낮음) AND (밝기가 아주 밝거나 아주 어두움)
-    # std < 5 (좀 더 여유있게)
-    # mean > 240 (흰색) or mean < 15 (검은색)
-    is_blank = (row_stds < 5) & ((row_means > 240) | (row_means < 15))
-    
-    # 여백 구간 탐지
-    blank_threshold = 30 # 최소 30픽셀 이상이어야 여백으로 인정
-    blank_runs = []
-    run_start = -1
-    
-    for y in range(h):
-        if is_blank[y]:
-            if run_start == -1: run_start = y
-        else:
-            if run_start != -1:
-                if y - run_start >= blank_threshold:
-                    blank_runs.append((run_start, y))
-                run_start = -1
-    if run_start != -1 and h - run_start >= blank_threshold:
-        blank_runs.append((run_start, h))
 
-    # 절단점을 기준으로 조각 범위 결정
-    panel_ranges = []
-    if not blank_runs:
-        # 여백이 아예 없으면 통으로 1장
-        panel_ranges = [(0, h)]
-    else:
-        last_y = 0
-        for start, end in blank_runs:
-            # 여백 시작점(start)까지가 하나의 컷
-            # 단, 컷의 높이가 최소 50px은 되어야 함
-            if start - last_y > 50:
-                panel_ranges.append((last_y, start))
-            last_y = end # 여백 끝점(end)부터 다음 컷 시작
-            
-        # 마지막 남은 부분 처리
-        if h - last_y > 50:
-            panel_ranges.append((last_y, h))
-
-    cuts = []
-    for i, (p_start, p_end) in enumerate(panel_ranges):
-        # 약간의 여백 포함 (위아래 5px) - 단 이미지 범위 내에서
-        p_start = max(0, p_start - 5)
-        p_end = min(h, p_end + 5)
-        
-        # 원본 이미지 잘라내기 (분석용)
-        cut_full = img.crop((0, p_start, w, p_end))
-        
-        # [REFINED] 정밀 필터링 강화 (짜투리 제거)
-        cut_gray = np.array(cut_full.convert('L'))
-        std_val = np.std(cut_gray)
-        mean_val = np.mean(cut_gray)
-        h_cut, w_cut = float(cut_gray.shape[0]), float(cut_gray.shape[1])
-        
-        # 1. 너무 작은 조각 제거 (높이 100px 미만)
-        if h_cut < 100:
-            print(f"      - Skipping too small panel (h={h_cut})")
-            continue
-
-        # 2. 단색(검은색/흰색) 배경 제거
-        # std가 적당히 낮으면서(10 미만), 평균 밝기가 양극단(어둡거나 밝음)인 경우
-        is_dark_junk = (mean_val < 30) and (std_val < 10)  # 검은색 띠
-        is_light_junk = (mean_val > 225) and (std_val < 10) # 흰색 여백
-        
-        # 3. 거의 완벽한 단색 (노이즈 포함)
-        is_flat = std_val < 3.0
-        
-        if is_dark_junk or is_light_junk or is_flat:
-            print(f"      - Skipping junk panel (std={std_val:.2f}, mean={mean_val:.2f})")
-            continue
-            
-        # [OPTIMIZED] Resize for Vision AI (Gemini doesn't need 8MB images)
-        # Max Dimension 1280px is sufficient for dialogue extraction & visual analysis
-        max_dim = 1280
-        w_cut, h_cut = cut_full.size
-        if w_cut > max_dim or h_cut > max_dim:
-            if w_cut > h_cut:
-                new_w = max_dim
-                new_h = int(h_cut * (max_dim / w_cut))
-            else:
-                new_h = max_dim
-                new_w = int(w_cut * (max_dim / h_cut))
-            cut_full_resised = cut_full.resize((new_w, new_h), Image.LANCZOS)
-        else:
-            cut_full_resised = cut_full
-            
-        current_idx = start_idx + len(cuts)
-        
-        # 파일 저장 (분석용 - 용량 축소)
-        analysis_filename = f"scene_{current_idx:03d}_ana.jpg"
-        analysis_path = os.path.join(output_dir, analysis_filename)
-        cut_full_resised.save(analysis_path, "JPEG", quality=85) # Quality 85 is enough
-        
-        video_path = analysis_path # 기본값
-        
-        if clean_img:
-            # 클린 이미지 잘라내기 (영상용)
-            # 좌표는 원본과 동일하게 사용
-            cut_clean = clean_img.crop((0, p_start, w, p_end))
-            video_filename = f"scene_{current_idx:03d}.jpg"
-            video_path = os.path.join(output_dir, video_filename)
-            cut_clean.save(video_path, "JPEG", quality=95)
-        
-        cuts.append({
-            "video": video_path,
-            "analysis": analysis_path,
-            "original": original_full_path or clean_image_path or image_path  # [NEW] Full original image for Wan 2.1
-        })
-                
-    if not cuts:
-         print("⚠️ No cuts found after slicing. Fallback to using the whole image.")
-         # 전체 이미지를 하나로 저장해서라도 반환
-         full_ana_path = os.path.join(output_dir, "scene_001_ana.jpg")
-         img.save(full_ana_path, "JPEG")
-         cuts.append({"video": full_ana_path, "analysis": full_ana_path})
-         
-    # [NEW] AI 기반 파이프라인 1단계: Auto-crop (검은색 테두리 등 여백 제거)
-    from services.video_service import video_service
-    video_paths = []
-    for c in cuts:
-        if "video" in c and os.path.exists(c["video"]):
-            # 원본 보존 없이 바로 덮어쓰기 (용량 절약 및 일관성)
-            video_service.auto_crop_image(c["video"])
-            video_paths.append(c["video"])
-            
-    # [NEW] AI 기반 파이프라인 2단계: 연속 씬 합성 (Scene Synthesis)
-    if video_paths:
-        merged_video_paths = set(video_service.auto_merge_continuous_images(video_paths))
-        final_cuts = []
-        for c in cuts:
-            if "video" in c and c["video"] in merged_video_paths:
-                c["analysis"] = c["video"] # 합쳐진 이미지를 분석용으로 같이 사용
-                final_cuts.append(c)
-        cuts = final_cuts
-         
-    return cuts
-class WebtoonScene(BaseModel):
-    scene_number: int
-    character: str
-    dialogue: str
-    visual_desc: str
-    image_path: str
-    original_image_path: Optional[str] = None  # [NEW] Full-height original image for Wan 2.1
-    voice_id: Optional[str] = None
-    atmosphere: Optional[str] = None
-    sound_effects: Optional[str] = None
-    focal_point_y: Optional[float] = 0.5
-    engine_override: Optional[str] = None
-    effect_override: Optional[str] = None
-    motion_desc: Optional[str] = None
-    voice_settings: Optional[dict] = None
-    audio_direction: Optional[dict] = None
-
-class ScanRequest(BaseModel):
-    path: str
-
-class AnalyzeDirRequest(BaseModel):
-    project_id: int
-    files: List[str]
-    psd_exclude_layer: Optional[str] = None
-
-class WebtoonAutomateRequest(BaseModel):
-    project_id: int
-    scenes: List[WebtoonScene]
-    use_lipsync: bool = True
-    use_subtitles: bool = True
-    character_map: Optional[dict] = None
-
-class WebtoonPlanRequest(BaseModel):
-    project_id: int
-    scenes: List[dict]
 
 @router.post("/generate-plan")
 async def generate_webtoon_plan(req: WebtoonPlanRequest):
     """장면별 대사/묘사를 바탕으로 비디오 제작 기획서(기술 사양) 생성"""
     try:
-        plan = await gemini_service.generate_webtoon_plan(req.scenes)
+        # [NEW] 만약 분석 데이터가 비어있다면, 기획서 생성 전 즉시 분석 수행
+        needs_analysis = any(
+            not s.get('analysis', {}).get('visual_desc') or 
+            s.get('analysis', {}).get('visual_desc') == "Waiting for analysis..."
+            for s in req.scenes
+        )
+        
+        updated_scenes = req.scenes
+        if needs_analysis:
+            print("🚀 [On-Demand Analysis] Starting scene analysis before planning...")
+            # 보이스 일관성 맵 로드 (필수)
+            char_voice_map = {}
+            eleven_voices = []
+            try:
+                settings = db.get_project_settings(req.project_id) if req.project_id else {}
+                if settings and settings.get('voice_mapping_json'):
+                    char_voice_map = json.loads(settings['voice_mapping_json'])
+                eleven_voices = await tts_service.get_elevenlabs_voices()
+            except: pass
+
+            context = ""
+            for i, s in enumerate(updated_scenes):
+                # 분석이 필요한 경우만 수행
+                if not s.get('analysis', {}).get('visual_desc') or s.get('analysis', {}).get('visual_desc') == "Waiting for analysis...":
+                    # analysis_path가 없으면 image_path 사용 (보수적)
+                    target_path = s.get('analysis_path') or s.get('image_path')
+                    if target_path and os.path.exists(target_path):
+                        try:
+                            ana = await gemini_service.analyze_webtoon_panel(target_path, context=context)
+                            s['analysis'] = ana
+                            
+                            # 일관성 부여
+                            finalize_scene_analysis(s, char_voice_map, eleven_voices)
+                            
+                            if ana.get('dialogue'):
+                                context = f"Last seen: {ana.get('character')} said \"{ana.get('dialogue')[:50]}\"."
+                                
+                            print(f"   - Scene {i+1} analyzed.")
+                        except Exception as e:
+                            print(f"   - Scene {i+1} analysis failed: {e}")
+            
+            # 분석 완료된 데이터를 DB에 저장 (유실 방지)
+            try:
+                db.update_project_setting(req.project_id, "webtoon_scenes_json", json.dumps(updated_scenes, ensure_ascii=False))
+                db.update_project_setting(req.project_id, "voice_mapping_json", json.dumps(char_voice_map, ensure_ascii=False))
+            except: pass
+
+        # 이제 기획서 생성
+        plan = await gemini_service.generate_webtoon_plan(updated_scenes)
         
         # [NEW] Save Plan to Project Settings
         try:
@@ -935,7 +545,7 @@ async def generate_webtoon_plan(req: WebtoonPlanRequest):
         except Exception as se:
             print(f"Failed to save plan: {se}")
 
-        return {"status": "ok", "plan": plan}
+        return {"status": "ok", "plan": plan, "scenes": updated_scenes if needs_analysis else None}
     except Exception as e:
         print(f"Plan Gen Error: {e}")
         raise HTTPException(500, str(e))
@@ -944,138 +554,9 @@ async def generate_webtoon_plan(req: WebtoonPlanRequest):
 async def automate_webtoon(req: WebtoonAutomateRequest):
     """분석된 데이터를 프로젝트 설정에 저장하고 대기열로 전송"""
     try:
-        project_id = req.project_id
-        
-        # 1. 스크립트 결합 (멀티보이스 형식 준수)
-        full_script = ""
-        for s in req.scenes:
-            speaker = s.character if s.character and s.character != "None" else "나레이션"
-            full_script += f"{speaker}: {s.dialogue}\n\n"
-            
-        # 2. 이미지 에셋 일괄 이동 및 매칭 설정
-        asset_dir = os.path.join(config.OUTPUT_DIR, str(project_id), "assets", "image")
-        os.makedirs(asset_dir, exist_ok=True)
-        # SFX dir
-        sfx_dir = os.path.join(config.OUTPUT_DIR, str(project_id), "assets", "sound")
-        os.makedirs(sfx_dir, exist_ok=True)
-        
-        image_prompts = []
-        for i, s in enumerate(req.scenes):
-            filename = f"scene_{i+1:03d}.jpg"
-            dest_path = os.path.join(asset_dir, filename)
-            shutil.copy2(s.image_path, dest_path)
-            
-            # 매칭 정보 저장 (Project Settings - Legacy)
-            db.update_project_setting(project_id, f"scene_{i+1}_image", filename)
-            
-            # Use overrides if present, else default to zoom_in
-            motion = s.effect_override or "zoom_in"
-            db.update_project_setting(project_id, f"scene_{i+1}_motion", motion)
-            db.update_project_setting(project_id, f"scene_{i+1}_motion_speed", "3.3")
-            
-            # [NEW] Save original full-height image for Wan 2.1 (prevents character cropping)
-            # If original_image_path exists and differs from image_path, copy it as wan asset
-            orig_img_path = s.original_image_path
-            if orig_img_path and orig_img_path != s.image_path and os.path.exists(orig_img_path):
-                wan_filename = f"scene_{i+1:03d}_wan.jpg"
-                wan_dest = os.path.join(asset_dir, wan_filename)
-                shutil.copy2(orig_img_path, wan_dest)
-                db.update_project_setting(project_id, f"scene_{i+1}_wan_image", wan_filename)
-                print(f"✅ [Wan Asset] Scene {i+1}: Saved full original image → {wan_filename}")
-            else:
-                # Fallback: use the panel image (may crop characters)
-                db.update_project_setting(project_id, f"scene_{i+1}_wan_image", "")
-            
-            # Engine override per scene (if supported by autopilot_service later)
-            if s.engine_override:
-                db.update_project_setting(project_id, f"scene_{i+1}_engine", s.engine_override)
-            
-            # [NEW] Save special motion description for Wan engine
-            if s.motion_desc:
-                db.update_project_setting(project_id, f"scene_{i+1}_motion_desc", s.motion_desc)
-            
-            # [NEW] Save Scene Voice
-            if s.voice_id and s.voice_id != "None":
-                db.update_project_setting(project_id, f"scene_{i+1}_voice", s.voice_id)
-
-            # [NEW] Save Voice Settings (Tone/Speed)
-            if s.voice_settings:
-                # Ensure it's JSON string for DB storage
-                try:
-                    vs_json = json.dumps(s.voice_settings)
-                    db.update_project_setting(project_id, f"scene_{i+1}_voice_settings", vs_json)
-                except:
-                    pass
-
-
-            # --- Auto SFX Generation (ElevenLabs) ---
-            if s.sound_effects and s.sound_effects not in ['None', 'Unknown'] and len(s.sound_effects) > 2:
-                try:
-                    # Clean up text for better prompt
-                    sfx_prompt = re.sub(r'[^\w\s,]', '', s.sound_effects)
-                    # Generate SFX using ElevenLabs
-                    print(f"Generating SFX for scene {i+1}: {sfx_prompt}")
-                    sfx_data = await tts_service.generate_sound_effect(sfx_prompt[:100], duration_seconds=None)
-                    
-                    if sfx_data:
-                        sfx_filename = f"sfx_scene_{i+1:03d}.mp3"
-                        sfx_path = os.path.join(sfx_dir, sfx_filename)
-                        with open(sfx_path, "wb") as f:
-                            f.write(sfx_data)
-                        
-                        db.update_project_setting(project_id, f"scene_{i+1}_sfx", sfx_filename)
-                        print(f"✅ SFX Saved: {sfx_filename}")
-                except Exception as e:
-                    print(f"❌ SFX Generation failed for scene {i+1}: {e}")
-
-            # [핵심] 이미지 프롬프트 테이블 저장 (AutoPilot 필수 데이터)
-            # [핵심] 이미지 프롬프트 테이블 저장 (AutoPilot 필수 데이터)
-            image_prompts.append({
-                "scene_number": i + 1,
-                "scene_text": s.dialogue,
-                "prompt_en": f"{s.visual_desc}", 
-                "image_url": f"/output/{str(project_id)}/assets/image/{filename}",
-                "narrative": s.dialogue,
-                "focal_point_y": s.focal_point_y,
-                "motion_desc": s.motion_desc # [NEW] Store motion description
-            })
-
-            # [NEW] Save motion desc to settings for direct access by Autopilot
-            if s.motion_desc:
-                db.update_project_setting(project_id, f"scene_{i+1}_motion_desc", s.motion_desc)
-            
-        # 3. 이미지 프롬프트 테이블 일괄 저장
-        db.save_image_prompts(project_id, image_prompts)
-
-        # 4. 프로젝트 설정 및 오토파일럿 플래그 업데이트
-        db.update_project(project_id, status="queued") # 바로 대기열로!
-        db.update_project_setting(project_id, "script", full_script)
-        db.update_project_setting(project_id, "auto_plan", False)
-        db.update_project_setting(project_id, "app_mode", "shorts") 
-        db.update_project_setting(project_id, "auto_tts", 1)      # TTS 자동 생성 활성화
-        db.update_project_setting(project_id, "auto_render", 1)   # 렌더링 자동 시작 활성화
-        
-        # [NEW] 립싱크(Akool) 및 동영상(Wan) 엔진 설정
-        if req.use_lipsync:
-            db.update_project_setting(project_id, "video_engine", "akool")
-            db.update_project_setting(project_id, "all_video", 1) # 모든 장면을 비디오(립싱크)화
-        else:
-            db.update_project_setting(project_id, "video_engine", "wan") # 기본 모션 엔진
-            db.update_project_setting(project_id, "all_video", 1) # [FIX] 웹툰 모드에서는 모든 장면을 비디오(Wan/Motion)화 하도록 강제
-        
-        # 4. 설정 저장 (립싱크 및 자막 여부)
-        db.update_project_setting(project_id, "use_lipsync", req.use_lipsync)
-        db.update_project_setting(project_id, "use_subtitles", req.use_subtitles)
-
-        # [NEW] Save Voice Mapping for future consistency
-        if req.character_map:
-            db.update_project_setting(project_id, "voice_mapping_json", json.dumps(req.character_map, ensure_ascii=False))
-        
-        # 5. 백그라운드 워커가 감지할 수 있도록 보장
-        autopilot_service.add_to_queue(project_id)
-        
-        return {"status": "ok", "message": "Project added to queue for automation"}
-        
+        return await automate_webtoon_service(
+            req.project_id, req.scenes, req.use_lipsync, req.use_subtitles, req.character_map
+        )
     except Exception as e:
         print(f"Automate error: {e}")
         raise HTTPException(500, str(e))
@@ -1116,408 +597,9 @@ async def scan_directory(req: ScanRequest):
 async def analyze_directory(req: AnalyzeDirRequest):
     """로컬 파일 리스트를 입력받아 일괄 분석 (Direct Access)"""
     try:
-        project_dir = os.path.join(config.OUTPUT_DIR, str(req.project_id))
-        sliced_base_dir = os.path.join(project_dir, "webtoon_sliced")
-        
-        # [CRITICAL] 일괄 분석 시에도 기존 자른 이미지 폴더를 비워서 캐시 꼬임 방지
-        if os.path.exists(sliced_base_dir):
-            shutil.rmtree(sliced_base_dir)
-        os.makedirs(sliced_base_dir, exist_ok=True)
-        
-        # Temp dir for PSD conversion
-        temp_dir = os.path.join(project_dir, "temp_psd_conversion")
-        if os.path.exists(temp_dir):
-            shutil.rmtree(temp_dir)
-        os.makedirs(temp_dir, exist_ok=True)
-        
-        # [NEW] Set status to processing and clear error flag
-        db.update_project(req.project_id, status="processing")
-        print(f"🚀 [Webtoon Dir] Start analysis for {len(req.files)} files. Project: {req.project_id}")
-
-        layer_trace = [] # Initialize layer_trace for the entire batch
-        debug_all_layers = {} # 파일별 레이어 목록
-        
-        def normalize_name(s):
-            if not s: return ""
-            # NFC/NFKC 통합
-            s = unicodedata.normalize('NFKC', str(s))
-            # 공백 및 제어문자 제거, 소문자화 (한글/영문/숫자/일부특수문자 유지)
-            s = "".join(c for c in s if not c.isspace() and ord(c) > 31).lower()
-            return s
-        
-        all_scenes = []
-        global_scene_counter = 1
-        current_context = "" # Initialize context for Gemini
-        current_project = db.get_project(req.project_id)
-        if current_project and current_project.get("topic"):
-            topic = current_project["topic"]
-            conn = db.get_db()
-            cursor = conn.cursor()
-            cursor.execute("SELECT id FROM projects WHERE topic = ? AND id != ? ORDER BY id DESC LIMIT 1", (topic, req.project_id))
-            row = cursor.fetchone()
-            if row:
-                prev_id = row["id"]
-                cursor.execute("SELECT full_script FROM scripts WHERE project_id = ?", (prev_id,))
-                script_row = cursor.fetchone()
-                if script_row and script_row["full_script"]:
-                     current_context = script_row["full_script"][-500:] # Last 500 chars (Previous episode context)
-            conn.close()
-            if current_context:
-                print(f"📖 [Webtoon] Loaded context from previous episode: {len(current_context)} chars")
-        
-        # [NEW] Prepare Voice Options for AI Recommendation
-        voice_options_str = None
-        try:
-            voices = await tts_service.get_elevenlabs_voices()
-            if voices:
-                v_list = []
-                # Limit to top 40 to avoid token overflow
-                for v in voices[:40]:
-                    labels = v.get('labels', {})
-                    # Simplify labels
-                    traits = []
-                    if 'gender' in labels: traits.append(labels['gender'])
-                    if 'age' in labels: traits.append(labels['age'])
-                    if 'accent' in labels: traits.append(labels['accent'])
-                    if 'description' in labels: traits.append(labels['description']) # Some use description
-                    
-                    trait_str = ", ".join(traits) if traits else "General"
-                    v_list.append(f"- Name: {v['name']} (ID: {v['voice_id']}) - {trait_str}")
-                
-                voice_options_str = "\n".join(v_list)
-                print(f"🎤 [Webtoon] Loaded {len(v_list)} voices for recommendation.")
-        except Exception as e:
-            print(f"⚠️ Failed to load voices for recommendation: {e}")
-
-        # [NEW] Load Voice Consistency Map ONCE for the batch
-        voice_consistency_map = {}
-        try:
-            p_set = db.get_project_settings(req.project_id) if req.project_id else {}
-            if p_set and p_set.get('voice_mapping_json'):
-                start_map = json.loads(p_set.get('voice_mapping_json'))
-                # Validate format (id vs dict)
-                for k, v in start_map.items():
-                    if isinstance(v, dict) and "id" in v:
-                        voice_consistency_map[k] = v
-                    elif isinstance(v, str):
-                        # Convert legacy format (id string) to dict
-                        voice_consistency_map[k] = {"id": v, "name": "Unknown Voice"}
-        except Exception as e:
-            print(f"⚠️ Failed to load voice map: {e}")
-
-        for i, file_path in enumerate(req.files):
-            print(f"  📂 [{i+1}/{len(req.files)}] Processing file: {file_path}")
-            if not os.path.exists(file_path):
-                print(f"    ⚠️ File NOT found: {file_path}")
-                continue
-                
-            ext = os.path.splitext(file_path)[1].lower()
-            analysis_image_path = file_path
-            clean_image_path = None
-            
-            print(f"    Ext: {ext}")
-            if ext == '.psd':
-                try:
-                    from psd_tools import PSDImage
-                    import uuid
-                    
-                    # 1. Full Image (Analysis)
-                    psd_ana = PSDImage.open(file_path)
-                    full_png_path = os.path.join(temp_dir, f"ana_{uuid.uuid4().hex}.png")
-                    comp_ana = psd_ana.composite()
-                    if not comp_ana: comp_ana = Image.fromarray(psd_ana.numpy())
-                    comp_ana.save(full_png_path)
-                    analysis_image_path = full_png_path
-                    
-                    # PSD인 경우 모든 레이어 구조를 항상 디버그 정보에 포함
-                    all_layers_batch = [l.name for l in psd_ana.descendants() if l.name][:50]
-                    debug_all_layers[os.path.basename(file_path)] = {
-                        "layers": all_layers_batch,
-                        "matched": [],
-                        "keywords": [],
-                        "method": "analysis_only"
-                    }
-
-                    # 2. Clean Image (Filtered)
-                    clean_image_path = full_png_path # Default
-                    if req.psd_exclude_layer:
-                        psd_cln = PSDImage.open(file_path) # Fresh open for clean image
-                        raw_keywords = [k.strip() for k in re.split(r'[,，\s\n]+', req.psd_exclude_layer) if k.strip()]
-                        keywords = [normalize_name(k) for k in raw_keywords]
-                        
-                        found_any = False
-                        keywords_debug = keywords
-                        matched_trace = []
-                        
-                        for layer in psd_cln.descendants():
-                            if not layer.name: continue
-                            name_norm = normalize_name(layer.name)
-                            if any(k in name_norm for k in keywords):
-                                if layer.visible:
-                                    print(f"👉 [PSD Dir Filter] Hiding: '{layer.name}' (norm: {name_norm})")
-                                    layer.visible = False
-                                    layer_trace.append(f"{os.path.basename(file_path)}: {layer.name}") 
-                                    matched_trace.append(layer.name)
-                                    # 하위 레이어까지 재귀적으로 강제 은닉
-                                    if hasattr(layer, 'descendants'):
-                                        for child in layer.descendants():
-                                            child.visible = False
-                                    found_any = True
-                        
-                        if found_any:
-                            clean_png_path = os.path.join(temp_dir, f"cln_{uuid.uuid4().hex}.png")
-                            try:
-                                comp_cln = psd_cln.composite()
-                            except:
-                                comp_cln = None
-
-                            method = "composite"
-                            if not comp_cln:
-                                method = "manual_merge"
-                                print(f"   [PSD Dir] Main composite failed for {file_path}. Manual Merge started...")
-                                # 흰색 배경으로 시작 (255 alpha)
-                                canvas = Image.new("RGBA", psd_cln.size, (255, 255, 255, 255))
-                                for l in psd_cln:
-                                    if l.visible:
-                                        try:
-                                            l_img = l.composite()
-                                            if l_img:
-                                                canvas.alpha_composite(l_img.convert("RGBA"))
-                                        except:
-                                            pass
-                                comp_cln = canvas.convert("RGB")
-                                
-                            if comp_cln.mode != 'RGB': comp_cln = comp_cln.convert('RGB')
-                            comp_cln.save(clean_png_path)
-                            clean_image_path = clean_png_path
-                            debug_all_layers[os.path.basename(file_path)] = {
-                                "layers": [l.name for l in psd_cln.descendants() if l.name][:50],
-                                "matched": matched_trace,
-                                "keywords": keywords_debug,
-                                "method": method
-                            }
-                        else:
-                            print(f"   [PSD Dir] No layer matched from {keywords} in {file_path}")
-                            all_names = [l.name for l in psd_cln.descendants() if l.name][:20]
-                            debug_all_layers[os.path.basename(file_path)] = {
-                                "layers": all_names,
-                                "matched": [],
-                                "keywords": keywords,
-                                "method": "none_matched"
-                            }
-                            clean_image_path = full_png_path
-                    else:
-                         clean_image_path = full_png_path
-                        
-                except Exception as e:
-                    print(f"Failed to process PSD {file_path}: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    continue
-            else: # For non-PSD files, analysis and clean image are the same
-                clean_image_path = file_path
-                debug_all_layers[os.path.basename(file_path)] = {
-                    "layers": ["(Not a PSD file - flattened image)"],
-                    "matched": [],
-                    "keywords": [],
-                    "method": "flattened_image"
-                }
-            
-            # --- 2. Slicing ---
-            print(f"    ✂️ Slicing: {analysis_image_path}")
-            cuts = slice_webtoon(analysis_image_path, sliced_base_dir, start_idx=global_scene_counter, clean_image_path=clean_image_path)
-            print(f"    ✅ Found {len(cuts)} scenes in this file.")
-            
-            # [CRITICAL FIX] 글로벌 카운터 업데이트 - 이 작업이 없으면 다음 파일이 이전 파일을 덮어씀
-            global_scene_counter += len(cuts)
-            
-            # --- 3. Analysis with dynamic context tracking ---
-            for cut_info in cuts:
-                v_path = cut_info["video"]
-                a_path = cut_info["analysis"]
-                
-                print(f"    🔍 Analyzing scene {len(all_scenes) + 1}...")
-                print(f"      - Context length: {len(current_context) if current_context else 0}")
-                print(f"      - Voice options available: {'Yes' if voice_options_str else 'NO'}")
-                try:
-                    # [NEW] Prepare Known Characters context
-                    known_chars_str = ""
-                    if voice_consistency_map:
-                        known_chars_list = []
-                        for name, data in voice_consistency_map.items():
-                            voice_name = data.get("name", "Unknown Voice")
-                            known_chars_list.append(f"- {name} (Voice: {voice_name})")
-                        if known_chars_list:
-                            known_chars_str = "\n[KNOWN CHARACTERS IN THIS EPISODE]\n" + "\n".join(known_chars_list) + "\nTry to reuse these character names if they appear.\n"
-                    
-                    final_context = (current_context or "") + known_chars_str
-
-                    # Pass running context to Gemini (Analyze the one WITH text)
-                    analysis = await gemini_service.analyze_webtoon_panel(a_path, context=final_context, voice_options=voice_options_str)
-                    print(f"DEBUG: Analyzed scene. Keys present: {list(analysis.keys())}")
-                    print(f"DEBUG: audio_direction: {analysis.get('audio_direction')}")
-                    print(f"DEBUG: voice_recommendation: {analysis.get('voice_recommendation')}")
-
-                    
-                    # Skip meaningless panels (copyright, blank, logos, etc.)
-                    is_meaningless = analysis.get('is_meaningless') is True
-                    dialogue = analysis.get('dialogue', '').strip()
-                    visual = analysis.get('visual_desc', '').lower()
-                    
-                    # Safer keyword filtering
-                    copyright_keywords = [
-                        "저작권", "무단 전재", "illegal copy", "all rights reserved", "무단 복제", "RK STUDIO", 
-                        "studio", "webtoon", "episode", "next time", "to be continued", "copyright", "scan", "watermark"
-                    ]
-                    
-                    # 추가적인 시각적 판별 (완전 어두운 배경 등)
-                    if "completely dark" in visual or "completely black" in visual or "blank panel" in visual:
-                        if not dialogue: # 대사가 없으면 진짜 짜투리
-                            is_meaningless = True
-
-                    if any(k in dialogue for k in copyright_keywords) and len(dialogue) < 150:
-                        is_meaningless = True
-                    
-                    if is_meaningless:
-                        print(f"Skipping meaningless panel (Visual: {visual})")
-                        continue
-
-                    import time
-                    ts = int(time.time())
-                    all_scenes.append({
-                        "scene_number": len(all_scenes) + 1,
-                        "image_path": v_path,
-                        "original_image_path": cut_info.get("original", v_path),  # [NEW] Full original for Wan
-                        "image_url": f"/api/media/v?path={urllib.parse.quote(v_path)}&t={ts}",
-                        "analysis": analysis,
-                        "focal_point_y": analysis.get("focal_point_y", 0.5)
-                    })
-                    
-                    print(f"    ✅ Scene {len(all_scenes)} analysis complete.")
-
-                except Exception as e:
-                    print(f"Gemini failed for {a_path}: {e}")
-                    import time
-                    ts = int(time.time())
-                    all_scenes.append({
-                        "scene_number": len(all_scenes) + 1,
-                        "image_path": v_path,
-                        "image_url": f"/api/media/v?path={urllib.parse.quote(v_path)}&t={ts}",
-                        "analysis": {"dialogue": "", "character": "Unknown", "visual_desc": "Analysis failed", "atmosphere": "Error"}
-                    })
-            
-            # Clean up temp PNGs
-            for p in [analysis_image_path, clean_image_path]:
-                if p and p.startswith(temp_dir) and os.path.exists(p):
-                    try: os.remove(p)
-                    except: pass
-        # --- 4. Auto Voice Assignment (ElevenLabs API Integrated) ---
-        from services.tts_service import tts_service
-        
-        # 1. Fetch ElevenLabs Voices
-        try:
-            eleven_voices = await tts_service.get_elevenlabs_voices()
-        except:
-            eleven_voices = []
-        
-        # 2. Categorize Voices
-        male_pool = []
-        female_pool = []
-        default_pool = [] # Mixed
-        
-        for v in eleven_voices:
-            vid = v.get("voice_id")
-            labels = v.get("labels", {})
-            gender = labels.get("gender", "").lower()
-            
-            # Add to pools
-            default_pool.append(vid)
-            if gender == "male": 
-                male_pool.append(vid)
-            elif gender == "female":
-                female_pool.append(vid)
-        
-        # Fallbacks (Antoni, Rachel, Josh, etc.) if API fails or empty
-        # These are standard ElevenLabs pre-made voices
-        if not male_pool: male_pool = ["ErXwobaYiN019PkySvjV", "TxGEqnHWrfWFTfGW9XjX"] 
-        if not female_pool: female_pool = ["21m00Tcm4TlvDq8ikWAM", "EXAVITQu4vr4xnSDxMaL"]
-        if not default_pool: default_pool = male_pool + female_pool
-
-        if not default_pool: default_pool = male_pool + female_pool
-
-        char_voice_map = {}
-        
-        # [NEW] Load previous character voices for consistency
-        current_project = db.get_project(req.project_id)
-        if current_project and current_project.get("topic"):
-            topic = current_project["topic"]
-            # Find recent project with same topic
-            conn = db.get_db()
-            cursor = conn.cursor()
-            cursor.execute("SELECT id FROM projects WHERE topic = ? AND id != ? ORDER BY id DESC LIMIT 1", (topic, req.project_id))
-            row = cursor.fetchone()
-            conn.close()
-            
-            if row:
-                prev_id = row["id"]
-                prev_settings = db.get_project_settings(prev_id) or {}
-                if prev_settings.get("voice_mapping_json"):
-                    try:
-                        loaded_map = json.loads(prev_settings["voice_mapping_json"])
-                        char_voice_map.update(loaded_map)
-                        print(f"📖 [Webtoon] Loaded {len(loaded_map)} character voices from Project {prev_id}")
-                    except: pass
-
-        male_idx = 0
-        female_idx = 0
-        misc_idx = 0
-        
-        char_normalization = {
-            "Narrator": "내레이션", "narrator": "내레이션", "Unknown": "Unknown", "None": "Unknown"
-        }
-
-        all_scenes_result = [] # Rebuild list to ensure order
-        
-        # 2. Finalize all scenes using the enriched map
-        for sc in all_scenes:
-            # [REF ACTOR] Centralized finalization (Character Normalization, Consistency, Fallbacks)
-            finalize_scene_analysis(sc, char_voice_map, eleven_voices)
-            
-            # [NEW] Persist map updates back to DB (important for consistency across project)
-            norm_char = sc['analysis'].get('character')
-            if norm_char and norm_char != "Unknown":
-                char_voice_map[norm_char] = {"id": sc['voice_id'], "name": sc['voice_name']}
-                try:
-                    db.update_project_setting(req.project_id, "voice_mapping_json", json.dumps(char_voice_map, ensure_ascii=False))
-                except: pass
-
-            all_scenes_result.append(sc)
-
-        # Clean up temp dir
-        try:
-            shutil.rmtree(temp_dir)
-        except: pass
-            
-        # [NEW] Mark project as completed
-        db.update_project(req.project_id, status="completed")
-        
-        return {
-            "status": "ok",
-            "scenes": all_scenes_result,
-            "total_scenes": len(all_scenes_result),
-            "filename": "batch_process",
-            "character_map": char_voice_map,
-            "layer_debug": {
-                "trace": layer_trace,
-                "all_files": debug_all_layers
-            }
-        }
+        return await analyze_directory_service(req.project_id, req.files, req.psd_exclude_layer)
     except Exception as e:
         print(f"Analyze Directory Error: {e}")
-        # [NEW] Mark project as error
-        db.update_project(req.project_id, status="error")
-        import traceback
-        traceback.print_exc()
         raise HTTPException(500, str(e))
 
 @router.post("/save-analysis")
@@ -1581,13 +663,12 @@ async def optimize_webtoon_image(file: UploadFile = File(...), prompt_type: str 
     """
     try:
         contents = await file.read()
-        return await _process_webtoon_image(io.BytesIO(contents), prompt_type)
+        return await process_webtoon_image(io.BytesIO(contents), prompt_type)
     except Exception as e:
         print(f"Error optimizing image (upload): {e}")
         raise HTTPException(500, f"Image optimization failed: {str(e)}")
 
-class LocalImageRequest(BaseModel):
-    file_path: str
+
 
 @router.post("/optimize-local-image")
 async def optimize_local_image(request: LocalImageRequest):
@@ -1601,110 +682,300 @@ async def optimize_local_image(request: LocalImageRequest):
         with open(request.file_path, "rb") as f:
             contents = f.read()
             
-        return await _process_webtoon_image(io.BytesIO(contents))
+        return await process_webtoon_image(io.BytesIO(contents))
     except HTTPException as he:
         raise he
     except Exception as e:
         print(f"Error optimizing image (local): {e}")
         raise HTTPException(500, f"Image optimization failed: {str(e)}")
 
-async def _process_webtoon_image(img_io, prompt_type=None):
-    """Core Logic for Webtoon Image Optimization"""
+
+# ─────────────────────────────────────────────────────────────
+# PNG 컷 추출 API  (PSD Cutter)
+# ─────────────────────────────────────────────────────────────
+
+from pydantic import BaseModel as PydanticBaseModel
+
+class ExtractCutsRequest(PydanticBaseModel):
+    input_dir: str
+    project_id: Optional[int] = None
+    output_dir: Optional[str] = None        # 없으면 input_dir/cuts/ 에 저장
+    psd_exclude_layer: Optional[str] = None # PSD 레이어 제외 키워드 (쉼표/공백 구분)
+
+@router.post("/extract-cuts")
+async def extract_cuts_endpoint(req: ExtractCutsRequest):
+    """
+    폴더 내 PSD/PNG/JPG 파일을 자동 분석하여 컷 단위 PNG로 추출.
+    psd_exclude_layer: '식자, 대사' 처럼 입력하면 해당 레이어를 제외한 클린본으로 컷 분할.
+    이미지를 직접 보여주지 않고 저장 폴더 경로와 파일 목록만 반환.
+    """
     try:
-        img = Image.open(img_io).convert("RGB")
-    except Exception:
-        raise HTTPException(400, "Invalid image file")
-        
-    width, height = img.size
-    aspect_ratio = width / height
-    
-    # 2. Target Dimensions (9:16)
-    TARGET_W, TARGET_H = 1080, 1920
-    target_ar = TARGET_W / TARGET_H
-    
-    # 3. Create Canvas (Black background)
-    canvas = Image.new("RGB", (TARGET_W, TARGET_H), (0, 0, 0))
-    mask = Image.new("L", (TARGET_W, TARGET_H), 255) # Default: All White (Inpaint Everything)
-    
-    # 4. Resize & Paste Logic
-    if aspect_ratio > target_ar:
-        # Case 1: Wider (Horizontal or Standard Vertical) -> Fit Width
-        new_w = TARGET_W
-        new_h = int(height * (TARGET_W / width))
-        resized_img = img.resize((new_w, new_h), Image.LANCZOS)
-        
-        # Center Vertically
-        y_offset = (TARGET_H - new_h) // 2
-        canvas.paste(resized_img, (0, y_offset))
-        
-        # Mask
-        mask_draw = Image.new("L", (new_w, new_h), 0) # Black (Keep)
-        mask.paste(mask_draw, (0, y_offset))
-        
-        # Classification
-        cut_type = "horizontal" if aspect_ratio > 0.8 else "vertical_wide"
+        from services.psd_cutter_service import extract_cuts_from_folder
 
-    else:
-        # Case 2: Taller (Ultra Vertical) -> Fit Height
-        new_h = TARGET_H
-        new_w = int(width * (TARGET_H / height))
-        resized_img = img.resize((new_w, new_h), Image.LANCZOS)
-        
-        # Center Horizontally
-        x_offset = (TARGET_W - new_w) // 2
-        canvas.paste(resized_img, (x_offset, 0))
-        
-        # Mask
-        mask_draw = Image.new("L", (new_w, new_h), 0)
-        mask.paste(mask_draw, (x_offset, 0))
-        
-        cut_type = "vertical"
+        input_dir = req.input_dir.strip().replace('"', '')
+        if not os.path.isdir(input_dir):
+            raise HTTPException(400, f"입력 폴더를 찾을 수 없습니다: {input_dir}")
 
-    # 5. Prepare Prompt based on Type
-    if cut_type == "horizontal" or cut_type == "vertical_wide":
-        # Horizontal (Wide) Logic
-        default_horiz = (
-            "Expand background vertically to fit 9:16, keep characters unchanged, "
-            "match original lighting and color tone, natural environment continuation, "
-            "high detail, static image, no motion, webtoon style, high resolution, " 
-            "seamless extension"
+        # output_dir 결정
+        if req.output_dir:
+            output_dir = req.output_dir.strip().replace('"', '')
+        elif req.project_id:
+            output_dir = os.path.join(config.OUTPUT_DIR, str(req.project_id), "webtoon_cuts")
+        else:
+            output_dir = os.path.join(input_dir, "cuts")
+
+        result = extract_cuts_from_folder(
+            input_dir, output_dir,
+            psd_exclude_layer=req.psd_exclude_layer or None,
         )
-        prompt = db.get_global_setting("webtoon_horizontal_prompt", default_horiz)
-    else:
-        # Vertical Logic
-        default_vert = (
-            "Preserve full original composition, fit into 9:16 vertical canvas, "
-            "no distortion, extend background naturally if needed, "
-            "maintain original webtoon art style, high resolution, clean edges, "
-            "no motion, no animation, static illustration"
-        )
-        prompt = db.get_global_setting("webtoon_vertical_prompt", default_vert)
-        
-    # 6. Save Canvas & Mask to Buffer for Upload
-    canvas_buffer = io.BytesIO()
-    canvas.save(canvas_buffer, format="PNG")
-    canvas_buffer.seek(0)
-    
-    mask_buffer = io.BytesIO()
-    mask.save(mask_buffer, format="PNG")
-    mask_buffer.seek(0)
-    
-    # 7. Call Replicate (Outpainting)
-    print(f"🎨 [Webtoon] Optimizing Image ({cut_type}): {width}x{height} -> 1080x1920")
-    
-    result_url = await replicate_service.outpaint_image(
-        canvas_buffer, 
-        mask_buffer, 
-        prompt
-    )
-    
-    if not result_url:
-        raise Exception("Image generation failed (No URL returned)")
-        
+        return {"status": "ok", **result}
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(500, str(e))
+
+
+@router.post("/extract-cuts-single")
+async def extract_cuts_single(
+    file_path: str = Body(..., embed=True),
+    project_id: Optional[int] = Body(None, embed=True),
+    output_dir: Optional[str] = Body(None, embed=True),
+):
+    """단일 파일에서 컷을 추출합니다."""
+    try:
+        from services.psd_cutter_service import extract_cuts
+
+        fp = file_path.strip().replace('"', '')
+        if not os.path.isfile(fp):
+            raise HTTPException(404, f"파일을 찾을 수 없습니다: {fp}")
+
+        if not output_dir:
+            if project_id:
+                output_dir = os.path.join(config.OUTPUT_DIR, str(project_id), "webtoon_cuts")
+            else:
+                output_dir = os.path.join(os.path.dirname(fp), "cuts")
+
+        stem = os.path.splitext(os.path.basename(fp))[0]
+        cuts = extract_cuts(fp, output_dir, file_prefix=stem, start_idx=1)
+        return {"status": "ok", "output_dir": output_dir, "cuts": cuts, "total_cuts": len(cuts)}
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(500, str(e))
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Video Builder — 감독 연출 기획서 생성 API
+# ══════════════════════════════════════════════════════════════════════════
+
+@router.post("/video-builder/scan-folder")
+async def vb_scan_folder(body: dict = Body(...)):
+    """PNG 폴더 스캔 → 이미지 파일 목록 반환"""
+    folder = body.get("folder_path", "").strip()
+    if not folder or not os.path.isdir(folder):
+        raise HTTPException(400, f"폴더를 찾을 수 없습니다: {folder}")
+    files = get_png_files_from_folder(folder)
+    if not files:
+        raise HTTPException(404, "지원 이미지 파일(PNG/JPG)이 없습니다.")
     return {
-        "status": "success",
-        "original_url": None, 
-        "optimized_url": result_url,
-        "type": cut_type,
-        "prompt_used": prompt
+        "status": "ok",
+        "total": len(files),
+        "files": [{"filename": os.path.basename(f), "path": f} for f in files]
     }
+
+
+@router.post("/video-builder/analyze")
+async def vb_analyze(body: dict = Body(...)):
+    """
+    PNG 이미지 목록 + 대본 맥락 → Gemini Vision 분석
+    → 감독 연출 기획서(씬별 연출 방향 + AI 영상 프롬프트) 반환
+    """
+    folder_path = body.get("folder_path", "").strip()
+    png_paths = body.get("png_paths", [])   # 직접 경로 지정 시
+    script_context = body.get("script_context", "")
+    project_id = body.get("project_id")
+
+    # 폴더 지정이면 자동 탐색
+    if folder_path and not png_paths:
+        png_paths = get_png_files_from_folder(folder_path)
+
+    if not png_paths:
+        raise HTTPException(400, "분석할 이미지 파일이 없습니다.")
+
+    # 프로젝트 대본/기획서 자동 참조
+    if project_id and not script_context:
+        try:
+            plan_raw = db.get_project_setting(project_id, "webtoon_plan")
+            if plan_raw:
+                plan_data = json.loads(plan_raw) if isinstance(plan_raw, str) else plan_raw
+                overview = plan_data.get("overall_strategy", "")
+                scenes_preview = ""
+                for s in plan_data.get("scene_specifications", [])[:5]:
+                    scenes_preview += f"씬{s.get('scene_number','?')}: {s.get('rationale','')[:80]}\n"
+                script_context = f"{overview}\n{scenes_preview}"
+        except Exception as e:
+            print(f"[VB] Plan load error: {e}")
+
+    print(f"[VideoBuilder] Analyzing {len(png_paths)} scenes...")
+    
+    try:
+        result = await analyze_scenes_for_director(
+            png_paths=png_paths,
+            script_context=script_context,
+        )
+        return {"status": "ok", "plan": result}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(500, str(e))
+
+
+@router.post("/video-builder/generate")
+async def vb_generate(body: dict = Body(...)):
+    """
+    Scene Builder 체인 영상 생성 (SSE 스트리밍 진행률).
+    body: { scenes: [...], output_dir: str, project_id: int }
+    → SSE 이벤트로 씬별 진행 상황 스트리밍
+    """
+    scenes = body.get("scenes", [])
+    project_id = body.get("project_id")
+    output_dir = body.get("output_dir", "").strip()
+
+    if not scenes:
+        raise HTTPException(400, "scenes 목록이 비어있습니다.")
+
+    # 출력 폴더 결정
+    if not output_dir:
+        import time
+        output_dir = os.path.join(config.OUTPUT_DIR, f"vbuilder_{int(time.time())}")
+    os.makedirs(output_dir, exist_ok=True)
+
+    from services.video_builder_service import run_scene_builder_chain, concat_scene_videos
+
+    async def event_stream():
+        results_store = []
+        errors = []
+
+        async def on_progress(scene_id, status, message):
+            import json as _json
+            data = _json.dumps({"scene_id": scene_id, "status": status, "message": message})
+            yield f"data: {data}\n\n"
+
+        # 각 씬 순차 처리 (Scene Builder 체인)
+        try:
+            # SSE 초기 메시지
+            yield f"data: {json.dumps({'status': 'start', 'total': len(scenes), 'message': '영상 생성 시작...'})}\n\n"
+
+            # 실제 생성 — on_progress는 generator라 직접 yield 불가
+            # → 결과만 순차 반환 후 최종 전송
+            from services.video_builder_service import (
+                SceneVideoResult, generate_scene_video_wan,
+                generate_scene_video_akool, _blend_frames,
+                _extract_last_frame, concat_scene_videos
+            )
+
+            last_frame_path = None
+            results = []
+
+            for i, scene in enumerate(scenes):
+                sid = scene.get("scene_id", i + 1)
+                image_path = scene.get("image_path", "")
+                prompt = scene.get("motion_prompt", "")
+
+                # 진행 이벤트
+                yield f"data: {json.dumps({'status': 'generating', 'scene_id': sid, 'current': i+1, 'total': len(scenes), 'message': f'씬 {sid} 영상 생성 중...'})}\n\n"
+
+                result = SceneVideoResult(scene_id=sid)
+
+                # 시작 이미지 결정
+                if last_frame_path and os.path.exists(last_frame_path) and image_path and os.path.exists(image_path):
+                    start_image = _blend_frames(last_frame_path, image_path, output_dir, sid)
+                elif image_path and os.path.exists(image_path):
+                    start_image = image_path
+                else:
+                    result.status = "skipped"
+                    result.error = f"이미지 없음: {image_path}"
+                    results.append(result)
+                    yield f"data: {json.dumps({'status': 'skipped', 'scene_id': sid, 'current': i+1, 'message': f'씬 {sid} 이미지 없음 — 건너뜀'})}\n\n"
+                    continue
+
+                # Wan 시도
+                video_path = await generate_scene_video_wan(start_image, prompt, output_dir, sid)
+                result.engine = "wan"
+
+                if not video_path:
+                    # AKOOL 폴백
+                    yield f"data: {json.dumps({'status': 'fallback', 'scene_id': sid, 'current': i+1, 'message': f'씬 {sid} — AKOOL로 전환 중...'})}\n\n"
+                    video_path = await generate_scene_video_akool(start_image, prompt, output_dir, sid)
+                    result.engine = "akool"
+
+                if video_path and os.path.exists(video_path):
+                    result.video_path = video_path
+                    result.status = "success"
+                    frame = _extract_last_frame(video_path, output_dir, sid)
+                    if frame:
+                        result.last_frame_path = frame
+                        last_frame_path = frame
+                    else:
+                        last_frame_path = None
+                    yield f"data: {json.dumps({'status': 'done', 'scene_id': sid, 'current': i+1, 'engine': result.engine, 'video_path': video_path, 'message': f'씬 {sid} 완료 ({result.engine})'})}\n\n"
+                else:
+                    result.status = "error"
+                    result.error = "Wan + AKOOL 모두 실패"
+                    last_frame_path = None
+                    errors.append(sid)
+                    yield f"data: {json.dumps({'status': 'error', 'scene_id': sid, 'current': i+1, 'message': f'씬 {sid} 생성 실패'})}\n\n"
+
+                results.append(result)
+
+            # 최종 합본
+            yield f"data: {json.dumps({'status': 'concat', 'message': '영상 합치는 중...'})}\n\n"
+            final_path = await concat_scene_videos(results, output_dir)
+
+            summary = {
+                "status": "complete",
+                "total": len(scenes),
+                "success": sum(1 for r in results if r.status == "success"),
+                "errors": errors,
+                "final_video": final_path or "",
+                "output_dir": output_dir,
+                "message": "영상 생성 완료!",
+            }
+            yield f"data: {json.dumps(summary)}\n\n"
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        }
+    )
+
+
+@router.get("/video-builder/output/{filename}")
+async def vb_serve_video(filename: str):
+    """생성된 영상 파일 서빙"""
+    safe_name = os.path.basename(filename)  # path traversal 방지
+    file_path = os.path.join(config.OUTPUT_DIR, safe_name)
+    if not os.path.exists(file_path):
+        # output 하위 폴더도 탐색
+        for root, dirs, files in os.walk(config.OUTPUT_DIR):
+            if safe_name in files:
+                file_path = os.path.join(root, safe_name)
+                break
+    if not os.path.exists(file_path):
+        raise HTTPException(404, "파일 없음")
+    from fastapi.responses import FileResponse
+    return FileResponse(file_path, media_type="video/mp4")

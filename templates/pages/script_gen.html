@@ -74,15 +74,39 @@
                 <!-- Options Panel removed as per user request -->
 
                 <!-- Generate Button -->
-                <div class="flex justify-end gap-2 mb-4">
-                    <button onclick="stopAndSave()" id="stopBtn"
-                        class="hidden btn-secondary bg-red-900/50 text-red-400 py-2 px-4 rounded-lg text-sm">
-                        {{ t('btn_stop_save') }}
-                    </button>
-                    <button onclick="generateScript()" id="generateBtn"
-                        class="btn-primary py-2.5 px-6 rounded-lg text-sm font-bold">
-                        {{ t('btn_start_gen') }}
-                    </button>
+                <div class="flex items-center justify-between gap-2 mb-4">
+                    <!-- Narration Mode Selection -->
+                    <div class="flex items-center gap-3 bg-gray-800/80 px-3 py-1.5 rounded-lg border border-gray-700">
+                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{{
+                            t('label_voice_mode') or '나레이션 모드' }}</span>
+                        <div class="flex gap-1">
+                            <label class="cursor-pointer">
+                                <input type="radio" name="narrationMode" value="single" class="sr-only peer" checked>
+                                <div
+                                    class="px-3 py-1 text-[10px] rounded bg-gray-700 text-gray-500 peer-checked:bg-blue-600 peer-checked:text-white transition-all">
+                                    {{ t('mode_monologue') or '단독' }}
+                                </div>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input type="radio" name="narrationMode" value="multi" class="sr-only peer">
+                                <div
+                                    class="px-3 py-1 text-[10px] rounded bg-gray-700 text-gray-500 peer-checked:bg-purple-600 peer-checked:text-white transition-all">
+                                    {{ t('mode_multivoice') or '다중' }}
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button onclick="stopAndSave()" id="stopBtn"
+                            class="hidden btn-secondary bg-red-900/50 text-red-400 py-2 px-4 rounded-lg text-sm">
+                            {{ t('btn_stop_save') }}
+                        </button>
+                        <button onclick="generateScript()" id="generateBtn"
+                            class="btn-primary py-2.5 px-6 rounded-lg text-sm font-bold">
+                            {{ t('btn_start_gen') }}
+                        </button>
+                    </div>
                 </div>
 
                 <!-- AI Data Preview (Collapsed) -->
@@ -790,6 +814,9 @@
 
         console.log(`Target: ${durationSeconds}s (${isShorts ? 'Shorts' : 'Longform'}), Total Chars: ${totalTargetChars}, Per Section: ${charsPerSection}`);
 
+        const narrationMode = document.querySelector('input[name="narrationMode"]:checked')?.value || 'single';
+        const isMulti = narrationMode === 'multi';
+
         try {
             for (let i = 0; i < sections.length; i++) {
                 if (window.stopGeneration) {
@@ -803,6 +830,21 @@
                 Utils.setLoading(btn, true, `생성 중... (${i + 1}/${sections.length}: ${section.title})`);
                 console.log(`Generating section ${i + 1}: ${section.title} `);
 
+                let modeInstruction = "";
+                if (isMulti) {
+                    modeInstruction = `
+1. 반드시 **두 명 이상의 대화(Dialogue) 또는 상황극** 형식으로 작성하세요.
+2. 각 대사 앞에 반드시 **"화자 이름:"**을 붙이세요. (예: "철수: 안녕하세요", "영희: 네 반갑습니다")
+3. 화자 이름은 한글로 간결하게 작성하세요.
+`;
+                } else {
+                    modeInstruction = `
+1. 반드시 **독백(Monologue) 또는 나레이션(Narration) 형식**으로 작성하세요. (대화체 절대 금지)
+2. 화자는 **무조건 딱 1명(성우 1인)**으로 제한합니다. 대화 형식으로 역할을 나누지 마세요.
+5. 화자(이름) 표시 금지 (예: 나:, 상사: 처럼 누가 말하는지 적지 말 것)
+`;
+                }
+
                 const prompt = `당신은 ${isShorts ? '유튜브 쇼츠(Shorts)' : '유튜브'} 대본 작가입니다. 아래 주제에 대한 "${section.title}" 파트를 작성해주세요.
 
 [영상 주제]
@@ -814,19 +856,16 @@ ${topic}
 
 [작성 지침]
 0. ${lengthInstruction}
-1. 반드시 **독백(Monologue) 또는 나레이션(Narration) 형식**으로 작성하세요. (대화체 절대 금지)
-2. 화자는 **무조건 딱 1명(성우 1인)**으로 제한합니다. 대화 형식으로 역할을 나누지 마세요.
+${modeInstruction}
 3. 자연스럽고 몰입감 있는 한국어 대본을 작성하세요.
 4. 섹션 제목은 출력하지 말고, 본문만 작성하세요.
 5. 이 파트의 분량은 **약 ${minChars}자 ~ ${maxChars}자** 내외로 작성하세요. (절대적으로 지킬 것)
 6. ${isShorts ? '문장을 짧고 간결하게 끊어주세요. 호흡을 짧게 가져가세요.' : '문장을 자연스럽게 이어주세요.'}
 
 **[절대 금지 사항 - TTS 읽기 오류 방지]**
-1. 대화 형식 금지 (A: 아니요, B: 맞아요 같은 가상 대화 절대 넣지 말 것)
-2. 괄호와 상황 설명 금지 (예: (음악), (상황), (웃음) 등 절대 넣지 말 것)
-3. 시간 표시 금지 (예: [0-5초], ** 등 타임스탬프 금지)
-4. 이모티콘 및 기호 금지 (예: 🤣, ✨, 🔥 등 특수문자 금지)
-5. 화자(이름) 표시 금지 (예: 나:, 상사: 처럼 누가 말하는지 적지 말 것)
+1. 괄호와 상황 설명 금지 (예: (음악), (상황), (웃음) 등 절대 넣지 말 것)
+2. 시간 표시 금지 (예: [0-5초], ** 등 타임스탬프 금지)
+3. 이모티콘 및 기호 금지 (예: 🤣, ✨, 🔥 등 특수문자 금지)
 
 본문만 출력하세요: `;
 
@@ -842,9 +881,13 @@ ${topic}
                             .replace(/\([^)]*\)/g, '')   // 1. 괄호 제거 (웃음)
                             .replace(/\[[^\]]*\]/g, '')  // 2. 대괄호 제거 [0-5초]
                             .replace(/\*/g, '')          // 3. 별표 제거 **
-                            .replace(/[^\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318Fa-zA-Z0-9\s,.\?\!\"\'\.]/g, '') // 4. 이모지 등 특수문자 제거
-                            .replace(/^[가-힣\w\s]+[\s]*:[\s]*/gm, '') // 5. 화자 표시 제거
-                            .trim();
+                            .replace(/[^\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318Fa-zA-Z0-9\s,.\?\!\"\'\.:]/g, ''); // 4. 특수문자 제거 (콜론 보존)
+
+                        if (!isMulti) {
+                            // 단독 나레이션일 때만 화자 이름 제거
+                            sectionText = sectionText.replace(/^[가-힣\w\s]+[\s]*:[\s]*/gm, '');
+                        }
+                        sectionText = sectionText.trim();
 
                         finalScript += (finalScript ? '\n\n' : '') + sectionText;
                     } else {

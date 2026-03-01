@@ -2936,23 +2936,19 @@ class VideoService:
 
     def auto_crop_image(self, image_path: str, border_color="auto", tolerance=15) -> str:
         """
-        [NEW] OpenCV를 사용하여 이미지 상하좌우의 단색(검정/흰색) 여백(레터박스)을 자동으로 찾아 잘라냅니다.
+        [FIXED] 이미지 안쪽 부분은 파먹지 않고, 이미지 가장자리의 레터박스(검은색/흰색 등)만 엄격하게 잘라냅니다.
         """
         import cv2
         import numpy as np
+        import os
         try:
-            # OpenCV는 한글 경로 문제가 있을 수 있으므로 numpy로 우회 로드
             stream = open(image_path, "rb")
-            bytes = bytearray(stream.read())
-            numpyarray = np.asarray(bytes, dtype=np.uint8)
-            img = cv2.imdecode(numpyarray, cv2.IMREAD_UNCHANGED)
+            bytes_img = bytearray(stream.read())
+            img = cv2.imdecode(np.asarray(bytes_img, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
             stream.close()
 
-            if img is None:
-                print(f"Failed to load image for cropping: {image_path}")
-                return image_path
+            if img is None: return image_path
 
-            # 알파 채널 무시 (BGR 변환)
             if len(img.shape) == 3 and img.shape[2] == 4:
                 img_bgr = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
             elif len(img.shape) == 3 and img.shape[2] == 3:
@@ -2962,54 +2958,48 @@ class VideoService:
 
             gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
 
-            # border_color 결정: (좌상단 픽셀 색상 및 4모서리 참조)
-            if border_color == "auto":
-                # 좌상단 픽셀 기준
-                bg_color = gray[0, 0]
-                if bg_color < 50: border_color = "black"
-                elif bg_color > 200: border_color = "white"
-                else: 
-                    print(f"Background color is ambiguous (value: {bg_color}). Skipping crop.")
+            # [REFINED] 상하좌우 각기 다른 배경색이 있을 수 있음을 고려하여 개별적으로 여백 탐지
+            # 각 사이드(상,하,좌,우)에서 5px씩 샘플링하여 배경색 확인
+            top_bg = np.median(gray[0:5, :])
+            bottom_bg = np.median(gray[-5:, :])
+            left_bg = np.median(gray[:, 0:5])
+            right_bg = np.median(gray[:, -5:])
+            
+            # 각 배경색에 대해 '내용물' 마스크 생성
+            def get_mask(val, tol=25):
+                if val < 128: return gray > val + tol
+                else: return gray < val - tol
+            
+            mask = get_mask(top_bg) & get_mask(bottom_bg) & get_mask(left_bg) & get_mask(right_bg)
+            
+            # [Aggressive Fallback] 만약 위 조건이 너무 까다로우면, 전체 에지 중앙값 기준으로 재시도
+            if np.sum(mask) < (gray.size * 0.01): # 1% 미만이면 너무 많이 잘린 것
+                 bg_val = np.median(np.concatenate([gray[0,:], gray[-1,:], gray[:,0], gray[:,-1]]))
+                 mask = get_mask(bg_val, tol=15)
+
+            coords = np.argwhere(mask)
+            if coords.size > 0:
+                min_y, min_x = coords.min(axis=0)
+                max_y, max_x = coords.max(axis=0)
+                
+                # 너무 과하게 잘리는 것 방지 (이미지 크기의 10% 미만 등)
+                if (max_x - min_x) < 50 or (max_y - min_y) < 50:
                     return image_path
-
-            if border_color == "black":
-                _, thresh = cv2.threshold(gray, tolerance, 255, cv2.THRESH_BINARY)
-            else: # white
-                _, thresh = cv2.threshold(gray, 255 - tolerance, 255, cv2.THRESH_BINARY_INV)
-
-            # 외곽선 찾기
-            contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            if not contours:
+            else:
                 return image_path
-
-            # 가장 큰 영역 찾기 (모든 내용을 포함하는 Bounding Box)
-            min_x, min_y = img.shape[1], img.shape[0]
-            max_x, max_y = 0, 0
             
-            for cnt in contours:
-                x, y, w, h = cv2.boundingRect(cnt)
-                # 너무 작은 노이즈 무시
-                if w < 10 or h < 10: continue
-                min_x = min(min_x, x)
-                min_y = min(min_y, y)
-                max_x = max(max_x, x + w)
-                max_y = max(max_y, y + h)
-
-            # 만약 박스가 전체 이미지 크기거나 유효하지 않으면 패스
-            if min_x >= max_x or min_y >= max_y:
+            if min_x == 0 and max_x == img.shape[1]-1:
                 return image_path
-            if min_x == 0 and min_y == 0 and max_x == img.shape[1] and max_y == img.shape[0]:
+                
+            if (max_x - min_x) < 50:
                 return image_path
-
-            # 크롭 시작
-            cropped = img[min_y:max_y, min_x:max_x]
+                
+            cropped = img[min_y:max_y+1, min_x:max_x+1]
             
-            # 원본 덮어쓰기 (크롭된 이미지 저장)
             _, encoded_img = cv2.imencode(os.path.splitext(image_path)[1], cropped)
             with open(image_path, "wb") as f:
                 encoded_img.tofile(f)
-                
-            print(f"✅ [Video Service] Auto-cropped image: {image_path} (new size: {cropped.shape[1]}x{cropped.shape[0]})")
+            print(f"✅ [Video Service] Auto-cropped strict letterbox: {image_path} (new size: {cropped.shape[1]}x{cropped.shape[0]})")
             return image_path
             
         except Exception as e:
@@ -3018,11 +3008,75 @@ class VideoService:
             traceback.print_exc()
             return image_path
 
-    def auto_merge_continuous_images(self, image_paths: list[str], threshold: float = 18.0) -> list[str]:
+    def fit_image_to_916(self, image_path: str) -> str:
         """
-        [NEW] 세로로 분할된 컷들이 시각적으로 이어진 그림인지 판단하고,
-        이어진 컷들은 세로로 병합하여 하나의 파일(상단 컷)로 덮어씌웁니다.
-        병합되어 남은 최종 파일 경로 리스트를 반환합니다.
+        [NEW] AI 기반 파이프라인 3단계: 
+        자르고 합쳐진 이미지를 쇼츠 비율(9:16) 1080x1920 캔버스에 보기 좋게 맞춥니다.
+        """
+        import cv2
+        import numpy as np
+        import os
+        try:
+            stream = open(image_path, "rb")
+            bytes_img = bytearray(stream.read())
+            img = cv2.imdecode(np.asarray(bytes_img, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+            stream.close()
+            
+            if img is None: return image_path
+            
+            h, w = img.shape[:2]
+            target_w = 1080
+            target_h = 1920
+            
+            ratio = h / float(w)
+            target_ratio = target_h / float(target_w)
+            
+            if abs(ratio - target_ratio) < 0.05:
+                # 이미 9:16 비율인 경우 크기만 변경
+                result = cv2.resize(img, (target_w, target_h), interpolation=cv2.INTER_LANCZOS4)
+            elif ratio > target_ratio:
+                # 9:16보다 '더 길쭉한' 이미지: 너비를 1080으로 피팅하고 길이는 유지 (영상에서 스크롤로 처리)
+                scale = target_w / float(w)
+                new_w = target_w
+                new_h = int(h * scale)
+                result = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+            else:
+                # [FIXED] 사용자의 요청: 가로형 이미지도 'crop'하지 말고 '온전한 이미지'가 다 보이도록 패딩(Letterbox) 처리
+                scale = target_w / float(w)
+                new_w = target_w
+                new_h = int(h * scale)
+                img_scaled = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+                
+                # 검은색 배경 캔버스 생성 (1080x1920)
+                result = np.zeros((target_h, target_w, 3), dtype=np.uint8)
+                if len(img.shape) == 3 and img.shape[2] == 4:
+                    img_scaled_bgr = cv2.cvtColor(img_scaled, cv2.COLOR_BGRA2BGR)
+                else:
+                    img_scaled_bgr = img_scaled
+                
+                # 중앙 배치 (상하 여백 발생)
+                y_offset = (target_h - new_h) // 2
+                result[y_offset:y_offset+new_h, 0:new_w] = img_scaled_bgr
+            
+            # 투명도(알파) 채널이 껴있으면 제거
+            if len(result.shape) == 3 and result.shape[2] == 4:
+                result = cv2.cvtColor(result, cv2.COLOR_BGRA2BGR)
+                
+            _, encoded_img = cv2.imencode(os.path.splitext(image_path)[1], result)
+            with open(image_path, "wb") as f:
+                encoded_img.tofile(f)
+            print(f"📱 [Video Service] 9:16 Smart Fitting completed: {image_path} (final size: {result.shape[1]}x{result.shape[0]})")
+            return image_path
+            
+        except Exception as e:
+            print(f"❌ [Video Service] 9:16 Fit error: {e}")
+            return image_path
+
+    def auto_merge_continuous_images(self, image_paths: list[str], threshold: float = 20.0) -> list[str]:
+        """
+        [FIXED] 상/하체 등 하나의 이어지는 그림이 잘렸을 때(픽셀 경계선 일치 시)만 세로로 합성합니다.
+        가짜 합성을 막고, 진짜 이어지는 컷들만 카메라 패닝(밑에서 위로 등)이 가능하도록 길게 복원합니다.
+        단독 컷은 절대 합치지 않습니다! (나중에 3단계나 AI 아웃페인팅으로 채우기 위함)
         """
         import cv2
         import numpy as np
@@ -3052,7 +3106,7 @@ class VideoService:
         current_path = image_paths[0]
 
         if current_img is None:
-            return image_paths 
+            return image_paths
 
         merged_paths.append(current_path)
 
@@ -3066,21 +3120,29 @@ class VideoService:
                 continue
                 
             can_merge = False
+            
             if current_img is not None:
                 h1, w1 = current_img.shape[:2]
                 h2, w2 = next_img.shape[:2]
-                
-                # 채널 비교 (RGBA/RGB)
-                c1 = current_img.shape[2] if len(current_img.shape) == 3 else 1
-                c2 = next_img.shape[2] if len(next_img.shape) == 3 else 1
-                
-                # 좌우 폭 차이가 15% 이하일 때만 병합 검사
-                if c1 == c2 and abs(w1 - w2) / max(w1, w2) <= 0.15:
+
+                # 채널 일치 처리
+                if len(current_img.shape) == 3 and current_img.shape[2] == 4:
+                    current_img = cv2.cvtColor(current_img, cv2.COLOR_BGRA2BGR)
+                elif len(current_img.shape) == 2:
+                    current_img = cv2.cvtColor(current_img, cv2.COLOR_GRAY2BGR)
+                    
+                if len(next_img.shape) == 3 and next_img.shape[2] == 4:
+                    next_img = cv2.cvtColor(next_img, cv2.COLOR_BGRA2BGR)
+                elif len(next_img.shape) == 2:
+                    next_img = cv2.cvtColor(next_img, cv2.COLOR_GRAY2BGR)
+
+                # 좌우 폭 차이가 15% 이하일 때만 병합 검사 (같은 폭의 웹툰 컷이어야 함)
+                if abs(w1 - w2) / max(w1, w2) <= 0.15:
                     target_w = max(w1, w2)
                     img1_eval = cv2.resize(current_img, (target_w, h1)) if w1 != target_w else current_img
                     img2_eval = cv2.resize(next_img, (target_w, h2)) if w2 != target_w else next_img
                     
-                    # 맞닿는 경계선 5픽셀 단위 색상차 분석
+                    # 맞닿는 경계선 5픽셀 단위 색상차 분석 (픽셀 일치도 100%에 가까울수록 이어지는 그림임)
                     bottom_edge = img1_eval[-5:, :]
                     top_edge = img2_eval[:5, :]
                     
@@ -3090,16 +3152,16 @@ class VideoService:
 
             if can_merge:
                 target_w = max(w1, w2)
-                img1_cat = cv2.resize(current_img, (target_w, h1)) if w1 != target_w else current_img
-                img2_cat = cv2.resize(next_img, (target_w, h2)) if w2 != target_w else next_img
+                # 폭을 맞추기 위해 리사이즈
+                img1_cat = cv2.resize(current_img, (target_w, int(h1 * (target_w / w1)))) if w1 != target_w else current_img
+                img2_cat = cv2.resize(next_img, (target_w, int(h2 * (target_w / w2)))) if w2 != target_w else next_img
                 
-                # 세로로 바로 이어붙임 (V-stack)
+                # 시각적으로 이어지는 그림이므로 여백 없이 바로 타이트하게 붙임 (원상복구)
                 merged_img = np.vstack((img1_cat, img2_cat))
                 save_image(merged_img, current_path)
                 current_img = merged_img
-                print(f"🔗 [Video Service] Scene merged: {current_path} + {next_path} (Diff: {diff:.2f})")
+                print(f"🔗 [Video Service] Continuous Drawing Merged!: {current_path} + {next_path} (Diff: {diff:.2f})")
                 
-                # next_path는 합쳐졌으므로 원본 삭제 (또는 무시)
                 try: os.remove(next_path)
                 except: pass
             else:

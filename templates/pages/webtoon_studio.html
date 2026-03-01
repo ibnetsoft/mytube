@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 py-8">
+<div class="w-full px-4 md:px-8 py-8">
     <!-- Header -->
     <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -29,30 +29,16 @@
                 <div class="w-4 h-px bg-gray-100 dark:bg-gray-700 mx-1"></div>
 
                 <button id="tab-btn-analysis" onclick="switchWebtoonTab('analysis')"
-                    class="tab-btn text-gray-400 px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                    disabled>
+                    class="tab-btn text-gray-400 px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <span
                         class="w-5 h-5 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-400 flex items-center justify-center text-[10px]">2</span>
                     분석 및 분류
                 </button>
 
-                <div class="w-4 h-px bg-gray-100 dark:bg-gray-700 mx-1"></div>
-
-                <button id="tab-btn-plan" onclick="switchWebtoonTab('plan')"
-                    class="tab-btn text-gray-400 px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                    disabled>
+                <button id="tab-btn-produce" onclick="switchWebtoonTab('produce')"
+                    class="tab-btn text-gray-400 px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <span
                         class="w-5 h-5 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-400 flex items-center justify-center text-[10px]">3</span>
-                    제작 기획서
-                </button>
-
-                <div class="w-4 h-px bg-gray-100 dark:bg-gray-700 mx-1"></div>
-
-                <button id="tab-btn-produce" onclick="switchWebtoonTab('produce')"
-                    class="tab-btn text-gray-400 px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                    disabled>
-                    <span
-                        class="w-5 h-5 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-400 flex items-center justify-center text-[10px]">4</span>
                     최종 제작
                 </button>
             </div>
@@ -98,7 +84,7 @@
                                                     class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                                                     <span class="text-gray-400 text-lg">✂️</span>
                                                 </div>
-                                                <input type="text" id="psd-layer-input"
+                                                <input type="text" id="psd-layer-input" value="식자"
                                                     placeholder="제외할 레이어 (예: 식자, 대사)"
                                                     class="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:border-purple-500 outline-none transition-all text-gray-700 dark:text-gray-200">
                                                 <div
@@ -127,11 +113,28 @@
                                         </div>
                                     </div>
 
-                                    <!-- Start Button -->
-                                    <div id="start-analysis-container" class="hidden mt-8 text-center">
+                                    <!-- Start Buttons -->
+                                    <div id="start-analysis-container"
+                                        class="hidden mt-8 flex flex-col items-center gap-4">
                                         <button onclick="startAnalysisFromDir()"
-                                            class="btn-primary py-3 px-10 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 shadow-lg shadow-green-500/20 font-black text-lg hover:scale-105 transition-transform inline-flex items-center gap-2">
-                                            ✨ 전체 파일 분석 시작하기
+                                            class="w-full max-w-md btn-primary py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/20 font-black text-white hover:scale-105 transition-transform flex items-center justify-center gap-2">
+                                            <span>✨</span>
+                                            <span>AI 시각 엔진 분석 및 컷 분할 (Full Auto)</span>
+                                        </button>
+
+                                        <div class="relative w-full max-w-md my-2">
+                                            <div class="absolute inset-0 flex items-center">
+                                                <div class="w-full border-t border-gray-200 dark:border-gray-700"></div>
+                                            </div>
+                                            <div class="relative flex justify-center"><span
+                                                    class="bg-white dark:bg-gray-800 px-4 text-xs font-bold text-gray-400">또는
+                                                    수동 추출 (비권장)</span></div>
+                                        </div>
+
+                                        <button onclick="startExtractCuts()"
+                                            class="w-full max-w-md btn-secondary py-3 rounded-xl border-2 border-purple-500 text-purple-600 dark:text-purple-400 font-bold hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all flex justify-center items-center gap-2">
+                                            <span>✂️</span>
+                                            <span>PNG 컷 이미지만 우선 추출하기</span>
                                         </button>
                                     </div>
                                 </div>
@@ -183,6 +186,105 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- [NEW] Crop Principles Guide -->
+                    <div
+                        class="mt-12 p-8 bg-gray-50 dark:bg-gray-900/50 rounded-3xl border-2 border-dashed border-gray-200 dark:border-gray-700">
+                        <div class="flex items-center gap-3 mb-6">
+                            <span class="text-2xl">📐</span>
+                            <h4 class="text-xl font-black text-gray-800 dark:text-white">웹툰 자동 Crop 및 분할 원칙 (AI 엔진)</h4>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <!-- Principle 1 -->
+                            <div
+                                class="p-5 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                                <div
+                                    class="text-purple-600 dark:text-purple-400 font-bold mb-2 flex items-center gap-2">
+                                    <span
+                                        class="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-xs">1</span>
+                                    사다리꼴 및 비정형 처리
+                                </div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                                    기하학적 왜곡이 있는 컷이나 사다리꼴 형태의 연출도 AI가 외곽선을 추적하여,
+                                    그림의 가장 바깥쪽 경계를 기준으로 <strong>단 1px의 잘림 없이 온전하게 추출</strong>합니다.
+                                </p>
+                            </div>
+
+                            <!-- Principle 2 -->
+                            <div
+                                class="p-5 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                                <div class="text-blue-600 dark:text-blue-400 font-bold mb-2 flex items-center gap-2">
+                                    <span
+                                        class="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-xs">2</span>
+                                    화이트/블랙 여백 제로화
+                                </div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                                    컷 주변의 불필요한 흰색/검은색 여백을 0.1px 단위로 정밀하게 도려냅니다.
+                                    <strong>그림 내용만 꽉 차게 추출</strong>하여 영상화 시 몰입감을 극대화합니다.
+                                </p>
+                            </div>
+
+                            <!-- Principle 3 -->
+                            <div
+                                class="p-5 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                                <div
+                                    class="text-emerald-600 dark:text-emerald-400 font-bold mb-2 flex items-center gap-2">
+                                    <span
+                                        class="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-xs">3</span>
+                                    중복 이미지 자동 제거
+                                </div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                                    동일한 장면이 중복 추출되는 현상을 방지하기 위해
+                                    <strong>시각적 해시(Vision Hash) 비교</strong>를 거쳐 내용이 같은 컷은 자동으로 하나만 남기고 제거합니다.
+                                </p>
+                            </div>
+
+                            <!-- Principle 4 -->
+                            <div
+                                class="p-5 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                                <div
+                                    class="text-orange-600 dark:text-orange-400 font-bold mb-2 flex items-center gap-2">
+                                    <span
+                                        class="w-6 h-6 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-xs">4</span>
+                                    가로형 컷 전체 보존 (L-Box)
+                                </div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                                    가로로 긴 영화적 연출 컷은 크롭하지 않고 온전하게 추출하되,
+                                    숏폼 비율(9:16) 규격에 맞춰 <strong>레터박스를 적용하여 전체 내용을 보존</strong>합니다.
+                                </p>
+                            </div>
+
+                            <!-- Principle 5 -->
+                            <div
+                                class="p-5 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                                <div class="text-pink-600 dark:text-pink-400 font-bold mb-2 flex items-center gap-2">
+                                    <span
+                                        class="w-6 h-6 rounded-full bg-pink-100 dark:bg-pink-900/30 flex items-center justify-center text-xs">5</span>
+                                    개별 컷 독립 분할 원칙
+                                </div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                                    장면 병합 로직을 배제하고, 웹툰의 모든 의미 있는 컷은
+                                    <strong>독립된 하나의 장면으로 분할</strong>하여 정확한 TTS 매칭과 모션 제어를 보장합니다.
+                                </p>
+                            </div>
+
+                            <!-- Principle 6 -->
+                            <div
+                                class="p-5 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                                <div
+                                    class="text-indigo-600 dark:text-indigo-400 font-bold mb-2 flex items-center gap-2">
+                                    <span
+                                        class="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-xs">6</span>
+                                    측면(Side) 여백 완벽 제거
+                                </div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                                    상하뿐만 아니라 <strong>좌우측에 남은 편중된 여백</strong>도 시각적으로 분석하여 제거합니다.
+                                    일러스트가 한쪽으로 쏠리지 않도록 비정상적인 측면 공간을 스캔하여 배제합니다.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
             </div> <!-- End Tab 1 -->
@@ -221,7 +323,11 @@
                             </button>
                             <button id="plan-btn" onclick="generatePlan()"
                                 class="px-6 py-2 rounded-xl bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 border-2 border-indigo-600 dark:border-indigo-400 shadow-lg shadow-indigo-500/10 font-bold flex items-center gap-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all">
-                                📋 제작 기획서 확인/생성 (다음 단계)
+                                📋 컷별 꼼꼼 AI 제작 기획 완성하기
+                            </button>
+                            <button onclick="switchWebtoonTab('produce')"
+                                class="btn-primary px-6 py-2 rounded-xl text-sm font-bold">
+                                다음 (최종제작) 👉
                             </button>
                         </div>
                     </div>
@@ -312,82 +418,7 @@
             </div> <!-- End Analysis Result Container -->
         </div> <!-- End Tab 2 -->
 
-        <!-- TAB 3: Production Plan -->
-        <div id="tab-plan" class="tab-content hidden space-y-8">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-xl font-black text-gray-800 dark:text-white">제작 기획서</h3>
-                <button onclick="generatePlan(true)"
-                    class="px-6 py-2 rounded-xl bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 border-2 border-indigo-600 dark:border-indigo-400 shadow-lg shadow-indigo-500/10 font-bold flex items-center gap-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all">
-                    🔄 기획서 재생성
-                </button>
-            </div>
-
-            <div id="production-plan-area" class="mb-8 block">
-                <div
-                    class="bg-indigo-50 dark:bg-indigo-900/10 border-2 border-indigo-200 dark:border-indigo-800/50 rounded-3xl p-6 shadow-xl">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="flex items-center gap-3">
-                            <span class="text-2xl">📋</span>
-                            <div>
-                                <h4 class="text-lg font-black text-indigo-800 dark:text-indigo-300">
-                                    AI 비디오 제작 기획서</h4>
-                                <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">
-                                    Production Tech Plan generated by Gemini</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="plan-content" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <!-- Populated by JS -->
-                        <div class="col-span-1 space-y-4">
-                            <div
-                                class="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-indigo-100 dark:border-indigo-900/30">
-                                <h5 class="text-xs font-black text-gray-400 uppercase mb-2">총괄 전략
-                                </h5>
-                                <p id="plan-strategy"
-                                    class="text-sm text-gray-700 dark:text-gray-300 leading-relaxed text-gray-400 italic">
-                                    기획서 생성 버튼을 눌러주세요.</p>
-                            </div>
-                            <div
-                                class="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-indigo-100 dark:border-indigo-900/30">
-                                <h5 class="text-xs font-black text-gray-400 uppercase mb-2">추천 사운드
-                                    (BGM)</h5>
-                                <p id="plan-bgm" class="text-sm font-bold text-indigo-600 dark:text-indigo-400">
-                                </p>
-                            </div>
-                        </div>
-                        <div
-                            class="lg:col-span-2 bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-indigo-100 dark:border-indigo-900/30 overflow-x-auto">
-                            <h5 class="text-xs font-black text-gray-400 uppercase mb-4">장면별 기술 사양
-                                (Scene Specifications)
-                            </h5>
-                            <table class="w-full text-left text-xs">
-                                <thead>
-                                    <tr class="border-b border-gray-100 dark:border-gray-700">
-                                        <th class="py-2 font-black text-gray-500">SCENE</th>
-                                        <th class="py-2 font-black text-gray-500">ENGINE</th>
-                                        <th class="py-2 font-black text-gray-500">MOTION</th>
-                                        <th class="py-2 font-black text-gray-500">RATIONALE</th>
-                                        <th class="py-2 font-black text-gray-500">CROPPING/ADVICE
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody id="plan-scene-table">
-                                    <!-- Populated by JS -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <div class="mt-6 flex justify-end gap-3">
-                        <button onclick="applyPlanAndClose()"
-                            class="px-6 py-2 bg-indigo-600 text-white rounded-xl font-black text-sm shadow-lg shadow-indigo-500/20 hover:scale-105 transition-transform">
-                            ✅ 기획서 내용 적용 후 다음 단계로
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div> <!-- End Tab 3 -->
+        <!-- TAB 3 REMOVED: Now merged into Tab 2 -->
 
         <!-- TAB 4: Automatic Production -->
         <div id="tab-produce" class="tab-content hidden space-y-8">
@@ -432,7 +463,13 @@
                     </div>
                 </div>
 
-                <div class="flex justify-center">
+                <div class="flex flex-col items-center justify-center gap-4">
+                    <div class="flex items-center gap-2">
+                        <label for="automation-scene-range"
+                            class="text-sm font-bold text-gray-600 dark:text-gray-300">영상 생성 범위:</label>
+                        <input type="text" id="automation-scene-range" value="ALL" placeholder="ALL 또는 1-3"
+                            class="w-32 px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-bold text-center text-purple-600 dark:text-purple-400 outline-none uppercase tracking-wider title='ALL을 입력하면 전체 씬, 1-3을 입력하면 1~3번 씬만 영상 생성합니다'">
+                    </div>
                     <button id="step-3-start-btn" onclick="startAutomation()"
                         class="px-12 py-4 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 shadow-xl shadow-purple-500/30 font-black text-xl text-white hover:scale-105 transition-transform flex items-center gap-3">
                         <span>🎬</span>
@@ -534,7 +571,7 @@
             // Image Optimization Logic
             async function optimizeImage(filePath, btn) {
                 const originalHtml = btn.innerHTML;
-                btn.innerHTML = `<span class="animate-spin">⏳</span>`;
+                erHTML = `<span class="animate-spin">⏳</span>`;
                 btn.classList.add('opacity-70', 'cursor-not-allowed');
                 btn.disabled = true;
 
@@ -922,6 +959,51 @@
                 }
             }
 
+            // --- Manual Extraction Method ---
+            async function startExtractCuts() {
+                if (scannedGroups.length === 0) return;
+                const projectId = selectedProjectId || getCurrentProject();
+                if (!projectId) {
+                    Utils.showToast("상단에서 프로젝트를 먼저 선택해주세요.", "warning");
+                    return;
+                }
+                const btn = document.querySelector('button[onclick="startExtractCuts()"]');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = "⏳ 컷 추출 중...";
+                btn.disabled = true;
+
+                try {
+                    const excludeLayer = document.getElementById('psd-layer-input').value.trim();
+                    const inputDir = document.getElementById('dir-input').value.replace(/"/g, '');
+
+                    addLog("⏳ 매뉴얼 모드 - PNG 파일 컷 분할 중...", "process");
+                    const response = await fetch('/webtoon/extract-cuts', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            input_dir: inputDir,
+                            project_id: projectId,
+                            psd_exclude_layer: excludeLayer
+                        })
+                    });
+
+                    const result = await response.json();
+                    if (response.ok && result.status === 'ok') {
+                        addLog(`✅ 컷 분할이 완료되었습니다. (출장경로: ${result.output_dir})`, "success");
+                        Utils.showToast(`${result.files.length}개의 컷이 성공적으로 분할되었습니다.`, "success");
+                    } else {
+                        throw new Error(result.error || "분할 실패");
+                    }
+                } catch (e) {
+                    console.error('[Cut Extract Error]', e);
+                    Utils.showToast("오류: " + e.message, "error");
+                    addLog(`❌ 추출 오류: ${e.message}`, "error");
+                } finally {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }
+            }
+
             // (Deprecated functions kept for compatibility if needed, but not used in UI)
             // const currentFile = null; // This is already declared at the top, avoid redeclaration
             // function handleFile(file) {} // This is already defined below
@@ -1197,6 +1279,7 @@
                     const formData = new FormData();
                     formData.append('project_id', analysisProjectId);
                     formData.append('filename', filename);
+                    formData.append('skip_ai', 'true'); // [NEW] Slicing ONLY first
                     if (excludeLayer) {
                         formData.append('psd_exclude_layer', excludeLayer);
                     }
@@ -1250,68 +1333,103 @@
 
 
 
-            window.loadExistingAnalysis = async function (projectId) {
+            window.loadExistingAnalysis = async function (projectId, initialData = null) {
                 if (!projectId) return;
                 try {
-                    addLog(`📊 Loading existing analysis for project ${projectId}...`, "process");
-                    const res = await fetch(`/webtoon/get-analysis/${projectId}`);
-                    const data = await res.json();
+                    // [1] Try to load from initialData (event detail) or Local Cache first for instant UI
+                    let data = initialData;
+                    const cacheKey = `webtoon_cache_${projectId}`;
 
-                    if (data.status === 'ok' && data.scenes && data.scenes.length > 0) {
-                        console.log("📖 Loaded existing analysis for project", projectId);
-                        analyzedScenes = data.scenes;
-
-                        // [FIX] Enable Plan Tab if scenes exist
-                        document.getElementById('tab-btn-plan')?.removeAttribute('disabled');
-
-                        // [NEW] Load Plan if exists (Restore State)
-                        if (data.plan) {
-                            currentProductionPlan = data.plan;
-                            renderProductionPlan(currentProductionPlan);
-                            window.currentPlanSpecs = currentProductionPlan.scene_specifications || currentProductionPlan.scene_plans;
-                            addLog("📋 기존 기획서 데이터를 복원했습니다.", "success");
+                    if (!data) {
+                        const cached = Utils.storage.get(cacheKey);
+                        if (cached) {
+                            data = cached;
+                            addLog(`⚡ Using cached analysis for project ${projectId}...`, "info");
                         }
+                    }
 
-                        // Populate discovered characters
-                        discoveredCharacters = new Set(['주인공', '나레이션']);
-                        data.scenes.forEach(s => {
-                            if (s.analysis && s.analysis.character && s.analysis.character !== 'Unknown' && s.analysis.character !== 'None') {
-                                discoveredCharacters.add(s.analysis.character);
+                    // Apply data if we have it (from cache or event)
+                    const applyData = (d) => {
+                        if (d && d.scenes && d.scenes.length > 0) {
+                            console.log("📖 Restoring analysis for project", projectId);
+                            analyzedScenes = d.scenes;
+
+                            // Enable Plan Tab if scenes exist
+                            document.getElementById('tab-btn-plan')?.removeAttribute('disabled');
+
+                            // Load Plan if exists
+                            if (d.plan) {
+                                currentProductionPlan = d.plan;
+                                renderProductionPlan(currentProductionPlan);
+                                window.currentPlanSpecs = currentProductionPlan.scene_specifications || currentProductionPlan.scene_plans;
+                                addLog("📋 기존 기획서 데이터를 복원했습니다.", "success");
                             }
-                        });
-                        if (typeof updateGlobalCharacterUI === 'function') updateGlobalCharacterUI();
 
-                        renderScenes(data.scenes);
+                            // Populate discovered characters
+                            discoveredCharacters = new Set(['주인공', '나레이션']);
 
-                        // UI를 Step 2로 즉시 전환 (Tab Analysis)
-                        switchWebtoonTab('analysis');
+                            // [NEW] Restore from dedicated character table first (if in data)
+                            if (d.characters && Array.isArray(d.characters)) {
+                                d.characters.forEach(c => {
+                                    if (c.name) discoveredCharacters.add(c.name);
+                                });
+                            }
 
-                        const loading = document.getElementById('analysis-loading');
-                        const container = document.getElementById('analysis-result-container');
+                            // Backup: restore from scenes if character table was empty
+                            d.scenes.forEach(s => {
+                                if (s.analysis && s.analysis.character && s.analysis.character !== 'Unknown' && s.analysis.character !== 'None') {
+                                    discoveredCharacters.add(s.analysis.character);
+                                }
+                            });
+                            if (typeof updateGlobalCharacterUI === 'function') updateGlobalCharacterUI();
 
-                        if (loading) loading.classList.add('hidden');
-                        if (container) container.classList.remove('hidden');
+                            renderScenes(d.scenes);
 
-                        // Indicator 업데이트 (If they exist)
-                        const step1Ind = document.getElementById('step-1-indicator');
-                        const step2Ind = document.getElementById('step-2-indicator');
-                        if (step1Ind) {
-                            step1Ind.classList.replace('bg-blue-600', 'bg-green-500');
-                            step1Ind.innerHTML = '✅';
+                            // Only switch to analysis tab if we are currently on Step 1 (Manual Upload)
+                            const area1 = document.getElementById('step-1-area');
+                            if (area1 && !area1.classList.contains('hidden')) {
+                                switchWebtoonTab('analysis');
+                                // Indicator 업데이트
+                                const step1Ind = document.getElementById('step-1-indicator');
+                                const step2Ind = document.getElementById('step-2-indicator');
+                                if (step1Ind) {
+                                    step1Ind.classList.replace('bg-blue-600', 'bg-green-500');
+                                    step1Ind.innerHTML = '✅';
+                                }
+                                if (step2Ind) {
+                                    step2Ind.classList.replace('bg-gray-100', 'bg-blue-600');
+                                    step2Ind.classList.remove('text-gray-400');
+                                    step2Ind.classList.add('text-white');
+                                }
+                            }
+
+                            const loading = document.getElementById('analysis-loading');
+                            const container = document.getElementById('analysis-result-container');
+                            if (loading) loading.classList.add('hidden');
+                            if (container) container.classList.remove('hidden');
+
+                            if (analyzedScenes.some(s => s.motion_desc)) {
+                                const produceBtn = document.getElementById('tab-btn-produce');
+                                if (produceBtn) produceBtn.removeAttribute('disabled');
+                            }
                         }
-                        if (step2Ind) {
-                            step2Ind.classList.replace('bg-gray-100', 'bg-blue-600');
-                            step2Ind.classList.remove('text-gray-400');
-                            step2Ind.classList.add('text-white');
-                        }
+                    };
 
-                        // Check if we already have a production plan applied
-                        if (analyzedScenes.some(s => s.motion_desc)) {
-                            const produceBtn = document.getElementById('tab-btn-produce');
-                            if (produceBtn) produceBtn.removeAttribute('disabled');
-                        }
+                    if (data) applyData(data);
 
-                        addLog(`📖 기존 분석 데이터(${data.scenes.length}개 장면)를 불러왔습니다.`, "success");
+                    // [2] Fetch fresh data from server to ensure sync
+                    addLog(`📊 Fetching fresh analysis for project ${projectId}...`, "process");
+                    const res = await fetch(`/webtoon/get-analysis/${projectId}`);
+                    const freshData = await res.json();
+
+                    if (freshData.status === 'ok') {
+                        // Update cache
+                        Utils.storage.set(cacheKey, freshData);
+                        // If current state is empty or different, re-apply
+                        if (!analyzedScenes || analyzedScenes.length === 0 || JSON.stringify(freshData.scenes) !== JSON.stringify(analyzedScenes)) {
+                            applyData(freshData);
+                            addLog(`✅ 최신 분석 데이터(${freshData.scenes.length}개 장면)를 동기화했습니다.`, "success");
+                        }
                     }
                 } catch (e) {
                     console.error("Failed to load analysis:", e);
@@ -1336,30 +1454,91 @@
             }
 
             function renderScenes(scenes) {
+                if (!scenes || !Array.isArray(scenes)) {
+                    console.warn('[renderScenes] No valid scenes array provided');
+                    return;
+                }
                 const list = document.getElementById('scenes-list');
                 const count = document.getElementById('scene-count');
                 if (!list) { console.error('[renderScenes] #scenes-list element not found in DOM'); return; }
                 if (count) count.textContent = scenes.length;
                 list.innerHTML = '';
 
+                // Sort scenes by source image and then by number to ensure stable grouping
+                scenes.sort((a, b) => {
+                    const urlA = (a.original_image_url || a.image_url || "").split('&t=')[0].split('?t=')[0];
+                    const urlB = (b.original_image_url || b.image_url || "").split('&t=')[0].split('?t=')[0];
+                    if (urlA !== urlB) return urlA.localeCompare(urlB);
+                    return (a.scene_number || 0) - (b.scene_number || 0);
+                });
+
+                // Group scenes by original image URL
+                const groupedScenes = [];
+                let currentGroup = null;
+
                 scenes.forEach((scene, index) => {
-                    const item = document.createElement('div');
-                    item.id = `scene-card-${index}`;
-                    item.className = 'scene-item card bg-white dark:bg-gray-800 p-0 overflow-hidden flex flex-col md:flex-row gap-0 group hover:ring-2 hover:ring-purple-500/50 transition-all relative';
+                    scene._globalIndex = index; // Keep track of original index
+                    const fullUrl = scene.original_image_url || scene.image_url || "";
+                    // Normalize URL (remove timestamps context like &t=...) for stable grouping
+                    const origUrl = fullUrl ? fullUrl.split('&t=')[0].split('?t=')[0] : "unknown";
 
-                    const dialogue = scene.analysis.dialogue || '';
-                    const visual = scene.analysis.visual_desc || '';
-                    const cut_type = scene.scene_type || "3"; // Default
+                    if (!currentGroup || currentGroup.origId !== origUrl) {
+                        currentGroup = {
+                            origId: origUrl,
+                            originalUrl: fullUrl,
+                            scenes: []
+                        };
+                        groupedScenes.push(currentGroup);
+                    }
+                    currentGroup.scenes.push(scene);
+                });
 
-                    item.innerHTML = `
-                <div class="md:w-1/3 bg-gray-900 border-r border-gray-100 dark:border-gray-700 relative">
-                    <img src="${scene.image_url}" class="w-full h-full object-contain max-h-[400px]">
-                    <div class="absolute top-2 left-2 flex flex-col gap-1.5">
-                        <span class="bg-black/60 text-white text-[10px] px-2 py-1 rounded-full font-bold w-fit">SCENE ${index + 1}</span>
+                groupedScenes.forEach(group => {
+                    const groupContainer = document.createElement('div');
+                    groupContainer.className = 'flex flex-col xl:flex-row gap-6 mb-12 pb-12 border-b-2 border-dashed border-gray-700/50';
+
+                    // Parse filename for display
+                    let filename = group.originalUrl.split('/').pop().split('?')[0] || 'Original Webtoon';
+                    try { filename = decodeURIComponent(filename); } catch (e) { }
+
+                    // Left Column: Original Full Image
+                    const leftCol = document.createElement('div');
+                    leftCol.className = 'w-full xl:w-[250px] shrink-0 flex flex-col items-center bg-gray-900/50 p-4 rounded-xl border border-gray-700/50 relative self-start sticky top-6';
+
+                    leftCol.innerHTML = `
+                        <span class="text-[10px] font-black text-gray-400 mb-3 bg-black/60 px-3 py-1 rounded-full text-center w-full truncate border border-gray-700" title="${filename}">📂 ${filename}</span>
+                        <div class="w-full overflow-hidden bg-black/40 rounded-lg flex justify-center border border-gray-800">
+                            <img src="${group.originalUrl}" class="w-full h-auto object-contain opacity-70 hover:opacity-100 transition-opacity">
+                        </div>
+                    `;
+                    groupContainer.appendChild(leftCol);
+
+                    // Right Column: Cut Scenes
+                    const rightCol = document.createElement('div');
+                    rightCol.className = 'flex-1 flex flex-col gap-6';
+
+                    group.scenes.forEach((scene) => {
+                        const index = scene._globalIndex;
+                        const item = document.createElement('div');
+                        item.id = `scene-card-${index}`;
+                        item.className = 'scene-item card bg-white dark:bg-gray-800 p-0 overflow-hidden flex flex-col md:flex-row gap-0 group hover:ring-2 hover:ring-purple-500/50 transition-all relative';
+
+                        const dialogue = scene.analysis.dialogue || '';
+                        const visual = scene.analysis.visual_desc || '';
+                        const cut_type = scene.scene_type || "3"; // Default
+
+                        item.innerHTML = `
+                <div class="w-full md:w-[200px] shrink-0 bg-gray-950 border-r border-gray-100 dark:border-gray-700 relative flex flex-col max-h-[400px]">
+                    <div class="flex flex-col h-full overflow-hidden relative p-4 items-center justify-center">
+                        <span class="text-[10px] font-bold text-emerald-500 mb-2 absolute top-2 right-2 bg-emerald-900/40 px-2 rounded-full border border-emerald-500/30 w-fit backdrop-blur-sm shadow z-10">개별 컷</span>
+                        <img src="${scene.image_url}" class="max-w-full max-h-full object-contain rounded shadow-lg border border-gray-800/50">
+                    </div>
+                    <div class="absolute top-2 left-2 flex flex-col gap-1.5 pt-6 sm:pt-0">
+                        <span class="bg-black/80 text-white text-[10px] px-2 py-1 rounded-full font-bold w-fit border border-gray-700 backdrop-blur-sm shadow-md">SCENE ${index + 1}</span>
                         <!-- [NEW] Type Badge Selector -->
-                        <div class="relative group/type">
+                        <div class="relative group/type shadow-md rounded-lg">
                             <select onchange="updateSceneType(${index}, this.value)" 
-                                class="appearance-none px-2 py-1 bg-purple-600/90 hover:bg-purple-700 text-white rounded-lg text-[9px] font-black border border-purple-400/50 shadow-xl cursor-pointer transition-all outline-none pr-4">
+                                class="appearance-none px-2 py-1 bg-purple-600/90 hover:bg-purple-700 text-white text-[9px] font-black border border-purple-400/50 cursor-pointer transition-all outline-none pr-4 rounded-lg">
                                 <option value="1" ${cut_type == '1' ? 'selected' : ''}>TYPE 1: 긴 컷 (패닝)</option>
                                 <option value="2" ${cut_type == '2' ? 'selected' : ''}>TYPE 2: 가로 (확장/크롭)</option>
                                 <option value="3" ${cut_type == '3' ? 'selected' : ''}>TYPE 3: 일반 (여백)</option>
@@ -1373,37 +1552,64 @@
                 </div>
                 <!-- Delete Button -->
                 <button onclick="removeScene(${index})" 
-                        class="absolute top-4 right-4 p-2 bg-white/10 hover:bg-red-500 text-white rounded-lg transition-all opacity-0 group-hover:opacity-100 z-10"
+                        class="absolute top-2 right-2 p-1 bg-gray-900/50 hover:bg-red-500 text-white rounded-md transition-all opacity-0 group-hover:opacity-100 z-10 border border-gray-700 backdrop-blur-sm"
                         title="장면 삭제">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                     </svg>
                 </button>
-                <div class="flex-1 p-6 flex flex-col justify-between space-y-4">
+                <div class="flex-1 p-4 xl:p-6 flex flex-col justify-start space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar">
                     <div class="space-y-4">
-                        <div>
-                            <label class="block text-[10px] font-black text-purple-500 uppercase mb-1">Character / Speaker (Who is speaking?)</label>
-                            <div class="scene-character-selector flex flex-wrap gap-1.5 mb-2" data-idx="${index}">
-                                ${renderCharacterPills(index, scene.analysis.character)}
+                        <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-[10px] font-black text-purple-500 uppercase mb-1">Character / Speaker</label>
+                                <div class="scene-character-selector flex flex-wrap gap-1 mb-2" data-idx="${index}">
+                                    ${renderCharacterPills(index, scene.analysis.character)}
+                                </div>
+                                <input type="text" value="${scene.analysis.character}" 
+                                    class="scene-char-manual w-full bg-gray-50/50 dark:bg-gray-700/50 text-[10px] p-2 rounded-lg border border-dashed border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-300 focus:text-gray-700 dark:focus:text-white outline-none" 
+                                    placeholder="직접 입력..."
+                                    onchange="updateSceneCharacterManual(${index}, this.value)"
+                                    data-idx="${index}">
                             </div>
-                            <input type="text" value="${scene.analysis.character}" 
-                                class="scene-char-manual w-full bg-gray-50/50 dark:bg-gray-700/50 text-[10px] p-1.5 rounded-lg border border-dashed border-gray-200 dark:border-gray-600 text-gray-400 focus:text-gray-700 dark:focus:text-white focus:border-purple-500 outline-none" 
-                                placeholder="또는 직접 입력..."
-                                onchange="updateSceneCharacterManual(${index}, this.value)"
-                                data-idx="${index}">
+                            <div>
+                                <label class="block text-[10px] font-black text-green-500 uppercase mb-1">🎙️ Voice Actor</label>
+                                ${(() => {
+                                if (scene.analysis && scene.analysis.character === '내레이션' && (!scene.voice_name || scene.voice_name.toLowerCase() === 'none')) {
+                                    scene.voice_name = 'Brian';
+                                }
+                                let vName = scene.voice_name || (scene.analysis?.voice_recommendation?.name) || '';
+                                if (vName.toLowerCase() === 'none' || vName.toLowerCase() === 'null') vName = '';
+                                return `<input type="text" value="${vName}" 
+                                        onchange="updateSceneVoiceName(${index}, this.value)"
+                                        class="w-full bg-green-50/50 dark:bg-green-900/20 text-[10px] p-2 rounded-lg border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 font-bold placeholder-green-300 focus:ring-2 focus:ring-green-500 outline-none mb-1.5" 
+                                        placeholder="AI Voice suggestion">`;
+                            })()}
+                                <div class="text-[9px] text-green-600 bg-green-50 dark:bg-green-900/10 p-1.5 rounded border border-green-100 dark:border-green-800/30 flex items-center justify-between">
+                                    ${((s) => {
+                                if (!s) return '<span class="text-gray-400">No specific voice settings.</span>';
+                                try {
+                                    const vs = typeof s === 'string' ? JSON.parse(s) : s;
+                                    return `<span class="italic text-gray-500 truncate mr-2" title="${vs.reason}">"${vs.reason || 'N/A'}"</span><div class="flex gap-2 font-mono shrink-0"><span>⚡${vs.speed || 1.0}</span><span>🎯${vs.stability || 0.5}</span></div>`;
+                                } catch (e) { return '<span class="text-red-400">Invalid</span>'; }
+                            })(scene.voice_settings)}
+                                </div>
+                            </div>
                         </div>
+
                         <div>
                             <label class="block text-[10px] font-black text-blue-500 uppercase mb-1">Dialogue (Korean)</label>
-                            <textarea class="scene-dialogue w-full bg-gray-50 dark:bg-gray-700 text-sm p-3 rounded-lg border-0 focus:ring-2 focus:ring-blue-500 min-h-[100px]" 
+                            <textarea class="scene-dialogue w-full bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm p-3 rounded-lg border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 min-h-[60px] resize-y custom-scrollbar" 
                                 onchange="updateSceneDialogue(${index}, this.value)"
                                 data-idx="${index}">${dialogue}</textarea>
                         </div>
-                        <div class="grid grid-cols-2 gap-3">
+
+                        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
                             <div>
                                 <label class="block text-[10px] font-black text-purple-400 uppercase mb-1">Video Engine</label>
                                 <select id="scene-${index}-engine" onchange="updateSceneEngine(${index}, this.value)" 
-                                    class="w-full bg-gray-50 dark:bg-gray-700 text-[10px] font-bold p-2 rounded-lg border-0 focus:ring-2 focus:ring-purple-500">
-                                    <option value="image" ${scene.engine_override === 'image' ? 'selected' : ''}>Image (2D Motion)</option>
+                                    class="w-full bg-gray-50 dark:bg-gray-700 text-[10px] font-bold p-2 rounded-lg border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-purple-500">
+                                    <option value="image" ${scene.engine_override === 'image' ? 'selected' : ''}>Image (2D)</option>
                                     <option value="wan" ${scene.engine_override === 'wan' ? 'selected' : ''}>Wan 2.1 (AI Video)</option>
                                     <option value="akool" ${scene.engine_override === 'akool' ? 'selected' : ''}>Akool (LipSync)</option>
                                 </select>
@@ -1411,135 +1617,54 @@
                             <div>
                                 <label class="block text-[10px] font-black text-blue-400 uppercase mb-1">Camera Motion</label>
                                 <select id="scene-${index}-effect" onchange="updateSceneMotionType(${index}, this.value)"
-                                    class="w-full bg-gray-50 dark:bg-gray-700 text-[10px] font-bold p-2 rounded-lg border-0 focus:ring-2 focus:ring-blue-500">
+                                    class="w-full bg-gray-50 dark:bg-gray-700 text-[10px] font-bold p-2 rounded-lg border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-500">
                                     <option value="zoom_in" ${scene.effect_override === 'zoom_in' ? 'selected' : ''}>Zoom In</option>
                                     <option value="zoom_out" ${scene.effect_override === 'zoom_out' ? 'selected' : ''}>Zoom Out</option>
                                     <option value="pan_left" ${scene.effect_override === 'pan_left' ? 'selected' : ''}>Pan Left</option>
                                     <option value="pan_right" ${scene.effect_override === 'pan_right' ? 'selected' : ''}>Pan Right</option>
-                                    <option value="pan_up" ${scene.effect_override === 'pan_up' ? 'selected' : ''}>Pan Up (Vertical Scan)</option>
-                                    <option value="pan_down" ${scene.effect_override === 'pan_down' ? 'selected' : ''}>Pan Down (Vertical Scan)</option>
-                                    <option value="tilt_up" ${scene.effect_override === 'tilt_up' ? 'selected' : ''}>Tilt Up</option>
-                                    <option value="tilt_down" ${scene.effect_override === 'tilt_down' ? 'selected' : ''}>Tilt Down</option>
-                                    <option value="shake" ${scene.effect_override === 'shake' ? 'selected' : ''}>Shake</option>
+                                    <option value="pan_up" ${scene.effect_override === 'pan_up' ? 'selected' : ''}>Pan Up</option>
+                                    <option value="pan_down" ${scene.effect_override === 'pan_down' ? 'selected' : ''}>Pan Down</option>
                                     <option value="static" ${scene.effect_override === 'static' ? 'selected' : ''}>Static</option>
                                 </select>
                             </div>
-                        </div>
-                        
-                        <!-- [NEW] Voice Name Display -->
-                        <div>
-                            <label class="block text-[10px] font-black text-green-500 uppercase mb-1">🎙️ Voice Actor (ElevenLabs Recommendation)</label>
-                            ${(() => {
-                            // [HEAL] Enforce Brian for Narrator at Render time if missing
-                            if (scene.analysis && scene.analysis.character === '내레이션' && (!scene.voice_name || scene.voice_name.toLowerCase() === 'none')) {
-                                scene.voice_name = 'Brian';
-                            }
-
-                            // Fallback to nested analysis data if top-level voice_name is missing (for older projects)
-                            let vName = scene.voice_name || (scene.analysis?.voice_recommendation?.name) || '';
-                            if (vName.toLowerCase() === 'none' || vName.toLowerCase() === 'null') vName = '';
-
-                            return `<input type="text" value="${vName}" 
-                                    onchange="updateSceneVoiceName(${index}, this.value)"
-                                    class="w-full bg-green-50/50 dark:bg-green-900/20 text-[10px] p-2 rounded-lg border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 font-bold placeholder-green-300 focus:ring-2 focus:ring-green-500 outline-none" 
-                                    placeholder="AI will suggest voice name here...">`;
-                        })()}
-                                
-                             <!-- AI Voice Settings Display -->
-                             <div class="mt-2 text-[10px] text-green-600 bg-green-50 dark:bg-green-900/10 p-2 rounded border border-green-100 dark:border-green-800/30">
-                                ${((s) => {
-                            if (!s) return '<span class="text-gray-400">No specific voice settings.</span>';
-                            try {
-                                // Handle if it comes as string or object
-                                const vs = typeof s === 'string' ? JSON.parse(s) : s;
-                                return `
-                                        <div class="flex flex-wrap gap-2 items-center">
-                                            <span class="font-bold">✨ Reason:</span> <span class="text-gray-600 dark:text-gray-400 italic">"${vs.reason || 'N/A'}"</span>
-                                            <div class="w-full h-px bg-green-200 dark:bg-green-800/30 my-1"></div>
-                                            <span class="font-bold">⚡ Speed:</span> <span>${vs.speed || 1.0}x</span>
-                                            <span class="ml-2 font-bold">🎯 Stability:</span> <span>${vs.stability || 0.5}</span>
-                                            <span class="ml-2 font-bold">🌊 Boost:</span> <span>${vs.similarity_boost || 0.75}</span>
-                                        </div>
-                                        `;
-                            } catch (e) { return '<span class="text-red-400">Invalid settings format</span>'; }
-                        })(scene.voice_settings)}
-                             </div>
-                        </div>
-                        
-                        <!-- [NEW] Audio Direction Display -->
-                        <div>
-                             <label class="block text-[10px] font-black text-blue-500 uppercase mb-1">🎵 Audio Direction (SFX / BGM)</label>
-                             <div class="bg-blue-50 dark:bg-blue-900/10 p-2 rounded border border-blue-100 dark:border-blue-800/30 text-[10px]">
-                                ${((aud) => {
-                            if (!aud || (!aud.sfx_prompt && !aud.bgm_mood)) return '<span class="text-gray-400">No audio direction.</span>';
-                            let html = '';
-                            if (aud.sfx_prompt) {
-                                html += `<div class="mb-1"><span class="font-bold text-blue-700 dark:text-blue-300">🔊 SFX Prompt:</span> <span class="text-gray-600 dark:text-gray-300">${aud.sfx_prompt}</span></div>`;
-                            }
-                            if (aud.bgm_mood) {
-                                html += `<div><span class="font-bold text-purple-600 dark:text-purple-300">🎼 BGM Mood:</span> <span class="text-gray-600 dark:text-gray-300">${aud.bgm_mood}</span></div>`;
-                            }
-                            return html;
-                        })(scene.audio_direction || {})}
-                             </div>
+                            <!-- Audio Direction -->
+                            <div class="col-span-2">
+                                 <label class="block text-[10px] font-black text-blue-500 uppercase mb-1">🎵 Audio (SFX/BGM)</label>
+                                 <div class="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/10 p-2 rounded-lg border border-blue-100 dark:border-blue-800/30 text-[9px] h-[34px] overflow-hidden truncate">
+                                    ${((aud) => {
+                                if (!aud || (!aud.sfx_prompt && !aud.bgm_mood)) return '<span class="text-gray-400">None</span>';
+                                return `<span class="truncate" title="${aud.sfx_prompt || ''}">🔊 ${aud.sfx_prompt || 'N/A'}</span> <span class="mx-1 text-gray-500">|</span> <span class="truncate" title="${aud.bgm_mood || ''}">🎼 ${aud.bgm_mood || 'N/A'}</span>`;
+                            })(scene.audio_direction || {})}
+                                 </div>
+                            </div>
                         </div>
 
-                        </div>
                         <div>
-                            <label class="block text-[10px] font-black text-orange-400 uppercase mb-1">Internal Content Motion (for Wan Engine)</label>
-                            <input type="text" placeholder="예: Intense fire burning, hair blowing in wind" 
+                            <label class="block text-[10px] font-black text-orange-400 uppercase mb-1">Internal Target Motion (for Wan)</label>
+                            <input type="text" placeholder="예: Intense fire burning" 
                                 id="scene-${index}-motion-desc"
                                 onchange="updateSceneMotionDesc(${index}, this.value)"
                                 value="${scene.motion_desc || ''}"
-                                class="w-full bg-gray-50 dark:bg-gray-700 text-[10px] font-bold p-2 rounded-lg border-0 focus:ring-2 focus:ring-orange-500">
+                                class="w-full bg-gray-50 dark:bg-gray-700 text-[10px] font-bold p-2 rounded-lg border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-orange-500">
                         </div>
-                        <div>
-                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">
-                                AI Rationale & Advice
-                                <span class="text-xs font-normal text-gray-500 normal-case ml-2" id="scene-${index}-mode-indicator"></span>
-                            </label>
-                            <div class="bg-blue-50 dark:bg-gray-700/50 p-3 rounded-lg border border-blue-100 dark:border-gray-600 space-y-2">
-                                    <div class="flex items-start gap-2">
-                                        <span class="text-lg">💡</span>
-                                        <div>
-                                            <p class="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase">Reasoning</p>
-                                            <p class="text-xs text-gray-700 dark:text-gray-300 leading-tight" id="scene-${index}-rationale">${scene.rationale || 'No rationale provided.'}</p>
-                                        </div>
-                                    </div>
-                                ${scene.cropping_advice ? `
-                                <div class="flex items-start gap-2 border-t border-dashed border-gray-200 dark:border-gray-600 pt-2">
-                                    <span class="text-lg">📐</span>
-                                    <div>
-                                        <p class="text-[10px] font-bold text-green-600 dark:text-green-400 uppercase">Cropping Strategy</p>
-                                        <p class="text-xs text-gray-600 dark:text-gray-400 leading-tight">${scene.cropping_advice}</p>
-                                    </div>
-                                </div>
-                                ` : ''}
-                                <div class="flex items-center justify-between border-t border-gray-200 dark:border-gray-600 pt-2 mt-1">
-                                    <div class="flex items-center gap-1">
-                                        <span class="text-xs">⏱️</span>
-                                        <span class="text-[10px] font-bold text-gray-500 uppercase">Est. Duration:</span>
-                                        <span class="text-xs font-mono font-bold text-purple-600 dark:text-purple-400">
-                                            ${(Math.max(2, (scene.dialogue || "").length * 0.3)).toFixed(1)}s
-                                        </span>
-                                    </div>
-                                    <div id="scene-${index}-tech-badge">
-                                        ${scene.effect_override === 'pan_down' || scene.effect_override === 'pan_up'
-                            ? '<span class="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold border border-indigo-200">🔍 Smart Split / Scroll Checking</span>'
-                            : '<span class="px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[10px] font-bold border border-gray-200">Static / Converting</span>'}
-                                    </div>
-                                </div>
+
+                        <div class="bg-gray-50 dark:bg-gray-900/30 p-2 flex flex-col gap-1 text-[9px]">
+                            <div class="text-gray-600 dark:text-gray-400 mb-1">
+                                <span class="font-bold">💡 Reason:</span> <span class="italic leading-tight">${scene.rationale || 'None provided.'}</span>
                             </div>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">AI Visualization Hint (English)</label>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 italic bg-gray-50 dark:bg-gray-700/50 p-2 rounded-lg border border-gray-100 dark:border-gray-700">${visual}</p>
+                            <div class="flex items-center gap-2 justify-end">
+                                <span class="font-bold text-gray-400">Expected Size / Time:</span>
+                                <span class="font-mono text-purple-400 font-bold border rounded px-1">${(Math.max(2, (dialogue.length) * 0.3)).toFixed(1)}s</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             `;
-                    list.appendChild(item);
+                        rightCol.appendChild(item);
+                    });
+
+                    groupContainer.appendChild(rightCol);
+                    list.appendChild(groupContainer);
                 });
             }
 
@@ -1559,9 +1684,11 @@
             }
 
             function removeGlobalCharacter(name) {
+                if (['주인공', '나레이션'].includes(name)) return; // Prevent deleting defaults
                 discoveredCharacters.delete(name);
                 updateGlobalCharacterUI();
                 renderScenes(analyzedScenes); // Re-render to update pills
+                syncCharactersToBackend();
             }
 
             function addNewCharacterPrompt() {
@@ -1570,7 +1697,19 @@
                     discoveredCharacters.add(name.trim());
                     updateGlobalCharacterUI();
                     renderScenes(analyzedScenes);
+
+                    // [NEW] Persist characters to backend
+                    syncCharactersToBackend();
                 }
+            }
+
+            async function syncCharactersToBackend() {
+                if (!selectedProjectId) return;
+                try {
+                    const charList = Array.from(discoveredCharacters).map(name => ({ name: name }));
+                    await API.project.saveCharacters(selectedProjectId, charList);
+                    console.log("👥 Characters synchronized to backend");
+                } catch (e) { console.error("Character sync failed:", e); }
             }
 
             function renderCharacterPills(sceneIdx, selectedChar) {
@@ -1582,14 +1721,14 @@
                             onclick="selectSceneCharacter(${sceneIdx}, '${char}')"
                             class="px-2 py-1 rounded-md text-[10px] font-bold transition-all ${isActive
                             ? 'bg-purple-600 text-white shadow-md'
-                            : 'bg-gray-100 dark:bg-gray-700 text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}">
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}">
                             ${char}
                         </button>
                     `;
                 }).join('') + `
                     <button 
                         onclick="selectSceneCharacter(${sceneIdx}, 'Unknown')"
-                        class="px-2 py-1 rounded-md text-[10px] font-bold ${selectedChar === 'Unknown' ? 'bg-gray-400 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-400'}">
+                        class="px-2 py-1 rounded-md text-[10px] font-bold ${selectedChar === 'Unknown' ? 'bg-gray-400 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'}">
                         ? Unknown
                     </button>
                 `;
@@ -1768,6 +1907,10 @@
 
             window.saveCurrentAnalysis = async function (projectId, scenes) {
                 if (!projectId || !scenes) return;
+
+                // [NEW] Local Cache for refresh persistence
+                Utils.storage.set(`webtoon_cache_${projectId}`, { status: 'ok', scenes: scenes, plan: typeof currentProductionPlan !== 'undefined' ? currentProductionPlan : null });
+
                 try {
                     const res = await fetch('/webtoon/save-analysis', {
                         method: 'POST',
@@ -1784,24 +1927,16 @@
                 }
             };
 
-            window.generatePlan = async function (force = false) {
-                switchWebtoonTab('plan');
+            window.generatePlan = async function () {
                 if (!analyzedScenes || analyzedScenes.length === 0) {
-                    document.getElementById('plan-strategy').innerText = "분석된 장면이 없습니다. 먼저 분석을 완료해 주세요.";
+                    Utils.showToast("분석된 장면이 없습니다. 먼저 분석을 완료해 주세요.", "warning");
                     return;
                 }
 
-                if (!force && currentProductionPlan) {
-                    return;
-                }
-
-                const strategyEl = document.getElementById('plan-strategy');
-                const bgmEl = document.getElementById('plan-bgm');
-                const tableEl = document.getElementById('plan-scene-table');
-
-                strategyEl.innerHTML = `<span class="animate-pulse">⏳ AI가 연출 기획을 수립 중입니다...</span>`;
-                bgmEl.innerText = '';
-                tableEl.innerHTML = '';
+                const btn = document.getElementById('plan-btn');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = "⏳ AI 컷별 세부 기획 중...";
+                btn.disabled = true;
 
                 try {
                     const response = await fetch('/webtoon/generate-plan', {
@@ -1811,52 +1946,61 @@
                     });
                     const result = await response.json();
                     if (result.status === 'ok' && result.plan) {
-                        currentProductionPlan = result.plan;
-                        renderProductionPlan(currentProductionPlan);
-                        window.currentPlanSpecs = currentProductionPlan.scene_specifications;
-                        addLog("✅ Production Plan Generated Successfully.", "success");
+                        // [NEW] If scenes were analyzed on-demand, update them in UI
+                        if (result.scenes && Array.isArray(result.scenes)) {
+                            console.log("✨ Received on-demand analyzed scenes");
+                            analyzedScenes = result.scenes;
+
+                            // Update characters
+                            result.scenes.forEach(s => {
+                                if (s.analysis.character && s.analysis.character !== 'Unknown') {
+                                    discoveredCharacters.add(s.analysis.character);
+                                }
+                            });
+                            updateGlobalCharacterUI();
+                        }
+
+                        const planSpecs = result.plan.scene_specifications || result.plan.scene_plans || [];
+                        let updateCount = 0;
+                        planSpecs.forEach(spec => {
+                            const target = analyzedScenes.find((s, i) => (i + 1) === spec.scene_number);
+                            if (target) {
+                                target.engine_override = (spec.engine || 'wan').toLowerCase();
+                                target.motion_desc = spec.motion || '';
+                                if (spec.effect) target.effect_override = spec.effect.toLowerCase();
+                                target.rationale = spec.rationale || '';
+                                target.cropping_advice = spec.cropping_advice || '';
+
+                                // Parse Scene Type from Rationale
+                                const rationaleLower = (target.rationale || '').toLowerCase();
+                                if (rationaleLower.includes("type 1") || rationaleLower.includes("vertical long")) {
+                                    target.scene_type = "1";
+                                    target.type_label = "Type 1: 세로로 긴 컷 (패닝)";
+                                } else if (rationaleLower.includes("type 2") || rationaleLower.includes("horizontal")) {
+                                    target.scene_type = "2";
+                                    target.type_label = "Type 2: 가로로 긴 컷 (여백 포함)";
+                                } else if (rationaleLower.includes("type 3") || rationaleLower.includes("standard")) {
+                                    target.scene_type = "3";
+                                    target.type_label = "Type 3: 일반 (여백)";
+                                }
+                                updateCount++;
+                            }
+                        });
+
+                        saveCurrentAnalysis(selectedProjectId, analyzedScenes);
+                        renderScenes(analyzedScenes);
+
+                        addLog(`✅ 제작 기획서 컷별 자동 적용 완료. (총 ${updateCount}컷)`, "success");
+                        Utils.showToast(`${updateCount}개의 컷에 기획 설정이 자동 적용되었습니다.`, "success");
                     } else throw new Error(result.error || "기획서 생성 실패");
                 } catch (e) {
                     console.error(e);
-                    strategyEl.innerText = "Error: " + e.message;
-                    Utils.showToast("기획서 생성 실패", "error");
+                    Utils.showToast("기획서 자동 생성 실패: " + e.message, "error");
+                    addLog(`❌ 자동 기획 실패: ${e.message}`, "error");
+                } finally {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
                 }
-            };
-
-            window.applyPlanAndClose = function () {
-                if (!window.currentPlanSpecs) return Utils.showToast("적용할 기획서 정보가 없습니다.", "warning");
-                let updateCount = 0;
-                window.currentPlanSpecs.forEach(spec => {
-                    const target = analyzedScenes.find((s, i) => (i + 1) === spec.scene_number);
-                    if (target) {
-                        target.engine_override = (spec.engine || 'wan').toLowerCase();
-                        target.motion_desc = spec.motion || '';
-                        if (spec.effect) target.effect_override = spec.effect.toLowerCase();
-                        target.rationale = spec.rationale || '';
-                        target.cropping_advice = spec.cropping_advice || '';
-
-                        // [NEW] Parse Scene Type from Rationale (Sync Classification with Plan)
-                        const rationaleLower = (target.rationale || '').toLowerCase();
-                        if (rationaleLower.includes("type 1") || rationaleLower.includes("vertical long")) {
-                            target.scene_type = "1";
-                            target.type_label = "Type 1: 세로로 긴 컷 (패닝)";
-                        } else if (rationaleLower.includes("type 2") || rationaleLower.includes("horizontal")) {
-                            target.scene_type = "2";
-                            target.type_label = "Type 2: 가로형 컷 (확장/크롭)";
-                        } else if (rationaleLower.includes("type 3")) {
-                            target.scene_type = "3";
-                            target.type_label = "Type 3: 일반/작은 컷";
-                        }
-
-                        updateCount++;
-                    }
-                });
-                renderScenes(analyzedScenes);
-                saveCurrentAnalysis(selectedProjectId, analyzedScenes);
-                addLog(`✅ Applied plan to ${updateCount} scenes.`, "success");
-                Utils.showToast(`기획서가 장면들에 적용되었습니다.`, "success");
-                document.getElementById('tab-btn-produce').removeAttribute('disabled');
-                switchWebtoonTab('produce');
             };
 
             // --- Automation & Real-time Monitoring ---
@@ -1871,7 +2015,7 @@
                 try {
                     Utils.setLoading(btn, true);
                     const sceneElements = document.querySelectorAll('.scene-item');
-                    const finalData = [];
+                    let finalData = [];
                     const characterMap = {};
 
                     sceneElements.forEach((el, i) => {
@@ -1893,6 +2037,28 @@
                             image_path: sceneObj.image_path
                         });
                     });
+
+                    // [NEW] Range filtering
+                    const rangeStr = document.getElementById('automation-scene-range')?.value.trim();
+                    if (rangeStr && rangeStr.toUpperCase() !== 'ALL') {
+                        const matchRange = rangeStr.match(/^(\d+)\s*-\s*(\d+)$/);
+                        const matchSingle = rangeStr.match(/^(\d+)$/);
+
+                        if (matchRange) {
+                            const start = parseInt(matchRange[1]);
+                            const end = parseInt(matchRange[2]);
+                            finalData = finalData.filter(s => s.scene_number >= start && s.scene_number <= end);
+                        } else if (matchSingle) {
+                            const target = parseInt(matchSingle[1]);
+                            finalData = finalData.filter(s => s.scene_number === target);
+                        } else {
+                            throw new Error('잘못된 범위 형식입니다. ALL, 1-3, 또는 5 와 같이 입력해주세요.');
+                        }
+                    }
+
+                    if (finalData.length === 0) {
+                        throw new Error('선택된 범위에 해당하는 씬이 없습니다.');
+                    }
 
                     const res = await fetch('/webtoon/automate', {
                         method: 'POST',
@@ -1991,41 +2157,7 @@
                 list.innerHTML = `<div class="p-4 text-xs font-mono bg-gray-50 dark:bg-gray-900 rounded-xl">PSD Layers Analyzed. Active files: ${Object.keys(debugData?.all_files || {}).length}</div>`;
             }
 
-            let currentProductionPlan = null;
-
-            function renderProductionPlan(plan) {
-                document.getElementById('plan-strategy').innerText = plan.overall_strategy || '';
-                document.getElementById('plan-bgm').innerText = plan.bgm_style || '분위기에 맞는 곡 추천';
-
-                const table = document.getElementById('plan-scene-table');
-                table.innerHTML = '';
-
-                const specs = plan.scene_specifications || plan.scene_plans || [];
-                specs.forEach(s => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'border-b border-gray-50 dark:border-gray-800/50 hover:bg-white/50 dark:hover:bg-gray-700/30 transition-colors';
-                    tr.innerHTML = `
-                        <td class="py-3 font-bold text-gray-400">#${s.scene_number}</td>
-                        <td class="py-3">
-                            <span class="px-2 py-1 rounded-md text-[10px] font-black uppercase ${s.engine === 'akool' ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'}">
-                                ${s.engine || 'wan'}
-                            </span>
-                        </td>
-                        <td class="py-3">
-                            <div class="text-[9px] font-mono text-gray-500 max-w-[200px] leading-tight line-clamp-2" title="${s.motion || s.motion_desc || ''}">
-                                ${s.motion || s.motion_desc || 'Cinematic Motion'}
-                            </div>
-                        </td>
-                        <td class="py-3">
-                            <div class="text-[10px] text-gray-700 dark:text-gray-300 font-medium max-w-[150px] leading-tight">${s.rationale || '-'}</div>
-                        </td>
-                        <td class="py-3 border-r-0">
-                            <div class="text-[10px] text-gray-500 whitespace-pre-wrap leading-snug" title="${s.cropping_advice || ''}">${s.cropping_advice || '-'}</div>
-                        </td>
-                    `;
-                    table.appendChild(tr);
-                });
-            }
+            // Rendering Production Plan Removed
 
 
 
@@ -2033,8 +2165,26 @@
             window.addEventListener('projectStateRestored', (e) => {
                 const projectId = e.detail?.project?.id;
                 if (projectId) {
+                    const isSameProject = (selectedProjectId === projectId);
                     selectedProjectId = projectId;
-                    loadExistingAnalysis(projectId);
+
+                    // Parse webtoon data if available in event detail
+                    let eventWebtoonData = null;
+                    const settings = e.detail.settings;
+                    if (settings && settings.webtoon_scenes_json) {
+                        try {
+                            eventWebtoonData = {
+                                status: 'ok',
+                                scenes: JSON.parse(settings.webtoon_scenes_json),
+                                plan: settings.webtoon_plan_json ? JSON.parse(settings.webtoon_plan_json) : null
+                            };
+                        } catch (err) { console.error("Event data parse error:", err); }
+                    }
+
+                    // Only reload if it's a new project OR we have fresh data from the event
+                    if (!isSameProject || eventWebtoonData) {
+                        loadExistingAnalysis(projectId, eventWebtoonData);
+                    }
                 }
             });
 

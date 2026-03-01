@@ -87,16 +87,30 @@
                     <span>💾</span>
                     <span>{{ t('btn_save_settings') }}</span>
                 </button>
-                <button onclick="generateStructure()" id="generateBtn"
-                    class="btn-primary w-full py-3 text-sm font-semibold shadow-sm hover:shadow-md transition-all rounded-lg flex items-center justify-center gap-2">
-                    <span>🤖</span>
-                    <span>{{ t('btn_gen_structure') }}</span>
-                </button>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="generateStructure()" id="generateBtn"
+                        class="btn-primary w-full py-3 text-sm font-semibold shadow-sm hover:shadow-md transition-all rounded-lg flex items-center justify-center gap-2">
+                        <span>🤖</span>
+                        <span>{{ t('btn_gen_structure') }}</span>
+                    </button>
+                    <div class="flex flex-col gap-2">
+                        <select id="deepDiveMode"
+                            class="input-field text-xs py-2 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800">
+                            <option value="monologue">🎙️ 1인 나레이션</option>
+                            <option value="dialogue">👥 팟캐스트 (대화형)</option>
+                        </select>
+                        <button onclick="generateDeepDive()" id="deepDiveBtn"
+                            class="w-full py-3 text-sm font-bold shadow-md hover:shadow-xl transition-all rounded-lg flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-0">
+                            <span>🚀</span>
+                            <span>딥다이브 생성</span>
+                        </button>
+                    </div>
+                </div>
 
                 <!-- [NEW] Autopilot Direct Start Button -->
                 <button onclick="continueWithAutopilot(true)"
                     class="w-full py-3 text-sm font-bold shadow-md hover:shadow-xl transition-all rounded-lg flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white border-0 mt-1">
-                    <span>🚀</span>
+                    <span>⚡</span>
                     <span>{{ t('plan_autopilot_direct') }}</span>
                 </button>
             </div>
@@ -128,7 +142,44 @@
             <p class="text-[10px] text-gray-500 dark:text-gray-400 mt-2 text-center">* 영상 주제와 프로젝트 제목으로 즉시 적용됩니다.</p>
         </div>
 
-        <!-- 2. Analysis Data -->
+        <!-- 2. Learning Sources (NotebookLM) -->
+        <div class="card w-full">
+            <h3 class="card-title">📚 학습 자료 (Sources)</h3>
+            <p class="text-[11px] text-gray-500 mb-3">뉴스 URL, 유튜브 URL 또는 텍스트 파일을 추가하여 AI가 학습하게 하세요.</p>
+
+            <!-- URL Add -->
+            <div class="flex gap-2 mb-3">
+                <input type="text" id="sourceUrlInput" class="input-field text-xs py-1.5"
+                    placeholder="뉴스 기사 또는 유튜브 URL">
+                <button onclick="addUrlSource()"
+                    class="btn-secondary text-[10px] px-2 py-1 whitespace-nowrap bg-blue-50 text-blue-600 border-blue-200">추가</button>
+            </div>
+
+            <!-- File Upload -->
+            <div class="mb-2">
+                <input type="file" id="sourceFileInput" class="hidden" accept=".txt,.pdf"
+                    onchange="uploadFileSource(this)">
+                <button onclick="document.getElementById('sourceFileInput').click()"
+                    class="btn-secondary w-full text-[10px] py-1.5 flex items-center justify-center gap-1 border-dashed">
+                    <span>📁</span> 텍스트 파일 업로드
+                </button>
+            </div>
+
+            <!-- [NEW] Source Library -->
+            <div class="mb-3">
+                <button onclick="openSourceLibrary()"
+                    class="btn-secondary w-full text-[10px] py-1.5 flex items-center justify-center gap-1 bg-purple-50 text-purple-600 border-purple-200 hover:bg-purple-100 transition-colors">
+                    <span>📚</span> 기존 자료 가져오기
+                </button>
+            </div>
+
+            <!-- List of Sources -->
+            <div id="sourcesList" class="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-1">
+                <div class="text-center py-4 text-gray-400 text-[10px]">등록된 자료가 없습니다.</div>
+            </div>
+        </div>
+
+        <!-- 3. Analysis Data -->
         <div id="analysisInfo" class="card hidden w-full">
             <h3 class="card-title">📊 {{ t('plan_analysis_title') }}</h3>
             <div id="analysisContent"></div>
@@ -227,6 +278,7 @@
 
         if (projectId) {
             await loadProjectData(projectId);
+            await loadSources();
         }
 
         // [STRONG OVERRIDE] URL에서 전달된 topic이 있다면 무조건 입력창에 적용 (DB 값보다 우선) + DB 동기화
@@ -1068,7 +1120,290 @@
             }
         }
     }
+    // ========== SOURCE MANAGEMENT (NotebookLM) ==========
+
+    async function loadSources() {
+        const projectId = getCurrentProject();
+        if (!projectId) return;
+
+        try {
+            const res = await fetch(`/api/projects/${projectId}/sources`);
+            const data = await res.json();
+            if (data.status === 'ok') {
+                renderSourcesList(data.sources);
+            }
+        } catch (e) { console.error("Load sources failed", e); }
+    }
+
+    function renderSourcesList(sources) {
+        const container = document.getElementById('sourcesList');
+        if (!sources || sources.length === 0) {
+            container.innerHTML = '<div class="text-center py-4 text-gray-400 text-[10px]">등록된 자료가 없습니다.</div>';
+            return;
+        }
+
+        container.innerHTML = sources.map(s => `
+            <div class="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded border border-gray-100 dark:border-gray-700 group">
+                <div class="min-w-0 flex-1">
+                    <p class="text-[11px] font-bold text-gray-800 dark:text-gray-200 truncate" title="${s.title}">${s.title}</p>
+                    <p class="text-[9px] text-gray-500 uppercase">${s.type}</p>
+                </div>
+                <button onclick="deleteSource(${s.id})" class="opacity-0 group-hover:opacity-100 p-1 text-red-400 hover:text-red-600 transition-all">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </button>
+            </div>
+        `).join('');
+    }
+
+    async function addUrlSource() {
+        const projectId = getCurrentProject();
+        const urlInput = document.getElementById('sourceUrlInput');
+        const url = urlInput.value.trim();
+
+        if (!url) {
+            Utils.showToast('URL을 입력하세요', 'warning');
+            return;
+        }
+
+        Utils.showToast('기사 분석 중...', 'info');
+        try {
+            const res = await fetch(`/api/projects/${projectId}/sources/url`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url })
+            });
+            const data = await res.json();
+            if (data.status === 'ok') {
+                Utils.showToast(`추가됨: ${data.title}`, 'success');
+                urlInput.value = '';
+                loadSources();
+            } else {
+                throw new Error(data.detail || '추가 실패');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('URL 추가 실패: ' + e.message, 'error');
+        }
+    }
+
+    async function uploadFileSource(input) {
+        if (!input.files || input.files.length === 0) return;
+        const projectId = getCurrentProject();
+        const file = input.files[0];
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        Utils.showToast('파일 업로드 및 분석 중...', 'info');
+        try {
+            const res = await fetch(`/api/projects/${projectId}/sources/file`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (data.status === 'ok') {
+                Utils.showToast(`업로드됨: ${data.title}`, 'success');
+                input.value = '';
+                loadSources();
+            } else {
+                throw new Error(data.detail || '업로드 실패');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('파일 업로드 실패: ' + e.message, 'error');
+        }
+    }
+
+    async function deleteSource(sourceId) {
+        if (!confirm('이 자료를 삭제하시겠습니까?')) return;
+        const projectId = getCurrentProject();
+        try {
+            const res = await fetch(`/api/projects/${projectId}/sources/${sourceId}`, {
+                method: 'DELETE'
+            });
+            if (res.ok) {
+                Utils.showToast('삭제되었습니다', 'success');
+                loadSources();
+            }
+        } catch (e) { console.error(e); }
+    }
+    async function generateDeepDive() {
+        const topic = document.getElementById('topicInput').value.trim();
+        if (!topic) {
+            Utils.showToast('영상 주제를 입력하세요', 'warning');
+            return;
+        }
+
+        const projectId = getCurrentProject();
+        if (!projectId) return;
+
+        const durationVal = parseInt(document.getElementById('durationInput').value) || 60;
+        let duration = (window.APP_MODE === 'shorts') ? durationVal : durationVal * 60;
+        const notes = document.getElementById('additionalNotes').value;
+
+        const btn = document.getElementById('deepDiveBtn');
+        Utils.setLoading(btn, true, '심층 분석 중...');
+
+        try {
+            const res = await fetch('/api/gemini/deep-dive', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    project_id: projectId,
+                    topic,
+                    duration,
+                    notes: notes || '',
+                    target_language: currentTargetLanguage,
+                    mode: document.getElementById('deepDiveMode').value
+                })
+            });
+
+            const data = await res.json();
+            if (data.status === 'ok') {
+                const result = data.result;
+                Utils.showToast('딥다이브 대본 생성 완료! 🚀', 'success');
+
+                // Save to DB and Redirect or Show
+                // We'll save the script and recommend it in script-gen page
+                await fetch(`/api/projects/${projectId}/script`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        full_script: result.full_script,
+                        word_count: result.full_script.length,
+                        estimated_duration: duration
+                    })
+                });
+
+                // Also save metadata titles if suggested
+                if (result.title) {
+                    await fetch(`/api/projects/${projectId}/metadata`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            titles: [result.title],
+                            description: result.key_insights ? result.key_insights.join('\n') : '',
+                            tags: [],
+                            hashtags: []
+                        })
+                    });
+                }
+
+                // Redirect to script-gen
+                if (confirm('대본이 생성되었습니다. 확인하시겠습니까?')) {
+                    window.location.href = `/script-gen?project_id=${projectId}`;
+                }
+            } else {
+                throw new Error(data.error || '생성 실패');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('딥다이브 생성 실패: ' + e.message, 'error');
+            Utils.setLoading(btn, false);
+        }
+    }
+
+    // ========== SOURCE CLONING (Source Library) ==========
+
+    async function openSourceLibrary() {
+        const modal = document.getElementById('sourceLibraryModal');
+        modal.classList.remove('hidden');
+        const list = document.getElementById('libraryProjectList');
+        list.innerHTML = '<div class="text-center py-10"><div class="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div></div>';
+
+        try {
+            const res = await fetch('/api/projects/all-sources-summary');
+            const data = await res.json();
+
+            if (data.status === 'ok' && data.projects.length > 0) {
+                list.innerHTML = '';
+                // 현재 프로젝트 제외
+                const currentId = getCurrentProject();
+                const filtered = data.projects.filter(p => p.id !== currentId);
+
+                if (filtered.length === 0) {
+                    list.innerHTML = '<div class="text-center py-10 text-gray-500 text-sm">가져올 수 있는 다른 프로젝트 자료가 없습니다.</div>';
+                    return;
+                }
+
+                filtered.forEach(proj => {
+                    const btn = document.createElement('button');
+                    btn.className = 'w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 hover:bg-purple-50 dark:hover:bg-purple-900/30 border border-gray-100 dark:border-gray-600 rounded-xl transition-all group mb-2';
+                    btn.onclick = () => cloneSourcesFrom(proj.id, proj.name);
+                    btn.innerHTML = `
+                        <div class="text-left">
+                            <div class="text-sm font-bold text-gray-800 dark:text-gray-100 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors font-noto">${proj.name}</div>
+                            <div class="text-[10px] text-gray-400 mt-1">등록된 자료: ${proj.source_count}개</div>
+                        </div>
+                        <span class="text-purple-400 group-hover:translate-x-1 transition-transform">→</span>
+                    `;
+                    list.appendChild(btn);
+                });
+            } else {
+                list.innerHTML = '<div class="text-center py-10 text-gray-500 text-sm">등록된 학습 자료가 있는 프로젝트가 없습니다.</div>';
+            }
+        } catch (e) {
+            console.error(e);
+            list.innerHTML = '<div class="text-center py-10 text-red-500 text-sm">목록을 불러오지 못했습니다.</div>';
+        }
+    }
+
+    function closeSourceLibrary() {
+        document.getElementById('sourceLibraryModal').classList.add('hidden');
+    }
+
+    async function cloneSourcesFrom(fromProjectId, fromProjectName) {
+        if (!confirm(`'${fromProjectName}' 프로젝트의 모든 자료를 현재 프로젝트로 가져오시겠습니까?`)) return;
+
+        const currentId = getCurrentProject();
+        try {
+            Utils.showToast('자료를 복제하고 있습니다...', 'info');
+            const res = await fetch(`/api/projects/${currentId}/sources/clone/${fromProjectId}`, {
+                method: 'POST'
+            });
+            const data = await res.json();
+
+            if (data.status === 'ok') {
+                Utils.showToast(`${data.cloned_count}개의 자료를 성공적으로 가져왔습니다!`, 'success');
+                closeSourceLibrary();
+                loadSources(); // 목록 새로고침
+            } else {
+                throw new Error(data.error || '복제 실패');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('자료 가져오기 실패: ' + e.message, 'error');
+        }
+    }
 
 </script>
+
+<!-- Source Library Modal -->
+<div id="sourceLibraryModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="fixed inset-0 bg-black/60 backdrop-blur-sm" onclick="closeSourceLibrary()"></div>
+    <div
+        class="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md relative z-10 shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div
+            class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-900/50">
+            <h3 class="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                <span>📚</span> 자료 라이브러리
+            </h3>
+            <button onclick="closeSourceLibrary()"
+                class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+                    </path>
+                </svg>
+            </button>
+        </div>
+        <div class="p-6">
+            <p class="text-xs text-gray-500 mb-4 font-medium uppercase tracking-wider font-noto">자료용 프로젝트 선택</p>
+            <div id="libraryProjectList" class="space-y-1 max-h-80 overflow-y-auto custom-scrollbar pr-1">
+                <!-- Project List Inject Here -->
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 {% endblock %}

@@ -115,16 +115,40 @@ def get_license_key():
 templates.env.globals['get_license_key'] = get_license_key
 templates.env.globals['AUTH_SERVER_URL'] = "http://localhost:3000" if config.DEBUG else "https://mytube-ashy-seven.vercel.app"
 
-# [NEW] Language Persistence
+# [NEW] Language Persistence - DB 우선, 파일 fallback
 LANG_FILE = "language.pref"
-if os.path.exists(LANG_FILE):
-    with open(LANG_FILE, "r") as f:
-        saved_lang = f.read().strip()
-        if saved_lang in ['ko', 'en', 'vi']:
-            translator.set_lang(saved_lang)
-            app_lang = saved_lang
+
+def _load_saved_lang():
+    """DB → 파일 순서로 저장된 언어를 읽어 translator에 적용"""
+    global app_lang
+    # 1. DB에서 읽기
+    try:
+        saved = db.get_global_setting("language", None)
+        if saved and saved in ['ko', 'en', 'vi']:
+            translator.set_lang(saved)
+            app_lang = saved
             templates.env.globals['current_lang'] = app_lang
-            print(f"[I18N] Loaded saved language: {app_lang}")
+            print(f"[I18N] Loaded language from DB: {app_lang}")
+            return
+    except Exception:
+        pass
+    # 2. 파일에서 읽기 (fallback)
+    if os.path.exists(LANG_FILE):
+        with open(LANG_FILE, "r") as f:
+            saved_lang = f.read().strip()
+            if saved_lang in ['ko', 'en', 'vi']:
+                translator.set_lang(saved_lang)
+                app_lang = saved_lang
+                templates.env.globals['current_lang'] = app_lang
+                print(f"[I18N] Loaded language from file: {app_lang}")
+
+_load_saved_lang()
+
+# ✅ app_state에 실제 실행 중인 translator/templates 등록
+# (settings.py 등 routers에서 'import main' 없이 참조 가능)
+from services import app_state as _app_state
+_app_state.register_translator(translator)
+_app_state.register_templates(templates)
 
 app.mount("/static", StaticFiles(directory=config.STATIC_DIR), name="static")
 
@@ -140,6 +164,7 @@ from app.routers import repository as repository_router # [NEW]
 from app.routers import queue as queue_router # [NEW]
 from app.routers import webtoon as webtoon_router # [NEW]
 from app.routers import audio as audio_router # [NEW]
+from app.routers import sources as sources_router # [NEW]
 
 app.include_router(autopilot_router.router)
 app.include_router(video_router.router)
@@ -152,6 +177,7 @@ app.include_router(repository_router.router) # [NEW]
 app.include_router(webtoon_router.router) # [NEW]
 app.include_router(queue_router.router) # [NEW]
 app.include_router(audio_router.router) # [NEW]
+app.include_router(sources_router.router) # [NEW]
 
 
 # output 폴더
@@ -395,10 +421,8 @@ async def page_settings(request: Request):
 
 
 # ===========================================
-# API: 프로젝트 관리 (모듈화 완료)
+# API: 프로젝트 관리 (모듈화 완료 - 상단에서 include됨)
 # ===========================================
-from app.routers import projects as projects_router
-app.include_router(projects_router.router)
 
 @app.post("/api/script/recommend-titles")
 async def recommend_titles(
@@ -1361,6 +1385,7 @@ class StructureGenerateRequest(BaseModel):
     notes: Optional[str] = None
     target_language: Optional[str] = "ko"
     script_style: Optional[str] = "story" # 기본값: 옛날 이야기
+    mode: str = "monologue" # monologue or dialogue
 
 @app.post("/api/gemini/generate-structure")
 async def generate_script_structure_api(req: StructureGenerateRequest):
@@ -1423,6 +1448,31 @@ async def generate_script_structure_api(req: StructureGenerateRequest):
         error_msg = f"Server Error: {str(e)}\n{traceback.format_exc()}"
         print(error_msg)
         return {"status": "error", "error": f"서버 내부 오류: {str(e)}"}
+
+@app.post("/api/gemini/deep-dive")
+async def generate_deep_dive_script_api(req: StructureGenerateRequest):
+    """여러 소스를 학습하여 고품질 '딥다이브' 대본 생성"""
+    if not req.project_id:
+        return {"status": "error", "error": "project_id is required for deep-dive"}
+    
+    try:
+        result = await gemini_service.generate_deep_dive_script(
+            project_id=req.project_id,
+            topic=req.topic,
+            duration_seconds=req.duration,
+            target_language=req.target_language or "ko",
+            user_notes=req.notes or "없음",
+            mode=req.mode
+        )
+        
+        if "error" in result:
+            return {"status": "error", "error": result["error"]}
+            
+        return {"status": "ok", "result": result}
+        
+    except Exception as e:
+        print(f"[Deep Dive Error] {e}")
+        return {"status": "error", "error": str(e)}
 
 @app.post("/api/gemini/generate")
 async def gemini_generate(req: GeminiRequest):
@@ -3989,7 +4039,7 @@ if __name__ == "__main__":
             time.sleep(1.5) # Wait for server startup
             webbrowser.open(f"http://{config.HOST}:{config.PORT}")
             
-        print("🌍 브라우저 자동 실행 대기 중...")
+        print("브라우저 자동 실행 대기 중...")
         threading.Thread(target=open_browser, daemon=True).start()
 
     # [NEW] Auto Publish Service Start

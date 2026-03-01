@@ -58,6 +58,20 @@ def init_db():
     except Exception:
         pass # Already exists
 
+    # [NEW] 웹툰 수동 처리 학습 시스템
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS webtoon_learning_rules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            condition_type TEXT, 
+            condition_value TEXT, 
+            action_type TEXT,
+            description TEXT,
+            is_active INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     # 프로젝트 핵심 설정 (10가지 요소)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS project_settings (
@@ -139,6 +153,20 @@ def init_db():
             cta TEXT,
             style TEXT,
             duration INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (project_id) REFERENCES projects(id)
+        )
+    """)
+
+    # [NEW] 프로젝트 학습 자료 (Sources)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS project_sources (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER,
+            source_type TEXT, -- url, txt, pdf
+            title TEXT,
+            content TEXT,
+            url TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (project_id) REFERENCES projects(id)
         )
@@ -290,6 +318,20 @@ def init_db():
             description_ko TEXT,
             prompt_en TEXT,
             image_url TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (project_id) REFERENCES projects(id)
+        )
+    """)
+
+    # [NEW] 프로젝트 소스 (NotebookLM 기능을 위한 학습 데이터)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS project_sources (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER,
+            type TEXT, -- 'url', 'pdf', 'txt'
+            title TEXT,
+            url TEXT,
+            content TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (project_id) REFERENCES projects(id)
         )
@@ -1449,7 +1491,7 @@ def save_project_settings(project_id: int, settings: Dict):
                     'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity',
                     'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity',
                     'voice_provider', 'voice_speed', 'voice_multi_enabled', 'voice_mapping_json', 'sfx_mapping_json', 'app_mode', 'intro_video_path', 'thumbnail_style', 'image_style',
-                    'webtoon_auto_split', 'webtoon_smart_pan', 'webtoon_convert_zoom', 'webtoon_scenes_json']: # [NEW] Webtoon
+                    'webtoon_auto_split', 'webtoon_smart_pan', 'webtoon_convert_zoom', 'webtoon_scenes_json', 'webtoon_plan_json']: # [NEW] Webtoon
             if key in settings:
                 fields.append(f"{key} = ?")
                 values.append(settings[key])
@@ -1470,8 +1512,9 @@ def save_project_settings(project_id: int, settings: Dict):
               video_command, video_path, is_uploaded,
               image_style_prompt, subtitle_font, subtitle_color, target_language, subtitle_style_enum, subtitle_font_size, subtitle_stroke_color, subtitle_stroke_width, subtitle_position_y, background_video_url, character_ref_text, character_ref_image_path, script_style,
               subtitle_base_color, subtitle_pos_y, subtitle_pos_x, subtitle_bg_enabled, subtitle_stroke_enabled, subtitle_line_spacing, subtitle_bg_color, subtitle_bg_opacity,
-              voice_provider, voice_speed, voice_multi_enabled, voice_mapping_json, app_mode, intro_video_path, thumbnail_style, image_style)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              voice_provider, voice_speed, voice_multi_enabled, voice_mapping_json, app_mode, intro_video_path, thumbnail_style, image_style,
+              webtoon_auto_split, webtoon_smart_pan, webtoon_convert_zoom, webtoon_scenes_json, webtoon_plan_json)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          """, (
             project_id,
             settings.get('title'),
@@ -1517,8 +1560,52 @@ def save_project_settings(project_id: int, settings: Dict):
             settings.get('intro_video_path'),
             settings.get('thumbnail_style'),
             settings.get('image_style'),
+            settings.get('webtoon_auto_split', 1),
+            settings.get('webtoon_smart_pan', 1),
+            settings.get('webtoon_convert_zoom', 1),
+            settings.get('webtoon_scenes_json'),
+            settings.get('webtoon_plan_json')
         ))
+    conn.commit()
+    conn.close()
 
+# ============ 프로젝트 소스 (NotebookLM 기능) ============
+
+def add_project_source(project_id: int, source_type: str, title: str, content: str, url: str = None) -> int:
+    """프로젝트 소스 추가"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO project_sources (project_id, type, title, content, url) VALUES (?, ?, ?, ?, ?)",
+        (project_id, source_type, title, content, url)
+    )
+    source_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return source_id
+
+def get_project_sources(project_id: int) -> List[Dict]:
+    """프로젝트의 모든 소스 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM project_sources WHERE project_id = ? ORDER BY created_at DESC", (project_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+def delete_project_source(source_id: int):
+    """프로젝트 소스 삭제"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM project_sources WHERE id = ?", (source_id,))
+    conn.commit()
+    conn.close()
+
+def delete_all_project_sources(project_id: int):
+    """프로젝트의 모든 소스 삭제"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM project_sources WHERE project_id = ?", (project_id,))
     conn.commit()
     conn.close()
 
@@ -2482,5 +2569,35 @@ def delete_commerce_video(video_id):
         DELETE FROM commerce_videos WHERE id = ?
     """, (video_id,))
     
+    conn.commit()
+    conn.close()
+
+# ==========================================
+# 웹툰 수동 처리 학습 (Learning Rules)
+# ==========================================
+
+def get_webtoon_rules():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM webtoon_learning_rules ORDER BY created_at DESC')
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def save_webtoon_rule(condition_type, condition_value, action_type, description):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO webtoon_learning_rules 
+        (condition_type, condition_value, action_type, description)
+        VALUES (?, ?, ?, ?)
+    ''', (condition_type, condition_value, action_type, description))
+    conn.commit()
+    conn.close()
+
+def delete_webtoon_rule(rule_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM webtoon_learning_rules WHERE id = ?', (rule_id,))
     conn.commit()
     conn.close()

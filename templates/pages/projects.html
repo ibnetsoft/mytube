@@ -32,57 +32,57 @@
         <thead class="bg-gray-50 dark:bg-gray-700">
             <tr>
                 <th scope="col"
-                    class="px-2 py-3 w-10 text-center sticky left-0 z-20 bg-gray-50 dark:bg-gray-700 border-r border-gray-100 dark:border-gray-600">
+                    class="px-2 py-2 w-10 text-center sticky left-0 z-20 bg-gray-50 dark:bg-gray-700 border-r border-gray-100 dark:border-gray-600">
                     <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)"
                         class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer">
                 </th>
                 <th scope="col"
-                    class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap sticky z-10 bg-gray-50 dark:bg-gray-700 border-r border-gray-100 dark:border-gray-600"
+                    class="px-3 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap sticky z-10 bg-gray-50 dark:bg-gray-700 border-r border-gray-100 dark:border-gray-600"
                     style="left: 40px;">
                     프로젝트명</th>
                 <th scope="col"
-                    class="px-1 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap w-20">
+                    class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap w-20">
                     시작일</th>
                 <th scope="col"
-                    class="px-1 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap w-20">
+                    class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap w-20">
                     수정일</th>
                 <th scope="col"
-                    class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                    class="px-2 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap">
                     주제</th>
                 <th scope="col"
-                    class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap max-w-[150px]">
+                    class="px-2 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap max-w-[150px]">
                     영상 제목</th>
                 <th scope="col"
-                    class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap"
+                    class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
                     title="대본 기획">기획</th>
                 <th scope="col"
-                    class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap"
+                    class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
                     title="대본 생성">대본</th>
                 <th scope="col"
-                    class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap"
+                    class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
                     title="이미지 생성">이미지</th>
                 <th scope="col"
-                    class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap"
+                    class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
                     title="TTS 생성">TTS</th>
                 <th scope="col"
-                    class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap"
+                    class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
                     title="영상 렌더링">영상</th>
                 <th scope="col"
-                    class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap"
+                    class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
                     title="썸네일 생성">썸네일</th>
                 <th scope="col"
-                    class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap"
+                    class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
                     title="설명/태그">설명</th>
                 <th scope="col"
-                    class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap"
+                    class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
                     title="업로드/예약 완료">{% if is_independent %}업로드{% else %}예약{% endif %}</th>
                 {% if is_independent %}
                 <th scope="col"
-                    class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap"
+                    class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
                     title="발행 완료">발행</th>
                 {% endif %}
                 <th scope="col"
-                    class="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                    class="px-2 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap">
                     관리</th>
             </tr>
         </thead>
@@ -187,67 +187,67 @@
                 const cursor = isDone ? 'cursor-pointer' : 'cursor-default';
                 const clickHandler = isDone ? `onclick="event.stopPropagation(); navigateToStep('${pid}', '${type}')"` : '';
 
-                return `<div class="flex items-center justify-center w-8 h-8 mx-auto rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition ${cursor}" ${clickHandler} title="${type} 페이지로 이동">
-                    <span class="${color} text-lg font-bold">${symbol}</span>
+                return `<div class="flex items-center justify-center w-6 h-6 mx-auto rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition ${cursor}" ${clickHandler} title="${type} 페이지로 이동">
+                    <span class="${color} text-base font-bold">${symbol}</span>
                 </div>`;
             };
 
             return `
             <tr class="hover:bg-gray-100 dark:hover:bg-gray-700 transition cursor-pointer group" onclick="if(!event.target.closest('input')) selectAndGo('${p.id}')">
-                <td class="px-2 py-3 text-center sticky left-0 z-20 bg-white dark:bg-gray-800 border-r border-gray-100 dark:border-gray-700 group-hover:bg-gray-100 dark:group-hover:bg-gray-700" onclick="event.stopPropagation()">
+                <td class="px-2 py-2 text-center sticky left-0 z-20 bg-white dark:bg-gray-800 border-r border-gray-100 dark:border-gray-700 group-hover:bg-gray-100 dark:group-hover:bg-gray-700" onclick="event.stopPropagation()">
                     <input type="checkbox" name="projectSelect" value="${p.id}" onchange="updateBulkActionState()" 
                         class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer">
                 </td>
-                <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white sticky z-10 bg-white dark:bg-gray-800 group-hover:bg-gray-100 dark:group-hover:bg-gray-700 border-r dark:border-gray-700"
+                <td class="px-3 py-2 whitespace-nowrap text-[12px] font-medium text-gray-900 dark:text-white sticky z-10 bg-white dark:bg-gray-800 group-hover:bg-gray-100 dark:group-hover:bg-gray-700 border-r dark:border-gray-700"
                     style="left: 40px;"
                     ondblclick="event.stopPropagation(); startInlineEdit(this, '${p.id}', 'name')">
-                    <div class="flex items-center gap-2">
-                        <span class="text-lg">📁</span>
+                    <div class="flex items-center gap-1">
+                        <span class="text-base">📁</span>
                         <span>${p.name}</span>
                     </div>
                 </td>
-                <td class="px-1 py-3 whitespace-nowrap text-center text-sm text-gray-500 dark:text-gray-400 w-20">${created}</td>
-                <td class="px-1 py-3 whitespace-nowrap text-center text-sm text-gray-500 dark:text-gray-400 w-20">${updated}</td>
-                <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 max-w-[120px] truncate" 
+                <td class="px-1 py-2 whitespace-nowrap text-center text-[11px] text-gray-500 dark:text-gray-400 w-20">${created}</td>
+                <td class="px-1 py-2 whitespace-nowrap text-center text-[11px] text-gray-500 dark:text-gray-400 w-20">${updated}</td>
+                <td class="px-2 py-2 whitespace-nowrap text-[12px] text-gray-500 dark:text-gray-400 max-w-[120px] truncate" 
                     title="${p.topic || ''}" ondblclick="event.stopPropagation(); startInlineEdit(this, '${p.id}', 'topic')">
                     ${p.topic || '-'}
                 </td>
-                <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 max-w-[150px] truncate" 
+                <td class="px-2 py-2 whitespace-nowrap text-[12px] text-gray-500 dark:text-gray-400 max-w-[150px] truncate" 
                     title="${p.video_title || ''}" ondblclick="event.stopPropagation(); startInlineEdit(this, '${p.id}', 'video_title')">
                     ${p.video_title || '-'}
                 </td>
                 
                 <!-- Steps -->
-                <td class="px-1 py-3 text-center whitespace-nowrap">${checkLink(s.plan, 'script-plan', p.id)}</td>
-                <td class="px-1 py-3 text-center whitespace-nowrap">${checkLink(s.script, 'script-gen', p.id)}</td>
-                <td class="px-1 py-3 text-center whitespace-nowrap">${checkLink(s.image, 'image-gen', p.id)}</td>
-                <td class="px-1 py-3 text-center whitespace-nowrap">${checkLink(s.tts, 'tts', p.id)}</td>
-                <td class="px-1 py-3 text-center whitespace-nowrap">${checkLink(s.video, 'render', p.id)}</td>
-                <td class="px-1 py-3 text-center whitespace-nowrap">${checkLink(s.thumbnail, 'thumbnail', p.id)}</td>
-                <td class="px-1 py-3 text-center whitespace-nowrap">${checkLink(s.desc, 'title-desc', p.id)}</td>
-                <td class="px-1 py-3 text-center whitespace-nowrap relative">
+                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.plan, 'script-plan', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.script, 'script-gen', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.image, 'image-gen', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.tts, 'tts', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.video, 'render', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.thumbnail, 'thumbnail', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.desc, 'title-desc', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap relative">
                     ${checkLink(s.upload, 'upload', p.id)}
                     <!-- Auto Upload Rocket Icon (Only if Metadata exists) -->
                     ${s.desc && (s.video || s.upload) ? `
                     <button onclick="event.stopPropagation(); autoUploadYouTube('${p.id}')" 
-                        class="absolute -right-3 top-1/2 -translate-y-1/2 text-lg hover:scale-125 transition-transform z-20" 
+                        class="absolute -right-2 top-1/2 -translate-y-1/2 text-sm hover:scale-125 transition-transform z-20" 
                         title="${isIndependent ? '유튜브 원클릭 자동 업로드 (영상+메타+썸네일)' : '클라우드 전송 및 업로드 예약 신청'}">
                         🚀
                     </button>` : ''}
                 </td>
                 ${isIndependent ? `
-                <td class="px-1 py-3 text-center whitespace-nowrap relative">
+                <td class="px-1 py-2 text-center whitespace-nowrap relative">
                     ${checkLink(s.publish, 'publish', p.id)}
                     ${s.upload && !s.publish ? `
                     <button onclick="event.stopPropagation(); publicizeVideo('${p.id}')" 
-                        class="absolute -right-3 top-1/2 -translate-y-1/2 text-lg hover:scale-125 transition-transform" 
+                        class="absolute -right-2 top-1/2 -translate-y-1/2 text-sm hover:scale-125 transition-transform" 
                         title="유튜브 영상을 '공개'로 전환">
                         📢
                     </button>` : ''}
                 </td>` : ''}
 
-                <td class="px-3 py-3 whitespace-nowrap text-center text-sm font-medium">
-                    <button onclick="event.stopPropagation(); deleteProject('${p.id}')" class="text-red-400 hover:text-red-900 transition p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/40">
+                <td class="px-2 py-2 whitespace-nowrap text-center text-sm font-medium">
+                    <button onclick="event.stopPropagation(); deleteProject('${p.id}')" class="text-red-400 hover:text-red-900 transition p-1 text-xs rounded hover:bg-red-50 dark:hover:bg-red-900/40">
                         🗑️
                     </button>
                 </td>

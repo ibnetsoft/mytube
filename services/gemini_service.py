@@ -1633,6 +1633,54 @@ class GeminiService:
             return json.loads(json_match.group())
         return {}
 
+    async def generate_deep_dive_script(self, project_id: int, topic: str, duration_seconds: int = 180, target_language: str = "ko", user_notes: str = "없음", mode: str = "monologue") -> dict:
+        """여러 소스를 학습하여 고품질 롱폼 대본 생성 (NotebookLM 스타일)"""
+        
+        # 1. 프로젝트 소스 로드
+        sources = db.get_project_sources(project_id)
+        if not sources:
+            sources_text = "제공된 참고 자료가 없습니다. 일반적인 지식을 바탕으로 작성하세요."
+        else:
+            sources_list = []
+            for i, s in enumerate(sources):
+                # content가 None인 경우를 대비해 빈 문자열 처리
+                content = s.get('content') or ""
+                info = f"Source {i+1} [{s['type']}]: {s['title']}\nContent: {content[:3000]}"
+                sources_list.append(info)
+            sources_text = "\n\n".join(sources_list)
+
+        # 2. 언어 설정
+        context_instruction = "Korean context"
+        if target_language == "ja": context_instruction = "Japanese context"
+        elif target_language == "en": context_instruction = "Global context"
+        elif target_language == "vi": context_instruction = "Vietnamese context"
+
+        # 3. 프롬프트 구성 (모드에 따라 분기)
+        prompt_template = prompts.GEMINI_DEEP_DIVE_SCRIPT
+        if mode == "dialogue":
+            prompt_template = prompts.GEMINI_DEEP_DIVE_DIALOGUE
+
+        prompt = prompt_template.format(
+            sources_text=sources_text,
+            topic_keyword=topic,
+            duration_seconds=duration_seconds,
+            target_language_context=context_instruction,
+            user_notes=user_notes
+        )
+
+        text = await self.generate_text(prompt, temperature=0.4) # Slightly higher for dialogue flow
+        
+        # JSON 추출
+        json_match = re.search(r'\{[\s\S]*\}', text)
+        if json_match:
+            try:
+                result = json.loads(json_match.group())
+                return result
+            except:
+                pass
+        
+        return {"error": "대본 생성 실패", "raw": text}
+
 
 # 싱글톤 인스턴스
 gemini_service = GeminiService()

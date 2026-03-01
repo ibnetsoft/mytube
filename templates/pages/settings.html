@@ -611,7 +611,7 @@
                         웹툰 기획서 생성 시 AI에게 전달되는 프롬프트입니다. `[[SCENES_JSON]]` 부분에 장면 데이터가 들어갑니다.
                     </p>
                     <textarea id="ws_plan_prompt"
-                        class="w-full h-96 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-600 rounded-md p-3 text-xs font-mono leading-relaxed focus:ring-2 focus:ring-purple-500 outline-none resize-none custom-scrollbar"
+                        class="w-full h-96 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-600 rounded-md p-3 text-xs font-mono leading-relaxed text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 outline-none resize-none custom-scrollbar"
                         placeholder="프롬프트를 입력하세요..."></textarea>
                 </div>
 
@@ -633,7 +633,7 @@
                                 🟦 세로형 (Vertical/Standard) 최적화
                             </label>
                             <textarea id="ws_vertical_prompt" rows="6"
-                                class="input-field w-full text-xs font-mono"></textarea>
+                                class="input-field w-full text-xs font-mono text-gray-900 dark:text-gray-100"></textarea>
                             <p class="text-[10px] text-gray-400 mt-1">
                                 * 세로형 이미지의 여백 확장 및 화질 개선 시 사용됩니다.
                             </p>
@@ -643,7 +643,7 @@
                                 🟧 가로형 (Horizontal/Wide) 확장
                             </label>
                             <textarea id="ws_horizontal_prompt" rows="6"
-                                class="input-field w-full text-xs font-mono"></textarea>
+                                class="input-field w-full text-xs font-mono text-gray-900 dark:text-gray-100"></textarea>
                             <p class="text-[10px] text-gray-400 mt-1">
                                 * 가로형 이미지를 9:16으로 확장(Outpainting)할 때 사용됩니다.
                             </p>
@@ -709,7 +709,7 @@
                                 ⬆️ 패닝 (Pan: 세로 긴 컷)
                             </label>
                             <textarea id="ws_motion_pan" rows="8"
-                                class="input-field w-full text-xs font-mono leading-tight"></textarea>
+                                class="input-field w-full text-xs font-mono leading-tight text-gray-900 dark:text-gray-100"></textarea>
                             <p class="text-[10px] text-gray-400 mt-1">
                                 * 세로로 긴 컷을 천천히 훑어보는 영상 변환 시 사용
                             </p>
@@ -720,7 +720,7 @@
                                 🔍 줌인 (Zoom: 감정/클로즈업)
                             </label>
                             <textarea id="ws_motion_zoom" rows="8"
-                                class="input-field w-full text-xs font-mono leading-tight"></textarea>
+                                class="input-field w-full text-xs font-mono leading-tight text-gray-900 dark:text-gray-100"></textarea>
                             <p class="text-[10px] text-gray-400 mt-1">
                                 * 캐릭터 얼굴이나 감정을 강조하는 줌인 효과 시 사용
                             </p>
@@ -731,13 +731,63 @@
                                 💥 액션/다이나믹 (Action: 전투/강조)
                             </label>
                             <textarea id="ws_motion_action" rows="8"
-                                class="input-field w-full text-xs font-mono leading-tight"></textarea>
+                                class="input-field w-full text-xs font-mono leading-tight text-gray-900 dark:text-gray-100"></textarea>
                             <p class="text-[10px] text-gray-400 mt-1">
                                 * 전투씬 등 역동적인 움직임과 입자 효과가 필요할 때 사용
                             </p>
                         </div>
                     </div>
                 </div>
+
+                <!-- [NEW] Webtoon Learning Rules -->
+                <div class="card p-4 shadow-sm border border-gray-200 dark:border-gray-700 mt-4">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                            <span>🧠 웹툰 수동 처리 자동 학습 (Learning System)</span>
+                        </h3>
+                    </div>
+                    <p class="text-xs text-gray-500 mb-4">
+                        사용자가 웹툰 스튜디오에서 이미지를 자르거나, 합치고, 스크롤 모션으로 넘기는 반복적인 행동들을 학습하여 설정된 룰입니다. 향후 AI가 이를 참고하여 자동으로 재료를
+                        가공합니다.
+                    </p>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs text-gray-500 dark:text-gray-400">
+                            <thead
+                                class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                                <tr>
+                                    <th scope="col" class="px-4 py-2">상황 (조건)</th>
+                                    <th scope="col" class="px-4 py-2">처리 방식 (액션)</th>
+                                    <th scope="col" class="px-4 py-2 w-1/3">설명</th>
+                                    <th scope="col" class="px-4 py-2 text-right">관리</th>
+                                </tr>
+                            </thead>
+                            <tbody id="webtoonRulesTableBody">
+                                <!-- Rules will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="mt-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded flex gap-2 items-center flex-wrap">
+                        <select id="newConditionType" class="input-field text-xs py-1" style="width: auto;">
+                            <option value="image_ratio">이미지 비율이</option>
+                            <option value="continuous_scene">이어지는 씬이</option>
+                        </select>
+                        <input type="text" id="newConditionValue" class="input-field text-xs py-1 flex-1 min-w-[100px]"
+                            placeholder="예: '1:2 이상 세로로 길 때' 또는 '상하체 구분될 때'">
+                        <select id="newActionType" class="input-field text-xs py-1" style="width: auto;">
+                            <option value="apply_pan_up">아래에서 위로 스크롤 (Pan-Up)</option>
+                            <option value="apply_pan_down">위에서 아래로 스크롤 (Pan-Down)</option>
+                            <option value="merge_vertical">세로로 하나로 합치기</option>
+                            <option value="auto_crop_margin">양옆 여백 자동 자르기</option>
+                        </select>
+                        <input type="text" id="newRuleDescription" class="input-field text-xs py-1 flex-1 min-w-[100px]"
+                            placeholder="설명: 웹툰 특유의 긴 컷 처리">
+                        <button onclick="addWebtoonRule()"
+                            class="btn btn-primary py-1 px-3 text-xs w-full sm:w-auto mt-2 sm:mt-0">룰 추가</button>
+                    </div>
+                </div>
+
             </div>
         </div>
         <!-- End Webtoon Tab -->
@@ -2101,10 +2151,12 @@ Follow the [USER CINEMATIC MASTER GUIDE] strictly when generating specifications
 
     // [NEW] Default Webtoon Optimization Prompts
     const DEFAULT_WEBTOON_VERTICAL_PROMPT = "Preserve full original composition, fit into 9:16 vertical canvas, no distortion, extend background naturally if needed, maintain original webtoon art style, high resolution, clean edges, no motion, no animation, static illustration";
+    const DEFAULT_WEBTOON_HORIZONTAL_PROMPT = "Convert horizontal image to vertical 9:16 format. If too small, extend background boundaries with matching colors or blurred original image to fill the 9:16 screen. Focus on the central character, maintain original webtoon art style, high resolution, soft rim lighting, no extreme motion.";
+
     // [NEW] Default Webtoon Motion Prompts
-    const DEFAULT_WEBTOON_MOTION_PAN = "Slow upward cinematic camera pan, subtle 2.5D parallax depth effect, soft volumetric lighting, floating dust particles, epic dramatic atmosphere, smooth motion, no distortion";
-    const DEFAULT_WEBTOON_MOTION_ZOOM = "Slow push-in camera movement, focus on character’s eyes, subtle breathing motion, soft rim lighting, cinematic depth of field, emotional atmosphere";
-    const DEFAULT_WEBTOON_MOTION_ACTION = "Strong parallax effect, embers floating in the air, light flicker from fire, slight cinematic camera shake, intense dramatic lighting, high energy atmosphere";
+    const DEFAULT_WEBTOON_MOTION_PAN = "TRUE VERTICAL SCROLL: Smooth and slow cinematic vertical camera scan (from high angle down to low angle or vice-versa) covering the full length of the extremely tall image. Feel like scrolling a webtoon. Maintain original aspect width, subtle parallax depth effect separating foreground and background, no distortion, consistent webtoon style. Lens flare or atmospheric particles like dust/embers falling.";
+    const DEFAULT_WEBTOON_MOTION_ZOOM = "SMART KEN BURNS FOCAL POINT ZOOM: Progressive smooth cinematic Ken Burns style push-in or pan-and-zoom focusing organically from character eyes/tears to background. Full screen coverage with no black borders. Subtle breathing motion, soft cinematic depth of field, delicate emotional atmosphere, extremely slow and stable.";
+    const DEFAULT_WEBTOON_MOTION_ACTION = "DYNAMIC ACTION & VFX: High-impact cinematic motion covering full screen width. Strong 3D parallax depth separation (fast characters, slow background). Glow effects on magic circles/weapons, dust particles and dynamic embers floating, light flickers, intense dramatic lighting. Include intense screen shake effect. Fast-paced intensity, perfect for deciding battles or dynamic webtoon cuts.";
 
     async function loadWebtoonSettings() {
         try {
@@ -2365,6 +2417,80 @@ Follow the [USER CINEMATIC MASTER GUIDE] strictly when generating specifications
         }
     }
 
+    // Webtoon Learning Rules API Fetch
+    async function loadWebtoonRules() {
+        try {
+            const res = await fetch('/api/settings/webtoon-rules');
+            if (!res.ok) return;
+            const data = await res.json();
+            const tbody = document.getElementById('webtoonRulesTableBody');
+            if (!tbody) return;
+
+            if (data.rules && data.rules.length > 0) {
+                tbody.innerHTML = data.rules.map(rule => `
+                    <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                        <td class="px-4 py-2 font-medium text-gray-900 dark:text-white">${rule.condition_type} / <span class="text-blue-500">${rule.condition_value}</span></td>
+                        <td class="px-4 py-2"><span class="bg-blue-100 text-blue-800 text-[10px] font-semibold px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">${rule.action_type}</span></td>
+                        <td class="px-4 py-2">${rule.description || ''}</td>
+                        <td class="px-4 py-2 text-right">
+                            <button onclick="deleteWebtoonRule(${rule.id})" class="text-xs text-red-500 hover:underline">삭제</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } else {
+                tbody.innerHTML = `<tr><td colspan="4" class="px-4 py-4 text-center text-gray-500">학습된 룰이 없습니다. 웹툰 스튜디오에서 작업을 진행하거나 수동으로 추가하세요.</td></tr>`;
+            }
+        } catch (e) {
+            console.error('Failed to load webtoon rules:', e);
+        }
+    }
+
+    async function addWebtoonRule() {
+        const ct = document.getElementById('newConditionType').value;
+        const cv = document.getElementById('newConditionValue').value.trim();
+        const at = document.getElementById('newActionType').value;
+        const desc = document.getElementById('newRuleDescription').value.trim();
+
+        if (!cv) {
+            Utils.showToast('조건 값을 입력해주세요.', 'error');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/settings/webtoon-rules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    condition_type: ct,
+                    condition_value: cv,
+                    action_type: at,
+                    description: desc
+                })
+            });
+            if (res.ok) {
+                Utils.showToast('학습 룰이 추가되었습니다.', 'success');
+                document.getElementById('newConditionValue').value = '';
+                document.getElementById('newRuleDescription').value = '';
+                loadWebtoonRules();
+            }
+        } catch (e) {
+            Utils.showToast('오류가 발생했습니다.', 'error');
+        }
+    }
+
+    async function deleteWebtoonRule(id) {
+        if (!confirm('해당 학습 룰을 삭제하시겠습니까?')) return;
+        try {
+            const res = await fetch('/api/settings/webtoon-rules/' + id, { method: 'DELETE' });
+            if (res.ok) {
+                Utils.showToast('삭제되었습니다.', 'success');
+                loadWebtoonRules();
+            }
+        } catch (e) {
+            Utils.showToast('오류가 발생했습니다.', 'error');
+        }
+    }
+
     // 초기화
     document.addEventListener('DOMContentLoaded', () => {
         populateOptions();
@@ -2372,6 +2498,7 @@ Follow the [USER CINEMATIC MASTER GUIDE] strictly when generating specifications
         loadChannels();
         loadStylePresets(); // [NEW] 스타일 프리셋 로드
         loadThumbnailStylePresets();
+        loadWebtoonRules();
     });
 </script>
 {% endblock %}
