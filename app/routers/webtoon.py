@@ -145,6 +145,36 @@ async def upload_webtoon(
         traceback.print_exc()
         raise HTTPException(500, str(e))
 
+@router.post("/replace-scene-image")
+async def replace_scene_image(
+    project_id: int = Form(...),
+    scene_index: int = Form(...),
+    file: UploadFile = File(...)
+):
+    """특정 씬의 이미지를 사용자가 업로드한 파일로 교체"""
+    try:
+        project_dir = os.path.join(config.OUTPUT_DIR, str(project_id))
+        replaced_dir = os.path.join(project_dir, "webtoon_replaced")
+        os.makedirs(replaced_dir, exist_ok=True)
+        
+        import time
+        filename = f"replaced_{scene_index}_{int(time.time())}_{file.filename}"
+        file_path = os.path.join(replaced_dir, filename)
+        
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        import urllib.parse
+        ts = int(time.time())
+        return {
+            "status": "ok",
+            "image_path": file_path,
+            "image_url": f"/api/media/v?path={urllib.parse.quote(file_path)}&t={ts}"
+        }
+    except Exception as e:
+        print(f"Replace image error: {e}")
+        raise HTTPException(500, str(e))
+
 @router.post("/classify-scenes")
 async def classify_webtoon_scenes(
     scenes: List[Dict] = Body(...),
