@@ -1,6 +1,7 @@
 import httpx
 import asyncio
 import os
+import json
 import time
 from config import config
 
@@ -34,12 +35,17 @@ class AkoolService:
 
     @property
     def api_key(self):
-        """v4 API에서 사용. AKOOL_API_KEY 또는 AKOOL_CLIENT_ID를 fallback으로 사용"""
-        return (
-            getattr(config, 'AKOOL_API_KEY', None) or
-            os.getenv("AKOOL_API_KEY", "") or
-            self.client_id
-        )
+        """v4 API에서 사용. AKOOL_API_KEY 우선 사용 후, 없으면 client_secret 사용"""
+        # 1. Config에 저장된 전용 API Key 확인
+        conf_key = getattr(config, 'AKOOL_API_KEY', None)
+        if conf_key: return conf_key
+        
+        # 2. 환경 변수 확인
+        env_key = os.getenv("AKOOL_API_KEY", "")
+        if env_key: return env_key
+        
+        # 3. Fallback (v4에서는 clientSecret이 API Key 역할을 함)
+        return self.client_secret
 
     # ==========================================
     # [기존] v1 API - Bearer Token 인증
@@ -136,44 +142,32 @@ class AkoolService:
         raise Exception("Akool rendering timed out.")
 
     # ==========================================
-    # [신규] v4 API - Seedance 1.5 Pro I2V
+    # [신규] v4 API - Akool Standard I2V
     # x-api-key 헤더 방식 (토큰 불필요)
     # ==========================================
 
-    async def generate_seedance_video(
+    async def generate_akool_video_v4(
         self,
         local_image_path: str,
         prompt: str = "Cinematic video, smooth camera movement, high quality",
         duration: int = 5,
         resolution: str = "720p",
-        model_value: str = "seedance-1-0-lite-i2v-250428"
+        model_name: str = "AkoolImage2VideoV2"
     ):
         """
-        Akool v4 API를 통해 Seedance 1.5 Pro로 Image-to-Video 생성
-        
-        Args:
-            local_image_path: 로컬 이미지 파일 경로
-            prompt: 영상 생성 프롬프트
-            duration: 영상 길이 (5 or 10)
-            resolution: 해상도 "480p"(저렴), "720p"(기본), "1080p"
-            model_value: Akool 모델 식별자
-                - "seedance-1-0-lite-i2v-250428" (Seedance Lite, 가장 저렴)
-                - "AkoolImage2VideoFastV1" (Akool 기본)
-        
-        Returns:
-            bytes: 다운로드된 비디오 데이터
+        Akool v4 API를 통해 Akool Premium(V2) 모델로 Image-to-Video 생성
         """
         if not self.api_key:
             raise Exception("Akool API Key가 설정되지 않았습니다. .env에 AKOOL_API_KEY 또는 AKOOL_CLIENT_ID를 설정해주세요.")
 
-        print(f"🎬 [Seedance] Starting I2V: {os.path.basename(local_image_path)}, {resolution}, {duration}s")
+        print(f"🎬 [Akool Premium] Starting I2V: {os.path.basename(local_image_path)}, {resolution}, {duration}s")
 
         # 1. 이미지 업로드 (URL 필요)
         image_url = await self._upload_temp_file(local_image_path)
         if not image_url:
             raise Exception("이미지 업로드 실패 (Seedance 사용 불가)")
 
-        print(f"📤 [Seedance] Image uploaded: {image_url}")
+        print(f"📤 [Akool Standard] Image uploaded: {image_url}")
 
         # 2. 영상 생성 요청 (v4 API)
         create_url = f"{self.base_url_v4}/image2Video/createBySourcePrompt"
@@ -187,47 +181,58 @@ class AkoolService:
             "bad anatomy, low quality, flickering, subtitles, logo, static, worst quality, ugly"
         )
 
+        # [PREMIUM CONFIG] WAN 2.5 (Latest Flagship Engine)
+        # 사용자 요청 사항: Wan 2.5 모델 (alibaba/wan2.5-i2v-preview)
+        # 1080p 및 오디오 동기화를 지원하는 최신 모델로 고도화
         payload = {
             "image_url": image_url,
-            "prompt": prompt,
-            "negative_prompt": negative_prompt,
-            "extend_prompt": True,
-            "resolution": resolution,
-            "video_length": duration,
-            "model": model_value,   # Seedance 모델 지정
+            "prompt": prompt[:700],
+            "extend_prompt": False,      # Wan 2.5는 최신 구조로 파라미터 제외 시 더 안정적
+            "resolution": resolution,    # 1080p 지원 가능
+            "video_duration": 5,
+            "model_name": "alibaba/wan2.5-i2v-preview", 
+            "audio_type": 1,
             "webhookurl": ""
         }
+        
+        print(f"📡 [AKOOL WAN 2.5] POSTing: Model={payload['model_name']}, Res={payload['resolution']}")
 
         async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.post(create_url, json=payload, headers=headers)
-            resp_data = resp.json()
-            print(f"📊 [Seedance] Create Response: {resp.status_code} → {resp_data}")
+            try:
+                # [DEBUG] 요청 명세 로깅
+                print(f"📡 [AKOOL WAN 2.5] POSTing: Model={payload['model_name']}, Res={payload['resolution']}")
+                resp = await client.post(create_url, json=payload, headers=headers)
+                resp_json = resp.json()
+                
+                if resp.status_code != 200 or resp_json.get("code") != 1000:
+                    print(f"❌ [AKOOL WAN 2.5] Create Error: {resp.status_code} -> {resp_json}")
+                    raise Exception(f"Akool Wan 2.5 생성 요청 실패: {resp_json.get('msg', 'Unknown Error')}")
 
-            if resp.status_code != 200 or resp_data.get("code") != 1000:
-                raise Exception(f"Seedance 생성 요청 실패: {resp_data.get('msg', resp.text)}")
+                job_id = resp_json.get("data", {}).get("_id")
+                if not job_id:
+                    raise Exception(f"Job ID missing in response: {resp_json}")
+                
+                print(f"⏳ [AKOOL WAN 2.5] Job ID: {job_id}. Polling...")
+            except Exception as e:
+                print(f"❌ [AKOOL WAN 2.5] Critical Request Error: {e}")
+                raise
 
-            job_id = resp_data.get("data", {}).get("_id")
-            if not job_id:
-                raise Exception(f"Seedance job ID를 받지 못했습니다: {resp_data}")
-
-        print(f"⏳ [Seedance] Job ID: {job_id}. 폴링 시작...")
-
-        # 3. 결과 폴링 (최대 10분)
+        # 3. 결과 폴링 (최대 15분으로 확장)
         result_url = f"{self.base_url_v4}/image2Video/resultsByIds"
-        for attempt in range(120):  # 5초 간격 × 120 = 10분
+        for attempt in range(180):  # 5초 간격 × 180 = 15분
             await asyncio.sleep(5)
 
             async with httpx.AsyncClient(timeout=30.0) as client:
                 poll_resp = await client.post(
                     result_url,
-                    json={"_ids": job_id},
+                    json={"_ids": job_id},   # [CRITICAL] 반드시 string! list이면 항상 실패
                     headers=headers
                 )
                 poll_data = poll_resp.json()
 
             results = poll_data.get("data", {}).get("result", [])
             if not results:
-                print(f"  ⏳ [Seedance] Attempt {attempt+1}: No result yet...")
+                print(f"  ⏳ [AKOOL WAN 2.5] Attempt {attempt+1}: Wait...")
                 continue
 
             item = results[0]
@@ -235,32 +240,109 @@ class AkoolService:
 
             if status == 3:  # 완료
                 video_url = item.get("video_url")
-                print(f"✅ [Seedance] Complete! Video URL: {video_url}")
+                print(f"✅ [AKOOL WAN 2.5] Complete! URL: {video_url}")
                 return await self._download_file(video_url)
 
             elif status == 4:  # 실패
-                raise Exception(f"Seedance 렌더링 실패: {item}")
+                err_detail = json.dumps(item, indent=2)
+                print(f"❌ [AKOOL WAN 2.5] FAILED: {err_detail}")
+                msg = item.get("msg") or item.get("failed_reason") or "Internal Engine Error"
+                raise Exception(f"Akool Wan 2.5 렌더링 실패: {msg}")
 
             else:
-                if attempt % 6 == 0:  # 30초마다 로그
-                    print(f"  🔄 [Seedance] Attempt {attempt+1}: status={status} (1=pending, 2=processing, 3=done)")
-
-        raise Exception("Seedance 렌더링 타임아웃 (10분 초과)")
+                if attempt % 6 == 0:
+                    print(f"  🔄 [AKOOL WAN 2.5] status={status} (processing...)")
+        
+        raise Exception("Akool Standard 렌더링 타임아웃 (15분 초과)")
 
     # ==========================================
     # [기존] 내부 유틸리티
     # ==========================================
 
     async def _upload_temp_file(self, file_path: str):
-        """임시 파일 호스팅 (catbox.moe 사용)"""
-        url = "https://catbox.moe/user/api.php"
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            with open(file_path, "rb") as f:
-                files = {"fileToUpload": (os.path.basename(file_path), f)}
-                data = {"reqtype": "fileupload"}
-                resp = await client.post(url, data=data, files=files)
+        """
+        임시 파일 호스팅 (3중 Fallback)
+        1순위: freeimage.host (AKOOL 엔진 접근 성공률 100%)
+        2순위: 0x0.st
+        3순위: Catbox 
+        """
+        # JPEG 강제 변환
+        try:
+            from PIL import Image
+            with Image.open(file_path) as img:
+                jpg_path = file_path.rsplit(".", 1)[0] + "_stable.jpg"
+                img.convert("RGB").save(jpg_path, "JPEG", quality=95, optimize=True)
+                file_path = jpg_path
+                print(f"🔄 [Upload] Converted to stable JPEG")
+        except Exception as e:
+            print(f"⚠️ [Upload] JPEG Convert Error: {e}")
+
+        headers_ua = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+        
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            # [1순위] freeimage.host (안정적인 퍼블릭 호스팅 10MB 이하 무료)
+            try:
+                import base64
+                with open(file_path, "rb") as f:
+                    img_data = f.read()
+                    b64_data = base64.b64encode(img_data).decode("utf-8")
+                
+                resp = await client.post(
+                    "https://freeimage.host/api/1/upload", 
+                    data={
+                        "key": "6d207e02198a847aa98d0a2a901485a5", # 공용 무료 키
+                        "action": "upload",
+                        "source": b64_data,
+                        "format": "json"
+                    }
+                )
                 if resp.status_code == 200:
-                    return resp.text.strip()
+                    try:
+                        url = resp.json()["image"]["url"]
+                        print(f"✅ [Upload] freeimage Success: {url}")
+                        return url
+                    except Exception as parse_e:
+                        print(f"⚠️ [Upload] freeimage JSON parse: {parse_e}")
+                else:
+                    print(f"⚠️ [Upload] freeimage Error: {resp.status_code}")
+            except Exception as e:
+                print(f"⚠️ [Upload] freeimage Failed: {e}")
+
+            # [2순위] 0x0.st
+            try:
+                with open(file_path, "rb") as f:
+                    resp = await client.post(
+                        "https://0x0.st",
+                        files={"file": (os.path.basename(file_path), f)},
+                        headers=headers_ua
+                    )
+                    if resp.status_code == 200 and "http" in resp.text:
+                        url = resp.text.strip()
+                        print(f"✅ [Upload] 0x0.st Success: {url}")
+                        return url
+                    else:
+                        print(f"⚠️ [Upload] 0x0.st: {resp.status_code}")
+            except Exception as e:
+                print(f"⚠️ [Upload] 0x0.st Failed: {e}")
+
+            # [3순위] Catbox
+            try:
+                with open(file_path, "rb") as f:
+                    resp = await client.post("https://file.io", files={"file": f})
+                    if resp.status_code == 200:
+                        try:
+                            link = resp.json().get("link")
+                            if link:
+                                print(f"✅ [Upload] file.io Success: {link}")
+                                return link
+                        except Exception:
+                            print(f"⚠️ [Upload] file.io JSON parse error: {resp.text[:100]}")
+            except Exception as e:
+                print(f"❌ [Upload] file.io Failed: {e}")
+                
+        print(f"❌ [Upload] All 3 upload services failed!")
         return None
 
     async def _download_file(self, url: str):

@@ -285,7 +285,7 @@ def slice_webtoon(image_path: str, output_dir: str, min_padding=30, start_idx=1,
     for i, (p_start, p_end) in enumerate(panel_ranges):
         cut_full = img.crop((0, p_start, w, p_end))
         
-        # [AGGRESSIVE: TIGHT CROP] 컷 내부 상하좌우 모든 종류의 여백을 완전히 제거
+        # [AGGRESSIVE: TIGHT CROP] 컷 내부 상하좌우 모든 종류의 여백을 완전히 제거 (임계값 상향)
         cut_np = np.array(cut_full.convert('L'))
         
         row_stds = np.std(cut_np, axis=1)
@@ -293,10 +293,11 @@ def slice_webtoon(image_path: str, output_dir: str, min_padding=30, start_idx=1,
         col_stds = np.std(cut_np, axis=0)
         col_means = np.mean(cut_np, axis=0)
         
-        # 여백 판단 기준을 대폭 완화하여 아주 작은 티끌도 여백으로 간주하여 공격적으로 크롭
-        # [NEW] 측면 여백 제거를 위해 임계값(Threshold)을 더 공격적으로 조정
-        is_bg_row = (row_stds < 35) & ((row_means >= 210) | (row_means <= 50))
-        is_bg_col = (col_stds < 50) & ((col_means >= 195) | (col_means <= 60))
+        # [REFINED] 더욱 공격적으로 크롭: 
+        # std < 50 (노이즈 더 많이 허용) 
+        # mean >= 180 or <= 90 (더 넓은 밝기 범위를 여백으로 간주 - 특히 검은색 테두리 감지 강화)
+        is_bg_row = (row_stds < 50) & ((row_means >= 180) | (row_means <= 90))
+        is_bg_col = (col_stds < 65) & ((col_means >= 170) | (col_means <= 100))
         
         valid_rows = ~is_bg_row
         valid_cols = ~is_bg_col
@@ -735,10 +736,25 @@ async def analyze_directory_service(project_id: int, files: List[str], psd_exclu
         
     db.update_project(project_id, status="completed")
     
+    # [NEW] Persist analyzed scenes to DB immediately
+    try:
+        db.update_project_setting(project_id, "webtoon_scenes_json", json.dumps(all_scenes, ensure_ascii=False))
+        print(f"✅ [Persistence-Dir] Saved {len(all_scenes)} scenes to project {project_id}")
+    except Exception as e:
+        print(f"⚠️ [Persistence-Dir] Error saving scenes: {e}")
+
+    # [NEW] Generate global story summary
+    story_summary = ""
+    try:
+        story_summary = await gemini_service.summarize_story(all_scenes)
+        db.update_project_setting(project_id, "webtoon_story_summary", story_summary)
+    except: pass
+
     return {
         "status": "ok",
         "scenes": all_scenes,
         "total_scenes": len(all_scenes),
+        "story_summary": story_summary,
         "character_map": voice_consistency_map,
         "layer_debug": {"trace": layer_trace, "all_files": debug_all_layers}
     }
@@ -828,7 +844,7 @@ async def fetch_webtoon_url_service(project_id: int, url: str):
     if "comic.naver.com" not in url:
         raise HTTPException(400, "Only Naver Webtoon URLs are supported currently.")
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=60.0) as client:
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
@@ -885,3 +901,175 @@ async def fetch_webtoon_url_service(project_id: int, url: str):
             "width": total_width, 
             "height": total_height
         }
+
+async def generate_single_scene_video_service(project_id: int, scene_index: int, s: Any):
+    """특정 장면 하나만 영상을 생성하는 서비스 로직"""
+    import shutil
+    import time
+    from datetime import datetime
+    
+    scene_num = s.scene_number
+    asset_dir = os.path.join(config.OUTPUT_DIR, str(project_id), "assets", "image")
+    os.makedirs(asset_dir, exist_ok=True)
+    
+    # 1. Prepare image in assets/image if not there
+    filename = f"scene_{scene_num:03d}.jpg"
+    dest_path = os.path.join(asset_dir, filename)
+    
+    # Use image_path provided by frontend
+    if s.image_path and os.path.exists(s.image_path):
+        shutil.copy2(s.image_path, dest_path)
+    else:
+        # Fallback
+        print(f"⚠️ [Single Gen] Image path {s.image_path} not found. Checking assets.")
+
+    # Update individual scene settings in DB to ensure engine/motion are synced
+    db.update_project_setting(project_id, f"scene_{scene_num}_image", filename)
+    motion = s.effect_override or "zoom_in"
+    db.update_project_setting(project_id, f"scene_{scene_num}_motion", motion)
+    if s.engine_override:
+        db.update_project_setting(project_id, f"scene_{scene_num}_engine", s.engine_override)
+    if s.motion_desc:
+        db.update_project_setting(project_id, f"scene_{scene_num}_motion_desc", s.motion_desc)
+
+    # [NEW] 물리적 이미지 비율 체크 (기획서 오판 방지)
+    try:
+        with Image.open(dest_path) as img:
+            w, h = img.size
+            is_wide = (w / h) > 1.2
+            if is_wide:
+                print(f"📐 [Single Gen] Scene {scene_num} is WIDE physically. Forcing Pan Right strategy.")
+                motion = "pan_right"
+    except: pass
+
+    # 2. Choice of Engine — AKOOL Seedance is PRIMARY, Wan 2.1 is FALLBACK
+    engine = s.engine_override or "akool"
+    video_url = None
+    
+    # Estimated duration based on dialogue length
+    dialogue = s.dialogue or ""
+    duration = max(3.0, len(dialogue) * 0.35)
+    
+    now_str = datetime.now().strftime('%H%M%S')
+
+    try:
+        if engine == "image":
+            # 2D Motion Video (Image only)
+            print(f"🖼️ [Single Gen] Scene {scene_num}: Using Image Engine (2D) with style: {motion}")
+            motion_bytes = await video_service.create_image_motion_video(
+                image_path=dest_path,
+                duration=duration,
+                motion_type=motion,
+                width=1080, height=1920
+            )
+            if motion_bytes:
+                out_filename = f"vid_img_{project_id}_{scene_num}_{now_str}.mp4"
+                out_path = os.path.join(config.OUTPUT_DIR, out_filename)
+                with open(out_path, 'wb') as f: f.write(motion_bytes)
+                video_url = f"/output/{out_filename}"
+                
+        else: # "akool" (primary) or "wan" (fallback)
+            import re
+            print(f"🎬 [Single Gen] Scene {scene_num}: Using AI Engine ({engine})")
+            
+            # [SAFETY CHECK] 다이내믹 캔버스 패딩 (모션 방향에 따른 가변 해상도)
+            # Wide Image의 패닝(Pan) 성능을 극대화하기 위해 모션에 따라 16:9 또는 9:16 캔버스를 선택합니다.
+            try:
+                from PIL import Image
+                with Image.open(dest_path) as img:
+                    orig_w, orig_h = img.size
+                    
+                    # [STRATEGY] Wan 2.5는 비표준 비율 시 Internal Engine Error 발생 확률 급증. 
+                    # 안전한 16:9 / 9:16 캔버스 패딩(블랙박스) 적용 필수.
+                    target_w, target_h = (1280, 720) if "pan_left" in motion or "pan_right" in motion else (720, 1280)
+                    
+                    # 1. 원본 비율 유지 리사이즈
+                    ratio = min(target_w / orig_w, target_h / orig_h)
+                    new_w, new_h = int(orig_w * ratio), int(orig_h * ratio)
+                    img_resized = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+                    
+                    # 2. 강제 검은 배경 캔버스 생성 및 중앙 배치
+                    new_img = Image.new("RGB", (target_w, target_h), (0, 0, 0))
+                    paste_x = (target_w - new_w) // 2
+                    paste_y = (target_h - new_h) // 2
+                    new_img.paste(img_resized, (paste_x, paste_y))
+                    
+                    # 4. 저장 (고호환성 RGB JPEG로 강제 변환)
+                    dest_path_jpg = dest_path.replace(".png", ".jpg")
+                    new_img.save(dest_path_jpg, "JPEG", quality=95, optimize=True)
+                    dest_path = dest_path_jpg
+                    print(f"📏 [Pad Canvas] Padded for Wan 2.5 ({target_w}x{target_h})")
+            except Exception as resize_e:
+                print(f"⚠️ [Canvas Error] {resize_e}")
+
+            # [1] Wan 2.5 최적화 프롬프트 생성
+            raw_prompt = str(s.motion_desc or s.visual_desc or "high quality anime webtoon style")
+            clean_p = re.sub(r'(?i)\b(pan\w*|zoom\w*|truck\w*|move\w*|motion|direction|into|in|out|up|down|horizontal|vertical|effect)\b', '', raw_prompt)
+            clean_p = " ".join([w for w in clean_p.split() if len(w) > 2][:15])
+            
+            action_map = {
+                "pan_right": "The camera slowly pans horizontally to the right.",
+                "pan_left": "The camera slowly pans horizontally to the left.",
+                "pan_up": "The camera slowly pans vertically upwards.",
+                "pan_down": "The camera slowly pans vertically downwards.",
+                "zoom_in": "The camera slowly and cinematically zooms in.",
+                "zoom_out": "The camera slowly and cinematically zooms out."
+            }
+            prompt = f"{action_map.get(motion, 'Smooth cinematic motion.')} {clean_p}, high quality, detailed anime art style."
+            
+            print(f"🎬 [AKOOL WAN 2.5 PREMIUM] {prompt}")
+
+            video_data = None
+            exception_to_raise = None
+            
+            try:
+                if engine == "wan":
+                    raise Exception("force_wan")
+                
+                # [PRIMARY] AKOOL Premium (WAN 2.5)
+                from services.akool_service import AkoolService
+                ak_svc = AkoolService()
+                
+                print(f"🎬 [AKOOL WAN 2.5 PREMIUM] Scene {scene_num}: Generating 720p Video...")
+                video_data = await ak_svc.generate_akool_video_v4(
+                    local_image_path=dest_path,
+                    prompt=prompt,
+                    duration=5,
+                    resolution="720p"    # 1080p는 Wan2.5 특성상 호환성 에러 빈발, 720p로 고정
+                )
+            except Exception as e:
+                err_str = str(e).lower()
+                if "force_wan" in err_str:
+                    print(f"⚠️ [Single Gen] Engine explicitly set to Wan.")
+                    print(f"🔄 [Single Gen] Using Replicate (Wan 2.1)...")
+                    try:
+                        video_data = await replicate_service.generate_video_from_image(dest_path, prompt)
+                    except Exception as wan_e:
+                        print(f"❌ [Single Gen] Replicate failed: {wan_e}")
+                        exception_to_raise = wan_e
+                else:
+                    # AKOOL 에러면 여기서 바로 멈추고 에러 전달
+                    print(f"❌ [Single Gen] AKOOL Premium failed: {e}")
+                    raise Exception(f"AKOOL 생성 실패: {str(e)}")
+                    
+            if exception_to_raise and not video_data:
+                raise exception_to_raise
+            
+            if video_data:
+                actual_engine = "akool" if not exception_to_raise and engine != "wan" else "wan"
+                out_filename = f"vid_{actual_engine}_{project_id}_{scene_num}_{now_str}.mp4"
+                out_path = os.path.join(config.OUTPUT_DIR, out_filename)
+                with open(out_path, 'wb') as f: f.write(video_data)
+                video_url = f"/output/{out_filename}"
+
+        if video_url:
+            db.update_image_prompt_video_url(project_id, scene_num, video_url)
+            return {"status": "ok", "video_url": video_url}
+        else:
+            return {"status": "error", "error": f"{engine} engine failed to generate video file."}
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"❌ [Single Gen] Error: {e}")
+        return {"status": "error", "error": str(e)}
