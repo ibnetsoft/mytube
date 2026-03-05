@@ -979,43 +979,30 @@ async def generate_single_scene_video_service(project_id: int, scene_index: int,
                 with Image.open(dest_path) as img:
                     orig_w, orig_h = img.size
                     
-                    # [STRATEGY] Wan 2.5는 비표준 비율 시 Internal Engine Error 발생 확률 급증. 
-                    # 안전한 16:9 / 9:16 캔버스 패딩(블랙박스) 적용 필수.
-                    target_w, target_h = (1280, 720) if "pan_left" in motion or "pan_right" in motion else (720, 1280)
-                    
-                    # 1. 원본 비율 유지 리사이즈
-                    ratio = min(target_w / orig_w, target_h / orig_h)
-                    new_w, new_h = int(orig_w * ratio), int(orig_h * ratio)
-                    img_resized = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-                    
-                    # 2. 강제 검은 배경 캔버스 생성 및 중앙 배치
-                    new_img = Image.new("RGB", (target_w, target_h), (0, 0, 0))
-                    paste_x = (target_w - new_w) // 2
-                    paste_y = (target_h - new_h) // 2
-                    new_img.paste(img_resized, (paste_x, paste_y))
-                    
+                    # [STRATEGY] 원본 비율 유지! 
+                    # 이미지 호스팅 접근 차단 문제가 해결되었으므로, Wan 2.5 엔진의 자체적인 네이티브 패닝(Pan) 기능에 원본 전체를 전달합니다.
+                    # 너무 큰 이미지만 메모리 제한(1536px)에 맞춰 축소하며 비율은 해치지 않습니다.
+                    max_dim = 1536
+                    if orig_w > max_dim or orig_h > max_dim:
+                        img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
+                        
                     # 4. 저장 (고호환성 RGB JPEG로 강제 변환)
                     dest_path_jpg = dest_path.replace(".png", ".jpg")
-                    new_img.save(dest_path_jpg, "JPEG", quality=95, optimize=True)
+                    img.convert("RGB").save(dest_path_jpg, "JPEG", quality=95, optimize=True)
                     dest_path = dest_path_jpg
-                    print(f"📏 [Pad Canvas] Padded for Wan 2.5 ({target_w}x{target_h})")
+                    print(f"📏 [Native Ratio] Passed to AI for Native Panning ({img.size[0]}x{img.size[1]})")
             except Exception as resize_e:
                 print(f"⚠️ [Canvas Error] {resize_e}")
 
-            # [1] Wan 2.5 최적화 프롬프트 생성
-            raw_prompt = str(s.motion_desc or s.visual_desc or "high quality anime webtoon style")
-            clean_p = re.sub(r'(?i)\b(pan\w*|zoom\w*|truck\w*|move\w*|motion|direction|into|in|out|up|down|horizontal|vertical|effect)\b', '', raw_prompt)
-            clean_p = " ".join([w for w in clean_p.split() if len(w) > 2][:15])
+            # [1] Wan 2.5 최적화 프롬프트 생성 (카메라 모션 주입 제거)
+            # 사용자가 수정한 motion_desc가 있다면 최우선적으로 사용합니다.
+            prompt_base = str(s.motion_desc or s.visual_desc or "high quality anime webtoon style")
             
-            action_map = {
-                "pan_right": "The camera slowly pans horizontally to the right.",
-                "pan_left": "The camera slowly pans horizontally to the left.",
-                "pan_up": "The camera slowly pans vertically upwards.",
-                "pan_down": "The camera slowly pans vertically downwards.",
-                "zoom_in": "The camera slowly and cinematically zooms in.",
-                "zoom_out": "The camera slowly and cinematically zooms out."
-            }
-            prompt = f"{action_map.get(motion, 'Smooth cinematic motion.')} {clean_p}, high quality, detailed anime art style."
+            # 카메라 관련 키워드 강제 필터링 (AI가 화면을 억지로 비틀지 않게 함)
+            # clean_p = re.sub(r'(?i)\b(pan\w*|zoom\w*|truck\w*|move\w*|motion|direction|into|in|out|up|down|horizontal|vertical|effect)\b', '', prompt_base)
+            
+            # 최종 프롬프트: 사용자의 연출 의도 + 고화질 품질 태그
+            prompt = f"{prompt_base}, high quality, detailed anime art style, masterpiece, 4k."
             
             print(f"🎬 [AKOOL WAN 2.5 PREMIUM] {prompt}")
 
