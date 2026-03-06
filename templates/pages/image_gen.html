@@ -231,6 +231,13 @@
                     {{ t('btn_download_images') }}
                 </button>
                 <button onclick="copyAllPrompts()" class="btn-secondary text-sm px-4">{{ t('btn_copy_all') }}</button>
+
+                <!-- [NEW] Manual Save Button -->
+                <button onclick="manualSavePrompts()" id="manualSaveBtn"
+                    class="btn-secondary text-sm px-4 flex items-center gap-2 bg-blue-50 text-blue-600 border-blue-200">
+                    <span>💾</span> {{ t('btn_save_all') or '서버에 저장' }}
+                </button>
+
                 <button onclick="generateSelectedImages()" id="autoGenBtn"
                     class="btn-primary text-sm px-4 flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled>
@@ -359,6 +366,18 @@
 
                 // 결과 스크롤 이동
                 container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+                // [NEW] 서버 자동 저장
+                if (pid) {
+                    try {
+                        await fetch(`/api/projects/${pid}/characters`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(result.characters)
+                        });
+                        console.log("Characters Auto-Saved to DB");
+                    } catch (e) { console.error("Auto-Save chars failed", e); }
+                }
             } else {
                 alert(i18n.err_char_analysis_fail + ':\n' + (result.error || JSON.stringify(result, null, 2)));
             }
@@ -482,13 +501,20 @@
         }
     }
 
-    // [NEW] 로컬 스토리지 데이터 업데이트
+    // [NEW] 로컬 스토리지 데이터 업데이트 & 서버 싱크
+    let charSaveTimeout;
     function updateCharLocal(index, field, value) {
         let chars = Utils.storage.get('characterPrompts') || [];
         if (chars[index]) {
             chars[index][field] = value;
             Utils.storage.set('characterPrompts', chars);
             console.log(`Character ${index} ${field} updated locally`);
+
+            // [NEW] 서버 자동 저장 (디바운스)
+            clearTimeout(charSaveTimeout);
+            charSaveTimeout = setTimeout(() => {
+                saveCharactersToProject();
+            }, 1000);
         }
     }
 
@@ -501,21 +527,19 @@
         }
 
         const chars = Utils.storage.get('characterPrompts') || [];
-        if (chars.length === 0) {
-            Utils.showToast('저장할 캐릭터 정보가 없습니다.', 'info');
-            return;
-        }
 
         const btn = document.getElementById('saveCharsBtn');
-        const originalHtml = btn.innerHTML;
-        btn.disabled = true;
-        btn.innerHTML = `<span>⏳</span> 저장 중...`;
+        const originalHtml = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = `<span>⏳</span> 저장 중...`;
+        }
 
         try {
             const response = await fetch(`/api/projects/${projectId}/characters`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(characters = chars) // FastAPI Body(...) matches characters
+                body: JSON.stringify(chars) // Send raw array to match FastAPI Body(...)
             });
 
             const result = await response.json();
@@ -535,12 +559,15 @@
 
     // [NEW] Delete Character
     async function deleteCharacter(index) {
-        if (!confirm(i18n.confirm_delete_char)) return;
+        if (!confirm(i18n.confirm_delete_char || '캐릭터를 삭제하시겠습니까?')) return;
 
         let chars = Utils.storage.get('characterPrompts') || [];
         chars.splice(index, 1);
         Utils.storage.set('characterPrompts', chars);
         renderCharacters(chars);
+
+        // [NEW] Sync with server immediately
+        await saveCharactersToProject();
     }
 
     // [NEW] Regenerate Character Prompt
@@ -617,6 +644,9 @@
                 char.image_path = result.path;
                 chars[index] = char;
                 Utils.storage.set('characterPrompts', chars);
+
+                // [NEW] Sync with server immediately to persist generated image
+                await saveCharactersToProject();
 
                 img.src = result.url;
                 img.classList.remove('hidden');
@@ -815,15 +845,29 @@
                                 </div>
                             ` : p.image_url ? `
                                 <img src="${p.image_url}" class="w-full h-full object-contain" alt="Scene ${i + 1}">
-                                <div class="absolute top-2 right-2 bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm">
-                                    🖼️ Image Ready
-                                </div>
                             ` : `
                                 <div class="flex flex-col items-center justify-center h-full text-gray-400">
                                     <span class="text-2xl mb-2">🖼️</span>
                                     <span class="text-xs">No Asset</span>
+                                    <!-- [NEW] Upload Button -->
+                                    <button onclick="document.getElementById('scene-upload-${i}').click()" 
+                                            class="mt-2 text-[10px] text-blue-500 hover:text-blue-600 border border-blue-200 px-2 py-1 rounded bg-blue-50 dark:bg-blue-900/40 dark:border-blue-800 transition-colors">
+                                        📁 ${i18n.btn_upload || 'Upload'}
+                                    </button>
                                 </div>
                             `}
+
+                            <!-- [NEW] Asset Replacement Hidden Input & Overlay -->
+                            <input type="file" id="scene-upload-${i}" class="hidden" accept="image/*,video/*" onchange="uploadSceneImage(${i}, this)">
+                            
+                            ${(p.image_url || p.video_url) ? `
+                                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <button onclick="document.getElementById('scene-upload-${i}').click()" 
+                                            class="bg-white/90 dark:bg-gray-800/90 text-[10px] font-bold py-1.5 px-3 rounded-full shadow-lg hover:scale-105 transition-all text-gray-700 dark:text-gray-200">
+                                        📂 Replace Media
+                                    </button>
+                                </div>
+                            ` : ''}
                         </div>
 
                         <!-- Generation Controls -->
@@ -903,32 +947,38 @@
         }, 100);
     }
 
-    // [NEW] Update prompt data from JSON editor
-    function updatePromptData(index, jsonStr) {
-        try {
-            const newData = JSON.parse(jsonStr);
-            if (prompts[index]) {
-                const p = prompts[index];
-                // Update editable fields
+    // [NEW] Update prompt data from editor & Sync
+    let promptSaveTimeout;
+    async function updatePromptData(index, value) {
+        if (!prompts[index]) return;
+
+        const p = prompts[index];
+        // If it looks like JSON, try to parse it for bulk update
+        if (value.trim().startsWith('{')) {
+            try {
+                const newData = JSON.parse(value);
                 if (newData.prompt_en) p.prompt_en = newData.prompt_en;
                 if (newData.prompt_ko) p.prompt_ko = newData.prompt_ko;
                 if (newData.scene_text) p.scene_text = newData.scene_text;
-                // Update script info if edited
-                if (newData.script_start) p.script_start = newData.script_start;
-                if (newData.script_end) p.script_end = newData.script_end;
-
-                // Clear validation error
-                const textarea = document.getElementById(`prompt-json-${index}`);
-                if (textarea) textarea.classList.remove('border-red-500', 'border-2');
-
-                // Save to storage
-                Utils.storage.set('imagePrompts', prompts);
-            }
-        } catch (e) {
-            // Show validation error
-            const textarea = document.getElementById(`prompt-json-${index}`);
-            if (textarea) textarea.classList.add('border-red-500', 'border-2');
+            } catch (e) { }
+        } else {
+            // Otherwise treat as raw English prompt
+            p.prompt_en = value;
         }
+
+        // Save to storage
+        Utils.storage.set('imagePrompts', prompts);
+
+        // [NEW] Sync with server (Debounced)
+        clearTimeout(promptSaveTimeout);
+        promptSaveTimeout = setTimeout(() => {
+            const projectId = getCurrentProject();
+            if (projectId) {
+                API.project.saveImagePrompts(projectId, prompts).then(() => {
+                    console.log("Scene prompts synced to server.");
+                });
+            }
+        }, 1000);
     }
 
     // Helper function to escape HTML
@@ -1211,6 +1261,9 @@
 
                     // [NEW] Update Progress Stepper (If at least one image generated)
                     if (window.updateStepStatus) window.updateStepStatus('image', true);
+
+                    // [FIX] Sync to DB after each generation for persistence
+                    API.project.saveImagePrompts(projectId, prompts);
                 } else {
                     if (statusDiv) {
                         statusDiv.textContent = '❌ 생성 실패: ' + result.error;
@@ -1319,6 +1372,13 @@
         if (!prompts[index]) return;
         prompts[index].engine = engine;
         Utils.storage.set('imagePrompts', prompts);
+
+        // [NEW] Sync with server
+        const projectId = getCurrentProject();
+        if (projectId) {
+            API.project.saveImagePrompts(projectId, prompts);
+        }
+
         drawPromptsUI(); // Re-render to update UI state
     }
 
@@ -1334,18 +1394,89 @@
         motionSaveTimeout = setTimeout(async () => {
             const projectId = getCurrentProject();
             if (projectId) {
-                try {
-                    await fetch(`/api/projects/${projectId}/update-motion`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ scene_number: index + 1, motion_desc: value })
-                    });
+                API.project.saveImagePrompts(projectId, prompts).then(() => {
                     console.log(`Motion prompt for scene ${index + 1} saved.`);
-                } catch (e) {
-                    console.error('Failed to save motion prompt:', e);
-                }
+                });
             }
         }, 1000);
+    }
+
+    // [NEW] Manual Save All Prompts
+    async function manualSavePrompts() {
+        const projectId = getCurrentProject();
+        if (!projectId) return Utils.showToast('프로젝트를 먼저 선택해주세요', 'warning');
+
+        const btn = document.getElementById('manualSaveBtn');
+        const originalHtml = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Saving...';
+        }
+
+        try {
+            await API.project.saveImagePrompts(projectId, prompts);
+            Utils.showToast('모든 변경사항이 서버에 저장되었습니다.', 'success');
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('저장 실패: ' + e.message, 'error');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
+        }
+    }
+
+    // [NEW] Generate Motion Video (Replicate Wan 2.1)
+    async function generateMotion(index) {
+        const projectId = getCurrentProject();
+        if (!projectId) return Utils.showToast('Project ID not found', 'error');
+
+        const p = prompts[index];
+        if (!p.image_url) return Utils.showToast('Please generate image first', 'warning');
+
+        const btn = document.getElementById(`motion-btn-${index}`);
+        const optEl = document.getElementById(`motion-opt-${index}`);
+        const [duration, method] = (optEl?.value || '5.0|standard').split('|');
+
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Animating...';
+
+        try {
+            const body = {
+                scene_number: index + 1,
+                prompt: p.motion_desc || 'Cinematic movement, high quality',
+                duration: parseFloat(duration),
+                method: method
+            };
+
+            const response = await fetch(`/api/projects/${projectId}/scenes/animate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+
+            const result = await response.json();
+            if (result.status === 'success') {
+                p.video_url = result.video_url;
+                Utils.storage.set('imagePrompts', prompts);
+
+                // Sync with server
+                await API.project.saveImagePrompts(projectId, prompts);
+
+                Utils.showToast('Motion generated!', 'success');
+                drawPromptsUI();
+            } else {
+                throw new Error(result.error || 'Failed to animate');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('Error: ' + e.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
     }
 
     // [NEW] Generate Single Video
@@ -1401,6 +1532,9 @@
             if (res.ok && result.status === 'success') {
                 prompts[index].video_url = result.video_url;
                 Utils.storage.set('imagePrompts', prompts);
+
+                // [FIX] Sync with server for persistence
+                API.project.saveImagePrompts(projectId, prompts);
 
                 Utils.showToast(`${engine.toUpperCase()} Video Generated!`, 'success');
                 drawPromptsUI(); // Refresh to show video
@@ -1526,30 +1660,42 @@
     }
 
     // 프로젝트 상태 복구 이벤트 수신
+    // 현재 표시 중인 프로젝트 ID 추적 (새로고침 vs 프로젝트 전환 구분용)
+    let _currentShownProjectId = null;
+
     window.addEventListener('projectStateRestored', (e) => {
         const data = e.detail;
+        const incomingProjectId = data && data.project ? data.project.id : null;
 
-        // [RESET] Clear previous project data
         const gp = document.getElementById('globalPrompt');
-        if (gp) gp.value = '';
-
         const preview = document.getElementById('charPreviewImg');
         const placeholder = document.getElementById('charPlaceholder');
         const charArea = document.getElementById('charPreviewArea');
-        if (preview && placeholder && charArea) {
-            preview.src = '';
-            preview.classList.add('hidden');
-            placeholder.classList.remove('hidden');
-            charArea.classList.add('hidden');
+
+        // [핵심] 다른 프로젝트로 전환될 때만 기존 데이터 초기화
+        // 같은 프로젝트(새로고침 포함)이면 초기화하지 않음
+        const isProjectSwitch = incomingProjectId && _currentShownProjectId &&
+            incomingProjectId != _currentShownProjectId;
+
+        if (isProjectSwitch) {
+            // 프로젝트 전환 시: 기존 데이터 초기화
+            if (gp) gp.value = '';
+            if (preview && placeholder && charArea) {
+                preview.src = '';
+                preview.classList.add('hidden');
+                placeholder.classList.remove('hidden');
+                charArea.classList.add('hidden');
+            }
+            const promptsContainer = document.getElementById('promptsList');
+            if (promptsContainer) promptsContainer.innerHTML = '';
+            document.getElementById('resultSection').classList.add('hidden');
+            prompts = [];
+            console.log(`[projectStateRestored] Project switched: ${_currentShownProjectId} → ${incomingProjectId}`);
         }
 
-        // Clear Prompts List
-        const promptsContainer = document.getElementById('promptsList');
-        if (promptsContainer) promptsContainer.innerHTML = '';
-        document.getElementById('resultSection').classList.add('hidden');
-        prompts = [];
+        if (incomingProjectId) _currentShownProjectId = incomingProjectId;
 
-        // [NEW] Reload thumbnail reference explicitly when project context changes
+        // [RESTORE] Thumbnail
         if (data) loadProjectThumbnail(data);
 
         // [RESTORE] Global Settings
@@ -1560,28 +1706,22 @@
             if (data.settings.character_ref_image_path && preview) {
                 preview.src = data.settings.character_ref_image_path;
                 preview.classList.remove('hidden');
-                placeholder.classList.add('hidden');
-                charArea.classList.remove('hidden');
-                charArea.classList.add('flex');
+                if (placeholder) placeholder.classList.add('hidden');
+                if (charArea) { charArea.classList.remove('hidden'); charArea.classList.add('flex'); }
             }
-
-            // [NEW] Restore Image Style
             if (data.settings.image_style_prompt) {
                 const styleId = data.settings.image_style_prompt;
                 const element = document.querySelector(`.style-card[data-value="${styleId}"]`);
-                if (element) {
-                    selectStyle(styleId, element);
-                    console.log("[StyleRestored]", styleId);
-                }
+                if (element) selectStyle(styleId, element);
             }
         }
 
+        // [RESTORE] Image Prompts - 데이터가 있을 때만 업데이트 (없으면 기존 유지)
         if (data && data.image_prompts && data.image_prompts.length > 0) {
             prompts = data.image_prompts;
-            // Map legacy format if needed
             if (prompts[0] && !prompts[0].scene_title) {
                 prompts = prompts.map(p => ({
-                    ...p, // [FIX] Preserve fields
+                    ...p,
                     scene_title: p.scene_text || p.prompt_ko || `Scene ${p.scene_number || ''}`,
                     prompt_content: p.prompt_en || '',
                     image_url: p.image_url,
@@ -1590,16 +1730,17 @@
             }
             drawPromptsUI(prompts);
             document.getElementById('resultSection').classList.remove('hidden');
+            console.log(`[projectStateRestored] Restored ${prompts.length} prompts`);
         }
+        // 데이터 없으면 기존 prompts 유지 (새로고침 케이스는 DOMContentLoaded가 처리)
 
-        // [NEW] Restore Character Analysis
+        // [RESTORE] Characters
         if (data && data.characters && data.characters.length > 0) {
             Utils.storage.set('characterPrompts', data.characters);
             renderCharacters(data.characters);
             document.getElementById('characterResultContainer').classList.remove('hidden');
-        } else {
-            // [FIX] Clear data to prevent project cross-contamination
-            // Do NOT load from local storage fallback here
+        } else if (isProjectSwitch) {
+            // 프로젝트 전환 시에만 캐릭터 초기화
             const container = document.getElementById('characterCards');
             if (container) container.innerHTML = '';
             document.getElementById('characterResultContainer').classList.add('hidden');
@@ -1703,7 +1844,7 @@
                 if (fullData && fullData.image_prompts && fullData.image_prompts.length > 0) {
                     // DB 포맷 -> 프론트엔드 포맷 매핑
                     prompts = fullData.image_prompts.map(p => ({
-                        ...p, // [FIX] Preserve all DB fields (script_start, etc.)
+                        ...p,
                         scene_title: p.scene_text || p.prompt_ko || `Scene ${p.scene_number || ''}`,
                         prompt_content: p.prompt_en || '',
                         image_url: p.image_url,
@@ -1721,17 +1862,14 @@
 
                     // 로컬 스토리지 동기화
                     Utils.storage.set('imagePrompts', prompts);
-                    console.log('Loaded prompts from DB:', prompts.length);
-
-                    // [DEBUG REMOVED] Dump first prompt to textarea for diagnosis
-                    // const gp = document.getElementById('globalPrompt');
-                    // if (gp && prompts.length > 0) {
-                    //     gp.value = "[DEBUG DATA]: " + JSON.stringify(prompts[0], null, 2) + "\n\n" + gp.value;
-                    // }
-
-                    Utils.showToast(`${prompts.length}개의 프롬프트를 서버에서 복구했습니다.`, 'success');
+                    // 현재 프로젝트 ID 기록 (projectStateRestored가 불필요하게 초기화하지 않도록)
+                    _currentShownProjectId = projectId;
+                    console.log('[DOMContentLoaded] Loaded prompts from DB:', prompts.length);
+                    Utils.showToast(`${prompts.length}개의 프롬프트를 복구했습니다.`, 'success');
                 } else {
-                    console.log("No image prompts in DB");
+                    console.log("No image prompts in DB, will try loadPromptsFromServer");
+                    // DB에 없으면 직접 엔드포인트 시도
+                    loadPromptsFromServer();
                 }
             } catch (e) {
                 console.warn("Failed to load prompts from DB:", e);
@@ -1743,7 +1881,7 @@
             const savedPrompts = Utils.storage.get('imagePrompts');
             if (savedPrompts && savedPrompts.length > 0) {
                 prompts = savedPrompts;
-                renderPrompts();
+                drawPromptsUI(prompts);
                 document.getElementById('resultSection').classList.remove('hidden');
 
                 if (autoBtn) {
@@ -2075,11 +2213,8 @@
     document.addEventListener('DOMContentLoaded', () => {
         applyAppMode();
         loadStyles(); // [NEW]
-
-        // [NEW] Load characters from server for current project
-        loadCharactersFromServer();
-
-        // Removed auto-load of characterPrompts to prevent data leakage between projects
+        // NOTE: Characters and prompts are loaded via projectStateRestored event (triggered by initApp in base.html)
+        // loadCharactersFromServer() and loadPromptsFromServer() are called as fallbacks from projectStateRestored
     });
 
     // [NEW] 서버에서 저장된 캐릭터 정보 불러오기
@@ -2091,17 +2226,55 @@
             const response = await fetch(`/api/projects/${projectId}/characters`);
             const result = await response.json();
 
-            if (result.status === 'ok' && result.characters && result.characters.length > 0) {
+            if (result.status === 'ok' && result.characters) {
                 console.log(`Loaded ${result.characters.length} characters from server`);
-                Utils.storage.set('characterPrompts', result.characters);
+                const chars = result.characters; // Declare locally
+                Utils.storage.set('characterPrompts', chars);
 
                 // UI 표시
                 const container = document.getElementById('characterResultContainer');
-                container.classList.remove('hidden');
-                renderCharacters(result.characters);
+                if (container) {
+                    if (chars.length > 0) container.classList.remove('hidden');
+                    else container.classList.add('hidden');
+                }
+                renderCharacters(chars);
             }
         } catch (e) {
             console.error('Failed to load characters from server:', e);
+        }
+    }
+
+    // [NEW] 서버에서 저장된 장면 프롬프트 정보 불러오기 (폴백 전용)
+    async function loadPromptsFromServer() {
+        const projectId = getCurrentProject();
+        if (!projectId) return;
+
+        try {
+            const response = await fetch(`/api/projects/${projectId}/image-prompts`);
+            const result = await response.json();
+
+            // [FIX] 빈 배열이면 기존 데이터를 덮어쓰지 않음
+            if (result.status === 'ok' && result.prompts && result.prompts.length > 0) {
+                console.log(`[loadPromptsFromServer] Loaded ${result.prompts.length} prompts`);
+                prompts = result.prompts;
+                Utils.storage.set('imagePrompts', prompts);
+
+                const container = document.getElementById('resultSection');
+                if (container) container.classList.remove('hidden');
+                drawPromptsUI();
+            } else {
+                console.log('[loadPromptsFromServer] No prompts found on server, trying localStorage fallback');
+                // 서버에 없으면 localStorage 폴백
+                const saved = Utils.storage.get('imagePrompts');
+                if (saved && saved.length > 0) {
+                    prompts = saved;
+                    const container = document.getElementById('resultSection');
+                    if (container) container.classList.remove('hidden');
+                    drawPromptsUI(prompts);
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load prompts from server:', e);
         }
     }
 </script>

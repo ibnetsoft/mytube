@@ -403,10 +403,14 @@ class GeminiService:
                         last_error = f"Model {model_name} not found"
                         continue
                     
-                    # 다른 에러는 즉시 실패
+                    # 다른 에러는 즉시 실패 (단, 429 Quota 에러면 다음 모델 시도)
                     if response.status_code != 200:
                         error_info = response.text
                         print(f"❌ [Imagen] Error ({response.status_code}): {error_info}")
+                        if response.status_code == 429:
+                            print(f"⚠️ [Imagen] Quota exceeded for {model_name}, trying next model...")
+                            last_error = f"Quota exceeded for {model_name}"
+                            continue
                         raise Exception(f"API Error ({response.status_code}): {error_info}")
                     
                     result = response.json()
@@ -944,32 +948,36 @@ class GeminiService:
                 pass
         return []
 
-    async def generate_image_prompts_from_script(self, script: str, duration_seconds: int, style_prompt: str = None, characters: List[dict] = None) -> List[dict]:
+    async def generate_image_prompts_from_script(self, script: str, duration_seconds: int, style_prompt: str = None, characters: List[dict] = None, target_scene_count: int = None) -> List[dict]:
         """대본을 분석하여 장면별 이미지 프롬프트 생성 (가변 페이싱 및 캐릭터 일관성 적용)"""
-        
-        # [NEW] 가변 페이싱(Dynamic Pacing) 로직 - 사용자 요청에 따른 정밀 조정
-        # 0 ~ 2분 (120s): 8초당 1장 (15장)
-        # 2 ~ 5분 (180s): 20초당 1장 (9장)
-        # 5 ~ 7분 (120s): 40초당 1장 (3장)
-        # 7 ~ 10분 (180s): 60초당 1장 (3장)
-        # 10 ~ 20분 (600s): 120초당 1장 (5장)
-        # 20분 이후: 600초당 1장
-        
-        num_scenes = 0
-        if duration_seconds <= 120:
-            num_scenes = duration_seconds // 8
-        elif duration_seconds <= 300:
-            num_scenes = 15 + (duration_seconds - 120) // 20
-        elif duration_seconds <= 420:
-            num_scenes = 15 + 9 + (duration_seconds - 300) // 40
-        elif duration_seconds <= 600:
-            num_scenes = 15 + 9 + 3 + (duration_seconds - 420) // 60
-        elif duration_seconds <= 1200:
-            num_scenes = 30 + (duration_seconds - 600) // 120
+
+        # target_scene_count가 전달된 경우 우선 사용 (씬 분석 결과)
+        if target_scene_count and target_scene_count > 0:
+            num_scenes = target_scene_count
+            print(f"[Gemini] Using user-specified scene count: {num_scenes}")
         else:
-            num_scenes = 35 + (duration_seconds - 1200) // 600
-        
-        num_scenes = max(3, int(num_scenes))
+            # [NEW] 가변 페이싱(Dynamic Pacing) 로직
+            # 0 ~ 2분 (120s): 8초당 1장 (15장)
+            # 2 ~ 5분 (180s): 20초당 1장 (9장)
+            # 5 ~ 7분 (120s): 40초당 1장 (3장)
+            # 7 ~ 10분 (180s): 60초당 1장 (3장)
+            # 10 ~ 20분 (600s): 120초당 1장 (5장)
+            # 20분 이후: 600초당 1장
+            num_scenes = 0
+            if duration_seconds <= 120:
+                num_scenes = duration_seconds // 8
+            elif duration_seconds <= 300:
+                num_scenes = 15 + (duration_seconds - 120) // 20
+            elif duration_seconds <= 420:
+                num_scenes = 15 + 9 + (duration_seconds - 300) // 40
+            elif duration_seconds <= 600:
+                num_scenes = 15 + 9 + 3 + (duration_seconds - 420) // 60
+            elif duration_seconds <= 1200:
+                num_scenes = 30 + (duration_seconds - 600) // 120
+            else:
+                num_scenes = 35 + (duration_seconds - 1200) // 600
+            num_scenes = max(3, int(num_scenes))
+            print(f"[Gemini] Calculated scene count from duration ({duration_seconds}s): {num_scenes}")
         
         # [CRITICAL] 실사 키워드 방지 로직 보강
         is_realistic = any(kw in style_prompt.lower() for kw in ["realistic", "photo", "cinematic", "8k"])
@@ -1002,9 +1010,18 @@ class GeminiService:
 {char_descriptions}
 """
 
-        # [NEW] 장시간 영상 페이싱 지침 (사용자 요청 세분화 반영)
-        limit_instruction = ""
-        if duration_seconds > 0: # 짧은 영상도 일관된 지침 적용
+        # 장면 수 지침 생성
+        if target_scene_count and target_scene_count > 0:
+            # 사용자가 씬 수를 직접 지정한 경우 - 명확하게 해당 수 생성 지시
+            limit_instruction = f"""
+[중요: 장면 수 정책 - 반드시 준수]
+- 반드시 정확히 **{num_scenes}개**의 장면을 생성해야 합니다. 더 많거나 적으면 안 됩니다.
+- 대본 전체를 **{num_scenes}개** 구간으로 균등하게 나누어 각 장면이 대본의 흐름을 빠짐없이 커버하도록 하세요.
+- 대본의 처음부터 끝까지 시간 순서대로 골고루 배분하세요. 특정 구간이 누락되면 안 됩니다.
+- JSON 배열에 반드시 scene_number 1번부터 {num_scenes}번까지 순서대로 포함하세요.
+"""
+        else:
+            # 자동 계산된 경우 - 기존 페이싱 지침 사용
             limit_instruction = f"""
 [중요: 영상 페이싱 정책]
 사용자의 몰입도를 유지하면서 제작 효율을 높이기 위해 다음 구간별 페이싱을 엄격히 준수하세요:
@@ -1054,20 +1071,28 @@ class GeminiService:
             else:
                 scenes = []
             
-            # [NEW] Hybrid Approach: Time-based correction
+            # [FIX] target_scene_count가 지정된 경우 씬 분리 없이 그대로 반환
+            # (씬 분리 로직이 사용자 지정 씬 수를 초과하게 만들 수 있으므로)
+            if target_scene_count and target_scene_count > 0:
+                # Renumber scenes sequentially
+                for idx, scene in enumerate(scenes):
+                    scene["scene_number"] = idx + 1
+                print(f"[Gemini] Returning {len(scenes)} scenes (target={target_scene_count})")
+                return scenes
+
+            # [NEW] Hybrid Approach: Time-based correction (자동 계산 모드에서만 사용)
             # Split scenes that are too long (>20 seconds) into sub-images
             corrected_scenes = []
             MAX_SCENE_SECONDS = 20  # Maximum seconds per image
-            MIN_SCENE_SECONDS = 5   # Minimum seconds per image
-            
+
             for scene in scenes:
                 estimated_sec = scene.get("estimated_seconds", 15)
-                
+
                 # If estimated_seconds is missing, calculate from text length
                 if not estimated_sec or estimated_sec <= 0:
                     scene_text = scene.get("scene_text", "")
                     estimated_sec = max(5, len(scene_text) / 6)  # ~6 chars/sec for Korean
-                
+
                 if estimated_sec <= MAX_SCENE_SECONDS:
                     # Scene is fine, keep as is
                     scene["estimated_seconds"] = estimated_sec
@@ -1076,25 +1101,24 @@ class GeminiService:
                     # Scene is too long, split into sub-images
                     num_splits = int(estimated_sec / MAX_SCENE_SECONDS) + 1
                     sub_duration = estimated_sec / num_splits
-                    
+
                     scene_text = scene.get("scene_text", "")
                     text_parts = self._split_text_evenly(scene_text, num_splits)
-                    
+
                     for i in range(num_splits):
                         sub_scene = scene.copy()
                         sub_scene["scene_number"] = len(corrected_scenes) + 1
                         sub_scene["scene_title"] = f"{scene.get('scene_title', '')} ({i+1}/{num_splits})"
                         sub_scene["scene_text"] = text_parts[i] if i < len(text_parts) else scene_text
                         sub_scene["estimated_seconds"] = sub_duration
-                        # Slightly vary the prompt for visual diversity
                         if i > 0:
                             sub_scene["prompt_en"] = scene.get("prompt_en", "") + f", variation {i+1}"
                         corrected_scenes.append(sub_scene)
-            
+
             # Renumber scenes sequentially
             for idx, scene in enumerate(corrected_scenes):
                 scene["scene_number"] = idx + 1
-            
+
             print(f"[Hybrid] Original: {len(scenes)} scenes → Corrected: {len(corrected_scenes)} scenes")
             return corrected_scenes
             

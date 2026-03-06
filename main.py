@@ -41,6 +41,7 @@ import database as db
 from app.routers import settings  # [NEW]
 from services.gemini_service import gemini_service
 from services.replicate_service import replicate_service
+from services.akool_service import akool_service
 from services.auth_service import auth_service
 from services.storage_service import storage_service
 from services.thumbnail_service import thumbnail_service
@@ -571,26 +572,32 @@ async def generate_image_prompts_api(req: PromptsGenerateRequest):
             style_prompt = STYLE_PROMPTS.get(style_key.lower(), style_key)
 
         # 3. Call Gemini via Unified Service
-        print(f"[Prompts] Generating for Project {req.project_id}, Resolved Style: {style_key}")
-        
+        target_count = req.count if req.count and req.count > 0 else None
+        print(f"[Prompts] Generating for Project {req.project_id}, Style: {style_key}, Target scenes: {target_count or 'auto'}")
+
         # [SAFETY] Truncate script to prevent Token Limit Exceeded / Timeout
-        safe_script = req.script[:15000] if len(req.script) > 15000 else req.script
+        # 30000자로 늘림 (긴 대본도 전체 대사 포함)
+        safe_script = req.script[:30000] if len(req.script) > 30000 else req.script
+        if len(req.script) > 30000:
+            print(f"[Prompts] Script truncated: {len(req.script)} → 30000 chars")
 
         prompts_list = await gemini_service.generate_image_prompts_from_script(
-            safe_script, 
-            duration, 
+            safe_script,
+            duration,
             style_prompt=style_prompt,
-            characters=characters
+            characters=characters,
+            target_scene_count=target_count
         )
-        
+
         if not prompts_list:
             # Retry once if empty
             print("[Prompts] Empty result, retrying...")
             prompts_list = await gemini_service.generate_image_prompts_from_script(
-                safe_script, 
-                duration, 
+                safe_script,
+                duration,
                 style_prompt=style_prompt,
-                characters=characters
+                characters=characters,
+                target_scene_count=target_count
             )
 
         if not prompts_list:
@@ -749,7 +756,7 @@ async def save_image_prompts(project_id: int, req: ImagePromptsSave):
 @app.get("/api/projects/{project_id}/image-prompts")
 async def get_image_prompts(project_id: int):
     """이미지 프롬프트 조회"""
-    return {"prompts": db.get_image_prompts(project_id)}
+    return {"status": "ok", "prompts": db.get_image_prompts(project_id)}
 
 class AnimateRequest(BaseModel):
     scene_number: int
@@ -1511,6 +1518,48 @@ async def save_project_characters_manual(project_id: int, characters: List[Dict]
         return {"status": "ok", "message": f"{len(characters)}명의 캐릭터 정보가 저장되었습니다."}
     except Exception as e:
         raise HTTPException(500, f"캐릭터 저장 실패: {str(e)}")
+
+@app.post("/api/image/upload-scene")
+async def upload_scene_image_api(
+    file: UploadFile = File(...),
+    project_id: int = Form(...),
+    scene_index: int = Form(...)
+):
+    """특정 Scene을 위한 이미지 직접 업로드"""
+    try:
+        # 1. 경로 설정
+        output_dir, web_dir = get_project_output_dir(project_id)
+        
+        # 2. 파일 저장
+        ext = os.path.splitext(file.filename)[1].lower()
+        if not ext in ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.mp4', '.mov', '.webm']:
+            if not ext: ext = ".png"
+            
+        filename = f"scene_{scene_index}_upload_{int(time.time())}{ext}"
+        filepath = os.path.join(output_dir, filename)
+        
+        with open(filepath, "wb") as f:
+            content = await file.read()
+            f.write(content)
+            
+        # 3. DB 업데이트 (영구 저장 보장)
+        web_url = f"{web_dir}/{filename}"
+        if ext in ['.mp4', '.mov', '.webm']:
+            db.update_image_prompt_video_url(project_id, scene_index, web_url)
+        else:
+            db.update_image_prompt_url(project_id, scene_index, web_url)
+
+        # 4. URL 반환
+        return {
+            "status": "ok",
+            "url": web_url,
+            "image_url": web_url if ext not in ['.mp4', '.mov', '.webm'] else None,
+            "video_url": web_url if ext in ['.mp4', '.mov', '.webm'] else None,
+            "path": filepath
+        }
+    except Exception as e:
+        print(f"Scene Upload Error: {e}")
+        return {"status": "error", "error": str(e)}
 
 @app.get("/api/projects/{project_id}/script-structure")
 async def get_project_script_structure(project_id: int):
@@ -2405,37 +2454,45 @@ async def generate_thumbnail_background(req: ThumbnailBackgroundRequest):
         
         final_prompt = f"ABSOLUTELY NO TEXT. NO CHARACTERS. {final_style_prefix}{clean_prompt}. High quality, 8k, YouTube thumbnail background, empty background, no watermark. DO NOT INCLUDE: {negative_constraints}."
 
-        # [NEW] 모델 폴백 로직 (gemini_service.py와 동일하게)
-        models_to_try = [
-            "imagen-4.0-generate-001",
-            "imagen-4.0-fast-generate-001"
-        ]
+        # 이미지 생성 (전략: Replicate -> Gemini -> AKOOL Fallback)
+        images_bytes = None
         
-        response = None
-        last_error = ""
+        # 1차 시도: Replicate (flux-schnell)
+        try:
+            print(f"🎨 [ThumbnailBG] Attempting Replicate (Primary)...")
+            images_bytes = await replicate_service.generate_image(prompt=final_prompt, aspect_ratio=req.aspect_ratio)
+        except Exception as e:
+            print(f"⚠️ [ThumbnailBG] Replicate failed: {e}")
 
-        # TRY MODELS
-        for model_name in models_to_try:
+        # 2차 시도: Gemini Imagen (Fallback 1)
+        if not images_bytes:
             try:
-                print(f"🎨 [ThumbnailBG] Generating image with model: {model_name}")
-                response = client.models.generate_images(
-                    model=model_name,
+                print(f"🎨 [ThumbnailBG] Attempting Gemini Imagen (Fallback 1)...")
+                images_bytes = await gemini_service.generate_image(
                     prompt=final_prompt,
-                    config={
-                        "number_of_images": 1,
-                        "aspect_ratio": req.aspect_ratio,
-                        "safety_filter_level": "BLOCK_LOW_AND_ABOVE"
-                    }
+                    num_images=1,
+                    aspect_ratio=req.aspect_ratio
                 )
-                if response and response.generated_images:
-                    break # Success
-            except Exception as model_err:
-                print(f"⚠️ [ThumbnailBG] Model {model_name} failed: {model_err}")
-                last_error = str(model_err)
-                continue
+            except Exception as e:
+                print(f"⚠️ [ThumbnailBG] Gemini failed: {e}")
 
-        if not response or not response.generated_images:
-            return {"status": "error", "error": f"배경 이미지 생성 실패. 마지막 오류: {last_error}"}
+        # 3차 시도: AKOOL (Final Fallback)
+        if not images_bytes:
+            try:
+                print(f"🎨 [ThumbnailBG] Attempting AKOOL (Final Fallback)...")
+                images_bytes = await akool_service.generate_image(prompt=final_prompt, aspect_ratio=req.aspect_ratio)
+            except Exception as e:
+                print(f"⚠️ [ThumbnailBG] AKOOL failed: {e}")
+
+        if not images_bytes:
+            return {"status": "error", "error": "모든 이미지 생성 서비스가 실패했습니다."}
+        
+        # [NEW] 로직 호환성을 위해 response 객체 모방 (기존 코드 뒷부분 대응)
+        class MockResponse:
+            def __init__(self, data):
+                self.generated_images = [{"image_bytes": data[0]}]
+        
+        response = MockResponse(images_bytes)
 
         if not response.generated_images:
             return {"status": "error", "error": "배경 이미지 생성 실패"}
@@ -2954,15 +3011,38 @@ async def generate_character_image(
         
         print(f"👤 [Char Generation] Style: {style}, Prompt: {prompt[:100]}...")
 
-        # 이미지 생성
-        images_bytes = await gemini_service.generate_image(
-            prompt=full_prompt,
-            num_images=1,
-            aspect_ratio="1:1"
-        )
+        # 이미지 생성 (전략: Replicate -> Gemini -> AKOOL Fallback)
+        images_bytes = None
+        
+        # 1차 시도: Replicate (flux-schnell)
+        try:
+            print(f"🎨 [Char Generation] Attempting Replicate (Primary)...")
+            images_bytes = await replicate_service.generate_image(prompt=full_prompt, aspect_ratio="1:1")
+        except Exception as e:
+            print(f"⚠️ [Char Generation] Replicate failed: {e}")
+
+        # 2차 시도: Gemini Imagen (Fallback 1)
+        if not images_bytes:
+            try:
+                print(f"🎨 [Char Generation] Attempting Gemini Imagen (Fallback 1)...")
+                images_bytes = await gemini_service.generate_image(
+                    prompt=full_prompt,
+                    num_images=1,
+                    aspect_ratio="1:1"
+                )
+            except Exception as e:
+                print(f"⚠️ [Char Generation] Gemini failed: {e}")
+
+        # 3차 시도: AKOOL (Final Fallback)
+        if not images_bytes:
+            try:
+                print(f"🎨 [Char Generation] Attempting AKOOL (Final Fallback)...")
+                images_bytes = await akool_service.generate_image(prompt=full_prompt, aspect_ratio="1:1")
+            except Exception as e:
+                print(f"⚠️ [Char Generation] AKOOL failed: {e}")
 
         if not images_bytes:
-            return {"status": "error", "error": "이미지 생성 실패 (Imagen API)"}
+            return {"status": "error", "error": "모든 이미지 생성 서비스가 실패했습니다."}
         
         output_dir, web_dir = get_project_output_dir(project_id)
         filename = f"char_{project_id}_{int(datetime.datetime.now().timestamp())}.png"
@@ -3012,18 +3092,38 @@ async def generate_image(
         print(f"   Prompt: {prompt[:100]}...")
         print(f"   Aspect ratio: {aspect_ratio}")
         
-        # 이미지 생성 (Gemini Imagen)
-        images_bytes = await gemini_service.generate_image(
-            prompt=prompt,
-            num_images=1,
-            aspect_ratio=aspect_ratio
-        )
+        # 이미지 생성 (전략: Replicate -> Gemini -> AKOOL Fallback)
+        images_bytes = None
+        
+        # 1차 시도: Replicate (flux-schnell)
+        try:
+            print(f"🎨 [Image Gen] Attempting Replicate (Primary)...")
+            images_bytes = await replicate_service.generate_image(prompt=prompt, aspect_ratio=aspect_ratio)
+        except Exception as e:
+            print(f"⚠️ [Image Gen] Replicate failed: {e}")
+
+        # 2차 시도: Gemini Imagen (Fallback 1)
+        if not images_bytes:
+            try:
+                print(f"🎨 [Image Gen] Attempting Gemini Imagen (Fallback 1)...")
+                images_bytes = await gemini_service.generate_image(
+                    prompt=prompt,
+                    num_images=1,
+                    aspect_ratio=aspect_ratio
+                )
+            except Exception as e:
+                print(f"⚠️ [Image Gen] Gemini failed: {e}")
+
+        # 3차 시도: AKOOL (Final Fallback)
+        if not images_bytes:
+            try:
+                print(f"🎨 [Image Gen] Attempting AKOOL (Final Fallback)...")
+                images_bytes = await akool_service.generate_image(prompt=prompt, aspect_ratio=aspect_ratio)
+            except Exception as e:
+                print(f"⚠️ [Image Gen] AKOOL failed: {e}")
 
         if not images_bytes:
-            error_msg = "이미지가 생성되지 않았습니다. 가능한 원인: Safety filter, API 오류, 또는 프롬프트 문제"
-            print(f"❌ [Image Generation] {error_msg}")
-            print(f"   Prompt was: {prompt[:200]}...")
-            return {"status": "error", "error": error_msg}
+            return {"status": "error", "error": "모든 이미지 생성 서비스가 실패했습니다."}
         
         print(f"✅ [Image Generation] Successfully generated image, size: {len(images_bytes[0])} bytes")
         
