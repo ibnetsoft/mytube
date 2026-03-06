@@ -108,7 +108,8 @@ class GeminiService:
         [TASKS]
         1. Extract Dialogue in Korean (Exclude legal/watermarks/sfx-text).
         2. Identify Character (Check context characters).
-        3. Determine Cut Category (Long, Wide, or Small).
+        3. Determine Cut Category (Long/Tall, Wide/Panoramic, or Small/Square). 
+           - **CRITICAL**: If width is much greater than height, it is WIDE. If height is much greater than width, it is LONG.
         4. Generate **motion_desc**: 
            - MANDATORY: Include the Base Master Setting (0).
            - Combine with Category Guide (1) and Scene Add-ons (2).
@@ -245,54 +246,59 @@ class GeminiService:
         
         if not prompt_template or len(prompt_template.strip()) < 10:
             prompt_template = """
-        # ROLE: Hollywood Trailer Editor & VFX Supervisor
-        You are creating a high-end cinematic video production plan for a webtoon.
-        Follow the [USER CINEMATIC MASTER GUIDE] strictly when generating specifications for each scene.
+    # ROLE: Hollywood Trailer Editor & VFX Supervisor
+    You are creating a high-end cinematic video production plan for a webtoon.
+    Follow the [USER CINEMATIC MASTER GUIDE] strictly when generating specifications for each scene.
 
-        [INPUT DATA (JSON SCENES)]
-        [[SCENES_JSON]]
+    [INPUT DATA (JSON SCENES)]
+    [[SCENES_JSON]]
 
-        [USER CINEMATIC MASTER GUIDE (STRICT ADHERENCE)]
-        0. Base Master Setting (Common for ALL cuts):
-           "Vertical cinematic animation, 9:16 aspect ratio, 1080x1920, smooth camera movement, subtle parallax depth effect, soft volumetric lighting, atmospheric particles, high quality anime webtoon style, dramatic color grading, film grain subtle, slow cinematic motion, emotional pacing."
+    [USER CINEMATIC MASTER GUIDE (STRICT ADHERENCE - MUST BE DYNAMIC!)]
+    0. Base Master Setting (Common for ALL cuts):
+       "Vertical cinematic animation, 9:16 aspect ratio, 1080x1920, DRAMATIC CAMERA MOVEMENT, smooth physics, high quality anime webtoon style. NEVER BE STATIC."
 
-        1. Production Types (scene_type):
-           - TYPE 1 (Vertical Long): "Show Space" -> slow upward/downward camera pan, 2.5D depth parallax, foreground separation, glowing light rays.
-           - TYPE 2 (Horizontal Wide): "Outpainting or Cinema Crop" -> Expand background to 9:16 or Vertical Crop focusing on faces/eyes, slow push-in, soft rim light.
-           - TYPE 3 (Small/Empty): "Fill Space" -> Place center, extend matching background, slow cinematic zoom, minimal motion.
-           - TYPE 4 (Transition): "Consistency" -> Fade with particles, slow cross-dissolve, motion blur.
-           - TYPE 5 (PSD Depth): "3D Illusion" -> Separate foreground/mid/background, strong parallax, 3D camera move.
-           - TYPE 6 (Unified Tone): High-end animated trailer look, soft contrast, warm highlights.
+    1. Production Types (scene_type):
+       - TYPE 1 (Vertical Long): "Show Space" -> Fast or slow upward/downward camera pan (pan_down, pan_up), strong parallax.
+       - TYPE 2 (Horizontal Wide): "Panoramic Vista" -> ALWAYS use continuous side-panning (pan_left or pan_right) across the wide image to reveal details.
+       - TYPE 3 (Small/Empty): "Fill Space" -> Zoom in continuously or push in to character.
+       - TYPE 4 (Transition): "Consistency" -> Fade with particles.
+       - TYPE 5 (PSD Depth): "3D Illusion" -> 3D camera move, foreground parallax.
+       - TYPE 6 (Unified Tone): High contrast, dramatic animated motion.
 
-        [CORE INSTRUCTIONS]
-        1. **overall_strategy**: Summarize the production direction in Korean.
-        2. **bgm_style**: Recommend BGM style in Korean.
-        3. **scene_specifications**: For each scene, generate:
-           - **scene_number**: The number from input.
-           - **engine**: "wan" (motion), "akool" (lipsync), or "image" (2D).
-           - **effect**: "pan_down", "pan_up", "zoom_in", "zoom_out", "static".
-           - **motion**: FULL CINEMATIC PROMPT in English. Combine Master Setting (0) + Type Specific Guide (1-6) + Scene Context.
-           - **rationale**: Why this choice (e.g., "Tall image detected, using Type 1 Pan Down").
-           - **cropping_advice**: How to frame to 9:16 without losing key info (Korean).
+    [CORE INSTRUCTIONS]
+    1. **overall_strategy**: Summarize the production direction in Korean.
+    2. **bgm_style**: Recommend BGM style in Korean.
+    3. **scene_specifications**: For each scene, generate:
+       - **scene_number**: The number from input.
+       - **engine**: "akool" (PRIMARY - Seedance AI video), "wan" (fallback), or "image" (2D still). ALWAYS use "akool" as default.
+       - **effect**: MUST NOT BE 'static'! ALWAYS pick "pan_left", "pan_right", "pan_up", "pan_down", "zoom_in", or "zoom_out". 
+         * If image is wide (Type 2 or character face), strongly prefer "pan_left" or "pan_right" to explore the scene.
+       - **motion**: FULL CINEMATIC PROMPT in English. 
+         * MUST include explicit camera movement instructions (e.g., "Camera pans continuously from left to right", "Camera zooms in smoothly").
+         * MUST include character micro-expressions (e.g., "Lips are quivering slightly", "Eyes blinking", "Hair blowing aggressively in wind").
+       - **rationale**: (Korean) Why this dynamic motion is crucial.
+       - **cropping_advice**: (Korean) Focus on Zoom-to-Fill 9:16 aspect ratio so there are no black letterboxes.
 
-        [OUTPUT FORMAT (JSON ONLY)]
-        {
-            "overall_strategy": "Overall direction summary (Korean)",
-            "bgm_style": "Recommended BGM style (Korean)",
-            "scene_specifications": [
-                {
-                    "scene_number": 1,
-                    "engine": "wan | akool | image",
-                    "effect": "zoom_in | pan_down | ...",
-                    "motion": "Detailed cinematic prompt in English",
-                    "rationale": "Reason for this setup (Korean)",
-                    "cropping_advice": "Advice for 9:16 framing (Korean)"
-                }
-            ]
-        }
-        
-        **IMPORTANT**: For NARRATOR (내레이션), always use the voice 'Brian'. Same character = Same voice.
-        """
+    [OUTPUT FORMAT (JSON ONLY)]
+    {
+        "overall_strategy": "Overall direction (Korean)",
+        "bgm_style": "BGM (Korean)",
+        "scene_specifications": [
+            {
+                "scene_number": 1,
+                "engine": "akool",
+                "effect": "pan_right | pan_left | pan_down | pan_up | zoom_in | zoom_out",
+                "motion": "Detailed cinematic prompt in English focusing heavily on CAMERA PANNING and CHARACTER MOTION.",
+                "motion_ko": "위 영어 프롬프트의 자연스러운 한글 번역",
+                "rationale": "Reason (Korean)",
+                "cropping_advice": "Advice on filling 9:16 screen tight (Korean)"
+            }
+        ]
+    }
+    
+    **IMPORTANT**: For NARRATOR (내레이션), always use the voice 'Brian'. 
+    Videos MUST NOT BE STATIC. Provide clear, strong camera movement keywords in the 'motion' string.
+    """
 
         prompt = prompt_template.replace("[[SCENES_JSON]]", scenes_json)
         
@@ -311,6 +317,39 @@ class GeminiService:
         except Exception as e:
             print(f"Plan Generation Error: {e}")
             return { "overall_strategy": f"Error: {str(e)}", "scene_specifications": [] }
+
+    async def summarize_story(self, scenes: List[dict]) -> str:
+        """분석된 전체 장면들을 요약하여 전체적인 상황 파악 리포트 생성"""
+        try:
+            summary_data = []
+            for s in scenes:
+                ana = s.get('analysis', {})
+                summary_data.append({
+                    "n": s.get('scene_number'),
+                    "char": ana.get('character'),
+                    "diag": ana.get('dialogue'),
+                    "visual": ana.get('visual_desc')
+                })
+            
+            prompt = f"""
+            Identify and summarize the overall situation/plot of this webtoon based on the following scene analyses.
+            Explain:
+            1. What is happening globally?
+            2. Who are the main characters and their current emotions?
+            3. What is the tone/atmosphere?
+            
+            [INPUT DATA]
+            {json.dumps(summary_data, ensure_ascii=False)}
+            
+            Write the summary in Korean, formatted nicely for a web UI. Keep it to 3-5 sentences.
+            Focus on proving that you understood the context.
+            """
+            
+            summary = await self.generate_text(prompt, temperature=0.5)
+            return summary.strip()
+        except Exception as e:
+            print(f"Summary Generation Error: {e}")
+            return "상황 요약을 생성하지 못했습니다."
 
     async def generate_image(
         self,
@@ -1680,6 +1719,74 @@ class GeminiService:
                 pass
         
         return {"error": "대본 생성 실패", "raw": text}
+
+    async def create_batch_job(self, input_file_path: str, model: str = "gemini-2.0-flash", display_name: str = "batch-job") -> dict:
+        """
+        [새로운 기능] Gemini Batch API - 대규모 백그라운드 처리를 위한 일괄 작업 예약 (비용 50% 절감)
+        JSONL 파일을 업로드하고 비동기 배치 작업을 생성합니다.
+        """
+        import asyncio
+        from google import genai
+        
+        def _run_batch():
+            client = genai.Client(api_key=self.api_key)
+            # 1. 파일 업로드
+            uploaded_file = client.files.upload(
+                file=input_file_path,
+                config={"mime_type": "jsonl"}
+            )
+            # 2. 배치 작업 생성
+            batch_job = client.batches.create(
+                model=model,
+                src=uploaded_file.name,
+                config={"display_name": display_name}
+            )
+            return {
+                "job_name": batch_job.name,
+                "job_state": batch_job.state.name if hasattr(batch_job.state, 'name') else str(batch_job.state),
+                "file_name": uploaded_file.name
+            }
+        
+        # 블로킹 작업이므로 스레드 풀에서 실행
+        return await asyncio.to_thread(_run_batch)
+
+    async def get_batch_job_status(self, job_name: str) -> dict:
+        """
+        배치 작업 상태를 확인합니다.
+        """
+        import asyncio
+        from google import genai
+        
+        def _get_status():
+            client = genai.Client(api_key=self.api_key)
+            batch_job = client.batches.get(name=job_name)
+            
+            dest_file = None
+            if hasattr(batch_job, 'dest') and batch_job.dest and hasattr(batch_job.dest, 'file_name'):
+                dest_file = batch_job.dest.file_name
+                
+            return {
+                "job_name": batch_job.name,
+                "job_state": batch_job.state.name if hasattr(batch_job.state, 'name') else str(batch_job.state),
+                "dest_file": dest_file,
+                "error_message": str(getattr(batch_job, 'error_message', '')) if getattr(batch_job, 'error_message', None) else None
+            }
+            
+        return await asyncio.to_thread(_get_status)
+
+    async def download_batch_results(self, dest_file_name: str) -> str:
+        """
+        모두 완료된 배치 작업의 결과를 다운로드하여 JSONL 포맷의 문자열로 반환합니다.
+        """
+        import asyncio
+        from google import genai
+        
+        def _download():
+            client = genai.Client(api_key=self.api_key)
+            file_content_bytes = client.files.download(file=dest_file_name)
+            return file_content_bytes.decode("utf-8")
+            
+        return await asyncio.to_thread(_download)
 
 
 # 싱글톤 인스턴스

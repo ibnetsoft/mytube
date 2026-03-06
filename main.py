@@ -2880,18 +2880,41 @@ async def analyze_character(
 class CharacterPromptRequest(BaseModel):
     script: str
     project_id: Optional[int] = None
+    style: Optional[str] = "realistic"
+
 
 @app.post("/api/image/character-prompts")
 async def generate_character_prompts(req: CharacterPromptRequest):
     """대본 기반 캐릭터 프롬프트 생성"""
     try:
-        # [NEW] 이미 캐릭터가 수동으로 설정되어 있는지 확인
-        existing = db.get_project_characters(req.project_id)
-        if existing:
-            print(f"👥 [Auto-Pilot] 이미 {len(existing)}명의 캐릭터가 설정되어 있습니다. 추출을 건너뜁니다.")
-            return {"status": "ok", "characters": existing} # Return existing characters
+        # [Manual Mode] Always re-analyze when requested via API
+        # (Skip logic removed to allow style-consistent re-extraction)
 
-        characters = await gemini_service.generate_character_prompts_from_script(req.script)
+
+        # [NEW] 비주얼 스타일 결정 (프롬프트 반영)
+        db_presets = db.get_style_presets()
+        style_prefix = "photorealistic"
+        
+        if req.style:
+            style_data = db_presets.get(req.style.lower())
+            if isinstance(style_data, dict):
+                style_prefix = style_data.get("prompt_value", req.style)
+            else:
+                style_prefix = STYLE_PROMPTS.get(req.style.lower(), req.style)
+        elif req.project_id:
+            # 프로젝트 설정에서 스타일 조회
+            settings = db.get_project_settings(req.project_id)
+            if settings and settings.get('image_style'):
+                image_style_key = settings['image_style'].lower()
+                style_data = db_presets.get(image_style_key)
+                if isinstance(style_data, dict):
+                    style_prefix = style_data.get("prompt_value", image_style_key)
+                else:
+                    style_prefix = STYLE_PROMPTS.get(image_style_key, image_style_key)
+
+        print(f"👥 [Main] 캐릭터 분석 시작... (Style: {style_prefix})")
+        characters = await gemini_service.generate_character_prompts_from_script(req.script, visual_style=style_prefix)
+
         
         # [NEW] DB 저장
         if req.project_id:
@@ -2921,7 +2944,11 @@ async def generate_character_image(
     try:
         # [NEW] DB 스타일 프리셋 조회
         db_presets = db.get_style_presets()
-        detailed_style = db_presets.get(style.lower()) or STYLE_PROMPTS.get(style.lower(), style)
+        style_data = db_presets.get(style.lower())
+        if isinstance(style_data, dict):
+            detailed_style = style_data.get("prompt_value", STYLE_PROMPTS.get(style.lower(), style))
+        else:
+            detailed_style = STYLE_PROMPTS.get(style.lower(), style)
         
         full_prompt = f"{prompt}, {detailed_style}"
         
