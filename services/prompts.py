@@ -193,9 +193,9 @@ JSON만 반환하세요."""
 
 **외형 묘사 포함 요소:**
 - 성별, 예상 연령대
-- 얼굴 특징 (이목구비, 표정)
+- 얼굴 특징 (이목구비, 표정) - 스타일에 맞게 묘사 (예: 실사면 구체적으로, 만화면 단순하게)
 - 헤어스타일 및 색상
-- 체형
+- 체형 - 지정된 스타일에 맞게 적용 (예: 윔피키드 스타일이면 stick figure, simple line body 같이 묘사)
 - 의상 및 액세서리
 - 전체적인 분위기/인상
 
@@ -205,8 +205,8 @@ JSON만 반환하세요."""
         {{
             "name": "캐릭터 이름 또는 역할",
             "role": "주인공/조연/배경인물",
-            "description_ko": "외형 묘사 (한글, 2-3문장)",
-            "prompt_en": "Detailed English prompt for image generation. CRITICAL: Focus ONLY on permanent physical identity (gender, age, hair, skin, clothing). DO NOT include background, environment, or specific poses (like 'pointing' or 'shouting'). The character should be described in a neutral portrait way so that they can be placed in various scenes later. Strict NO background description."
+            "description_ko": "지정된 스타일에 맞는 외형 묘사 (한글, 2-3문장)",
+            "prompt_en": "Detailed English prompt for image generation. CRITICAL: 1. You MUST include keywords reflecting the '{visual_style}' style. 2. Focus on permanent physical identity adapted to this style (e.g. if cartoon, describe as cartoon character). 3. DO NOT include background, environment, or specific poses. Describe them in a neutral portrait way for a Character Sheet."
         }}
     ]
 }}
@@ -243,24 +243,65 @@ JSON만 반환하세요."""
         {{
             "scene_number": 1,
             "scene_title": "장면 요약 (예: '비밀을 알게 된 주인공')",
-            "scene_text": "대본 텍스트",
-            "script_start": "첫 어절",
-            "script_end": "끝 어절",
+            "scene_text": "해당 씬 구간의 원본 대본 내용을 요약 없이 그대로 인용 (절대 요약/압축 금지 — 원문 그대로, 최소 50자 이상)",
+            "script_start": "해당 구간 첫 어절 (원문 첫 단어)",
+            "script_end": "해당 구간 끝 어절 (원문 마지막 단어)",
             "estimated_seconds": 15,
             "visual_reasoning": "왜 이 연출을 선택했는지 (예: 긴장감을 고조시키기 위해 줌인 선택)",
             "prompt_ko": "이미지 묘사 (한글)",
-            "prompt_en": "{style_prefix}, [Detailed Visual Description], [Camera Angle & Movement], [Lighting & Atmosphere]"
+            "prompt_en": "{style_prefix}, [Detailed Visual Description], [Camera Angle & Movement], [Lighting & Atmosphere]",
+            "prompt_char": "(졸라맨 스타일 전용) 캐릭터 단독 이미지 프롬프트 (흰 배경). 다른 스타일은 빈 문자열로.",
+            "prompt_bg": "(졸라맨 스타일 전용) 캐릭터 없는 배경/씬 전용 이미지 프롬프트. 다른 스타일은 빈 문자열로.",
+            "motion_desc": "[Video AI motion prompt — 300자 이내 영어] [camera movement], [character action reflecting the scene narrative], [background/environment movement], [atmosphere/lighting]"
         }}
     ]
 }}
 
 [작성 규칙 - Strict Rules]
-- **prompt_en 구성**: 
+- **prompt_en 구성**:
   1. 스타일 프리픽스("{style_prefix}")로 시작할 것.
   2. 피사체와 배경을 아주 구체적으로 묘사할 것.
   3. **반드시** 문장 끝부분에 전문적인 **Cinematography Keywords**를 포함할 것.
-     (예: "Cinematic lighting, Shallow depth of field, Slow zoom in, Low angle shot, 4k, Highly detailed")
-- **NO TEXT**: 이미지 내에 글자, 말풍선, 자막이 절대 섞이지 않게 하세요.
+     (예: "Cinematic lighting, Shallow depth of field, Slow zoom in, Low angle shot, Highly detailed")
+     ⚠️ "4k", "8k", "4K", "UHD", "HD", "resolution" 등 해상도 키워드 절대 사용 금지 — 이미지 내 텍스트 워터마크를 유발합니다.
+  4. **모든 prompt_en 끝에 반드시 추가**: "no text, no words, no letters, no labels, no watermarks, no speech bubbles, no captions"
+- **motion_desc 구성 [영상 AI 전용 - 반드시 준수]**:
+  - **목적**: Seedance / Wan 2.1 Video AI에 전달되는 영상 모션 프롬프트. 씬의 감정과 서사를 시각적 움직임으로 표현.
+  - **길이**: **300자 이내** 영어
+  - **형식**: `[camera movement], [character action — 씬 감정에 맞게 구체적으로], [background/environment movement], [atmosphere]`
+  - **핵심 원칙**: "무엇이 어떻게 움직이는가"를 씬 서사에 맞게 구체적으로 기술. 범용적 표현 금지.
+  - **카메라 무브먼트** (씬 감정에 맞게 선택):
+    - 위기/붕괴: `slow push in`, `dramatic zoom in`, `slight camera shake`, `tilt down`
+    - 폭로/설명: `slow zoom out`, `pull back reveal`, `gentle pan across`
+    - 긴장/불안: `static shot with subtle sway`, `slow creep forward`, `slight handheld shake`
+    - 긍정/안정: `gentle pan right`, `slow zoom in`, `soft floating movement`
+  - **캐릭터 액션** (씬 감정에 맞게 선택):
+    - 충격/위기: `character stumbles back in shock`, `character covers mouth in disbelief`, `character stares wide-eyed`
+    - 결단/자신감: `character steps forward confidently`, `character nods firmly`
+    - 불안/걱정: `character paces nervously`, `character looks left and right frantically`
+    - 설명/강조: `character gestures expressively toward viewer`, `character points at background element`
+  - **배경 움직임** (씬에 생동감 부여):
+    - 위기 씬: `debris falls and scatters`, `buildings crumble slowly`, `smoke drifts upward`
+    - 경제 씬: `stock chart arrows animate downward`, `coins scatter`, `graph bars rise and fall`
+    - 군중 씬: `background figures shift and murmur`, `crowd ripples with movement`
+  - ✅ 좋은 예: `"slow push in toward character, character stumbles back in shock as building crumbles in background, debris falls from above, dramatic dark lighting with rising dust, tense atmosphere"`
+  - ✅ 좋은 예: `"pull back reveal, character gestures at rising bar charts, background crowd celebrates, warm golden light floods from windows, optimistic energy"`
+  - ❌ 나쁜 예: 이미지 외형 묘사 (`teal hoodie`, `white background` 등 정적 묘사)
+  - ❌ 나쁜 예: 범용 표현만 사용 (`character looks up`, `dramatic shadow play` 단독 사용)
+- **ABSOLUTELY NO TEXT IN IMAGE [최우선]**:
+  - 이미지 내에 어떠한 텍스트, 글자, 단어, 레이블, 자막, 워터마크, 말풍선도 절대 포함 금지.
+  - 해부도/다이어그램/포스터 등 원래 텍스트가 있는 소재를 묘사할 때도 글자 없이 시각적 요소만 묘사할 것.
+  - 대사 언어(한국어/일본어/영어)와 관계없이 이미지 내 모든 언어의 텍스트 금지.
+- **ANATOMY — EXACTLY TWO ARMS AND TWO HANDS [모든 스타일 공통 - 최우선]**:
+  - 팔 2개, 손 2개. 3개 이상 절대 금지.
+  - **반드시 LEFT/RIGHT arm 위치를 명시하고 마지막에 "There is no third hand or support object." 추가**:
+    - ❌ 금지: "character holding a book while thinking" → AI가 손 3개 생성
+    - ✅ 필수 (물건 들고 생각): "The left hand is clearly visible supporting the bottom of the book, while the right hand is raised to touch its chin in a thinking gesture. There is no third hand or support object."
+    - ✅ 필수 (가리키기): "The right hand points at [object]. The left hand rests on the hip. There is no third hand."
+    - ✅ 필수 (양손): "Both hands hold [object] in front. There is no third hand or support object."
+  - **색상 충돌 주의**: 손 색과 같은 색의 물체는 다른 색으로 묘사할 것.
+  - **불필요한 보조 물체 제거**: 받침대, 스탠드 등 제거.
+  - 모든 prompt_en에 반드시 포함: "strictly two arms and two hands, anatomically correct"
 - **JSON Only**: 설명 없이 오직 JSON 데이터만 반환하세요.
 """
 

@@ -29,7 +29,7 @@ class ReplicateService:
 
         try:
             # [USER MASTER SETTING APPLIED]
-            base_master = "Vertical cinematic animation, 9:16 aspect ratio, 1080x1920, smooth camera movement, subtle parallax depth effect, soft volumetric lighting, atmospheric particles, high quality anime webtoon style, dramatic color grading, film grain subtle, slow cinematic motion, emotional pacing"
+            base_master = "Vertical cinematic animation, 9:16 aspect ratio, 1080x1920, STRONG CONTINUOUS CAMERA MOVEMENT, subtle parallax depth effect, soft volumetric lighting, atmospheric particles, high quality anime webtoon style, dramatic color grading, film grain subtle, highly dynamic motion, characters breathing"
             
             if prompt:
                 # 씬별 특정 프롬프트가 있으면 마스터와 결합
@@ -93,18 +93,46 @@ class ReplicateService:
     async def _generate_basic(self, image_path: str, prompt: str, duration: float = 5.0):
         """기본 Wan 2.1 생성 (wavespeedai/wan-2.1-i2v-480p)"""
         from PIL import Image
+        import time
+        from config import config
         
-        # [NEW] Detect Aspect Ratio for Wan 2.1 (480p)
-        target_size = "832x480" # Default Landscape (16:9 approx)
+        target_size = "480x832" # Force Vertical 9:16 for Shorts
+        use_image_path = image_path
+        
         try:
             with Image.open(image_path) as img:
                 w, h = img.size
-                if h > w:
-                    target_size = "480x832" # Vertical (9:16 approx)
-                    print(f"📐 [Video Gen] Vertical Image Detected. Using {target_size}")
-        except: pass
+                target_ratio = 480 / 832
+                img_ratio = w / h
+                
+                # [강제 ZOOM-TO-FILL 크롭] 
+                # 비율이 다르면 넘어가는 부분을 잘라내어 위/아래/좌/우 까맣게 나오는 레터박스 방지
+                if abs(img_ratio - target_ratio) > 0.01:
+                    if img_ratio > target_ratio:
+                        # 이미지가 가로로 더 김 (좌우 크롭)
+                        new_w = int(h * target_ratio)
+                        left = (w - new_w) // 2
+                        img_cropped = img.crop((left, 0, left + new_w, h))
+                    else:
+                        # 이미지가 세로로 더 김 (위아래 크롭)
+                        new_h = int(w / target_ratio)
+                        top = (h - new_h) // 2
+                        img_cropped = img.crop((0, top, w, top + new_h))
+                else:
+                    img_cropped = img.copy()
+                
+                # 정확히 480x832 해상도로 리사이징
+                img_cropped = img_cropped.resize((480, 832), Image.Resampling.LANCZOS)
+                
+                temp_filename = f"crop_{int(time.time()*1000)}.png"
+                use_image_path = os.path.join(config.OUTPUT_DIR, temp_filename)
+                img_cropped.save(use_image_path, "PNG")
+                print(f"📐 [Video Gen] Zoom-to-Fill: Image cropped strictly to 9:16 (480x832) to prevent black bars.")
+        except Exception as e:
+            print(f"❌ [Video Gen] Cropping error, using original: {e}")
+            pass
 
-        with open(image_path, "rb") as img_file:
+        with open(use_image_path, "rb") as img_file:
             input_data = {
                 "image": img_file,
                 "prompt": prompt,
@@ -218,7 +246,100 @@ class ReplicateService:
             return str(output[0])
         return None
 
+    async def generate_image(self, prompt: str, aspect_ratio: str = "1:1", num_outputs: int = 1):
+        """
+        Replicate를 사용하여 이미지 생성
+        - 졸라맨/윔피 스타일: flux-dev (50스텝, anatomy 지시 준수율 높음)
+        - 그 외: flux-schnell (빠름)
+        """
+        if not self.check_api_key():
+            raise Exception("Replicate API Key is missing.")
+
+        print(f"🎨 [Image Gen] Replicate: {prompt[:100]}... (Aspect Ratio: {aspect_ratio})")
+
+        # 스타일 감지 (Wimpy Kid 키워드)
+        wimpy_keywords = ["wimpy", "stick figure", "stickman", "졸라맨", "cyan tunic", "cyan long-sleeved", "teal tunic", "cyan sleeveless", "teal-blue hoodie", "teal blue hoodie"]
+        is_wimpy = any(kw in prompt.lower() for kw in wimpy_keywords)
+
+        # prompt_char(흰 배경 단일 캐릭터) vs prompt_en(통합 씬) 구분
+        # "pure white background" + "isolated" 가 있으면 단일 캐릭터 이미지 → 팔 제한 적용
+        # "youtube educational" 또는 씬 프롬프트면 → 팔 제한 없이 씬 품질만 강화
+        is_char_only = (
+            "pure white background" in prompt.lower() and
+            "isolated" in prompt.lower()
+        )
+        is_scene_prompt = "youtube educational" in prompt.lower() or not is_char_only
+
+        # 공통 suffix
+        suffix = ", no text, no words, no letters"
+
+        if is_wimpy and is_char_only:
+            # 단일 캐릭터 이미지: 팔 제한 강제 적용
+            arm_prefix = (
+                "EXACTLY TWO ARMS ONLY. NO EXTRA ARMS. NO EXTRA HANDS. NO THIRD ARM. "
+                "BOTH ARMS VISIBLE AND ATTACHED TO SHOULDERS. "
+            )
+            wimpy_suffix = (
+                ", the character has exactly one left arm and one right arm, total two arms and two hands only,"
+                " no third arm, no fourth arm, no duplicate limbs, no extra appendages,"
+                " each arm connects directly from shoulder,"
+                " full-body minimalist cartoon stick-figure, bold black outlines, flat 2D vector,"
+                " white circular head with stylized dark brown swept-back hair with a slight front flip"
+                " (NOT black hair NOT white hair NOT blue hair NOT teal hair — strictly DARK BROWN),"
+                " dot eyes, wide arc smile,"
+                " vibrant teal-blue hoodie with front pocket, long black sleeves with black cuffs,"
+                " solid black trousers, white sneakers with black trim and laces,"
+                " small rounded fist-shaped hands with solid black outlines (NOT white balls NOT white circles),"
+                " pure white background, no background elements"
+            )
+            enforced_prompt = arm_prefix + prompt + suffix + wimpy_suffix
+        elif is_wimpy and is_scene_prompt:
+            # 통합 씬 이미지: 팔 제한 없이 씬 품질 강화
+            scene_suffix = (
+                ", YouTube educational cartoon style, clean thick black outlines,"
+                " flat bold vibrant colors, layered scene depth, warm vibrant lighting"
+            )
+            enforced_prompt = prompt + suffix + scene_suffix
+        else:
+            enforced_prompt = prompt + suffix
+
+        # 윔피 스타일은 Flux Dev (품질 우선), 그 외는 Flux Schnell
+        if is_wimpy:
+            model = "black-forest-labs/flux-dev"
+            input_data = {
+                "prompt": enforced_prompt,
+                "aspect_ratio": aspect_ratio,
+                "output_format": "png",
+                "num_outputs": num_outputs,
+                "num_inference_steps": 40,
+                "guidance": 5.0
+            }
+        else:
+            model = "black-forest-labs/flux-schnell"
+            input_data = {
+                "prompt": enforced_prompt,
+                "aspect_ratio": aspect_ratio,
+                "output_format": "png",
+                "num_outputs": num_outputs
+            }
+
+        try:
+            loop = asyncio.get_event_loop()
+            output = await loop.run_in_executor(None, self._run_replicate_model, model, input_data)
+
+            if output and len(output) > 0:
+                # URL 리스트로 반환됨 -> 첫 번째 결과 다운로드
+                url = str(output[0])
+                image_bytes = await self._download_video(url)
+                if image_bytes:
+                    return [image_bytes] # List of bytes consistent with gemini_service
+            return None
+        except Exception as e:
+            print(f"❌ [Replicate Image Gen] Error: {e}")
+            raise e
+
     def _run_replicate_model(self, model_id, input_data):
+
         """Generic runner for any model"""
         try:
             return replicate.run(model_id, input=input_data)

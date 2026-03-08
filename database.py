@@ -519,6 +519,115 @@ def migrate_db():
            cursor.execute("ALTER TABLE style_presets ADD COLUMN image_url TEXT")
         except sqlite3.OperationalError:
            pass
+    # [NEW] 마이그레이션: style_presets 테이블에 gemini_instruction 컬럼 추가
+    cursor.execute("PRAGMA table_info(style_presets)")
+    style_presets_columns2 = [info[1] for info in cursor.fetchall()]
+    if 'gemini_instruction' not in style_presets_columns2:
+        print("[Migration] Adding gemini_instruction column to style_presets table...")
+        try:
+            cursor.execute("ALTER TABLE style_presets ADD COLUMN gemini_instruction TEXT")
+        except sqlite3.OperationalError:
+            pass
+    # [Migration] project_sources 테이블에 type 컬럼 추가 (source_type 과 통일)
+    cursor.execute("PRAGMA table_info(project_sources)")
+    ps_cols = [info[1] for info in cursor.fetchall()]
+    if 'type' not in ps_cols:
+        print("[Migration] Adding 'type' column to project_sources table...")
+        try:
+            cursor.execute("ALTER TABLE project_sources ADD COLUMN type TEXT")
+            # 기존 source_type 값을 type 으로 복사
+            cursor.execute("UPDATE project_sources SET type = source_type WHERE type IS NULL")
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+
+    # wimpy 프리셋의 gemini_instruction 초기값/업데이트 설정
+    _wimpy_default_instruction = """[졸라맨 스타일 전용 - 필수 준수]
+이 영상은 졸라맨 스타일입니다. 각 씬마다 아래 3가지 프롬프트를 모두 작성하세요:
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【prompt_char — 캐릭터 전용 이미지 프롬프트 (흰 배경)】
+아래 3단계를 반드시 조합하여 작성합니다:
+
+1단계 [주제 및 스타일] — 고정 문구 (절대 변경 금지):
+"A full-body minimalist cartoon illustration of a cute stick-figure style character with bold black outlines, standing on a pure white background. Soft, even lighting, flat 2D vector graphic style, high-definition, precise clean lines. Strictly two arms and two hands. No extra limbs, no extra hands."
+
+2단계 [캐릭터 특징] — 고정 문구 (절대 변경 금지):
+"The character has a simple white circular head with stylized dark brown swept-back hair with a slight front flip (NOT black hair, NOT white hair, NOT blue hair, NOT teal hair — strictly DARK BROWN), simple dot eyes, and a wide cheerful arc smile. The hands are small rounded fists with black outlines (NOT white balls, NOT white circles). The character wears a vibrant solid teal-blue hoodie with a front pocket, long black sleeves with black cuffs, solid black trousers, and white sneakers with black trim and laces."
+
+3단계 [포즈] — 씬에 맞는 포즈 선택 (물건 드는 포즈 절대 금지):
+❌ 금지: holding, carrying, gripping, fists raised, arms raised, punching, flexing
+✅ SAFE-A: "The character is standing with both arms hanging naturally at its sides."
+✅ SAFE-B: "The character is standing and pointing at [대상] with its right hand. Its left arm hangs at its side."
+✅ SAFE-C: "The character is standing and looking down at a small book resting on a stand. Its two hands are clasped tightly together in front of its chest in a deep thought gesture, not touching the book."
+✅ SAFE-D: "The character sits at a wooden table, resting both its hands firmly under its chin, looking down thoughtfully."
+
+마지막 고정 문구: "Isolated on a pure white background. No background elements. no text, no words, no letters"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【prompt_bg — 배경/씬 전용 이미지 프롬프트 (풍부한 배경 필수)】
+씬 내용에 맞는 풍부하고 생동감 있는 배경을 묘사합니다:
+- 스타일: flat 2D vector illustration, bold clean black outlines, same art style as wimpy character
+- 배경 풍부화 (필수): 씬 상황을 구체적으로 묘사하는 오브젝트/소품을 5개 이상 포함
+  - ❌ 금지: "simple shapes만 있는 텅 빈 배경", "empty room", "minimal background"
+  - ✅ 권장: 구체적인 소품 나열 + 전경/중경/배경 3레이어로 깊이감 부여
+- 배경 엑스트라 허용: 씬 분위기에 맞는 단순한 stick-figure 형태의 배경 인물/군중 포함 가능
+  - (단, 메인 캐릭터보다 훨씬 작고 단순하게 — 실루엣 수준, 상세 없이)
+  - 예: 사무실 씬 → 배경에 작은 직원 실루엣들이 컴퓨터 앞에 앉아 있는 장면
+  - 예: 군중 씬 → 매우 작은 stick-figure 군중들이 배경을 채우는 장면
+- 씬 내용 반영 예시:
+  - 무역/경제 씬 → 두 나라 국기, 무역 차트/그래프, 공장, 컨테이너 선, 도시 스카이라인, 화살표
+  - 사무실/회의 씬 → 컴퓨터, 서류, 인포그래픽 차트, 화분, 창문 너머 도시 전경, 배경 직원 실루엣들
+  - 재해/위기 씬 → 무너진 건물, 균열, 파편, 연기, 구조 차량, 경보등
+  - 독서/학습 씬 → 높은 책꽂이, 책상과 독서등, 지구본, 화분, 창문
+마지막 고정 문구: "flat 2D vector style, bold outlines, no main protagonist, no text, no words, no letters"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【prompt_en — 통합 씬 프롬프트 (핵심 — 가장 공들여 작성)】
+씬 전체를 하나의 완성된 일러스트레이션으로 묘사합니다. 반드시 아래 구조를 따르세요:
+
+고정 스타일 키워드 (문장 맨 앞에 반드시 포함):
+"YouTube educational cartoon illustration, stick-figure style character with teal-blue hoodie, clean thick black outlines, flat bold vibrant colors, round white heads and expressive dot eyes, NO necktie NO suit NO business attire NO blue hair,"
+
+씬 구성 요소 (순서대로 묘사):
+1. 메인 캐릭터: 씬에 맞는 자연스러운 포즈로 장면 속에 배치. 티얼-블루 후드티, 검은 바지, 흰 운동화.
+2. 배경 엑스트라: 씬 분위기에 맞게 주변에 다른 캐릭터들도 자유롭게 배치 (다양한 색상 옷).
+3. 환경/소품: 씬 상황에 맞는 구체적 소품 5개 이상 나열 (가구, 기기, 인테리어, 자연 등).
+4. 분위기: 조명, 색감, 원근감을 포함한 공간감 묘사.
+
+마지막 고정 문구: "layered scene depth, warm vibrant colors, no text, no words, no letters, no labels, no watermarks, no captions"
+
+■ prompt_char 완성 예시 (SAFE-A):
+"A full-body minimalist cartoon illustration of a cute stick-figure style character with bold black outlines, standing on a pure white background. Flat 2D vector graphic style. Strictly two arms and two hands. No extra limbs. The character has a simple white circular head with stylized dark brown swept-back hair with a slight front flip (NOT black hair, NOT white hair, NOT blue hair — strictly DARK BROWN), simple dot eyes, and a wide cheerful arc smile. The hands are small rounded fists with black outlines (NOT white balls, NOT white circles). The character wears a vibrant solid teal-blue hoodie with a front pocket, long black sleeves with black cuffs, solid black trousers, and white sneakers with black trim and laces. The character is standing with both arms hanging naturally at its sides. Isolated on a pure white background. No background elements. no text, no words, no letters"
+
+■ prompt_bg 완성 예시 (사무실 씬):
+"A flat 2D vector illustration of a busy modern office interior. Large open floor plan with rows of work desks and computers, wall-mounted infographic charts and graphs, indoor plants, bright ceiling lights, and tall windows showing a city skyline outside. Small simple stick-figure silhouette employees seated at desks in the background. Colorful decorative elements, layered foreground and background depth. Bold clean black outlines, vibrant flat colors. no main protagonist, no text, no words, no letters"
+
+■ prompt_en 완성 예시 (사무실 회의 씬):
+"YouTube educational cartoon illustration, clean thick black outlines, flat bold vibrant colors, simple cartoon characters with round white heads and expressive dot eyes, a cheerful cartoon character in a teal-blue hoodie standing at the head of a conference table holding up a document, four colleagues in colorful shirts seated around the table with tablets and papers, large arched windows behind them showing a bright sunny city skyline with clouds, a growth chart on the wall to the right, warm overhead lighting, wooden conference table with scattered documents, layered scene depth, warm vibrant colors, no text, no words, no letters, no labels, no watermarks, no captions"
+
+■ prompt_en 완성 예시 (무역/경제 씬):
+"YouTube educational cartoon illustration, clean thick black outlines, flat bold vibrant colors, simple cartoon characters with round white heads and expressive dot eyes, a concerned cartoon character in a teal-blue hoodie standing in front of a large world map, two giant national flags on either side clashing, cargo containers stacked on the left, semiconductor chip icons on the right, downward red arrows on a price chart in the foreground, serious background officials in suits watching, bright studio lighting, bold graphic design elements, layered scene depth, warm vibrant colors, no text, no words, no letters, no labels, no watermarks, no captions"
+"""
+    cursor.execute("SELECT gemini_instruction FROM style_presets WHERE style_key = 'wimpy'")
+    _wimpy_row = cursor.fetchone()
+    # 비어있거나 구버전이면 업데이트 (simple shapes / 하위 호환용 / YouTube educational 미포함)
+    _needs_update = (
+        not _wimpy_row or
+        not _wimpy_row[0] or
+        "simple shapes" in (_wimpy_row[0] or "").lower() or
+        "clean simple illustration" in (_wimpy_row[0] or "").lower() or
+        "하위 호환용" in (_wimpy_row[0] or "") or
+        "youtube educational" not in (_wimpy_row[0] or "").lower() or
+        "swept-back black hair" in (_wimpy_row[0] or "").lower()
+    )
+    if _wimpy_row and _needs_update:
+        cursor.execute(
+            "UPDATE style_presets SET gemini_instruction = ? WHERE style_key = 'wimpy'",
+            (_wimpy_default_instruction,)
+        )
+        conn.commit()
+        print("[Migration] wimpy gemini_instruction updated to v2 (richer backgrounds)")
 
     # [NEW] 마이그레이션: thumbnail_style_presets 테이블에 image_url 컬럼 추가
     cursor.execute("PRAGMA table_info(thumbnail_style_presets)")
@@ -600,6 +709,12 @@ def migrate_db():
         cursor.execute("ALTER TABLE project_settings ADD COLUMN app_mode TEXT DEFAULT 'longform'")
     except sqlite3.OperationalError:
         pass
+
+    for col in ['webtoon_source_dir', 'psd_exclude_layer']:
+        try:
+            cursor.execute(f"ALTER TABLE project_settings ADD COLUMN {col} TEXT")
+        except sqlite3.OperationalError:
+            pass
         
     # [NEW] Migration for script start/end in image_prompts
     cursor.execute("PRAGMA table_info(image_prompts)")
@@ -619,6 +734,20 @@ def migrate_db():
         print("[Migration] Adding scene_title to image_prompts...")
         try: cursor.execute("ALTER TABLE image_prompts ADD COLUMN scene_title TEXT")
         except: pass
+
+    # [NEW] Audio & Effects Columns migration
+    for col in ['video_url', 'sfx_prompt', 'bgm_prompt', 'sfx_url', 'bgm_url', 'fade_in', 'motion_desc', 'engine']:
+        if col not in image_prompts_columns:
+            print(f"[Migration] Adding {col} to image_prompts...")
+            try: cursor.execute(f"ALTER TABLE image_prompts ADD COLUMN {col} TEXT")
+            except: pass
+
+    # [NEW] Two-prompt compositing columns (prompt_char: character-only, prompt_bg: background-only)
+    for col in ['prompt_char', 'prompt_bg']:
+        if col not in image_prompts_columns:
+            print(f"[Migration] Adding {col} to image_prompts...")
+            try: cursor.execute(f"ALTER TABLE image_prompts ADD COLUMN {col} TEXT DEFAULT ''")
+            except: pass
 
     # [FIX] Missing subtitle columns migration
     try:
@@ -1215,71 +1344,7 @@ def get_script_structure(project_id: int) -> Optional[Dict]:
 
 # ============ 이미지 프롬프트 ============
 
-def save_image_prompts(project_id: int, prompts: List[Dict]):
-    """이미지 프롬프트 저장"""
-    conn = get_db()
-    cursor = conn.cursor()
-
-    cursor.execute("DELETE FROM image_prompts WHERE project_id = ?", (project_id,))
-
-    for i, prompt in enumerate(prompts):
-        cursor.execute("""
-            INSERT INTO image_prompts
-            (project_id, scene_number, scene_text, prompt_ko, prompt_en, image_url, script_start, script_end, scene_title, video_url, focal_point_y)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            project_id,
-            i + 1,
-            prompt.get('scene_text') or prompt.get('scene') or '', # scene_text
-            prompt.get('prompt_ko') or '',
-            prompt.get('prompt_en') or prompt.get('prompt_content') or prompt.get('prompt') or '',
-            prompt.get('image_url'),
-            prompt.get('script_start') or '',
-            prompt.get('script_end') or '',
-            prompt.get('scene_title') or '', # scene_title
-            prompt.get('video_url') or '', # video_url
-            prompt.get('focal_point_y', 0.5)
-        ))
-
-    conn.commit()
-    conn.close()
-
-def get_image_prompts(project_id: int) -> List[Dict]:
-    """이미지 프롬프트 조회"""
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    # Check columns first (for safety during migration transition)
-    cursor.execute("PRAGMA table_info(image_prompts)")
-    cols = [info[1] for info in cursor.fetchall()]
-    
-    cursor.execute(
-        "SELECT * FROM image_prompts WHERE project_id = ? ORDER BY scene_number",
-        (project_id,)
-    )
-    rows = cursor.fetchall()
-    conn.close()
-    
-    prompts = []
-    for row in rows:
-        d = dict(row)
-        # Ensure new fields are present and not None
-        # ensure fields
-        d['script_start'] = d.get('script_start') or ''
-        d['script_end'] = d.get('script_end') or ''
-        d['scene_title'] = d.get('scene_title') or ''
-        d['video_url'] = d.get('video_url') or ''
-        d['focal_point_y'] = d.get('focal_point_y') if d.get('focal_point_y') is not None else 0.5
-        
-        # [DEBUG] Check persistence matches - including image_url for frontend display troubleshooting
-        scene_num = d.get('scene_number')
-        img_url = d.get('image_url')
-        vid_url = d.get('video_url')
-        print(f"[DEBUG_DB] Scene {scene_num}: image_url='{img_url}', video_url='{vid_url}'")
-        
-        prompts.append(d)
-        
-    return prompts
+# Redundant versions removed (kept final ones at end of file)
 
 def update_image_prompt_url(project_id: int, scene_number: int, image_url: str):
     """특정 장면의 이미지 URL 업데이트"""
@@ -2122,146 +2187,86 @@ def save_thumbnail_style_preset(style_key: str, prompt_value: str, image_url: st
     conn.commit()
     conn.close()
 
-# [OVERRIDE] Redefine get_image_prompts to force update logic
-
-# [OVERRIDE] Redefine get_image_prompts to force update logic
-def get_image_prompts(project_id: int):
-    # Force reload checks
-    print(f"[DEBUG_OVERRIDE] get_image_prompts called for {project_id}")
-    
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    cursor.execute(
-        "SELECT * FROM image_prompts WHERE project_id = ? ORDER BY scene_number",
-        (project_id,)
-    )
-    rows = cursor.fetchall()
-    conn.close()
-    
-    prompts = []
-    for row in rows:
-        d = dict(row)
-        # Ensure new fields are present and not None
-        d['script_start'] = d.get('script_start') or ''
-        d['script_end'] = d.get('script_end') or ''
-        d['scene_title'] = d.get('scene_title') or ''
-        d['video_url'] = d.get('video_url') or ''
-        
-        prompts.append(d)
-        
-
-# [OVERRIDE] Redefine save_image_prompts to force update logic
+# Redundant overrides removed. Use final version below.
+# [OVERRIDE] Final version of save_image_prompts
 def save_image_prompts(project_id: int, prompts: list):
     import json
-    # override
+    print(f"[DB] save_image_prompts called for {project_id} with {len(prompts)} items")
     
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute("DELETE FROM image_prompts WHERE project_id = ?", (project_id,))
+    try:
+        cursor.execute("DELETE FROM image_prompts WHERE project_id = ?", (project_id,))
 
-    for i, prompt in enumerate(prompts):
-        s_start = prompt.get('script_start') or ''
-        s_end = prompt.get('script_end') or ''
-        s_title = prompt.get('scene_title') or ''
-        
-        cursor.execute("""
-            INSERT INTO image_prompts
-            (project_id, scene_number, scene_text, prompt_ko, prompt_en, image_url, script_start, script_end, scene_title, video_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            project_id,
-            i + 1,
-            prompt.get('scene_text') or prompt.get('scene') or '', 
-            prompt.get('prompt_ko') or '',
-            prompt.get('prompt_en') or prompt.get('prompt_content') or prompt.get('prompt') or '',
-            prompt.get('image_url'),
-            s_start,
-            s_end,
-            s_title,
-            prompt.get('video_url', '')
-        ))
+        for i, prompt in enumerate(prompts):
+            cursor.execute("""
+                INSERT INTO image_prompts
+                (project_id, scene_number, scene_text, prompt_ko, prompt_en, image_url,
+                 script_start, script_end, scene_title, video_url,
+                 sfx_prompt, bgm_prompt, sfx_url, bgm_url, fade_in, motion_desc, engine,
+                 prompt_char, prompt_bg)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                project_id,
+                i + 1,
+                prompt.get('scene_text') or prompt.get('scene') or prompt.get('prompt_ko') or '',
+                prompt.get('prompt_ko') or '',
+                prompt.get('prompt_en') or prompt.get('prompt_content') or prompt.get('prompt') or '',
+                prompt.get('image_url'),
+                prompt.get('script_start') or '',
+                prompt.get('script_end') or '',
+                prompt.get('scene_title') or '',
+                prompt.get('video_url', ''),
+                prompt.get('sfx_prompt', ''),
+                prompt.get('bgm_prompt', ''),
+                prompt.get('sfx_url', ''),
+                prompt.get('bgm_url', ''),
+                prompt.get('fade_in', ''),
+                prompt.get('motion_desc', ''),
+                prompt.get('engine', 'wan'),
+                prompt.get('prompt_char', ''),
+                prompt.get('prompt_bg', '')
+            ))
+        conn.commit()
+    except Exception as e:
+        print(f"[DB Error] save_image_prompts: {e}")
+    finally:
+        conn.close()
 
-    conn.commit()
-    conn.close()
-
-# [OVERRIDE] Redefine get_image_prompts to force update logic
+# [OVERRIDE] Final version of get_image_prompts
 def get_image_prompts(project_id: int):
-    # Force reload checks
-    
     conn = get_db()
     cursor = conn.cursor()
     
-    cursor.execute(
-        "SELECT * FROM image_prompts WHERE project_id = ? ORDER BY scene_number",
-        (project_id,)
-    )
-    rows = cursor.fetchall()
-    conn.close()
-    
-    prompts = []
-    for row in rows:
-        d = dict(row)
-        # Ensure new fields are present and not None
-        d['script_start'] = d.get('script_start') or ''
-        d['script_end'] = d.get('script_end') or ''
-        d['scene_title'] = d.get('scene_title') or ''
-        d['video_url'] = d.get('video_url') or ''
+    try:
+        cursor.execute(
+            "SELECT * FROM image_prompts WHERE project_id = ? ORDER BY scene_number",
+            (project_id,)
+        )
+        rows = cursor.fetchall()
         
-        # [NEW] Audio Fields
-        d['sfx_prompt'] = d.get('sfx_prompt') or ''
-        d['bgm_prompt'] = d.get('bgm_prompt') or ''
-        d['sfx_url'] = d.get('sfx_url') or ''
-        d['bgm_url'] = d.get('bgm_url') or ''
-        
-        # print(f"[DEBUG_OVERRIDE] Scene {d.get('scene_number')}: '{d.get('scene_title')}'")
-        
-        prompts.append(d)
-        
-    return prompts
-
-# [OVERRIDE] Redefine save_image_prompts to force update logic
-def save_image_prompts(project_id: int, prompts: list):
-    import json
-    # override
-    print(f"[DEBUG_OVERRIDE] save_image_prompts called for {project_id} with {len(prompts)} items")
-    
-    conn = get_db()
-    cursor = conn.cursor()
-
-    cursor.execute("DELETE FROM image_prompts WHERE project_id = ?", (project_id,))
-
-    for i, prompt in enumerate(prompts):
-        s_start = prompt.get('script_start') or ''
-        s_end = prompt.get('script_end') or ''
-        s_title = prompt.get('scene_title') or ''
-        
-        # print(f"[DEBUG_OVERRIDE_SAVE] Saving Scene {i+1}: '{s_title}' Keys={list(prompt.keys())}")
-        
-        cursor.execute("""
-            INSERT INTO image_prompts
-            (project_id, scene_number, scene_text, prompt_ko, prompt_en, image_url, script_start, script_end, scene_title, video_url, sfx_prompt, bgm_prompt, sfx_url, bgm_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            project_id,
-            i + 1,
-            prompt.get('scene_text') or prompt.get('scene') or '', 
-            prompt.get('prompt_ko') or '',
-            prompt.get('prompt_en') or prompt.get('prompt_content') or prompt.get('prompt') or '',
-            prompt.get('image_url'),
-            s_start,
-            s_end,
-            s_title,
-            prompt.get('video_url', ''),
-            prompt.get('sfx_prompt', ''),
-            prompt.get('bgm_prompt', ''),
-            prompt.get('sfx_url', ''),
-            prompt.get('bgm_url', '')
-        ))
-
-    conn.commit()
-    conn.close()
+        prompts = []
+        for row in rows:
+            d = dict(row)
+            # Ensure all keys exist for frontend compatibility
+            fields = ['script_start', 'script_end', 'scene_title', 'video_url',
+                      'sfx_prompt', 'bgm_prompt', 'sfx_url', 'bgm_url', 'fade_in', 'motion_desc', 'engine',
+                      'prompt_char', 'prompt_bg']
+            for f in fields:
+                if f not in d or d[f] is None:
+                    d[f] = ''
+            
+            # [FIX] Default engine should be 'wan' if empty
+            if not d.get('engine'): d['engine'] = 'wan'
+            
+            prompts.append(d)
+        return prompts
+    except Exception as e:
+        print(f"[DB Error] get_image_prompts: {e}")
+        return []
+    finally:
+        conn.close()
 
 # [NEW] Autopilot Presets Helper
 def save_autopilot_preset(name: str, settings: dict):
@@ -2308,14 +2313,15 @@ def get_style_presets():
     cursor.execute("SELECT * FROM style_presets")
     rows = cursor.fetchall()
     conn.close()
-    
-    # {style_key: {prompt_value, image_url}} 형태로 반환
+
+    # {style_key: {prompt_value, image_url, gemini_instruction}} 형태로 반환
     result = {}
     for row in rows:
         row_dict = dict(row)
         result[row_dict['style_key']] = {
             'prompt_value': row_dict['prompt_value'],
-            'image_url': row_dict.get('image_url')
+            'image_url': row_dict.get('image_url'),
+            'gemini_instruction': row_dict.get('gemini_instruction') or ''
         }
     return result
 
@@ -2337,36 +2343,46 @@ def get_style_preset(style_key: str) -> Optional[Dict]:
     return None
 
 
-def save_style_preset(style_key: str, prompt_value: str, image_url: str = None):
+def save_style_preset(style_key: str, prompt_value: str, image_url: str = None, gemini_instruction: str = None):
     """이미지 스타일 프리셋 저장"""
     conn = get_db()
     cursor = conn.cursor()
-    
+
     # Check if exists
     cursor.execute("SELECT * FROM style_presets WHERE style_key = ?", (style_key,))
     existing = cursor.fetchone()
-    
+
     if existing:
-        # Update (preserve image_url if not provided)
-        if image_url is None:
+        if image_url is None and gemini_instruction is None:
             cursor.execute("""
-                UPDATE style_presets 
-                SET prompt_value = ?, updated_at = CURRENT_TIMESTAMP 
+                UPDATE style_presets
+                SET prompt_value = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE style_key = ?
             """, (prompt_value, style_key))
-        else:
+        elif image_url is None:
             cursor.execute("""
-                UPDATE style_presets 
-                SET prompt_value = ?, image_url = ?, updated_at = CURRENT_TIMESTAMP 
+                UPDATE style_presets
+                SET prompt_value = ?, gemini_instruction = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE style_key = ?
+            """, (prompt_value, gemini_instruction, style_key))
+        elif gemini_instruction is None:
+            cursor.execute("""
+                UPDATE style_presets
+                SET prompt_value = ?, image_url = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE style_key = ?
             """, (prompt_value, image_url, style_key))
+        else:
+            cursor.execute("""
+                UPDATE style_presets
+                SET prompt_value = ?, image_url = ?, gemini_instruction = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE style_key = ?
+            """, (prompt_value, image_url, gemini_instruction, style_key))
     else:
-        # Insert
         cursor.execute("""
-            INSERT INTO style_presets (style_key, prompt_value, image_url) 
-            VALUES (?, ?, ?)
-        """, (style_key, prompt_value, image_url))
-    
+            INSERT INTO style_presets (style_key, prompt_value, image_url, gemini_instruction)
+            VALUES (?, ?, ?, ?)
+        """, (style_key, prompt_value, image_url, gemini_instruction))
+
     conn.commit()
     conn.close()
 

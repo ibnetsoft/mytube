@@ -380,10 +380,28 @@ class GeminiService:
                 is_stylistic = any(kw in prompt.lower() for kw in stylistic_keywords)
                 contains_photo = any(kw in prompt.lower() for kw in ["photo", "realistic", "8k", "cinematic"])
                 
+                is_wimpy = any(kw in prompt.lower() for kw in ["wimpy", "stick figure", "stickman", "졸라맨", "cyan tunic", "cyan long-sleeved", "teal tunic", "cyan sleeveless", "teal-blue hoodie", "teal blue hoodie"])
+
                 final_prompt = prompt
+                # 비실사 스타일: 실사 키워드 차단
                 if is_stylistic and not contains_photo:
-                    # Append massive negative reinforcement to force the style and avoid unwanted text
-                    final_prompt += ". NO PHOTOREALISM. NO 3D RENDER. NO DEPTH OF FIELD. FLAT 2D STYLE ONLY. ABSOLUTELY NO REALISTIC TEXTURES. NO TEXT. NO WORDS. NO LETTERS. NO ALPHABET."
+                    final_prompt += ", flat 2D style, no photorealism, no text, no words"
+                # 졸라맨: arm 강제 문구를 앞에 추가 + 뒤 suffix 강화
+                if is_wimpy:
+                    final_prompt = (
+                        "EXACTLY TWO ARMS ONLY. NO EXTRA ARMS. NO EXTRA HANDS. "
+                        + final_prompt
+                        + ", the character has exactly one left arm and one right arm total,"
+                        " no third arm no fourth arm no duplicate limbs,"
+                        " full-body minimalist cartoon stick-figure, bold black outlines,"
+                        " flat 2D vector no gradients no 3D, white circular head with swept-back black hair,"
+                        " dot eyes, arc smile, teal-blue hoodie with front pocket, long black sleeves with black cuffs,"
+                        " black trousers, white sneakers with black trim,"
+                        " small rounded fist-shaped hands with black outlines (NOT white balls NOT white circles),"
+                        " pure white background, single scene"
+                    )
+                # 모든 스타일 공통: 단일 이미지 + 해부학
+                final_prompt += ", single person, exactly two arms and two hands only, anatomically correct, no extra limbs, NO THREE ARMS, NO FOUR ARMS, NO MULTIPLE LIMBS, NO MUTATED HANDS"
 
                 payload = {
                     "instances": [{"prompt": final_prompt}],
@@ -948,7 +966,125 @@ class GeminiService:
                 pass
         return []
 
-    async def generate_image_prompts_from_script(self, script: str, duration_seconds: int, style_prompt: str = None, characters: List[dict] = None, target_scene_count: int = None) -> List[dict]:
+    def _sanitize_wimpy_prompt(self, prompt: str) -> str:
+        """졸라맨 프롬프트에서 복잡한 팔 포즈를 SAFE 포즈로 교체"""
+        import re
+
+        # 물건 들기 패턴
+        holding_patterns = [
+            r'holding\s+\w+',
+            r'carrying\s+\w+',
+            r'gripping\s+\w+',
+            r'holds\s+\w+',
+            r'carries\s+\w+',
+            r'hold(?:ing)?\s+(?:a|an|the)\s+\w+',
+            r'carry(?:ing)?\s+(?:a|an|the)\s+\w+',
+            r'supporting\s+(?:a|an|the)\s+\w+',
+        ]
+
+        # 팔/주먹 들기 패턴 — Flux가 3번째 팔을 추가하는 원인
+        raised_arm_patterns = [
+            r'fist[s]?\s+(?:raised|up|pump|pump(?:ing)?|clench(?:ed)?)',
+            r'raised\s+fist[s]?',
+            r'(?:both\s+)?arms?\s+(?:raised|up|extended|outstretched|lifted|spread)',
+            r'(?:left|right)\s+arm\s+(?:raised|up|extended|lifted)',
+            r'punch(?:ing)?',
+            r'flex(?:ing)?\s+(?:muscle|arm|bicep)',
+            r'muscle[s]?\s+flex',
+            r'clench(?:ed|ing)?\s+fist[s]?',
+            r'fist[s]?\s+clench',
+            r'arms?\s+wide',
+            r'wide\s+arms?',
+            r'outstretched\s+arms?',
+            r'victory\s+pose',
+            r'triumphant\s+pose',
+            r'power\s+pose',
+        ]
+
+        has_holding = any(re.search(p, prompt, re.IGNORECASE) for p in holding_patterns)
+        has_raised = any(re.search(p, prompt, re.IGNORECASE) for p in raised_arm_patterns)
+
+        if has_holding or has_raised:
+            trigger = "holding" if has_holding else "raised-arm"
+            print(f"⚠️ [Wimpy Sanitize] Detected {trigger} pose in prompt — replacing with SAFE-A")
+            # 모든 복잡한 팔 표현 제거
+            for p in holding_patterns + raised_arm_patterns:
+                prompt = re.sub(p, '', prompt, flags=re.IGNORECASE)
+            # 팔/손 관련 기타 표현 제거
+            prompt = re.sub(r',\s*,', ',', prompt)
+            prompt = re.sub(r'\s+', ' ', prompt).strip()
+            # SAFE-A 포즈: 양 팔이 자연스럽게 내려간 자세 (Flux가 추가 팔을 그리지 않음)
+            safe_pose = (
+                "The character stands upright. "
+                "The left arm hangs naturally straight down at the left side. "
+                "The right arm hangs naturally straight down at the right side. "
+                "Both hands relaxed at sides. Exactly two arms. No raised arms. No extra limbs."
+            )
+            prompt = re.sub(r'\.\s*$', '', prompt.strip())
+            prompt = prompt + ". " + safe_pose
+
+        return prompt
+
+    async def generate_motion_desc(self, scene_text: str, prompt_en: str = "") -> str:
+        """씬 내용을 기반으로 영상 모션 프롬프트 생성 (300자 이내 영어, 씬 맥락 반영)"""
+        visual_hint = prompt_en[:500] if prompt_en else ""
+        prompt = f"""You are a cinematic video director creating a motion prompt for an AI video generator (Wan 2.1 / Seedance).
+The motion prompt will animate a still illustration into a short video clip.
+
+Scene narrative (Korean): {scene_text}
+
+Visual scene description: {visual_hint}
+
+Your task: Write a detailed motion prompt that:
+1. Reflects the EMOTIONAL TONE and NARRATIVE of the scene (crisis, joy, tension, revelation, etc.)
+2. Describes specific CAMERA MOVEMENT that matches the mood
+3. Describes what the CHARACTER and BACKGROUND ELEMENTS are DOING (not just standing)
+4. Creates VISUAL STORYTELLING that matches the script content
+
+Rules:
+- Output ONLY the motion prompt text. No explanation, no quotes, no labels.
+- Maximum 300 characters total.
+- English only.
+- Include: [camera movement] + [character action] + [background/environment movement] + [atmosphere/lighting]
+- Be SPECIFIC to THIS scene — avoid generic phrases like "character looks up" unless the scene calls for it.
+
+Camera options (choose what fits the mood):
+  Crisis/fall: slow push in, dramatic zoom in, slight camera shake, tilt down
+  Revelation: slow zoom out, pull back reveal, gentle pan across
+  Tension: static shot with subtle sway, slow creep forward, slight handheld shake
+  Positive/calm: gentle pan right, slow zoom in, soft floating movement
+
+Character action options (match the narrative):
+  Shock/crisis: character stumbles back in shock, character covers mouth in disbelief, character stares wide-eyed
+  Determination: character steps forward confidently, character raises fist decisively, character nods firmly
+  Anxiety/worry: character paces nervously, character looks left and right frantically
+  Curiosity/thinking: character tilts head and looks up thoughtfully, character strokes chin
+  Explanation: character gestures expressively toward viewer, character points at background element
+
+Background movement (add life to the scene):
+  Crisis scenes: debris falls and scatters, buildings crumble slowly, smoke drifts upward
+  Economic scenes: stock chart arrows animate downward/upward, coins scatter, graph bars rise/fall
+  Crowd scenes: background figures shift and murmur, crowd ripples with movement
+  Nature/weather: clouds drift slowly, light rays shift, shadows lengthen
+
+Examples of GOOD detailed prompts:
+- "slow push in toward character, character stumbles back in shock as building crumbles in background, debris falls from above, dramatic dark lighting with rising dust, tense atmosphere"
+- "pull back reveal, character gestures at rising bar charts, background crowd of office workers celebrates, warm golden light floods from windows, optimistic energy"
+- "slight camera shake, character paces nervously left and right, shadowy figures loom closer from background, cold blue tinted lighting, suspenseful atmosphere"
+- "gentle pan right, character points decisively at world map, flag icons animate into position, bold graphic elements slide in from sides, bright confident lighting"
+
+Now write the motion prompt for THIS scene:"""
+
+        result = await self.generate_text(prompt, temperature=0.7)
+        result = result.strip().strip('"').strip("'").splitlines()[0].strip()
+        # 300자 제한 - 단어 중간에서 잘리지 않도록
+        if len(result) > 300:
+            cut = result[:300]
+            last_sep = max(cut.rfind(','), cut.rfind(' '))
+            result = cut[:last_sep].rstrip(', ') if last_sep > 100 else cut
+        return result
+
+    async def generate_image_prompts_from_script(self, script: str, duration_seconds: int, style_prompt: str = None, characters: List[dict] = None, target_scene_count: int = None, style_key: str = None, gemini_instruction: str = None) -> List[dict]:
         """대본을 분석하여 장면별 이미지 프롬프트 생성 (가변 페이싱 및 캐릭터 일관성 적용)"""
 
         # target_scene_count가 전달된 경우 우선 사용 (씬 분석 결과)
@@ -979,17 +1115,133 @@ class GeminiService:
             num_scenes = max(3, int(num_scenes))
             print(f"[Gemini] Calculated scene count from duration ({duration_seconds}s): {num_scenes}")
         
+        # 스타일 분류 — style_key 또는 style_prompt 어느 쪽에서든 wimpy 키워드 감지
+        _wimpy_kws = ["wimpy", "stick figure", "stickman", "졸라맨", "teal-blue hoodie", "teal blue hoodie"]
+        is_wimpy_style = (
+            (style_prompt and any(kw in style_prompt.lower() for kw in _wimpy_kws)) or
+            (style_key and any(kw in style_key.lower() for kw in ["wimpy", "jollaman", "졸라맨", "stick"]))
+        )
+        print(f"[Gemini] style_key={style_key!r}, is_wimpy_style={is_wimpy_style}")
+        _CHAR_BASE = (
+            "EXACTLY TWO ARMS ONLY. NO EXTRA ARMS. NO EXTRA HANDS. "
+            "A full-body cartoon illustration of a cute cheerful boy character, "
+            "round white circular head, stylized dark brown swept-back hair with a slight front flip "
+            "(NOT black hair, NOT white hair, NOT blue hair, NOT teal hair — strictly DARK BROWN), "
+            "simple black dot eyes, small cheerful arc smile, "
+            "vibrant solid teal-blue hoodie with a front kangaroo pocket, "
+            "black trousers, blue and white sneakers with laces, "
+            "thick clean black outlines, flat 2D cartoon illustration style. "
+            "The character has exactly one left arm and one right arm, total two arms and two hands only. "
+            "No third arm. No fourth arm. No duplicate limbs. "
+            "The character is standing with both arms hanging naturally at its sides. "
+            "Isolated on a pure white background. No background elements. no text, no words, no letters"
+        )
         # [CRITICAL] 실사 키워드 방지 로직 보강
-        is_realistic = any(kw in style_prompt.lower() for kw in ["realistic", "photo", "cinematic", "8k"])
+        _sp = style_prompt or ""
+        is_realistic = any(kw in _sp.lower() for kw in ["realistic", "photo", "cinematic", "8k"])
         style_conflict_prevention = ""
         if not is_realistic:
-            style_conflict_prevention = """
+            style_conflict_prevention = f"""
 [스타일 충돌 방지 - 엄격 준수]
 현재 지정된 스타일은 실사(Photorealistic)가 아닙니다.
 프롬프트 생성 시 'realistic', 'photorealistic', 'hyper-detailed', '8k', 'raw photo', 'masterpiece', 'cinematic lighting', 'depth of field', '3d render', 'octane render', 'unreal engine' 등의 실사 지향적 키워드를 **절대** 사용하지 마세요.
-또한, 이미지 내에 어떠한 영어 텍스트, 로고, 브랜드명, 레이블도 포함되지 않도록 하세요. (ABSOLUTELY NO English text, NO logos, NO brand names, NO labels in the prompt or the image.)
 인물과 배경 모두가 "{style_prompt}"의 매체 특성(그림체, 질감)을 완벽하게 따라야 하며, 조금이라도 실사 느낌이 섞이지 않도록 하세요.
 """
+
+        # 모든 스타일에 공통 적용: 텍스트 금지 + 해부학적 정확성
+        universal_prevention = """
+[이미지 품질 규칙 - 모든 스타일 공통 필수 준수]
+1. **NO TEXT IN IMAGE (절대 금지)**: 생성되는 이미지 안에 어떤 언어(영어/한국어/일본어 등)의 텍스트, 단어, 레이블, 자막, 워터마크, 로고, 말풍선도 절대 포함하지 마세요.
+   - 해부도, 다이어그램, 차트, 포스터, 간판 등 원래 텍스트가 있는 소재를 묘사할 때도 글자 없이 시각적 요소만 묘사하세요.
+   - "4k", "8k", "HD", "4K", "UHD" 등 해상도 키워드를 prompt_en에 절대 포함하지 마세요 — 이미지에 텍스트 워터마크로 나타납니다.
+   - 모든 prompt_en 끝에 반드시 추가: "no text, no words, no letters, no labels, no watermarks, no captions"
+2. **CORRECT ANATOMY — EXACTLY TWO ARMS AND TWO HANDS (해부학적 정확성 - 최우선)**:
+   - 인물·캐릭터의 팔은 반드시 정확히 **2개**, 손도 반드시 정확히 **2개**입니다. 팔 3개·손 3개·여분의 팔다리는 절대 금지.
+   - **물건을 잡고 있는 장면에서도 동일**: 한 손으로 물건을 잡으면 나머지 한 손만 존재합니다. 물건을 잡은 손 외에 손이 추가로 나타나면 안 됩니다.
+   - 예: 책을 한 손으로 들고 있을 때 → 책 잡은 손 1개 + 반대쪽 손 1개 = 총 손 2개만 허용.
+   - 모든 prompt_en에 반드시 포함: "correct anatomy, exactly two arms, exactly two hands, no extra limbs, no extra hands"
+"""
+
+        # 졸라맨(두꺼운 팔다리) 스타일 전용 지침
+        wimpy_instruction = ""
+        if is_wimpy_style:
+            # DB에 저장된 지침이 있으면 우선 사용, 없으면 하드코딩 폴백
+            if gemini_instruction and gemini_instruction.strip():
+                wimpy_instruction = "\n" + gemini_instruction.strip() + "\n"
+            else:
+                wimpy_instruction = """
+[졸라맨 스타일 전용 - 필수 준수]
+이 영상은 졸라맨 스타일입니다. 각 씬마다 아래 3가지 프롬프트를 모두 작성하세요:
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【prompt_char — 캐릭터 전용 이미지 프롬프트 (흰 배경)】
+아래 3단계를 반드시 조합하여 작성합니다:
+
+1단계 [주제 및 스타일] — 고정 문구 (절대 변경 금지):
+"A full-body minimalist cartoon illustration of a cute stick-figure style character with bold black outlines, standing on a pure white background. Soft, even lighting, flat 2D vector graphic style, high-definition, precise clean lines. Strictly two arms and two hands. No extra limbs, no extra hands."
+
+2단계 [캐릭터 특징] — 고정 문구 (절대 변경 금지):
+"The character has a simple white circular head with stylized swept-back black hair, simple dot eyes, and a wide cheerful arc smile. The hands are small rounded fists with black outlines (NOT white balls, NOT white circles). The character wears a vibrant solid teal-blue hoodie with a front pocket, long black sleeves with black cuffs, solid black trousers, and white sneakers with black trim and laces."
+
+3단계 [포즈] — 씬에 맞는 포즈 선택 (물건 드는 포즈 절대 금지):
+❌ 금지: holding, carrying, gripping, fists raised, arms raised, punching, flexing
+✅ SAFE-A: "The character is standing with both arms hanging naturally at its sides."
+✅ SAFE-B: "The character is standing and pointing at [대상] with its right hand. Its left arm hangs at its side."
+✅ SAFE-C: "The character is standing and looking down at a small book resting on a stand. Its two hands are clasped tightly together in front of its chest in a deep thought gesture, not touching the book."
+✅ SAFE-D: "The character sits at a wooden table, resting both its hands firmly under its chin, looking down thoughtfully."
+
+마지막 고정 문구: "Isolated on a pure white background. No background elements. no text, no words, no letters"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【prompt_bg — 배경/씬 전용 이미지 프롬프트 (풍부한 배경 필수)】
+씬 내용에 맞는 풍부하고 생동감 있는 배경을 묘사합니다:
+- 스타일: flat 2D vector illustration, bold clean black outlines, same art style as wimpy character
+- 배경 풍부화 (필수): 씬 상황을 구체적으로 묘사하는 오브젝트/소품을 5개 이상 포함
+  - ❌ 금지: "simple shapes만 있는 텅 빈 배경", "empty room", "minimal background"
+  - ✅ 권장: 구체적인 소품 나열 + 전경/중경/배경 3레이어로 깊이감 부여
+- 배경 엑스트라 허용: 씬 분위기에 맞는 단순한 stick-figure 형태의 배경 인물/군중 포함 가능
+  - (단, 메인 캐릭터보다 훨씬 작고 단순하게 — 실루엣 수준, 상세 없이)
+  - 예: 사무실 씬 → 배경에 작은 직원 실루엣들이 컴퓨터 앞에 앉아 있는 장면
+  - 예: 군중 씬 → 매우 작은 stick-figure 군중들이 배경을 채우는 장면
+- 씬 내용 반영 예시:
+  - 무역/경제 씬 → 두 나라 국기, 무역 차트/그래프, 공장, 컨테이너 선, 도시 스카이라인, 화살표
+  - 사무실/회의 씬 → 컴퓨터, 서류, 인포그래픽 차트, 화분, 창문 너머 도시 전경, 배경 직원 실루엣들
+  - 재해/위기 씬 → 무너진 건물, 균열, 파편, 연기, 구조 차량, 경보등
+  - 독서/학습 씬 → 높은 책꽂이, 책상과 독서등, 지구본, 화분, 창문
+마지막 고정 문구: "flat 2D vector style, bold outlines, no main protagonist, no text, no words, no letters"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【prompt_en — 통합 씬 프롬프트 (핵심 — 가장 공들여 작성)】
+씬 전체를 하나의 완성된 일러스트레이션으로 묘사합니다. 반드시 아래 구조를 따르세요:
+
+고정 스타일 키워드 (문장 맨 앞에 반드시 포함):
+"YouTube educational cartoon illustration, stick-figure style character with teal-blue hoodie, clean thick black outlines, flat bold vibrant colors, round white heads and expressive dot eyes, NO necktie NO suit NO business attire NO blue hair,"
+
+씬 구성 요소 (순서대로 묘사):
+1. 메인 캐릭터: 씬에 맞는 자연스러운 포즈로 장면 속에 배치. 티얼-블루 후드티, 검은 바지, 흰 운동화.
+2. 배경 엑스트라: 씬 분위기에 맞게 주변에 다른 캐릭터들도 자유롭게 배치 (다양한 색상 옷).
+3. 환경/소품: 씬 상황에 맞는 구체적 소품 5개 이상 나열 (가구, 기기, 인테리어, 자연 등).
+4. 분위기: 조명, 색감, 원근감을 포함한 공간감 묘사.
+
+마지막 고정 문구: "layered scene depth, warm vibrant colors, no text, no words, no letters, no labels, no watermarks, no captions"
+
+■ prompt_char 완성 예시 (SAFE-A):
+"A full-body minimalist cartoon illustration of a cute stick-figure style character with bold black outlines, standing on a pure white background. Flat 2D vector graphic style. Strictly two arms and two hands. No extra limbs. The character has a simple white circular head with stylized swept-back black hair, simple dot eyes, and a wide cheerful arc smile. The hands are small rounded fists with black outlines (NOT white balls, NOT white circles). The character wears a vibrant solid teal-blue hoodie with a front pocket, long black sleeves with black cuffs, solid black trousers, and white sneakers with black trim and laces. The character is standing with both arms hanging naturally at its sides. Isolated on a pure white background. No background elements. no text, no words, no letters"
+
+■ prompt_bg 완성 예시 (사무실 씬):
+"A flat 2D vector illustration of a busy modern office interior. Large open floor plan with rows of work desks and computers, wall-mounted infographic charts and graphs, indoor plants, bright ceiling lights, and tall windows showing a city skyline outside. Small simple stick-figure silhouette employees seated at desks in the background. Colorful decorative elements, layered foreground and background depth. Bold clean black outlines, vibrant flat colors. no main protagonist, no text, no words, no letters"
+
+■ prompt_en 완성 예시 (사무실 회의 씬):
+"YouTube educational cartoon illustration, clean thick black outlines, flat bold vibrant colors, simple cartoon characters with round white heads and expressive dot eyes, a cheerful cartoon character in a teal-blue hoodie standing at the head of a conference table holding up a document, four colleagues in colorful shirts seated around the table with tablets and papers, large arched windows behind them showing a bright sunny city skyline with clouds, a growth chart on the wall to the right, warm overhead lighting, wooden conference table with scattered documents, layered scene depth, warm vibrant colors, no text, no words, no letters, no labels, no watermarks, no captions"
+
+■ prompt_en 완성 예시 (무역/경제 씬):
+"YouTube educational cartoon illustration, clean thick black outlines, flat bold vibrant colors, simple cartoon characters with round white heads and expressive dot eyes, a concerned cartoon character in a teal-blue hoodie standing in front of a large world map, two giant national flags on either side clashing, cargo containers stacked on the left, semiconductor chip icons on the right, downward red arrows on a price chart in the foreground, serious background officials in suits watching, bright studio lighting, bold graphic design elements, layered scene depth, warm vibrant colors, no text, no words, no letters, no labels, no watermarks, no captions"
+"""
+
+        # 비 wimpy 스타일에 대한 커스텀 지침 (DB에서 저장된 gemini_instruction 사용)
+        custom_style_instruction = ""
+        if not is_wimpy_style and gemini_instruction and gemini_instruction.strip():
+            custom_style_instruction = "\n[커스텀 스타일 지침 - 필수 준수]\n" + gemini_instruction.strip() + "\n"
 
         style_instruction = f"""
 [스타일 지침 - 매우 중요]
@@ -999,15 +1251,54 @@ class GeminiService:
 모든 prompt_en의 시작 부분에 이 스타일 키워드를 포함시켜야 합니다.
 예: "{style_prompt}, ..."
 {style_conflict_prevention}
+{universal_prevention}
+{wimpy_instruction}
+{custom_style_instruction}
 """
 
         character_instruction = ""
         if characters:
-            char_descriptions = "\n".join([f"- {c['name']} ({c['role']}): {c['prompt_en']}" for c in characters])
+            if is_wimpy_style:
+                # 졸라맨 스타일: 캐릭터 prompt_en에서 머리 색/스타일 표현 강제 제거
+                import re as _re
+                head_color_patterns = [
+                    r'teal\s+hair', r'cyan\s+hair', r'blue\s+hair', r'colored?\s+hair',
+                    r'hair\s+color', r'teal\s+head', r'cyan\s+head', r'colored?\s+head',
+                    r'with\s+\w+\s+hair', r'has\s+\w+\s+hair', r'\w+\s+colored?\s+hair',
+                ]
+                sanitized_chars = []
+                for c in characters:
+                    p = c.get('prompt_en', '')
+                    for pat in head_color_patterns:
+                        p = _re.sub(pat, '', p, flags=_re.IGNORECASE)
+                    sanitized_chars.append({**c, 'prompt_en': p.strip()})
+                char_descriptions = "\n".join([f"- {c['name']} ({c['role']}): {c['prompt_en']}" for c in sanitized_chars])
+                char_color_rule = """
+[★ 졸라맨 스타일 캐릭터 규칙 — 위 캐릭터 묘사보다 이 규칙이 최우선 ★]
+- 모든 캐릭터의 머리: 반드시 plain white circle, 흰색만 허용. 어떤 색도, 어떤 헤어스타일도 금지.
+- 모든 캐릭터의 의상: bright cyan sleeveless tunic (고정)
+- 모든 캐릭터의 팔다리: solid black (고정)
+- 캐릭터 간 차이는 표정/포즈/배경으로만 구분. 색상으로 구분 금지.
+"""
+            elif not is_realistic:
+                char_descriptions = "\n".join([f"- {c['name']} ({c['role']}): {c['prompt_en']}" for c in characters])
+                char_color_rule = """
+[캐릭터 색상 일관성 - 비실사/만화 스타일 전용]
+- 캐릭터의 몸 색상, 의상 색상을 위 묘사에서 절대 변경하지 마세요.
+- 얼굴·몸통 일부만 다른 색이 되는 현상을 방지하세요: 캐릭터 전신이 동일한 색상으로 일관되게 표현되어야 합니다.
+- 조명/명암 처리로 인해 캐릭터 색상이 달라 보이지 않도록 하세요 (플랫 컬러 유지).
+"""
+            else:
+                char_descriptions = "\n".join([f"- {c['name']} ({c['role']}): {c['prompt_en']}" for c in characters])
+                char_color_rule = """
+[캐릭터 외형 일관성]
+- 위 캐릭터 묘사의 외형(머리카락 색, 의상 등)을 장면마다 유지하세요.
+"""
             character_instruction = f"""
 [등장인물 일관성 지침 - 필수]
-이 영상에는 다음 캐릭터들이 등장합니다. 장면별 prompt_en 생성 시 해당 인물이 등장한다면 아래 묘사를 그대로 사용하여 외형 일관성을 유지하세요:
+이 영상에는 다음 캐릭터들이 등장합니다. 장면별 prompt_en 생성 시 해당 인물이 등장한다면 아래 묘사를 참고하세요:
 {char_descriptions}
+{char_color_rule}
 """
 
         # 장면 수 지침 생성
@@ -1016,8 +1307,10 @@ class GeminiService:
             limit_instruction = f"""
 [중요: 장면 수 정책 - 반드시 준수]
 - 반드시 정확히 **{num_scenes}개**의 장면을 생성해야 합니다. 더 많거나 적으면 안 됩니다.
-- 대본 전체를 **{num_scenes}개** 구간으로 균등하게 나누어 각 장면이 대본의 흐름을 빠짐없이 커버하도록 하세요.
-- 대본의 처음부터 끝까지 시간 순서대로 골고루 배분하세요. 특정 구간이 누락되면 안 됩니다.
+- 아래 대본 구간 전체를 **처음부터 끝까지** {num_scenes}개로 균등하게 나누세요.
+- ⚠️ 절대 금지: 어떤 구간도 건너뛰지 마세요. 도입부 전환(소개, 예고, 목차 설명, 시나리오 소개)도 반드시 씬으로 포함하세요.
+- 각 씬의 scene_text: 해당 구간의 원본 대본 텍스트를 요약 없이 그대로 인용하세요 (최소 50자 이상).
+- 연속된 씬들의 scene_text를 이어 붙이면 대본 전체가 순서대로 재구성되어야 합니다.
 - JSON 배열에 반드시 scene_number 1번부터 {num_scenes}번까지 순서대로 포함하세요.
 """
         else:
@@ -1030,47 +1323,163 @@ class GeminiService:
 3. **안정 단계 (5~7분)**: 40초당 1장 수준으로 전개 속도를 조절하세요.
 4. **유지 단계 (7~10분)**: 1분당 1장 수준으로 분위기를 유지하세요.
 5. **그 이후 (10분~20분)**: 2분당 1장, **(20분 이후)**: 10분당 1장 수준으로 큰 흐름만 짚어주세요.
+- ⚠️ 절대 금지: 대본의 어떤 구간도 건너뛰지 마세요. 도입부 전환(소개, 예고, 목차 설명)도 반드시 씬으로 포함하세요.
+- 각 씬의 scene_text: 해당 구간의 원본 대본 텍스트를 요약 없이 그대로 인용하세요 (최소 50자 이상).
+- 연속된 씬들의 scene_text를 이어 붙이면 대본 전체가 순서대로 재구성되어야 합니다.
 - 위 페이싱에 맞춰 총 **{num_scenes}개**의 장면을 시간 순서대로 골고루 배분하여 JSON을 생성하세요.
 """
 
-        prompt = prompts.GEMINI_IMAGE_PROMPTS.format(
-            num_scenes=num_scenes,
-            script=script,
-            style_instruction=style_instruction,
-            character_instruction=character_instruction, # [NEW]
-            limit_instruction=limit_instruction,
-            style_prefix=style_prompt or 'High quality, photorealistic'
-        )
+        # ── 청크(Chunk) 분할 생성 ──────────────────────────────────────────────
+        # 긴 스크립트를 단일 Gemini 호출로 처리하면 출력 토큰 한계(8192)로 인해
+        # 중간 내용이 누락되거나 씬이 압축됩니다.
+        # 스크립트가 길거나 씬 수가 많으면 청크로 나눠 각각 생성 후 합산합니다.
+        CHUNK_CHARS = 8000    # 청크당 최대 글자 수 (약 25-30분 분량)
+        SCENES_PER_CHUNK = 8  # 청크당 최대 씬 수
 
-        text = await self.generate_text(prompt, temperature=0.7)
+        # 씬 수가 많으면 스크립트 길이와 무관하게 청크 모드 사용
+        # (단일 호출로 15+ wimpy 씬 출력 시 8192 토큰 한계 초과 → JSON 잘림)
+        use_chunked = num_scenes > SCENES_PER_CHUNK
 
-        # JSON 파싱
         import json
         import re
+        import math
+
+        def _parse_text_to_scenes(raw_text: str) -> list:
+            """Gemini 응답 텍스트에서 scenes 리스트를 추출"""
+            try:
+                cleaned = re.sub(r'```json\s*|\s*```', '', raw_text).strip()
+                try:
+                    data = json.loads(cleaned)
+                except json.JSONDecodeError:
+                    m = re.search(r'(\{[\s\S]*\}|\[[\s\S]*\])', cleaned)
+                    if m:
+                        data = json.loads(m.group(0))
+                    else:
+                        return []
+                if isinstance(data, dict):
+                    return data.get("scenes", [])
+                elif isinstance(data, list):
+                    return data
+            except Exception as e:
+                print(f"[SceneParse] Error: {e}")
+            return []
+
+        def _split_script_into_chunks(text: str, chunk_size: int) -> list:
+            """문장 경계 기준으로 스크립트를 청크로 분할"""
+            if len(text) <= chunk_size:
+                return [text]
+            chunks = []
+            start = 0
+            while start < len(text):
+                end = min(start + chunk_size, len(text))
+                if end < len(text):
+                    # 문장 끝(마침표/느낌표/물음표) 기준으로 자르기
+                    cut = max(
+                        text.rfind('다.', start, end),
+                        text.rfind('요.', start, end),
+                        text.rfind('죠.', start, end),
+                        text.rfind('습니다.', start, end),
+                    )
+                    if cut > start + chunk_size // 2:
+                        end = cut + 2  # 문장 부호 포함
+                chunks.append(text[start:end].strip())
+                start = end
+            return [c for c in chunks if c]
+
+        style_prefix_val = style_prompt or 'High quality, photorealistic'
+
+        if use_chunked:
+            # ── 청크 분할 모드 ─────────────────────────────────────────────
+            # 씬 수 기반 최소 청크 수 계산 (각 청크 최대 SCENES_PER_CHUNK 씬)
+            min_chunks = math.ceil(num_scenes / SCENES_PER_CHUNK)  # e.g., ceil(15/8)=2
+            natural_chunks = _split_script_into_chunks(script, CHUNK_CHARS)
+            if len(natural_chunks) >= min_chunks:
+                script_chunks = natural_chunks
+            else:
+                # 스크립트가 짧아도 min_chunks 개로 강제 분할
+                n = min_chunks
+                part_len = max(1, len(script) // n)
+                script_chunks = [
+                    script[i * part_len : (i + 1) * part_len if i < n - 1 else len(script)].strip()
+                    for i in range(n)
+                ]
+                script_chunks = [c for c in script_chunks if c]
+            num_chunks = len(script_chunks)
+            # 씬 수를 청크별로 배분 (비례 배분)
+            base_per_chunk = num_scenes // num_chunks
+            remainder = num_scenes % num_chunks
+            chunk_scene_counts = [base_per_chunk + (1 if i < remainder else 0) for i in range(num_chunks)]
+
+            print(f"[ChunkedGen] {num_chunks} chunks, scenes: {chunk_scene_counts}, total={num_scenes}")
+
+            all_scenes = []
+            for c_idx, (chunk_text, c_scenes) in enumerate(zip(script_chunks, chunk_scene_counts)):
+                if c_scenes <= 0:
+                    continue
+                chunk_limit = f"""
+[중요: 장면 수 정책 - 반드시 준수]
+- 반드시 정확히 **{c_scenes}개**의 장면을 생성해야 합니다.
+- 아래 대본 구간 전체를 **처음부터 끝까지** {c_scenes}개로 균등하게 나누세요.
+- ⚠️ 어떤 구간도 건너뛰지 마세요. 도입부, 전환, 예고도 씬으로 처리하세요.
+- 각 씬의 scene_text: 해당 구간 원본 대본을 그대로 인용 (요약 금지, 최소 50자).
+- 연속된 씬들의 scene_text를 이어 붙이면 구간 전체가 재구성되어야 합니다.
+- JSON 배열에 scene_number 1부터 {c_scenes}까지 순서대로 포함하세요.
+"""
+                c_prompt = prompts.GEMINI_IMAGE_PROMPTS.format(
+                    num_scenes=c_scenes,
+                    script=chunk_text,
+                    style_instruction=style_instruction,
+                    character_instruction=character_instruction,
+                    limit_instruction=chunk_limit,
+                    style_prefix=style_prefix_val
+                )
+                c_text = await self.generate_text(c_prompt, temperature=0.7)
+                c_scene_list = _parse_text_to_scenes(c_text)
+                print(f"[ChunkedGen] Chunk {c_idx+1}/{num_chunks}: got {len(c_scene_list)} scenes")
+                all_scenes.extend(c_scene_list)
+
+            scenes = all_scenes
+        else:
+            # ── 단일 호출 모드 (기존) ──────────────────────────────────────
+            prompt = prompts.GEMINI_IMAGE_PROMPTS.format(
+                num_scenes=num_scenes,
+                script=script,
+                style_instruction=style_instruction,
+                character_instruction=character_instruction,
+                limit_instruction=limit_instruction,
+                style_prefix=style_prefix_val
+            )
+            text = await self.generate_text(prompt, temperature=0.7)
+            scenes = _parse_text_to_scenes(text)
 
         try:
-            # 1. Clean Markdown code blocks
-            cleaned_text = re.sub(r'```json\s*|\s*```', '', text).strip()
             
-            # 2. Try parsing the cleaned text directly
-            try:
-                data = json.loads(cleaned_text)
-            except json.JSONDecodeError:
-                # 3. If direct parse fails, try searching for JSON object or list
-                json_match = re.search(r'(\{[\s\S]*\}|\[[\s\S]*\])', cleaned_text)
-                if json_match:
-                    data = json.loads(json_match.group(0))
-                else:
-                    return []
+            # [WIMPY] 졸라맨 스타일이면 prompt_en/prompt_char에서 물건 들기 표현을 강제 교체
+            if is_wimpy_style:
+                for scene in scenes:
+                    if "prompt_en" in scene:
+                        scene["prompt_en"] = self._sanitize_wimpy_prompt(scene["prompt_en"])
+                    if "prompt_char" in scene and scene.get("prompt_char"):
+                        scene["prompt_char"] = self._sanitize_wimpy_prompt(scene["prompt_char"])
 
-            # 4. Extract scenes list
-            if isinstance(data, dict):
-                scenes = data.get("scenes", [])
-            elif isinstance(data, list):
-                scenes = data
-            else:
-                scenes = []
-            
+            # [WIMPY FALLBACK] prompt_char / prompt_bg 가 비어있거나 placeholder일 때 자동 보완
+            if is_wimpy_style:
+                for scene in scenes:
+                    pc = scene.get("prompt_char", "").strip()
+                    if not pc or "졸라맨 스타일 전용" in pc or pc.startswith("("):
+                        scene["prompt_char"] = _CHAR_BASE
+                        print(f"[Wimpy Fallback] scene {scene.get('scene_number')} prompt_char auto-filled")
+                    pb = scene.get("prompt_bg", "").strip()
+                    if not pb or "졸라맨 스타일 전용" in pb or pb.startswith("("):
+                        scene_text_short = (scene.get("scene_text") or "")[:80]
+                        scene["prompt_bg"] = (
+                            f"A flat 2D vector illustration representing: {scene_text_short}. "
+                            "Simple shapes, clean black outlines. "
+                            "No person, no character, no human. "
+                            "flat 2D vector style, no text, no words"
+                        )
+                        print(f"[Wimpy Fallback] scene {scene.get('scene_number')} prompt_bg auto-filled")
+
             # [FIX] target_scene_count가 지정된 경우 씬 분리 없이 그대로 반환
             # (씬 분리 로직이 사용자 지정 씬 수를 초과하게 만들 수 있으므로)
             if target_scene_count and target_scene_count > 0:
@@ -1083,15 +1492,31 @@ class GeminiService:
             # [NEW] Hybrid Approach: Time-based correction (자동 계산 모드에서만 사용)
             # Split scenes that are too long (>20 seconds) into sub-images
             corrected_scenes = []
-            MAX_SCENE_SECONDS = 20  # Maximum seconds per image
+            MAX_SCENE_SECONDS = 30  # Maximum seconds per image (30초로 상향 → 불필요한 분할 감소)
+
+            # 서브씬 분할 시 카메라 각도 변형 (동일 이미지 반복 방지)
+            _SUB_ANGLE_VARIANTS = [
+                "",  # 첫 번째는 원본
+                ", close-up shot, tight framing on subject",
+                ", wide establishing shot, zoom out to reveal environment",
+                ", medium shot from side angle",
+                ", overhead bird's eye angle",
+            ]
+            _SUB_BG_VARIANTS = [
+                "",
+                ", foreground detail emphasized",
+                ", wide view with full environment visible",
+                ", background elements in focus",
+                ", different perspective angle",
+            ]
 
             for scene in scenes:
                 estimated_sec = scene.get("estimated_seconds", 15)
 
                 # If estimated_seconds is missing, calculate from text length
                 if not estimated_sec or estimated_sec <= 0:
-                    scene_text = scene.get("scene_text", "")
-                    estimated_sec = max(5, len(scene_text) / 6)  # ~6 chars/sec for Korean
+                    scene_text_len = scene.get("scene_text", "")
+                    estimated_sec = max(5, len(scene_text_len) / 6)  # ~6 chars/sec for Korean
 
                 if estimated_sec <= MAX_SCENE_SECONDS:
                     # Scene is fine, keep as is
@@ -1099,7 +1524,7 @@ class GeminiService:
                     corrected_scenes.append(scene)
                 else:
                     # Scene is too long, split into sub-images
-                    num_splits = int(estimated_sec / MAX_SCENE_SECONDS) + 1
+                    num_splits = min(int(estimated_sec / MAX_SCENE_SECONDS) + 1, 4)  # 최대 4분할
                     sub_duration = estimated_sec / num_splits
 
                     scene_text = scene.get("scene_text", "")
@@ -1112,7 +1537,12 @@ class GeminiService:
                         sub_scene["scene_text"] = text_parts[i] if i < len(text_parts) else scene_text
                         sub_scene["estimated_seconds"] = sub_duration
                         if i > 0:
-                            sub_scene["prompt_en"] = scene.get("prompt_en", "") + f", variation {i+1}"
+                            # 단순 "variation N" 대신 카메라 각도/구도 변형으로 시각 다양성 확보
+                            angle_mod = _SUB_ANGLE_VARIANTS[i % len(_SUB_ANGLE_VARIANTS)]
+                            sub_scene["prompt_en"] = scene.get("prompt_en", "") + angle_mod
+                            bg_mod = _SUB_BG_VARIANTS[i % len(_SUB_BG_VARIANTS)]
+                            if sub_scene.get("prompt_bg"):
+                                sub_scene["prompt_bg"] = scene.get("prompt_bg", "") + bg_mod
                         corrected_scenes.append(sub_scene)
 
             # Renumber scenes sequentially
@@ -1120,6 +1550,26 @@ class GeminiService:
                 scene["scene_number"] = idx + 1
 
             print(f"[Hybrid] Original: {len(scenes)} scenes → Corrected: {len(corrected_scenes)} scenes")
+            if is_wimpy_style:
+                for scene in corrected_scenes:
+                    if "prompt_en" in scene:
+                        scene["prompt_en"] = self._sanitize_wimpy_prompt(scene["prompt_en"])
+                    if "prompt_char" in scene and scene.get("prompt_char"):
+                        scene["prompt_char"] = self._sanitize_wimpy_prompt(scene["prompt_char"])
+                # [WIMPY FALLBACK] corrected_scenes 에도 동일 적용
+                for scene in corrected_scenes:
+                    pc = scene.get("prompt_char", "").strip()
+                    if not pc or "졸라맨 스타일 전용" in pc or pc.startswith("("):
+                        scene["prompt_char"] = _CHAR_BASE
+                    pb = scene.get("prompt_bg", "").strip()
+                    if not pb or "졸라맨 스타일 전용" in pb or pb.startswith("("):
+                        scene_text_short = (scene.get("scene_text") or "")[:80]
+                        scene["prompt_bg"] = (
+                            f"A flat 2D vector illustration representing: {scene_text_short}. "
+                            "Simple shapes, clean black outlines. "
+                            "No person, no character, no human. "
+                            "flat 2D vector style, no text, no words"
+                        )
             return corrected_scenes
             
         except Exception as e:

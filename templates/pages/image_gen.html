@@ -105,7 +105,7 @@
                                 class="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                                 <input type="checkbox" id="useThumbnailCheck"
                                     class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700"
-                                    checked>
+                                    onchange="localStorage.setItem('useThumbnailCheck', this.checked)">
                                 <span class="text-xs font-medium text-gray-700 dark:text-white">{{
                                     t('curr_thumb_as_char') }}</span>
                             </label>
@@ -238,11 +238,46 @@
                     <span>💾</span> {{ t('btn_save_all') or '서버에 저장' }}
                 </button>
 
+                <!-- [NEW] Motion 일괄 자동생성 버튼 -->
+                <button onclick="showMotionGenModal()" id="bulkMotionBtn"
+                    class="btn-secondary text-sm px-4 flex items-center gap-2 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 border-purple-200 dark:border-purple-700 hover:bg-purple-100">
+                    <span>🎬</span> Motion 자동생성
+                </button>
+
                 <button onclick="generateSelectedImages()" id="autoGenBtn"
                     class="btn-primary text-sm px-4 flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled>
                     <span>🚀</span> {{ t('btn_gen_images') }}
                 </button>
+            </div>
+        </div>
+
+        <!-- [NEW] Motion 자동생성 모달 -->
+        <div id="motionGenModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-80">
+                <h4 class="font-bold text-gray-800 dark:text-white mb-3">🎬 Motion 자동생성</h4>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                    각 씬의 내용을 분석하여 영상 모션 프롬프트를 AI가 자동 생성합니다.<br>
+                    <span class="text-purple-500">기존 Motion이 있는 씬은 덮어씁니다.</span>
+                </p>
+                <div class="mb-4">
+                    <label class="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-1">생성할 씬 범위</label>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-gray-500">씬 1 ~</span>
+                        <input type="number" id="motionGenMaxScene" value="5" min="1" max="50"
+                            class="w-16 text-center text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-800 dark:text-white">
+                        <span class="text-xs text-gray-500">씬까지</span>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="closeMotionGenModal()"
+                        class="flex-1 py-2 text-sm rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50">취소</button>
+                    <button onclick="bulkGenerateMotion()" id="motionGenConfirmBtn"
+                        class="flex-1 py-2 text-sm rounded bg-purple-600 text-white font-bold hover:bg-purple-700">
+                        ✨ 생성 시작
+                    </button>
+                </div>
+                <div id="motionGenProgress" class="hidden mt-3 text-xs text-center text-purple-500"></div>
             </div>
         </div>
 
@@ -798,6 +833,9 @@
             // [NEW] Script segment info
             const scriptStart = p.script_start || '';
             const scriptEnd = p.script_end || '';
+            // [NEW] Two-prompt compositing fields
+            const rawPromptChar = p.prompt_char || '';
+            const rawPromptBg = p.prompt_bg || '';
 
             // Extract first and last portions (Visual only)
             const words = rawSceneText.split(/\s+/);
@@ -837,14 +875,14 @@
                     
                     <!-- Left Column: Asset Preview (Video/Image) -->
                     <div class="lg:col-span-4 flex flex-col gap-3">
-                        <div class="image-container relative w-full aspect-video bg-gray-100 dark:bg-black rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 group">
+                        <div class="image-container relative w-full bg-gray-100 dark:bg-gray-900 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 group" style="${getContainerStyle()}">
                             ${p.video_url ? `
-                                <video src="${p.video_url}" class="w-full h-full object-contain" controls autoplay loop muted></video>
+                                <video src="${p.video_url}" class="absolute inset-0 w-full h-full object-cover" controls autoplay loop muted></video>
                                 <div class="absolute top-2 right-2 bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm">
                                     🎬 Video Ready
                                 </div>
                             ` : p.image_url ? `
-                                <img src="${p.image_url}" class="w-full h-full object-contain" alt="Scene ${i + 1}">
+                                <img src="${p.image_url}" class="w-full h-full object-cover" alt="Scene ${i + 1}">
                             ` : `
                                 <div class="flex flex-col items-center justify-center h-full text-gray-400">
                                     <span class="text-2xl mb-2">🖼️</span>
@@ -894,29 +932,68 @@
                     
                     <!-- Right Column: Prompt Editors -->
                     <div class="lg:col-span-8 flex flex-col gap-3">
-                        <!-- Visual Prompt -->
+
+                        <!-- [TWO-PROMPT] ① 캐릭터 프롬프트 (항상 표시) -->
+                        <div>
+                            <label class="block text-[10px] font-bold mb-1 flex justify-between items-center">
+                                <span class="flex items-center gap-1 text-teal-600 dark:text-teal-400">
+                                    <span>🧍</span> ① 캐릭터 프롬프트
+                                    <span class="text-[9px] font-normal text-gray-400 ml-1">(흰 배경 단독 · 졸라맨용)</span>
+                                </span>
+                            </label>
+                            <textarea
+                                id="prompt-char-${i}"
+                                class="w-full h-16 text-[11px] p-2 rounded border border-teal-200 dark:border-teal-900 bg-teal-50 dark:bg-gray-900/50 text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-teal-500"
+                                placeholder="캐릭터 단독 프롬프트 (이미지 프롬프트 재생성 시 자동 입력)"
+                                onchange="updatePromptChar(${i}, this.value)"
+                            >${rawPromptChar}</textarea>
+                        </div>
+
+                        <!-- [TWO-PROMPT] ② 장면/배경 프롬프트 (항상 표시) -->
+                        <div>
+                            <label class="block text-[10px] font-bold mb-1 flex justify-between items-center">
+                                <span class="flex items-center gap-1 text-orange-600 dark:text-orange-400">
+                                    <span>🏞</span> ② 장면 프롬프트
+                                    <span class="text-[9px] font-normal text-gray-400 ml-1">(배경 전용, 캐릭터 없음 · 졸라맨용)</span>
+                                </span>
+                            </label>
+                            <textarea
+                                id="prompt-bg-${i}"
+                                class="w-full h-16 text-[11px] p-2 rounded border border-orange-200 dark:border-orange-900 bg-orange-50 dark:bg-gray-900/50 text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-orange-500"
+                                placeholder="배경/장면 프롬프트 (이미지 프롬프트 재생성 시 자동 입력)"
+                                onchange="updatePromptBg(${i}, this.value)"
+                            >${rawPromptBg}</textarea>
+                        </div>
+
+                        <!-- Visual Prompt (통합 or 단일 모드) -->
                         <div>
                             <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 mb-1 flex justify-between">
                                 <span>🎨 Visual Description (Image)</span>
                                 <button onclick="generateSingleImage(${i})" class="text-blue-500 hover:text-blue-600 text-[10px]">↻ Regen Image</button>
                             </label>
-                            <textarea 
+                            <textarea
                                 id="prompt-json-${i}"
                                 class="w-full h-20 text-[11px] p-2 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-blue-500"
                                 onchange="updatePromptData(${i}, this.value)"
                             >${p.prompt_en || ''}</textarea>
                         </div>
 
-                        <!-- Motion Prompt (NEW) -->
+                        <!-- Motion Prompt -->
                         <div>
-                            <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 mb-1 flex justify-between">
+                            <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 mb-1 flex justify-between items-center">
                                 <span>🎬 Motion Instruction (Video)</span>
-                                <span class="text-[9px] text-purple-400">* Used for Wan 2.1 only</span>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="generateSingleMotion(${i})" id="gen-motion-btn-${i}"
+                                        class="text-[9px] text-purple-500 hover:text-purple-600 border border-purple-200 dark:border-purple-800 px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-900/30 transition-colors">
+                                        ✨ AI 생성
+                                    </button>
+                                    <span class="text-[9px] text-purple-400">* Wan / Seedance 공통</span>
+                                </div>
                             </label>
-                            <textarea 
+                            <textarea
                                 id="motion-prompt-${i}"
-                                class="w-full h-20 text-[11px] p-2 rounded border border-purple-200 dark:border-purple-900 bg-purple-50 dark:bg-gray-900/50 text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-purple-500 focus:border-purple-500"
-                                placeholder="Describe movement: 'Slow pan down', 'Hair blowing in wind', 'Fire particles rising'..."
+                                class="w-full h-16 text-[11px] p-2 rounded border border-purple-200 dark:border-purple-900 bg-purple-50 dark:bg-gray-900/50 text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-purple-500 focus:border-purple-500"
+                                placeholder="예: slow zoom in toward character, character looks up thoughtfully, warm soft light"
                                 onchange="updateMotionPrompt(${i}, this.value)"
                             >${p.motion_desc || ''}</textarea>
                         </div>
@@ -938,10 +1015,12 @@
         // Auto-adjust textarea heights after rendering
         setTimeout(() => {
             data.forEach((p, i) => {
-                const textarea = document.getElementById(`prompt-json-${i}`);
-                if (textarea) {
-                    textarea.style.height = 'auto';
-                    textarea.style.height = textarea.scrollHeight + 'px';
+                for (const id of [`prompt-json-${i}`, `prompt-char-${i}`, `prompt-bg-${i}`]) {
+                    const textarea = document.getElementById(id);
+                    if (textarea) {
+                        textarea.style.height = 'auto';
+                        textarea.style.height = textarea.scrollHeight + 'px';
+                    }
                 }
             });
         }, 100);
@@ -978,6 +1057,30 @@
                     console.log("Scene prompts synced to server.");
                 });
             }
+        }, 1000);
+    }
+
+    // [TWO-PROMPT] 캐릭터 프롬프트 업데이트
+    async function updatePromptChar(index, value) {
+        if (!prompts[index]) return;
+        prompts[index].prompt_char = value;
+        Utils.storage.set('imagePrompts', prompts);
+        clearTimeout(promptSaveTimeout);
+        promptSaveTimeout = setTimeout(() => {
+            const projectId = getCurrentProject();
+            if (projectId) API.project.saveImagePrompts(projectId, prompts);
+        }, 1000);
+    }
+
+    // [TWO-PROMPT] 배경 프롬프트 업데이트
+    async function updatePromptBg(index, value) {
+        if (!prompts[index]) return;
+        prompts[index].prompt_bg = value;
+        Utils.storage.set('imagePrompts', prompts);
+        clearTimeout(promptSaveTimeout);
+        promptSaveTimeout = setTimeout(() => {
+            const projectId = getCurrentProject();
+            if (projectId) API.project.saveImagePrompts(projectId, prompts);
         }, 1000);
     }
 
@@ -1224,30 +1327,17 @@
                     const imageContainer = card.querySelector('.image-container');
 
                     if (imageContainer) {
-                        // 기존 내용(placeholder 또는 이전 이미지) 제거
-                        imageContainer.innerHTML = '';
-
-                        // 새 이미지 요소 생성
-                        const imgDiv = document.createElement('div');
-                        imgDiv.className = 'aspect-video bg-black rounded-lg overflow-hidden border border-gray-600 w-[90%] relative group/image';
-                        imgDiv.innerHTML = `
-                            <img src="${result.image_url}" class="w-full h-full object-contain" alt="Scene ${i + 1}">
+                        imageContainer.innerHTML = `
+                            <img src="${result.image_url}" class="absolute inset-0 w-full h-full object-cover" alt="Scene ${i + 1}">
                             <div class="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded">✓ Image</div>
-                            
-                            <!-- Motion Button Overlay (Re-added) -->
-                            <div class="absolute inset-0 bg-black/50 opacity-0 group-hover/image:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
-                                 <button id="motion-btn-${i}" onclick="generateMotion(${i})" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-full shadow-lg transform hover:scale-105 transition-all flex items-center gap-2">
-                                    <span>🎬 Motion</span>
-                                 </button>
-                                 <select id="motion-opt-${i}" class="text-[10px] bg-black/80 text-white rounded px-2 py-1 border border-purple-500 cursor-pointer hover:bg-black" onclick="event.stopPropagation()">
-                                    <option value="5.0|standard" selected>${i18n.opt_motion_standard}</option>
-                                    <option value="8.0|extend">${i18n.opt_motion_extend}</option>
-                                    <option value="8.0|slowmo">${i18n.opt_motion_slowmo}</option>
-                                 </select>
+                            <input type="file" id="scene-upload-${i}" class="hidden" accept="image/*,video/*" onchange="uploadSceneImage(${i}, this)">
+                            <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <button onclick="document.getElementById('scene-upload-${i}').click()"
+                                        class="bg-white/90 dark:bg-gray-800/90 text-[10px] font-bold py-1.5 px-3 rounded-full shadow-lg hover:scale-105 transition-all text-gray-700 dark:text-gray-200">
+                                    📂 Replace Media
+                                </button>
                             </div>
                         `;
-
-                        imageContainer.appendChild(imgDiv);
                     }
 
                     if (statusDiv) {
@@ -1400,6 +1490,107 @@
             }
         }, 1000);
     }
+
+    // ── Motion 자동생성 ────────────────────────────────────────────────
+
+    function showMotionGenModal() {
+        // 현재 씬 수를 최대값으로 설정
+        const maxInput = document.getElementById('motionGenMaxScene');
+        if (maxInput) maxInput.max = prompts.length;
+        document.getElementById('motionGenModal').classList.remove('hidden');
+    }
+
+    function closeMotionGenModal() {
+        document.getElementById('motionGenModal').classList.add('hidden');
+        document.getElementById('motionGenProgress').classList.add('hidden');
+        document.getElementById('motionGenProgress').textContent = '';
+    }
+
+    async function bulkGenerateMotion() {
+        const projectId = getCurrentProject();
+        if (!projectId) { Utils.showToast('프로젝트를 선택해주세요', 'error'); return; }
+
+        const maxScene = parseInt(document.getElementById('motionGenMaxScene').value) || 5;
+        const confirmBtn = document.getElementById('motionGenConfirmBtn');
+        const progress = document.getElementById('motionGenProgress');
+
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = '생성 중...';
+        progress.classList.remove('hidden');
+        progress.textContent = `씬 1~${maxScene} 처리 중...`;
+
+        try {
+            const res = await fetch('/api/image/bulk-generate-motion', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ project_id: projectId, max_scene: maxScene })
+            });
+            const data = await res.json();
+
+            if (data.status === 'ok') {
+                // 로컬 prompts 배열 업데이트
+                data.results.forEach(r => {
+                    const idx = r.scene_number - 1;
+                    if (prompts[idx]) {
+                        prompts[idx].motion_desc = r.motion_desc;
+                        // textarea 직접 업데이트
+                        const ta = document.getElementById(`motion-prompt-${idx}`);
+                        if (ta) { ta.value = r.motion_desc; ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
+                    }
+                });
+                Utils.storage.set('imagePrompts', prompts);
+                progress.textContent = `✅ ${data.generated}개 씬 생성 완료!`;
+                progress.classList.add('text-green-500');
+                Utils.showToast(`🎬 ${data.generated}개 씬의 Motion 생성 완료`, 'success');
+                setTimeout(closeMotionGenModal, 1500);
+            } else {
+                progress.textContent = `❌ 오류: ${data.error}`;
+                Utils.showToast(data.error, 'error');
+            }
+        } catch (e) {
+            progress.textContent = `❌ 네트워크 오류: ${e.message}`;
+        } finally {
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = '✨ 생성 시작';
+        }
+    }
+
+    async function generateSingleMotion(index) {
+        const projectId = getCurrentProject();
+        if (!projectId || !prompts[index]) return;
+
+        const btn = document.getElementById(`gen-motion-btn-${index}`);
+        const ta = document.getElementById(`motion-prompt-${index}`);
+        if (btn) { btn.disabled = true; btn.textContent = '생성 중...'; }
+
+        try {
+            const res = await fetch('/api/image/bulk-generate-motion', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    project_id: projectId,
+                    scene_numbers: [prompts[index].scene_number || index + 1]
+                })
+            });
+            const data = await res.json();
+
+            if (data.status === 'ok' && data.results.length > 0) {
+                const motion = data.results[0].motion_desc;
+                prompts[index].motion_desc = motion;
+                if (ta) { ta.value = motion; ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
+                Utils.storage.set('imagePrompts', prompts);
+                Utils.showToast(`씬 ${index + 1} Motion 생성 완료`, 'success');
+            } else {
+                Utils.showToast('생성 실패: ' + (data.error || ''), 'error');
+            }
+        } catch (e) {
+            Utils.showToast('오류: ' + e.message, 'error');
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = '✨ AI 생성'; }
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────
 
     // [NEW] Manual Save All Prompts
     async function manualSavePrompts() {
@@ -1557,7 +1748,12 @@
 
     // ========== Scene Analysis ==========
 
-    let analyzedSceneCount = null; // Store analyzed scene count
+    // sessionStorage에서 복원 (페이지 새로고침 후에도 유지)
+    let analyzedSceneCount = parseInt(sessionStorage.getItem('analyzedSceneCount') || '0') || null;
+    if (analyzedSceneCount) {
+        const badge = document.getElementById('sceneCountBadge');
+        if (badge) { badge.textContent = `${analyzedSceneCount} Scenes`; badge.classList.remove('hidden'); }
+    }
 
     async function analyzeScenes() {
         const projectId = getCurrentProject();
@@ -1582,6 +1778,7 @@
 
             if (result.scene_count) {
                 analyzedSceneCount = result.scene_count;
+                sessionStorage.setItem('analyzedSceneCount', analyzedSceneCount); // 새로고침 후에도 유지
 
                 // Display result next to button
                 const resultBadge = document.getElementById('sceneCountBadge');
@@ -1798,8 +1995,22 @@
         }
     }
 
+    // 현재 선택된 비율에 맞는 aspect-ratio 스타일 반환
+    function getContainerStyle() {
+        const ratio = document.querySelector('input[name="aspectRatio"]:checked')?.value || '16:9';
+        const map = { '16:9': '16/9', '1:1': '1/1', '9:16': '9/16', '3:4': '3/4' };
+        return `aspect-ratio: ${map[ratio] || '16/9'};`;
+    }
+
     // 초기 로드 시 DB 및 로컬 스토리지 확인
     document.addEventListener('DOMContentLoaded', async () => {
+        // 썸네일 체크박스: 기본값 unchecked, localStorage로 마지막 값 유지
+        const _thumbCheck = document.getElementById('useThumbnailCheck');
+        if (_thumbCheck) {
+            const _saved = localStorage.getItem('useThumbnailCheck');
+            _thumbCheck.checked = _saved === 'true'; // 저장값 없으면 false(기본 unchecked)
+        }
+
         checkScriptStatus();
         loadProjectThumbnail();
 
@@ -1909,6 +2120,7 @@
 
                 // Clear checkbox if explicit upload
                 document.getElementById('useThumbnailCheck').checked = false;
+                localStorage.setItem('useThumbnailCheck', 'false');
             };
             reader.readAsDataURL(input.files[0]);
         }
@@ -1922,6 +2134,7 @@
         area.classList.remove('flex');
 
         document.getElementById('useThumbnailCheck').checked = true;
+        localStorage.setItem('useThumbnailCheck', 'true');
     }
 
     async function analyzeAndSetConsistency() {
@@ -2213,6 +2426,16 @@
     document.addEventListener('DOMContentLoaded', () => {
         applyAppMode();
         loadStyles(); // [NEW]
+
+        // 비율 변경 시 이미 렌더된 image-container들의 aspect-ratio 업데이트
+        document.querySelectorAll('input[name="aspectRatio"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                const style = getContainerStyle();
+                document.querySelectorAll('.image-container').forEach(el => {
+                    el.style.cssText = style;
+                });
+            });
+        });
         // NOTE: Characters and prompts are loaded via projectStateRestored event (triggered by initApp in base.html)
         // loadCharactersFromServer() and loadPromptsFromServer() are called as fallbacks from projectStateRestored
     });
