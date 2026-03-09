@@ -49,6 +49,7 @@ class SubtitlePreviewRequest(BaseModel):
     style_name: str = "Custom"
     width: int = 1920
     height: int = 1080
+    line_spacing_ratio: float = 0.1
 
 
 # ===========================================
@@ -80,6 +81,11 @@ def get_project_output_dir(project_id: int):
 # API: 자막 (Subtitle)
 # ===========================================
 
+@router.get("/subtitle/preview-test")
+async def preview_test():
+    return {"version": "v3_rgba_fix", "ok": True}
+
+
 @router.post("/subtitle/preview-image")
 async def generate_subtitle_preview(request: SubtitlePreviewRequest):
     """
@@ -88,8 +94,27 @@ async def generate_subtitle_preview(request: SubtitlePreviewRequest):
     """
     import base64
     from io import BytesIO
-    
+
     try:
+        # bg_color: rgba string → PIL tuple conversion
+        def _rgba_to_tuple(color_str):
+            import re as _re
+            if not color_str:
+                return (0, 0, 0, 128)
+            nums = _re.findall(r'[\d.]+', str(color_str))
+            if len(nums) >= 4:
+                r, g, b = int(float(nums[0])), int(float(nums[1])), int(float(nums[2]))
+                a_val = float(nums[3])
+                a = int(a_val * 255) if a_val <= 1.0 else int(a_val)
+                return (r, g, b, min(255, max(0, a)))
+            elif len(nums) >= 3:
+                return (int(float(nums[0])), int(float(nums[1])), int(float(nums[2])), 178)
+            return (0, 0, 0, 128)
+
+        bg_color_arg = _rgba_to_tuple(request.bg_color) if request.bg_enabled else False
+        _dbg_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "preview_debug.log")
+        with open(_dbg_path, "w") as _dbg: _dbg.write(f"bg_enabled={request.bg_enabled} bg_color='{request.bg_color}' -> bg_color_arg={bg_color_arg}\n")
+
         # video_service의 _create_subtitle_image 메서드 사용 (렌더링과 동일)
         img_path = video_service._create_subtitle_image(
             text=request.text,
@@ -100,7 +125,8 @@ async def generate_subtitle_preview(request: SubtitlePreviewRequest):
             style_name=request.style_name,
             stroke_color=request.stroke_color,
             stroke_width=request.stroke_width,
-            bg_color=request.bg_color if request.bg_enabled else None
+            bg_color=bg_color_arg,
+            line_spacing_ratio=request.line_spacing_ratio
         )
         
         if not img_path or not os.path.exists(img_path):
@@ -123,16 +149,16 @@ async def generate_subtitle_preview(request: SubtitlePreviewRequest):
         
         return {
             "status": "ok",
-            "image": f"data:image/png;base64,{b64_data}"
+            "image": f"data:image/png;base64,{b64_data}",
+            "v": "v4_fix"
         }
-        
+
     except Exception as e:
-        print(f"[SubtitlePreview] Error: {e}")
         import traceback
         traceback.print_exc()
         return JSONResponse(
             status_code=500,
-            content={"status": "error", "error": str(e)}
+            content={"status": "error", "error": str(e), "v": "v4_fix"}
         )
 
 @router.get("/subtitle/{project_id}")
@@ -428,7 +454,7 @@ async def save_subtitles_api(req: dict = Body(...)):
         
         # Save Image Timings if provided
         image_timings = req.get("image_timings")
-        if image_timings:
+        if image_timings is not None:
              timings_filename = f"image_timings_{project_id}_{int(time.time())}.json"
              timings_path = os.path.join(config.OUTPUT_DIR, timings_filename)
              with open(timings_path, "w", encoding="utf-8") as f:
@@ -436,8 +462,9 @@ async def save_subtitles_api(req: dict = Body(...)):
              db.update_project_setting(project_id, 'image_timings_path', timings_path)
 
         # Save Timeline Images (Custom Order/Reuse)
+        # [FIX] images=None → 전송 안 됨, images=[] → 삭제 후 빈 목록 (둘 다 처리)
         timeline_images = req.get("images")
-        if timeline_images:
+        if timeline_images is not None:  # None이 아니면 항상 저장 (빈 배열도 저장)
              tl_filename = f"timeline_images_{project_id}_{int(time.time())}.json"
              tl_path = os.path.join(config.OUTPUT_DIR, tl_filename)
              with open(tl_path, "w", encoding="utf-8") as f:
@@ -446,7 +473,7 @@ async def save_subtitles_api(req: dict = Body(...)):
 
         # Save Image Effects
         image_effects = req.get("image_effects")
-        if image_effects:
+        if image_effects is not None:
              ef_filename = f"image_effects_{project_id}_{int(time.time())}.json"
              ef_path = os.path.join(config.OUTPUT_DIR, ef_filename)
              with open(ef_path, "w", encoding="utf-8") as f:
@@ -1118,7 +1145,7 @@ async def render_project_video(
             try:
                 with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as rf:
                     rf.write(f"[{datetime.datetime.now()}] Starting render for project {project_id}\n")
-                    rf.write(f"[{datetime.datetime.now()}] Images: {len(images)}, Audio: {audio_path}\n")
+                    rf.write(f"[{datetime.datetime.now()}] Audio: {audio_path}\n")
 
                 # 1. 자막 데이터 및 설정 준비
                 subs = []
@@ -1195,24 +1222,123 @@ async def render_project_video(
                         audio_duration = audio_clip.duration
                 
                 print(f"DEBUG_RENDER: Audio duration: {audio_duration}s")
-                
+
+                # [NEW] Load image timings earlier to allow shifting if front trim happens
+                forced_timings = None
+                p_settings = db.get_project_settings(project_id) or {}
+                tm_path = p_settings.get('image_timings_path')
+                if tm_path and os.path.exists(tm_path):
+                    try:
+                        with open(tm_path, "r", encoding="utf-8") as f_tm:
+                            forced_timings = json.load(f_tm)
+                        print(f"DEBUG_RENDER: Loaded {len(forced_timings)} image timings from {tm_path}")
+                    except: pass
+
+                # [AUDIO RELATIVIZE & TRIM] - (Support both front and back trim)
+                effective_audio_path = audio_path
+                if subs and audio_duration > 0 and len(subs) > 0:
+                    earliest_start = min(s.get('start', 0) for s in subs)
+                    latest_end = max(s.get('end', 0) for s in subs)
+                    
+                    # 1. Front Trim & Asset Filtering
+                    # If start > 0.5s, it means the beginning was likely deleted
+                    shift_delta = 0.0
+                    if earliest_start > 0.5:
+                         msg = f"DEBUG_RENDER: [Auto-Relativize] Front gap ({earliest_start:.2f}s) found. Shifting all by {earliest_start:.2f}s.\n"
+                         print(msg)
+                         
+                         shift_delta = earliest_start
+                         
+                         # [NEW] Sync Images with Start Time
+                         first_img_idx = 0
+                         if forced_timings and len(forced_timings) > 0:
+                             for idx, t in enumerate(forced_timings):
+                                 if t <= shift_delta:
+                                     first_img_idx = idx
+                                 else:
+                                     break
+                         
+                         if first_img_idx > 0:
+                             print(f"DEBUG_RENDER: [Auto-Relativize] Discarding first {first_img_idx} unused images/effects.")
+
+                             # 인플레이스 슬라이싱: 변수 재할당 대신 리스트 뮤테이션으로 로컬변수 스코프 충돌 방지
+                             images[:] = images[first_img_idx:]
+                             if forced_timings:
+                                 forced_timings = forced_timings[first_img_idx:]
+
+                         # Shift all remaining subtitles
+                         for s in subs:
+                             s['start'] = max(0, s['start'] - shift_delta)
+                             s['end'] = max(0, s['end'] - shift_delta)
+                         
+                         # Shift all forced timings
+                         if forced_timings:
+                             forced_timings = [max(0, t - shift_delta) for t in forced_timings]
+                         
+                         # Update local marker for back trim calculation
+                         latest_end -= shift_delta
+                    
+                    # 2. Back Trim 
+                    # Trim audio if it extends significantly beyond the last subtitle
+                    trim_target = latest_end + 1.5 
+                    
+                    # original_audio_end is the coordinate in the ORIGINAL audio file
+                    original_audio_end = trim_target + shift_delta
+                    
+                    # Check if actual audio extraction is needed (either front shift or back trim)
+                    needs_trim = (original_audio_end < audio_duration - 1.5) or (shift_delta > 0)
+                    
+                    if needs_trim:
+                        _trim_filename = f"audio_relativized_{project_id}_{int(time.time())}.mp3"
+                        _trim_path = os.path.join(inner_output_dir, _trim_filename)
+                        _trim_done = False
+
+                        # 1차: pydub 시도
+                        try:
+                            import pydub as _pydub
+                            _audio_seg = _pydub.AudioSegment.from_file(audio_path)
+                            t_start_ms = int(earliest_start * 1000)
+                            t_end_ms = int(min(original_audio_end, audio_duration) * 1000)
+                            _trimmed_seg = _audio_seg[t_start_ms : t_end_ms]
+                            _trimmed_seg.export(_trim_path, format='mp3')
+                            effective_audio_path = _trim_path
+                            audio_duration = _trimmed_seg.duration_seconds
+                            _trim_done = True
+                            print(f"DEBUG_RENDER: [Auto-Relativize] pydub trim OK. New duration: {audio_duration:.2f}s")
+                        except Exception as _trim_e:
+                            print(f"DEBUG_RENDER: [Auto-Relativize] pydub failed: {_trim_e}. Trying MoviePy...")
+
+                        # 2차: MoviePy 폴백
+                        if not _trim_done:
+                            try:
+                                try:
+                                    from moviepy.editor import AudioFileClip as _AFC
+                                except ImportError:
+                                    from moviepy.audio.io.AudioFileClip import AudioFileClip as _AFC
+                                t_start = earliest_start
+                                t_end = min(original_audio_end, audio_duration)
+                                with _AFC(audio_path) as _ac:
+                                    # MoviePy v2.x: subclipped(), v1.x: subclip()
+                                    if hasattr(_ac, 'subclipped'):
+                                        _trimmed = _ac.subclipped(t_start, t_end)
+                                    else:
+                                        _trimmed = _ac.subclip(t_start, t_end)
+                                    _trimmed.write_audiofile(_trim_path, logger=None)
+                                    audio_duration = _trimmed.duration
+                                effective_audio_path = _trim_path
+                                _trim_done = True
+                                print(f"DEBUG_RENDER: [Auto-Relativize] MoviePy trim OK. New duration: {audio_duration:.2f}s")
+                            except Exception as _mp_e:
+                                print(f"DEBUG_RENDER: [Auto-Relativize] MoviePy trim also failed: {_mp_e}")
+                    else:
+                        print(f"DEBUG_RENDER: [Auto-Relativize] No trim needed.")
+
                 # Dynamic Image Pacing
                 num_img = len(images) if images else 0
                 num_sub = len(subs) if subs else 0
                 duration_per_image = 5.0
                 
                 if num_img > 0:
-                    forced_timings = None
-                    i_settings = db.get_project_settings(project_id)
-                    tm_path = i_settings.get('image_timings_path') if i_settings else None
-                    if tm_path and os.path.exists(tm_path):
-                        try:
-                            with open(tm_path, "r", encoding="utf-8") as f:
-                                forced_timings = json.load(f)
-                            print(f"DEBUG_RENDER: Loaded explicit image timings from {tm_path}")
-                        except Exception as e:
-                            print(f"DEBUG_RENDER: Failed to load image timings: {e}")
-
                     if num_sub >= num_img and num_sub > 0:
                         durations = []
                         
@@ -1362,7 +1488,7 @@ async def render_project_video(
                 # 3. 단일 패스 영상 생성
                 video_path = video_service.create_slideshow(
                     images=images,
-                    audio_path=audio_path,
+                    audio_path=effective_audio_path,
                     output_filename=final_output_path,
                     resolution=target_resolution_arg,
                     subtitles=subs,

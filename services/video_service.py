@@ -3,9 +3,13 @@
 - MoviePy + FFmpeg를 사용한 이미지+음성 합성
 """
 import os
+import re
+import datetime
+import uuid
+import json
+import requests
 from typing import List, Optional, Union
 from config import config
-
 
 class VideoService:
     def __init__(self):
@@ -404,43 +408,53 @@ class VideoService:
                     target_w, target_h = resolution
                     is_vertical = target_h > target_w
 
-                    if is_vertical:
-                        # [NEW] Check if we need to preserve tall height for vertical panning
-                        is_tall_pan = False
-                        eff_check = ""
-                        if image_effects and i < len(image_effects):
-                             eff_check = str(image_effects[i]).lower().replace(" ", "_")
-                             if eff_check in ['pan_up', 'pan_down', 'scroll_down', 'scroll_up']:
-                                 is_tall_pan = True
+                    # [NEW] Detect if pan is requested for images
+                    is_tall_pan = False
+                    is_wide_pan = False
+                    eff_check = ""
+                    if image_effects and i < len(image_effects):
+                        eff_check = str(image_effects[i]).lower().replace(" ", "_")
+                        if eff_check in ['pan_up', 'pan_down', 'scroll_down', 'scroll_up']:
+                            is_tall_pan = True
+                        if eff_check in ['pan_left', 'pan_right']:
+                            is_wide_pan = True
 
-                        # Extract duration early
-                        dur = duration_per_image[i] if isinstance(duration_per_image, list) else duration_per_image
+                    dur = duration_per_image[i] if isinstance(duration_per_image, list) else duration_per_image
 
-                        if is_tall_pan:
-                             # Use FFmpeg Preprocess for consistent Pan effect on Images
-                             pan_dir = "up" if eff_check in ['pan_up', 'scroll_up'] else "down"
-                             print(f"↕️ [TallPan Image] effect={eff_check}, dir={pan_dir}, dur={dur:.1f}s")
-                             processed_path = self._preprocess_video_tall_pan(
-                                 img_path, target_w, target_h, duration=dur, fps=fps, direction=pan_dir
-                             )
-                             clip = VideoFileClip(processed_path).without_audio()
-                             temp_files.append(processed_path)
-                             # (MoviePy에서 with_position으로 실제 움직임을 줄 것이므로 effect를 'none'으로 지우지 않음)
-                        else:
-                             # [NEW] Smart focal point retrieval
-                             focal_y = 0.5
-                             if focal_point_ys and i < len(focal_point_ys):
-                                 focal_y = focal_point_ys[i]
-    
-                             # For Shorts/Vertical: Use Cinematic Frame (Fit Width + Smart Crop Focal Point)
-                             processed_img_path = self._create_cinematic_frame(img_path, resolution, focal_point_y=focal_y, allow_tall=False)
-                             temp_files.append(processed_img_path)
-                             
-                             # Explicitly convert to VideoClip
-                             clip = ImageClip(processed_img_path).with_duration(dur).with_fps(30)
+                    if is_tall_pan:
+                        # Use FFmpeg Preprocess for consistent Vertical Pan
+                        pan_dir = "up" if eff_check in ['pan_up', 'scroll_up'] else "down"
+                        print(f"↕️ [TallPan Image] idx={i}, effect={eff_check}, dir={pan_dir}, dur={dur:.1f}s")
+                        processed_path = self._preprocess_video_tall_pan(
+                            img_path, target_w, target_h, duration=dur, fps=fps, direction=pan_dir
+                        )
+                        clip = VideoFileClip(processed_path).without_audio()
+                        temp_files.append(processed_path)
+                    
+                    elif is_wide_pan:
+                        # Use FFmpeg Preprocess for consistent Horizontal Pan
+                        pan_dir = "left" if eff_check == 'pan_left' else "right"
+                        print(f"↔️ [WidePan Image] idx={i}, effect={eff_check}, dir={pan_dir}, dur={dur:.1f}s")
+                        processed_path = self._preprocess_video_wide_pan(
+                            img_path, target_w, target_h, duration=dur, fps=fps, direction=pan_dir
+                        )
+                        clip = VideoFileClip(processed_path).without_audio()
+                        temp_files.append(processed_path)
+
+                    elif is_vertical:
+                        # [NEW] Smart focal point retrieval
+                        focal_y = 0.5
+                        if focal_point_ys and i < len(focal_point_ys):
+                            focal_y = focal_point_ys[i]
+
+                        # For Shorts/Vertical: Use Cinematic Frame (Fit Width + Smart Crop Focal Point)
+                        processed_img_path = self._create_cinematic_frame(img_path, resolution, focal_point_y=focal_y, allow_tall=False)
+                        temp_files.append(processed_img_path)
+                        
+                        # Explicitly convert to VideoClip
+                        clip = ImageClip(processed_img_path).with_duration(dur).with_fps(30)
                     else:
-                        dur = duration_per_image[i] if isinstance(duration_per_image, list) else duration_per_image
-                        # For Landscape: Use Fill (Crop) as before
+                        # For Landscape Project: Use Fill (Crop) as before
                         processed_img_path = self._resize_image_to_fill(img_path, resolution)
                         temp_files.append(processed_img_path)
                         clip = ImageClip(processed_img_path).with_duration(dur).with_fps(30)
@@ -569,43 +583,43 @@ class VideoService:
                             # [FIX v2] Tall image detection: use actual clip height vs viewport height.
                             # Do NOT rely on filename containing 'tall' — files get renamed (e.g. scene_001.jpg)
                             # and the 'tall' hint is lost. Instead, check if clip is actually taller than viewport.
-                            is_tall_clip = (
-                                is_tall_pan and
-                                clip.h > h  # clip.h = actual clip pixel height, h = viewport height
-                            )
-                            print(f"  [PAN DEBUG] effect={effect}, is_tall_pan={is_tall_pan}, clip.h={clip.h}, viewport_h={h}, is_tall_clip={is_tall_clip}")
+                            is_tall_clip = (is_tall_pan and clip.h > h)
+                            is_wide_clip = (is_wide_pan and clip.w > w)
+                            
+                            print(f"  [PAN DEBUG] effect={effect}, is_tall={is_tall_clip}, is_wide={is_wide_clip}")
 
                             if is_tall_clip and effect in ('pan_down', 'pan_up'):
-                                # --- TRUE VERTICAL SCROLL (세로 긴 이미지 전체를 스크롤) ---
-                                # clip.h is the full tall image height (e.g. 3000px for a 1080x1920 target)
-                                # w, h are the target viewport size
+                                # --- TRUE VERTICAL SCROLL ---
                                 new_w, new_h = clip.w, clip.h
-                                max_scroll = new_h - h  # total scrollable pixels
-
+                                max_scroll = new_h - h
                                 if max_scroll > 0:
-                                    if effect == 'pan_down':
-                                        # Top -> Bottom (image moves upward, revealing bottom)
-                                        clip = clip.with_position(
-                                            lambda t, _ms=max_scroll, _dur=dur, _x_off=int((w - new_w) / 2): (
-                                                _x_off,
-                                                int(0 - _ms * (t / _dur))
-                                            )
-                                        )
-                                    else:  # pan_up
-                                        # Bottom -> Top
-                                        clip = clip.with_position(
-                                            lambda t, _ms=max_scroll, _dur=dur, _x_off=int((w - new_w) / 2): (
-                                                _x_off,
-                                                int(-_ms + _ms * (t / _dur))
-                                            )
-                                        )
+                                    if effect == 'pan_down': # Top -> Bottom
+                                        clip = clip.with_position(lambda t, _ms=max_scroll, _dur=dur, _x_off=int((w - new_w) / 2): (_x_off, int(0 - _ms * (t / _dur))))
+                                    else: # pan_up: Bottom -> Top
+                                        clip = clip.with_position(lambda t, _ms=max_scroll, _dur=dur, _x_off=int((w - new_w) / 2): (_x_off, int(-_ms + _ms * (t / _dur))))
                                     clip = CompositeVideoClip([clip], size=(w, h)).with_duration(dur)
-                                    print(f"  → [TRUE PAN] Tall scroll applied: effect={effect}, tall_h={new_h}px, viewport_h={h}px, scroll={max_scroll}px")
                                 else:
-                                    # Image height <= viewport height -> fallback center
                                     clip = clip.with_position(('center', 'center'))
                                     clip = CompositeVideoClip([clip], size=(w, h)).with_duration(dur)
 
+                            elif is_wide_clip and effect in ('pan_left', 'pan_right'):
+                                # --- TRUE HORIZONTAL SCROLL ---
+                                new_w, new_h = clip.w, clip.h
+                                max_scroll = new_w - w
+                                if max_scroll > 0:
+                                    if effect == 'pan_right': # Left -> Right (Reveal contents on RIGHT)
+                                        # Initial position: X=0 (Left aligned)
+                                        # End position: X=-max_scroll (Right aligned)
+                                        clip = clip.with_position(lambda t, _ms=max_scroll, _dur=dur, _y_off=int((h - new_h) / 2): (int(0 - _ms * (t / _dur)), _y_off))
+                                    else: # pan_left: Right -> Left
+                                        # Initial position: X=-max_scroll (Right aligned)
+                                        # End position: X=0 (Left aligned)
+                                        clip = clip.with_position(lambda t, _ms=max_scroll, _dur=dur, _y_off=int((h - new_h) / 2): (int(-_ms + _ms * (t / _dur)), _y_off))
+                                    clip = CompositeVideoClip([clip], size=(w, h)).with_duration(dur)
+                                else:
+                                    clip = clip.with_position(('center', 'center'))
+                                    clip = CompositeVideoClip([clip], size=(w, h)).with_duration(dur)
+                            
                             else:
                                 # --- STANDARD PAN (1.2x zoom + small movement) ---
                                 pan_zoom = 1.2
@@ -1107,19 +1121,43 @@ class VideoService:
 
             img_w, img_h = img.size
             
-            # Always Fit to Width
-            new_w = target_w
-            new_h = int(new_w * (img_h / img_w))
+            # Smart Resizing for Panning
+            # If horizontal image (wide) and panning requested, fit to Height (1920)
+            # If vertical image (tall) and panning requested, fit to Width (1080)
             
-            # High-quality Resize
-            img_resized = img.resize((new_w, new_h), Image.LANCZOS)
-            
-            if allow_tall and new_h > target_h:
-                # [NEW] Skip cropping onto target_h background. Just return the resized full tall image.
+            if allow_tall and img_h > img_w * (target_h / target_w):
+                # Tall image (Vertical Scroller)
+                new_w = target_w
+                new_h = int(new_w * (img_h / img_w))
+                img_resized = img.resize((new_w, new_h), Image.LANCZOS)
+                
                 out_fn = f"cinematic_tall_{uuid.uuid4().hex[:8]}.jpg"
                 out_path = os.path.join(config.OUTPUT_DIR, out_fn)
                 img_resized.save(out_path, quality=90)
                 return out_path
+
+            # Allow Wide (Horizontal Scroller)
+            # Check for wide image or specific hint (e.g. from fit_image_to_916)
+            # We don't have an 'allow_wide' param yet, let's detect it based on img_w
+            is_wide_source = img_w > img_h * (target_w / target_h)
+            
+            if is_wide_source:
+                # Wide image -> Fit to HEIGHT (1920) to enable panning across width
+                new_h = target_h
+                new_w = int(new_h * (img_w / img_h))
+                img_resized = img.resize((new_w, new_h), Image.LANCZOS)
+                
+                # If it's meaningfully wide (> 1080), return as-is for panning
+                if new_w > target_w + 50:
+                    out_fn = f"cinematic_wide_{uuid.uuid4().hex[:8]}.jpg"
+                    out_path = os.path.join(config.OUTPUT_DIR, out_fn)
+                    img_resized.save(out_path, quality=90)
+                    return out_path
+            
+            # Default behavior (Fit to width and letterbox/crop to 1080x1920)
+            new_w = target_w
+            new_h = int(new_w * (img_h / img_w))
+            img_resized = img.resize((new_w, new_h), Image.LANCZOS)
 
             # Create Black Background
             bg = Image.new('RGB', (target_w, target_h), (0, 0, 0))
@@ -1195,6 +1233,84 @@ class VideoService:
         img.save(output_path, quality=95)
         
         return output_path
+
+    def composite_character_on_background(
+        self,
+        char_bytes: bytes,
+        bg_bytes: bytes,
+        aspect_ratio: str = "16:9",
+        char_scale: float = 0.72,
+        white_threshold: int = 240,
+        edge_feather: int = 3
+    ) -> bytes:
+        """
+        캐릭터 이미지(흰 배경)와 배경 이미지를 합성하여 최종 이미지 bytes 반환.
+        1. 배경을 aspect_ratio에 맞게 리사이즈
+        2. 캐릭터의 흰색 픽셀을 투명으로 변환 (알파 마스크)
+        3. 캐릭터를 배경 하단 중앙에 배치하고 합성
+        """
+        from PIL import Image, ImageFilter
+        import io
+
+        # --- 해상도 결정 ---
+        ratio_map = {
+            "16:9": (1280, 720),
+            "9:16": (720, 1280),
+            "1:1": (1024, 1024),
+        }
+        target_w, target_h = ratio_map.get(aspect_ratio, (1280, 720))
+
+        # --- 배경 이미지 로드 및 리사이즈 (Aspect Fill) ---
+        bg = Image.open(io.BytesIO(bg_bytes)).convert("RGBA")
+        bg_ratio = bg.width / bg.height
+        tgt_ratio = target_w / target_h
+        if bg_ratio > tgt_ratio:
+            new_h = target_h
+            new_w = int(new_h * bg_ratio)
+        else:
+            new_w = target_w
+            new_h = int(new_w / bg_ratio)
+        bg = bg.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        left = (new_w - target_w) // 2
+        top = (new_h - target_h) // 2
+        bg = bg.crop((left, top, left + target_w, top + target_h))
+
+        # --- 캐릭터 이미지 로드 ---
+        char = Image.open(io.BytesIO(char_bytes)).convert("RGBA")
+
+        # --- 흰 배경 제거: 흰색에 가까운 픽셀을 투명으로 ---
+        char_data = char.load()
+        char_w, char_h = char.size
+        for y in range(char_h):
+            for x in range(char_w):
+                r, g, b, a = char_data[x, y]
+                if r >= white_threshold and g >= white_threshold and b >= white_threshold:
+                    char_data[x, y] = (r, g, b, 0)
+
+        # 가장자리 부드럽게: alpha 채널에 약한 blur 적용
+        if edge_feather > 0:
+            r_ch, g_ch, b_ch, a_ch = char.split()
+            a_ch = a_ch.filter(ImageFilter.GaussianBlur(radius=edge_feather))
+            char = Image.merge("RGBA", (r_ch, g_ch, b_ch, a_ch))
+
+        # --- 캐릭터 리사이즈: 배경 높이의 char_scale 비율로 ---
+        char_target_h = int(target_h * char_scale)
+        char_scale_ratio = char_target_h / char_h
+        char_target_w = int(char_w * char_scale_ratio)
+        char = char.resize((char_target_w, char_target_h), Image.Resampling.LANCZOS)
+
+        # --- 캐릭터 위치: 하단 중앙 배치 (발이 하단에 닿도록) ---
+        char_x = (target_w - char_target_w) // 2
+        char_y = target_h - char_target_h  # 발이 화면 하단에 닿게
+
+        # --- 합성 ---
+        result = bg.copy()
+        result.paste(char, (char_x, char_y), mask=char)
+
+        # --- bytes 변환 ---
+        out_buf = io.BytesIO()
+        result.convert("RGB").save(out_buf, format="PNG")
+        return out_buf.getvalue()
 
     def generate_aligned_subtitles(self, audio_path: str, script_text: str = None) -> List[dict]:
         """
@@ -1690,6 +1806,53 @@ class VideoService:
         }
     }
 
+    def _parse_color(self, color_str: Union[str, bool, tuple]) -> Optional[Union[tuple, str]]:
+        """CSS style color string (hex, rgb, rgba) -> PIL tuple or base name"""
+        if color_str is False:
+            return None
+            
+        if not color_str:
+            return "white"
+        
+        # Already a tuple (PIL format)
+        if isinstance(color_str, (tuple, list)):
+            return tuple(color_str)
+
+        # Normalize and strip
+        s_color = str(color_str).strip()
+        
+        # Robust logic for rgb() / rgba()
+        # Extracts all numeric parts regardless of spacing/separators
+        try:
+            low_color = s_color.lower()
+            if "rgb" in low_color:
+                # [FIX] Handle common 'rgba(0,0,0,0.3)' format manually just in case regex fails
+                if "0,0,0,0" in s_color.replace(" ",""):
+                    # Common dark background.
+                    nums = re.findall(r"([\d.]+)", s_color)
+                    if len(nums) >= 4:
+                        a_int = int(float(nums[3]) * 255)
+                        return (0, 0, 0, a_int)
+
+                # re.findall([\d.]+) will get all numbers in order: r, g, b, (a)
+                nums = re.findall(r"([\d.]+)", s_color)
+                if len(nums) >= 3:
+                    r, g, b = nums[:3]
+                    alpha = 255
+                    if len(nums) >= 4:
+                        try:
+                            a_val = float(nums[3])
+                            alpha = int(a_val * 255) if a_val <= 1.0 else int(a_val)
+                        except: pass
+                    
+                    return (int(r), int(g), int(b), min(255, max(0, alpha)))
+        except Exception as e:
+            print(f"DEBUG_COLOR: Parsing error on '{s_color}': {e}")
+        
+        return s_color
+        
+        return s_color
+
     def _create_subtitle_image(self, text, width, font_size, font_color, font_name, style_name="Basic_White", stroke_color=None, stroke_width_ratio=None, stroke_width=None, bg_color=None, line_spacing_ratio=0.1):
         from PIL import Image, ImageDraw, ImageFont
         import textwrap
@@ -1711,6 +1874,11 @@ class VideoService:
         # 스타일 조회
         style = self.SUBTITLE_STYLES.get(style_name, self.SUBTITLE_STYLES["Basic_White"])
         
+        # [NEW] Parse Colors for PIL
+        font_color = self._parse_color(font_color)
+        stroke_color = self._parse_color(stroke_color) if stroke_color else None
+        bg_color = self._parse_color(bg_color) if bg_color else None
+
         final_font_color = style.get("font_color", font_color)
         print(f"DEBUG_RENDER: _create_subtitle_image style='{style_name}' font_color='{font_color}' final='{final_font_color}'")
         stroke_color = stroke_color if stroke_color is not None else style.get("stroke_color", "black")
@@ -1868,39 +2036,43 @@ class VideoService:
             if line_width <= safe_width:
                 wrapped_lines.append(m_line)
             else:
-                # [FIX] 픽셀 너비 초과 - 단어 단위로 줄바꿈
-                words = m_line.split(' ')
-                current_line = []
-                current_width = 0
-                
-                for word in words:
-                    # Skip empty words
-                    if not word: continue
-                    
-                    word_width = get_text_width(word + " ", font)
-                    
-                    if current_width + word_width > safe_width and current_line:
-                        wrapped_lines.append(" ".join(current_line))
-                        current_line = [word]
-                        current_width = word_width
-                        
-                        # [FIX] If we reached limit, stop and add rest to last line (but limited)
+                # [CJK FIX] Character-level wrapping - 일본어/한국어/중국어는 띄어쓰기 없음
+                # 라틴 문자는 마지막 공백 위치에서 줄바꿈, CJK는 글자 단위로 줄바꿈
+                cur = ""
+                cur_w = 0
+                force_break = False
+
+                for i, ch in enumerate(m_line):
+                    ch_w = get_text_width(ch, font)
+
+                    if cur_w + ch_w > safe_width and cur:
+                        # 라틴 텍스트: 마지막 공백에서 자르기 시도
+                        sp = cur.rfind(' ')
+                        if sp > int(len(cur) * 0.4):
+                            wrapped_lines.append(cur[:sp])
+                            cur = cur[sp+1:] + ch
+                            cur_w = get_text_width(cur, font)
+                        else:
+                            # CJK 또는 공백 없는 경우: 글자 단위로 자르기
+                            wrapped_lines.append(cur)
+                            cur = ch
+                            cur_w = ch_w
+
                         if len(wrapped_lines) >= MAX_LINES:
-                            # Don't break immediately, let's join the rest of the words for the last allowed line
-                            # Actually, if we are at MAX_LINES, we replace the last line with current+remaining
-                            remaining = words[words.index(word):]
-                            wrapped_lines[-1] = " ".join(current_line + remaining)
+                            # 최대 줄 수 도달 - 나머지를 마지막 줄에 이어붙임
+                            wrapped_lines[-1] += cur + m_line[i+1:]
+                            cur = ""
+                            force_break = True
                             break
                     else:
-                        current_line.append(word)
-                        current_width += word_width
-                else:
-                    # for-else: break 없이 끝난 경우
-                    if current_line and len(wrapped_lines) < MAX_LINES:
-                        wrapped_lines.append(" ".join(current_line))
-                    elif current_line and len(wrapped_lines) >= MAX_LINES:
-                        # Append to last line
-                        wrapped_lines[-1] += " " + " ".join(current_line)
+                        cur += ch
+                        cur_w += ch_w
+
+                if not force_break:
+                    if cur and len(wrapped_lines) < MAX_LINES:
+                        wrapped_lines.append(cur)
+                    elif cur:
+                        wrapped_lines[-1] += cur
                 
         # [Final Safety Slice]
         wrapped_lines = wrapped_lines[:MAX_LINES]
@@ -1980,20 +2152,31 @@ class VideoService:
             
             # Draw Background (per line)
             if bg_color:
+                # [SAFETY] Ensure bg_color is always a PIL-compatible tuple
+                _bg = bg_color
+                if isinstance(_bg, str):
+                    import re as _re
+                    _nums = _re.findall(r'[\d.]+', _bg)
+                    if len(_nums) >= 4:
+                        _a = float(_nums[3])
+                        _bg = (int(float(_nums[0])), int(float(_nums[1])), int(float(_nums[2])), int(_a * 255) if _a <= 1.0 else int(_a))
+                    elif len(_nums) >= 3:
+                        _bg = (int(float(_nums[0])), int(float(_nums[1])), int(float(_nums[2])), 178)
+                    else:
+                        _bg = (0, 0, 0, 178)
+
                 # [FIX] Tighter vertical positioning to prevent merging into one block
-                # bg_h should be just enough to cover the font height
-                bg_h = line_height_font * 1.05 # Reduced from 1.2 to 1.05
+                bg_h = line_height_font * 1.05
                 offset_y = (bg_h - line_height_font) / 2
-                
-                # bx0, bx1 (Horizontal)
                 bx0 = line_x - pad_x
                 bx1 = line_x + lw + pad_x
-                
-                # by0, by1 (Vertical) - Tightly around the font
                 by0 = current_y - offset_y
                 by1 = current_y + line_height_font + offset_y
-                
-                draw.rounded_rectangle([bx0, by0, bx1, by1], radius=10, fill=bg_color)
+
+                try:
+                    draw.rounded_rectangle([bx0, by0, bx1, by1], radius=10, fill=_bg)
+                except (AttributeError, TypeError):
+                    draw.rectangle([bx0, by0, bx1, by1], fill=_bg)
             
             # 2. Draw Text (Always at the same current_y)
             if s_width > 0:
@@ -2492,6 +2675,63 @@ class VideoService:
         subprocess.run(cmd, check=True, startupinfo=startupinfo)
         return output_path
 
+    def _preprocess_video_wide_pan(self, input_path, width, height, duration, fps=30, direction="right"):
+        """
+        [NEW] 가로로 긴 영상/이미지(예: 32:9)에 대해 Full-Travel Horizontal Pan 효과 적용.
+        - Height를 프레임 높이에 맞게 확대 (Width는 비율 유지, 크롭 없음)
+        - Left→Right 또는 Right→Left 전체 스크롤을 MoviePy에서 처리할 수 있도록 소스 준비
+        """
+        import subprocess
+        import uuid
+        import imageio_ffmpeg
+        from PIL import Image
+        import cv2
+
+        ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+        output_path = os.path.join(self.output_dir, f"video_wide_p_{uuid.uuid4()}.mp4")
+
+        startupinfo = None
+        if os.name == 'nt':
+             startupinfo = subprocess.STARTUPINFO()
+             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+             
+        try:
+            cap = cv2.VideoCapture(input_path)
+            orig_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            orig_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            cap.release()
+            if orig_w <= 0 or orig_h <= 0: raise ValueError("Invalid dims")
+        except:
+            try:
+                img = Image.open(input_path)
+                orig_w, orig_h = img.size
+            except:
+                return self._preprocess_video_with_ffmpeg(input_path, width, height, fps, duration=duration)
+
+        # height 기준으로 확대 시 새 너비 계산
+        scale_factor = height / orig_h
+        scaled_w = int(orig_w * scale_factor)
+
+        if scaled_w <= width:
+            return self._preprocess_video_with_ffmpeg(input_path, width, height, fps, duration=duration)
+
+        vf_filter = f"scale={scaled_w}:{height}"
+        is_video = input_path.lower().endswith(('.mp4', '.mov', '.avi', '.mkv', '.webm'))
+        
+        cmd = [ffmpeg_exe, "-y"]
+        if is_video:
+            cmd.extend(["-stream_loop", "-1", "-t", str(duration), "-i", input_path])
+        else:
+            cmd.extend(["-loop", "1", "-framerate", str(fps), "-t", str(duration), "-i", input_path])
+
+        cmd.extend([
+            "-vf", vf_filter,
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "22", "-an",
+            output_path
+        ])
+        subprocess.run(cmd, check=True, startupinfo=startupinfo)
+        return output_path
+
     def _preprocess_video_tall_pan(self, input_path, width, height, duration, fps=30, direction="down"):
         """
         [NEW] 세로로 긴 영상(예: 9:32)에 대해 Full-Travel Pan 효과 적용.
@@ -2937,17 +3177,22 @@ class VideoService:
     def auto_crop_image(self, image_path: str, border_color="auto", tolerance=15) -> str:
         """
         [FIXED] 이미지 안쪽 부분은 파먹지 않고, 이미지 가장자리의 레터박스(검은색/흰색 등)만 엄격하게 잘라냅니다.
+        가로/세로 어느 한 방향으로라도 여백이 있으면 확실히 잘라내도록 로직을 강화했습니다.
         """
         import cv2
         import numpy as np
         import os
         try:
+            # 한글 경로 지원을 위해 numpy로 읽기
             stream = open(image_path, "rb")
             bytes_img = bytearray(stream.read())
             img = cv2.imdecode(np.asarray(bytes_img, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
             stream.close()
 
             if img is None: return image_path
+
+            h, w = img.shape[:2]
+            if h < 10 or w < 10: return image_path
 
             if len(img.shape) == 3 and img.shape[2] == 4:
                 img_bgr = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
@@ -2958,54 +3203,58 @@ class VideoService:
 
             gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
 
-            # [REFINED] 상하좌우 각기 다른 배경색이 있을 수 있음을 고려하여 개별적으로 여백 탐지
-            # 각 사이드(상,하,좌,우)에서 5px씩 샘플링하여 배경색 확인
+            # [REFINED] 상하좌우 각기 다른 배경색이 있을 수 있음을 고려
+            # 사이드 5px씩 샘플링해서 확실히 배경인지 판별
             top_bg = np.median(gray[0:5, :])
             bottom_bg = np.median(gray[-5:, :])
             left_bg = np.median(gray[:, 0:5])
             right_bg = np.median(gray[:, -5:])
             
-            # 각 배경색에 대해 '내용물' 마스크 생성
-            def get_mask(val, tol=25):
-                if val < 128: return gray > val + tol
-                else: return gray < val - tol
+            # 각 사이드 배경색에 대해 '유효 내용물' 마스크 생성
+            def get_mask(val, g_img, tol=25):
+                if val < 80: return g_img > (val + tol) # 어두운 배경 (검은색 테두리 등)
+                else: return g_img < (val - tol) # 밝은 배경 (흰색 테두리 등)
             
-            mask = get_mask(top_bg) & get_mask(bottom_bg) & get_mask(left_bg) & get_mask(right_bg)
+            # [IMPROVED] 개별적으로 자르기 위해 각 방향 경계 탐색
+            # 상단 경계
+            top_mask = get_mask(top_bg, gray)
+            valid_rows = np.where(np.any(top_mask, axis=1))[0]
+            ymin = valid_rows[0] if len(valid_rows) > 0 else 0
             
-            # [Aggressive Fallback] 만약 위 조건이 너무 까다로우면, 전체 에지 중앙값 기준으로 재시도
-            if np.sum(mask) < (gray.size * 0.01): # 1% 미만이면 너무 많이 잘린 것
-                 bg_val = np.median(np.concatenate([gray[0,:], gray[-1,:], gray[:,0], gray[:,-1]]))
-                 mask = get_mask(bg_val, tol=15)
-
-            coords = np.argwhere(mask)
-            if coords.size > 0:
-                min_y, min_x = coords.min(axis=0)
-                max_y, max_x = coords.max(axis=0)
-                
-                # 너무 과하게 잘리는 것 방지 (이미지 크기의 10% 미만 등)
-                if (max_x - min_x) < 50 or (max_y - min_y) < 50:
-                    return image_path
-            else:
+            # 하단 경계
+            bottom_mask = get_mask(bottom_bg, gray)
+            valid_rows_b = np.where(np.any(bottom_mask, axis=1))[0]
+            ymax = valid_rows_b[-1] if len(valid_rows_b) > 0 else h-1
+            
+            # 좌측 경계
+            left_mask = get_mask(left_bg, gray)
+            valid_cols = np.where(np.any(left_mask, axis=0))[0]
+            xmin = valid_cols[0] if len(valid_cols) > 0 else 0
+            
+            # 우측 경계
+            right_mask = get_mask(right_bg, gray)
+            valid_cols_r = np.where(np.any(right_mask, axis=0))[0]
+            xmax = valid_cols_r[-1] if len(valid_cols_r) > 0 else w-1
+            
+            # 너무 많이 잘라나가는 것 방지 (안전 장치)
+            if (xmax - xmin) < w * 0.1 or (ymax - ymin) < h * 0.1:
                 return image_path
             
-            if min_x == 0 and max_x == img.shape[1]-1:
-                return image_path
-                
-            if (max_x - min_x) < 50:
-                return image_path
-                
-            cropped = img[min_y:max_y+1, min_x:max_x+1]
+            # 최종 크롭
+            cropped = img[ymin:ymax+1, xmin:xmax+1]
+            h_c, w_c = cropped.shape[:2]
             
-            _, encoded_img = cv2.imencode(os.path.splitext(image_path)[1], cropped)
-            with open(image_path, "wb") as f:
-                encoded_img.tofile(f)
-            print(f"✅ [Video Service] Auto-cropped strict letterbox: {image_path} (new size: {cropped.shape[1]}x{cropped.shape[0]})")
+            # [FORCE 2D FIT FIX] 자른 결과가 원본보다 유의미하게 작으면 덮어쓰기
+            if h_c < h - 10 or w_c < w - 10:
+                print(f"✂️ [Auto Crop] Removed borders: {w}x{h} -> {w_c}x{h_c} ({os.path.basename(image_path)})")
+                _, encoded_img = cv2.imencode(os.path.splitext(image_path)[1], cropped)
+                with open(image_path, "wb") as f:
+                    encoded_img.tofile(f)
+            
             return image_path
             
         except Exception as e:
-            print(f"❌ [Video Service] Auto crop failed for {image_path}: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"❌ [Video Service] Auto crop failed: {e}")
             return image_path
 
     def fit_image_to_916(self, image_path: str) -> str:
@@ -3035,28 +3284,26 @@ class VideoService:
                 # 이미 9:16 비율인 경우 크기만 변경
                 result = cv2.resize(img, (target_w, target_h), interpolation=cv2.INTER_LANCZOS4)
             elif ratio > target_ratio:
-                # 9:16보다 '더 길쭉한' 이미지: 너비를 1080으로 피팅하고 길이는 유지 (영상에서 스크롤로 처리)
+                # 9:16보다 '더 길쭉한' (Tall) 이미지: 너비를 1080으로 피팅하고 길이는 유지 (영상에서 세로 스크롤로 처리)
                 scale = target_w / float(w)
                 new_w = target_w
                 new_h = int(h * scale)
                 result = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
             else:
-                # [FIXED] 사용자의 요청: 가로형 이미지도 'crop'하지 말고 '온전한 이미지'가 다 보이도록 패딩(Letterbox) 처리
-                scale = target_w / float(w)
-                new_w = target_w
-                new_h = int(h * scale)
-                img_scaled = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+                # [RE-FIXED per USER Request] 
+                # "가로형 이미지를 숏폼 세로 길이에 맞춰 꽉 채우고 좌우로 카메라 이동하게 해라"
+                # 레터박스(검은배경) 금지. 가로폭은 길게 유지(Panning용).
+                scale = target_h / float(h) # 세로를 1920에 맞춤
+                new_h = target_h
+                new_w = int(w * scale)
                 
-                # 검은색 배경 캔버스 생성 (1080x1920)
-                result = np.zeros((target_h, target_w, 3), dtype=np.uint8)
-                if len(img.shape) == 3 and img.shape[2] == 4:
-                    img_scaled_bgr = cv2.cvtColor(img_scaled, cv2.COLOR_BGRA2BGR)
-                else:
-                    img_scaled_bgr = img_scaled
+                # 너무 과도하게 크면 메모리 절약을 위해 제한 (가로 최대 4000px 정도)
+                if new_w > 4320: 
+                    new_w = 4320
+                    new_h = int(new_w * (h / float(w)))
                 
-                # 중앙 배치 (상하 여백 발생)
-                y_offset = (target_h - new_h) // 2
-                result[y_offset:y_offset+new_h, 0:new_w] = img_scaled_bgr
+                result = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+                print(f"🎬 [Video Service] Wide Image Optimized for Panning: {new_w}x{new_h}")
             
             # 투명도(알파) 채널이 껴있으면 제거
             if len(result.shape) == 3 and result.shape[2] == 4:
