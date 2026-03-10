@@ -1192,18 +1192,19 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
     async def _generate_thumbnail(self, project_id: int, script: str, config_dict: dict):
         """대본 기반 썸네일 자동 기획 및 생성"""
         print(f"🎨 [Auto-Pilot] 썸네일 자동 생성 중... Project: {project_id}")
-        
+
         # 1. 썸네일 기획 (Hook & Visual Concept)
         hook_text = "Must Watch"
+        hook_candidates = []
+        hook_reasoning = ""
         visual_concept = "A high quality dramatic scene"
-        
+        idea_concept = ""
+
         try:
-            # [NEW] Use the better prompt for hook text
             project_settings = db.get_project_settings(project_id) or {}
             image_style = config_dict.get("image_style") or project_settings.get("image_style", "realistic")
             thumb_style = config_dict.get("thumbnail_style") or project_settings.get("thumbnail_style", "face")
-            
-            # Get character info for better context
+
             characters = db.get_project_characters(project_id)
             char_context = ""
             if characters:
@@ -1214,20 +1215,19 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                 script=f"{script[:2000]}{char_context}",
                 thumbnail_style=thumb_style,
                 image_style=image_style,
-                target_language="ko" # Default for now
+                target_language="ko"
             )
-            
+
             hook_result = await gemini_service.generate_text(hook_prompt, temperature=0.7)
             import re
             json_match = re.search(r'\{[\s\S]*\}', hook_result)
             if json_match:
                 hook_data = json.loads(json_match.group())
-                candidates = hook_data.get("texts", [])
-                if candidates:
-                    hook_text = candidates[0] # Pick the strongest hook
-            
-            # [NEW] Generate a matching visual concept (Image Prompt)
-            # Use THUMBNAIL_IDEA_PROMPT as a secondary pass or merge logic
+                hook_candidates = hook_data.get("texts", [])
+                hook_reasoning = hook_data.get("reasoning", "")
+                if hook_candidates:
+                    hook_text = hook_candidates[0]
+
             idea_prompt = prompts.THUMBNAIL_IDEA_PROMPT.format(
                 topic=project_settings.get("topic", "AI Video"),
                 script_summary=script[:1000]
@@ -1237,11 +1237,26 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             if json_match_idea:
                 idea_data = json.loads(json_match_idea.group())
                 visual_concept = idea_data.get("image_prompt", visual_concept)
-                
+                idea_concept = idea_data.get("hook_text", "")
+
         except Exception as e:
             print(f"⚠️ [Auto-Pilot] Thumbnail Planning Error: {e}")
-            # Fallback to project title if hook fails
             hook_text = project_settings.get("title", "Must Watch") if project_id else "Must Watch"
+
+        # [SAVE] 중간 결과 저장 — 썸네일 페이지에서 작업 흔적 표시용
+        try:
+            # 후킹 문구 후보 저장
+            if hook_candidates:
+                db.update_project_setting(project_id, "thumbnail_hook_texts", json.dumps(hook_candidates, ensure_ascii=False))
+            if hook_reasoning:
+                db.update_project_setting(project_id, "thumbnail_hook_reasoning", hook_reasoning)
+            # 시각 컨셉 저장 (아이디어)
+            db.update_project_setting(project_id, "thumbnail_idea_prompt", visual_concept)
+            if idea_concept:
+                db.update_project_setting(project_id, "thumbnail_idea_concept", idea_concept)
+            print(f"💾 [Auto-Pilot] 썸네일 중간 결과 저장 완료 (후보 {len(hook_candidates)}개)")
+        except Exception as e:
+            print(f"⚠️ [Auto-Pilot] 썸네일 중간 결과 저장 실패: {e}")
 
         # 2. 배경 이미지 생성
         try:
@@ -1336,27 +1351,23 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             style_for_recipe = requested_style or "face"
             text_layers = thumbnail_service.get_style_recipe(style_for_recipe, hook_text)
 
+            # [SAVE] 배경 이미지 URL 저장 (삭제하지 않고 유지)
+            bg_web_path = f"/output/{bg_filename}"
+            db.update_project_setting(project_id, "thumbnail_bg_url", bg_web_path)
+
+            # [SAVE] 텍스트 레이어 정보 저장
+            db.update_project_setting(project_id, "thumbnail_text_layers", json.dumps(text_layers, ensure_ascii=False))
+
             success = thumbnail_service.create_thumbnail(bg_path, text_layers, final_path)
-            
+
             if success:
                 web_path = f"/output/{final_filename}"
                 db.update_project_setting(project_id, "thumbnail_url", web_path)
                 msg = f"✅ [Auto-Pilot] 썸네일 생성 완료: {web_path}"
                 print(msg)
-                try:
-                    with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
-                        df.write(f"[{datetime.now()}] {msg}\n")
-                except: pass
             else:
                 msg = "❌ [Auto-Pilot] 썸네일 텍스트 합성 실패 (create_thumbnail returned False)"
                 print(msg)
-                try:
-                    with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
-                        df.write(f"[{datetime.now()}] {msg}\n")
-                except: pass
-            
-            try: os.remove(bg_path)
-            except: pass
             
         except Exception as e:
             msg = f"❌ [Auto-Pilot] 썸네일 생성 예외: {e}"

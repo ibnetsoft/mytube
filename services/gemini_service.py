@@ -380,7 +380,7 @@ class GeminiService:
                 is_stylistic = any(kw in prompt.lower() for kw in stylistic_keywords)
                 contains_photo = any(kw in prompt.lower() for kw in ["photo", "realistic", "8k", "cinematic"])
                 
-                is_wimpy = any(kw in prompt.lower() for kw in ["k_manhwa", "wimpy", "stick figure", "stickman", "졸라맨", "K만화"])
+                is_wimpy = any(kw in prompt.lower() for kw in ["wimpy", "stick figure", "stickman", "졸라맨", "jollaman"])
 
                 final_prompt = prompt
                 # 비실사 스타일: 실사 키워드 차단
@@ -1162,13 +1162,13 @@ Motion prompt for this image:"""
             num_scenes = max(3, int(num_scenes))
             print(f"[Gemini] Calculated scene count from duration ({duration_seconds}s): {num_scenes}")
         
-        # 스타일 분류 — style_key 또는 style_prompt 어느 쪽에서든 wimpy/k_manhwa 키워드 감지
-        _wimpy_kws = ["wimpy", "stick figure", "stickman", "졸라맨", "k_manhwa", "k만화"]
+        # 스타일 분류 — wimpy/졸라맨 전용 (k_manhwa는 별도 스타일이므로 제외)
+        _wimpy_kws = ["wimpy", "stick figure", "stickman", "졸라맨", "jollaman"]
         _sp_lower = (style_prompt or "").lower()
         _sk_lower = (style_key or "").lower()
         is_wimpy_style = (
             any(kw in _sp_lower for kw in _wimpy_kws) or
-            any(kw in _sk_lower for kw in ["wimpy", "jollaman", "졸라맨", "stick", "k_manhwa", "k만화"])
+            any(kw in _sk_lower for kw in ["wimpy", "jollaman", "졸라맨", "stick"])
         )
         # Prevent webtoon style from being classified as wimpy due to keyword overlap
         if style_key and "webtoon" in style_key.lower():

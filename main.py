@@ -2,6 +2,16 @@
 PICADIRI STUDIO - FastAPI 메인 서버
 YouTube 영상 자동화 제작 플랫폼 (Python 기반)
 """
+import sys
+import os
+# Windows cp949 이모지 출력 크래시 방지 - 모든 서비스에 적용
+if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
 from fastapi import FastAPI, Request, HTTPException, Form, BackgroundTasks, Body, Query, UploadFile, File
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -10,8 +20,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any, Union
 import uvicorn
-import os
-import sys
 import httpx
 import time
 import asyncio
@@ -229,9 +237,9 @@ STYLE_PROMPTS = {
     "cinematic": "Cinematic movie shot, dramatic lighting, shadow and light depth, highly detailed, 4k",
     "minimal": "Minimalist flat vector illustration, simple shapes, clean lines, white background, high quality",
     "3d": "3D render, Pixar style, soft studio lighting, octane render, 4k, high quality",
-    "webtoon": "Modern K-webtoon manhwa style, high-quality digital illustration, sharp line art, vibrant colors, expressive character, modern manhwa aesthetic, professional digital art, no text, no speech bubbles",
+    "k_webtoon": "Modern K-webtoon manhwa style, high-quality digital illustration, sharp line art, vibrant colors, expressive character, modern manhwa aesthetic, professional digital art, no text, no speech bubbles",
     "ghibli": "Studio Ghibli style, cel shaded, vibrant colors, lush background, Hayao Miyazaki style, highly detailed, masterfully painted",
-    "wimpy": "Diary of a Wimpy Kid book illustration style, strictly 2D black and white hand-drawn line art, simple doodle aesthetic, minimalist cartoon sketch on paper texture, strictly grayscale, NO color, NO realistic shading, NO 3D effects. ABSOLUTELY NO TEXT. Style is simple ink drawing on white paper."
+    "k_manhwa": "A clean, high-quality, full-color webtoon style illustration in a 16:9 cinematic aspect ratio. Bold black outlines, flat graphic colors with soft gradients, clean vector-like finish. A cute, minimalist stick-figure style character with a perfectly plain white circular head (no skin tone), wearing a vibrant teal-blue hooded sweatshirt (hoodie) with a front pocket and long cuffed sleeves. Black pants, simple sneakers, black limbs and white gloved hands. Vibrant distinct colors, clean composition with bold outlines throughout. ABSOLUTELY NO TEXT."
 }
 
 
@@ -438,6 +446,18 @@ async def recommend_titles(
 
 
 
+@app.patch("/api/projects/{project_id}")
+async def patch_project(project_id: int, body: dict = Body(...)):
+    """프로젝트 기본 정보 업데이트 (이름, 주제 등)"""
+    try:
+        allowed = {k: v for k, v in body.items() if k in ('name', 'topic', 'status')}
+        if allowed:
+            db.update_project(project_id, **allowed)
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
 @app.post("/api/projects/{project_id}/script")
 async def save_script(project_id: int, req: ScriptSave):
     """대본 저장"""
@@ -565,15 +585,17 @@ async def generate_image_prompts_api(req: PromptsGenerateRequest):
         # 2. Style Prompt Resolution (Key -> Description)
         db_presets = db.get_style_presets()
         style_data = db_presets.get(style_key.lower())
-        
+
         if style_data and isinstance(style_data, dict):
             style_prompt = style_data.get('prompt_value', style_key)
+            gemini_instruction = style_data.get('gemini_instruction') or None
         else:
             style_prompt = STYLE_PROMPTS.get(style_key.lower(), style_key)
+            gemini_instruction = None
 
         # 3. Call Gemini via Unified Service
         target_count = req.count if req.count and req.count > 0 else None
-        print(f"[Prompts] Generating for Project {req.project_id}, Style: {style_key}, Target scenes: {target_count or 'auto'}")
+        print(f"[Prompts] Generating for Project {req.project_id}, Style: {style_key}, Target scenes: {target_count or 'auto'}, has_gemini_instruction: {bool(gemini_instruction)}")
 
         # [SAFETY] Truncate script to prevent Token Limit Exceeded / Timeout
         # 30000자로 늘림 (긴 대본도 전체 대사 포함)
@@ -586,7 +608,9 @@ async def generate_image_prompts_api(req: PromptsGenerateRequest):
             duration,
             style_prompt=style_prompt,
             characters=characters,
-            target_scene_count=target_count
+            target_scene_count=target_count,
+            style_key=style_key,
+            gemini_instruction=gemini_instruction
         )
 
         if not prompts_list:
@@ -597,7 +621,9 @@ async def generate_image_prompts_api(req: PromptsGenerateRequest):
                 duration,
                 style_prompt=style_prompt,
                 characters=characters,
-                target_scene_count=target_count
+                target_scene_count=target_count,
+                style_key=style_key,
+                gemini_instruction=gemini_instruction
             )
 
         if not prompts_list:
@@ -766,67 +792,70 @@ class AnimateRequest(BaseModel):
 
 @app.post("/api/projects/{project_id}/scenes/animate")
 async def animate_scene(project_id: int, req: AnimateRequest):
-    """[Wan 2.2] 특정 장면을 비디오로 변환 (Motion)"""
-    # 1. API 키 확인
-    if not replicate_service.check_api_key():
-        raise HTTPException(400, "Replicate API Key가 설정되지 않았습니다.")
-
-    # 2. 이미지 프롬프트 정보 조회
-    prompts = db.get_image_prompts(project_id)
-    target_scene = next((p for p in prompts if p['scene_number'] == req.scene_number), None)
-    
-    if not target_scene or not target_scene.get('image_url'):
-        raise HTTPException(404, "해당 장면의 이미지를 찾을 수 없습니다.")
-
-    image_web_path = target_scene['image_url']
-    
-    # 3. 로컬 파일 경로 변환
-    # /output/... -> absolute path
-    if image_web_path.startswith("/output/"):
-        relative_path = image_web_path.replace("/output/", "").lstrip("/")
-        image_abs_path = os.path.join(config.OUTPUT_DIR, relative_path)
-    elif image_web_path.startswith("http"):
-         # 만약 외부 URL이라면 다운로드 필요할 수 있음. 
-         # 현재는 로컬 생성 이미지만 지원한다고 가정하되, 필요시 처리
-         raise HTTPException(400, "외부 URL 이미지는 아직 지원하지 않습니다.")
-    else:
-        # 혹시 모를 다른 경로
-         image_abs_path = os.path.join(config.BASE_DIR, image_web_path.lstrip("/"))
-
-    if not os.path.exists(image_abs_path):
-        raise HTTPException(404, f"이미지 파일을 찾을 수 없습니다: {image_abs_path}")
-
-    # 4. Replicate 호출 (비동기)
+    """이미지를 비디오로 변환 (Replicate Wan → AKOOL v4 폴백)"""
     try:
-        # Prompt 보정
+        # 1. 이미지 조회
+        scene_prompts = db.get_image_prompts(project_id)
+        target_scene = next((p for p in scene_prompts if p['scene_number'] == req.scene_number), None)
+        if not target_scene or not target_scene.get('image_url'):
+            return JSONResponse(status_code=404, content={"error": "해당 장면의 이미지를 찾을 수 없습니다."})
+
+        image_web_path = target_scene['image_url']
+        if image_web_path.startswith("/output/"):
+            image_abs_path = os.path.join(config.OUTPUT_DIR, image_web_path.replace("/output/", "").lstrip("/"))
+        else:
+            image_abs_path = os.path.join(config.BASE_DIR, image_web_path.lstrip("/"))
+
+        if not os.path.exists(image_abs_path):
+            return JSONResponse(status_code=404, content={"error": f"이미지 파일 없음: {image_abs_path}"})
+
         motion_prompt = f"{req.prompt}, {target_scene.get('prompt_en', '')}"
-        
-        # 비디오 생성
-        video_bytes = await replicate_service.generate_video_from_image(
-            image_path=image_abs_path,
-            prompt=motion_prompt[:1000], # 길이 제한 안전장치
-            duration=req.duration,
-            method=req.method
-        )
-        
-        # 5. 결과 저장
+        video_bytes = None
+
+        # 1순위: Replicate Wan
+        try:
+            print(f"[Animate] Trying Replicate Wan...")
+            video_bytes = await replicate_service.generate_video_from_image(
+                image_path=image_abs_path,
+                prompt=motion_prompt[:1000],
+                duration=req.duration,
+                method=req.method
+            )
+            print(f"[Animate] Replicate OK")
+        except Exception as e:
+            print(f"[Animate] Replicate failed ({str(e)[:80]}) -> AKOOL fallback")
+
+        # 2순위: AKOOL v4
+        if not video_bytes:
+            try:
+                print(f"[Animate] Trying AKOOL v4...")
+                video_bytes = await akool_service.generate_akool_video_v4(
+                    local_image_path=image_abs_path,
+                    prompt=motion_prompt[:500],
+                    duration=req.duration if req.duration else 5
+                )
+                print(f"[Animate] AKOOL v4 OK")
+            except Exception as e:
+                print(f"[Animate] AKOOL v4 failed: {e}")
+
+        if not video_bytes:
+            return JSONResponse(status_code=500, content={"error": "Replicate 크레딧 부족 + AKOOL도 실패. AKOOL API 키 및 크레딧을 확인하세요."})
+
+        # 저장
         output_dir, web_dir = get_project_output_dir(project_id)
         filename = f"motion_p{project_id}_s{req.scene_number}_{int(time.time())}.mp4"
         output_path = os.path.join(output_dir, filename)
-        
         with open(output_path, "wb") as f:
             f.write(video_bytes)
-            
+
         video_web_url = f"{web_dir}/{filename}"
-        
-        # 6. DB 업데이트
         db.update_image_prompt_video_url(project_id, req.scene_number, video_web_url)
-        
-        return {"status": "ok", "video_url": video_web_url}
-        
+        return {"status": "success", "video_url": video_web_url}
+
     except Exception as e:
         print(f"[Animate Error] {e}")
-        raise HTTPException(500, f"비디오 생성 실패: {str(e)}")
+        import traceback; traceback.print_exc()
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.post("/api/projects/{project_id}/tts")
 async def save_tts_info(project_id: int, voice_id: str, voice_name: str, audio_path: str, duration: float):
@@ -2487,27 +2516,15 @@ async def generate_thumbnail_background(req: ThumbnailBackgroundRequest):
         if not images_bytes:
             return {"status": "error", "error": "모든 이미지 생성 서비스가 실패했습니다."}
         
-        # [NEW] 로직 호환성을 위해 response 객체 모방 (기존 코드 뒷부분 대응)
-        class MockResponse:
-            def __init__(self, data):
-                self.generated_images = [{"image_bytes": data[0]}]
-        
-        response = MockResponse(images_bytes)
-
-        if not response.generated_images:
-            return {"status": "error", "error": "배경 이미지 생성 실패"}
-
-        # 2. 이미지 저장
-        img_data = response.generated_images[0].image._pil_image
-        
-        # static/img/thumbnails 폴더 확보
+        # 2. 이미지 저장 (raw bytes → 파일)
         save_dir = "static/img/thumbnails"
         os.makedirs(save_dir, exist_ok=True)
-        
+
         filename = f"bg_{uuid.uuid4().hex}.png"
         filepath = os.path.join(save_dir, filename)
-        
-        img_data.save(filepath, format="PNG")
+
+        with open(filepath, 'wb') as f:
+            f.write(images_bytes[0])
         
         # URL 및 절대 경로 반환
         return {
@@ -3069,6 +3086,143 @@ async def generate_character_image(
 
 
 
+@app.post("/api/image/generate-motion-from-image")
+async def generate_motion_from_image(
+    project_id: int = Body(...),
+    scene_numbers: list = Body(...)   # 선택된 씬 번호 목록
+):
+    """생성된 이미지를 Gemini Vision으로 분석해 motion_desc 생성"""
+    try:
+        scene_prompts = db.get_image_prompts(project_id)
+        if not scene_prompts:
+            return {"status": "error", "error": "프롬프트가 없습니다."}
+
+        targets = [p for p in scene_prompts if p.get('scene_number') in scene_numbers]
+        if not targets:
+            return {"status": "error", "error": "선택된 씬을 찾을 수 없습니다."}
+
+        results = []
+        errors = []
+
+        for scene in targets:
+            scene_num = scene.get('scene_number')
+            image_url = scene.get('image_url') or ''
+            scene_text = scene.get('scene_text') or scene.get('prompt_ko') or ''
+
+            if not image_url:
+                errors.append({"scene_number": scene_num, "error": "이미지가 없습니다. 먼저 이미지를 생성하세요."})
+                continue
+
+            # URL → 절대 경로 변환
+            image_path = None
+            if image_url.startswith("/static/"):
+                rel = image_url.replace("/static/", "", 1).replace("/", os.sep)
+                image_path = os.path.join(config.STATIC_DIR, rel)
+            elif image_url.startswith("/output/"):
+                rel = image_url.replace("/output/", "", 1).replace("/", os.sep)
+                image_path = os.path.join(config.OUTPUT_DIR, rel)
+
+            if not image_path or not os.path.exists(image_path):
+                errors.append({"scene_number": scene_num, "error": f"이미지 파일을 찾을 수 없습니다: {image_url}"})
+                continue
+
+            try:
+                print(f"🔍 [ImageMotion] Analyzing image for scene {scene_num}: {image_path}")
+                motion = await gemini_service.generate_motion_desc_from_image(
+                    image_path=image_path,
+                    scene_text=scene_text
+                )
+                # DB 저장
+                conn = db.get_db()
+                conn.execute(
+                    "UPDATE image_prompts SET motion_desc = ? WHERE project_id = ? AND scene_number = ?",
+                    (motion, project_id, scene_num)
+                )
+                conn.commit()
+                conn.close()
+
+                results.append({"scene_number": scene_num, "motion_desc": motion})
+                print(f"  ✅ Scene {scene_num}: {motion}")
+
+            except Exception as e:
+                print(f"  ❌ Scene {scene_num} vision failed: {e}")
+                errors.append({"scene_number": scene_num, "error": str(e)})
+
+        return {
+            "status": "ok",
+            "generated": len(results),
+            "results": results,
+            "errors": errors
+        }
+
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return {"status": "error", "error": str(e)}
+
+
+@app.post("/api/image/bulk-generate-motion")
+async def bulk_generate_motion(
+    project_id: int = Body(...),
+    max_scene: int = Body(5),        # 1~max_scene 씬까지 생성
+    scene_numbers: list = Body(None) # 특정 씬만 지정 시 (없으면 1~max_scene)
+):
+    """씬 목록의 motion_desc(영상 모션 프롬프트)를 Gemini AI로 일괄 자동 생성"""
+    try:
+        scene_prompts = db.get_image_prompts(project_id)
+        if not scene_prompts:
+            return {"status": "error", "error": "프롬프트가 없습니다. 먼저 이미지 프롬프트를 생성해주세요."}
+
+        # 대상 씬 결정
+        if scene_numbers:
+            targets = [p for p in scene_prompts if p.get('scene_number') in scene_numbers]
+        else:
+            targets = [p for p in scene_prompts if p.get('scene_number', 0) <= max_scene]
+
+        if not targets:
+            return {"status": "error", "error": f"씬 1~{max_scene} 범위에 데이터가 없습니다."}
+
+        results = []
+        errors = []
+
+        for scene in targets:
+            scene_num = scene.get('scene_number')
+            scene_text = scene.get('scene_text') or scene.get('prompt_ko') or ''
+            prompt_en  = scene.get('prompt_en') or ''
+
+            try:
+                print(f"🎬 [MotionGen] Generating motion_desc for scene {scene_num}...")
+                motion = await gemini_service.generate_motion_desc(
+                    scene_text=scene_text,
+                    prompt_en=prompt_en
+                )
+                # DB 저장
+                conn = db.get_db()
+                conn.execute(
+                    "UPDATE image_prompts SET motion_desc = ? WHERE project_id = ? AND scene_number = ?",
+                    (motion, project_id, scene_num)
+                )
+                conn.commit()
+                conn.close()
+
+                results.append({"scene_number": scene_num, "motion_desc": motion})
+                print(f"  ✅ Scene {scene_num}: {motion}")
+
+            except Exception as e:
+                print(f"  ❌ Scene {scene_num} failed: {e}")
+                errors.append({"scene_number": scene_num, "error": str(e)})
+
+        return {
+            "status": "ok",
+            "generated": len(results),
+            "results": results,
+            "errors": errors
+        }
+
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return {"status": "error", "error": str(e)}
+
+
 @app.post("/api/image/generate")
 async def generate_image(
     prompt: str = Body(...),
@@ -3083,42 +3237,118 @@ async def generate_image(
         if not prompt or not prompt.strip():
             print(f"❌ [Image Generation] Empty prompt for project {project_id}, scene {scene_number}")
             return {"status": "error", "error": "프롬프트가 비어있습니다. 먼저 프롬프트를 생성해주세요."}
-        
+
         if len(prompt) > 5000:
             print(f"⚠️ [Image Generation] Prompt too long ({len(prompt)} chars), truncating...")
             prompt = prompt[:5000]
-        
+
         print(f"🎨 [Image Generation] Starting for project {project_id}, scene {scene_number}")
         print(f"   Prompt: {prompt[:100]}...")
         print(f"   Aspect ratio: {aspect_ratio}")
-        
-        # 이미지 생성 (전략: Replicate -> Gemini -> AKOOL Fallback)
-        images_bytes = None
-        
-        # 1차 시도: Replicate (flux-schnell)
-        try:
-            print(f"🎨 [Image Gen] Attempting Replicate (Primary)...")
-            images_bytes = await replicate_service.generate_image(prompt=prompt, aspect_ratio=aspect_ratio)
-        except Exception as e:
-            print(f"⚠️ [Image Gen] Replicate failed: {e}")
 
-        # 2차 시도: Gemini Imagen (Fallback 1)
+        # 이미지 생성 전략
+        images_bytes = None
+        is_wimpy_style = any(kw in style.lower() for kw in ["wimpy", "stick", "졸라맨"]) or \
+                         any(kw in prompt.lower() for kw in ["teal-blue hoodie", "cyan tunic", "cyan sleeveless", "stick figure cartoon", "white glove hand"])
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # [2-PROMPT COMPOSITE MODE] 졸라맨 스타일: 캐릭터+배경 분리 생성 후 합성
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        if is_wimpy_style:
+            # DB에서 해당 씬의 prompt_char, prompt_bg 조회
+            scene_prompts = db.get_image_prompts(project_id)
+            scene_data = next((s for s in scene_prompts if s.get('scene_number') == scene_number), None)
+            prompt_char = scene_data.get('prompt_char', '') if scene_data else ''
+            prompt_bg = scene_data.get('prompt_bg', '') if scene_data else ''
+
+            if prompt_char and prompt_bg:
+                print(f"🎨 [Image Gen] Wimpy COMPOSITE mode — generating character + background separately...")
+
+                async def _generate_single(p: str) -> bytes | None:
+                    """단일 프롬프트로 이미지 생성 (Replicate → Gemini → AKOOL 폴백)"""
+                    result = None
+                    try:
+                        result = await replicate_service.generate_image(prompt=p, aspect_ratio="1:1")
+                    except Exception as e:
+                        print(f"⚠️ [Composite] Replicate failed: {e}")
+                    if not result:
+                        try:
+                            result = await gemini_service.generate_image(prompt=p, num_images=1, aspect_ratio="1:1")
+                        except Exception as e:
+                            print(f"⚠️ [Composite] Gemini failed: {e}")
+                    if not result:
+                        try:
+                            result = await akool_service.generate_image(prompt=p, aspect_ratio="1:1")
+                        except Exception as e:
+                            print(f"⚠️ [Composite] AKOOL failed: {e}")
+                    return result[0] if result else None
+
+                # 캐릭터 이미지 생성
+                char_bytes = await _generate_single(prompt_char)
+                # 배경 이미지 생성
+                bg_bytes = await _generate_single(prompt_bg)
+
+                if char_bytes and bg_bytes:
+                    print(f"✅ [Composite] Both images generated — compositing...")
+                    try:
+                        composite_bytes = video_service.composite_character_on_background(
+                            char_bytes=char_bytes,
+                            bg_bytes=bg_bytes,
+                            aspect_ratio=aspect_ratio,
+                        )
+                        images_bytes = [composite_bytes]
+                        print(f"✅ [Composite] Compositing complete, size: {len(composite_bytes)} bytes")
+                    except Exception as e:
+                        print(f"⚠️ [Composite] Compositing failed: {e} — falling back to single-prompt mode")
+                        images_bytes = None
+                else:
+                    print(f"⚠️ [Composite] Image generation partially failed (char={bool(char_bytes)}, bg={bool(bg_bytes)}) — falling back to single-prompt mode")
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # [SINGLE-PROMPT MODE] 기본 단일 프롬프트 생성 (또는 합성 실패 시 폴백)
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        # 윔피 스타일: 폴백 시에도 반드시 캐릭터 제약 prefix 추가
+        # (Replicate is_wimpy 감지 보장 + Gemini/AKOOL 스타일 오염 방지)
+        effective_prompt = prompt
+        if is_wimpy_style:
+            wimpy_char_prefix = (
+                "YouTube educational cartoon illustration, stick-figure style character, "
+                "teal-blue hoodie, black pants, white sneakers, round white head, dot eyes, "
+                "NO necktie, NO suit, NO blue hair, NO business attire, bold black outlines, flat colors, "
+            )
+            # 이미 wimpy 키워드가 있으면 중복 추가 안 함
+            if "teal-blue hoodie" not in prompt.lower() and "stick-figure" not in prompt.lower():
+                effective_prompt = wimpy_char_prefix + prompt
+                print(f"🎨 [Image Gen] Wimpy prefix injected into fallback prompt")
+
+        if not images_bytes:
+            if is_wimpy_style:
+                print(f"🎨 [Image Gen] Wimpy style (single-prompt fallback) — Attempting Replicate Flux Dev...")
+            else:
+                print(f"🎨 [Image Gen] Attempting Replicate (Primary)...")
+            try:
+                images_bytes = await replicate_service.generate_image(prompt=effective_prompt, aspect_ratio=aspect_ratio)
+            except Exception as e:
+                print(f"⚠️ [Image Gen] Replicate failed: {e}")
+
+        # 공통 폴백: Gemini Imagen
         if not images_bytes:
             try:
-                print(f"🎨 [Image Gen] Attempting Gemini Imagen (Fallback 1)...")
+                print(f"🎨 [Image Gen] Attempting Gemini Imagen (Fallback)...")
                 images_bytes = await gemini_service.generate_image(
-                    prompt=prompt,
+                    prompt=effective_prompt,
                     num_images=1,
                     aspect_ratio=aspect_ratio
                 )
             except Exception as e:
                 print(f"⚠️ [Image Gen] Gemini failed: {e}")
 
-        # 3차 시도: AKOOL (Final Fallback)
+        # 최종 폴백: AKOOL
         if not images_bytes:
             try:
                 print(f"🎨 [Image Gen] Attempting AKOOL (Final Fallback)...")
-                images_bytes = await akool_service.generate_image(prompt=prompt, aspect_ratio=aspect_ratio)
+                images_bytes = await akool_service.generate_image(prompt=effective_prompt, aspect_ratio=aspect_ratio)
             except Exception as e:
                 print(f"⚠️ [Image Gen] AKOOL failed: {e}")
 
@@ -3704,7 +3934,7 @@ scheduler = BackgroundScheduler()
 @app.on_event("startup")
 def start_scheduler():
     scheduler.start()
-    print("⏰ [Scheduler] 스케줄러가 시작되었습니다.")
+    print("[Scheduler] 스케줄러가 시작되었습니다.")
 
 @app.on_event("shutdown")
 def shutdown_scheduler():
@@ -4173,8 +4403,8 @@ if __name__ == "__main__":
     from services.auto_publish_service import auto_publish_service
     auto_publish_service.start()
 
-    print(f"📍 서버 시간(KST): {config.get_kst_time().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"📍 서버 주소: http://{config.HOST}:{config.PORT}")
+    print(f"[*] 서버 시간(KST): {config.get_kst_time().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"[*] 서버 주소: http://{config.HOST}:{config.PORT}")
     print("=" * 50)
 
     uvicorn.run(
@@ -4184,3 +4414,4 @@ if __name__ == "__main__":
         reload=config.DEBUG,
         log_level="info"
     )
+

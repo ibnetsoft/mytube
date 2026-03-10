@@ -132,6 +132,7 @@ class StylePreset(BaseModel):
     style_key: str
     prompt_value: str
     image_url: Optional[str] = None
+    gemini_instruction: Optional[str] = None
 
 # ===========================================
 # API: 이미지 스타일 프리셋 관리
@@ -153,7 +154,9 @@ async def get_style_presets_api():
             "watercolor": "watercolor painting, soft colors, artistic",
             "sketch": "pencil sketch, hand drawn, artistic, detailed",
             "pixel_art": "pixel art, 16-bit style, retro gaming",
-            "3d": "3d render, pixar style, 3d animation, cute, vibrant lighting"
+            "3d": "3d render, pixar style, 3d animation, cute, vibrant lighting",
+            "k_webtoon": "Modern K-webtoon manhwa style, high-quality digital illustration, sharp line art, vibrant colors, expressive character, modern manhwa aesthetic, professional digital art, no text, no speech bubbles",
+            "k_manhwa": "Korean manhwa webtoon illustration style, bold black outlines, cel-shading, vibrant flat colors, anime-inspired character design, dynamic composition, professional digital art, modern Korean comic aesthetic. ABSOLUTELY NO TEXT."
         }
         for key, val in default_styles.items():
             db.save_style_preset(key, val) # image_url=None implicitly
@@ -166,7 +169,7 @@ async def get_style_presets_api():
 @router.post("/style-presets")
 async def save_style_preset_api(preset: StylePreset):
     """이미지 스타일 프리셋 저장"""
-    db.save_style_preset(preset.style_key, preset.prompt_value, preset.image_url)
+    db.save_style_preset(preset.style_key, preset.prompt_value, preset.image_url, preset.gemini_instruction)
     return {"status": "ok"}
 
 @router.post("/style-presets/custom")
@@ -275,7 +278,7 @@ async def get_thumbnail_style_presets_api():
             "minimal": "미니멀형: 여백을 충분히 활용하고, 핵심 요소 1-2개만 배치하여 깔끔하고 세련된 느낌. 색상은 2-3가지로 제한.",
             "dramatic": "드라마틱형: 역동적인 앵글, 강한 명암 대비, 영화 포스터 같은 극적인 연출. 채도가 높고 강렬한 색감 사용.",
             "ghibli": "지브리 감성: 지브리 스튜디오 애니메이션 스타일. 부드러운 수채화풍 배경, 파스텔 톤 색감, 몽환적이고 감성적인 분위기.",
-            "wimpy": "윔피키드 스타일: 윔피키드(Wimpy Kid) 다이어리 스타일. 흑백의 단순한 선화, 손글씨 폰트, 공책 질감 배경, 유머러스한 낙서 느낌."
+            "k_manhwa": "K만화 스타일: 한국 웹툰/만화 스타일. 굵은 외곽선, 셀 셰이딩, 선명한 플랫 컬러, 애니메이션 캐릭터 디자인, 현대적 한국 만화 미학."
         }
         for key, val in default_styles.items():
             db.save_thumbnail_style_preset(key, val, None) # image_url=None
@@ -346,10 +349,33 @@ async def delete_thumbnail_style_preset(style_key: str):
 
 @router.post("/language")
 async def set_language(lang: str = Body(..., embed=True)):
-    """언어 설정 저장"""
+    """언어 설정 저장 및 즉시 적용 (ko / en / vi)"""
+    allowed = {"ko", "en", "vi"}
+    if lang not in allowed:
+        raise HTTPException(400, f"지원하지 않는 언어입니다: {lang}. 허용값: {allowed}")
     try:
+        # 1. DB 저장
         db.save_global_setting("language", lang)
-        return {"status": "success"}
+
+        # 2. language.pref 파일 저장 (서버 재시작 후 영구 보존)
+        try:
+            with open("language.pref", "w", encoding="utf-8") as f:
+                f.write(lang)
+        except Exception as e:
+            print(f"[I18N] language.pref write failed: {e}")
+
+        # 3. 실행 중인 translator 즉시 업데이트 (app_state 경유 — circular import 없음)
+        try:
+            from services import app_state
+            success = app_state.switch_language(lang)
+            if success:
+                print(f"[I18N] Language switched to: {lang} via app_state")
+            else:
+                print(f"[I18N] app_state not ready yet, will apply on next restart")
+        except Exception as e:
+            print(f"[I18N] Live translator update failed: {e}")
+
+        return {"status": "ok", "lang": lang}
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -372,3 +398,36 @@ async def save_autopilot_settings(settings: Dict[str, Any] = Body(...)):
     except Exception as e:
         raise HTTPException(500, str(e))
 
+# ===========================================
+# API: 웹툰 수동 처리 학습 룰 (Learning Rules)
+# ===========================================
+
+class WebtoonRuleAdd(BaseModel):
+    condition_type: str
+    condition_value: str
+    action_type: str
+    description: str
+
+@router.get("/webtoon-rules")
+async def get_webtoon_rules_api():
+    try:
+        rules = db.get_webtoon_rules()
+        return {"status": "success", "rules": rules}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@router.post("/webtoon-rules")
+async def add_webtoon_rule_api(req: WebtoonRuleAdd):
+    try:
+        db.save_webtoon_rule(req.condition_type, req.condition_value, req.action_type, req.description)
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@router.delete("/webtoon-rules/{rule_id}")
+async def delete_webtoon_rule_api(rule_id: int):
+    try:
+        db.delete_webtoon_rule(rule_id)
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
