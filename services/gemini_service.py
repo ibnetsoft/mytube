@@ -376,11 +376,11 @@ class GeminiService:
                 
                 # [NEW] Style Reinforcement for Non-Realistic Styles
                 # If the prompt contains stylistic markers but avoids realism, reinforce negative prompts
-                stylistic_keywords = ["wimpy", "anime", "cartoon", "ghibli", "sketch", "line art", "doodle", "webtoon"]
+                stylistic_keywords = ["k_manhwa", "k_webtoon", "anime", "cartoon", "ghibli", "sketch", "line art", "doodle", "wimpy", "webtoon"]
                 is_stylistic = any(kw in prompt.lower() for kw in stylistic_keywords)
                 contains_photo = any(kw in prompt.lower() for kw in ["photo", "realistic", "8k", "cinematic"])
                 
-                is_wimpy = any(kw in prompt.lower() for kw in ["wimpy", "stick figure", "stickman", "졸라맨", "cyan tunic", "cyan long-sleeved", "teal tunic", "cyan sleeveless", "teal-blue hoodie", "teal blue hoodie"])
+                is_wimpy = any(kw in prompt.lower() for kw in ["k_manhwa", "wimpy", "stick figure", "stickman", "졸라맨", "K만화"])
 
                 final_prompt = prompt
                 # 비실사 스타일: 실사 키워드 차단
@@ -1084,6 +1084,53 @@ Now write the motion prompt for THIS scene:"""
             result = cut[:last_sep].rstrip(', ') if last_sep > 100 else cut
         return result
 
+    async def generate_motion_desc_from_image(self, image_path: str, scene_text: str = "") -> str:
+        """생성된 이미지를 직접 분석하여 영상 모션 프롬프트 생성 (Gemini Vision)"""
+        import os
+        if not image_path or not os.path.exists(image_path):
+            raise FileNotFoundError(f"Image not found: {image_path}")
+
+        with open(image_path, "rb") as f:
+            image_bytes = f.read()
+
+        ext = os.path.splitext(image_path)[1].lower()
+        mime_map = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
+        mime_type = mime_map.get(ext, "image/png")
+
+        context_hint = f"\nScene narrative (Korean): {scene_text[:300]}" if scene_text else ""
+
+        prompt = f"""You are a cinematic video director. Analyze this illustration and create a motion prompt to animate it into a short AI video clip (Wan 2.1 / Seedance).{context_hint}
+
+Look at the image carefully and determine:
+1. What are the main subjects and their positions?
+2. What is the overall mood and atmosphere?
+3. What camera movement would best enhance this scene?
+4. What natural motions should the characters/objects have?
+
+Write a concise motion prompt that:
+- Starts with a specific CAMERA MOVEMENT (slow zoom in, pan right, pull back, etc.)
+- Describes CHARACTER ACTIONS if a character is present
+- Describes BACKGROUND ELEMENT MOVEMENTS (charts animating, objects moving, lights shifting)
+- Ends with ATMOSPHERE/LIGHTING description
+- Maximum 300 characters total
+- English only
+- Output ONLY the motion prompt. No explanation, no labels, no quotes.
+
+Examples:
+- "slow zoom in toward central figure, character gestures confidently at glowing chart, bar graph rises dramatically, warm spotlight effect, energetic atmosphere"
+- "gentle pan right across world map, trade route arrows animate between continents, cargo icons drift slowly, cool blue ambient lighting, serious tone"
+- "static shot with subtle camera drift, character turns to face viewer with determined expression, background figures disperse, dramatic side lighting, tense atmosphere"
+
+Motion prompt for this image:"""
+
+        result = await self.generate_text_from_image(prompt, image_bytes, mime_type)
+        result = result.strip().strip('"').strip("'").splitlines()[0].strip()
+        if len(result) > 300:
+            cut = result[:300]
+            last_sep = max(cut.rfind(','), cut.rfind(' '))
+            result = cut[:last_sep].rstrip(', ') if last_sep > 100 else cut
+        return result
+
     async def generate_image_prompts_from_script(self, script: str, duration_seconds: int, style_prompt: str = None, characters: List[dict] = None, target_scene_count: int = None, style_key: str = None, gemini_instruction: str = None) -> List[dict]:
         """대본을 분석하여 장면별 이미지 프롬프트 생성 (가변 페이싱 및 캐릭터 일관성 적용)"""
 
@@ -1115,12 +1162,19 @@ Now write the motion prompt for THIS scene:"""
             num_scenes = max(3, int(num_scenes))
             print(f"[Gemini] Calculated scene count from duration ({duration_seconds}s): {num_scenes}")
         
-        # 스타일 분류 — style_key 또는 style_prompt 어느 쪽에서든 wimpy 키워드 감지
-        _wimpy_kws = ["wimpy", "stick figure", "stickman", "졸라맨", "teal-blue hoodie", "teal blue hoodie"]
+        # 스타일 분류 — style_key 또는 style_prompt 어느 쪽에서든 wimpy/k_manhwa 키워드 감지
+        _wimpy_kws = ["wimpy", "stick figure", "stickman", "졸라맨", "k_manhwa", "k만화"]
+        _sp_lower = (style_prompt or "").lower()
+        _sk_lower = (style_key or "").lower()
         is_wimpy_style = (
-            (style_prompt and any(kw in style_prompt.lower() for kw in _wimpy_kws)) or
-            (style_key and any(kw in style_key.lower() for kw in ["wimpy", "jollaman", "졸라맨", "stick"]))
+            any(kw in _sp_lower for kw in _wimpy_kws) or
+            any(kw in _sk_lower for kw in ["wimpy", "jollaman", "졸라맨", "stick", "k_manhwa", "k만화"])
         )
+        # Prevent webtoon style from being classified as wimpy due to keyword overlap
+        if style_key and "webtoon" in style_key.lower():
+            is_wimpy_style = False
+        if style_prompt and "webtoon" in style_prompt.lower():
+            is_wimpy_style = False
         print(f"[Gemini] style_key={style_key!r}, is_wimpy_style={is_wimpy_style}")
         _CHAR_BASE = (
             "EXACTLY TWO ARMS ONLY. NO EXTRA ARMS. NO EXTRA HANDS. "
@@ -1171,71 +1225,26 @@ Now write the motion prompt for THIS scene:"""
             else:
                 wimpy_instruction = """
 [졸라맨 스타일 전용 - 필수 준수]
-이 영상은 졸라맨 스타일입니다. 각 씬마다 아래 3가지 프롬프트를 모두 작성하세요:
+모든 씬에 캐릭터가 나올 필요는 없습니다. scene_type을 먼저 결정하고 그에 맞게 작성하세요.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-【prompt_char — 캐릭터 전용 이미지 프롬프트 (흰 배경)】
-아래 3단계를 반드시 조합하여 작성합니다:
+【STEP 1: scene_type】 character_main | character_support | infographic 중 선택
+  character_main: 내레이터가 시청자에게 직접 설명 → 캐릭터 중앙 크게
+  character_support: 데이터/통계 설명 → 캐릭터 우하단 작게, 차트 가리키기
+  infographic: 거시경제/글로벌/추상 개념 → 캐릭터 없음, 인포그래픽 중심
 
-1단계 [주제 및 스타일] — 고정 문구 (절대 변경 금지):
-"A full-body minimalist cartoon illustration of a cute stick-figure style character with bold black outlines, standing on a pure white background. Soft, even lighting, flat 2D vector graphic style, high-definition, precise clean lines. Strictly two arms and two hands. No extra limbs, no extra hands."
+【STEP 2: prompt_char】
+  character_main: 전신 캐릭터, 흰 배경, SAFE 포즈(A~D), dark brown swept-back hair, teal-blue hoodie, strictly two arms two hands, Isolated on pure white background, no text no words
+  character_support: "A small full-body stick-figure in the lower-right corner, pointing center-left with right hand. Dark brown hair. Teal-blue hoodie, black trousers, white sneakers. Two arms two hands. Pure white background. no text, no words"
+  infographic: "" (빈 문자열 — 캐릭터 없음)
 
-2단계 [캐릭터 특징] — 고정 문구 (절대 변경 금지):
-"The character has a simple white circular head with stylized swept-back black hair, simple dot eyes, and a wide cheerful arc smile. The hands are small rounded fists with black outlines (NOT white balls, NOT white circles). The character wears a vibrant solid teal-blue hoodie with a front pocket, long black sleeves with black cuffs, solid black trousers, and white sneakers with black trim and laces."
+【STEP 3: prompt_bg】 5개+ 소품 포함, Korean webtoon manhwa illustration style, clean linework, vibrant colors, cinematic depth
+  scene_type에 따라: character → 실감나는 배경 공간, infographic → 웹툰 감성 데이터 시각화
+  마지막: "Korean webtoon manhwa style, clean linework, vibrant colors, no main protagonist, no text, no words, no letters"
 
-3단계 [포즈] — 씬에 맞는 포즈 선택 (물건 드는 포즈 절대 금지):
-❌ 금지: holding, carrying, gripping, fists raised, arms raised, punching, flexing
-✅ SAFE-A: "The character is standing with both arms hanging naturally at its sides."
-✅ SAFE-B: "The character is standing and pointing at [대상] with its right hand. Its left arm hangs at its side."
-✅ SAFE-C: "The character is standing and looking down at a small book resting on a stand. Its two hands are clasped tightly together in front of its chest in a deep thought gesture, not touching the book."
-✅ SAFE-D: "The character sits at a wooden table, resting both its hands firmly under its chin, looking down thoughtfully."
-
-마지막 고정 문구: "Isolated on a pure white background. No background elements. no text, no words, no letters"
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-【prompt_bg — 배경/씬 전용 이미지 프롬프트 (풍부한 배경 필수)】
-씬 내용에 맞는 풍부하고 생동감 있는 배경을 묘사합니다:
-- 스타일: flat 2D vector illustration, bold clean black outlines, same art style as wimpy character
-- 배경 풍부화 (필수): 씬 상황을 구체적으로 묘사하는 오브젝트/소품을 5개 이상 포함
-  - ❌ 금지: "simple shapes만 있는 텅 빈 배경", "empty room", "minimal background"
-  - ✅ 권장: 구체적인 소품 나열 + 전경/중경/배경 3레이어로 깊이감 부여
-- 배경 엑스트라 허용: 씬 분위기에 맞는 단순한 stick-figure 형태의 배경 인물/군중 포함 가능
-  - (단, 메인 캐릭터보다 훨씬 작고 단순하게 — 실루엣 수준, 상세 없이)
-  - 예: 사무실 씬 → 배경에 작은 직원 실루엣들이 컴퓨터 앞에 앉아 있는 장면
-  - 예: 군중 씬 → 매우 작은 stick-figure 군중들이 배경을 채우는 장면
-- 씬 내용 반영 예시:
-  - 무역/경제 씬 → 두 나라 국기, 무역 차트/그래프, 공장, 컨테이너 선, 도시 스카이라인, 화살표
-  - 사무실/회의 씬 → 컴퓨터, 서류, 인포그래픽 차트, 화분, 창문 너머 도시 전경, 배경 직원 실루엣들
-  - 재해/위기 씬 → 무너진 건물, 균열, 파편, 연기, 구조 차량, 경보등
-  - 독서/학습 씬 → 높은 책꽂이, 책상과 독서등, 지구본, 화분, 창문
-마지막 고정 문구: "flat 2D vector style, bold outlines, no main protagonist, no text, no words, no letters"
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-【prompt_en — 통합 씬 프롬프트 (핵심 — 가장 공들여 작성)】
-씬 전체를 하나의 완성된 일러스트레이션으로 묘사합니다. 반드시 아래 구조를 따르세요:
-
-고정 스타일 키워드 (문장 맨 앞에 반드시 포함):
-"YouTube educational cartoon illustration, stick-figure style character with teal-blue hoodie, clean thick black outlines, flat bold vibrant colors, round white heads and expressive dot eyes, NO necktie NO suit NO business attire NO blue hair,"
-
-씬 구성 요소 (순서대로 묘사):
-1. 메인 캐릭터: 씬에 맞는 자연스러운 포즈로 장면 속에 배치. 티얼-블루 후드티, 검은 바지, 흰 운동화.
-2. 배경 엑스트라: 씬 분위기에 맞게 주변에 다른 캐릭터들도 자유롭게 배치 (다양한 색상 옷).
-3. 환경/소품: 씬 상황에 맞는 구체적 소품 5개 이상 나열 (가구, 기기, 인테리어, 자연 등).
-4. 분위기: 조명, 색감, 원근감을 포함한 공간감 묘사.
-
-마지막 고정 문구: "layered scene depth, warm vibrant colors, no text, no words, no letters, no labels, no watermarks, no captions"
-
-■ prompt_char 완성 예시 (SAFE-A):
-"A full-body minimalist cartoon illustration of a cute stick-figure style character with bold black outlines, standing on a pure white background. Flat 2D vector graphic style. Strictly two arms and two hands. No extra limbs. The character has a simple white circular head with stylized swept-back black hair, simple dot eyes, and a wide cheerful arc smile. The hands are small rounded fists with black outlines (NOT white balls, NOT white circles). The character wears a vibrant solid teal-blue hoodie with a front pocket, long black sleeves with black cuffs, solid black trousers, and white sneakers with black trim and laces. The character is standing with both arms hanging naturally at its sides. Isolated on a pure white background. No background elements. no text, no words, no letters"
-
-■ prompt_bg 완성 예시 (사무실 씬):
-"A flat 2D vector illustration of a busy modern office interior. Large open floor plan with rows of work desks and computers, wall-mounted infographic charts and graphs, indoor plants, bright ceiling lights, and tall windows showing a city skyline outside. Small simple stick-figure silhouette employees seated at desks in the background. Colorful decorative elements, layered foreground and background depth. Bold clean black outlines, vibrant flat colors. no main protagonist, no text, no words, no letters"
-
-■ prompt_en 완성 예시 (사무실 회의 씬):
-"YouTube educational cartoon illustration, clean thick black outlines, flat bold vibrant colors, simple cartoon characters with round white heads and expressive dot eyes, a cheerful cartoon character in a teal-blue hoodie standing at the head of a conference table holding up a document, four colleagues in colorful shirts seated around the table with tablets and papers, large arched windows behind them showing a bright sunny city skyline with clouds, a growth chart on the wall to the right, warm overhead lighting, wooden conference table with scattered documents, layered scene depth, warm vibrant colors, no text, no words, no letters, no labels, no watermarks, no captions"
-
-■ prompt_en 완성 예시 (무역/경제 씬):
-"YouTube educational cartoon illustration, clean thick black outlines, flat bold vibrant colors, simple cartoon characters with round white heads and expressive dot eyes, a concerned cartoon character in a teal-blue hoodie standing in front of a large world map, two giant national flags on either side clashing, cargo containers stacked on the left, semiconductor chip icons on the right, downward red arrows on a price chart in the foreground, serious background officials in suits watching, bright studio lighting, bold graphic design elements, layered scene depth, warm vibrant colors, no text, no words, no letters, no labels, no watermarks, no captions"
+【STEP 4: prompt_en】 "Korean webtoon manhwa illustration, vibrant colors, clean detailed linework, dynamic lighting,"
+  character_main: minimalist stick-figure(teal-blue hoodie, dark brown hair) 중앙 + 한국웹툰 배경 환경 + layered scene depth + no text no words no letters
+  character_support: 한국웹툰 스타일 인포그래픽 중앙 크게 + small stick-figure lower-right pointing + no text no words no letters
+  infographic: 인포그래픽 5개+ 한국웹툰 스타일 + NO character NO person + no text no words no letters
 """
 
         # 비 wimpy 스타일에 대한 커스텀 지침 (DB에서 저장된 gemini_instruction 사용)
@@ -1243,7 +1252,26 @@ Now write the motion prompt for THIS scene:"""
         if not is_wimpy_style and gemini_instruction and gemini_instruction.strip():
             custom_style_instruction = "\n[커스텀 스타일 지침 - 필수 준수]\n" + gemini_instruction.strip() + "\n"
 
-        style_instruction = f"""
+        if is_wimpy_style:
+            # [WIMPY] 캐릭터 스타일과 배경 스타일을 분리 적용
+            # prompt_char → 졸라맨 stick-figure 스타일
+            # prompt_bg / prompt_en → Korean webtoon manhwa 스타일
+            style_instruction = f"""
+[스타일 지침 - 졸라맨+K웹툰 혼합 모드]
+이 씬들은 두 가지 스타일을 혼합합니다:
+
+▶ prompt_char (캐릭터): 졸라맨/K만화 스타일 — flat 2D stick-figure, simple black outlines, white background
+  캐릭터 프롬프트에만 "{style_prompt}" 키워드를 반영하세요.
+
+▶ prompt_bg / prompt_en (배경/장면): Korean webtoon manhwa illustration style
+  배경과 장면 프롬프트에는 반드시 "Korean webtoon manhwa illustration" 스타일을 사용하세요.
+  "{style_prompt}" 키워드를 배경/장면에 사용하지 마세요 — K웹툰(Korean webtoon style)이 배경을 지배합니다.
+
+{universal_prevention}
+{wimpy_instruction}
+"""
+        else:
+            style_instruction = f"""
 [스타일 지침 - 매우 중요]
 모든 이미지 프롬프트에 다음 스타일을 반드시 반영하세요:
 "{style_prompt}"
@@ -1419,15 +1447,24 @@ Now write the motion prompt for THIS scene:"""
                 chunk_limit = f"""
 [중요: 장면 수 정책 - 반드시 준수]
 - 반드시 정확히 **{c_scenes}개**의 장면을 생성해야 합니다.
-- 아래 대본 구간 전체를 **처음부터 끝까지** {c_scenes}개로 균등하게 나누세요.
+- [현재 씬 생성 구간] 전체를 **처음부터 끝까지** {c_scenes}개로 균등하게 나누세요.
 - ⚠️ 어떤 구간도 건너뛰지 마세요. 도입부, 전환, 예고도 씬으로 처리하세요.
 - 각 씬의 scene_text: 해당 구간 원본 대본을 그대로 인용 (요약 금지, 최소 50자).
 - 연속된 씬들의 scene_text를 이어 붙이면 구간 전체가 재구성되어야 합니다.
 - JSON 배열에 scene_number 1부터 {c_scenes}까지 순서대로 포함하세요.
+- [전체 대본 맥락]은 전체 흐름/세계관/캐릭터를 파악하는 데만 사용하고, 씬 생성은 [현재 씬 생성 구간]에서만 하세요.
 """
+                # [CONTEXT-AWARE] 전체 대본을 맥락으로 제공하고, 현재 청크만 씬 생성 대상으로 지정
+                # → Gemini가 전체 스토리 흐름/설정/캐릭터를 파악한 뒤 해당 구간 프롬프트 생성
+                chunk_text_with_context = (
+                    f"[전체 대본 - 전체 흐름/세계관/캐릭터 파악용, 씬 생성 대상 아님]\n"
+                    f"{script}\n\n"
+                    f"[현재 씬 생성 구간 - 이 부분에 대해서만 {c_scenes}개 씬 생성]\n"
+                    f"{chunk_text}"
+                )
                 c_prompt = prompts.GEMINI_IMAGE_PROMPTS.format(
                     num_scenes=c_scenes,
-                    script=chunk_text,
+                    script=chunk_text_with_context,
                     style_instruction=style_instruction,
                     character_instruction=character_instruction,
                     limit_instruction=chunk_limit,
@@ -1453,7 +1490,21 @@ Now write the motion prompt for THIS scene:"""
             scenes = _parse_text_to_scenes(text)
 
         try:
-            
+            # [STYLE ENFORCEMENT] Gemini가 생성한 prompt_en에 스타일 접두사가 빠진 경우 자동 주입
+            if style_prompt and not is_wimpy_style:
+                # 스타일 키워드 중 핵심 단어 추출 (첫 3단어 정도)
+                style_check_words = style_prompt.lower().split(",")[0].strip().split()[:3]
+                style_check_key = " ".join(style_check_words) if style_check_words else ""
+
+                enforced_count = 0
+                for scene in scenes:
+                    pen = scene.get("prompt_en", "")
+                    if pen and style_check_key and style_check_key not in pen.lower():
+                        scene["prompt_en"] = f"{style_prompt}, {pen}"
+                        enforced_count += 1
+                if enforced_count > 0:
+                    print(f"[StyleEnforce] Injected style prefix into {enforced_count}/{len(scenes)} scenes")
+
             # [WIMPY] 졸라맨 스타일이면 prompt_en/prompt_char에서 물건 들기 표현을 강제 교체
             if is_wimpy_style:
                 for scene in scenes:
@@ -1463,22 +1514,55 @@ Now write the motion prompt for THIS scene:"""
                         scene["prompt_char"] = self._sanitize_wimpy_prompt(scene["prompt_char"])
 
             # [WIMPY FALLBACK] prompt_char / prompt_bg 가 비어있거나 placeholder일 때 자동 보완
+            # scene_type을 존중: infographic은 캐릭터 없음, character_support는 작은 코너 캐릭터
+            _CHAR_SUPPORT_BASE = (
+                "A small full-body stick-figure in the lower-right corner, pointing center-left with right hand. "
+                "Dark brown swept-back hair with a slight front flip. "
+                "Vibrant teal-blue hoodie with front pocket, long black sleeves. "
+                "Solid black trousers, white sneakers with black trim. "
+                "Exactly two arms, two hands, no extra limbs. "
+                "Pure white background. no text, no words"
+            )
             if is_wimpy_style:
                 for scene in scenes:
+                    scene_type = scene.get("scene_type", "character_main").strip().lower()
                     pc = scene.get("prompt_char", "").strip()
-                    if not pc or "졸라맨 스타일 전용" in pc or pc.startswith("("):
-                        scene["prompt_char"] = _CHAR_BASE
-                        print(f"[Wimpy Fallback] scene {scene.get('scene_number')} prompt_char auto-filled")
+                    is_placeholder = not pc or "졸라맨 스타일 전용" in pc or pc.startswith("(")
+
+                    if scene_type == "infographic":
+                        # 인포그래픽 씬: 캐릭터 없음
+                        if is_placeholder:
+                            scene["prompt_char"] = ""
+                            print(f"[Wimpy Fallback] scene {scene.get('scene_number')} infographic → prompt_char cleared")
+                    elif scene_type == "character_support":
+                        # 서포트 씬: 우하단 작은 캐릭터
+                        if is_placeholder:
+                            scene["prompt_char"] = _CHAR_SUPPORT_BASE
+                            print(f"[Wimpy Fallback] scene {scene.get('scene_number')} character_support → support char filled")
+                    else:
+                        # character_main (기본): 중앙 큰 캐릭터
+                        if is_placeholder:
+                            scene["prompt_char"] = _CHAR_BASE
+                            print(f"[Wimpy Fallback] scene {scene.get('scene_number')} character_main → prompt_char auto-filled")
+
                     pb = scene.get("prompt_bg", "").strip()
                     if not pb or "졸라맨 스타일 전용" in pb or pb.startswith("("):
                         scene_text_short = (scene.get("scene_text") or "")[:80]
-                        scene["prompt_bg"] = (
-                            f"A flat 2D vector illustration representing: {scene_text_short}. "
-                            "Simple shapes, clean black outlines. "
-                            "No person, no character, no human. "
-                            "flat 2D vector style, no text, no words"
-                        )
-                        print(f"[Wimpy Fallback] scene {scene.get('scene_number')} prompt_bg auto-filled")
+                        if scene_type == "infographic":
+                            scene["prompt_bg"] = (
+                                f"Korean webtoon manhwa style infographic illustration about: {scene_text_short}. "
+                                "Bold data visualization with charts, graphs, world map or statistics icons. "
+                                "Clean detailed linework, vibrant color grading, dynamic lighting. "
+                                "No person, no character, no human. no text, no words, no letters"
+                            )
+                        else:
+                            scene["prompt_bg"] = (
+                                f"Korean webtoon manhwa style background scene representing: {scene_text_short}. "
+                                "Detailed environment with 5+ specific props and elements. "
+                                "Clean linework, vibrant colors, cinematic depth, dynamic lighting. "
+                                "No person, no character, no human. no text, no words, no letters"
+                            )
+                        print(f"[Wimpy Fallback] scene {scene.get('scene_number')} prompt_bg auto-filled ({scene_type})")
 
             # [FIX] target_scene_count가 지정된 경우 씬 분리 없이 그대로 반환
             # (씬 분리 로직이 사용자 지정 씬 수를 초과하게 만들 수 있으므로)

@@ -2,13 +2,28 @@
 import asyncio
 import json
 import os
+import sys
 import random
 from datetime import datetime, timedelta
 import httpx
 from typing import List, Dict, Union, Optional, Any
 from config import config
+
+# Windows cp949 이모지 출력 에러 방지
+_builtin_print = print
+def print(*args, **kwargs):
+    try:
+        _builtin_print(*args, **kwargs)
+    except UnicodeEncodeError:
+        safe_args = [str(a).encode('ascii', errors='replace').decode('ascii') for a in args]
+        try:
+            _builtin_print(*safe_args, **kwargs)
+        except Exception:
+            pass
 import database as db
 from services.gemini_service import gemini_service
+from services.replicate_service import replicate_service
+from services.akool_service import akool_service
 from services.prompts import prompts
 from services.tts_service import tts_service
 from services.video_service import video_service
@@ -182,8 +197,6 @@ class AutoPilotService:
                 
                 # 5-1. 영상 소스 생성
                 db.update_project(project_id, status="generating_assets")
-                # [FIX] Force all_video=True to ensure dynamic assets (Wan/Akool) are used
-                self.config["all_video"] = True 
                 await self._generate_assets(project_id, full_script, self.config)
                 
                 # [NEW] Ensure Metadata exists (Title, Description) - Re-run if skipped earlier
@@ -273,12 +286,35 @@ class AutoPilotService:
                         detailed_style = style_data.get('prompt_value', style_prefix)
                         full_prompt = f"{char['prompt_en']}, {detailed_style}"
                         
-                        # Portrait aspect ratio 1:1
-                        images_bytes = await gemini_service.generate_image(
-                            prompt=full_prompt,
-                            num_images=1,
-                            aspect_ratio="1:1"
-                        )
+                        # Portrait aspect ratio 1:1 (Replicate -> Gemini -> Akool Strategy)
+                        images_bytes = None
+                        
+                        # 1. Replicate Flux
+                        try:
+                            print(f"🎨 [Auto-Pilot Char] Attempting Replicate (Primary)...")
+                            images_bytes = await replicate_service.generate_image(prompt=full_prompt, aspect_ratio="1:1")
+                        except Exception as e:
+                            print(f"⚠️ [Auto-Pilot Char] Replicate failed: {e}")
+                        
+                        # 2. Gemini Fallback
+                        if not images_bytes:
+                            try:
+                                print(f"🎨 [Auto-Pilot Char] Attempting Gemini Imagen (Fallback 1)...")
+                                images_bytes = await gemini_service.generate_image(
+                                    prompt=full_prompt,
+                                    num_images=1,
+                                    aspect_ratio="1:1"
+                                )
+                            except Exception as e:
+                                print(f"⚠️ [Auto-Pilot Char] Gemini failed: {e}")
+
+                        # 3. Akool Fallback
+                        if not images_bytes:
+                            try:
+                                print(f"🎨 [Auto-Pilot Char] Attempting AKOOL (Final Fallback)...")
+                                images_bytes = await akool_service.generate_image(prompt=full_prompt, aspect_ratio="1:1")
+                            except Exception as e:
+                                print(f"⚠️ [Auto-Pilot Char] Akool failed: {e}")
                         
                         if images_bytes:
                             now = config.get_kst_time()
@@ -495,17 +531,23 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
         style_data = style_presets.get(image_style_key, {})
 
         style_prefix = style_data.get("prompt_value", "photorealistic")
-        
+        gemini_instruction = style_data.get("gemini_instruction", "")
+
         # 1. Image Prompts
         # [CRITICAL FIX] Use actual target duration for image count calculation
         target_duration = config_dict.get("duration_seconds", 300)
-        
+
         image_prompts = db.get_image_prompts(project_id)
         if not image_prompts:
-            print(f"🖼️ [Auto-Pilot] Generating image prompts for {target_duration}s video...")
+            print(f"🖼️ [Auto-Pilot] Generating image prompts for {target_duration}s video (style_key={image_style_key})...")
             # [NEW] 캐릭터 정보 조회 및 전달
             characters = db.get_project_characters(project_id)
-            image_prompts = await gemini_service.generate_image_prompts_from_script(script, target_duration, style_prefix, characters=characters)
+            image_prompts = await gemini_service.generate_image_prompts_from_script(
+                script, target_duration, style_prefix,
+                characters=characters,
+                style_key=image_style_key,
+                gemini_instruction=gemini_instruction
+            )
             db.save_image_prompts(project_id, image_prompts)
             image_prompts = db.get_image_prompts(project_id)
             print(f"🖼️ [Auto-Pilot] Generated {len(image_prompts)} image prompts")
@@ -555,7 +597,36 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                         aspect_ratio = "16:9" if (duration_sec and duration_sec >= 60) else "9:16"
                     
                     print(f"🎨 [Auto-Pilot] Generating image for Scene {scene_num} (Mode: {mode}, Duration: {duration_sec}s, Aspect Ratio: {aspect_ratio})")
-                    images = await gemini_service.generate_image(prompt_en, aspect_ratio=aspect_ratio)
+                    images = None
+                    used_backend = "none"
+
+                    # 1. Replicate Flux
+                    try:
+                        images = await replicate_service.generate_image(prompt=prompt_en, aspect_ratio=aspect_ratio)
+                        if images:
+                            used_backend = "Replicate"
+                    except Exception as e:
+                        print(f"⚠️ [Scene {scene_num}] Replicate failed: {e}")
+
+                    # 2. Gemini Fallback
+                    if not images:
+                        try:
+                            images = await gemini_service.generate_image(prompt=prompt_en, aspect_ratio=aspect_ratio)
+                            if images:
+                                used_backend = "Gemini"
+                        except Exception as e:
+                            print(f"⚠️ [Scene {scene_num}] Gemini failed: {e}")
+
+                    # 3. Akool Fallback
+                    if not images:
+                        try:
+                            images = await akool_service.generate_image(prompt=prompt_en, aspect_ratio=aspect_ratio)
+                            if images:
+                                used_backend = "Akool"
+                        except Exception as e:
+                            print(f"⚠️ [Scene {scene_num}] Akool failed: {e}")
+
+                    print(f"🎨 [Scene {scene_num}] Image generated via {used_backend}")
 
                     if not images: return False
                     
@@ -1010,19 +1081,24 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                     # [NEW] Dual Engine Support: Check User Preference
                     preferred_engine = p_settings.get("video_engine", "wan") # 'wan' or 'akool'
                     
-                    if preferred_engine == "akool":
+                    if preferred_engine in ["akool", "akool_premium"]:
                         try:
-                            print(f"📹 [Auto-Pilot] Generating Video via Akool I2V for Scene {scene_num}")
-                            video_data = await akool_service.generate_i2v(image_abs_path, final_prompt)
+                            # [MODIFIED] Use Akool Premium (v4 API) instead of old v1 I2V
+                            video_data = await akool_service.generate_akool_video_v4(
+                                image_abs_path, 
+                                prompt=final_prompt,
+                                duration=int(video_duration),
+                                resolution="720p"
+                            )
                             
                             if video_data:
-                                filename = f"vid_akool_i2v_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.mp4"
+                                filename = f"vid_akool_premium_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.mp4"
                                 out = os.path.join(config.OUTPUT_DIR, filename)
                                 with open(out, 'wb') as f: f.write(video_data)
                                 db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
-                                print(f"✅ [Akool] I2V Success for Scene {scene_num}")
+                                print(f"✅ [Akool] Premium I2V Success for Scene {scene_num}")
                             else:
-                                raise Exception("Empty data returned from Akool I2V")
+                                raise Exception("Empty data returned from Akool Premium")
                                 
                         except Exception as ak_i2v_e:
                             print(f"⚠️ [Akool] I2V Failed: {ak_i2v_e}. Fallback to Replicate(Wan)...")
@@ -1069,11 +1145,25 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                                 with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
                                     df.write(f"[{datetime.now()}] ✅ Successfully generated Wan video for Scene {scene_num}\n")
                         except Exception as wan_e:
-                            # [STRICT QUALITY CONTROL] User demands High-End Motion (Wan 2.1).
-                            # Do NOT fall back to static 2D motion. Raise error to stop process until credits are refilled.
-                            err_msg = f"❌ [Wan] Critical Error: {wan_e} (Likely Insufficient Credits). Process halted to preserve quality."
-                            print(err_msg)
-                            raise wan_e # Rethrow to stop autopilot
+                            print(f"⚠️ [Wan] Failed: {wan_e}. Falling back to Akool Seedance...")
+                            try:
+                                video_data = await akool_service.generate_akool_video_v4(
+                                    image_abs_path,
+                                    prompt=final_prompt,
+                                    duration=int(video_duration),
+                                    resolution="720p"
+                                )
+                                if video_data:
+                                    filename = f"vid_seedance_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.mp4"
+                                    out = os.path.join(config.OUTPUT_DIR, filename)
+                                    with open(out, 'wb') as f: f.write(video_data)
+                                    db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
+                                    print(f"✅ [Akool Seedance] Fallback Success for Scene {scene_num}")
+                                else:
+                                    raise Exception("Empty data from Akool Seedance")
+                            except Exception as seed_e:
+                                print(f"❌ [Akool Seedance] Also failed: {seed_e}")
+                                # Both engines failed, continue to next scene
             except Exception as ve:
                 err_msg = f"⚠️ [Auto-Pilot] Video generation failed for Scene {scene_num}: {ve}"
                 print(err_msg)
@@ -1159,26 +1249,32 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             image_style_key = config_dict.get("image_style", config_dict.get("visual_style", "realistic"))
             style_presets = db.get_style_presets()
             style_data = style_presets.get(image_style_key, {})
-            style_prefix = style_data.get("prompt_value", "photorealistic")
+            style_prefix_raw = style_data.get("prompt_value", "photorealistic")
+
+            # [CRITICAL] 썸네일 배경용 스타일 분리
+            # 캐릭터 중심 스타일(wimpy/k_manhwa 등)은 캐릭터 설명이 길어서 배경 프롬프트에 부적합
+            # → 간결한 스타일 키워드만 사용
+            _thumb_style_overrides = {
+                "k_manhwa": "Clean minimalist cartoon illustration style, bold outlines, flat colors, white background",
+                "wimpy": "Diary of a Wimpy Kid illustration style, simple black and white sketch, clean lines",
+                "jollaman": "Simple stick figure cartoon style, bold outlines, flat 2D, clean white background",
+            }
+            if image_style_key in _thumb_style_overrides:
+                thumb_style_prompt = _thumb_style_overrides[image_style_key]
+            elif len(style_prefix_raw) > 200:
+                # 긴 프롬프트는 첫 200자만 사용 (캐릭터 세부 묘사 제거)
+                thumb_style_prompt = style_prefix_raw[:200].rsplit(',', 1)[0]
+            else:
+                thumb_style_prompt = style_prefix_raw
 
             # [NEW] Layout Style
             thumbnail_style_key = config_dict.get("thumbnail_style", "face")
             thumb_presets = db.get_thumbnail_style_presets()
             thumb_preset = thumb_presets.get(thumbnail_style_key, {})
             layout_desc = thumb_preset.get("prompt", "")
-            
-            # [NEW] Character Incorporation
-            characters = db.get_project_characters(project_id)
-            char_desc = ""
-            if characters:
-                # Use the first 1-2 characters to keep prompt focused
-                char_lines = []
-                for c in characters[:2]:
-                    char_lines.append(c.get("prompt_en", ""))
-                char_desc = " Featuring: " + ", ".join(char_lines)
-            
-            # Combine everything for a consistent look
-            final_thumb_prompt = f"ABSOLUTELY NO TEXT. Style: {style_prefix}. Composition: {layout_desc}. Subjects: {visual_concept}.{char_desc}. 8k, high quality."
+
+            # Combine for thumbnail background (캐릭터 설명 제거 - 배경만 생성)
+            final_thumb_prompt = f"ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS. Style: {thumb_style_prompt}. Composition: {layout_desc}. Subject: {visual_concept}. High quality, vibrant colors."
 
             # [CRITICAL] Determine aspect ratio based on duration (Long-form vs Shorts)
             duration_sec = config_dict.get("duration_seconds", 300)
@@ -1188,23 +1284,35 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             print(f"📝 Prompt: {final_thumb_prompt[:120]}...")
             
             images = None
+            
+            # 1. Replicate (Primary)
             try:
-                images = await gemini_service.generate_image(final_thumb_prompt, aspect_ratio=aspect_ratio)
+                print(f"🎨 [Auto-Pilot Thumb] Attempting Replicate (Primary)...")
+                images = await replicate_service.generate_image(prompt=final_thumb_prompt, aspect_ratio=aspect_ratio)
             except Exception as e:
-                msg = f"❌ [Auto-Pilot] Thumbnail Image Gen Failed: {e}"
-                print(msg)
+                print(f"⚠️ [Auto-Pilot Thumb] Replicate failed: {e}")
+            
+            # 2. Gemini Fallback (with safe generic retry)
+            if not images:
                 try:
-                    with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
-                        df.write(f"[{datetime.now()}] {msg}\n")
-                except: pass
-                
-                # [FALLBACK] Try a safe, generic prompt if the specific one was blocked
-                print("🔄 [Auto-Pilot] Retrying with generic thumbnail prompt due to safety/filter...")
-                generic_prompt = f"Minimal aesthetic abstract background, Style: {style_prefix}, 8k, high quality"
+                    print(f"🎨 [Auto-Pilot Thumb] Attempting Gemini Imagen (Fallback 1)...")
+                    images = await gemini_service.generate_image(final_thumb_prompt, aspect_ratio=aspect_ratio)
+                except Exception as e:
+                    print(f"⚠️ [Auto-Pilot Thumb] Gemini failed: {e}")
+                    # [FALLBACK] Retry with generic prompt
+                    print("🔄 [Auto-Pilot Thumb] Retrying Gemini with generic prompt due to safety/filter...")
+                    generic_prompt = f"Minimal aesthetic abstract background, Style: {style_prefix}, 8k, high quality"
+                    try:
+                        images = await gemini_service.generate_image(generic_prompt, aspect_ratio=aspect_ratio)
+                    except: pass
+
+            # 3. Akool Fallback
+            if not images:
                 try:
-                    images = await gemini_service.generate_image(generic_prompt, aspect_ratio=aspect_ratio)
-                except Exception as e2:
-                    print(f"❌ [Auto-Pilot] Final fallback failed: {e2}")
+                    print(f"🎨 [Auto-Pilot Thumb] Attempting AKOOL (Final Fallback)...")
+                    images = await akool_service.generate_image(prompt=final_thumb_prompt, aspect_ratio=aspect_ratio)
+                except Exception as e:
+                    print(f"⚠️ [Auto-Pilot Thumb] Akool failed: {e}")
             
             if not images: 
                 print("⚠️ [Auto-Pilot] No images generated for thumbnail. Skipping synthesis.")
@@ -1224,33 +1332,9 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             project_settings = db.get_project_settings(project_id) or {}
             requested_style = config_dict.get("thumbnail_style") or project_settings.get("thumbnail_style")
             
-            text_layers = []
-            
-            if requested_style:
-                text_layers = thumbnail_service.get_style_recipe(requested_style, hook_text)
-            
-            # [PRIORITY 2] Fallback to Project 1 Template
-            elif (saved_thumb_data := db.get_thumbnails(1)) and saved_thumb_data.get("full_settings"):
-                layers = saved_thumb_data["full_settings"].get("layers", [])
-                
-                # Find main text layer (biggest font size)
-                main_layer_idx = 0
-                max_size = 0
-                for i, l in enumerate(layers):
-                    fs = int(l.get("font_size", 0))
-                    if fs > max_size:
-                        max_size = fs
-                        main_layer_idx = i
-                
-                # Copy and Replace Text
-                import copy
-                text_layers = copy.deepcopy(layers)
-                if text_layers and len(text_layers) > main_layer_idx:
-                     text_layers[main_layer_idx]["text"] = hook_text
-            
-            else:
-                # [PRIORITY 3] Default Fallback
-                text_layers = thumbnail_service.get_style_recipe("mystery", hook_text)
+            # 스타일 레시피 기반 텍스트 레이어 생성 (항상 스타일별 레시피 사용)
+            style_for_recipe = requested_style or "face"
+            text_layers = thumbnail_service.get_style_recipe(style_for_recipe, hook_text)
 
             success = thumbnail_service.create_thumbnail(bg_path, text_layers, final_path)
             
@@ -1283,6 +1367,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             except: pass
 
     async def _render_video(self, project_id: int):
+        db.update_project(project_id, status="rendering")
         images_data = db.get_image_prompts(project_id)
         tts_data = db.get_tts(project_id)
         script_data = db.get_script(project_id)
@@ -1873,35 +1958,56 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                 "type": s.get('scene_type', '3'), # 1: Vertical, 2: Horizontal, 3: Regular
             })
             
-        prompt = f"""
-        You are a professional Video Director specializing in Webtoon-to-Video implementation.
-        Review the following {len(scenes)} scenes from a webtoon and create a technical production plan.
-        
-        Target Output Format (JSON):
-        {{
-            "overall_strategy": "Brief direction for the video tone and pacing.",
-            "bgm_style": "Recommended background music style and mood.",
+        prompt_template = """
+        # ROLE: Hollywood Trailer Editor & VFX Supervisor
+        You are creating a high-end cinematic video production plan for a webtoon.
+        Follow the [USER CINEMATIC MASTER GUIDE] strictly when generating specifications for each scene.
+
+        [INPUT DATA (JSON SCENES)]
+        [[SCENES_JSON]]
+
+        [USER CINEMATIC MASTER GUIDE (STRICT ADHERENCE)]
+        0. Base Master Setting (Common for ALL cuts):
+           "Vertical cinematic animation, 9:16 aspect ratio, 1080x1920, smooth camera movement, subtle parallax depth effect, soft volumetric lighting, atmospheric particles, high quality anime webtoon style, dramatic color grading, film grain subtle, slow cinematic motion, emotional pacing."
+
+        1. Production Types (scene_type):
+           - TYPE 1 (Vertical Long): "Show Space" -> slow upward/downward camera pan (pan_down, pan_up), 2.5D depth parallax, focus on full body or background reveal.
+           - TYPE 2 (Horizontal Wide): "Panoramic Vista" -> SIDE PANNING (pan_left, pan_right) to show the full width of the image while fitting the height. DO NOT JUST ZOOM IN.
+           - TYPE 3 (Small/Empty): "Fill Space" -> Place center, extend matching background, slow cinematic zoom (zoom_in), focal point on face.
+           - TYPE 4 (Transition): "Consistency" -> Fade with particles, slow cross-dissolve, motion blur.
+           - TYPE 5 (PSD Depth): "3D Illusion" -> Separate foreground/mid/background, strong parallax, 3D camera move.
+           - TYPE 6 (Unified Tone): High-end animated trailer look, soft contrast, warm highlights.
+
+        [CORE INSTRUCTIONS]
+        1. **overall_strategy**: Summarize the production direction in Korean.
+        2. **bgm_style**: Recommend BGM style in Korean.
+        3. **scene_specifications**: For each scene, generate:
+           - **scene_number**: The number from input.
+           - **engine**: "wan" (motion), "akool" (lipsync), or "image" (2D). 
+             * Note: If scene has dialogue, strongly consider 'akool'.
+           - **effect**: "pan_down", "pan_up", "pan_left", "pan_right", "zoom_in", "zoom_out", "static".
+             * Use 'pan_left' or 'pan_right' for TYPE 2 (Wide) images to show the whole image.
+           - **motion**: FULL CINEMATIC PROMPT in English. Combine Master Setting (0) + Type Specific Guide (1-6) + Scene Context. Mention specific camera movement directions.
+           - **rationale**: Why this choice (e.g., "Wide image detected, using Type 2 Pan Left to reveal background").
+           - **cropping_advice**: How to frame to 9:16 (Fitting height and panning width) (Korean).
+
+        [OUTPUT FORMAT (JSON ONLY)]
+        {
+            "overall_strategy": "Overall direction (Korean)",
+            "bgm_style": "BGM (Korean)",
             "scene_specifications": [
-                {{
+                {
                     "scene_number": 1,
-                    "engine": "wan" or "akool", 
-                    "motion": "Detailed description of camera movement (e.g., Slow pan down from sky)",
-                    "effect": "pan_down" or "pan_up" or "zoom_in" or "zoom_out" or "static",
-                    "rationale": "Why this motion/engine?",
-                    "cropping_advice": "Focus on [object] or [character face]"
-                }}
+                    "engine": "wan | akool | image",
+                    "effect": "zoom_in | pan_down | pan_left | ...",
+                    "motion": "Detailed cinematic prompt in English focusing on camera motion",
+                    "rationale": "Reason (Korean)",
+                    "cropping_advice": "Advice (Korean)"
+                }
             ]
-        }}
-        
-        Rules:
-        1. 'wan' engine is best for general cinematic motion and scenery. 'akool' is ONLY for scenes with talking character face (lip-sync).
-        2. If 'type' is '1' (Vertical), prefer 'pan_down' or 'pan_up' to show the full height.
-        3. If 'type' is '2' (Horizontal), prefer 'pan_left', 'pan_right' or static zoom.
-        4. If dialogue exists and it looks like a close-up, consider 'akool' for lip-sync, otherwise use 'wan' with camera motion.
-        
-        Scenes Data:
-        {json.dumps(scene_context, ensure_ascii=False, indent=2)}
         """
+        
+        prompt = prompt_template.replace("[[SCENES_JSON]]", json.dumps(scene_context, ensure_ascii=False))
         
         try:
             # Call Gemini
@@ -1933,11 +2039,11 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
     async def start_batch_worker(self):
         """[NEW] 프로젝트 대기열을 감시하고 순차적으로 처리하는 워커"""
         if self.is_batch_running:
-            print("🚀 [Auto-Pilot] Batch worker already running.")
+            print("[Auto-Pilot] Batch worker already running.")
             return
 
         self.is_batch_running = True
-        print("🚀 [Auto-Pilot] Batch worker started.")
+        print("[Auto-Pilot] Batch worker started.")
 
         while True:
             try:
