@@ -165,8 +165,74 @@ class ThumbnailRenderer:
 
         return lines
 
-    def create_thumbnail(self, background_path, text_layers, output_path):
-        """배경 이미지 위에 텍스트 레이어들을 합성하여 저장"""
+    def _hex_to_rgba(self, hex_color, opacity=1.0):
+        """Hex 색상 → RGBA 튜플"""
+        if not hex_color or hex_color == 'transparent':
+            return (0, 0, 0, 0)
+        hex_color = hex_color.lstrip('#')
+        r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
+        return (r, g, b, int(opacity * 255))
+
+    def _draw_shape_layers(self, base_img, shape_layers, ref_width=1280, ref_height=720):
+        """도형 레이어를 이미지에 합성 (그라데이션/투명도 지원)"""
+        width, height = base_img.size
+        scale_x = width / ref_width
+        scale_y = height / ref_height
+
+        for shape in shape_layers:
+            x = int(shape.get("x", 0) * scale_x)
+            y = int(shape.get("y", 0) * scale_y)
+            w = int(shape.get("width", 100) * scale_x)
+            h = int(shape.get("height", 100) * scale_y)
+
+            color_start = shape.get("color_start", "#000000")
+            color_end = shape.get("color_end")
+            opacity = float(shape.get("opacity", 1.0))
+            opacity_end = float(shape.get("opacity_end", opacity))
+            direction = shape.get("gradient_direction", "vertical")
+
+            # 도형을 별도 RGBA 이미지로 생성
+            shape_img = Image.new("RGBA", (max(1, w), max(1, h)), (0, 0, 0, 0))
+
+            if color_end and color_end != color_start:
+                # 그라데이션
+                for i in range(max(1, h if direction == "vertical" else w)):
+                    ratio = i / max(1, (h if direction == "vertical" else w) - 1)
+                    r1, g1, b1, _ = self._hex_to_rgba(color_start, 1)
+                    r2, g2, b2, _ = self._hex_to_rgba(color_end, 1)
+                    r = int(r1 + (r2 - r1) * ratio)
+                    g = int(g1 + (g2 - g1) * ratio)
+                    b = int(b1 + (b2 - b1) * ratio)
+                    a = int((opacity + (opacity_end - opacity) * ratio) * 255)
+                    color = (r, g, b, a)
+                    draw = ImageDraw.Draw(shape_img)
+                    if direction == "vertical":
+                        draw.line([(0, i), (w - 1, i)], fill=color)
+                    else:
+                        draw.line([(i, 0), (i, h - 1)], fill=color)
+            else:
+                # 단색 (투명도 그라데이션 가능)
+                if abs(opacity - opacity_end) > 0.01:
+                    steps = max(1, h if direction == "vertical" else w)
+                    for i in range(steps):
+                        ratio = i / max(1, steps - 1)
+                        a = int((opacity + (opacity_end - opacity) * ratio) * 255)
+                        rgba = self._hex_to_rgba(color_start, 1)
+                        color = (rgba[0], rgba[1], rgba[2], a)
+                        draw = ImageDraw.Draw(shape_img)
+                        if direction == "vertical":
+                            draw.line([(0, i), (w - 1, i)], fill=color)
+                        else:
+                            draw.line([(i, 0), (i, h - 1)], fill=color)
+                else:
+                    rgba = self._hex_to_rgba(color_start, opacity)
+                    shape_img = Image.new("RGBA", (max(1, w), max(1, h)), rgba)
+
+            base_img.paste(shape_img, (x, y), shape_img)
+            print(f"[Thumbnail] Drew shape at ({x},{y}) {w}x{h} color={color_start}")
+
+    def create_thumbnail(self, background_path, text_layers, output_path, shape_layers=None):
+        """배경 이미지 위에 도형 + 텍스트 레이어들을 합성하여 저장"""
         # 1. 배경 로드
         try:
             if not os.path.exists(background_path) and background_path.startswith("/"):
@@ -178,6 +244,11 @@ class ThumbnailRenderer:
             return False
 
         width, height = base_img.size
+
+        # 1.5. 도형 레이어 합성 (텍스트 아래에 배치)
+        if shape_layers:
+            self._draw_shape_layers(base_img, shape_layers, ref_width=1280, ref_height=720)
+
         draw = ImageDraw.Draw(base_img)
 
         # 2. 텍스트 레이어 합성
@@ -190,14 +261,29 @@ class ThumbnailRenderer:
             stroke_color = layer.get("stroke_color", "#000000")
             font_family = layer.get("font_family", "text")
 
-            # 비율 기반 좌표 → 픽셀 변환 (ratio 키가 있으면 비율, 없으면 legacy 절대값)
+            # 좌표 변환: 3가지 형식 지원
             if "font_size_ratio" in layer:
+                # 형식 1: 비율 기반 (스타일 레시피)
                 font_size = max(20, int(layer["font_size_ratio"] * height))
                 stroke_width = max(0, int(layer.get("stroke_width_ratio", 0) * height))
                 x = layer.get("x_ratio", 0.5) * width
                 y = layer.get("y_ratio", 0.5) * height
+            elif "position" in layer:
+                # 형식 2: 프론트엔드 position 기반 (row1~row5, center, top, bottom)
+                font_size = int(layer.get("font_size", 80) * (height / 720))
+                stroke_width = int(layer.get("stroke_width", 8) * (height / 720))
+                x = width / 2  # 항상 중앙 정렬
+                pos = layer.get("position", "center")
+                pos_map = {
+                    "center": 0.5, "top": 0.15, "bottom": 0.85,
+                    "row1": 0.15, "row2": 0.35, "row3": 0.55, "row4": 0.75, "row5": 0.90
+                }
+                y = height * pos_map.get(pos, 0.5)
+                # x_offset, y_offset 적용 (1280x720 기준 → 실제 크기 스케일링)
+                x += layer.get("x_offset", 0) * (width / 1280)
+                y += layer.get("y_offset", 0) * (height / 720)
             else:
-                # Legacy 절대 좌표 (1280x720 기준) → 실제 이미지 크기로 스케일링
+                # 형식 3: Legacy 절대 좌표 (1280x720 기준)
                 font_size = int(layer.get("font_size", 80) * (height / 720))
                 stroke_width = int(layer.get("stroke_width", 0) * (height / 720))
                 x = layer.get("x", width / 2) * (width / 1280)

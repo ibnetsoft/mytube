@@ -1343,13 +1343,36 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             final_filename = f"thumbnail_{project_id}_{now.strftime('%H%M%S')}.jpg"
             final_path = os.path.join(config.OUTPUT_DIR, final_filename)
             
-            # [PRIORITY 1] Check Autopilot Config / Project Settings for Explicit Style
+            # [PRIORITY 1] 저장된 썸네일 설정(textLayers, shapeLayers)을 우선 사용
             project_settings = db.get_project_settings(project_id) or {}
-            requested_style = config_dict.get("thumbnail_style") or project_settings.get("thumbnail_style")
-            
-            # 스타일 레시피 기반 텍스트 레이어 생성 (항상 스타일별 레시피 사용)
-            style_for_recipe = requested_style or "face"
-            text_layers = thumbnail_service.get_style_recipe(style_for_recipe, hook_text)
+            saved_thumb = db.get_thumbnails(project_id)
+            saved_full = (saved_thumb or {}).get("full_settings", {})
+            saved_text_layers = saved_full.get("textLayers")
+            saved_shape_layers = saved_full.get("shapeLayers")
+
+            text_layers = None
+
+            # 저장된 텍스트 레이어가 있으면 스타일 유지 + 텍스트만 교체
+            if saved_text_layers and len(saved_text_layers) > 0:
+                print(f"🎨 [Auto-Pilot] 저장된 썸네일 스타일 사용 (레이어 {len(saved_text_layers)}개)")
+                text_layers = []
+                # 후킹 문구 후보를 레이어에 배분
+                texts_to_assign = hook_candidates[:len(saved_text_layers)] if hook_candidates else [hook_text]
+                for i, layer in enumerate(saved_text_layers):
+                    new_layer = dict(layer)  # 스타일 복사
+                    # 텍스트만 교체 (저장된 스타일 유지)
+                    if i < len(texts_to_assign):
+                        new_layer["text"] = texts_to_assign[i]
+                    elif "text" not in new_layer or not new_layer["text"].strip():
+                        new_layer["text"] = hook_text
+                    text_layers.append(new_layer)
+
+            # 저장된 설정 없으면 기존 스타일 레시피 사용
+            if not text_layers:
+                requested_style = config_dict.get("thumbnail_style") or project_settings.get("thumbnail_style")
+                style_for_recipe = requested_style or "face"
+                text_layers = thumbnail_service.get_style_recipe(style_for_recipe, hook_text)
+                print(f"🎨 [Auto-Pilot] 스타일 레시피 사용: {style_for_recipe}")
 
             # [SAVE] 배경 이미지 URL 저장 (삭제하지 않고 유지)
             bg_web_path = f"/output/{bg_filename}"
@@ -1358,7 +1381,12 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             # [SAVE] 텍스트 레이어 정보 저장
             db.update_project_setting(project_id, "thumbnail_text_layers", json.dumps(text_layers, ensure_ascii=False))
 
-            success = thumbnail_service.create_thumbnail(bg_path, text_layers, final_path)
+            # 도형 레이어 (저장된 설정에서 가져오기)
+            shape_layers_for_render = saved_shape_layers if saved_shape_layers else None
+            if shape_layers_for_render:
+                print(f"🎨 [Auto-Pilot] 저장된 도형 레이어 사용 ({len(shape_layers_for_render)}개)")
+
+            success = thumbnail_service.create_thumbnail(bg_path, text_layers, final_path, shape_layers=shape_layers_for_render)
 
             if success:
                 web_path = f"/output/{final_filename}"
