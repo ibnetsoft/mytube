@@ -177,16 +177,25 @@ class CommerceService:
             
             if engine == 'akool':
                 return await self._create_akool_video(video_id, video_data)
+            
+            if engine == 'akool_i2v':
+                return await self._create_akool_i2v_video(video_id, video_data)
 
             # 2. TopView API 호출 시도
             try:
-                result = await topview_service.create_video_by_url(video_data['product_url'])
-            except:
+                result = await topview_service.submit_marketing_task(
+                    product_url=video_data.get('product_url', ''),
+                    product_name=video_data.get('product_name', '상품'),
+                    product_desc=video_data.get('product_description', '상품 설명'),
+                    language="ko"
+                )
+            except Exception as e:
+                self.logger.error(f"TopView Submit Error: {e}")
                 result = None
 
-            if result and result.get('id'):
+            if result and result.get('taskId'):
                 # task_id 저장
-                task_id = result.get('id')
+                task_id = result.get('taskId')
                 db.update_commerce_video(video_id, {
                     'topview_task_id': task_id,
                     'status': 'processing'
@@ -225,33 +234,18 @@ class CommerceService:
                 script = f"안녕하세요! {video_data.get('product_name', '이 제품')}을 소개합니다. 정말 좋은 제품이니 꼭 확인해보세요!"
 
             # 2. TTS Generation (Local File)
-            # Default voice?
-            voice_name = "ko-KR-Standard-A" # Simple default or use config
-            # Use tts_service to generate generic audio
-            import os
-            import uuid
-            
-            # Use existing tts_service function if available?
-            # tts_service.generate_audio(text, output_path)
-            temp_audio_filename = f"akool_tts_{video_id}_{uuid.uuid4()}.mp3"
+            voice_name = "ko-KR-Standard-A" 
+            temp_audio_filename = f"akool_tts_{video_id}.mp3"
             temp_audio_path = os.path.join(config.OUTPUT_DIR, temp_audio_filename)
             
-            # We use Google TTS via tts_service or simple default?
-            # tts_service has generate_audio(text, path, ...)
             await tts_service.generate_audio(script, temp_audio_path)
             
-            # 3. Upload Audio to Public URL (Akool Requirement)
+            # 3. Upload Audio to Public URL
             audio_url = await akool_service._upload_temp_file(temp_audio_path)
             if not audio_url:
                 raise Exception("Failed to upload audio for Akool")
 
             # 4. Avatar Image
-            # Use Product Image (First one) or Default Avatar
-            # Akool is 'Talking Photo' -> Face is required.
-            # Using product image usually fails if no face.
-            # So we use a DEFAULT AVATAR logic.
-            # Or check if user selected 'model_type'? 
-            # Simplified: Use a specific default avatar URL for now.
             avatar_url = "https://img.freepik.com/free-photo/young-woman-with-round-glasses-yellow-sweater_273609-7091.jpg"
             
             # 5. Call Akool API
@@ -259,7 +253,7 @@ class CommerceService:
             
             # 6. Update DB
             db.update_commerce_video(video_id, {
-                'topview_task_id': task_id, # Reusing column or add 'akool_task_id'? Reuse for simplicity as 'task_id'
+                'topview_task_id': task_id,
                 'status': 'processing',
                 'engine': 'akool'
             })
@@ -283,6 +277,78 @@ class CommerceService:
                 "video_id": video_id,
                 "message": f"Akool 생성 실패: {str(e)}"
             }
+
+    async def _create_akool_i2v_video(self, video_id: int, video_data: dict) -> Dict[str, Any]:
+        """Akool Premium I2V (Wan 2.5) 영상 생성 흐름"""
+        try:
+            from services.akool_service import akool_service
+            import urllib.request
+            
+            # 1. Image URL 확보
+            img_url = video_data.get('image_url')
+            if not img_url:
+                # 분석 데이터에서 첫 번째 이미지 사용 시도
+                images = video_data.get('product_images', [])
+                if images: img_url = images[0]
+            
+            if not img_url:
+                raise Exception("No image_url found for Akool I2V")
+            
+            # 2. 로컬에 이미지 다운로드
+            temp_img_path = os.path.join(config.OUTPUT_DIR, f"akool_i2v_src_{video_id}.jpg")
+            urllib.request.urlretrieve(img_url, temp_img_path)
+            
+            # 3. Prompt 생성
+            prompt = video_data.get('message', '')
+            if not prompt:
+                prompt = f"Cinematic showcase of {video_data.get('product_name', 'this product')}, professional lighting, deep depth of field, high quality masterpiece."
+            else:
+                prompt = f"Cinematic motion for {video_data.get('product_name', 'product')}: {prompt}, high quality studio photography style."
+            
+            # 4. Akool Premium I2V 호출 (Wan 2.5)
+            # generate_akool_video_v4는 bytes를 반환함
+            video_bytes = await akool_service.generate_akool_video_v4(
+                local_image_path=temp_img_path,
+                prompt=prompt,
+                duration=5,
+                resolution="720p"
+            )
+            
+            if not video_bytes:
+                raise Exception("Akool I2V returned no data")
+                
+            # 5. 결과 파일 저장
+            final_filename = f"commerce_akool_{video_id}.mp4"
+            final_path = os.path.join(config.OUTPUT_DIR, final_filename)
+            with open(final_path, "wb") as f:
+                f.write(video_bytes)
+            
+            # 6. DB 업데이트 (완료 상태로 즉시 변경 - akool_v4는 폴링이 끝날 때까지 대기하므로)
+            db.update_commerce_video(video_id, {
+                'status': 'done',
+                'video_url': f"/output/{final_filename}",
+                'engine': 'akool_i2v'
+            })
+            
+            return {
+                "status": "success",
+                "video_id": video_id,
+                "video_url": f"/output/{final_filename}",
+                "engine": "akool_i2v",
+                "message": "Akool Premium I2V 영상이 생성되었습니다."
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Akool I2V error: {e}")
+            db.update_commerce_video(video_id, {
+                'status': 'failed',
+                'error_message': f"Akool I2V Error: {str(e)}"
+            })
+            return {
+                "status": "error",
+                "video_id": video_id,
+                "message": f"Akool I2V 생성 실패: {str(e)}"
+            }
     
     # ============ 상태 폴링 ============
     
@@ -297,14 +363,13 @@ class CommerceService:
             try:
                 await asyncio.sleep(10)  # 10초 대기
                 
-                status = status_result.get('status')
-                # Akool Status Mapping: 1(Queued), 2(Processing), 3(Success), 4(Failed)
-                # But existing code checks string 'completed'.
-                # We need to normalize status if possible, or handle engine specific logic.
-                
                 # Retrieve Engine info if not passed
                 video = self.get_video(video_id)
-                engine = video.get('engine', 'topview') if video else 'topview'
+                if not video:
+                    self.logger.error(f"Video {video_id} not found in DB")
+                    break
+                    
+                engine = video.get('engine', 'topview')
                 
                 if engine == 'akool':
                     # Akool Polling
@@ -333,42 +398,75 @@ class CommerceService:
                         continue
 
                 else:
-                    # TopView Logic
-                    status_result = await topview_service.get_task_status(task_id)
+                    # TopView Logic (Avatar Marketing Video)
+                    status_result = await topview_service.query_task_status(task_id)
                     if not status_result:
                         attempt += 1
                         continue
                         
+                    # TopView M2V uses status: 0(wait), 1(ing), 2(success), 3(fail) usually
+                    # Check strings as well just in case
                     status = status_result.get('status')
                     
-                    if status == 'completed':
-                        # 영상 생성 완료
-                        video_url = status_result.get('video_url')
-                        thumbnail_url = status_result.get('thumbnail_url')
+                    if status == 2 or str(status).lower() in ['success', 'completed']:
+                        # 이 상태가 Draft(초안) 성공인지, Export(최종) 성공인지 확인
+                        # 최종 영상 URL이 있으면 Export 완료
+                        final_video_url = status_result.get('videoUrl') or status_result.get('video_url')
                         
-                        db.update_commerce_video(video_id, {
-                            'status': 'completed',
-                            'video_url': video_url,
-                            'thumbnail_url': thumbnail_url
-                        })
+                        if final_video_url:
+                            # 1. 최종 영상 생성 완료
+                            thumbnail_url = status_result.get('coverUrl') or status_result.get('thumbnail_url')
+                            db.update_commerce_video(video_id, {
+                                'status': 'completed',
+                                'video_url': final_video_url,
+                                'thumbnail_url': thumbnail_url
+                            })
+                            self.logger.info(f"Video {video_id} fully completed: {final_video_url}")
+                            break
+                        else:
+                            # 2. 초안 성공 (Script & Preview Ready)
+                            # Export Triggered 플래그 확인 (방어 코드)
+                            export_triggered = video.get('meta_data', {}).get('export_triggered') if video.get('meta_data') else False
+                            
+                            if not export_triggered:
+                                # (선택) 커스텀 스크립트 업데이트
+                                custom_message = video.get('message')
+                                if custom_message:
+                                    self.logger.info(f"TopView updating script with custom message for video {video_id}")
+                                    await topview_service.update_task_script(task_id, "", custom_message)
+                                
+                                # Export 요청
+                                self.logger.info(f"TopView requesting export for video {video_id}")
+                                export_success = await topview_service.export_task(task_id)
+                                
+                                if export_success:
+                                    # 메타 데이터 플래그 업데이트 (무한루프 방지)
+                                    meta_data = video.get('meta_data', {}) if video.get('meta_data') else {}
+                                    meta_data['export_triggered'] = True
+                                    db.update_commerce_video(video_id, {'meta_data': meta_data})
+                                    self.logger.info(f"TopView Export triggered successfully. Waiting for final render...")
+                                else:
+                                    db.update_commerce_video(video_id, {
+                                        'status': 'failed',
+                                        'error_message': 'TopView Export Request Failed'
+                                    })
+                                    break
+                            
+                            attempt += 1
                         
-                        self.logger.info(f"Video {video_id} completed: {video_url}")
-                        break
-                        
-                    elif status == 'failed':
+                    elif status == 3 or str(status).lower() in ['failed', 'error']:
                         # 영상 생성 실패
-                        error_msg = status_result.get('error', 'Unknown error')
+                        error_msg = status_result.get('errorMsg') or status_result.get('error', 'Unknown error')
                         db.update_commerce_video(video_id, {
                             'status': 'failed',
                             'error_message': error_msg
                         })
-                        
                         self.logger.error(f"Video {video_id} failed: {error_msg}")
                         break
                         
-                    elif status == 'processing':
-                        # 아직 처리 중
-                        self.logger.info(f"Video {video_id} still processing... ({attempt}/{max_attempts})")
+                    else:
+                        # 0, 1 -> 아직 처리 중
+                        self.logger.info(f"Video {video_id} still processing (Status: {status})... ({attempt}/{max_attempts})")
                         attempt += 1
                         
             except Exception as e:

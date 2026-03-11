@@ -31,7 +31,7 @@ from services.youtube_upload_service import youtube_upload_service
 from services.topview_service import topview_service
 
 
-def split_text_to_subtitle_chunks(text: str, max_chars_per_line: int = 20, max_lines: int = 2) -> list:
+def split_text_to_subtitle_chunks(text: str, max_chars_per_line: int = 40, max_lines: int = 1) -> list:
     """
     긴 텍스트를 자막용 청크로 분할합니다.
     - 한 줄당 최대 max_chars_per_line 글자
@@ -254,6 +254,12 @@ class AutoPilotService:
 
     async def _extract_characters(self, project_id: int, script_text: str, config_dict: dict = None):
         """대본에서 캐릭터 추출 및 일관성 있는 프롬프트 생성 (이미 있으면 건너뜀)"""
+        # [NEW] Check if character analysis is enabled
+        use_character_analysis = config_dict.get("use_character_analysis", False) if config_dict else False
+        if str(use_character_analysis).lower() in ["false", "0", ""]:
+            print(f"👥 [Auto-Pilot] 캐릭터 분석(Analysis)이 비활성화되어 있습니다. 건너뜁니다.")
+            return
+
         # [NEW] 이미 캐릭터가 수동으로 설정되어 있는지 확인
         existing = db.get_project_characters(project_id)
         if existing:
@@ -872,7 +878,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                 
                 if all_alignments:
                     # 단어 타이밍을 2줄 자막으로 변환
-                    auto_subtitles = self._alignment_to_subtitles(all_alignments, max_chars=25)
+                    auto_subtitles = self._alignment_to_subtitles(all_alignments, max_chars=40)
                     print(f"📝 [Auto-Pilot] Generated {len(auto_subtitles)} subtitles from TTS alignment (PRECISE)")
                 else:
                     # 기존 로직: Scene 기반 균등 분할
@@ -882,7 +888,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                         if not text:
                             continue
                         
-                        chunks = split_text_to_subtitle_chunks(text, max_chars_per_line=20, max_lines=2)
+                        chunks = split_text_to_subtitle_chunks(text, max_chars_per_line=40, max_lines=1)
                         if not chunks:
                             continue
                         
@@ -1910,6 +1916,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
         block_start = None
         block_end = None
         
+        MIN_MERGE_LEN = 15 # 최소 이 정도는 되어야 문장부호로 끊음
         for i, word_info in enumerate(alignments):
             word = word_info.get("word", "").strip()
             if not word:
@@ -1922,28 +1929,42 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             if block_start is None:
                 block_start = start
             
-            # 텍스트 누적
+            # 텍스트 누적 시도
             test_text = f"{current_text} {word}".strip() if current_text else word
             
-            # 최대 글자 수 체크 또는 문장 부호로 끊기
-            is_sentence_end = word.endswith(('.', '?', '!', ','))
-            should_break = len(test_text) > max_chars or is_sentence_end
+            # [FIX] Breaking logic: Break BEFORE if too long, Break AFTER if punctuation + enough content
+            is_terminal = word.endswith(('.', '?', '!'))
+            is_light = word.endswith(',')
             
-            if should_break and current_text:
-                # 현재 블록 저장
+            # 1. 텍스트가 너무 길면 바로 끊기 (현재 단어 제외)
+            if len(test_text) > max_chars and current_text:
                 subtitles.append({
                     "text": current_text,
                     "start": round(block_start, 2),
                     "end": round(block_end, 2)
                 })
-                
-                # 새 블록 시작
                 current_text = word
                 block_start = start
                 block_end = end
+                test_text = word
             else:
                 current_text = test_text
                 block_end = end
+
+            # 2. 문장 부호 기반 끊기 (현재 단어 포함 후 끊기)
+            # - 마침표/느낌표/물음표는 내용이 조금만 있어도 끊기 가능
+            # - 쉼표는 내용이 일정 이상(15자)일 때만 끊기
+            should_break_after = (is_terminal and len(current_text) >= 10) or (is_light and len(current_text) >= MIN_MERGE_LEN)
+            
+            if should_break_after:
+                subtitles.append({
+                    "text": current_text,
+                    "start": round(block_start, 2),
+                    "end": round(block_end, 2)
+                })
+                current_text = ""
+                block_start = None
+                block_end = None
         
         # 마지막 블록
         if current_text:

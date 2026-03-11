@@ -39,3 +39,8 @@ class WebtoonPlanRequest(BaseModel):
 
 class LocalImageRequest(BaseModel):
     file_path: str
+
+class WebtoonSingleSceneRequest(BaseModel):
+    project_id: int
+    scene_index: int
+    scene: WebtoonScene

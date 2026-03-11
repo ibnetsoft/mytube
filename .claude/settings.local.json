@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(while read hash msg)",
+      "Bash(do if git show \"$hash:templates/pages/image_gen.html\")",
+      "Bash(then)",
+      "Bash(echo:*)",
+      "Bash(fi)",
+      "Bash(done)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(Get-Content \"c:\\\\Users\\\\kimse\\\\Downloads\\\\유튜브소재발굴기\\\\롱폼생성기\\\\logs\\\\debug.log\" -Tail 80 -Encoding UTF8)",
+      "Bash(Select-String -Pattern \"Image Gen|Replicate|Imagen|AKOOL|failed|succeeded|error\")",
+      "Bash(Select-Object -Last 50)",
+      "Bash(curl:*)"
+    ]
+  }
+}

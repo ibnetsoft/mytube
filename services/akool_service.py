@@ -152,7 +152,7 @@ class AkoolService:
         prompt: str = "Cinematic video, smooth camera movement, high quality",
         duration: int = 5,
         resolution: str = "720p",
-        model_name: str = "AkoolImage2VideoV2"
+        model_name: str = "alibaba/wan2.5-i2v-preview"
     ):
         """
         Akool v4 API를 통해 Akool Premium(V2) 모델로 Image-to-Video 생성
@@ -184,13 +184,21 @@ class AkoolService:
         # [PREMIUM CONFIG] WAN 2.5 (Latest Flagship Engine)
         # 사용자 요청 사항: Wan 2.5 모델 (alibaba/wan2.5-i2v-preview)
         # 1080p 및 오디오 동기화를 지원하는 최신 모델로 고도화
+        # [SMART TRUNCATE] 700자 제한 — 단어 중간에서 잘리지 않도록 마지막 쉼표/공백 기준으로 자름
+        _p = prompt.strip()
+        if len(_p) > 700:
+            cut = _p[:700]
+            # 마지막 쉼표나 공백 위치에서 잘라 단어/구문 보존
+            last_sep = max(cut.rfind(','), cut.rfind(' '))
+            _p = cut[:last_sep].rstrip(', ') if last_sep > 500 else cut
+        safe_prompt = _p
         payload = {
             "image_url": image_url,
-            "prompt": prompt[:700],
+            "prompt": safe_prompt,
             "extend_prompt": False,      # Wan 2.5는 최신 구조로 파라미터 제외 시 더 안정적
             "resolution": resolution,    # 1080p 지원 가능
-            "video_duration": 5,
-            "model_name": "alibaba/wan2.5-i2v-preview", 
+            "video_duration": duration,
+            "model_name": model_name, 
             "audio_type": 1,
             "webhookurl": ""
         }
@@ -200,7 +208,7 @@ class AkoolService:
         async with httpx.AsyncClient(timeout=60.0) as client:
             try:
                 # [DEBUG] 요청 명세 로깅
-                print(f"📡 [AKOOL WAN 2.5] POSTing: Model={payload['model_name']}, Res={payload['resolution']}")
+                print(f"📡 [AKOOL WAN 2.5] Prompt({len(safe_prompt)}ch): {safe_prompt[:100]}...")
                 resp = await client.post(create_url, json=payload, headers=headers)
                 resp_json = resp.json()
                 
@@ -254,6 +262,84 @@ class AkoolService:
                     print(f"  🔄 [AKOOL WAN 2.5] status={status} (processing...)")
         
         raise Exception("Akool Standard 렌더링 타임아웃 (15분 초과)")
+
+    async def generate_image(self, prompt: str, aspect_ratio: str = "1:1"):
+        """
+        Akool v3 API를 통해 이미지 생성 (Text-to-Image)
+        """
+        if not self.api_key:
+            raise Exception("Akool API Key가 설정되지 않았습니다.")
+
+        print(f"🎨 [Akool Image Gen] Prompt: {prompt[:100]}... (Ratio: {aspect_ratio})")
+
+        url = "https://openapi.akool.com/api/open/v3/content/image/createbyprompt"
+        headers = {
+            "x-api-key": self.api_key,
+            "Content-Type": "application/json"
+        }
+
+        # Akool v3 Image API 명세 기반 (추정 및 일반적 패턴)
+        payload = {
+            "prompt": prompt,
+            "size": aspect_ratio, # "1:1", "16:9" 등 지원 여부 확인 필요하나 표준적
+            "model": "stable-diffusion-xl" # 기본 모델 명시 (선택 사항)
+        }
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            try:
+                resp = await client.post(url, json=payload, headers=headers)
+                resp_json = resp.json()
+
+                if resp.status_code != 200 or resp_json.get("code") != 1000:
+                    print(f"❌ [Akool Image Gen] Fail: {resp_json}")
+                    return None
+
+                job_id = resp_json.get("data", {}).get("_id")
+                if not job_id:
+                    print(f"❌ [Akool Image Gen] No Job ID in response: {resp_json}")
+                    return None
+
+                print(f"⏳ [Akool Image Gen] Job {job_id} created. Polling for result...")
+                
+                # 3. Poll for result
+                poll_url = f"https://openapi.akool.com/api/open/v3/content/image/infobymodelid?image_model_id={job_id}"
+                for attempt in range(20):  # 3s * 20 = 60s
+                    await asyncio.sleep(3)
+                    async with httpx.AsyncClient(timeout=30.0) as poll_client:
+                        try:
+                            poll_resp = await poll_client.get(poll_url, headers=headers)
+                            poll_json = poll_resp.json()
+                            
+                            if poll_resp.status_code != 200 or poll_json.get("code") != 1000:
+                                print(f"⚠️ [Akool Image Gen] Poll Error: {poll_json}")
+                                continue
+                                
+                            item_data = poll_json.get("data", {})
+                            status = item_data.get("image_status")
+                            
+                            if status == 3: # Success
+                                image_url = item_data.get("image") or item_data.get("url")
+                                if image_url:
+                                    print(f"✅ [Akool Image Gen] Success! URL: {image_url}")
+                                    img_bytes = await self._download_file(image_url)
+                                    if img_bytes:
+                                        return [img_bytes]
+                                return None
+                            elif status == 4: # Failed
+                                print(f"❌ [Akool Image Gen] Job Failed: {item_data}")
+                                return None
+                            else:
+                                if attempt % 2 == 0:
+                                    print(f"  🔄 [Akool Image Gen] Status={status} (waiting...)")
+                        except Exception as poll_e:
+                            print(f"⚠️ [Akool Image Gen] Poll Exception: {poll_e}")
+                
+                print(f"❌ [Akool Image Gen] Polling timed out")
+                return None
+
+            except Exception as e:
+                print(f"❌ [Akool Image Gen] Error: {e}")
+                return None
 
     # ==========================================
     # [기존] 내부 유틸리티

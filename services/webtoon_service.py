@@ -43,26 +43,33 @@ def finalize_scene_analysis(scene: Dict, voice_consistency_map: Dict, eleven_voi
     # Sync to analysis
     analysis['character'] = norm_char
     
-    # 2. Voice ID/Name 배정 (일관성 유지가 1순위)
-    suggested_voice = analysis.get('voice_recommendation') or {}
-    final_voice_id = str(suggested_voice.get('id', '')).strip()
-    final_voice_name = str(suggested_voice.get('name', '')).strip()
+    # 2. Voice ID/Name 배정 (Manual Override Priority 1)
+    # [NEW] 우선 scene 루트 필드(사용자 직접 수정 반영)부터 확인
+    final_voice_id = str(scene.get('voice_id', '')).strip()
+    final_voice_name = str(scene.get('voice_name', '')).strip()
     
-    # "None" 문자열 필터링
+    # 만약 루트 필드가 비어있다면, analysis 추천값 가져오기
+    if final_voice_id.lower() in ["none", "null", "", "unknown"]:
+        suggested_voice = analysis.get('voice_recommendation') or {}
+        final_voice_id = str(suggested_voice.get('id', '')).strip()
+        final_voice_name = str(suggested_voice.get('name', '')).strip()
+
+    # "None" 문자열 필터링 (다시 한번 정규화)
     if final_voice_id.lower() in ["none", "null", "", "unknown"]: final_voice_id = None
     if final_voice_name.lower() in ["none", "null", "", "unknown voice"]: final_voice_name = None
 
-    # 일관성 맵 확인
-    if norm_char != "Unknown" and norm_char in voice_consistency_map:
-        existing = voice_consistency_map[norm_char]
-        if isinstance(existing, dict):
-            final_voice_id = existing.get("id")
-            final_voice_name = existing.get("name")
-        else:
-            final_voice_id = existing # legacy string
+    # [FIX] 일관성 맵 확인 - 사용자 수동 지정이 없을 때만(None일 때만) 적용
+    if not final_voice_id:
+        if norm_char != "Unknown" and norm_char in voice_consistency_map:
+            existing = voice_consistency_map[norm_char]
+            if isinstance(existing, dict):
+                final_voice_id = existing.get("id")
+                final_voice_name = existing.get("name")
+            else:
+                final_voice_id = existing # legacy string
     
-    # [MODIFIED] 내레이션(Narrator) 일관성 강제: 무조건 Brian 성우 사용
-    if norm_char == "내레이션":
+    # [MODIFIED] 내레이션(Narrator) 일관성 강제: 사용자 지정이 없을 때만 적용
+    if norm_char == "내레이션" and not final_voice_id:
         final_voice_id = "nPczCjzI2devNBz1zQrb"
         final_voice_name = "Brian"
 
@@ -187,12 +194,24 @@ def finalize_scene_analysis(scene: Dict, voice_consistency_map: Dict, eleven_voi
         vs['reason'] = vs_reason
     
     scene['voice_settings'] = vs
-    # Flattening for WebtoonScene model compatibility
-    scene['visual_desc'] = analysis.get('visual_desc', '')
-    scene['character'] = analysis.get('character', 'Unknown')
-    scene['dialogue'] = analysis.get('dialogue', '')
-    scene['atmosphere'] = analysis.get('atmosphere', '')
-    scene['sound_effects'] = analysis.get('sound_effects', '')
+    
+    # [FIX] Flattening with ROBUSTNESS - DO NOT overwrite if root fields already have manual edits/data
+    # 사용자가 의도적으로 비운 경우("")를 구분하기 위해 None 체크만 수행하거나, Unknown인 경우만 덮어씀
+    if scene.get('visual_desc') is None: scene['visual_desc'] = analysis.get('visual_desc', '')
+    if scene.get('character') is None or scene.get('character') == 'Unknown': 
+        scene['character'] = analysis.get('character', 'Unknown')
+    
+    # dialogue/atmosphere/sfx 등은 수동 편집 빈도가 높으므로 더 보수적으로 덮어씀 (None일 때만)
+    if scene.get('dialogue') is None: scene['dialogue'] = analysis.get('dialogue', '')
+    if scene.get('atmosphere') is None: scene['atmosphere'] = analysis.get('atmosphere', '')
+    if scene.get('sound_effects') is None: scene['sound_effects'] = analysis.get('sound_effects', '')
+    
+    # [NEW] Sync back to analysis for complete internal consistency
+    analysis['visual_desc'] = scene['visual_desc']
+    analysis['character'] = scene['character']
+    analysis['dialogue'] = scene['dialogue']
+    analysis['atmosphere'] = scene['atmosphere']
+    analysis['sound_effects'] = scene['sound_effects']
 
     analysis['voice_settings'] = vs
     scene['analysis'] = analysis # Ensure synced
@@ -200,6 +219,7 @@ def finalize_scene_analysis(scene: Dict, voice_consistency_map: Dict, eleven_voi
     # [NEW] Final "Nuclear" anti-None check for UI
     if str(scene.get('voice_name')).lower() in ["none", "null", "unknown", ""]:
         scene['voice_name'] = "Default Character Voice"
+        if "voice_recommendation" not in analysis: analysis["voice_recommendation"] = {}
         analysis['voice_recommendation']['name'] = "Default Character Voice"
 
     return scene

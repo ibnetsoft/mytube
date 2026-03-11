@@ -22,6 +22,7 @@ class AutoPilotStartRequest(BaseModel):
     youtube_channel_id: Optional[int] = None
     creation_mode: str = "default"
     product_url: Optional[str] = None
+    use_character_analysis: bool = False
 
 class AutopilotPresetSave(BaseModel):
     name: str

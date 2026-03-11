@@ -66,49 +66,84 @@ class SourceService:
 
     async def extract_text_from_youtube(self, url: str) -> Dict[str, str]:
         """유튜브 URL에서 자막(Transcript) 추출"""
-        try:
-            from youtube_transcript_api import YouTubeTranscriptApi
-            
-            # Video ID 추출
-            video_id = None
-            if "v=" in url:
-                video_id = url.split("v=")[1].split("&")[0]
-            elif "youtu.be/" in url:
-                video_id = url.split("youtu.be/")[1].split("?")[0]
-            
-            if not video_id:
-                 raise Exception("Could not find Video ID in YouTube URL.")
+        import asyncio
+        from concurrent.futures import ThreadPoolExecutor
 
-            # 제목 추출을 위해 별도 요청 (또는 간단히 처리)
-            title = f"YouTube Video ({video_id})"
+        # Video ID 추출
+        video_id = None
+        if "v=" in url:
+            video_id = url.split("v=")[1].split("&")[0]
+        elif "youtu.be/" in url:
+            video_id = url.split("youtu.be/")[1].split("?")[0]
+
+        if not video_id:
+            raise Exception("유튜브 URL에서 Video ID를 찾을 수 없습니다.")
+
+        # 제목 추출
+        title = f"YouTube Video ({video_id})"
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                res = await client.get(
+                    f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
+                )
+                if res.status_code == 200:
+                    title = res.json().get('title', title)
+        except:
+            pass
+
+        # 자막 추출 (동기 라이브러리 → thread pool 실행)
+        def _fetch_transcript():
+            from youtube_transcript_api import YouTubeTranscriptApi
+
+            api = YouTubeTranscriptApi()
+
+            # 1차 시도: 한국어/영어 직접 요청
             try:
-                async with httpx.AsyncClient() as client:
-                    res = await client.get(f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json")
-                    if res.status_code == 200:
-                        title = res.json().get('title', title)
-            except:
+                return api.fetch(video_id, languages=['ko', 'ko-KR', 'en', 'en-US'])
+            except Exception:
                 pass
 
-            # 자막 리스트 가져오기
-            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-            
-            # 한국어 우선, 없으면 영어, 없으면 첫 번째 자막
+            # 2차 시도: 사용 가능한 자막 중 첫 번째
             try:
-                transcript = transcript_list.find_transcript(['ko', 'en'])
-            except:
-                transcript = transcript_list.find_transcript(transcript_list._manually_created_transcripts.keys() or transcript_list._generated_transcripts.keys())
+                transcript_list = api.list(video_id)
+                for t in transcript_list:
+                    try:
+                        return t.fetch()
+                    except Exception:
+                        continue
+            except Exception as e2:
+                raise Exception(f"자막 목록 조회 실패: {e2}")
 
-            data = transcript.fetch()
-            full_text = " ".join([item['text'] for item in data])
-            
-            return {
-                "title": title,
-                "content": full_text,
-                "url": url
-            }
+            raise Exception("이 영상에는 사용 가능한 자막이 없습니다.")
+
+        try:
+            loop = asyncio.get_event_loop()
+            with ThreadPoolExecutor() as pool:
+                data = await loop.run_in_executor(pool, _fetch_transcript)
         except Exception as e:
             print(f"YouTube Extraction Error: {e}")
-            raise Exception(f"유튜브 서버에서 자막을 가져오지 못했습니다. (자막이 꺼져있을 수 있습니다)")
+            raise Exception(f"유튜브 자막 추출 실패: {str(e)}")
+
+        # item이 dict(구버전) 또는 object(신버전) 모두 처리
+        texts = []
+        for item in data:
+            if isinstance(item, dict):
+                texts.append(item.get('text', ''))
+            elif hasattr(item, 'text'):
+                texts.append(str(item.text))
+            else:
+                texts.append(str(item))
+
+        full_text = " ".join(texts)
+
+        if not full_text.strip():
+            raise Exception("자막을 가져왔으나 내용이 비어있습니다.")
+
+        return {
+            "title": title,
+            "content": full_text,
+            "url": url
+        }
 
     def extract_text_from_file(self, file_path: str) -> Dict[str, str]:
         """로컬 파일(TXT)에서 텍스트 추출"""

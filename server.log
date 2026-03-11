@@ -1,0 +1,155 @@
+C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\pydub\utils.py:170: RuntimeWarning: Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work
+  warn("Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work", RuntimeWarning)
+C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py:200: DeprecationWarning: 
+        on_event is deprecated, use lifespan event handlers instead.
+
+        Read more about it in the
+        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+        
+  @app.on_event("startup")
+C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py:3934: DeprecationWarning: 
+        on_event is deprecated, use lifespan event handlers instead.
+
+        Read more about it in the
+        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+        
+  @app.on_event("startup")
+C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py:3939: DeprecationWarning: 
+        on_event is deprecated, use lifespan event handlers instead.
+
+        Read more about it in the
+        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+        
+  @app.on_event("shutdown")
+[Main] FFmpeg configured: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\imageio_ffmpeg\binaries\ffmpeg-win-x86_64-v7.1.exe
+[I18N] Loaded language from DB: ko
+==================================================
+PICADIRI STUDIO v2.0
+--------------------------------------------------
+[DB] Migration completed
+브라우저 자동 실행 대기 중...
+[Auto Publish] Service started.
+[*] 서버 시간(KST): 2026-03-10 15:01:58
+[*] 서버 주소: http://127.0.0.1:8000
+==================================================
+INFO:     Started server process [136476]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+[Main] FFmpeg configured: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\imageio_ffmpeg\binaries\ffmpeg-win-x86_64-v7.1.exe
+[I18N] Loaded language from DB: ko
+[DB] Migration completed
+[Startup] DB Initialized. Membership: standard
+[Scheduler] 스케줄러가 시작되었습니다.
+[Auto-Pilot] Batch worker started.
+INFO:     127.0.0.1:54438 - "GET /docs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51632 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51632 - "GET /static/js/utils.js?v=56269 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63412 - "GET /static/js/api_v2.js?v=78873 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63412 - "GET /api/settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63412 - "GET /api/projects HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63412 - "GET /api/projects/112 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51632 - "GET /api/health HTTP/1.1" 200 OK
+[DB_DEBUG] get_script called for project_id: 112
+[DB_DEBUG] Found in scripts table. Content len: 720
+INFO:     127.0.0.1:51632 - "GET /api/projects/112/full?t=1773122521060 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51632 - "GET /thumbnail HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51632 - "GET /static/js/utils.js?v=12966 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63412 - "GET /static/js/api_v2.js?v=58840 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63412 - "GET /api/settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51632 - "GET /api/settings/thumbnail-style-presets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51632 - "GET /api/projects HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63412 - "GET /api/projects/112/thumbnails HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63412 - "GET /api/projects/112 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51632 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52872 - "GET /api/projects/112 HTTP/1.1" 200 OK
+[DB_DEBUG] get_script called for project_id: 112
+[DB_DEBUG] Found in scripts table. Content len: 720
+INFO:     127.0.0.1:52872 - "GET /api/projects/112/full?t=1773122523851 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51632 - "GET /api/projects/112/analysis HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51632 - "GET /api/projects/112/settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51632 - "GET /output/thumbnails/thumbnail_112_1773122093.png?t=1773122523950 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52872 - "GET /output/thumbnails/thumbnail_112_1773122093.png HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:59842 - "GET /thumbnail HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59842 - "GET /static/js/utils.js?v=60256 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49823 - "GET /static/js/api_v2.js?v=12071 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49823 - "GET /api/settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59842 - "GET /api/settings/thumbnail-style-presets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59842 - "GET /api/projects HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49823 - "GET /api/projects/112 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49823 - "GET /api/projects/112 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59842 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60819 - "GET /api/projects/112/analysis HTTP/1.1" 404 Not Found
+[DB_DEBUG] get_script called for project_id: 112
+[DB_DEBUG] Found in scripts table. Content len: 720
+INFO:     127.0.0.1:60819 - "GET /api/projects/112/full?t=1773122536043 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59842 - "GET /api/projects/112/settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59842 - "GET /output/thumbnails/thumbnail_112_1773122093.png?t=1773122536126 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51324 - "POST /api/gemini/generate HTTP/1.1" 200 OK
+🎨 [ThumbnailBG] Attempting Replicate (Primary)...
+🎨 [Image Gen] Replicate: ABSOLUTELY NO TEXT. NO CHARACTERS. Extremely close-up portrait of an elderly Asian woman with a deep... (Aspect Ratio: 16:9)
+[DB_DEBUG] get_script called for project_id: 112
+[DB_DEBUG] Found in scripts table. Content len: 720
+[japanese_viral] Using sample image for text generation
+❌ [Replicate] Model Error (black-forest-labs/flux-schnell): ReplicateError Details:
+title: Insufficient credit
+status: 402
+detail: You have insufficient credit to run this model. Go to https://replicate.com/account/billing#billing to purchase credit. Once you purchase credit, please wait a few minutes before trying again.
+❌ [Replicate Image Gen] Error: ReplicateError Details:
+title: Insufficient credit
+status: 402
+detail: You have insufficient credit to run this model. Go to https://replicate.com/account/billing#billing to purchase credit. Once you purchase credit, please wait a few minutes before trying again.
+⚠️ [ThumbnailBG] Replicate failed: ReplicateError Details:
+title: Insufficient credit
+status: 402
+detail: You have insufficient credit to run this model. Go to https://replicate.com/account/billing#billing to purchase credit. Once you purchase credit, please wait a few minutes before trying again.
+🎨 [ThumbnailBG] Attempting Gemini Imagen (Fallback 1)...
+🎨 [Imagen] Trying model: imagen-4.0-generate-001
+INFO:     127.0.0.1:63982 - "GET /thumbnail HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63982 - "POST /api/projects/112/thumbnails HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65315 - "GET /static/js/utils.js?v=9497 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57081 - "GET /static/js/api_v2.js?v=31813 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57081 - "GET /api/settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65315 - "GET /api/settings/thumbnail-style-presets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65315 - "GET /api/projects HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57081 - "GET /api/projects/112 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65315 - "GET /output/thumbnails/thumbnail_112_1773122093.png HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:65315 - "GET /api/projects/112 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57081 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54703 - "GET /api/projects/112/analysis HTTP/1.1" 404 Not Found
+[DB_DEBUG] get_script called for project_id: 112
+[DB_DEBUG] Found in scripts table. Content len: 720
+INFO:     127.0.0.1:54703 - "GET /api/projects/112/full?t=1773122611608 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57081 - "GET /api/projects/112/settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57081 - "GET /output/thumbnails/thumbnail_112_1773122093.png?t=1773122611704 HTTP/1.1" 200 OK
+🎨 [ThumbnailBG] Attempting Replicate (Primary)...
+🎨 [Image Gen] Replicate: ABSOLUTELY NO TEXT. NO CHARACTERS. Extremely close-up portrait of an elderly Asian woman with a deep... (Aspect Ratio: 16:9)
+❌ [Replicate] Model Error (black-forest-labs/flux-schnell): ReplicateError Details:
+title: Insufficient credit
+status: 402
+detail: You have insufficient credit to run this model. Go to https://replicate.com/account/billing#billing to purchase credit. Once you purchase credit, please wait a few minutes before trying again.
+❌ [Replicate Image Gen] Error: ReplicateError Details:
+title: Insufficient credit
+status: 402
+detail: You have insufficient credit to run this model. Go to https://replicate.com/account/billing#billing to purchase credit. Once you purchase credit, please wait a few minutes before trying again.
+⚠️ [ThumbnailBG] Replicate failed: ReplicateError Details:
+title: Insufficient credit
+status: 402
+detail: You have insufficient credit to run this model. Go to https://replicate.com/account/billing#billing to purchase credit. Once you purchase credit, please wait a few minutes before trying again.
+🎨 [ThumbnailBG] Attempting Gemini Imagen (Fallback 1)...
+🎨 [Imagen] Trying model: imagen-4.0-generate-001
+🔍 [Imagen] Response from imagen-4.0-generate-001:
+   Keys: ['predictions']
+   Predictions count: 1
+   Prediction 0 keys: ['mimeType', 'bytesBase64Encoded']
+   ✅ Decoded image 0, size: 1517220 bytes
+✅ [Imagen] Successfully generated 1 image(s) with imagen-4.0-generate-001
+🔍 [Imagen] Response from imagen-4.0-generate-001:
+   Keys: ['predictions']
+   Predictions count: 1
+   Prediction 0 keys: ['bytesBase64Encoded', 'mimeType']
+   ✅ Decoded image 0, size: 1535967 bytes
+✅ [Imagen] Successfully generated 1 image(s) with imagen-4.0-generate-001
+INFO:     127.0.0.1:63489 - "POST /api/image/generate-thumbnail-background HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63489 - "POST /api/projects/112/thumbnails HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58196 - "GET /static/img/thumbnails/bg_ae9933e74bf548058e9ea47bcfb2d448.png HTTP/1.1" 200 OK

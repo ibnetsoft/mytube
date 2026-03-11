@@ -381,6 +381,9 @@ class GeminiService:
                 contains_photo = any(kw in prompt.lower() for kw in ["photo", "realistic", "8k", "cinematic"])
                 
                 is_wimpy = any(kw in prompt.lower() for kw in ["wimpy", "stick figure", "stickman", "졸라맨", "jollaman"])
+                # K만화/웹툰은 배경이 있어야 하므로 wimpy(흰배경) 처리 제외
+                if is_wimpy and any(kw in prompt.lower() for kw in ["webtoon", "manhwa", "k-manhwa", "k만화", "k_manhwa"]):
+                    is_wimpy = False
 
                 final_prompt = prompt
                 # 비실사 스타일: 실사 키워드 차단
@@ -393,8 +396,7 @@ class GeminiService:
                         + final_prompt
                         + ", the character has exactly one left arm and one right arm total,"
                         " no third arm no fourth arm no duplicate limbs,"
-                        " full-body minimalist cartoon stick-figure, bold black outlines,"
-                        " flat 2D vector no gradients no 3D, white circular head with swept-back black hair,"
+                        " flat 2D vector no gradients no 3D, perfectly bald smooth white circular head, no hair, no hairstyle,"
                         " dot eyes, arc smile, teal-blue hoodie with front pocket, long black sleeves with black cuffs,"
                         " black trousers, white sneakers with black trim,"
                         " small rounded fist-shaped hands with black outlines (NOT white balls NOT white circles),"
@@ -967,62 +969,77 @@ class GeminiService:
         return []
 
     def _sanitize_wimpy_prompt(self, prompt: str) -> str:
-        """졸라맨 프롬프트에서 복잡한 팔 포즈를 SAFE 포즈로 교체"""
+        """졸라맨 프롬프트에서 복잡한 팔 포즈 및 머리카락 키워드 강제 제거"""
         import re
 
         # 물건 들기 패턴
         holding_patterns = [
-            r'holding\s+\w+',
-            r'carrying\s+\w+',
-            r'gripping\s+\w+',
-            r'holds\s+\w+',
-            r'carries\s+\w+',
-            r'hold(?:ing)?\s+(?:a|an|the)\s+\w+',
-            r'carry(?:ing)?\s+(?:a|an|the)\s+\w+',
-            r'supporting\s+(?:a|an|the)\s+\w+',
+            r'holding\s+\w+', r'carrying\s+\w+', r'gripping\s+\w+', r'holds\s+\w+', r'carries\s+\w+',
+            r'hold(?:ing)?\s+(?:a|an|the)\s+\w+', r'carry(?:ing)?\s+(?:a|an|the)\s+\w+',
+            r'supporting\s+(?:a|an|the)\s+\w+', r'leaning\s+on\s+\w+',
         ]
 
         # 팔/주먹 들기 패턴 — Flux가 3번째 팔을 추가하는 원인
         raised_arm_patterns = [
             r'fist[s]?\s+(?:raised|up|pump|pump(?:ing)?|clench(?:ed)?)',
             r'raised\s+fist[s]?',
-            r'(?:both\s+)?arms?\s+(?:raised|up|extended|outstretched|lifted|spread)',
-            r'(?:left|right)\s+arm\s+(?:raised|up|extended|lifted)',
-            r'punch(?:ing)?',
-            r'flex(?:ing)?\s+(?:muscle|arm|bicep)',
-            r'muscle[s]?\s+flex',
-            r'clench(?:ed|ing)?\s+fist[s]?',
-            r'fist[s]?\s+clench',
-            r'arms?\s+wide',
-            r'wide\s+arms?',
-            r'outstretched\s+arms?',
-            r'victory\s+pose',
-            r'triumphant\s+pose',
-            r'power\s+pose',
+            r'(?:both\s+)?arms?\s+(?:raised|up|extended|outstretched|lifted|spread|pointing|gesturing)',
+            r'(?:left|right)\s+arm\s+(?:raised|up|extended|lifted|pointing|spread)',
+            r'punch(?:ing)?', r'flex(?:ing)?\s+(?:muscle|arm|bicep)', r'muscle[s]?\s+flex',
+            r'clench(?:ed|ing)?\s+fist[s]?', r'fist[s]?\s+clench',
+            r'arms?\s+wide', r'wide\s+arms?', r'outstretched\s+arms?',
+            r'victory\s+pose', r'triumphant\s+pose', r'power\s+pose', r'pointing\s+at',
         ]
+
+        # 머리카락 패턴
+        hair_patterns = [
+            r'\w+\s+hair', r'hair\s+style', r'hair\s+color', r'hairstyle', r'black\s+hair',
+            r'brown\s+hair', r'blonde\s+hair', r'with\s+hair', r'has\s+hair', r'long\s+hair',
+            r'short\s+hair', r'swept-back\s+hair', r'undercut', r'fade\s+cut',
+            r'head\s+with\s+black\s+shape', r'black\s+cap\s+on\s+head',
+        ]
+
+        # 1. 머리카락 관련 표현 무조건 제거
+        for p in hair_patterns:
+            prompt = re.sub(p, '', prompt, flags=re.IGNORECASE)
 
         has_holding = any(re.search(p, prompt, re.IGNORECASE) for p in holding_patterns)
         has_raised = any(re.search(p, prompt, re.IGNORECASE) for p in raised_arm_patterns)
 
+        # 2. 맹목적으로 무조건 추가할 해부학 규칙 (초강력 버전)
+        anatomy_safeguard = (
+            " strictly correct anatomy, ONLY TWO ARMS TOTAL (one left arm, one right arm), "
+            "ONLY TWO WHITE GLOVED HANDS TOTAL, no third arm, no fourth arm, no extra limbs, "
+            "strictly humanoid structure with only two arms attached to torso. "
+            "perfectly bald smooth round white head, strictly NO hair, NO hairstyle, NO wig, "
+            "the top of the head is perfectly clean white and smooth with no black shapes. "
+            "IMPORTANT: Background elements or other illustrated characters must not touch or attach to the main character."
+        )
+
         if has_holding or has_raised:
             trigger = "holding" if has_holding else "raised-arm"
-            print(f"⚠️ [Wimpy Sanitize] Detected {trigger} pose in prompt — replacing with SAFE-A")
+            print(f"⚠️ [Wimpy Sanitize] Detected {trigger} pose in prompt — replacing with SAFE-POSE")
             # 모든 복잡한 팔 표현 제거
             for p in holding_patterns + raised_arm_patterns:
                 prompt = re.sub(p, '', prompt, flags=re.IGNORECASE)
             # 팔/손 관련 기타 표현 제거
             prompt = re.sub(r',\s*,', ',', prompt)
             prompt = re.sub(r'\s+', ' ', prompt).strip()
-            # SAFE-A 포즈: 양 팔이 자연스럽게 내려간 자세 (Flux가 추가 팔을 그리지 않음)
+            # SAFE-POSE: 절대로 팔이 늘어날 수 없는 가장 안전한 자세
             safe_pose = (
-                "The character stands upright. "
-                "The left arm hangs naturally straight down at the left side. "
-                "The right arm hangs naturally straight down at the right side. "
-                "Both hands relaxed at sides. Exactly two arms. No raised arms. No extra limbs."
+                "The character stands in a neutral posture. "
+                "The left arm and left hand hang naturally straight down by the left side of the body. "
+                "The right arm and right hand hang naturally straight down by the right side of the body. "
+                "ONLY TWO ARMS AND ONLY TWO HANDS ARE VISIBLE."
             )
             prompt = re.sub(r'\.\s*$', '', prompt.strip())
             prompt = prompt + ". " + safe_pose
-
+        
+        # 3. 문장 끝에 anatomy_safeguard 강제 삽입
+        prompt = re.sub(r'\s+', ' ', prompt).strip()
+        if anatomy_safeguard.strip() not in prompt:
+            prompt = prompt.rstrip(" .") + ". " + anatomy_safeguard
+            
         return prompt
 
     async def generate_motion_desc(self, scene_text: str, prompt_en: str = "") -> str:
@@ -1139,28 +1156,28 @@ Motion prompt for this image:"""
             num_scenes = target_scene_count
             print(f"[Gemini] Using user-specified scene count: {num_scenes}")
         else:
-            # [NEW] 가변 페이싱(Dynamic Pacing) 로직
-            # 0 ~ 2분 (120s): 8초당 1장 (15장)
-            # 2 ~ 5분 (180s): 20초당 1장 (9장)
-            # 5 ~ 7분 (120s): 40초당 1장 (3장)
-            # 7 ~ 10분 (180s): 60초당 1장 (3장)
-            # 10 ~ 20분 (600s): 120초당 1장 (5장)
-            # 20분 이후: 600초당 1장
+            # [NEW] 6-Step Dynamic Pacing Policy
+            # 1. 0 ~ 1분 (60s): 5초당 1장 (12장) - 후킹 강화
+            # 2. 1 ~ 3분 (120s): 10초당 1장 (12장)
+            # 3. 3 ~ 5분 (120s): 15초당 1장 (8장)
+            # 4. 5 ~ 10분 (300s): 20초당 1장 (15장)
+            # 5. 10 ~ 20분 (600s): 30초당 1장 (20장)
+            # 6. 20분 이후: 40초당 1장
             num_scenes = 0
-            if duration_seconds <= 120:
-                num_scenes = duration_seconds // 8
+            if duration_seconds <= 60:
+                num_scenes = duration_seconds // 5
+            elif duration_seconds <= 180:
+                num_scenes = 12 + (duration_seconds - 60) // 10
             elif duration_seconds <= 300:
-                num_scenes = 15 + (duration_seconds - 120) // 20
-            elif duration_seconds <= 420:
-                num_scenes = 15 + 9 + (duration_seconds - 300) // 40
+                num_scenes = 12 + 12 + (duration_seconds - 180) // 15
             elif duration_seconds <= 600:
-                num_scenes = 15 + 9 + 3 + (duration_seconds - 420) // 60
+                num_scenes = 12 + 12 + 8 + (duration_seconds - 300) // 20
             elif duration_seconds <= 1200:
-                num_scenes = 30 + (duration_seconds - 600) // 120
+                num_scenes = 47 + (duration_seconds - 600) // 30
             else:
-                num_scenes = 35 + (duration_seconds - 1200) // 600
+                num_scenes = 67 + (duration_seconds - 1200) // 40
             num_scenes = max(3, int(num_scenes))
-            print(f"[Gemini] Calculated scene count from duration ({duration_seconds}s): {num_scenes}")
+            print(f"[Gemini] Calculated scene count (6-Step Pacing) from {duration_seconds}s: {num_scenes}")
         
         # 스타일 분류 — wimpy/졸라맨 전용 (k_manhwa는 별도 스타일이므로 제외)
         _wimpy_kws = ["wimpy", "stick figure", "stickman", "졸라맨", "jollaman"]
@@ -1168,26 +1185,29 @@ Motion prompt for this image:"""
         _sk_lower = (style_key or "").lower()
         is_wimpy_style = (
             any(kw in _sp_lower for kw in _wimpy_kws) or
-            any(kw in _sk_lower for kw in ["wimpy", "jollaman", "졸라맨", "stick"])
+            any(kw in _sk_lower for kw in _wimpy_kws)
         )
-        # Prevent webtoon style from being classified as wimpy due to keyword overlap
-        if style_key and "webtoon" in style_key.lower():
-            is_wimpy_style = False
-        if style_prompt and "webtoon" in style_prompt.lower():
-            is_wimpy_style = False
+        force_wimpy = any(kw in _sp_lower for kw in ["bald", "white head", "stick figure", "minimalist cartoon", "teal-blue hoodie", "teal blue hoodie"])
+        if force_wimpy:
+            is_wimpy_style = True
+        else:
+            # 일반 웹툰 스타일은 wimpy에서 제외 (하지만 특정 키워드 있으면 강제)
+            if style_key and any(kw in style_key.lower() for kw in ["webtoon", "k_manhwa", "manhwa"]):
+                is_wimpy_style = False
+            if style_prompt and any(kw in style_prompt.lower() for kw in ["webtoon", "manhwa"]):
+                is_wimpy_style = False
         print(f"[Gemini] style_key={style_key!r}, is_wimpy_style={is_wimpy_style}")
         _CHAR_BASE = (
-            "EXACTLY TWO ARMS ONLY. NO EXTRA ARMS. NO EXTRA HANDS. "
-            "A full-body cartoon illustration of a cute cheerful boy character, "
-            "round white circular head, stylized dark brown swept-back hair with a slight front flip "
-            "(NOT black hair, NOT white hair, NOT blue hair, NOT teal hair — strictly DARK BROWN), "
-            "simple black dot eyes, small cheerful arc smile, "
-            "vibrant solid teal-blue hoodie with a front kangaroo pocket, "
-            "black trousers, blue and white sneakers with laces, "
-            "thick clean black outlines, flat 2D cartoon illustration style. "
+            "STRICTLY TWO ARMS AND TWO HANDS ONLY. NO EXTRA LIMBS. NO EXTRA ARMS. NO EXTRA HANDS. "
+            "A full-body cartoon illustration of a cute cheerful character, "
+            "perfectly bald and smooth round white head (NO hair, NO hairstyle, NO wig, strictly bald). "
+            "THE FACE MUST HAVE a pair of distinct black circular eyes and a simple black mouth (expression matching the mood). "
+            "vibrant solid teal-blue long-sleeved hooded sweatshirt (hoodie) with a front kangaroo pocket, "
+            "black trousers, simple sneakers. "
+            "The black limbs (exactly two arms and two legs) must have a perfectly uniform and consistent thickness throughout. "
+            "Thick clean black outlines, flat 2D cartoon illustration style. "
             "The character has exactly one left arm and one right arm, total two arms and two hands only. "
-            "No third arm. No fourth arm. No duplicate limbs. "
-            "The character is standing with both arms hanging naturally at its sides. "
+            "Humanoid anatomy with strictly two arms connected to the body. No third arm. No fourth arm. No duplicate limbs. "
             "Isolated on a pure white background. No background elements. no text, no words, no letters"
         )
         # [CRITICAL] 실사 키워드 방지 로직 보강
@@ -1228,23 +1248,23 @@ Motion prompt for this image:"""
 모든 씬에 캐릭터가 나올 필요는 없습니다. scene_type을 먼저 결정하고 그에 맞게 작성하세요.
 
 【STEP 1: scene_type】 character_main | character_support | infographic 중 선택
-  character_main: 내레이터가 시청자에게 직접 설명 → 캐릭터 중앙 크게
-  character_support: 데이터/통계 설명 → 캐릭터 우하단 작게, 차트 가리키기
-  infographic: 거시경제/글로벌/추상 개념 → 캐릭터 없음, 인포그래픽 중심
+  character_main: (기본값) 내레이터가 직접 설명하거나 감정을 표현 → 캐릭터 중앙 크게
+  character_support: 특정 인물/자료를 소개할 때 → 메인 이미지(배경)와 함께 내레이터(졸라맨)가 구석에서 반드시 등장하여 손으로 가리킴
+  infographic: 피사체가 없는 거시적 데이터(지도, 그래프)만 있는 경우 → 캐릭터 없음. 사람이 언급되는 씬은 절대 이 타입을 고르지 말 것.
 
 【STEP 2: prompt_char】
-  character_main: 전신 캐릭터, 흰 배경, SAFE 포즈(A~D), dark brown swept-back hair, teal-blue hoodie, strictly two arms two hands, Isolated on pure white background, no text no words
-  character_support: "A small full-body stick-figure in the lower-right corner, pointing center-left with right hand. Dark brown hair. Teal-blue hoodie, black trousers, white sneakers. Two arms two hands. Pure white background. no text, no words"
-  infographic: "" (빈 문자열 — 캐릭터 없음)
+  character_main: full-body stickman, white head WITH DISTINCT BLACK EYES and mouth, teal-blue long-sleeved hoodie, exactly two arms/legs, white background, no text no words.
+  character_support: "A small full-body stickman (narrator) positioned in the lower-right corner, clearly pointing towards the center. Visible black eyes and mouth. Teal-blue long-sleeved hoodie. Exactly two arms/legs. Pure white background. no text, no words"
+  infographic: "" (빈 문자열)
 
-【STEP 3: prompt_bg】 5개+ 소품 포함, Korean webtoon manhwa illustration style, clean linework, vibrant colors, cinematic depth
-  scene_type에 따라: character → 실감나는 배경 공간, infographic → 웹툰 감성 데이터 시각화
-  마지막: "Korean webtoon manhwa style, clean linework, vibrant colors, no main protagonist, no text, no words, no letters"
+【STEP 3: prompt_bg】 Korean webtoon manhwa illustration style, vibrant colors.
+  character_support: 대본에서 설명하는 인물이나 대상을 반드시 포함하여 배경으로 그리세요.
+  마지막: "Korean webtoon manhwa style, clean linework, vibrant colors, no main protagonist, no text, no words"
 
-【STEP 4: prompt_en】 "Korean webtoon manhwa illustration, vibrant colors, clean detailed linework, dynamic lighting,"
-  character_main: minimalist stick-figure(teal-blue hoodie, dark brown hair) 중앙 + 한국웹툰 배경 환경 + layered scene depth + no text no words no letters
-  character_support: 한국웹툰 스타일 인포그래픽 중앙 크게 + small stick-figure lower-right pointing + no text no words no letters
-  infographic: 인포그래픽 5개+ 한국웹툰 스타일 + NO character NO person + no text no words no letters
+【STEP 4: prompt_en】
+  character_main: minimalist narrator stickman(teal-blue hooded, bald white head with expressive face) in center + layered webtoon background + no text
+  character_support: Detailed webtoon illustration of [Subject mentioned in script] across the scene + small narrator stickman(teal-blue hooded) in lower-right corner pointing + no text
+  infographic: Pure data visualization/infographic, no character, no human + no text
 """
 
         # 비 wimpy 스타일에 대한 커스텀 지침 (DB에서 저장된 gemini_instruction 사용)
@@ -1290,9 +1310,10 @@ Motion prompt for this image:"""
                 # 졸라맨 스타일: 캐릭터 prompt_en에서 머리 색/스타일 표현 강제 제거
                 import re as _re
                 head_color_patterns = [
-                    r'teal\s+hair', r'cyan\s+hair', r'blue\s+hair', r'colored?\s+hair',
-                    r'hair\s+color', r'teal\s+head', r'cyan\s+head', r'colored?\s+head',
-                    r'with\s+\w+\s+hair', r'has\s+\w+\s+hair', r'\w+\s+colored?\s+hair',
+                    r'teal\s+hair', r'cyan\s+hair', r'blue\s+hair', r'colored?\s+hair', r'brown\s+hair', r'swept-back\s+hair',
+                    r'hair\s+color', r'teal\s+head', r'cyan\s+head', r'colored?\s+head', r'black\s+hair', r'blonde\s+hair',
+                    r'with\s+\w+\s+hair', r'has\s+\w+\s+hair', r'\w+\s+colored?\s+hair', r'hairstyle', r'hair\s+style',
+                    r'undercut', r'fade\s+cut', r'short\s+hair', r'long\s+hair',
                 ]
                 sanitized_chars = []
                 for c in characters:
@@ -1303,9 +1324,11 @@ Motion prompt for this image:"""
                 char_descriptions = "\n".join([f"- {c['name']} ({c['role']}): {c['prompt_en']}" for c in sanitized_chars])
                 char_color_rule = """
 [★ 졸라맨 스타일 캐릭터 규칙 — 위 캐릭터 묘사보다 이 규칙이 최우선 ★]
-- 모든 캐릭터의 머리: 반드시 plain white circle, 흰색만 허용. 어떤 색도, 어떤 헤어스타일도 금지.
-- 모든 캐릭터의 의상: bright cyan sleeveless tunic (고정)
-- 모든 캐릭터의 팔다리: solid black (고정)
+- 모든 캐릭터의 머리: 반드시 perfectly bald, smooth white head, 흰색만 허용. 어떤 색도, 어떤 헤어스타일도 금지 (strictly NO hair, NO hairstyle).
+- ★ 나레이터 등장 여부: 모든 씬(infographic 제외)에는 나레이터(졸라맨)가 반드시 노출되어야 함.
+- ★ 얼굴 표정 (필수): 반드시 한 쌍의 뚜렷한 검은색 눈과 입 모양이 있어야 함 (MUST HAVE a pair of distinct black eyes and a mouth). 얼굴이 비어있으면 절대 안 됨 (Face must never be blank).
+- 모든 캐릭터의 의상: teal-blue long-sleeved hooded sweatshirt (고정, 소매가 긴 후드티)
+- 모든 캐릭터의 팔다리: solid black, 일정한 굵기 (고정)
 - 캐릭터 간 차이는 표정/포즈/배경으로만 구분. 색상으로 구분 금지.
 """
             elif not is_realistic:
@@ -1345,12 +1368,13 @@ Motion prompt for this image:"""
             # 자동 계산된 경우 - 기존 페이싱 지침 사용
             limit_instruction = f"""
 [중요: 영상 페이싱 정책]
-사용자의 몰입도를 유지하면서 제작 효율을 높이기 위해 다음 구간별 페이싱을 엄격히 준수하세요:
-1. **초반 2분 (0~2분)**: 8초당 1장 수준으로 매우 역동적인 시각 변화를 주어 후킹하세요.
-2. **몰입 단계 (2~5분)**: 20초당 1장 수준으로 핵심 장면 위주로 전환하세요.
-3. **안정 단계 (5~7분)**: 40초당 1장 수준으로 전개 속도를 조절하세요.
-4. **유지 단계 (7~10분)**: 1분당 1장 수준으로 분위기를 유지하세요.
-5. **그 이후 (10분~20분)**: 2분당 1장, **(20분 이후)**: 10분당 1장 수준으로 큰 흐름만 짚어주세요.
+사용자의 몰입도를 극대화하기 위해 다음 6단계 구간별 페이싱을 엄격히 준수하세요:
+1. **황금 시간대 (0~1분)**: 5초당 1장 수준으로 매우 빠르게 화면을 전환하여 시선을 고정시키세요 (총 12장).
+2. **몰입 단계 (1~3분)**: 10초당 1장 수준으로 긴장감을 유지하세요.
+3. **전개 단계 (3~5분)**: 15초당 1장 수준으로 내용을 깊이 있게 전달하세요.
+4. **설명 단계 (5~10분)**: 20초당 1장 수준으로 정보를 명확히 시각화하세요.
+5. **안정 단계 (10~20분)**: 30초당 1장 수준으로 흐름을 이어가세요.
+6. **마무리 단계 (20분 이후)**: 40초당 1장 수준으로 대미를 장식하세요.
 - ⚠️ 절대 금지: 대본의 어떤 구간도 건너뛰지 마세요. 도입부 전환(소개, 예고, 목차 설명)도 반드시 씬으로 포함하세요.
 - 각 씬의 scene_text: 해당 구간의 원본 대본 텍스트를 요약 없이 그대로 인용하세요 (최소 50자 이상).
 - 연속된 씬들의 scene_text를 이어 붙이면 대본 전체가 순서대로 재구성되어야 합니다.
@@ -1449,8 +1473,9 @@ Motion prompt for this image:"""
 - 반드시 정확히 **{c_scenes}개**의 장면을 생성해야 합니다.
 - [현재 씬 생성 구간] 전체를 **처음부터 끝까지** {c_scenes}개로 균등하게 나누세요.
 - ⚠️ 어떤 구간도 건너뛰지 마세요. 도입부, 전환, 예고도 씬으로 처리하세요.
-- 각 씬의 scene_text: 해당 구간 원본 대본을 그대로 인용 (요약 금지, 최소 50자).
-- 연속된 씬들의 scene_text를 이어 붙이면 구간 전체가 재구성되어야 합니다.
+- 각 씬의 scene_text: 해당 구간 원본 대본을 그대로 인용 (요약 금지, 장면 간 중복 금지).
+- [중요] 장면들의 scene_text를 모두 이어 붙이면 [현재 씬 생성 구간] 전체가 하나도 빠짐없이, 그리고 중복 없이 완벽히 복원되어야 합니다.
+- 각 scene_text는 이전 씬이나 다음 씬의 문장을 포함하지 않아야 합니다.
 - JSON 배열에 scene_number 1부터 {c_scenes}까지 순서대로 포함하세요.
 - [전체 대본 맥락]은 전체 흐름/세계관/캐릭터를 파악하는 데만 사용하고, 씬 생성은 [현재 씬 생성 구간]에서만 하세요.
 """
@@ -1517,7 +1542,7 @@ Motion prompt for this image:"""
             # scene_type을 존중: infographic은 캐릭터 없음, character_support는 작은 코너 캐릭터
             _CHAR_SUPPORT_BASE = (
                 "A small full-body stick-figure in the lower-right corner, pointing center-left with right hand. "
-                "Dark brown swept-back hair with a slight front flip. "
+                "Perfectly bald and smooth round white circular head (strictly NO hair). "
                 "Vibrant teal-blue hoodie with front pocket, long black sleeves. "
                 "Solid black trousers, white sneakers with black trim. "
                 "Exactly two arms, two hands, no extra limbs. "
@@ -1643,8 +1668,10 @@ Motion prompt for this image:"""
                 # [WIMPY FALLBACK] corrected_scenes 에도 동일 적용
                 for scene in corrected_scenes:
                     pc = scene.get("prompt_char", "").strip()
-                    if not pc or "졸라맨 스타일 전용" in pc or pc.startswith("("):
+                    # Catch lazy prompts like "전신 캐릭터", "Full body", or short descriptions
+                    if not pc or len(pc.replace(" ", "")) < 15 or "졸라맨 스타일 전용" in pc or pc.startswith("("):
                         scene["prompt_char"] = _CHAR_BASE
+                        print(f"[Wimpy Fallback] Lazy/missing prompt_char detected ('{pc}') → replaced with detailed _CHAR_BASE")
                     pb = scene.get("prompt_bg", "").strip()
                     if not pb or "졸라맨 스타일 전용" in pb or pb.startswith("("):
                         scene_text_short = (scene.get("scene_text") or "")[:80]

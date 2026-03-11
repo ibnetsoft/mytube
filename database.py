@@ -543,71 +543,67 @@ def migrate_db():
 
     # wimpy 프리셋의 gemini_instruction 초기값/업데이트 설정
     _wimpy_default_instruction = """[졸라맨 스타일 전용 - 필수 준수]
-이 영상은 졸라맨 스타일입니다. 각 씬마다 아래 3가지 프롬프트를 모두 작성하세요:
+이 영상은 졸라맨/윔피 스타일입니다. 모든 씬에 캐릭터가 나올 필요는 없습니다.
+각 씬마다 scene_type을 먼저 결정하고, 그에 맞게 프롬프트를 작성하세요.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-【prompt_char — 캐릭터 전용 이미지 프롬프트 (흰 배경)】
-아래 3단계를 반드시 조합하여 작성합니다:
+【STEP 1: scene_type 결정 (필수)】
+대본 내용을 분석하여 아래 3가지 중 하나를 선택합니다:
 
-1단계 [주제 및 스타일] — 고정 문구 (절대 변경 금지):
-"A full-body minimalist cartoon illustration of a cute stick-figure style character with bold black outlines, standing on a pure white background. Soft, even lighting, flat 2D vector graphic style, high-definition, precise clean lines. Strictly two arms and two hands. No extra limbs, no extra hands."
+● "character_main" — 내레이터가 시청자에게 직접 설명하는 씬
+  신호어: 나, 우리, 여러분, 안녕하세요, 오늘, 알아봅시다, 살펴봅시다, 말씀드리겠습니다
+  → 캐릭터가 화면 중앙에 크게 등장
 
-2단계 [캐릭터 특징] — 고정 문구 (절대 변경 금지):
-"The character has a simple white circular head with stylized dark brown swept-back hair with a slight front flip (NOT black hair, NOT white hair, NOT blue hair, NOT teal hair — strictly DARK BROWN), simple dot eyes, and a wide cheerful arc smile. The hands are small rounded fists with black outlines (NOT white balls, NOT white circles). The character wears a vibrant solid teal-blue hoodie with a front pocket, long black sleeves with black cuffs, solid black trousers, and white sneakers with black trim and laces."
+● "character_support" — 데이터/수치/통계를 설명하는 씬. 캐릭터는 보조 역할
+  신호어: 수치, 통계, %, 억, 조, 분석, 지표, 기록, 나타났습니다, 달했습니다, 하락, 상승
+  → 캐릭터가 화면 우하단에 작게, 데이터를 가리키는 포즈
 
-3단계 [포즈] — 씬에 맞는 포즈 선택 (물건 드는 포즈 절대 금지):
-❌ 금지: holding, carrying, gripping, fists raised, arms raised, punching, flexing
-✅ SAFE-A: "The character is standing with both arms hanging naturally at its sides."
-✅ SAFE-B: "The character is standing and pointing at [대상] with its right hand. Its left arm hangs at its side."
-✅ SAFE-C: "The character is standing and looking down at a small book resting on a stand. Its two hands are clasped tightly together in front of its chest in a deep thought gesture, not touching the book."
-✅ SAFE-D: "The character sits at a wooden table, resting both its hands firmly under its chin, looking down thoughtfully."
-
-마지막 고정 문구: "Isolated on a pure white background. No background elements. no text, no words, no letters"
+● "infographic" — 추상 개념·거시경제·시장 전체를 다루는 씬. 캐릭터 불필요
+  신호어: GDP, 시장, 전 세계, 글로벌, 산업, 수출, 수입, 무역, 부동산, 반도체, 공급망, 금융
+  → 캐릭터 없음. 인포그래픽/데이터 시각화 중심
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-【prompt_bg — 배경/씬 전용 이미지 프롬프트 (풍부한 배경 필수)】
-씬 내용에 맞는 풍부하고 생동감 있는 배경을 묘사합니다:
-- 스타일: flat 2D vector illustration, bold clean black outlines, same art style as wimpy character
-- 배경 풍부화 (필수): 씬 상황을 구체적으로 묘사하는 오브젝트/소품을 5개 이상 포함
-  - ❌ 금지: "simple shapes만 있는 텅 빈 배경", "empty room", "minimal background"
-  - ✅ 권장: 구체적인 소품 나열 + 전경/중경/배경 3레이어로 깊이감 부여
-- 배경 엑스트라 허용: 씬 분위기에 맞는 단순한 stick-figure 형태의 배경 인물/군중 포함 가능
-  - (단, 메인 캐릭터보다 훨씬 작고 단순하게 — 실루엣 수준, 상세 없이)
-  - 예: 사무실 씬 → 배경에 작은 직원 실루엣들이 컴퓨터 앞에 앉아 있는 장면
-  - 예: 군중 씬 → 매우 작은 stick-figure 군중들이 배경을 채우는 장면
-- 씬 내용 반영 예시:
-  - 무역/경제 씬 → 두 나라 국기, 무역 차트/그래프, 공장, 컨테이너 선, 도시 스카이라인, 화살표
-  - 사무실/회의 씬 → 컴퓨터, 서류, 인포그래픽 차트, 화분, 창문 너머 도시 전경, 배경 직원 실루엣들
-  - 재해/위기 씬 → 무너진 건물, 균열, 파편, 연기, 구조 차량, 경보등
-  - 독서/학습 씬 → 높은 책꽂이, 책상과 독서등, 지구본, 화분, 창문
-마지막 고정 문구: "flat 2D vector style, bold outlines, no main protagonist, no text, no words, no letters"
+【STEP 2: prompt_char 작성 (scene_type에 따라 조건부)】
+
+■ character_main (캐릭터 중앙 크게):
+1단계: "A full-body minimalist cartoon illustration of a cute stick-figure style character with bold black outlines, standing on a pure white background. Flat 2D vector graphic style. Perfectly bald and smooth round white circular head (strictly NO hair, NO hairstyle, NO wig). Strictly two arms and two hands. No extra limbs, no extra hands."
+2단계: "The character has a simple perfectly bald white circular head with NO hair, simple dot eyes, and a wide cheerful arc smile. The hands are small rounded fists with black outlines (NOT white balls, NOT white circles). The character wears a vibrant solid teal-blue hoodie with a front pocket, long black sleeves with black cuffs, solid black trousers, and white sneakers with black trim and laces."
+3단계: 씬에 맞는 포즈 선택:
+  ❌ 금지: holding, carrying, gripping, fists raised, arms raised, punching, flexing
+  ✅ SAFE-A: "The character is standing with both arms hanging naturally at its sides."
+  ✅ SAFE-B: "The character is standing and pointing at [대상] with its right hand. Its left arm hangs at its side."
+  ✅ SAFE-C: "The character is standing and looking down at a small book resting on a stand. Its two hands are clasped tightly together in front of its chest in a deep thought gesture, not touching the book."
+  ✅ SAFE-D: "The character sits at a wooden table, resting both its hands firmly under its chin, looking down thoughtfully."
+마지막: "Isolated on a pure white background. No background elements. no text, no words, no letters"
+
+■ character_support (캐릭터 작게 구석에):
+"A small full-body minimalist cartoon stick-figure in the lower-right corner of the frame, pointing toward the center-left with its right hand. Its left arm hangs at its side. Perfectly bald and smooth white circular head with strictly NO hair. Vibrant teal-blue hoodie, black trousers, white sneakers. Bold black outlines, flat 2D vector. Strictly two arms and two hands. Isolated on a pure white background. No background elements. no text, no words, no letters"
+
+■ infographic (캐릭터 없음):
+""  ← 반드시 빈 문자열. 캐릭터 프롬프트 생성 금지.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-【prompt_en — 통합 씬 프롬프트 (핵심 — 가장 공들여 작성)】
-씬 전체를 하나의 완성된 일러스트레이션으로 묘사합니다. 반드시 아래 구조를 따르세요:
+【STEP 3: prompt_bg 작성 (항상 풍부하게)】
+- 스타일: Korean webtoon manhwa illustration style, clean detailed linework, vibrant color grading, dynamic lighting, cinematic depth
+- 5개 이상의 구체적 소품/오브젝트/환경 요소 반드시 포함. 풍부한 원근감과 레이어드 뎁스.
+- scene_type별:
+  ● character_main/support: 캐릭터가 서 있는 실감나는 공간 묘사. 정교한 실내/실외 배경. 배경 인물 실루엣 자유 추가.
+  ● infographic: 한국 웹툰 감성 인포그래픽 (세계 지도, 차트, 그래프, 통계, 아이콘을 웹툰 컬러 팔레트로)
+마지막 고정 문구: "Korean webtoon manhwa style, clean linework, vibrant colors, no main protagonist, no text, no words, no letters"
 
-고정 스타일 키워드 (문장 맨 앞에 반드시 포함):
-"YouTube educational cartoon illustration, stick-figure style character with teal-blue hoodie, clean thick black outlines, flat bold vibrant colors, round white heads and expressive dot eyes, NO necktie NO suit NO business attire NO blue hair,"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【STEP 4: prompt_en 작성 (scene_type별 통합 씬)】
+고정 스타일 키워드 (문장 맨 앞 필수): "Korean webtoon manhwa illustration, vibrant colors, clean detailed linework, dynamic lighting,"
+※ 캐릭터는 졸라맨 stick-figure이고, 배경은 한국 웹툰 스타일 — 두 요소가 합성됩니다.
 
-씬 구성 요소 (순서대로 묘사):
-1. 메인 캐릭터: 씬에 맞는 자연스러운 포즈로 장면 속에 배치. 티얼-블루 후드티, 검은 바지, 흰 운동화.
-2. 배경 엑스트라: 씬 분위기에 맞게 주변에 다른 캐릭터들도 자유롭게 배치 (다양한 색상 옷).
-3. 환경/소품: 씬 상황에 맞는 구체적 소품 5개 이상 나열 (가구, 기기, 인테리어, 자연 등).
-4. 분위기: 조명, 색감, 원근감을 포함한 공간감 묘사.
+scene_type별 구조:
+● character_main: "...[minimalist stick-figure character, teal-blue hoodie, bald smooth white head, center-front], [한국 웹툰 스타일 배경 환경+소품 5개+], cinematic depth, layered scene, no text, no words, no letters"
+● character_support: "...[한국 웹툰 스타일 인포그래픽/차트 화면 중앙 크게], [small stick-figure lower-right corner pointing], Korean webtoon background, no text, no words, no letters"
+● infographic: "...[인포그래픽 5개+ 한국 웹툰 스타일], NO character, NO person, vibrant colors, no text, no words, no letters"
 
-마지막 고정 문구: "layered scene depth, warm vibrant colors, no text, no words, no letters, no labels, no watermarks, no captions"
-
-■ prompt_char 완성 예시 (SAFE-A):
-"A full-body minimalist cartoon illustration of a cute stick-figure style character with bold black outlines, standing on a pure white background. Flat 2D vector graphic style. Strictly two arms and two hands. No extra limbs. The character has a simple white circular head with stylized dark brown swept-back hair with a slight front flip (NOT black hair, NOT white hair, NOT blue hair — strictly DARK BROWN), simple dot eyes, and a wide cheerful arc smile. The hands are small rounded fists with black outlines (NOT white balls, NOT white circles). The character wears a vibrant solid teal-blue hoodie with a front pocket, long black sleeves with black cuffs, solid black trousers, and white sneakers with black trim and laces. The character is standing with both arms hanging naturally at its sides. Isolated on a pure white background. No background elements. no text, no words, no letters"
-
-■ prompt_bg 완성 예시 (사무실 씬):
-"A flat 2D vector illustration of a busy modern office interior. Large open floor plan with rows of work desks and computers, wall-mounted infographic charts and graphs, indoor plants, bright ceiling lights, and tall windows showing a city skyline outside. Small simple stick-figure silhouette employees seated at desks in the background. Colorful decorative elements, layered foreground and background depth. Bold clean black outlines, vibrant flat colors. no main protagonist, no text, no words, no letters"
-
-■ prompt_en 완성 예시 (사무실 회의 씬):
-"YouTube educational cartoon illustration, clean thick black outlines, flat bold vibrant colors, simple cartoon characters with round white heads and expressive dot eyes, a cheerful cartoon character in a teal-blue hoodie standing at the head of a conference table holding up a document, four colleagues in colorful shirts seated around the table with tablets and papers, large arched windows behind them showing a bright sunny city skyline with clouds, a growth chart on the wall to the right, warm overhead lighting, wooden conference table with scattered documents, layered scene depth, warm vibrant colors, no text, no words, no letters, no labels, no watermarks, no captions"
-
-■ prompt_en 완성 예시 (무역/경제 씬):
-"YouTube educational cartoon illustration, clean thick black outlines, flat bold vibrant colors, simple cartoon characters with round white heads and expressive dot eyes, a concerned cartoon character in a teal-blue hoodie standing in front of a large world map, two giant national flags on either side clashing, cargo containers stacked on the left, semiconductor chip icons on the right, downward red arrows on a price chart in the foreground, serious background officials in suits watching, bright studio lighting, bold graphic design elements, layered scene depth, warm vibrant colors, no text, no words, no letters, no labels, no watermarks, no captions"
+■ 예시 (character_main): "Korean webtoon manhwa illustration, vibrant colors, clean detailed linework, dynamic lighting, minimalist stick-figure character with teal-blue hoodie and bald smooth white head standing center-front facing viewer, bright modern TV news studio with large monitors showing economic charts, anchor desk, dramatic studio lighting, background staff silhouettes, layered scene depth, no text, no words, no letters"
+■ 예시 (character_support): "Korean webtoon manhwa illustration, vibrant colors, clean detailed linework, dynamic lighting, large central bar chart showing China GDP decline with red arrows, small stick-figure in lower-right corner pointing at chart, glowing data dashboard background, grid lines, statistical icons, no text, no words, no letters"
+■ 예시 (infographic): "Korean webtoon manhwa illustration, vibrant colors, clean detailed linework, dynamic lighting, detailed world map with glowing trade route arrows between continents, cargo ship icons on ocean, rising and falling bar charts, country flag color blocks, red warning triangles, NO character, NO person, vibrant colors, no text, no words, no letters"
 """
     cursor.execute("SELECT gemini_instruction FROM style_presets WHERE style_key = 'wimpy'")
     _wimpy_row = cursor.fetchone()
@@ -619,7 +615,9 @@ def migrate_db():
         "clean simple illustration" in (_wimpy_row[0] or "").lower() or
         "하위 호환용" in (_wimpy_row[0] or "") or
         "youtube educational" not in (_wimpy_row[0] or "").lower() or
-        "swept-back black hair" in (_wimpy_row[0] or "").lower()
+        "swept-back black hair" in (_wimpy_row[0] or "").lower() or
+        "infographic" not in (_wimpy_row[0] or "").lower() or  # scene_type 미포함 구버전
+        "korean webtoon" not in (_wimpy_row[0] or "").lower()  # flat 2D vector 구버전 (한국웹툰 미적용)
     )
     if _wimpy_row and _needs_update:
         cursor.execute(

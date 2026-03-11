@@ -28,7 +28,8 @@
                         <span id="durationUnit" class="text-gray-700 dark:text-gray-300">{{ t('plan_duration_unit_min')
                             }}</span>
                     </div>
-                    <p id="durationHelper" class="text-xs text-gray-500 mt-1">{{ t('plan_duration_helper_min') }}</p>
+                    <p id="durationHelper" class="text-xs text-gray-500 mt-1 dark:text-gray-400">{{
+                        t('plan_duration_helper_min') }}</p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{
@@ -57,11 +58,11 @@
                             <option value="cyberpunk_neon">사이버펑크 네온 (네온 색상, 비, 미래적 분위기)</option>
                         </optgroup>
                         <optgroup label="📺 캐릭터/웹툰 시리즈">
-                            <option value="wimpy">윔피키드 (초등학생 일기장 스타일)</option>
+                            <option value="k_manhwa">K만화 (초등학생 일기장 스타일)</option>
                         </optgroup>
                         <optgroup label="🎨 일러스트/애니메이션 스타일">
                             <option value="watercolor_analog">수채화풍 아날로그 일러스트 (감성적 수채화 텍스처)</option>
-                            <option value="digital_webtoon">디지털 웹툰 (선명한 라인, 화려한 색감)</option>
+                            <option value="k_webtoon">K웹툰 (선명한 라인, 화려한 색감)</option>
                             <option value="graphite_sketch">흑연 드로잉 스케치 (거친 연필선 스케치)</option>
                             <option value="joseon_2d_anime">조선시대 풍속화 2D 애니 (조선 웹툰 스타일)</option>
                             <option value="oriental_ink">동양 수묵화 모노크롬 (여백의 미, 먹물 그림)</option>
@@ -119,7 +120,8 @@
         <!-- [NEW] Title Recommendation Card -->
         <div class="card w-full">
             <h3 class="card-title">💡 {{ t('plan_recommend_title') }} <span
-                    class="text-xs font-normal text-gray-500 ml-2">({{ t('cur_project_label') }})</span>
+                    class="text-xs font-normal text-gray-500 ml-2 dark:text-gray-400">({{ t('cur_project_label')
+                    }})</span>
             </h3>
 
             <!-- 자동 생성을 위해 입력 필드는 숨김 처리하거나 제거 -->
@@ -145,7 +147,8 @@
         <!-- 2. Learning Sources (NotebookLM) -->
         <div class="card w-full">
             <h3 class="card-title">📚 학습 자료 (Sources)</h3>
-            <p class="text-[11px] text-gray-500 mb-3">뉴스 URL, 유튜브 URL 또는 텍스트 파일을 추가하여 AI가 학습하게 하세요.</p>
+            <p class="text-[11px] text-gray-500 mb-3 dark:text-gray-400">뉴스 URL, 유튜브 URL 또는 텍스트 파일을 추가하여 AI가 학습하게 하세요.
+            </p>
 
             <!-- URL Add -->
             <div class="flex gap-2 mb-3">
@@ -513,7 +516,7 @@
                     <img src="${analysis.thumbnail_url}" class="w-28 h-16 object-cover rounded shadow-sm">
                     <div class="min-w-0">
                         <p class="font-bold text-sm text-gray-800 dark:text-white line-clamp-1">${analysis.video_title || '원본 영상'}</p>
-                        <p class="text-xs text-gray-500 mt-0.5">${analysis.channel_title || ''}</p>
+                        <p class="text-xs text-gray-500 mt-0.5 dark:text-gray-400">${analysis.channel_title || ''}</p>
                         <div class="flex gap-3 mt-1.5">
                             <span class="text-[10px] text-indigo-500 font-medium">👁️ ${Utils.formatNumber(analysis.view_count || 0)}</span>
                             <span class="text-[10px] text-red-500 font-medium">🔥 스코어: ${analysis.viral_score || 0}</span>
@@ -922,7 +925,7 @@
         listContainer.innerHTML = `
             <div class="flex flex-col items-center gap-2 py-4">
                 <div class="loader-sm"></div>
-                <p class="text-xs text-gray-500">${i18n.loading_title_gen}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">${i18n.loading_title_gen}</p>
             </div>
         `;
         listContainer.classList.remove('hidden');
@@ -998,11 +1001,18 @@
         const bestTitle = titles[0];
 
         container.innerHTML = `
-            <div class="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl mb-2 text-center">
-                <p class="text-xs text-blue-500 mb-1 font-bold">✨ AI 최적 추천 제목</p>
-                <h4 class="text-lg font-bold text-gray-800 dark:text-white mb-2">"${bestTitle}"</h4>
+            <div class="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl mb-2">
+                <p class="text-xs text-blue-500 mb-2 font-bold text-center">✨ AI 최적 추천 제목 <span class="text-gray-400 font-normal">(직접 수정 후 적용 가능)</span></p>
+                <textarea id="recommendedTitleInput"
+                    class="w-full text-base font-bold text-gray-800 dark:text-white bg-white dark:bg-gray-700 border border-blue-300 dark:border-blue-600 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-400 mb-2"
+                    rows="2"
+                    oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
+                >${bestTitle}</textarea>
                 <div class="flex justify-center gap-2">
-                    <span class="text-xs px-2 py-1 bg-green-100 text-green-600 rounded-full font-medium">자동 적용됨</span>
+                    <button onclick="applyTitle(document.getElementById('recommendedTitleInput').value.trim())"
+                        class="text-xs px-3 py-1 bg-green-500 hover:bg-green-600 text-white rounded-full font-medium transition-colors">
+                        ✅ 적용
+                    </button>
                     <button onclick="generateRecommendedTitles()" class="text-xs text-blue-500 hover:underline">다시 뽑기</button>
                 </div>
             </div>
@@ -1018,7 +1028,9 @@
     }
 
     async function applyTitle(title) {
-        // 1. Update Project Title (via Metadata API or Patch)
+        title = (title || '').trim();
+        if (!title) { Utils.showToast('제목을 입력해주세요', 'warning'); return; }
+
         const projectId = getCurrentProject();
         if (!projectId) {
             Utils.showToast('프로젝트가 선택되지 않았습니다', 'warning');
@@ -1026,28 +1038,42 @@
         }
 
         try {
-            // Update Project Details (Title update)
-            // Using PATCH /api/projects/{id}
+            // 1. 프로젝트 name + topic 동시 업데이트 (새로고침 후에도 유지)
             await fetch(`/api/projects/${projectId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ video_title: title })
+                body: JSON.stringify({ name: title, topic: title })
             });
 
-            // 2. Update UI Inputs
-            document.getElementById('topicInput').value = title; // 대본 구조 > 영상 주제
+            // 2. metadata titles 에도 저장 (추천제목 UI 복원용)
+            const metaRes = await fetch(`/api/projects/${projectId}/metadata`);
+            const metaData = metaRes.ok ? await metaRes.json() : {};
+            await fetch(`/api/projects/${projectId}/metadata`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    titles: [title],
+                    description: metaData.description || '',
+                    tags: metaData.tags || [],
+                    hashtags: metaData.hashtags || []
+                })
+            });
 
-            // 3. Highlight
-            Utils.showToast(`제목 적용 완료`, 'success');
+            // 3. UI 동기화
+            document.getElementById('topicInput').value = title;
 
-            // 시각적 피드백 (topic input 깜빡임)
+            // 사이드바 프로젝트명 갱신 (가능한 경우)
+            document.querySelectorAll('[data-project-id="' + projectId + '"] .project-name, .current-project-name').forEach(el => el.textContent = title);
+
+            Utils.showToast('제목이 적용되었습니다 ✅', 'success');
+
             const topicInput = document.getElementById('topicInput');
             topicInput.classList.add('ring-2', 'ring-indigo-500', 'transition-all', 'duration-300');
             setTimeout(() => topicInput.classList.remove('ring-2', 'ring-indigo-500'), 1000);
 
         } catch (e) {
             console.error("Title Update Failed:", e);
-            Utils.showToast('제목 적용 실패', 'error');
+            Utils.showToast('제목 적용 실패: ' + e.message, 'error');
         }
     }
 
@@ -1146,7 +1172,7 @@
             <div class="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded border border-gray-100 dark:border-gray-700 group">
                 <div class="min-w-0 flex-1">
                     <p class="text-[11px] font-bold text-gray-800 dark:text-gray-200 truncate" title="${s.title}">${s.title}</p>
-                    <p class="text-[9px] text-gray-500 uppercase">${s.type}</p>
+                    <p class="text-[9px] text-gray-500 uppercase dark:text-gray-400">${s.type}</p>
                 </div>
                 <button onclick="deleteSource(${s.id})" class="opacity-0 group-hover:opacity-100 p-1 text-red-400 hover:text-red-600 transition-all">
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
@@ -1322,7 +1348,7 @@
                 const filtered = data.projects.filter(p => p.id !== currentId);
 
                 if (filtered.length === 0) {
-                    list.innerHTML = '<div class="text-center py-10 text-gray-500 text-sm">가져올 수 있는 다른 프로젝트 자료가 없습니다.</div>';
+                    list.innerHTML = '<div class="text-center py-10 text-gray-500 text-sm dark:text-gray-400">가져올 수 있는 다른 프로젝트 자료가 없습니다.</div>';
                     return;
                 }
 
@@ -1340,7 +1366,7 @@
                     list.appendChild(btn);
                 });
             } else {
-                list.innerHTML = '<div class="text-center py-10 text-gray-500 text-sm">등록된 학습 자료가 있는 프로젝트가 없습니다.</div>';
+                list.innerHTML = '<div class="text-center py-10 text-gray-500 text-sm dark:text-gray-400">등록된 학습 자료가 있는 프로젝트가 없습니다.</div>';
             }
         } catch (e) {
             console.error(e);
@@ -1389,7 +1415,7 @@
                 <span>📚</span> 자료 라이브러리
             </h3>
             <button onclick="closeSourceLibrary()"
-                class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+                class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors dark:text-gray-300">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
                     </path>
@@ -1397,7 +1423,8 @@
             </button>
         </div>
         <div class="p-6">
-            <p class="text-xs text-gray-500 mb-4 font-medium uppercase tracking-wider font-noto">자료용 프로젝트 선택</p>
+            <p class="text-xs text-gray-500 mb-4 font-medium uppercase tracking-wider font-noto dark:text-gray-400">자료용
+                프로젝트 선택</p>
             <div id="libraryProjectList" class="space-y-1 max-h-80 overflow-y-auto custom-scrollbar pr-1">
                 <!-- Project List Inject Here -->
             </div>

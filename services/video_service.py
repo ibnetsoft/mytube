@@ -1902,8 +1902,8 @@ class VideoService:
         
         # 폰트 매핑 (UI 이름 -> 실제 파일명)
         font_mapping = {
-            "GmarketSans": "GmarketSansTTFBold.ttf", # Fallback
-            "GmarketSansBold": "GmarketSansTTFBold.ttf",
+            "GmarketSans": "malgunbd.ttf",
+            "GmarketSansBold": "malgunbd.ttf",
             
             "나눔명조": "NanumMyeongjo.ttf",
             "NanumMyeongjo": "NanumMyeongjo.ttf",
@@ -2461,27 +2461,23 @@ class VideoService:
             return []
             
         # 2. Grouping (Merge short sentences) - 자막 퀄리티 향상
-        # [MODIFIED] Grouping causes Image Count mismatch (6 images vs 5 subtitles).
-        # Disabling grouping to ensure 1 Sentence = 1 Subtitle = 1 Image.
-        # Proportional Timing will still handle "Short/Long" duration naturally.
-        grouped_sentences = raw_sentences
+        # [MODIFIED] Grouping re-enabled for better readability (Requested: Long single lines)
+        grouped_sentences = []
+        current_group = ""
+        MAX_GROUP_LEN = 40 # 자막 한 줄에 적당한 길이 (유튜브 숏츠/롱폼 기준)
         
-        # grouped_sentences = []
-        # current_group = ""
-        # MAX_GROUP_LEN = 40 # 자막 한 줄에 적당한 길이 (유튜브 숏츠 기준)
-        
-        # for s in raw_sentences:
-        #     if not current_group:
-        #         current_group = s
-        #     else:
-        #         # 합쳤을 때 너무 길지 않으면 병합
-        #         if len(current_group) + len(s) + 1 <= MAX_GROUP_LEN:
-        #             current_group += " " + s
-        #         else:
-        #             grouped_sentences.append(current_group)
-        #             current_group = s
-        # if current_group:
-        #     grouped_sentences.append(current_group)
+        for s in raw_sentences:
+            if not current_group:
+                current_group = s
+            else:
+                # 합쳤을 때 너무 길지 않으면 병합
+                if len(current_group) + len(s) + 1 <= MAX_GROUP_LEN:
+                    current_group += " " + s
+                else:
+                    grouped_sentences.append(current_group)
+                    current_group = s
+        if current_group:
+            grouped_sentences.append(current_group)
             
         # 3. Proportional Timing (글자 수 비례 시간 배분)
         # 기존: n등분 (짧은 말도 길게 나옴) -> 수정: 글자 수 비례

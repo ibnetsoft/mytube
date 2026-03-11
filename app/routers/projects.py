@@ -172,14 +172,30 @@ async def generate_single_video(project_id: int, req: SingleVideoGenRequest):
         now = datetime.now()
         video_url = ""
         
+        # ── 영상용 프롬프트 빌더 ──────────────────────────────────────────
+        # 영상 AI(Seedance/Wan)는 정적 이미지 묘사보다 모션/액션 설명을 우선함.
+        # motion_desc(짧고 액션 중심) → 앞에, prompt_en 요약(시각 컨텍스트) → 뒤에.
+        def _build_video_prompt(p_en: str, m_desc: str, max_chars: int = 700) -> str:
+            m = (m_desc or "").strip()
+            v = (p_en or "").strip()
+            if m:
+                # motion_desc가 있으면 앞에 배치, 뒤에 시각 컨텍스트 요약(150자) 추가
+                v_short = v[:150].rstrip(', ') if v else ""
+                combined = f"{m}, {v_short}".strip(', ') if v_short else m
+            else:
+                # motion_desc 없으면 기본 모션 + prompt_en 요약
+                v_short = v[:300].rstrip(', ') if v else "smooth cinematic scene"
+                combined = f"smooth slow pan, {v_short}"
+            return combined[:max_chars]
+        # ─────────────────────────────────────────────────────────────────
+
         # 2. Engine Routing
         if req.engine == "wan":
             # [Wan] Motion Generation
-            # Prioritize: Req > DB(motion_desc) > DB(prompt_en/visual_desc)
-            base_prompt = target_p.get('prompt_en') or target_p.get('visual_desc') or "Cinematic motion"
+            # Prioritize: Req(override) > DB(motion_desc) > prompt_en 요약 폴백
             motion_part = req.motion_desc or target_p.get('motion_desc') or ""
-            
-            final_prompt = f"{base_prompt}, {motion_part}" if motion_part else f"{base_prompt}, smooth motion"
+            prompt_en   = target_p.get('prompt_en') or target_p.get('visual_desc') or ""
+            final_prompt = _build_video_prompt(prompt_en, motion_part, max_chars=1000)
             
             # [FIX] Check if full original image exists (prevents character cropping in pan effects)
             p_settings = db.get_project_settings(project_id) or {}
@@ -211,18 +227,17 @@ async def generate_single_video(project_id: int, req: SingleVideoGenRequest):
 
         elif req.engine == "seedance":
             # [Seedance 1.5 Pro] Akool v4 API - 가장 저렴한 선택
-            # 모델: seedance-1-0-lite-i2v-250428
-            base_prompt = target_p.get('prompt_en') or target_p.get('visual_desc') or "Cinematic video"
+            # Akool API 700자 제한 → motion_desc 우선 배치로 잘림 방지
             motion_part = req.motion_desc or target_p.get('motion_desc') or ""
-            final_prompt = f"{base_prompt}, {motion_part}" if motion_part else f"{base_prompt}, smooth cinematic motion"
+            prompt_en   = target_p.get('prompt_en') or target_p.get('visual_desc') or ""
+            final_prompt = _build_video_prompt(prompt_en, motion_part, max_chars=650)
 
-            print(f"🌱 [Studio] Generating Seedance Video for Scene {req.scene_number}... Prompt: {final_prompt[:80]}...")
-            video_data = await akool_service.generate_seedance_video(
+            print(f"🌱 [Studio] Generating Akool v4 Video for Scene {req.scene_number}... Prompt: {final_prompt[:80]}...")
+            video_data = await akool_service.generate_akool_video_v4(
                 local_image_path=image_abs_path,
                 prompt=final_prompt,
                 duration=req.duration or 5,
-                resolution=req.resolution or "720p",
-                model_value="seedance-1-0-lite-i2v-250428"
+                resolution=req.resolution or "720p"
             )
 
             if video_data:

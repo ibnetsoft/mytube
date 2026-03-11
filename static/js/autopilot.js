@@ -2,7 +2,7 @@
 
 document.addEventListener('DOMContentLoaded', async () => {
     // 1. Load Presets (Styles & Voices)
-    await Promise.all([loadStyles(), loadVoices(), fetchPresets(), loadChannels()]);
+    await Promise.all([loadStyles(), loadVoices(), fetchPresets()]);
 
     // 2. Load Saved Settings (Global / Default Project)
     // 2. Load Saved Settings (Global / Default Project)
@@ -18,10 +18,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sceneVal = document.getElementById('sceneCountVal');
     const allVideoCheck = document.getElementById('allVideoCheck');
 
+    const sceneInline = document.getElementById('sceneCountInline');
     if (sceneRange && sceneVal) {
         sceneRange.addEventListener('input', (e) => {
             if (allVideoCheck && allVideoCheck.checked) return;
             sceneVal.textContent = `${e.target.value} Scenes`;
+            if (sceneInline) sceneInline.textContent = e.target.value;
         });
     }
 
@@ -33,18 +35,25 @@ document.addEventListener('DOMContentLoaded', async () => {
                 sceneVal.textContent = `ALL Scenes`;
                 sceneVal.classList.replace('bg-pink-500/10', 'bg-pink-500');
                 sceneVal.classList.replace('text-pink-400', 'text-white');
+                if (sceneInline) sceneInline.textContent = 'ALL';
             } else {
                 sceneRange.disabled = false;
                 sceneRange.classList.remove('opacity-30');
                 sceneVal.textContent = `${sceneRange.value} Scenes`;
                 sceneVal.classList.replace('bg-pink-500', 'bg-pink-500/10');
                 sceneVal.classList.replace('text-white', 'text-pink-400');
+                if (sceneInline) sceneInline.textContent = sceneRange.value;
             }
         });
     }
 
-    // [NEW] Check Monitor Mode
+    // [NEW] Check tab parameter - auto switch to batch tab
     const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('tab') === 'batch') {
+        switchTab('batch');
+    }
+
+    // [NEW] Check Monitor Mode
     if (urlParams.get('monitor') === 'true' && urlParams.get('project_id')) {
         const pid = urlParams.get('project_id');
         console.log("🔄 Monitoring Project:", pid);
@@ -103,22 +112,19 @@ async function loadStyles() {
             const data = await res.json();
 
             // Default Korean Labels for system styles
-            const defaultNames = {
-                'face': '얼굴 강조형',
-                'text': '텍스트 중심형',
-                'contrast': '반분할(좌우대비)',
-                'mystery': '미스터리/실루엣',
-                'dynamic': '다이내믹(광각)',
-                'japanese_viral': '시니어 바이럴'
+            const displayedStyles = {
+                'japanese_viral': '바이럴'
             };
 
             tGrid.innerHTML = '';
             Object.entries(data).forEach(([key, val]) => {
+                if (!displayedStyles[key]) return; // 바이럴 외에는 안보이게 처리
+
                 const imgUrl = (typeof val === 'object' && val.image_url) ? val.image_url : `/static/img/thumbs/${key}.png`;
 
                 const style = {
                     id: key,
-                    name: defaultNames[key] || key,
+                    name: displayedStyles[key],
                     img: imgUrl
                 };
                 const div = createStyleCard(style, 'thumbnailStyle');
@@ -127,10 +133,10 @@ async function loadStyles() {
 
             // Set default
             const currentThumbStyle = document.getElementById('thumbnailStyle').value;
-            if (currentThumbStyle && data[currentThumbStyle]) {
+            if (currentThumbStyle && displayedStyles[currentThumbStyle]) {
                 selectStyle('thumbnailStyle', currentThumbStyle);
             } else {
-                const firstKey = Object.keys(data)[0];
+                const firstKey = Object.keys(displayedStyles)[0];
                 if (firstKey) selectStyle('thumbnailStyle', firstKey);
             }
         } catch (e) {
@@ -352,7 +358,8 @@ async function loadVoices() {
         await fetchVoices(provider);
     };
 
-    // Initial fetch triggered in init
+    // Initial fetch
+    await fetchVoices(providerSelect.value);
 }
 
 async function fetchVoices(provider) {
@@ -440,6 +447,14 @@ async function loadSavedSettings() {
 
             if (data.app_mode) {
                 setMode(data.app_mode);
+                // 설정된 모드가 고정이면 반대쪽 버튼 숨김
+                const btnLong = document.getElementById('modeLongform');
+                const btnShort = document.getElementById('modeShorts');
+                if (data.app_mode === 'longform' && btnShort) {
+                    btnShort.style.display = 'none';
+                } else if (data.app_mode === 'shorts' && btnLong) {
+                    btnLong.style.display = 'none';
+                }
             }
 
 
@@ -540,8 +555,10 @@ async function loadSavedSettings() {
                 const range = document.getElementById('videoSceneCount');
                 if (range) {
                     range.value = estScenes;
-                    // Update display
-                    if (display) display.innerText = estScenes + " Scenes";
+                    const sceneValEl = document.getElementById('sceneCountVal');
+                    if (sceneValEl) sceneValEl.innerText = estScenes + " Scenes";
+                    const sceneInlineEl = document.getElementById('sceneCountInline');
+                    if (sceneInlineEl) sceneInlineEl.textContent = estScenes;
                 }
             }
 
@@ -565,6 +582,12 @@ async function loadSavedSettings() {
                     channelSelect.value = data.youtube_channel_id;
                 }
             }
+            if (data.use_character_analysis !== undefined) {
+                const charAnalysisCheck = document.getElementById('useCharacterAnalysis');
+                if (charAnalysisCheck) {
+                    charAnalysisCheck.checked = data.use_character_analysis === '1' || data.use_character_analysis === true;
+                }
+            }
         }
     } catch (e) {
         console.error("Settings load fail:", e);
@@ -579,8 +602,7 @@ function mapImageToThumb(imgStyle) {
         'anime': 'ghibli',
         'cinematic': 'dramatic',
         'minimal': 'minimal',
-        'webtoon': 'wimpy',
-        'korean_webtoon': 'japanese_viral',
+        'k_webtoon': 'k_manhwa',
     };
     return map[imgStyle] || 'face';
 }
@@ -744,7 +766,8 @@ async function startAutopilot() {
         upload_schedule_at: document.getElementById('uploadScheduleAt')?.value || null,
         youtube_channel_id: document.getElementById('youtubeChannelId')?.value ? parseInt(document.getElementById('youtubeChannelId').value) : null,
         creation_mode: creationMode,
-        product_url: productUrl
+        product_url: productUrl,
+        use_character_analysis: document.getElementById('useCharacterAnalysis')?.checked || false
     };
 
     // UI Loading State (Popup Trigger)
@@ -939,10 +962,10 @@ async function startBatch() {
     btn.innerHTML = `<span>⏳</span> 시작 요청 중...`;
 
     try {
-        const res = await fetch('/api/autopilot/batch-start', { method: 'POST' });
+        const res = await fetch('/api/queue/start', { method: 'POST' });
         const data = await res.json();
 
-        if (data.status === 'started') {
+        if (data.status === 'success' || data.status === 'started') {
             Utils.showToast("일괄 제작이 시작되었습니다! 🚀", "success");
             btn.innerHTML = `<span class="loader-sm border-white"></span> 처리 중...`;
 

@@ -84,7 +84,7 @@
 }
 
 .dark .card {
-    background: #1F2937;
+    background: #111827; /* Slightly darker for better contrast with white text */
 }
 
 .card-compact {
@@ -103,7 +103,7 @@
 }
 
 .dark .card-title {
-    color: #F9FAFB;
+    color: #FFFFFF;
 }
 
 /* ===== Button System ===== */
@@ -289,7 +289,7 @@ textarea.input-field {
 }
 
 .dark .sidebar-item {
-    color: #E5E7EB;
+    color: #FFFFFF;
 }
 
 .sidebar-item:hover {
@@ -307,8 +307,9 @@ textarea.input-field {
 }
 
 .dark .sidebar-item.active {
-    background-color: rgba(59, 130, 246, 0.2);
-    color: #60A5FA;
+    background-color: rgba(59, 130, 246, 0.3);
+    color: #FFFFFF;
+    font-weight: 700;
 }
 
 /* ===== Loading States ===== */

@@ -78,6 +78,7 @@ async def start_autopilot_api(
     db.update_project_setting(pid, "script_style", req.script_style)
     db.update_project_setting(pid, "voice_provider", req.voice_provider)
     db.update_project_setting(pid, "voice_name", req.voice_id)
+    db.update_project_setting(pid, "use_character_analysis", "1" if req.use_character_analysis else "0")
     if req.duration_seconds:
         db.update_project_setting(pid, "duration_seconds", req.duration_seconds)
 

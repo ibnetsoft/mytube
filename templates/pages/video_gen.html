@@ -14,7 +14,7 @@
                         <input type="text" id="videoSearchQuery" placeholder="검색어 (예: winter night)"
                             class="pl-3 pr-10 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 w-40">
                         <button onclick="searchVideos()"
-                            class="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-blue-600">
+                            class="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-blue-600 dark:text-gray-400">
                             🔍
                         </button>
                     </div>
@@ -36,7 +36,7 @@
                         class="btn-secondary py-1.5 px-3 flex items-center justify-center gap-2 text-xs font-bold shadow-sm">
                         <span>📤 영상 업로드</span>
                     </button>
-                    <span id="uploadStatus" class="text-xs text-gray-500 hidden">업로드 중...</span>
+                    <span id="uploadStatus" class="text-xs text-gray-500 hidden dark:text-gray-400">업로드 중...</span>
                 </div>
             </div>
         </div>
@@ -142,7 +142,7 @@
     function renderVideoResults(videos) {
         const container = document.getElementById('videoResultsList');
         if (!videos || videos.length === 0) {
-            container.innerHTML = '<div class="col-span-full text-center py-8 text-gray-500">검색 결과가 없습니다.</div>';
+            container.innerHTML = '<div class="col-span-full text-center py-8 text-gray-500 dark:text-gray-400">검색 결과가 없습니다.</div>';
             return;
         }
 

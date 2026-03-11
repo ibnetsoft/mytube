@@ -11,7 +11,7 @@
         </div>
         <div class="flex-1 overflow-y-auto p-2 space-y-1" id="folderList">
             <!-- Folders will be injected here -->
-            <div class="text-center text-gray-500 text-sm mt-4">로딩 중...</div>
+            <div class="text-center text-gray-500 text-sm mt-4 dark:text-gray-400">로딩 중...</div>
         </div>
     </div>
 
@@ -61,7 +61,7 @@
             listEl.innerHTML = '';
 
             if (data.folders.length === 0) {
-                listEl.innerHTML = '<div class="text-center text-gray-500 text-sm mt-4">저장된 분석이 없습니다.</div>';
+                listEl.innerHTML = '<div class="text-center text-gray-500 text-sm mt-4 dark:text-gray-400">저장된 분석이 없습니다.</div>';
                 return;
             }
 
@@ -125,7 +125,7 @@
     // 3. Render Table
     function renderTable(rows) {
         if (!rows || rows.length === 0) {
-            document.getElementById('tableContainer').innerHTML = '<div class="text-center text-gray-500 mt-10">데이터가 비어있습니다.</div>';
+            document.getElementById('tableContainer').innerHTML = '<div class="text-center text-gray-500 mt-10 dark:text-gray-400">데이터가 비어있습니다.</div>';
             return;
         }
 
@@ -139,7 +139,7 @@
                     <thead class="bg-gray-50 dark:bg-gray-700">
                         <tr>
                             <th class="px-6 py-3 text-left w-10">
-                                <input type="checkbox" onclick="toggleAllRepoCheckboxes(this)" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                <input type="checkbox" onclick="toggleAllRepoCheckboxes(this)" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700">
                             </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-16">No</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-1/4">Video Info</th>
@@ -156,17 +156,17 @@
             const safeFactor = (row['Success Factor'] || "").replace(/"/g, '&quot;');
 
             html += `
-                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition dark:bg-gray-900">
                     <td class="px-6 py-4">
-                        <input type="checkbox" class="repo-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        <input type="checkbox" class="repo-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700"
                             data-title="${safeTitle}"
                             data-synopsis="${safeSynopsis}"
                             data-factor="${safeFactor}">
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">${row['No']}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center dark:text-gray-400">${row['No']}</td>
                     <td class="px-6 py-4 text-sm text-gray-900 dark:text-white align-top">
                         <div class="font-bold mb-1 line-clamp-2" title="${row['Original Title']}">${row['Original Title']}</div>
-                        <div class="text-xs text-gray-500 flex items-center gap-2">
+                        <div class="text-xs text-gray-500 flex items-center gap-2 dark:text-gray-400">
                             <span>${row['Channel']}</span>
                             <span>•</span>
                             <span>👁️ ${parseInt(row['Views'] || 0).toLocaleString()}</span>

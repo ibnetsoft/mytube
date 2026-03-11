@@ -43,7 +43,7 @@
         <div
             class="col-span-12 md:col-span-5 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex flex-col overflow-hidden shadow-sm">
             <h3 class="text-sm font-bold text-gray-800 dark:text-white mb-2 flex items-center gap-2">
-                🏷️ {{ t('recommend_titles') }} <span class="text-xs font-normal text-gray-500">{{ t('copy_hint')
+                🏷️ {{ t('recommend_titles') }} <span class="text-xs font-normal text-gray-500 dark:text-gray-400">{{ t('copy_hint')
                     }}</span>
             </h3>
             <div id="titlesList" class="overflow-y-auto flex-1 space-y-1 pr-1 custom-scrollbar">
@@ -59,7 +59,7 @@
                 <div class="flex items-center justify-between mb-2">
                     <h3 class="text-sm font-bold text-gray-800 dark:text-white">📄 {{ t('video_desc_title') }}</h3>
                     <button onclick="copyDescription()"
-                        class="text-xs text-gray-500 hover:text-primary transition-colors flex items-center gap-1">
+                        class="text-xs text-gray-500 hover:text-primary transition-colors flex items-center gap-1 dark:text-gray-400">
                         📋 {{ t('btn_copy') }}
                     </button>
                 </div>
@@ -74,7 +74,7 @@
                     class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex flex-col shadow-sm">
                     <div class="flex items-center justify-between mb-1">
                         <h3 class="text-xs font-bold text-gray-800 dark:text-white">#️⃣ {{ t('status_image') }}</h3>
-                        <button onclick="copyTags()" class="text-[10px] text-gray-500 hover:text-primary">📋</button>
+                        <button onclick="copyTags()" class="text-[10px] text-gray-500 hover:text-primary dark:text-gray-400">📋</button>
                     </div>
                     <textarea id="tagsText"
                         class="flex-1 w-full text-xs p-2 border border-gray-200 dark:border-gray-700 rounded resize-none focus:ring-primary focus:border-primary bg-gray-50 dark:bg-gray-900 dark:text-gray-300 custom-scrollbar"
@@ -86,7 +86,7 @@
                     <div class="flex items-center justify-between mb-1">
                         <h3 class="text-xs font-bold text-gray-800 dark:text-white"># {{ t('nav_shorts') }}</h3>
                         <button onclick="copyHashtags()"
-                            class="text-[10px] text-gray-500 hover:text-primary">📋</button>
+                            class="text-[10px] text-gray-500 hover:text-primary dark:text-gray-400">📋</button>
                     </div>
                     <textarea id="hashtagsText"
                         class="flex-1 w-full text-xs p-2 border border-gray-200 dark:border-gray-700 rounded resize-none focus:ring-primary focus:border-primary bg-gray-50 dark:bg-gray-900 text-blue-500 font-medium custom-scrollbar"

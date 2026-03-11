@@ -28,7 +28,7 @@
 
         <!-- Explorer Tree -->
         <div id="explorerTree" class="flex-1 overflow-y-auto p-2 custom-scrollbar">
-            <div class="text-center py-10 text-gray-500 text-sm">
+            <div class="text-center py-10 text-gray-500 text-sm dark:text-gray-400">
                 {{ t('status_loading_explorer') }}
             </div>
         </div>
@@ -48,7 +48,8 @@
                 {{ t('tab_manual_input') }}
             </button>
             <div class="flex-1"></div>
-            <span id="currentFileIndicator" class="text-xs text-gray-500 self-center px-2">{{ t('indicator_new_script')
+            <span id="currentFileIndicator" class="text-xs text-gray-500 self-center px-2 dark:text-gray-400">{{
+                t('indicator_new_script')
                 }}</span>
         </div>
 
@@ -83,14 +84,14 @@
                             <label class="cursor-pointer">
                                 <input type="radio" name="narrationMode" value="single" class="sr-only peer" checked>
                                 <div
-                                    class="px-3 py-1 text-[10px] rounded bg-gray-700 text-gray-500 peer-checked:bg-blue-600 peer-checked:text-white transition-all">
+                                    class="px-3 py-1 text-[10px] rounded bg-gray-700 text-gray-500 peer-checked:bg-blue-600 peer-checked:text-white transition-all dark:text-gray-400">
                                     {{ t('mode_monologue') or '단독' }}
                                 </div>
                             </label>
                             <label class="cursor-pointer">
                                 <input type="radio" name="narrationMode" value="multi" class="sr-only peer">
                                 <div
-                                    class="px-3 py-1 text-[10px] rounded bg-gray-700 text-gray-500 peer-checked:bg-purple-600 peer-checked:text-white transition-all">
+                                    class="px-3 py-1 text-[10px] rounded bg-gray-700 text-gray-500 peer-checked:bg-purple-600 peer-checked:text-white transition-all dark:text-gray-400">
                                     {{ t('mode_multivoice') or '다중' }}
                                 </div>
                             </label>
@@ -233,7 +234,7 @@
 
     async function refreshExplorer() {
         const container = document.getElementById('explorerTree');
-        container.innerHTML = `<div class="text-center py-8 text-gray-500 text-sm">${i18n.loading}</div>`;
+        container.innerHTML = `<div class="text-center py-8 text-gray-500 text-sm dark:text-gray-400">${i18n.loading}</div>`;
 
         try {
             // Load folders from localStorage (simple approach)
@@ -275,10 +276,10 @@
 
         if (explorerData.folders.length === 0 && explorerData.files.length === 0) {
             container.innerHTML = `
-                <div class="text-center py-10 text-gray-500">
+                <div class="text-center py-10 text-gray-500 dark:text-gray-400">
                     <div class="text-3xl mb-2">📭</div>
                     <p class="text-sm">${i18n.empty_title}</p>
-                    <p class="text-xs mt-1 text-gray-600">${i18n.empty_desc}</p>
+                    <p class="text-xs mt-1 text-gray-600 dark:text-gray-300">${i18n.empty_desc}</p>
                 </div>
             `;
             return;
@@ -298,7 +299,7 @@
                          onclick="toggleFolder('${folder.id}')">
                         <span class="text-yellow-500" id="folderIcon_${folder.id}">📁</span>
                         <span class="text-sm text-gray-300 flex-1" ondblclick="event.stopPropagation(); renameFolder('${folder.id}')">${folder.name}</span>
-                        <span class="text-xs text-gray-600">${filesInFolder.length}</span>
+                        <span class="text-xs text-gray-600 dark:text-gray-300">${filesInFolder.length}</span>
                         <button onclick="event.stopPropagation(); deleteFolder('${folder.id}')" 
                                 class="opacity-0 group-hover:opacity-100 text-xs text-red-400 hover:text-red-300">✕</button>
                     </div>
@@ -347,7 +348,7 @@
             <span class="${statusColor}">${statusIcon}</span>
             <div class="flex-1 min-w-0">
                 <p class="text-sm text-gray-200 truncate select-none">${file.name}</p>
-                <p class="text-[10px] text-gray-500 truncate select-none">${file.topic || i18n.status_no_topic}</p>
+                <p class="text-[10px] text-gray-500 truncate select-none dark:text-gray-400">${file.topic || i18n.status_no_topic}</p>
             </div>
             <span class="text-[10px] ${statusColor} select-none">${statusText}</span>
             <button onclick="event.stopPropagation(); deleteProject(${file.id}, '${file.name.replace(/'/g, "\\'")}')"
@@ -1033,18 +1034,15 @@ ${modeInstruction}
                     thumbnail_style: settings.thumbnail_style || "face",
                     all_video: settings.all_video || false,
                     motion_method: settings.motion_method || "standard",
-                    video_scene_count: settings.video_scene_count || 0
+                    video_scene_count: settings.video_scene_count || 0,
+                    use_character_analysis: settings.use_character_analysis === '1' || settings.use_character_analysis === true || false
                 })
             });
 
             const data = await res.json();
             if (data.status === 'ok') {
-                Utils.showToast("대기열에 추가되었습니다! 📥", "success");
-                setTimeout(() => {
-                    if (confirm("대기열에 담았습니다. 목록으로 돌아가시겠습니까?")) {
-                        window.location.href = '/script-plan';
-                    }
-                }, 500);
+                Utils.showToast("대기열에 추가되었습니다!", "success");
+                window.location.href = '/autopilot?tab=batch';
             } else {
                 throw new Error(data.error || "대기열 추가 실패");
             }

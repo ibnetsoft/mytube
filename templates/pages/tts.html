@@ -93,7 +93,7 @@
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
                         <span class="text-sm">🔑</span>
-                        <span id="apiStatusText" class="text-xs text-gray-500">{{ t('status_checking_api') }}</span>
+                        <span id="apiStatusText" class="text-xs text-gray-500 dark:text-gray-400">{{ t('status_checking_api') }}</span>
                     </div>
                 </div>
             </div>
@@ -119,7 +119,7 @@
                         class="text-[10px] text-blue-500 hover:text-blue-700">🔄 {{ t('btn_refresh') }}</button>
                 </div>
 
-                <div class="text-[10px] text-gray-500 mb-2 bg-blue-50 dark:bg-blue-900/20 p-2 rounded">
+                <div class="text-[10px] text-gray-500 mb-2 bg-blue-50 dark:bg-blue-900/20 p-2 rounded dark:text-gray-400">
                     {{ t('multivoice_helper') | safe }}
                 </div>
 
@@ -151,10 +151,10 @@
                 <h3 class="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
                     {{ t('script_input_title') }}
                     <span class="font-normal text-gray-400">|</span>
-                    <span class="font-normal text-gray-500"><span id="charCount">0</span>자</span>
+                    <span class="font-normal text-gray-500 dark:text-gray-400"><span id="charCount">0</span>자</span>
                 </h3>
                 <button onclick="loadScript()"
-                    class="text-xs text-gray-500 hover:text-primary flex items-center gap-1 transition-colors">
+                    class="text-xs text-gray-500 hover:text-primary flex items-center gap-1 transition-colors dark:text-gray-400">
                     🔄 {{ t('btn_load_script') }}
                 </button>
             </div>

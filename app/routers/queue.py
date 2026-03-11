@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, Body
 from typing import Optional, Dict, Any
 from pydantic import BaseModel
 import database as db
-from services import autopilot_service
+from services.autopilot_service import autopilot_service
 
 router = APIRouter(tags=["Queue"])
 
@@ -23,6 +23,20 @@ async def get_queue_status():
     try:
         status = autopilot_service.get_queue_status()
         return {"status": "success", "queue": status}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@router.get("/api/autopilot/queue")
+async def get_autopilot_queue():
+    """autopilot 페이지 대기열 조회 (JS 호환)"""
+    try:
+        projects = db.get_all_projects()
+        skip = {"done", "error", "draft", "created", "planning"}
+        active = [p for p in projects if p.get("status") and p["status"] not in skip]
+        # 최근 프로젝트만 (ID 기준 상위 20개)
+        active.sort(key=lambda x: x.get("id", 0), reverse=True)
+        active = active[:20]
+        return {"projects": active, "count": len(active)}
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -61,8 +75,10 @@ async def add_project_to_queue(project_id: int, req: AutopilotQueueRequest):
 
 @router.post("/api/queue/start")
 async def start_processing(background_tasks: BackgroundTasks):
-    """대기열 처리 시작"""
+    """대기열 처리 시작 (배치 워커가 이미 실행 중이면 그대로 성공 반환)"""
     try:
+        if autopilot_service.is_batch_running:
+            return {"status": "success", "message": "Batch worker already running"}
         background_tasks.add_task(autopilot_service.run_batch_workflow)
         return {"status": "success", "message": "Batch processing started"}
     except Exception as e:

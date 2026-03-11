@@ -7,7 +7,7 @@
         class="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 shrink-0">
         <h3 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
             <span>📤 {{ t('nav_upload_video') }}</span>
-            <span class="text-xs font-normal text-gray-500">{{ t('upload_video_desc') }}</span>
+            <span class="text-xs font-normal text-gray-500 dark:text-gray-400">{{ t('upload_video_desc') }}</span>
         </h3>
     </div>
 
@@ -32,7 +32,7 @@
                 </div>
 
                 <p class="text-sm font-bold text-gray-700 dark:text-gray-300">{{ t('drag_or_click') }}</p>
-                <p class="text-xs text-gray-500 mt-2 text-center">{{ t('upload_size_hint') }}</p>
+                <p class="text-xs text-gray-500 mt-2 text-center dark:text-gray-400">{{ t('upload_size_hint') }}</p>
                 <input type="file" id="fileInput" accept="video/*" class="hidden" onchange="handleFileSelect(event)">
             </div>
 
@@ -94,7 +94,7 @@
                         class="btn-primary py-2.5 bg-purple-600 hover:bg-purple-700 flex items-center justify-center gap-2 text-sm shadow-md">
                         <span>📤</span> {{ t('btn_reserve') }} 신청 (검수 필요)
                     </button>
-                    <p class="text-[10px] text-gray-500 text-center mt-1">
+                    <p class="text-[10px] text-gray-500 text-center mt-1 dark:text-gray-400">
                         * 일반 회원은 업로드 예약 후 관리자 확인을 거쳐 최종 게시됩니다.
                     </p>
                     {% endif %}

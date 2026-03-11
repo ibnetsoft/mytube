@@ -21,12 +21,13 @@ from services.tts_service import tts_service
 from services.auth_service import auth_service
 from services.replicate_service import replicate_service
 from services.webtoon_service import (
-    finalize_scene_analysis, slice_webtoon, process_webtoon_image,
-    analyze_directory_service, automate_webtoon_service, fetch_webtoon_url_service
+    analyze_directory_service, automate_webtoon_service, fetch_webtoon_url_service,
+    generate_single_scene_video_service, finalize_scene_analysis
 )
 from app.models.webtoon import (
     WebtoonScene, ScanRequest, AnalyzeDirRequest, 
-    WebtoonAutomateRequest, WebtoonPlanRequest, LocalImageRequest
+    WebtoonAutomateRequest, WebtoonPlanRequest, LocalImageRequest,
+    WebtoonSingleSceneRequest
 )
 from services.video_builder_service import (
     analyze_scenes_for_director, get_png_files_from_folder
@@ -164,12 +165,24 @@ async def replace_scene_image(
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
             
-        import urllib.parse
         ts = int(time.time())
+        image_url = f"/api/media/v?path={urllib.parse.quote(file_path)}&t={ts}"
+
+        # [NEW] Persist replacement in DB immediately
+        settings = db.get_project_settings(project_id)
+        if settings and settings.get("webtoon_scenes_json"):
+            scenes = json.loads(settings["webtoon_scenes_json"])
+            if 0 <= scene_index < len(scenes):
+                scenes[scene_index]["image_path"] = file_path
+                scenes[scene_index]["image_url"] = image_url
+                # Also reset specific overrides if needed (optional)
+                db.update_project_setting(project_id, "webtoon_scenes_json", json.dumps(scenes, ensure_ascii=False))
+                print(f"✅ [Persistence] Scene {scene_index} image updated in DB.")
+
         return {
             "status": "ok",
             "image_path": file_path,
-            "image_url": f"/api/media/v?path={urllib.parse.quote(file_path)}&t={ts}"
+            "image_url": image_url
         }
     except Exception as e:
         print(f"Replace image error: {e}")
@@ -199,12 +212,12 @@ async def classify_webtoon_scenes(
                         w, h = img.size
                         ratio = w / h
                         
-                        if ratio < 0.6: # 세로로 매우 김
+                        if ratio < 0.8: # 세로로 김 (기준 완화)
                             scene_type = "1"
-                            type_label = "Type 1: 세로로 긴 컷 (패닝)"
-                        elif ratio > 1.2: # 가로로 넓음
+                            type_label = "Type 1: 세로형 컷 (패닝)"
+                        elif ratio > 1.0: # 가로로 조금이라도 넓으면 Type 2로 간주
                             scene_type = "2"
-                            type_label = "Type 2: 가로형 컷 (확장/크롭)"
+                            type_label = "Type 2: 가로형 컷 (팬핑 권장)"
                 except: pass
             
             # 2. 내용 기반 보정 (키워드 매칭)
@@ -495,7 +508,14 @@ async def analyze_webtoon(
                     "image_url": f"/api/media/v?path={urllib.parse.quote(video_path)}&t={ts}",
                     "analysis": {"dialogue": "", "character": "Unknown", "visual_desc": "Error during analysis", "atmosphere": "Error"}
                 })
-            
+        
+        # [NEW] Critical Persistence: Save scenes to DB
+        try:
+            db.update_project_setting(project_id, "webtoon_scenes_json", json.dumps(scenes, ensure_ascii=False))
+            print(f"✅ [Persistence] Saved {len(scenes)} scenes to project {project_id}")
+        except Exception as se:
+            print(f"⚠️ [Persistence] Failed to auto-save scenes: {se}")
+
         response_data = {
             "status": "ok",
             "scenes": scenes,
@@ -568,6 +588,44 @@ async def generate_webtoon_plan(req: WebtoonPlanRequest):
         # 이제 기획서 생성
         plan = await gemini_service.generate_webtoon_plan(updated_scenes)
         
+        # [FORCE OVERRIDE] 물리적 비율에 따른 강제 보정 (AI 기획이 줌인이어도 팬핑으로 교체)
+        if plan and "scene_specifications" in plan:
+            for spec in plan["scene_specifications"]:
+                try:
+                    # scene_number 타입 안전하게 매칭 (int vs None 방지)
+                    s_num_raw = spec.get('scene_number')
+                    if s_num_raw is None: continue
+                    s_num = int(s_num_raw)
+                    
+                    # original_s 매칭 시에도 None 체크 추가
+                    original_s = next((s for s in updated_scenes if int(s.get('scene_number') or -1) == s_num), None)
+                    
+                    if original_s:
+                        img_path = original_s.get('image_path')
+                        physically_wide = False
+                        if img_path and os.path.exists(img_path):
+                            with Image.open(img_path) as img:
+                                w, h = img.size
+                                # 가로 비율이 1.1만 넘어도 강제로 Pan Right 전략 사용
+                                if w / h > 1.1: physically_wide = True
+
+                        # [핵심] 가로가 길면 AI 대답 상관없이 'pan_right'로 덮어쓰기
+                        if physically_wide or str(original_s.get('scene_type')) == "2":
+                            print(f"   - [STRICT OVERRIDE] Scene {s_num} (Wide ratio) forced to pan_right from {spec.get('effect')}")
+                            spec['effect'] = "pan_right"
+                            spec['engine'] = "akool"
+                            # 프롬프트에도 가로 이동 키워드 강제 주입
+                            if "zoom" in str(spec.get('motion', '')).lower():
+                                spec['motion'] = str(spec.get('motion', '')).lower().replace("zoom", "horizontal pan").capitalize()
+                            if "pan" not in str(spec.get('motion', '')).lower():
+                                spec['motion'] += ". Camera pans right horizontally."
+                except Exception as e:
+                    print(f"   - [Override Error] Scene spec processing failed: {e}")
+                
+                # 엔진 무조건 akool 우선
+                if not spec.get('engine') or spec.get('engine') == 'wan':
+                    spec['engine'] = 'akool'
+
         # [NEW] Save Plan to Project Settings
         try:
             plan_json = json.dumps(plan, ensure_ascii=False)
@@ -580,15 +638,15 @@ async def generate_webtoon_plan(req: WebtoonPlanRequest):
         print(f"Plan Gen Error: {e}")
         raise HTTPException(500, str(e))
 
-@router.post("/automate")
-async def automate_webtoon(req: WebtoonAutomateRequest):
-    """분석된 데이터를 프로젝트 설정에 저장하고 대기열로 전송"""
+        raise HTTPException(500, str(e))
+
+@router.post("/generate-scene-video")
+async def generate_scene_video(req: WebtoonSingleSceneRequest):
+    """특정 장면 하나만 영상을 생성"""
     try:
-        return await automate_webtoon_service(
-            req.project_id, req.scenes, req.use_lipsync, req.use_subtitles, req.character_map
-        )
+        return await generate_single_scene_video_service(req.project_id, req.scene_index, req.scene)
     except Exception as e:
-        print(f"Automate error: {e}")
+        print(f"Generate scene video error: {e}")
         raise HTTPException(500, str(e))
 
 @router.post("/scan")
@@ -635,12 +693,31 @@ async def analyze_directory(req: AnalyzeDirRequest):
 @router.post("/save-analysis")
 async def save_webtoon_analysis(
     project_id: int = Body(...),
-    scenes: List[Dict] = Body(...)
+    scenes: List[Dict] = Body(...),
+    webtoon_source_dir: Optional[str] = Body(None),
+    psd_exclude_layer: Optional[str] = Body(None)
 ):
     """분석 결과(장면) 저장"""
     try:
         scenes_json = json.dumps(scenes, ensure_ascii=False)
         db.update_project_setting(project_id, "webtoon_scenes_json", scenes_json)
+        
+        if webtoon_source_dir is not None:
+            db.update_project_setting(project_id, "webtoon_source_dir", webtoon_source_dir)
+        if psd_exclude_layer is not None:
+            db.update_project_setting(project_id, "psd_exclude_layer", psd_exclude_layer)
+        
+        # [NEW] Extract and persist voice mapping for consistency
+        try:
+            voice_map = {}
+            for s in scenes:
+                char = s.get('analysis', {}).get('character')
+                if char and char != "Unknown" and s.get('voice_id'):
+                    voice_map[char] = {"id": s.get('voice_id'), "name": s.get('voice_name')}
+            if voice_map:
+                db.update_project_setting(project_id, "voice_mapping_json", json.dumps(voice_map, ensure_ascii=False))
+        except: pass
+            
         return {"status": "ok"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -673,13 +750,17 @@ async def get_webtoon_analysis(project_id: int):
                 if norm_char and norm_char != "Unknown":
                     char_voice_map[norm_char] = {"id": sc['voice_id'], "name": sc['voice_name']}
 
-            # [NEW] Load Saved Plan
+            # [NEW] Load Saved Plan & Characters
             plan = None
             if settings.get("webtoon_plan_json"):
                 try: plan = json.loads(settings["webtoon_plan_json"])
                 except: pass
 
-            return {"status": "ok", "scenes": scenes, "plan": plan}
+            characters = []
+            try: characters = db.get_project_characters(project_id)
+            except: pass
+
+            return {"status": "ok", "scenes": scenes, "plan": plan, "characters": characters, "settings": settings}
         return {"status": "ok", "scenes": []}
     except Exception as e:
         print(f"Get Analysis Error: {e}")

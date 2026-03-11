@@ -127,10 +127,10 @@ JSON 형식으로 반환:
                 <div class="bg-gradient-to-r from-red-500 to-orange-500 p-4 text-white -m-6 mb-4">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2">
-                            <span class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center font-bold">${i + 1}</span>
+                            <span class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center font-bold dark:bg-gray-800">${i + 1}</span>
                             <span class="font-bold">{{ t('short_num_prefix') }}${i + 1}</span>
                         </div>
-                        <button onclick="copyShorts(${i})" class="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition">
+                        <button onclick="copyShorts(${i})" class="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition dark:bg-gray-800">
                             {{ t('btn_copy_all_v2') }}
                         </button>
                     </div>
@@ -141,13 +141,13 @@ JSON 형식으로 반환:
                     <div>
                         <div class="flex items-center gap-2 mb-2">
                             <span class="px-2 py-1 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded text-xs font-bold">{{ t('label_hook_ko') }}</span>
-                            <span class="text-sm text-gray-500">{{ t('label_first_sec') }}</span>
+                            <span class="text-sm text-gray-500 dark:text-gray-400">{{ t('label_first_sec') }}</span>
                         </div>
                         <p class="font-medium bg-yellow-50 dark:bg-yellow-900/30 p-3 rounded-lg">"${short.hook}"</p>
                     </div>
 
                     <div>
-                        <p class="text-sm text-gray-500 mb-2">{{ t('label_full_script_ko') }}</p>
+                        <p class="text-sm text-gray-500 mb-2 dark:text-gray-400">{{ t('label_full_script_ko') }}</p>
                         <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg text-sm whitespace-pre-wrap">${short.script}</div>
                     </div>
 

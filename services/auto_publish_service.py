@@ -26,7 +26,7 @@ class AutoPublishService:
         self.running = True
         self.thread = threading.Thread(target=self._run, daemon=True)
         self.thread.start()
-        print("🚀 Auto Publish Service started.")
+        print("[Auto Publish] Service started.")
 
     def stop(self):
         self.running = False
@@ -36,7 +36,7 @@ class AutoPublishService:
             try:
                 self._check_and_publish()
             except Exception as e:
-                print(f"❌ AutoPublish error: {e}")
+                print(f"[Error] AutoPublish error: {e}")
             time.sleep(self.interval)
 
     def _check_and_publish(self):
@@ -59,7 +59,7 @@ class AutoPublishService:
             if not publish_queue:
                 return
 
-            print(f"🔔 Found {len(publish_queue)} videos to be published to YouTube.")
+            print(f"[Info] Found {len(publish_queue)} videos to be published to YouTube.")
 
             # 3. For each request, update YouTube privacy
             for req in publish_queue:
@@ -68,7 +68,7 @@ class AutoPublishService:
                 video_id = metadata.get('videoId')
                 
                 if not video_id:
-                    print(f"⚠️ Request {req_id} missing videoId in metadata.")
+                    print(f"[Warning] Request {req_id} missing videoId in metadata.")
                     continue
 
                 # [NEW] 채널 정보 조회하여 토큰 경로 결정 (main.py의 로직과 동일하게)
@@ -94,15 +94,15 @@ class AutoPublishService:
                     }, timeout=10)
                     
                     if patch_res.status_code == 200:
-                        print(f"✅ Video {video_id} is now PUBLIC and marked as published.")
+                        print(f"[Success] Video {video_id} is now PUBLIC and marked as published.")
                     else:
-                        print(f"⚠️ Failed to update status on server for {video_id}: {patch_res.text}")
+                        print(f"[Warning] Failed to update status on server for {video_id}: {patch_res.text}")
                         
                 except Exception as e:
-                    print(f"❌ Failed to publish video {video_id}: {e}")
+                    print(f"[Error] Failed to publish video {video_id}: {e}")
 
         except Exception as e:
-            print(f"❌ Failed to connect to Central Server: {e}")
+            print(f"[Error] Failed to connect to Central Server: {e}")
 
 # Singleton
 auto_publish_service = AutoPublishService()

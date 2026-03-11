@@ -531,3 +531,376 @@ Img[0] EffectRaw: pan_down -> Safe: pan_down (Dur:5.0, FPS:30)
 Img[1] EffectRaw: pan_down -> Safe: pan_down (Dur:5.0, FPS:30)
 Img[0] EffectRaw: pan_down -> Safe: pan_down (Dur:8.313, FPS:24)
 Img[1] EffectRaw: pan_down -> Safe: pan_down (Dur:12.196999999999997, FPS:24)
+Img[0] EffectRaw: zoom_in -> Safe: zoom_in (Dur:2.601, FPS:24)
+Img[0] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[1] EffectRaw: zoom_in -> Safe: zoom_in (Dur:0.7429999999999999, FPS:24)
+Img[1] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[2] EffectRaw: static -> Safe: static (Dur:2.972, FPS:24)
+Img[0] EffectRaw: zoom_in -> Safe: zoom_in (Dur:2.368, FPS:24)
+Img[0] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[1] EffectRaw: zoom_in -> Safe: zoom_in (Dur:0.8359999999999999, FPS:24)
+Img[1] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[2] EffectRaw: static -> Safe: static (Dur:1.3470000000000004, FPS:24)
+Img[3] EffectRaw: pan_up -> Safe: pan_up (Dur:0.9290000000000003, FPS:24)
+Img[3] ERROR applying effect 'pan_up': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[4] EffectRaw: zoom_in -> Safe: zoom_in (Dur:1.2999999999999998, FPS:24)
+Img[4] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[5] EffectRaw: zoom_in -> Safe: zoom_in (Dur:2.7399999999999993, FPS:24)
+Img[5] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[6] EffectRaw: zoom_in -> Safe: zoom_in (Dur:0.8819999999999997, FPS:24)
+Img[6] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[7] EffectRaw: static -> Safe: static (Dur:7.087999999999999, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:0.65, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:0.65, FPS:24)
+Img[1] EffectRaw: pan_up -> Safe: pan_up (Dur:2.043, FPS:24)
+Img[1] ERROR applying effect 'pan_up': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[1] EffectRaw: pan_up -> Safe: pan_up (Dur:2.043, FPS:24)
+Img[1] ERROR applying effect 'pan_up': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[2] EffectRaw: none -> Safe: none (Dur:3.158, FPS:24)
+Img[2] EffectRaw: none -> Safe: none (Dur:3.158, FPS:24)
+Img[3] EffectRaw: none -> Safe: none (Dur:5.958999999999999, FPS:24)
+Img[3] EffectRaw: none -> Safe: none (Dur:5.958999999999999, FPS:24)
+Img[0] EffectRaw: auto_classify -> Safe: auto_classify (Dur:8.127, FPS:24)
+Img[0] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[1] EffectRaw: auto_classify -> Safe: auto_classify (Dur:8.173, FPS:24)
+Img[1] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[2] EffectRaw: auto_classify -> Safe: auto_classify (Dur:6.129999999999999, FPS:24)
+Img[2] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[3] EffectRaw: auto_classify -> Safe: auto_classify (Dur:8.359000000000002, FPS:24)
+Img[3] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[4] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.18, FPS:24)
+Img[4] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[5] EffectRaw: auto_classify -> Safe: auto_classify (Dur:15.649999999999999, FPS:24)
+Img[5] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[6] EffectRaw: auto_classify -> Safe: auto_classify (Dur:21.825999999999993, FPS:24)
+Img[6] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[7] EffectRaw: auto_classify -> Safe: auto_classify (Dur:26.146, FPS:24)
+Img[7] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[8] EffectRaw: auto_classify -> Safe: auto_classify (Dur:24.473, FPS:24)
+Img[8] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[9] EffectRaw: auto_classify -> Safe: auto_classify (Dur:8.219999999999999, FPS:24)
+Img[9] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[10] EffectRaw: auto_classify -> Safe: auto_classify (Dur:6.1299999999999955, FPS:24)
+Img[10] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[11] EffectRaw: auto_classify -> Safe: auto_classify (Dur:5.200999999999993, FPS:24)
+Img[11] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[12] EffectRaw: auto_classify -> Safe: auto_classify (Dur:6.223000000000013, FPS:24)
+Img[12] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[13] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.318999999999988, FPS:24)
+Img[13] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[14] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.180000000000007, FPS:24)
+Img[14] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[15] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.271999999999991, FPS:24)
+Img[15] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[16] EffectRaw: auto_classify -> Safe: auto_classify (Dur:2.7860000000000014, FPS:24)
+Img[16] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[17] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.689999999999998, FPS:24)
+Img[17] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[18] EffectRaw: auto_classify -> Safe: auto_classify (Dur:5.062000000000012, FPS:24)
+Img[18] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[19] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.086999999999989, FPS:24)
+Img[19] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[20] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.923000000000002, FPS:24)
+Img[20] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[21] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.039999999999992, FPS:24)
+Img[21] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[22] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.318999999999988, FPS:24)
+Img[22] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[23] EffectRaw: auto_classify -> Safe: auto_classify (Dur:5.7590000000000146, FPS:24)
+Img[23] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[24] EffectRaw: auto_classify -> Safe: auto_classify (Dur:5.9909999999999854, FPS:24)
+Img[24] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[25] EffectRaw: auto_classify -> Safe: auto_classify (Dur:5.015999999999991, FPS:24)
+Img[25] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[26] EffectRaw: auto_classify -> Safe: auto_classify (Dur:2.1359999999999957, FPS:24)
+Img[26] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[27] EffectRaw: auto_classify -> Safe: auto_classify (Dur:1.625, FPS:24)
+Img[27] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[28] EffectRaw: auto_classify -> Safe: auto_classify (Dur:2.2290000000000134, FPS:24)
+Img[28] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[29] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.876000000000005, FPS:24)
+Img[29] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[30] EffectRaw: auto_classify -> Safe: auto_classify (Dur:5.294000000000011, FPS:24)
+Img[30] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[31] EffectRaw: auto_classify -> Safe: auto_classify (Dur:6.826999999999998, FPS:24)
+Img[31] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[32] EffectRaw: auto_classify -> Safe: auto_classify (Dur:5.432999999999993, FPS:24)
+Img[32] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[33] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.271999999999991, FPS:24)
+Img[33] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[34] EffectRaw: auto_classify -> Safe: auto_classify (Dur:3.11099999999999, FPS:24)
+Img[34] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[35] EffectRaw: auto_classify -> Safe: auto_classify (Dur:2.740000000000009, FPS:24)
+Img[35] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[36] EffectRaw: auto_classify -> Safe: auto_classify (Dur:2.600999999999999, FPS:24)
+Img[36] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[37] EffectRaw: auto_classify -> Safe: auto_classify (Dur:5.47999999999999, FPS:24)
+Img[37] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[38] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.689999999999998, FPS:24)
+Img[38] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[39] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.365000000000009, FPS:24)
+Img[39] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[40] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.271999999999991, FPS:24)
+Img[40] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[41] EffectRaw: auto_classify -> Safe: auto_classify (Dur:5.711999999999989, FPS:24)
+Img[41] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[42] EffectRaw: auto_classify -> Safe: auto_classify (Dur:5.850999999999999, FPS:24)
+Img[42] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[43] EffectRaw: auto_classify -> Safe: auto_classify (Dur:6.7339999999999804, FPS:24)
+Img[43] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[44] EffectRaw: auto_classify -> Safe: auto_classify (Dur:5.432999999999993, FPS:24)
+Img[44] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[45] EffectRaw: auto_classify -> Safe: auto_classify (Dur:6.454999999999984, FPS:24)
+Img[45] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[46] EffectRaw: auto_classify -> Safe: auto_classify (Dur:5.711999999999989, FPS:24)
+Img[46] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[47] EffectRaw: auto_classify -> Safe: auto_classify (Dur:6.687000000000012, FPS:24)
+Img[47] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[48] EffectRaw: auto_classify -> Safe: auto_classify (Dur:5.850999999999999, FPS:24)
+Img[48] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[49] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.0400000000000205, FPS:24)
+Img[49] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[50] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.086999999999989, FPS:24)
+Img[50] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[51] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.6440000000000055, FPS:24)
+Img[51] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[52] EffectRaw: auto_classify -> Safe: auto_classify (Dur:3.3899999999999864, FPS:24)
+Img[52] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[53] EffectRaw: auto_classify -> Safe: auto_classify (Dur:2.0430000000000064, FPS:24)
+Img[53] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[54] EffectRaw: auto_classify -> Safe: auto_classify (Dur:2.136000000000024, FPS:24)
+Img[54] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[55] EffectRaw: auto_classify -> Safe: auto_classify (Dur:2.1829999999999927, FPS:24)
+Img[55] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[56] EffectRaw: auto_classify -> Safe: auto_classify (Dur:1.254000000000019, FPS:24)
+Img[56] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[57] EffectRaw: auto_classify -> Safe: auto_classify (Dur:1.7180000000000177, FPS:24)
+Img[57] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[58] EffectRaw: auto_classify -> Safe: auto_classify (Dur:1.3929999999999723, FPS:24)
+Img[58] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[59] EffectRaw: auto_classify -> Safe: auto_classify (Dur:1.4399999999999977, FPS:24)
+Img[59] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[60] EffectRaw: auto_classify -> Safe: auto_classify (Dur:1.997000000000014, FPS:24)
+Img[60] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[61] EffectRaw: auto_classify -> Safe: auto_classify (Dur:1.5330000000000155, FPS:24)
+Img[61] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[62] EffectRaw: auto_classify -> Safe: auto_classify (Dur:1.8109999999999786, FPS:24)
+Img[62] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[63] EffectRaw: auto_classify -> Safe: auto_classify (Dur:1.625, FPS:24)
+Img[63] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[64] EffectRaw: auto_classify -> Safe: auto_classify (Dur:1.115000000000009, FPS:24)
+Img[64] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[65] EffectRaw: auto_classify -> Safe: auto_classify (Dur:1.0679999999999836, FPS:24)
+Img[65] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[66] EffectRaw: auto_classify -> Safe: auto_classify (Dur:0.882000000000005, FPS:24)
+Img[66] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[67] EffectRaw: auto_classify -> Safe: auto_classify (Dur:0.882000000000005, FPS:24)
+Img[67] ERROR applying effect 'zoom_in': resize() got an unexpected keyword argument 'new_size'. Did you mean 'newsize'?
+Img[0] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[0]: pan_left
+Img[1] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[1]: pan_up
+Img[2] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[2]: pan_right
+Img[3] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[3]: pan_right
+Img[4] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[4]: zoom_out
+Img[5] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[5]: pan_left
+Img[6] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[6]: zoom_in
+Img[7] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[7]: pan_left
+Img[8] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[8]: pan_up
+Img[9] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[9]: pan_up
+Img[10] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[10]: zoom_in
+Img[11] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[11]: pan_left
+Img[12] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[12]: pan_up
+Img[13] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[13]: pan_down
+Img[14] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[14]: pan_left
+Img[15] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[15]: pan_right
+Img[16] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[16]: zoom_out
+Img[17] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[17]: pan_up
+Img[18] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[18]: pan_right
+Img[19] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[19]: pan_up
+Img[20] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[20]: pan_left
+Img[21] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[21]: pan_left
+Img[22] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[22]: pan_down
+Img[23] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[23]: pan_left
+Img[24] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[24]: pan_down
+Img[25] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[25]: pan_down
+Img[26] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[26]: pan_right
+Img[27] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[27]: pan_up
+Img[28] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[28]: zoom_in
+Img[29] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[29]: zoom_in
+Img[30] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[30]: pan_down
+Img[31] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[31]: zoom_in
+Img[32] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[32]: pan_up
+Img[33] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[33]: zoom_in
+Img[34] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[34]: pan_left
+Img[35] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[35]: zoom_in
+Img[36] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[36]: pan_right
+Img[37] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[37]: pan_down
+Img[38] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[38]: pan_up
+Img[39] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[39]: pan_down
+Img[40] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[40]: pan_down
+Img[41] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[41]: pan_left
+Img[42] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[42]: zoom_out
+Img[43] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[43]: zoom_out
+Img[44] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[44]: zoom_in
+Img[45] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[45]: zoom_in
+Img[46] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[46]: pan_up
+Img[47] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[47]: pan_down
+Img[48] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[48]: pan_down
+Img[49] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[49]: zoom_in
+Img[50] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[50]: zoom_in
+Img[51] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[51]: pan_right
+Img[52] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[52]: zoom_in
+Img[53] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[53]: pan_up
+Img[54] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[54]: pan_down
+Img[55] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[55]: pan_up
+Img[56] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[56]: zoom_in
+Img[57] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[57]: zoom_in
+Img[58] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[58]: zoom_in
+Img[59] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[59]: pan_right
+Img[60] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[60]: pan_up
+Img[61] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[61]: pan_down
+Img[62] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[62]: zoom_out
+Img[63] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[63]: zoom_in
+Img[64] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[64]: pan_down
+Img[65] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[65]: pan_down
+Img[66] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[66]: pan_right
+Img[67] EffectRaw: random -> Safe: random (Dur:10.147058823529411, FPS:24)
+  -> Random Selection for Img[67]: pan_left
+Img[0] EffectRaw: none -> Safe: none (Dur:34.97, FPS:24)
+Img[1] EffectRaw: none -> Safe: none (Dur:655.03, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:205.09, FPS:24)
+Img[1] EffectRaw: none -> Safe: none (Dur:872.41, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:1075.178, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:1075.178, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:1075.178, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:1075.178, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:1075.178, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:1075.178, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:1075.178, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:6.957, FPS:24)
+Img[0] EffectRaw: auto_classify -> Safe: auto_classify (Dur:10.124, FPS:24)
+Img[1] EffectRaw: auto_classify -> Safe: auto_classify (Dur:12.26, FPS:24)
+Img[2] EffectRaw: auto_classify -> Safe: auto_classify (Dur:8.637999999999998, FPS:24)
+Img[3] EffectRaw: auto_classify -> Safe: auto_classify (Dur:7.198, FPS:24)
+Img[4] EffectRaw: auto_classify -> Safe: auto_classify (Dur:7.755000000000003, FPS:24)
+Img[5] EffectRaw: auto_classify -> Safe: auto_classify (Dur:8.963000000000001, FPS:24)
+Img[6] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.643999999999998, FPS:24)
+Img[7] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.690000000000005, FPS:24)
+Img[8] EffectRaw: auto_classify -> Safe: auto_classify (Dur:15.604, FPS:24)
+Img[9] EffectRaw: auto_classify -> Safe: auto_classify (Dur:12.073999999999998, FPS:24)
+Img[10] EffectRaw: auto_classify -> Safe: auto_classify (Dur:13.838999999999999, FPS:24)
+Img[11] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.597999999999999, FPS:24)
+Img[12] EffectRaw: auto_classify -> Safe: auto_classify (Dur:9.938000000000002, FPS:24)
+Img[13] EffectRaw: auto_classify -> Safe: auto_classify (Dur:10.12400000000001, FPS:24)
+Img[14] EffectRaw: auto_classify -> Safe: auto_classify (Dur:3.7110000000000127, FPS:24)
+Img[0] EffectRaw: auto_classify -> Safe: auto_classify (Dur:10.124, FPS:24)
+Img[1] EffectRaw: auto_classify -> Safe: auto_classify (Dur:12.26, FPS:24)
+Img[2] EffectRaw: auto_classify -> Safe: auto_classify (Dur:8.545000000000002, FPS:24)
+Img[3] EffectRaw: auto_classify -> Safe: auto_classify (Dur:6.8729999999999976, FPS:24)
+Img[4] EffectRaw: auto_classify -> Safe: auto_classify (Dur:8.637999999999998, FPS:24)
+Img[5] EffectRaw: auto_classify -> Safe: auto_classify (Dur:9.102000000000004, FPS:24)
+Img[6] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.505000000000003, FPS:24)
+Img[7] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.598000000000006, FPS:24)
+Img[8] EffectRaw: auto_classify -> Safe: auto_classify (Dur:16.114999999999995, FPS:24)
+Img[9] EffectRaw: auto_classify -> Safe: auto_classify (Dur:11.656000000000006, FPS:24)
+Img[10] EffectRaw: auto_classify -> Safe: auto_classify (Dur:13.977999999999994, FPS:24)
+Img[11] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.736999999999995, FPS:24)
+Img[12] EffectRaw: auto_classify -> Safe: auto_classify (Dur:10.263000000000005, FPS:24)
+Img[13] EffectRaw: auto_classify -> Safe: auto_classify (Dur:10.263000000000005, FPS:24)
+Img[14] EffectRaw: auto_classify -> Safe: auto_classify (Dur:3.712999999999994, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:8.591, FPS:24)
+Img[1] EffectRaw: none -> Safe: none (Dur:10.820000000000002, FPS:24)
+Img[2] EffectRaw: auto_classify -> Safe: auto_classify (Dur:11.471, FPS:24)
+Img[3] EffectRaw: auto_classify -> Safe: auto_classify (Dur:10.495000000000001, FPS:24)
+Img[4] EffectRaw: auto_classify -> Safe: auto_classify (Dur:11.424, FPS:24)
+Img[5] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.551000000000002, FPS:24)
+Img[6] EffectRaw: auto_classify -> Safe: auto_classify (Dur:12.909999999999997, FPS:24)
+Img[7] EffectRaw: auto_classify -> Safe: auto_classify (Dur:11.656000000000006, FPS:24)
+Img[8] EffectRaw: auto_classify -> Safe: auto_classify (Dur:12.771, FPS:24)
+Img[9] EffectRaw: auto_classify -> Safe: auto_classify (Dur:8.915999999999997, FPS:24)
+Img[10] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.412000000000006, FPS:24)
+Img[11] EffectRaw: auto_classify -> Safe: auto_classify (Dur:2.0, FPS:24)
+Img[0] EffectRaw: auto_classify -> Safe: auto_classify (Dur:17.879, FPS:24)
+Img[1] EffectRaw: none -> Safe: none (Dur:18.437, FPS:24)
+Img[2] EffectRaw: auto_classify -> Safe: auto_classify (Dur:18.064999999999998, FPS:24)
+Img[3] EffectRaw: auto_classify -> Safe: auto_classify (Dur:18.622, FPS:24)
+Img[4] EffectRaw: auto_classify -> Safe: auto_classify (Dur:6.965999999999994, FPS:24)
+Img[5] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.132999999999996, FPS:24)
+Img[6] EffectRaw: auto_classify -> Safe: auto_classify (Dur:10.867000000000004, FPS:24)
+Img[7] EffectRaw: auto_classify -> Safe: auto_classify (Dur:6.361999999999995, FPS:24)
+Img[8] EffectRaw: auto_classify -> Safe: auto_classify (Dur:7.337999999999994, FPS:24)
+Img[9] EffectRaw: auto_classify -> Safe: auto_classify (Dur:7.894999999999996, FPS:24)
+Img[10] EffectRaw: auto_classify -> Safe: auto_classify (Dur:8.915999999999997, FPS:24)
+Img[11] EffectRaw: auto_classify -> Safe: auto_classify (Dur:33.80900000000001, FPS:24)
+Img[12] EffectRaw: auto_classify -> Safe: auto_classify (Dur:15.463999999999999, FPS:24)
+Img[13] EffectRaw: auto_classify -> Safe: auto_classify (Dur:19.644000000000005, FPS:24)
+Img[14] EffectRaw: auto_classify -> Safe: auto_classify (Dur:22.105999999999995, FPS:24)
+Img[15] EffectRaw: auto_classify -> Safe: auto_classify (Dur:15.650000000000006, FPS:24)
+Img[16] EffectRaw: auto_classify -> Safe: auto_classify (Dur:2.9720000000000084, FPS:24)
+Img[17] EffectRaw: auto_classify -> Safe: auto_classify (Dur:12.134999999999991, FPS:24)

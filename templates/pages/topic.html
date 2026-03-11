@@ -49,11 +49,11 @@
                     <button onclick="changeTrendLanguage('ko')" id="btn-ko"
                         class="lang-btn px-3 py-1.5 rounded-md text-sm font-medium transition-all bg-indigo-500 text-white shadow-md">한국어</button>
                     <button onclick="changeTrendLanguage('ja')" id="btn-ja"
-                        class="lang-btn px-3 py-1.5 rounded-md text-sm font-medium text-gray-500 hover:text-indigo-500 transition-all">日本語</button>
+                        class="lang-btn px-3 py-1.5 rounded-md text-sm font-medium text-gray-500 hover:text-indigo-500 transition-all dark:text-gray-400">日本語</button>
                     <button onclick="changeTrendLanguage('en')" id="btn-en"
-                        class="lang-btn px-3 py-1.5 rounded-md text-sm font-medium text-gray-500 hover:text-indigo-500 transition-all">Eng</button>
+                        class="lang-btn px-3 py-1.5 rounded-md text-sm font-medium text-gray-500 hover:text-indigo-500 transition-all dark:text-gray-400">Eng</button>
                     <button onclick="changeTrendLanguage('es')" id="btn-es"
-                        class="lang-btn px-3 py-1.5 rounded-md text-sm font-medium text-gray-500 hover:text-indigo-500 transition-all">Esp</button>
+                        class="lang-btn px-3 py-1.5 rounded-md text-sm font-medium text-gray-500 hover:text-indigo-500 transition-all dark:text-gray-400">Esp</button>
                 </div>
             </div>
         </div>
@@ -75,7 +75,7 @@
             </div>
         </div>
 
-        <p class="text-center text-xs text-gray-500 mt-2">* 검색량 기반 AI 분석 데이터입니다. 원을 클릭하면 해당 키워드로 검색됩니다.</p>
+        <p class="text-center text-xs text-gray-500 mt-2 dark:text-gray-400">* 검색량 기반 AI 분석 데이터입니다. 원을 클릭하면 해당 키워드로 검색됩니다.</p>
     </div>
 </div>
 
@@ -160,7 +160,7 @@
 
     <!-- 추천 주제 -->
     <div class="flex flex-wrap gap-2">
-        <span class="text-sm text-gray-500 mr-2">{{ t('recommended_topics') }}:</span>
+        <span class="text-sm text-gray-500 mr-2 dark:text-gray-400">{{ t('recommended_topics') }}:</span>
         <button onclick="setSearchTopic('일상 브이로그')"
             class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">일상
             브이로그</button>
@@ -185,7 +185,7 @@
 <div id="loadingSection" class="hidden">
     <div class="card text-center py-12">
         <div class="loader mx-auto mb-4"></div>
-        <p class="text-gray-500">{{ t('status_loading') }}</p>
+        <p class="text-gray-500 dark:text-gray-400">{{ t('status_loading') }}</p>
     </div>
 </div>
 
@@ -193,7 +193,7 @@
 <div id="resultsSection" class="hidden">
     <div class="flex items-center justify-between mb-4">
         <h2 class="text-lg font-bold text-gray-800 dark:text-white">
-            {{ t('search_results') }} <span id="resultCount" class="text-gray-500 font-normal"></span>
+            {{ t('search_results') }} <span id="resultCount" class="text-gray-500 font-normal dark:text-gray-400"></span>
         </h2>
         <div class="flex gap-2">
             <button onclick="sortVideos('viral')" class="btn-secondary text-sm">{{ t('btn_sort_viral') }}</button>
@@ -215,7 +215,7 @@
                     <th scope="col" class="p-4">
                         <div class="flex items-center">
                             <input id="checkbox-all" type="checkbox" onclick="toggleAllCheckboxes(this)"
-                                class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500">
+                                class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:border-gray-700">
                         </div>
                     </th>
                     <th scope="col" class="px-2 py-3">{{ t('th_thumb') }}</th>
@@ -246,7 +246,7 @@
 <div id="emptySection" class="card text-center py-12">
     <div class="text-5xl mb-4">🎬</div>
     <h3 class="text-xl font-semibold text-gray-700 dark:text-white mb-2">{{ t('empty_title') }}</h3>
-    <p class="text-gray-500">{{ t('empty_desc') }}</p>
+    <p class="text-gray-500 dark:text-gray-400">{{ t('empty_desc') }}</p>
 </div>
 
 <!-- [REMOVED] Analysis Modal replaced by direct navigation to Script Plan -->
@@ -476,7 +476,7 @@
                 <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition">
                     <td class="w-4 p-4">
                         <div class="flex items-center">
-                            <input id="checkbox-table-${index}" type="checkbox" data-video-id="${video.id}" class="video-checkbox w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500">
+                            <input id="checkbox-table-${index}" type="checkbox" data-video-id="${video.id}" class="video-checkbox w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:border-gray-700">
                         </div>
                     </td>
                     <th scope="row" class="px-2 py-3 font-medium text-gray-900 dark:text-white whitespace-nowrap">
@@ -493,7 +493,7 @@
                             ${video.snippet.title}
                         </a>
                     </td>
-                    <td class="px-2 py-3 text-gray-500 whitespace-nowrap">
+                    <td class="px-2 py-3 text-gray-500 whitespace-nowrap dark:text-gray-400">
                         ${video.snippet.publishedAt.split('T')[0]}
                     </td>
                     <td class="px-2 py-3 text-right">
@@ -516,7 +516,7 @@
                              <button onclick="openAnalysisModal('${video.id}')" class="p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-gray-700 rounded transition" title="분석">
                                 🤖
                             </button>
-                             <button onclick="downloadThumbnail('${video.id}', '${video.snippet.thumbnails.high?.url}')" class="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition" title="썸네일 다운로드">
+                             <button onclick="downloadThumbnail('${video.id}', '${video.snippet.thumbnails.high?.url}')" class="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition dark:text-gray-400" title="썸네일 다운로드">
                                 ⬇️
                             </button>
                             <!-- Archive Actions -->
@@ -748,7 +748,7 @@
 
                 renderBubbleChart(data.keywords);
             } else {
-                container.innerHTML = '<div class="text-gray-500 text-center py-20">데이터가 없습니다</div>';
+                container.innerHTML = '<div class="text-gray-500 text-center py-20 dark:text-gray-400">데이터가 없습니다</div>';
             }
         } catch (e) {
             console.error('Trend keywords loading error:', e);

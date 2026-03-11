@@ -243,21 +243,25 @@ JSON만 반환하세요."""
         {{
             "scene_number": 1,
             "scene_title": "장면 요약 (예: '비밀을 알게 된 주인공')",
-            "scene_text": "해당 씬 구간의 원본 대본 내용을 요약 없이 그대로 인용 (절대 요약/압축 금지 — 원문 그대로, 최소 50자 이상)",
+            "scene_text": "해당 씬 구간의 원본 대본 내용 (요약/압축 절대 금지 — 원문 그대로, 장면 간 텍스트 중복 절대 금지)",
             "script_start": "해당 구간 첫 어절 (원문 첫 단어)",
             "script_end": "해당 구간 끝 어절 (원문 마지막 단어)",
             "estimated_seconds": 15,
             "visual_reasoning": "왜 이 연출을 선택했는지 (예: 긴장감을 고조시키기 위해 줌인 선택)",
             "prompt_ko": "이미지 묘사 (한글)",
             "prompt_en": "{style_prefix}, [Detailed Visual Description], [Camera Angle & Movement], [Lighting & Atmosphere]",
-            "prompt_char": "(졸라맨 스타일 전용) 캐릭터 단독 이미지 프롬프트 (흰 배경). 다른 스타일은 빈 문자열로.",
-            "prompt_bg": "(졸라맨 스타일 전용) 캐릭터 없는 배경/씬 전용 이미지 프롬프트. 다른 스타일은 빈 문자열로.",
-            "motion_desc": "[Video AI motion prompt — 300자 이내 영어] [camera movement], [character action reflecting the scene narrative], [background/environment movement], [atmosphere/lighting]"
+            "scene_type": "(졸라맨 스타일 전용) character_main | character_support | infographic 중 하나. 다른 스타일은 빈 문자열로.",
+            "prompt_char": "(졸라맨 스타일 전용) scene_type=character_main이면 전신 캐릭터, scene_type=character_support이면 작은 구석 캐릭터, scene_type=infographic이면 빈 문자열. 다른 스타일은 빈 문자열로.",
+            "prompt_bg": "(졸라맨 스타일 전용) 씬 내용에 맞는 풍부한 배경/환경/인포그래픽 이미지 프롬프트. 다른 스타일은 빈 문자열로."
         }}
     ]
 }}
 
 [작성 규칙 - Strict Rules]
+- **Detailed Environment & Background [필수]**:
+  - 절대 'plain white background'나 단순한 배경을 반복하지 마세요. (상황상 꼭 필요한 경우 제외)
+  - 대본의 장소와 시간대에 맞는 구체적인 배경 소품, 건축물, 자연 환경, 날씨, 조명을 상세히 묘사하여 화면을 풍성하게 채우세요.
+  - 다양한 구도(Low/High angle, Eye level)와 심도(Depth)를 활용하여 시각적 다양성을 확보하세요.
 - **prompt_en 구성**:
   1. 스타일 프리픽스("{style_prefix}")로 시작할 것.
   2. 피사체와 배경을 아주 구체적으로 묘사할 것.
@@ -265,29 +269,6 @@ JSON만 반환하세요."""
      (예: "Cinematic lighting, Shallow depth of field, Slow zoom in, Low angle shot, Highly detailed")
      ⚠️ "4k", "8k", "4K", "UHD", "HD", "resolution" 등 해상도 키워드 절대 사용 금지 — 이미지 내 텍스트 워터마크를 유발합니다.
   4. **모든 prompt_en 끝에 반드시 추가**: "no text, no words, no letters, no labels, no watermarks, no speech bubbles, no captions"
-- **motion_desc 구성 [영상 AI 전용 - 반드시 준수]**:
-  - **목적**: Seedance / Wan 2.1 Video AI에 전달되는 영상 모션 프롬프트. 씬의 감정과 서사를 시각적 움직임으로 표현.
-  - **길이**: **300자 이내** 영어
-  - **형식**: `[camera movement], [character action — 씬 감정에 맞게 구체적으로], [background/environment movement], [atmosphere]`
-  - **핵심 원칙**: "무엇이 어떻게 움직이는가"를 씬 서사에 맞게 구체적으로 기술. 범용적 표현 금지.
-  - **카메라 무브먼트** (씬 감정에 맞게 선택):
-    - 위기/붕괴: `slow push in`, `dramatic zoom in`, `slight camera shake`, `tilt down`
-    - 폭로/설명: `slow zoom out`, `pull back reveal`, `gentle pan across`
-    - 긴장/불안: `static shot with subtle sway`, `slow creep forward`, `slight handheld shake`
-    - 긍정/안정: `gentle pan right`, `slow zoom in`, `soft floating movement`
-  - **캐릭터 액션** (씬 감정에 맞게 선택):
-    - 충격/위기: `character stumbles back in shock`, `character covers mouth in disbelief`, `character stares wide-eyed`
-    - 결단/자신감: `character steps forward confidently`, `character nods firmly`
-    - 불안/걱정: `character paces nervously`, `character looks left and right frantically`
-    - 설명/강조: `character gestures expressively toward viewer`, `character points at background element`
-  - **배경 움직임** (씬에 생동감 부여):
-    - 위기 씬: `debris falls and scatters`, `buildings crumble slowly`, `smoke drifts upward`
-    - 경제 씬: `stock chart arrows animate downward`, `coins scatter`, `graph bars rise and fall`
-    - 군중 씬: `background figures shift and murmur`, `crowd ripples with movement`
-  - ✅ 좋은 예: `"slow push in toward character, character stumbles back in shock as building crumbles in background, debris falls from above, dramatic dark lighting with rising dust, tense atmosphere"`
-  - ✅ 좋은 예: `"pull back reveal, character gestures at rising bar charts, background crowd celebrates, warm golden light floods from windows, optimistic energy"`
-  - ❌ 나쁜 예: 이미지 외형 묘사 (`teal hoodie`, `white background` 등 정적 묘사)
-  - ❌ 나쁜 예: 범용 표현만 사용 (`character looks up`, `dramatic shadow play` 단독 사용)
 - **ABSOLUTELY NO TEXT IN IMAGE [최우선]**:
   - 이미지 내에 어떠한 텍스트, 글자, 단어, 레이블, 자막, 워터마크, 말풍선도 절대 포함 금지.
   - 해부도/다이어그램/포스터 등 원래 텍스트가 있는 소재를 묘사할 때도 글자 없이 시각적 요소만 묘사할 것.
