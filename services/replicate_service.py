@@ -273,33 +273,34 @@ class ReplicateService:
         # 공통 suffix
         suffix = ", no text, no words, no letters"
 
+        # 공통 wimpy 외형 규칙 (이목구비 필수, 소매 걷기 금지)
+        wimpy_char_rules = (
+            ", the character has a perfectly bald smooth white circular head, no hair, no hairstyle, no wig,"
+            " a pair of distinct black dot eyes and a simple black arc smile (Face must NEVER be blank),"
+            " vibrant teal-blue long-sleeved hoodie with front pocket and THICK CYLINDRICAL FULL-LENGTH TEAL-BLUE SLEEVES that cover the entire arm completely down to the white gloves,"
+            " THE TEAL-BLUE FABRIC MUST REACH THE WHITE GLOVES. NO THIN BLACK LINES FOR ARMS. NO ROLLED-UP SLEEVES, NO BLACK SKIN VISIBLE ON ARMS, NO SHORT SLEEVES, sleeves must be teal-blue,"
+            " solid black trousers, white sneakers with black trim,"
+            " strictly two arms and two hands only, bold black outlines, flat 2D vector style"
+        )
+
         if is_wimpy and is_char_only:
-            # 단일 캐릭터 이미지: 팔 제한 강제 적용
+            # 단일 캐릭터 이미지: 팔 제한 초강력 적용
             arm_prefix = (
                 "EXACTLY TWO ARMS ONLY. NO EXTRA ARMS. NO EXTRA HANDS. NO THIRD ARM. "
                 "BOTH ARMS VISIBLE AND ATTACHED TO SHOULDERS. "
+                "ARM COLOR MUST BE TEAL-BLUE. DO NOT DRAW BLACK ARMS. "
             )
-            wimpy_suffix = (
-                ", the character has exactly one left arm and one right arm, total two arms and two hands only,"
-                " no third arm, no fourth arm, no duplicate limbs, no extra appendages,"
-                " each arm connects directly from shoulder,"
-                " full-body minimalist cartoon stick-figure, bold black outlines, flat 2D vector,"
-                " perfectly bald smooth white circular head, no hair, no hairstyle, no wig,"
-                " (NOT black hair NOT white hair NOT blue hair NOT brown hair — strictly BALD),"
-                " dot eyes, wide arc smile,"
-                " vibrant teal-blue hoodie with front pocket, long black sleeves with black cuffs,"
-                " solid black trousers, white sneakers with black trim and laces,"
-                " small rounded fist-shaped hands with solid black outlines (NOT white balls NOT white circles),"
-                " pure white background, no background elements"
-            )
-            enforced_prompt = arm_prefix + prompt + suffix + wimpy_suffix
+            enforced_prompt = arm_prefix + prompt + suffix + wimpy_char_rules + ", isolated on pure white background"
         elif is_wimpy and is_scene_prompt:
-            # 통합 씬 이미지: 팔 제한 없이 씬 품질 강화
+            # 통합 씬 이미지: 캐릭터 외형 규칙 + 씬 품질 강화
+            # [버그 수정] 캐릭터 외형 규칙(wimpy_char_rules)을 씬 프롬프트에도 누락 없이 적용
             scene_suffix = (
                 ", YouTube educational cartoon style, clean thick black outlines,"
                 " flat bold vibrant colors, layered scene depth, warm vibrant lighting"
             )
-            enforced_prompt = prompt + suffix + scene_suffix
+            # 팔 색상 강조 추가
+            wimpy_scene_rules = wimpy_char_rules + ", ARM COLOR MUST BE TEAL-BLUE, NO BLACK ARMS"
+            enforced_prompt = prompt + suffix + wimpy_scene_rules + scene_suffix
         else:
             enforced_prompt = prompt + suffix
 

@@ -1,21 +1,16 @@
 import sqlite3
-from pathlib import Path
+import json
 
-DB_PATH = Path(__file__).parent / "data" / "wingsai.db"
-conn = sqlite3.connect(str(DB_PATH))
-cursor = conn.cursor()
+def check_recent_prompts():
+    conn = sqlite3.connect('database.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT prompt_en, prompt_char FROM image_prompts ORDER BY id DESC LIMIT 10")
+    rows = cursor.fetchall()
+    for i, row in enumerate(rows):
+        print(f"--- Prompt {i+1} ---")
+        print(f"EN: {row[0]}")
+        print(f"CHAR: {row[1]}")
+    conn.close()
 
-# Check style_presets table with all columns
-cursor.execute('SELECT style_key, prompt_value FROM style_presets')
-rows = cursor.fetchall()
-print(f'style_presets - Total rows: {len(rows)}\n')
-
-for row in rows:
-    style_key, prompt_value = row
-    # Show first 100 chars of prompt
-    prompt_preview = prompt_value[:100] if prompt_value else "[NULL]"
-    print(f"Style: {style_key}")
-    print(f"Prompt: {prompt_preview}...")
-    print("-" * 80)
-
-conn.close()
+if __name__ == "__main__":
+    check_recent_prompts()

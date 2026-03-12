@@ -80,11 +80,13 @@ async function loadStyles() {
             Object.entries(data).forEach(([key, val]) => {
                 // If customized style has image_url, use it. Otherwise, use default path.
                 const imgUrl = (typeof val === 'object' && val.image_url) ? val.image_url : `/static/img/styles/style_${key}.png`;
+                const hasInstruction = (typeof val === 'object' && val.gemini_instruction && val.gemini_instruction.trim().length > 0);
 
                 const style = {
                     id: key,
                     name: (typeof val === 'object' && val.name_ko) ? val.name_ko : key,
-                    img: imgUrl
+                    img: imgUrl,
+                    hasInstruction: hasInstruction
                 };
                 const div = createStyleCard(style, 'imageStyle');
                 vGrid.appendChild(div);
@@ -121,11 +123,13 @@ async function loadStyles() {
                 if (!displayedStyles[key]) return; // 바이럴 외에는 안보이게 처리
 
                 const imgUrl = (typeof val === 'object' && val.image_url) ? val.image_url : `/static/img/thumbs/${key}.png`;
+                const hasInstruction = (typeof val === 'object' && val.gemini_instruction && val.gemini_instruction.trim().length > 0);
 
                 const style = {
                     id: key,
                     name: displayedStyles[key],
-                    img: imgUrl
+                    img: imgUrl,
+                    hasInstruction: hasInstruction
                 };
                 const div = createStyleCard(style, 'thumbnailStyle');
                 tGrid.appendChild(div);
@@ -160,6 +164,11 @@ function createStyleCard(style, inputId) {
         <div class="absolute bottom-0 inset-x-0 bg-black/60 p-1.5 text-center transition-transform translate-y-0">
             <span class="text-[10px] text-white font-medium block truncate">${displayName}</span>
         </div>
+        ${style.hasInstruction ? `
+        <div class="absolute top-1.5 left-1.5 bg-purple-600/90 text-white rounded-md px-1 py-0.5 text-[8px] font-bold flex items-center gap-0.5 shadow-lg">
+            <span>🧠</span><span>GROUNDED</span>
+        </div>
+        ` : ''}
         <div class="absolute top-2 right-2 bg-purple-600 rounded-full p-1 opacity-0 check-icon transition-opacity shadow-lg">
             <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
         </div>

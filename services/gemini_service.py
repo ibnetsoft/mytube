@@ -389,18 +389,42 @@ class GeminiService:
                 # 비실사 스타일: 실사 키워드 차단
                 if is_stylistic and not contains_photo:
                     final_prompt += ", flat 2D style, no photorealism, no text, no words"
+                # 졸라맨 여부 재판단 (배경 유무와 상관없이 캐릭터 형태 기준)
+                is_jollaman = any(kw in prompt.lower() for kw in ["wimpy", "stick figure", "stickman", "졸라맨", "jollaman"])
+                
                 # 졸라맨: arm 강제 문구를 앞에 추가 + 뒤 suffix 강화
                 if is_wimpy:
+                    # 순수 졸라맨 (흰배경)
                     final_prompt = (
                         "EXACTLY TWO ARMS ONLY. NO EXTRA ARMS. NO EXTRA HANDS. "
+                        "ARM COLOR MUST BE TEAL-BLUE. DO NOT DRAW BLACK ARMS. "
+                        "THE CHARACTER MUST HAVE A PAIR OF BLACK DOT EYES AND A SMALL ARC SMILE ON THE FACE. "
                         + final_prompt
                         + ", the character has exactly one left arm and one right arm total,"
                         " no third arm no fourth arm no duplicate limbs,"
-                        " flat 2D vector no gradients no 3D, perfectly bald smooth white circular head, no hair, no hairstyle,"
-                        " dot eyes, arc smile, teal-blue hoodie with front pocket, long black sleeves with black cuffs,"
-                        " black trousers, white sneakers with black trim,"
-                        " small rounded fist-shaped hands with black outlines (NOT white balls NOT white circles),"
+                        " flat 2D vector no gradients no 3D, perfectly bald smooth round white circular head, no hair, no hairstyle,"
+                        " a pair of distinct black dot eyes and a simple black arc smile (MUST HAVE EYES AND MOUTH),"
+                        " Face must NEVER be blank or empty. "
+                        " vibrant teal-blue hoodie with front pocket and THICK CYLINDRICAL FULL-LENGTH TEAL-BLUE SLEEVES covering the entire arm completely down to the white gloves,"
+                        " THE TEAL-BLUE FABRIC MUST REACH THE WHITE GLOVES. NO BLACK LINES VISIBLE FOR ARMS. "
+                        " NO ROLLED-UP SLEEVES, NO BLACK SKIN VISIBLE ON ARMS, NO BLACK ARMS, NO SHORT SLEEVES, sleeves must be teal-blue (same color as the hoodie),"
+                        " solid black trousers, white sneakers with black trim,"
+                        " small rounded white-gloved fist-shaped hands with black outlines (NOT white balls NOT white circles),"
                         " pure white background, single scene"
+                    )
+                elif is_jollaman:
+                    # 배경이 있는 졸라맨 (웹툰 등)
+                    final_prompt = (
+                        "EXACTLY TWO ARMS ONLY. NO EXTRA ARMS. NO EXTRA HANDS. "
+                        "ARM COLOR MUST BE TEAL-BLUE. DO NOT DRAW BLACK ARMS. "
+                        + final_prompt
+                        + ", the character has a perfectly bald smooth round white circular head, no hair, no hairstyle,"
+                        " a pair of distinct black dot eyes and a simple black arc smile (MUST HAVE EYES AND MOUTH),"
+                        " Face must NEVER be blank or empty. "
+                        " THICK CYLINDRICAL FULL-LENGTH TEAL-BLUE SLEEVES covering the entire arm completely down to the white gloves,"
+                        " THE TEAL-BLUE FABRIC MUST REACH THE WHITE GLOVES. NO BLACK LINES VISIBLE FOR ARMS. "
+                        " NO ROLLED-UP SLEEVES, no black skin visible on arms, NO BLACK ARMS, NO SHORT SLEEVES,"
+                        " strictly two arms total, no extra limbs"
                     )
                 # 모든 스타일 공통: 단일 이미지 + 해부학
                 final_prompt += ", single person, exactly two arms and two hands only, anatomically correct, no extra limbs, NO THREE ARMS, NO FOUR ARMS, NO MULTIPLE LIMBS, NO MUTATED HANDS"
@@ -983,20 +1007,24 @@ class GeminiService:
         raised_arm_patterns = [
             r'fist[s]?\s+(?:raised|up|pump|pump(?:ing)?|clench(?:ed)?)',
             r'raised\s+fist[s]?',
-            r'(?:both\s+)?arms?\s+(?:raised|up|extended|outstretched|lifted|spread|pointing|gesturing)',
-            r'(?:left|right)\s+arm\s+(?:raised|up|extended|lifted|pointing|spread)',
+            r'(?:both\s+)?arms?\s+(?:raised|up|extended|outstretched|lifted|spread|pointing|gesturing|moving|waiving|celebrating|waving)',
+            r'(?:left|right)\s+arm\s+(?:raised|up|extended|lifted|pointing|spread|moving|waiving)',
             r'punch(?:ing)?', r'flex(?:ing)?\s+(?:muscle|arm|bicep)', r'muscle[s]?\s+flex',
             r'clench(?:ed|ing)?\s+fist[s]?', r'fist[s]?\s+clench',
             r'arms?\s+wide', r'wide\s+arms?', r'outstretched\s+arms?',
             r'victory\s+pose', r'triumphant\s+pose', r'power\s+pose', r'pointing\s+at',
+            r'clapping', r'hug(?:ging)?', r'shrugging', r'dancing', r'running\s+with\s+arms',
+            r'throwing\s+arms', r'arms\s+in\s+the\s+air'
         ]
 
-        # 머리카락 패턴
+        # 머리카락 및 머리 장식 패턴 (뿔, 귀, 모자 등 포함)
         hair_patterns = [
             r'\w+\s+hair', r'hair\s+style', r'hair\s+color', r'hairstyle', r'black\s+hair',
             r'brown\s+hair', r'blonde\s+hair', r'with\s+hair', r'has\s+hair', r'long\s+hair',
             r'short\s+hair', r'swept-back\s+hair', r'undercut', r'fade\s+cut',
-            r'head\s+with\s+black\s+shape', r'black\s+cap\s+on\s+head',
+            r'head\s+with\s+black\s+shape', r'black\s+cap\s+on\s+head', r'horn[s]?',
+            r'ear[s]?', r'cap[s]?', r'hat[s]?', r'headpiece', r'ribbon', r'wig',
+            r'beard', r'mustache', r'sideburns', r'ponytail', r'mohawk',
         ]
 
         # 1. 머리카락 관련 표현 무조건 제거
@@ -1006,14 +1034,17 @@ class GeminiService:
         has_holding = any(re.search(p, prompt, re.IGNORECASE) for p in holding_patterns)
         has_raised = any(re.search(p, prompt, re.IGNORECASE) for p in raised_arm_patterns)
 
-        # 2. 맹목적으로 무조건 추가할 해부학 규칙 (초강력 버전)
+        # 2. 맹목적으로 무조건 추가할 해부학 규칙 (초강력 버전 - 괴물 방지)
+        # 핵심: EXACTLY TWO ARMS 를 문장 맨 뒤에도 붙여서 강조
         anatomy_safeguard = (
             " strictly correct anatomy, ONLY TWO ARMS TOTAL (one left arm, one right arm), "
             "ONLY TWO WHITE GLOVED HANDS TOTAL, no third arm, no fourth arm, no extra limbs, "
             "strictly humanoid structure with only two arms attached to torso. "
-            "perfectly bald smooth round white head, strictly NO hair, NO hairstyle, NO wig, "
-            "the top of the head is perfectly clean white and smooth with no black shapes. "
-            "IMPORTANT: Background elements or other illustrated characters must not touch or attach to the main character."
+            "THE CHARACTER FACE MUST HAVE: a pair of distinct black dot eyes and a simple black arc smile (smile expression). "
+            "Face must NEVER be blank or empty. Head is a perfectly bare smooth bald white sphere with NO details and NO hair. "
+            "DRESS CODE: Teal-blue long-sleeved hoodie. The sleeves MUST be THICK CYLINDRICAL TEAL-BLUE FABRIC and cover the arms completely down to the white gloves. "
+            "STRICTLY NO BLACK ARMS, NO THIN BLACK LINES FOR ARMS, NO ROLLED-UP SLEEVES, NO BLACK SKIN VISIBLE ON ARMS. "
+            "STRICTLY EXACTLY TWO ARMS ONLY, NO EXTRA APPENDAGES, NO MUTATED LIMBS."
         )
 
         if has_holding or has_raised:
@@ -1030,7 +1061,8 @@ class GeminiService:
                 "The character stands in a neutral posture. "
                 "The left arm and left hand hang naturally straight down by the left side of the body. "
                 "The right arm and right hand hang naturally straight down by the right side of the body. "
-                "ONLY TWO ARMS AND ONLY TWO HANDS ARE VISIBLE."
+                "ONLY TWO ARMS AND ONLY TWO HANDS ARE VISIBLE. "
+                "The character has two black dot eyes and a small mouth on its face."
             )
             prompt = re.sub(r'\.\s*$', '', prompt.strip())
             prompt = prompt + ". " + safe_pose
@@ -1204,7 +1236,8 @@ Motion prompt for this image:"""
             "THE FACE MUST HAVE a pair of distinct black circular eyes and a simple black mouth (expression matching the mood). "
             "vibrant solid teal-blue long-sleeved hooded sweatshirt (hoodie) with a front kangaroo pocket, "
             "black trousers, simple sneakers. "
-            "The black limbs (exactly two arms and two legs) must have a perfectly uniform and consistent thickness throughout. "
+            "The character has exactly two teal-blue arms (hoodie sleeves) and two black legs. "
+            "STRICTLY NO BLACK ARMS, NO ROLLED-UP SLEEVES. The teal-blue sleeves must reach the white gloves. "
             "Thick clean black outlines, flat 2D cartoon illustration style. "
             "The character has exactly one left arm and one right arm, total two arms and two hands only. "
             "Humanoid anatomy with strictly two arms connected to the body. No third arm. No fourth arm. No duplicate limbs. "
@@ -1313,7 +1346,9 @@ Motion prompt for this image:"""
                     r'teal\s+hair', r'cyan\s+hair', r'blue\s+hair', r'colored?\s+hair', r'brown\s+hair', r'swept-back\s+hair',
                     r'hair\s+color', r'teal\s+head', r'cyan\s+head', r'colored?\s+head', r'black\s+hair', r'blonde\s+hair',
                     r'with\s+\w+\s+hair', r'has\s+\w+\s+hair', r'\w+\s+colored?\s+hair', r'hairstyle', r'hair\s+style',
-                    r'undercut', r'fade\s+cut', r'short\s+hair', r'long\s+hair',
+                    r'undercut', r'fade\s+cut', r'short\s+hair', r'long\s+hair', r'spike\s+hair',
+                    r'horn[s]?', r'ear[s]?', r'cap[s]?', r'hat[s]?', r'headpiece', r'ribbon', r'wig',
+                    r'beard', r'mustache', r'sideburns', r'ponytail', r'mohawk', r'black\s+shape\s+on\s+head',
                 ]
                 sanitized_chars = []
                 for c in characters:
@@ -1324,11 +1359,12 @@ Motion prompt for this image:"""
                 char_descriptions = "\n".join([f"- {c['name']} ({c['role']}): {c['prompt_en']}" for c in sanitized_chars])
                 char_color_rule = """
 [★ 졸라맨 스타일 캐릭터 규칙 — 위 캐릭터 묘사보다 이 규칙이 최우선 ★]
-- 모든 캐릭터의 머리: 반드시 perfectly bald, smooth white head, 흰색만 허용. 어떤 색도, 어떤 헤어스타일도 금지 (strictly NO hair, NO hairstyle).
+- 모든 캐릭터의 머리: 반드시 perfectly bare smooth bald white sphere, 어떤 머리카락이나 장식도 없는 순수 흰색 구체여야 함 (strictly NO hair, NO horns, NO hats).
 - ★ 나레이터 등장 여부: 모든 씬(infographic 제외)에는 나레이터(졸라맨)가 반드시 노출되어야 함.
 - ★ 얼굴 표정 (필수): 반드시 한 쌍의 뚜렷한 검은색 눈과 입 모양이 있어야 함 (MUST HAVE a pair of distinct black eyes and a mouth). 얼굴이 비어있으면 절대 안 됨 (Face must never be blank).
-- 모든 캐릭터의 의상: teal-blue long-sleeved hooded sweatshirt (고정, 소매가 긴 후드티)
-- 모든 캐릭터의 팔다리: solid black, 일정한 굵기 (고정)
+- 모든 캐릭터의 의상: teal-blue long-sleeved hooded sweatshirt (고정, 팔 전체를 덮는 청록색 긴 소매)
+- ★ 팔 색상 (주의): 팔은 후드티 소매에 가려져 있으므로 반드시 '청록색(teal-blue)'이어야 함. 절대 검은색 팔을 그리지 마세요 (STRICTLY NO BLACK ARMS).
+- 모든 캐릭터의 다리: solid black, 일정한 굵기 (고정)
 - 캐릭터 간 차이는 표정/포즈/배경으로만 구분. 색상으로 구분 금지.
 """
             elif not is_realistic:
@@ -1537,13 +1573,17 @@ Motion prompt for this image:"""
                         scene["prompt_en"] = self._sanitize_wimpy_prompt(scene["prompt_en"])
                     if "prompt_char" in scene and scene.get("prompt_char"):
                         scene["prompt_char"] = self._sanitize_wimpy_prompt(scene["prompt_char"])
+                    if "flow_prompt" in scene and scene.get("flow_prompt"):
+                        scene["flow_prompt"] = self._sanitize_wimpy_prompt(scene["flow_prompt"])
 
             # [WIMPY FALLBACK] prompt_char / prompt_bg 가 비어있거나 placeholder일 때 자동 보완
             # scene_type을 존중: infographic은 캐릭터 없음, character_support는 작은 코너 캐릭터
             _CHAR_SUPPORT_BASE = (
+                "STRICTLY TWO ARMS AND TWO HANDS ONLY. "
                 "A small full-body stick-figure in the lower-right corner, pointing center-left with right hand. "
                 "Perfectly bald and smooth round white circular head (strictly NO hair). "
-                "Vibrant teal-blue hoodie with front pocket, long black sleeves. "
+                "Vibrant teal-blue hoodie with front pocket and FULL-LENGTH TEAL-BLUE SLEEVES. "
+                "STRICTLY NO BLACK ARMS. "
                 "Solid black trousers, white sneakers with black trim. "
                 "Exactly two arms, two hands, no extra limbs. "
                 "Pure white background. no text, no words"

@@ -471,30 +471,62 @@
 
                 <!-- [NEW] Add Custom Style Form -->
                 <div
-                    class="bg-blue-50 dark:bg-blue-900/10 p-3 rounded-lg border border-blue-100 dark:border-blue-800 mb-4">
-                    <h4 class="text-xs font-bold text-blue-700 dark:text-blue-300 mb-2">➕ 새 스타일 추가 (사용자 정의)</h4>
-                    <div class="space-y-2">
-                        <div class="flex gap-2">
-                            <input type="text" id="customStyleName" class="input-field flex-1 text-xs"
-                                placeholder="스타일 이름 (예: my_sketch, dark_fantasy)">
-                            <button onclick="document.getElementById('customStyleImage').click()"
-                                class="btn-secondary px-3 py-1.5 text-xs whitespace-nowrap">
-                                🖼️ 이미지 업로드
-                            </button>
-                            <input type="file" id="customStyleImage" accept="image/*" class="hidden"
-                                onchange="document.getElementById('customStyleImgName').textContent = this.files[0]?.name || ''">
+                    class="bg-blue-50 dark:bg-blue-900/10 p-4 rounded-xl border border-blue-100 dark:border-blue-800 mb-6 shadow-sm">
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="text-sm font-bold text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                            <span>➕ 커스텀 스타일 신규 추가</span>
+                            <span class="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">GROUNDING</span>
+                        </h4>
+                        <div class="flex items-center gap-1">
+                            <span class="text-[10px] text-gray-400">NotebookLM 지침 연동 가능</span>
+                            <button onclick="Utils.showToast('NotebookLM의 노트 가이드 내용을 복사해서 아래 지침 칸에 붙여넣으세요.', 'info')" class="text-xs text-blue-500 hover:text-blue-700">익히기 ⓘ</button>
                         </div>
-                        <p id="customStyleImgName"
-                            class="text-[10px] text-gray-500 pl-1 h-3 truncate dark:text-gray-400"></p>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                        <!-- Left: Info & Base Prompt (7/12) -->
+                        <div class="md:col-span-12 space-y-3">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                <div class="md:col-span-1">
+                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">스타일 코드/이름</label>
+                                    <input type="text" id="customStyleName" class="input-field w-full text-xs"
+                                        placeholder="예: ghibli_studio, cyberpunk_2049">
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">베이스 이미지 (샘플)</label>
+                                    <div class="flex gap-2">
+                                        <button onclick="document.getElementById('customStyleImage').click()"
+                                            class="btn-secondary flex-1 py-1.5 text-xs whitespace-nowrap border-dashed h-8">
+                                            🖼️ 샘플 이미지 업로드
+                                        </button>
+                                        <input type="file" id="customStyleImage" accept="image/*" class="hidden"
+                                            onchange="document.getElementById('customStyleImgName').textContent = this.files[0]?.name || ''">
+                                        <div id="customStyleImgName" class="text-[10px] text-gray-400 flex items-center truncate max-w-[100px]"></div>
+                                    </div>
+                                </div>
+                            </div>
 
-                        <textarea id="customStylePrompt" class="input-field w-full text-xs h-16"
-                            placeholder="스타일 프롬프트 (예: highly detailed, cinematic lighting, 8k resolution)"></textarea>
+                            <div>
+                                <label class="text-[10px] font-bold text-gray-500 mb-1 block">기본 스타일 프롬프트 (Base English Prompt)</label>
+                                <textarea id="customStylePrompt" class="input-field w-full text-xs h-12 font-mono"
+                                    placeholder="예: Studio Ghibli official art style, hand-painted watercolor background..."></textarea>
+                            </div>
 
-                        <div class="flex justify-end">
-                            <button onclick="addCustomStylePreset()"
-                                class="btn-primary px-4 py-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-700">
-                                추가하기
-                            </button>
+                            <div class="bg-white/50 dark:bg-gray-800/50 p-3 rounded-lg border border-blue-100 dark:border-blue-900/50">
+                                <label class="text-[10px] font-bold text-purple-600 dark:text-purple-400 mb-1 block flex justify-between items-center">
+                                    <span>🧠 AI Grounding 지침 (NotebookLM 원문 붙여넣기)</span>
+                                    <span class="text-[9px] font-normal text-gray-400">Gemini가 프롬프트 생성 시 이 규칙을 엄격히 따릅니다.</span>
+                                </label>
+                                <textarea id="customStyleInstruction" class="input-field w-full text-xs h-24 font-mono border-purple-100 focus:ring-purple-200"
+                                    placeholder="NotebookLM에서 추출한 스타일 가이드 문서를 여기에 붙여넣으세요.&#10;(예: 화풍 매뉴얼, 캐릭터 비율 규칙, 특정 작가의 데쌩 스타일 등...)"></textarea>
+                            </div>
+
+                            <div class="flex justify-end">
+                                <button onclick="addCustomStylePreset()"
+                                    class="btn-primary px-6 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 shadow-md">
+                                    🚀 스타일 등록 및 연동 시작
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1529,33 +1561,44 @@
                 const hasInstruction = geminiInstruction.trim().length > 0;
 
                 return `
-                    <div class="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-md border border-gray-100 dark:border-gray-700 relative group">
-                        <div class="flex justify-between items-start mb-2">
-                            <div class="flex items-center gap-2">
+                    <div class="bg-gray-50 dark:bg-gray-800/15 p-4 rounded-xl border border-gray-100 dark:border-gray-700/50 relative group transition-all hover:shadow-md ${hasInstruction ? 'ring-1 ring-purple-100 dark:ring-purple-900/30' : ''}">
+                        <div class="flex justify-between items-start mb-3">
+                            <div class="flex items-center gap-3">
                                 <div class="relative group/img cursor-pointer" onclick="document.getElementById('file_${key}').click()">
                                     ${imageUrl ?
-                        `<img id="img_preview_${key}" src="${imageUrl}" class="w-10 h-10 rounded border border-gray-300 object-cover bg-white dark:bg-gray-800 dark:border-gray-700" title="이미지 변경">`
-                        : `<span id="img_preview_${key}" class="w-10 h-10 rounded bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] text-gray-500 hover:bg-gray-300 transition-colors dark:text-gray-400">No Img</span>`
-                    }
-                                    <input type="file" id="file_${key}" class="hidden" accept="image/*" onchange="previewStyleImage(this, '${key}')">
-                                </div>
-                                <div>
-                                    <label class="text-sm font-bold text-gray-700 dark:text-gray-200 block leading-none mb-1">${displayName}</label>
-                                    <span class="text-[10px] text-gray-400 font-mono">${key}</span>
-                                    ${hasInstruction ? '<span class="text-[10px] bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300 px-1 rounded ml-1">AI지침</span>' : ''}
-                                </div>
+                         `<img id="img_preview_${key}" src="${imageUrl}" class="w-12 h-12 rounded-lg border border-gray-200 object-cover bg-white dark:bg-gray-800 dark:border-gray-700 shadow-sm" title="이미지 변경">`
+                         : `<span id="img_preview_${key}" class="w-12 h-12 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] text-gray-500 hover:bg-gray-300 transition-colors dark:text-gray-400">No Img</span>`
+                     }
+                                     <input type="file" id="file_${key}" class="hidden" accept="image/*" onchange="previewStyleImage(this, '${key}')">
+                                 </div>
+                                 <div class="space-y-0.5">
+                                     <div class="flex items-center gap-1.5">
+                                         <label class="text-sm font-bold text-gray-800 dark:text-gray-100 block leading-tight">${displayName}</label>
+                                         ${hasInstruction ? '<span class="inline-flex items-center gap-0.5 text-[9px] font-bold bg-purple-600 text-white px-1.5 py-0.5 rounded-full shadow-sm">🧠 Grounded</span>' : ''}
+                                     </div>
+                                     <div class="flex items-center gap-2">
+                                         <span class="text-[10px] text-gray-400 font-mono bg-gray-100 dark:bg-gray-900 px-1 rounded">${key}</span>
+                                     </div>
+                                 </div>
                             </div>
-                            <div class="flex gap-1">
-                                <button onclick="toggleEditStylePreset('${key}')" id="edit_btn_${key}" class="text-[10px] bg-yellow-500 text-white px-2 py-1 rounded">✏️ 수정</button>
-                                <button onclick="saveOneStylePreset('${key}')" id="save_btn_${key}" class="hidden text-[10px] bg-blue-500 text-white px-2 py-1 rounded">💾 저장</button>
-                                ${!isDefault ? `<button onclick="deleteStylePreset('${key}')" class="text-[10px] bg-red-50 text-red-500 border border-red-200 px-2 py-1 rounded">🗑️</button>` : ''}
+                            <div class="flex gap-1.5">
+                                <button onclick="toggleEditStylePreset('${key}')" id="edit_btn_${key}" class="text-[10px] bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 px-2 py-1.5 rounded-lg hover:bg-gray-50 transition-colors">✏️ 수정</button>
+                                <button onclick="saveOneStylePreset('${key}')" id="save_btn_${key}" class="hidden text-[10px] bg-blue-600 text-white px-3 py-1.5 rounded-lg shadow-sm">💾 저장</button>
+                                ${!isDefault ? `<button onclick="deleteStylePreset('${key}')" class="text-[10px] bg-red-50 text-red-500 border border-red-100 px-2 py-1.5 rounded-lg hover:bg-red-100 transition-colors">🗑️</button>` : ''}
                             </div>
                         </div>
-                        <label class="text-[10px] text-gray-500 dark:text-gray-400 mb-0.5 block">이미지 생성 스타일 프롬프트</label>
-                        <textarea id="preset_${key}" class="input-field w-full text-[11px] font-mono bg-gray-100 dark:bg-gray-900" rows="2" readonly>${prompt}</textarea>
-                        <div class="mt-2">
-                            <label class="text-[10px] text-purple-600 dark:text-purple-400 mb-0.5 block font-semibold">🤖 Gemini 프롬프트 생성 지침 <span class="text-gray-400 font-normal">(이미지 프롬프트 자동 생성 시 AI에게 전달되는 지시사항)</span></label>
-                            <textarea id="ginst_${key}" class="input-field w-full text-[11px] font-mono bg-gray-100 dark:bg-gray-900" rows="${hasInstruction ? 6 : 2}" readonly>${geminiInstruction}</textarea>
+                        <div class="space-y-2">
+                            <div>
+                                <label class="text-[9px] font-bold text-gray-400 mb-1 block uppercase tracking-wider">Base Style Prompt</label>
+                                <textarea id="preset_${key}" class="input-field w-full text-[11px] font-mono bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800" rows="2" readonly>${prompt}</textarea>
+                            </div>
+                            <div class="${hasInstruction ? '' : 'opacity-60'}">
+                                <label class="text-[9px] font-bold text-purple-500 dark:text-purple-400 mb-1 block uppercase tracking-wider flex items-center gap-1">
+                                    <span>🤖 Gemini Grounding Instruction</span>
+                                    ${hasInstruction ? ' <i class="fas fa-check-circle text-[8px]"></i>' : ''}
+                                </label>
+                                <textarea id="ginst_${key}" class="input-field w-full text-[11px] font-mono ${hasInstruction ? 'bg-purple-50/30 dark:bg-purple-900/10 border-purple-100 dark:border-purple-900/30' : 'bg-gray-100 dark:bg-gray-900'} " rows="${hasInstruction ? 5 : 2}" readonly placeholder="지침 없음 (NotebookLM 내용을 여기에 붙여넣으세요)">${geminiInstruction}</textarea>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -1731,9 +1774,12 @@
     async function addCustomStylePreset() {
         const nameInput = document.getElementById('customStyleName');
         const promptInput = document.getElementById('customStylePrompt');
+        const instructionInput = document.getElementById('customStyleInstruction');
         const fileInput = document.getElementById('customStyleImage');
+        
         const name = nameInput.value.trim();
         const prompt = promptInput.value.trim();
+        const instruction = instructionInput.value.trim();
         const file = fileInput.files[0];
 
         if (!name || !prompt) {
@@ -1741,32 +1787,49 @@
             return;
         }
 
-        const formData = new FormData();
-        formData.append('style_key', name);
-        formData.append('prompt_value', prompt);
-        if (file) {
-            formData.append('file', file);
-        }
-
-        Utils.showToast('스타일 추가 중...', 'info');
+        Utils.showToast('스타일 및 Grounding 지침 동기화 중...', 'info');
 
         try {
-            const res = await fetch('/api/settings/style-presets/custom', {
+            let imageUrl = null;
+            if (file) {
+                // 1. Image Upload
+                const formData = new FormData();
+                formData.append('style_key', name);
+                formData.append('prompt_value', prompt);
+                formData.append('file', file);
+                
+                const uploadRes = await fetch('/api/settings/style-presets/custom', {
+                    method: 'POST',
+                    body: formData
+                });
+                const uploadData = await uploadRes.json();
+                imageUrl = uploadData.image_url;
+            }
+
+            // 2. Save JSON fields (Prompt + Instruction)
+            const saveRes = await fetch('/api/settings/style-presets', {
                 method: 'POST',
-                body: formData
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    style_key: name,
+                    prompt_value: prompt,
+                    gemini_instruction: instruction,
+                    image_url: imageUrl // Keep null if not uploaded, backend might preserve existing
+                })
             });
 
-            if (res.ok) {
-                Utils.showToast('새 스타일이 추가되었습니다!', 'success');
+            if (saveRes.ok) {
+                Utils.showToast('새 스타일 및 Grounding 지침이 추가되었습니다!', 'success');
                 // Clear inputs
                 nameInput.value = '';
                 promptInput.value = '';
+                instructionInput.value = '';
                 fileInput.value = '';
                 document.getElementById('customStyleImgName').textContent = '';
                 // Reload list
                 loadStylePresets();
             } else {
-                const err = await res.json();
+                const err = await saveRes.json();
                 Utils.showToast(err.detail || '추가 실패', 'error');
             }
         } catch (e) {

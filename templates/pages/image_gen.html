@@ -1120,6 +1120,26 @@
                             >${p.motion_desc || ''}</textarea>
                         </div>
 
+                        <!-- [NEW] Google Flow Optimized Prompt -->
+                        <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800/50">
+                            <label class="block text-[10px] font-bold text-blue-600 dark:text-blue-400 mb-1 flex justify-between items-center">
+                                <span class="flex items-center gap-1">
+                                    <span>🌊</span> Google Flow (Veo 3.1) Optimized Prompt
+                                </span>
+                                <button onclick="copyFlowPrompt(${i})" class="text-[9px] bg-blue-600 text-white px-2 py-0.5 rounded hover:bg-blue-700 transition-colors">
+                                    📋 Copy for Flow
+                                </button>
+                            </label>
+                            <p class="text-[11px] text-gray-700 dark:text-gray-200 leading-relaxed line-clamp-2" id="flow-prompt-view-${i}">${p.flow_prompt || '프롬프트 생성 중...'}</p>
+                            <div class="mt-2 flex items-center justify-between">
+                                <a href="https://labs.google/fx/ko/tools/flow" target="_blank" class="text-[9px] text-blue-500 hover:underline flex items-center gap-1">
+                                    🚀 Go to Google Flow Labs ↗
+                                </a>
+                                <button onclick="toggleFlowEditor(${i})" class="text-[9px] text-gray-400 hover:text-gray-600">Edit Prompt</button>
+                            </div>
+                            <textarea id="flow-prompt-edit-${i}" class="hidden w-full h-24 mt-2 text-[11px] p-2 rounded border border-blue-200 dark:border-blue-900 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300" onchange="updateFlowPrompt(${i}, this.value)">${p.flow_prompt || ''}</textarea>
+                        </div>
+
                         <!-- Script Info -->
                         <div class="bg-gray-50 dark:bg-gray-900/50 p-2 rounded border border-gray-100 dark:border-gray-700">
                              <p class="text-[10px] text-gray-500 mb-1 font-bold dark:text-gray-400">💬 Dialogue / Script</p>
@@ -1611,6 +1631,41 @@
                 });
             }
         }, 1000);
+    }
+
+    // [NEW] Google Flow Functions
+    function toggleFlowEditor(index) {
+        const edit = document.getElementById(`flow-prompt-edit-${index}`);
+        const view = document.getElementById(`flow-prompt-view-${index}`);
+        if (edit.classList.contains('hidden')) {
+            edit.classList.remove('hidden');
+            view.classList.add('line-clamp-none');
+        } else {
+            edit.classList.add('hidden');
+            view.classList.remove('line-clamp-none');
+        }
+    }
+
+    function updateFlowPrompt(index, value) {
+        if (!prompts[index]) return;
+        prompts[index].flow_prompt = value;
+        Utils.storage.set('imagePrompts', prompts);
+        document.getElementById(`flow-prompt-view-${index}`).innerText = value;
+
+        const projectId = getCurrentProject();
+        if (projectId) {
+            API.project.saveImagePrompts(projectId, prompts);
+        }
+    }
+
+    function copyFlowPrompt(index) {
+        if (!prompts[index] || !prompts[index].flow_prompt) {
+            Toast.show('복사할 프롬프트가 없습니다.', 'error');
+            return;
+        }
+        navigator.clipboard.writeText(prompts[index].flow_prompt).then(() => {
+            Toast.show(`장면 ${index + 1} Flow 프롬프트가 복사되었습니다!`, 'success');
+        });
     }
 
     // ── 선택씬 이미지 분석 → 모션 생성 ─────────────────────────────────

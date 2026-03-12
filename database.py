@@ -566,18 +566,18 @@ def migrate_db():
 【STEP 2: prompt_char 작성 (scene_type에 따라 조건부)】
 
 ■ character_main (캐릭터 중앙 크게):
-1단계: "A full-body minimalist cartoon illustration of a cute stick-figure style character with bold black outlines, standing on a pure white background. Flat 2D vector graphic style. Perfectly bald and smooth round white circular head (strictly NO hair, NO hairstyle, NO wig). Strictly two arms and two hands. No extra limbs, no extra hands."
-2단계: "The character has a simple perfectly bald white circular head with NO hair, simple dot eyes, and a wide cheerful arc smile. The hands are small rounded fists with black outlines (NOT white balls, NOT white circles). The character wears a vibrant solid teal-blue hoodie with a front pocket, long black sleeves with black cuffs, solid black trousers, and white sneakers with black trim and laces."
+1단계: "A full-body minimalist cartoon illustration of a cute stick-figure style character with bold black outlines, standing on a pure white background. Flat 2D vector graphic style. Perfectly bald and smooth round white circular head (strictly NO hair, NO hairstyle, NO wig). The face MUST HAVE a pair of black dot eyes and a simple black arc smile. Strictly two arms and two hands. No extra limbs, no extra hands."
+2단계: "The character has a simple perfectly bald white circular head with NO hair, simple dot eyes, and a wide cheerful arc smile. Face must never be blank. The hands are small rounded fists with black outlines (NOT white balls, NOT white circles). The character wears a vibrant solid teal-blue hoodie with a front pocket and FULL-LENGTH TEAL-BLUE SLEEVES that cover the entire arm down to the wrist. NO ROLLED-UP SLEEVES, NO BLACK SKIN VISIBLE ON ARMS. Solid black trousers, and white sneakers with black trim and laces."
 3단계: 씬에 맞는 포즈 선택:
   ❌ 금지: holding, carrying, gripping, fists raised, arms raised, punching, flexing
-  ✅ SAFE-A: "The character is standing with both arms hanging naturally at its sides."
-  ✅ SAFE-B: "The character is standing and pointing at [대상] with its right hand. Its left arm hangs at its side."
-  ✅ SAFE-C: "The character is standing and looking down at a small book resting on a stand. Its two hands are clasped tightly together in front of its chest in a deep thought gesture, not touching the book."
-  ✅ SAFE-D: "The character sits at a wooden table, resting both its hands firmly under its chin, looking down thoughtfully."
+  ✅ SAFE-A: "The character is standing with both arms hanging naturally at its sides. It has black eyes and a small mouth. Its full-length teal-blue sleeves cover its arms completely."
+  ✅ SAFE-B: "The character is standing and pointing at [대상] with its right hand. Its left arm hangs at its side. It has black eyes and a small mouth. Its full-length teal-blue sleeves cover its arms completely."
+  ✅ SAFE-C: "The character is standing and looking down at a small book resting on a stand. Its two hands are clasped tightly together in front of its chest in a deep thought gesture, not touching the book. Its face shows a thoughtful expression with dot eyes. Its full-length teal-blue sleeves cover its arms completely."
+  ✅ SAFE-D: "The character sits at a wooden table, resting both its hands firmly under its chin, looking down thoughtfully with dot eyes and a small mouth. Its full-length teal-blue sleeves cover its arms completely."
 마지막: "Isolated on a pure white background. No background elements. no text, no words, no letters"
 
 ■ character_support (캐릭터 작게 구석에):
-"A small full-body minimalist cartoon stick-figure in the lower-right corner of the frame, pointing toward the center-left with its right hand. Its left arm hangs at its side. Perfectly bald and smooth white circular head with strictly NO hair. Vibrant teal-blue hoodie, black trousers, white sneakers. Bold black outlines, flat 2D vector. Strictly two arms and two hands. Isolated on a pure white background. No background elements. no text, no words, no letters"
+"A small full-body minimalist cartoon stick-figure in the lower-right corner of the frame, pointing toward the center-left with its right hand. Its left arm hangs at its side. Perfectly bald and smooth white circular head with strictly NO hair. THE FACE MUST HAVE a pair of black dot eyes and a simple mouth. Vibrant teal-blue hoodie with FULL-LENGTH TEAL-BLUE SLEEVES covering the entire arm down to the wrist, NO ROLLED-UP SLEEVES, NO BLACK SKIN VISIBLE ON ARMS. Black trousers, white sneakers. Bold black outlines, flat 2D vector. Strictly two arms and two hands. Isolated on a pure white background. No background elements. no text, no words, no letters"
 
 ■ infographic (캐릭터 없음):
 ""  ← 반드시 빈 문자열. 캐릭터 프롬프트 생성 금지.
@@ -2203,8 +2203,8 @@ def save_image_prompts(project_id: int, prompts: list):
                 (project_id, scene_number, scene_text, prompt_ko, prompt_en, image_url,
                  script_start, script_end, scene_title, video_url,
                  sfx_prompt, bgm_prompt, sfx_url, bgm_url, fade_in, motion_desc, engine,
-                 prompt_char, prompt_bg)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 prompt_char, prompt_bg, flow_prompt, scene_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 project_id,
                 i + 1,
@@ -2224,7 +2224,9 @@ def save_image_prompts(project_id: int, prompts: list):
                 prompt.get('motion_desc', ''),
                 prompt.get('engine', 'wan'),
                 prompt.get('prompt_char', ''),
-                prompt.get('prompt_bg', '')
+                prompt.get('prompt_bg', ''),
+                prompt.get('flow_prompt', ''),
+                prompt.get('scene_type', '')
             ))
         conn.commit()
     except Exception as e:
@@ -2250,7 +2252,7 @@ def get_image_prompts(project_id: int):
             # Ensure all keys exist for frontend compatibility
             fields = ['script_start', 'script_end', 'scene_title', 'video_url',
                       'sfx_prompt', 'bgm_prompt', 'sfx_url', 'bgm_url', 'fade_in', 'motion_desc', 'engine',
-                      'prompt_char', 'prompt_bg']
+                      'prompt_char', 'prompt_bg', 'flow_prompt', 'scene_type']
             for f in fields:
                 if f not in d or d[f] is None:
                     d[f] = ''

@@ -250,6 +250,7 @@ JSON만 반환하세요."""
             "visual_reasoning": "왜 이 연출을 선택했는지 (예: 긴장감을 고조시키기 위해 줌인 선택)",
             "prompt_ko": "이미지 묘사 (한글)",
             "prompt_en": "{style_prefix}, [Detailed Visual Description], [Camera Angle & Movement], [Lighting & Atmosphere]",
+            "flow_prompt": "A single comprehensive descriptive paragraph optimized for Google Flow (Veo 3.1). Combine the visual scene and motion instructions into a cohesive story-driven prompt. Include core character identity (teal-blue hoodie, bald white head, TWO arms only).",
             "scene_type": "(졸라맨 스타일 전용) character_main | character_support | infographic 중 하나. 다른 스타일은 빈 문자열로.",
             "prompt_char": "(졸라맨 스타일 전용) scene_type=character_main이면 전신 캐릭터, scene_type=character_support이면 작은 구석 캐릭터, scene_type=infographic이면 빈 문자열. 다른 스타일은 빈 문자열로.",
             "prompt_bg": "(졸라맨 스타일 전용) 씬 내용에 맞는 풍부한 배경/환경/인포그래픽 이미지 프롬프트. 다른 스타일은 빈 문자열로."
@@ -269,6 +270,10 @@ JSON만 반환하세요."""
      (예: "Cinematic lighting, Shallow depth of field, Slow zoom in, Low angle shot, Highly detailed")
      ⚠️ "4k", "8k", "4K", "UHD", "HD", "resolution" 등 해상도 키워드 절대 사용 금지 — 이미지 내 텍스트 워터마크를 유발합니다.
   4. **모든 prompt_en 끝에 반드시 추가**: "no text, no words, no letters, no labels, no watermarks, no speech bubbles, no captions"
+- **flow_prompt 작성 지침**:
+  - Google Flow (Veo 3.1) 모델에 최적화된 통합 프롬프트입니다.
+  - "{style_prefix}" 스타일을 기반으로, 캐릭터의 외형(흰 대머리, 청록색 후드티, 단 두 개의 팔)과 배경, 그리고 구체적인 **영상 움직임(Motion)**을 하나의 자연스러운 문단으로 서술하세요.
+  - 단순히 나열하지 말고 "A cinematic video of [Subject] [Action] while [Background Detail] as camera [Motion]..." 형식으로 생동감 있게 작성하세요.
 - **ABSOLUTELY NO TEXT IN IMAGE [최우선]**:
   - 이미지 내에 어떠한 텍스트, 글자, 단어, 레이블, 자막, 워터마크, 말풍선도 절대 포함 금지.
   - 해부도/다이어그램/포스터 등 원래 텍스트가 있는 소재를 묘사할 때도 글자 없이 시각적 요소만 묘사할 것.
