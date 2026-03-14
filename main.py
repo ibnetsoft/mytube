@@ -853,9 +853,34 @@ async def animate_scene(project_id: int, req: AnimateRequest):
         return {"status": "success", "video_url": video_web_url}
 
     except Exception as e:
-        print(f"[Animate Error] {e}")
-        import traceback; traceback.print_exc()
+        print(f"Animate Error: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post("/api/upload-video-to-project/{project_id}/{scene_number}")
+async def upload_scene_video(project_id: int, scene_number: int, file: UploadFile = File(...)):
+    """확장프로그램 혹은 수동 업로드를 통한 장면 비디오 저장"""
+    try:
+        print(f"DEBUG: upload_scene_video called with project_id={project_id}, scene_number={scene_number}")
+        output_dir, web_dir = get_project_output_dir(project_id)
+        
+        ext = os.path.splitext(file.filename)[1]
+        if not ext: ext = ".mp4"
+        filename = f"flow_p{project_id}_s{scene_number}_{int(time.time())}{ext}"
+        file_path = os.path.join(output_dir, filename)
+        web_url = f"{web_dir}/{filename}"
+        
+        content = await file.read()
+        with open(file_path, "wb") as f:
+            f.write(content)
+            
+        # DB 업데이트
+        db.update_image_prompt_video_url(project_id, scene_number, web_url)
+        
+        return {"status": "ok", "url": web_url, "path": file_path}
+    except Exception as e:
+        print(f"Error saving scene video: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 
 @app.post("/api/projects/{project_id}/tts")
 async def save_tts_info(project_id: int, voice_id: str, voice_name: str, audio_path: str, duration: float):

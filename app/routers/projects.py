@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Body, Request
+from fastapi import APIRouter, HTTPException, Body, Request, UploadFile, File
 from typing import List, Optional
 import database as db
 from app.models.project import ProjectCreate, ProjectUpdate, ProjectSettingUpdate, ProjectSettingsSave
