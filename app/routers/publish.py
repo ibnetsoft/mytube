@@ -1,8 +1,13 @@
 # app/routers/publish.py - 퍼블리시 허브 (원소스 멀티유즈 파이프라인)
-from fastapi import APIRouter, HTTPException
+import os
+import shutil
+import time
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from typing import List, Optional
 from services.publish_service import publish_service
+from services.blog_service import blog_service
+from config import config
 import database as db
 
 router = APIRouter(prefix="/api/publish", tags=["Publish"])
@@ -271,5 +276,69 @@ async def post_blog(req: PostBlogRequest):
             "status": "ok" if all_ok else ("partial" if any_ok else "error"),
             "results": results
         }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
+# ==========================================
+# 이미지 파일 업로드
+# ==========================================
+
+@router.post("/upload-image/{session_id}/{image_id}")
+async def upload_image_file(session_id: int, image_id: int, file: UploadFile = File(...)):
+    """이미지 파일 업로드 → 로컬 저장 + DB 업데이트"""
+    try:
+        # 저장 디렉토리
+        upload_dir = os.path.join(config.OUTPUT_DIR, "publish_images", str(session_id))
+        os.makedirs(upload_dir, exist_ok=True)
+
+        # 파일명 생성
+        ext = os.path.splitext(file.filename)[1] or ".png"
+        filename = f"img_{image_id}_{int(time.time())}{ext}"
+        file_path = os.path.join(upload_dir, filename)
+
+        with open(file_path, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+
+        # 웹 경로
+        web_url = f"/output/publish_images/{session_id}/{filename}"
+
+        # DB 업데이트
+        db.update_publish_image(image_id, image_url=web_url, status="done")
+
+        return {"status": "ok", "image_url": web_url, "file_path": file_path}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
+@router.post("/upload-image-wp/{session_id}")
+async def upload_images_to_wordpress(session_id: int):
+    """세션의 모든 로컬 이미지를 WordPress Media Library에 업로드하고 URL 교체"""
+    try:
+        images = db.get_publish_images(session_id)
+        results = []
+
+        for img in images:
+            img_url = img.get("image_url", "")
+            if not img_url or not img_url.startswith("/output/"):
+                results.append({"id": img["id"], "status": "skip", "reason": "로컬 이미지 아님"})
+                continue
+
+            # 로컬 경로 변환
+            local_path = os.path.join(config.OUTPUT_DIR, img_url.replace("/output/", ""))
+            if not os.path.exists(local_path):
+                results.append({"id": img["id"], "status": "error", "reason": "파일 없음"})
+                continue
+
+            # WordPress 업로드
+            wp_result = await blog_service.upload_image_to_wordpress(local_path)
+            if wp_result.get("status") == "ok":
+                wp_url = wp_result.get("url", "")
+                db.update_publish_image(img["id"], image_url=wp_url)
+                results.append({"id": img["id"], "status": "ok", "wp_url": wp_url})
+            else:
+                results.append({"id": img["id"], "status": "error", "reason": wp_result.get("error", "")})
+
+        return {"status": "ok", "results": results}
     except Exception as e:
         return {"status": "error", "error": str(e)}

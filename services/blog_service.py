@@ -129,6 +129,59 @@ class BlogService:
             print(f"post_to_wordpress Error: {e}")
             return {"status": "error", "error": str(e)}
 
+    async def upload_image_to_wordpress(self, image_path: str, filename: str = None) -> Dict[str, Any]:
+        """이미지를 WordPress Media Library에 업로드하고 URL 반환"""
+        try:
+            import base64
+            wp_url = config.WP_URL.rstrip('/') if config.WP_URL else ""
+            username = config.WP_USERNAME or ""
+            password = config.WP_PASSWORD or ""
+
+            if not wp_url or not username or not password:
+                wp_url = db.get_global_setting("wp_url", "").rstrip('/')
+                username = db.get_global_setting("wp_username", "")
+                password = db.get_global_setting("wp_password", "")
+
+            if not wp_url or not username or not password:
+                return {"status": "error", "error": "워드프레스 설정이 되어있지 않습니다."}
+
+            endpoint = f"{wp_url}/wp-json/wp/v2/media"
+            auth_str = f"{username}:{password}"
+            auth_base64 = base64.b64encode(auth_str.encode("utf-8")).decode("utf-8")
+
+            if not filename:
+                filename = os.path.basename(image_path)
+
+            # MIME type 감지
+            ext = os.path.splitext(filename)[1].lower()
+            mime_map = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp'}
+            mime_type = mime_map.get(ext, 'image/png')
+
+            with open(image_path, 'rb') as f:
+                image_data = f.read()
+
+            headers = {
+                "Authorization": f"Basic {auth_base64}",
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Type": mime_type
+            }
+
+            async with httpx.AsyncClient(follow_redirects=True) as client:
+                res = await client.post(endpoint, content=image_data, headers=headers, timeout=60)
+                if res.status_code in [200, 201]:
+                    data = res.json()
+                    return {
+                        "status": "ok",
+                        "media_id": data.get("id"),
+                        "url": data.get("source_url", data.get("guid", {}).get("rendered", "")),
+                    }
+                else:
+                    return {"status": "error", "error": f"WordPress 이미지 업로드 실패 ({res.status_code}): {res.text[:200]}"}
+
+        except Exception as e:
+            print(f"upload_image_to_wordpress Error: {e}")
+            return {"status": "error", "error": str(e)}
+
     async def post_to_blogger(
         self,
         title: str,

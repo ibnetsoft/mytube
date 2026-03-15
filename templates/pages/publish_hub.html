@@ -127,9 +127,17 @@
                         <h2 class="text-lg font-bold text-gray-800 dark:text-white">이미지 등록</h2>
                     </div>
                     <p class="text-sm text-gray-500 mb-3">생성된 이미지 URL을 입력하거나 파일을 업로드하세요</p>
-                    <div class="flex gap-2">
+                    <!-- URL 입력 -->
+                    <div class="flex gap-2 mb-3">
                         <input id="manualImageUrl" type="text" class="input-field flex-1" placeholder="이미지 URL 붙여넣기...">
                         <button onclick="applyManualImage()" class="px-4 py-2 bg-purple-500 text-white rounded-xl font-bold hover:bg-purple-600 transition-colors">적용</button>
+                    </div>
+                    <!-- 파일 업로드 -->
+                    <div class="flex gap-2">
+                        <label class="flex-1 flex items-center justify-center gap-2 py-2 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl cursor-pointer hover:border-purple-400 transition-colors">
+                            <span class="text-sm text-gray-500">📁 파일 선택</span>
+                            <input id="imageFileInput" type="file" accept="image/*" class="hidden" onchange="uploadImageFile(this)">
+                        </label>
                     </div>
                     <div class="mt-4 flex justify-between">
                         <span id="imageProgress" class="text-xs text-gray-400">이미지: 0/0</span>
@@ -183,7 +191,12 @@
                         <input id="blogTags" type="text" class="input-field w-full" placeholder="AI, 기술, 블로그">
                     </div>
 
-                    <button onclick="postToBlogs()" class="w-full mt-4 py-3 bg-gradient-to-r from-blue-500 to-green-500 text-white rounded-xl font-bold text-lg hover:from-blue-600 hover:to-green-600 transition-all shadow-lg">
+                    <button onclick="uploadImagesToWP()" id="btnUploadWP" class="w-full mt-4 py-2 bg-blue-100 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-xl font-bold text-sm hover:bg-blue-200 transition-colors">
+                        WordPress에 이미지 업로드
+                    </button>
+                    <span id="wpUploadStatus" class="text-xs text-gray-400 block mt-1"></span>
+
+                    <button onclick="postToBlogs()" class="w-full mt-3 py-3 bg-gradient-to-r from-blue-500 to-green-500 text-white rounded-xl font-bold text-lg hover:from-blue-600 hover:to-green-600 transition-all shadow-lg">
                         블로그 게시하기
                     </button>
                 </div>
@@ -509,6 +522,34 @@ async function applyManualImage() {
     } catch(e) { alert('적용 실패: ' + e.message); }
 }
 
+async function uploadImageFile(input) {
+    if (selectedImageIdx < 0) { alert('먼저 이미지 포인트를 선택해주세요.'); input.value = ''; return; }
+    if (!input.files || !input.files[0]) return;
+    if (!currentSessionId) return;
+
+    const img = imagePoints[selectedImageIdx];
+    const formData = new FormData();
+    formData.append('file', input.files[0]);
+
+    try {
+        const res = await fetch(`/api/publish/upload-image/${currentSessionId}/${img.id}`, {
+            method: 'POST',
+            body: formData
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+            imagePoints[selectedImageIdx].image_url = data.image_url;
+            imagePoints[selectedImageIdx].status = 'done';
+            renderImagePoints();
+            const nextEmpty = imagePoints.findIndex((p, i) => i > selectedImageIdx && !p.image_url);
+            if (nextEmpty >= 0) selectImagePoint(nextEmpty);
+        } else {
+            alert(data.error || '업로드 실패');
+        }
+    } catch(e) { alert('업로드 실패: ' + e.message); }
+    input.value = '';
+}
+
 async function deleteImagePoint(imageId) {
     if (!confirm('삭제할까요?')) return;
     try {
@@ -541,6 +582,29 @@ async function addImageSlot() {
 // ==========================================
 // Step 3: Blog Posting
 // ==========================================
+async function uploadImagesToWP() {
+    if (!currentSessionId) return alert('세션이 없습니다.');
+    const statusEl = document.getElementById('wpUploadStatus');
+    statusEl.textContent = '업로드 중...';
+    try {
+        const res = await fetch(`/api/publish/upload-image-wp/${currentSessionId}`, { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'ok') {
+            const results = data.results || [];
+            const ok = results.filter(r => r.status === 'ok').length;
+            const skip = results.filter(r => r.status === 'skip').length;
+            statusEl.textContent = `완료: ${ok}장 업로드, ${skip}장 건너뜀`;
+            // 이미지 URL이 WordPress URL로 교체되었으므로 다시 로드
+            const imgRes = await fetch(`/api/publish/sessions/${currentSessionId}/images`);
+            const imgData = await imgRes.json();
+            imagePoints = imgData.images || [];
+            renderImagePoints();
+        } else {
+            statusEl.textContent = data.error || '업로드 실패';
+        }
+    } catch(e) { statusEl.textContent = '오류: ' + e.message; }
+}
+
 async function buildHtml() {
     if (!currentSessionId) return alert('세션이 없습니다.');
     try {
