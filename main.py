@@ -174,6 +174,8 @@ from app.routers import queue as queue_router # [NEW]
 from app.routers import webtoon as webtoon_router # [NEW]
 from app.routers import audio as audio_router # [NEW]
 from app.routers import sources as sources_router # [NEW]
+from app.routers import blog as blog_router # [NEW]
+from app.routers import publish as publish_router # [NEW] 퍼블리시 허브
 
 app.include_router(autopilot_router.router)
 app.include_router(video_router.router)
@@ -187,6 +189,8 @@ app.include_router(webtoon_router.router) # [NEW]
 app.include_router(queue_router.router) # [NEW]
 app.include_router(audio_router.router) # [NEW]
 app.include_router(sources_router.router) # [NEW]
+app.include_router(blog_router.router) # [NEW]
+app.include_router(publish_router.router) # [NEW] 퍼블리시 허브
 
 
 # output 폴더
@@ -426,6 +430,24 @@ async def page_settings(request: Request):
         "request": request,
         "page": "settings",
         "title": "설정"
+    })
+
+@app.get("/blog-automation", response_class=HTMLResponse)
+async def page_blog_automation(request: Request):
+    """블로그 자동화 페이지"""
+    return templates.TemplateResponse("pages/blog_automation.html", {
+        "request": request,
+        "page": "blog-automation",
+        "title": "블로그 자동화"
+    })
+
+@app.get("/publish-hub", response_class=HTMLResponse)
+async def page_publish_hub(request: Request):
+    """퍼블리시 허브 페이지 (원소스 멀티유즈)"""
+    return templates.TemplateResponse("pages/publish_hub.html", {
+        "request": request,
+        "page": "publish-hub",
+        "title": "퍼블리시 허브"
     })
 
 
@@ -1056,8 +1078,16 @@ class ApiKeySave(BaseModel):
     typecast: Optional[str] = None
     replicate: Optional[str] = None
     topview: Optional[str] = None
+    topview_uid: Optional[str] = None
     akool_id: Optional[str] = None
     akool_secret: Optional[str] = None
+    akool_api_key: Optional[str] = None
+    blog_client_id: Optional[str] = None
+    blog_client_secret: Optional[str] = None
+    blog_id: Optional[str] = None
+    wp_url: Optional[str] = None
+    wp_username: Optional[str] = None
+    wp_password: Optional[str] = None
 
 @app.get("/api/settings/api-keys")
 async def get_api_keys():
@@ -1076,16 +1106,24 @@ async def save_api_keys(req: ApiKeySave):
         'typecast': 'TYPECAST_API_KEY',
         'replicate': 'REPLICATE_API_TOKEN',
         'topview': 'TOPVIEW_API_KEY',
+        'topview_uid': 'TOPVIEW_UID',
         'akool_id': 'AKOOL_CLIENT_ID',
-        'akool_secret': 'AKOOL_CLIENT_SECRET'
+        'akool_secret': 'AKOOL_CLIENT_SECRET',
+        'akool_api_key': 'AKOOL_API_KEY',
+        'blog_client_id': 'BLOG_CLIENT_ID',
+        'blog_client_secret': 'BLOG_CLIENT_SECRET',
+        'blog_id': 'BLOG_ID',
+        'wp_url': 'WP_URL',
+        'wp_username': 'WP_USERNAME',
+        'wp_password': 'WP_PASSWORD'
     }
 
     req_dict = req.dict()
-    print(f"📡 [API_KEY] Save request received. Fields present: {[k for k,v in req_dict.items() if v is not None]}")
+    print(f"[API_KEY] Save request received. Fields present: {[k for k,v in req_dict.items() if v is not None]}")
     for field, config_key in mapping.items():
         val = req_dict.get(field)
         if val is not None and val.strip():
-            print(f"🔑 [API_KEY] Updating {field} -> {config_key} (len: {len(val.strip())})")
+            print(f"[API_KEY] Updating {field} -> {config_key} (len: {len(val.strip())})")
             config.update_api_key(config_key, val.strip())
             updated.append(field)
 
@@ -1095,77 +1133,6 @@ async def save_api_keys(req: ApiKeySave):
         "message": f"{len(updated)}개의 API 키가 저장되었습니다"
     }
 
-
-# ===========================================
-# API: 글로벌 설정 관리
-# ===========================================
-
-@app.get("/api/settings")
-async def get_global_settings():
-    """글로벌 설정 조회"""
-    from services.settings_service import settings_service
-    
-    # 1. Load JSON settings
-    settings = settings_service.get_settings()
-    
-    # 2. Merge DB global settings (Project 1)
-    try:
-        db_settings = db.get_project_settings(1)
-        if db_settings:
-            settings.update(db_settings)
-    except Exception as e:
-        print(f"Failed to merge DB settings: {e}")
-    
-    # 3. Override app_mode from global_settings table (authoritative source)
-    db_app_mode = db.get_global_setting("app_mode")
-    if db_app_mode:
-        settings["app_mode"] = db_app_mode
-    
-    # 4. Webtoon settings from global_settings table
-    settings["webtoon_auto_split"] = db.get_global_setting("webtoon_auto_split", True)
-    settings["webtoon_smart_pan"] = db.get_global_setting("webtoon_smart_pan", True)
-    settings["webtoon_convert_zoom"] = db.get_global_setting("webtoon_convert_zoom", True)
-    
-    return settings
-
-@app.post("/api/settings")
-async def save_global_settings(data: Dict[str, Any] = Body(...)):
-    """글로벌 설정 저장"""
-    from services.settings_service import settings_service
-    
-    # 1. Track previous mode for change detection
-    previous_mode = db.get_global_setting("app_mode", "longform")
-    
-    # 2. Save app_mode to global_settings DB table (authoritative source)
-    new_mode = data.get("app_mode")
-    if new_mode:
-        db.save_global_setting("app_mode", new_mode)
-    
-    # 3. Save webtoon settings to global_settings DB table
-    if "webtoon_auto_split" in data:
-        db.save_global_setting("webtoon_auto_split", data["webtoon_auto_split"])
-    if "webtoon_smart_pan" in data:
-        db.save_global_setting("webtoon_smart_pan", data["webtoon_smart_pan"])
-    if "webtoon_convert_zoom" in data:
-        db.save_global_setting("webtoon_convert_zoom", data["webtoon_convert_zoom"])
-    
-    # 4. Save remaining settings to JSON file
-    settings_service.save_settings(data)
-    
-    # 5. Detect mode change
-    mode_changed = (new_mode is not None) and (previous_mode != new_mode)
-    
-    return {
-        "status": "ok",
-        "mode_changed": mode_changed,
-        "previous_mode": previous_mode,
-        "new_mode": new_mode
-    }
-
-
-# ===========================================
-# API: YouTube
-# ===========================================
 
 @app.post("/api/youtube/search")
 async def youtube_search(req: SearchRequest):
@@ -2084,83 +2051,6 @@ async def health_check():
         }
     }
     return status
-
-@app.get("/api/settings")
-async def get_settings_api():
-    """전체 설정 로드 (기본 프로젝트 ID=1 기준)"""
-    try:
-        # Load API Keys
-        # ...
-        
-        # Load DB Settings (Project 1 as default container)
-        p_settings = db.get_project_settings(1) or {}
-        
-        script_styles = {
-            "news": "뉴스 스타일 프롬프트...",
-            "story": "옛날 이야기 스타일...",
-            "senior_story": "시니어 사연 스타일..."
-        }
-        # In a real app, these prompts might be in a separate table or JSON column. 
-        # Here we mock or retrieve if saved.
-        
-        return {
-            "status": "ok",
-            "gemini_tts": {
-                "voice_name": p_settings.get("voice_name"),
-                "language_code": p_settings.get("voice_language"),
-                "style_prompt": p_settings.get("voice_style_prompt")
-            },
-            "voice_provider": p_settings.get("voice_provider"),
-            "voice_id": p_settings.get("voice_id") or p_settings.get("voice_name"), # fallback
-            "visual_style": p_settings.get("visual_style"),
-            "image_style": p_settings.get("visual_style"), # alias
-            "thumbnail_style": p_settings.get("thumbnail_style"),
-            "script_style": p_settings.get("script_style"),
-            "app_mode": p_settings.get("app_mode", "longform"),
-            "template_image_url": p_settings.get("template_image_url")
-        }
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-
-@app.post("/api/settings")
-async def save_settings_api(settings: dict):
-    """전체 설정 저장 (기본 프로젝트 ID=1 기준)"""
-    try:
-        # Check and save allowed keys
-        # We use update_project_setting for specific keys or save_project_settings for bulk
-        # For simplicity and consistence with db.py logic, let's use save_project_settings
-        # But we need to be careful not to overwrite other fields if we only get partial data
-        # settings.html sends: app_mode, gemini_tts, script_styles
-        
-        # 1. Flatten structure for DB
-        flat_settings = {}
-        if "app_mode" in settings:
-            flat_settings["app_mode"] = settings["app_mode"]
-            
-        if "gemini_tts" in settings:
-            g = settings["gemini_tts"]
-            flat_settings["voice_name"] = g.get("voice_name")
-            flat_settings["voice_language"] = g.get("language_code")
-            flat_settings["voice_style_prompt"] = g.get("style_prompt")
-            
-        if "script_styles" in settings:
-            # These might be saved in Global Settings or Project Settings?
-            # DB schema 'project_settings' doesn't have individual script style columns except maybe mapped ones?
-            # Let's check schema. We added 'script_style' column but that's current style.
-            # Storing prompts: The Code in `get_settings_api` had them hardcoded dict.
-            # We should probably store them in `global_settings` table or `project_settings` JSON column?
-            # For now, let's focus on APP_MODE which is critical.
-            pass
-
-        # Save to Project 1 (Default Container)
-        db.save_project_settings(1, flat_settings)
-        
-        return {"status": "ok"}
-    except Exception as e:
-        print(f"Save Settings Error: {e}")
-        return {"status": "error", "error": str(e)}
-
 
 @app.patch("/api/projects/{project_id}/settings/{key}")
 async def update_project_setting_api(project_id: int, key: str, value: Any = Query(...)):

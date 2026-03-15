@@ -183,6 +183,9 @@
                         <button onclick="goToTTS()" class="btn-secondary py-2 px-4 rounded-lg text-sm">
                             {{ t('btn_go_tts') }}
                         </button>
+                        <button onclick="postScriptToBlog()" class="py-2 px-4 rounded-lg text-sm font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0 flex items-center gap-1">
+                            <span>📝</span> 블로그 게시
+                        </button>
                     </div>
                 </div>
             </div>
@@ -693,6 +696,73 @@
 
     function goToImageGen() { window.location.href = '/image-gen'; }
     function goToTTS() { window.location.href = '/tts'; }
+
+    async function postScriptToBlog() {
+        const content = document.getElementById('scriptContent').value;
+        if (!content || content.trim().length < 10) {
+            Utils.showToast('게시할 대본 내용이 없습니다.', 'warning');
+            return;
+        }
+
+        // 제목 추출 (첫 줄 또는 프로젝트명)
+        const firstLine = content.split('\n')[0].trim();
+        const title = firstLine.length > 5 && firstLine.length < 100
+            ? firstLine
+            : (document.querySelector('.text-primary')?.textContent || '블로그 포스팅');
+
+        const platforms = [];
+        const wpCheck = confirm('워드프레스에 게시하시겠습니까?');
+        if (wpCheck) platforms.push('wordpress');
+        const bloggerCheck = confirm('구글 블로그에도 게시하시겠습니까?');
+        if (bloggerCheck) platforms.push('blogger');
+
+        if (platforms.length === 0) {
+            Utils.showToast('게시할 플랫폼을 선택하지 않았습니다.', 'info');
+            return;
+        }
+
+        try {
+            Utils.showToast('블로그 게시 중...', 'info');
+            const response = await fetch('/api/blog/post', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    platforms: platforms,
+                    title: title,
+                    content: content.replace(/\n/g, '<br>'),
+                    tags: []
+                })
+            });
+
+            const result = await response.json();
+            const results = result.results || {};
+
+            let messages = [];
+            let urls = [];
+            for (const [platform, res] of Object.entries(results)) {
+                const name = platform === 'wordpress' ? '워드프레스' : '구글 블로그';
+                if (res.status === 'ok') {
+                    messages.push(`${name}: 완료`);
+                    if (res.url) urls.push(res.url);
+                } else {
+                    messages.push(`${name}: ${res.error}`);
+                }
+            }
+
+            if (result.status === 'ok') {
+                Utils.showToast('게시 완료! ' + messages.join(' | '), 'success');
+            } else {
+                Utils.showToast(messages.join(' | '), result.status === 'partial' ? 'warning' : 'error');
+            }
+
+            if (urls.length > 0 && confirm('게시된 글을 확인하시겠습니까?')) {
+                urls.forEach(url => window.open(url, '_blank'));
+            }
+        } catch (error) {
+            console.error('Blog post error:', error);
+            Utils.showToast('블로그 게시 실패: ' + error.message, 'error');
+        }
+    }
 
     // ========== INITIALIZATION ==========
 

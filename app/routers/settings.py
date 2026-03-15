@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Body
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
@@ -7,6 +6,8 @@ import os
 import shutil
 import uuid
 import time
+import httpx
+from fastapi.responses import RedirectResponse, HTMLResponse
 from config import config
 
 router = APIRouter(prefix="/api/settings", tags=["Settings"])
@@ -26,6 +27,14 @@ class GlobalSettings(BaseModel):
     webtoon_motion_zoom: Optional[str] = None
     webtoon_motion_action: Optional[str] = None
     video_engine: Optional[str] = None # 'wan' or 'akool'
+    # [NEW] Blog Settings
+    blog_client_id: Optional[str] = None
+    blog_client_secret: Optional[str] = None
+    blog_id: Optional[str] = None
+    # [NEW] WordPress Settings
+    wp_url: Optional[str] = None
+    wp_username: Optional[str] = None
+    wp_password: Optional[str] = None
 
 @router.get("")
 async def get_global_settings_api():
@@ -46,7 +55,15 @@ async def get_global_settings_api():
         "webtoon_motion_pan": db.get_global_setting("webtoon_motion_pan", ""),
         "webtoon_motion_zoom": db.get_global_setting("webtoon_motion_zoom", ""),
         "webtoon_motion_action": db.get_global_setting("webtoon_motion_action", ""),
-        "video_engine": db.get_global_setting("video_engine", "wan")
+        "video_engine": db.get_global_setting("video_engine", "wan"),
+        # [NEW] Blog
+        "blog_client_id": db.get_global_setting("blog_client_id", ""),
+        "blog_client_secret": db.get_global_setting("blog_client_secret", ""),
+        "blog_id": db.get_global_setting("blog_id", ""),
+        # [NEW] WordPress
+        "wp_url": db.get_global_setting("wp_url", ""),
+        "wp_username": db.get_global_setting("wp_username", ""),
+        "wp_password": db.get_global_setting("wp_password", "")
     }
     
     # 2. Load Default Settings (stored in Project 1 by convention)
@@ -80,6 +97,12 @@ async def get_global_settings_api():
     merged["webtoon_motion_zoom"] = global_conf["webtoon_motion_zoom"]
     merged["webtoon_motion_action"] = global_conf["webtoon_motion_action"]
     merged["video_engine"] = global_conf["video_engine"]
+    merged["blog_client_id"] = global_conf["blog_client_id"]
+    merged["blog_client_secret"] = global_conf["blog_client_secret"]
+    merged["blog_id"] = global_conf["blog_id"]
+    merged["wp_url"] = global_conf["wp_url"]
+    merged["wp_username"] = global_conf["wp_username"]
+    merged["wp_password"] = global_conf["wp_password"]
     
     return merged
 
@@ -117,6 +140,18 @@ async def save_global_settings_api(settings: GlobalSettings):
         db.save_global_setting("webtoon_motion_action", settings.webtoon_motion_action)
     if settings.video_engine is not None:
         db.save_global_setting("video_engine", settings.video_engine)
+    if settings.blog_client_id is not None:
+        db.save_global_setting("blog_client_id", settings.blog_client_id)
+    if settings.blog_client_secret is not None:
+        db.save_global_setting("blog_client_secret", settings.blog_client_secret)
+    if settings.blog_id is not None:
+        db.save_global_setting("blog_id", settings.blog_id)
+    if settings.wp_url is not None:
+        db.save_global_setting("wp_url", settings.wp_url)
+    if settings.wp_username is not None:
+        db.save_global_setting("wp_username", settings.wp_username)
+    if settings.wp_password is not None:
+        db.save_global_setting("wp_password", settings.wp_password)
     
     # 모드 변경 여부 반환
     mode_changed = previous_mode != settings.app_mode if settings.app_mode else False

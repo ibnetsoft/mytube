@@ -337,6 +337,46 @@ def init_db():
         )
     """)
 
+    # [NEW] 퍼블리시 세션 (원소스 멀티유즈 파이프라인)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS publish_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER,
+            title TEXT,
+            content TEXT,
+            content_html TEXT,
+            status TEXT DEFAULT 'draft',
+            step TEXT DEFAULT 'script',
+            blog_wp_url TEXT,
+            blog_wp_post_id TEXT,
+            blog_blogger_url TEXT,
+            blog_blogger_post_id TEXT,
+            youtube_video_id TEXT,
+            youtube_url TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (project_id) REFERENCES projects(id)
+        )
+    """)
+
+    # [NEW] 퍼블리시 이미지 (블로그+영상 공용 이미지)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS publish_images (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER,
+            position INTEGER DEFAULT 0,
+            prompt_ko TEXT,
+            prompt_en TEXT,
+            image_url TEXT,
+            video_url TEXT,
+            caption TEXT,
+            aspect_ratio TEXT DEFAULT '16:9',
+            status TEXT DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (session_id) REFERENCES publish_sessions(id)
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -353,6 +393,15 @@ def migrate_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+
+    # [NEW] Default Blog Settings
+    blog_defaults = {
+        "blog_client_id": "REDACTED_GOOGLE_CLIENT_ID",
+        "blog_client_secret": "REDACTED_GOOGLE_CLIENT_SECRET",
+        "blog_id": "6291421620742373598"
+    }
+    for key, val in blog_defaults.items():
+        cursor.execute("INSERT OR IGNORE INTO global_settings (key, value) VALUES (?, ?)", (key, val))
 
     # project_settings에 thumbnail_url 컬럼 추가 (없으면)
     try:
@@ -2615,5 +2664,117 @@ def delete_webtoon_rule(rule_id):
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute('DELETE FROM webtoon_learning_rules WHERE id = ?', (rule_id,))
+    conn.commit()
+    conn.close()
+
+# ==========================================
+# 퍼블리시 세션 (원소스 멀티유즈)
+# ==========================================
+
+def create_publish_session(project_id: int, title: str, content: str) -> int:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO publish_sessions (project_id, title, content) VALUES (?, ?, ?)",
+        (project_id, title, content)
+    )
+    session_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return session_id
+
+def get_publish_session(session_id: int) -> Optional[Dict]:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM publish_sessions WHERE id = ?", (session_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def get_publish_sessions_by_project(project_id: int) -> List[Dict]:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT * FROM publish_sessions WHERE project_id = ? ORDER BY created_at DESC",
+        (project_id,)
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def get_all_publish_sessions() -> List[Dict]:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT ps.*, p.name as project_name
+        FROM publish_sessions ps
+        LEFT JOIN projects p ON ps.project_id = p.id
+        ORDER BY ps.updated_at DESC
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def update_publish_session(session_id: int, **kwargs):
+    conn = get_db()
+    cursor = conn.cursor()
+    updates = ", ".join([f"{k} = ?" for k in kwargs.keys()])
+    values = list(kwargs.values()) + [session_id]
+    cursor.execute(
+        f"UPDATE publish_sessions SET {updates}, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        values
+    )
+    conn.commit()
+    conn.close()
+
+def delete_publish_session(session_id: int):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM publish_images WHERE session_id = ?", (session_id,))
+    cursor.execute("DELETE FROM publish_sessions WHERE id = ?", (session_id,))
+    conn.commit()
+    conn.close()
+
+# 퍼블리시 이미지 CRUD
+
+def add_publish_image(session_id: int, position: int, prompt_ko: str, prompt_en: str) -> int:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO publish_images (session_id, position, prompt_ko, prompt_en) VALUES (?, ?, ?, ?)",
+        (session_id, position, prompt_ko, prompt_en)
+    )
+    image_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return image_id
+
+def get_publish_images(session_id: int) -> List[Dict]:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT * FROM publish_images WHERE session_id = ? ORDER BY position",
+        (session_id,)
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def update_publish_image(image_id: int, **kwargs):
+    conn = get_db()
+    cursor = conn.cursor()
+    updates = ", ".join([f"{k} = ?" for k in kwargs.keys()])
+    values = list(kwargs.values()) + [image_id]
+    cursor.execute(
+        f"UPDATE publish_images SET {updates} WHERE id = ?",
+        values
+    )
+    conn.commit()
+    conn.close()
+
+def delete_publish_image(image_id: int):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM publish_images WHERE id = ?", (image_id,))
     conn.commit()
     conn.close()

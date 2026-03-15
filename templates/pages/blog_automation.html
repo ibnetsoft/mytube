@@ -1,0 +1,412 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-8 animate-fadeIn">
+    <!-- Header Section -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-black text-gray-900 dark:text-white tracking-tight">
+                {{ t('nav_blog') }}
+                <span class="ml-2 px-2 py-0.5 text-xs bg-blue-500 text-white rounded-full uppercase tracking-widest font-black">Beta</span>
+            </h1>
+            <p class="text-gray-500 dark:text-gray-400 mt-1 font-medium">AI 기반 자동 블로그 포스팅 및 콘텐츠 최적화</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <button onclick="startAutoBlog()" class="btn-primary flex items-center gap-2 px-6 py-2.5 rounded-xl shadow-lg shadow-blue-500/20">
+                <span class="text-lg">✨</span>
+                <span class="font-bold">원클릭 블로그 생성</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Left: Source & Analysis -->
+        <div class="lg:col-span-1 space-y-6">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl border border-gray-100 dark:border-gray-700/50">
+                <div class="flex items-center gap-2 mb-6">
+                    <span class="p-2 bg-blue-500/10 text-blue-500 rounded-lg text-xl">📥</span>
+                    <h2 class="text-lg font-bold text-gray-800 dark:text-white">콘텐츠 소스</h2>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">소스 타입</label>
+                        <select id="sourceType" class="input-field w-full bg-gray-50/50 dark:bg-gray-900/50 border-gray-100 dark:border-gray-700">
+                            <option value="youtube">YouTube 영상 (자막/스크립트)</option>
+                            <option value="url">웹사이트 URL</option>
+                            <option value="text">직접 입력 / 기존 대본</option>
+                        </select>
+                    </div>
+                    
+                    <div id="sourceInputArea">
+                        <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">YouTube URL 또는 키워드</label>
+                        <div class="relative">
+                            <input type="text" id="sourceUrl" class="input-field w-full pr-12 bg-gray-50/50 dark:bg-gray-900/50 border-gray-100 dark:border-gray-700" placeholder="https://youtube.com/watch?v=...">
+                            <button class="absolute right-2 top-1.5 p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl border border-gray-100 dark:border-gray-700/50">
+                <div class="flex items-center gap-2 mb-6">
+                    <span class="p-2 bg-purple-500/10 text-purple-500 rounded-lg text-xl">⚙️</span>
+                    <h2 class="text-lg font-bold text-gray-800 dark:text-white">블로그 설정</h2>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">게시 플랫폼 (복수 선택 가능)</label>
+                        <div class="grid grid-cols-3 gap-2" id="platformSelector">
+                            <label id="platform_wordpress" class="p-3 border-2 border-blue-500 bg-blue-50/50 dark:bg-blue-500/10 rounded-xl flex flex-col items-center gap-1 cursor-pointer transition-all">
+                                <input type="checkbox" value="wordpress" class="platform-check hidden" checked>
+                                <span class="text-2xl">🇼</span>
+                                <span class="text-[11px] font-bold text-blue-600 dark:text-blue-400">워드프레스</span>
+                            </label>
+                            <label id="platform_blogger" class="p-3 border-2 border-transparent bg-gray-50 dark:bg-gray-900 rounded-xl flex flex-col items-center gap-1 cursor-pointer hover:border-gray-200 dark:hover:border-gray-700 transition-all">
+                                <input type="checkbox" value="blogger" class="platform-check hidden">
+                                <span class="text-2xl">📝</span>
+                                <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400">구글 블로그</span>
+                            </label>
+                            <label id="platform_both" class="p-3 border-2 border-transparent bg-gray-50 dark:bg-gray-900 rounded-xl flex flex-col items-center gap-1 cursor-pointer hover:border-gray-200 dark:hover:border-gray-700 transition-all">
+                                <input type="checkbox" value="both" class="platform-both-check hidden">
+                                <span class="text-2xl">🔗</span>
+                                <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400">동시 게시</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">글 스타일</label>
+                        <select id="blogStyle" class="input-field w-full bg-gray-50/50 dark:bg-gray-900/50 border-gray-100 dark:border-gray-700">
+                            <option value="review">정성적인 리뷰 스타일</option>
+                            <option value="info">정보 전달 / 기술 포스팅</option>
+                            <option value="storytelling">스토리텔링 / 서사형</option>
+                            <option value="news">뉴스 / 트렌드 소식</option>
+                            <option value="essay">감성 에세이 / 수필</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">타겟 언어</label>
+                        <select id="blogLanguage" class="input-field w-full bg-gray-50/50 dark:bg-gray-900/50 border-gray-100 dark:border-gray-700">
+                            <option value="ko">한국어 (Korean)</option>
+                            <option value="en">영어 (English)</option>
+                            <option value="ja">일본어 (Japanese)</option>
+                            <option value="vi">베트남어 (Vietnamese)</option>
+                        </select>
+                    </div>
+
+                    <div class="pt-2">
+                        <label class="flex items-center gap-2 cursor-pointer group">
+                            <input type="checkbox" id="autoImage" class="w-4 h-4 rounded border-gray-300 text-blue-500 focus:ring-blue-500" checked>
+                            <span class="text-xs font-bold text-gray-600 dark:text-gray-300 group-hover:text-blue-500 transition-colors">이미지 가이드 포함</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Editor & Preview -->
+        <div class="lg:col-span-2 space-y-6">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-2xl border border-gray-100 dark:border-gray-700/50 min-h-[600px] flex flex-col relative overflow-hidden">
+                <!-- Loading Overlay -->
+                <div id="blogLoadingOverlay" class="absolute inset-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center hidden">
+                    <div class="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                    <p class="text-blue-500 font-black tracking-tight animate-pulse">AI가 고품질 포스팅을 집필 중입니다...</p>
+                    <p id="loadingStatusText" class="text-gray-400 text-xs mt-2">잠시만 기다려주세요 (약 30-60초 소요)</p>
+                </div>
+
+                <div class="flex items-center justify-between mb-8 pb-4 border-b border-gray-100 dark:border-gray-700">
+                    <div class="flex items-center gap-4 flex-1">
+                        <div class="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white text-xl">📄</div>
+                        <div class="flex-1">
+                            <input type="text" id="blogTitle" class="text-xl font-black bg-transparent border-none focus:ring-0 w-full p-0 text-gray-900 dark:text-white" placeholder="이곳에 멋진 제목이 생성됩니다">
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="btnPostToBlog" onclick="postToBlog()" class="btn-primary flex items-center gap-2 px-4 py-1.5 rounded-lg shadow-md hidden">
+                            <span class="text-sm">🚀</span>
+                            <span class="text-xs font-bold">선택 플랫폼에 게시</span>
+                        </button>
+                        <button onclick="copyBlogContent()" class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-400" title="복사">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex-1">
+                    <textarea id="blogContent" class="w-full h-full min-h-[400px] bg-transparent border-none focus:ring-0 text-gray-700 dark:text-gray-300 leading-relaxed resize-none font-medium p-0" placeholder="아직 생성된 본문이 없습니다. 좌측 설정을 완료하고 [원클릭 블로그 생성]을 클릭하세요."></textarea>
+                </div>
+
+                <div id="blogTagsContainer" class="mt-8 pt-4 border-t border-gray-100 dark:border-gray-700 flex flex-wrap gap-2">
+                    <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest w-full mb-1">Generated Tags</span>
+                    <!-- Tags will be rendered here -->
+                    <span class="text-gray-300 text-[11px] italic">No tags yet.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fadeIn {
+        animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    textarea::placeholder {
+        color: #adb5bd;
+        font-style: italic;
+    }
+</style>
+
+<script>
+    function getSelectedPlatforms() {
+        // "동시 게시" 체크 시 둘 다
+        const bothCheck = document.querySelector('.platform-both-check');
+        if (bothCheck && bothCheck.checked) return ['wordpress', 'blogger'];
+
+        const checked = [];
+        document.querySelectorAll('.platform-check:checked').forEach(cb => checked.push(cb.value));
+        return checked.length > 0 ? checked : ['wordpress'];
+    }
+
+    function updatePlatformUI(label) {
+        const active = 'border-blue-500 bg-blue-50/50 dark:bg-blue-500/10';
+        const inactive = 'border-transparent';
+        const activeText = 'text-blue-600 dark:text-blue-400';
+        const inactiveText = 'text-gray-500 dark:text-gray-400';
+
+        document.querySelectorAll('#platformSelector label').forEach(lbl => {
+            const cb = lbl.querySelector('input[type="checkbox"]');
+            const span = lbl.querySelector('span:last-child');
+            if (cb.checked) {
+                lbl.className = lbl.className.replace(/border-transparent/g, '');
+                active.split(' ').forEach(c => lbl.classList.add(c));
+                inactive.split(' ').forEach(c => lbl.classList.remove(c));
+                inactiveText.split(' ').forEach(c => span.classList.remove(c));
+                activeText.split(' ').forEach(c => span.classList.add(c));
+            } else {
+                active.split(' ').forEach(c => lbl.classList.remove(c));
+                inactive.split(' ').forEach(c => lbl.classList.add(c));
+                activeText.split(' ').forEach(c => span.classList.remove(c));
+                inactiveText.split(' ').forEach(c => span.classList.add(c));
+            }
+        });
+
+        // 게시 버튼 텍스트 업데이트
+        const platforms = getSelectedPlatforms();
+        const postBtn = document.getElementById('btnPostToBlog');
+        if (platforms.length >= 2) {
+            postBtn.querySelector('span:last-child').innerText = '워드프레스 + 구글블로그 동시 게시';
+        } else if (platforms.includes('blogger')) {
+            postBtn.querySelector('span:last-child').innerText = '구글 블로그에 게시';
+        } else {
+            postBtn.querySelector('span:last-child').innerText = '워드프레스에 게시';
+        }
+    }
+
+    async function startAutoBlog() {
+        const sourceUrlInput = document.getElementById('sourceUrl');
+        const sourceType = document.getElementById('sourceType').value;
+        const sourceValue = sourceUrlInput.value;
+        const blogStyle = document.getElementById('blogStyle').value;
+        const language = document.getElementById('blogLanguage').value;
+        const autoImage = document.getElementById('autoImage').checked;
+
+        if (!sourceValue) {
+            Utils.showToast('소스 URL이나 텍스트를 입력해주세요.', 'warning');
+            return;
+        }
+
+        const overlay = document.getElementById('blogLoadingOverlay');
+        const statusText = document.getElementById('loadingStatusText');
+        overlay.classList.remove('hidden');
+
+        try {
+            statusText.innerText = "소스 분석 중...";
+            const response = await fetch('/api/blog/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    source_type: sourceType,
+                    source_value: sourceValue,
+                    platform: currentPlatform,
+                    blog_style: blogStyle,
+                    language: language,
+                    user_notes: autoImage ? "글 중간중간에 [이미지: 설명] 태그를 삽입하세요." : ""
+                })
+            });
+
+            const result = await response.json();
+            
+            if (result.status === 'ok') {
+                document.getElementById('blogTitle').value = result.title;
+                document.getElementById('blogContent').value = result.content;
+                generatedTags = result.tags || [];
+                renderTags(generatedTags);
+                
+                // 게시 버튼 표시
+                document.getElementById('btnPostToBlog').classList.remove('hidden');
+
+                Utils.showToast('블로그 생성이 완료되었습니다!', 'success');
+            } else {
+                Utils.showToast('생성 실패: ' + (result.error || 'Unknown error'), 'error');
+            }
+        } catch (error) {
+            console.error('Blog Gen Error:', error);
+            Utils.showToast('서버 통신 중 오류가 발생했습니다.', 'error');
+        } finally {
+            overlay.classList.add('hidden');
+        }
+    }
+
+    function renderTags(tags) {
+        const container = document.getElementById('blogTagsContainer');
+        container.innerHTML = '<span class="text-[10px] font-black text-gray-400 uppercase tracking-widest w-full mb-1">Generated Tags</span>';
+        
+        if (!tags || tags.length === 0) {
+            container.innerHTML += '<span class="text-gray-300 text-[11px] italic">No tags.</span>';
+            return;
+        }
+
+        tags.forEach(tag => {
+            const span = document.createElement('span');
+            span.className = 'px-3 py-1 bg-gray-100 dark:bg-gray-900 text-gray-500 rounded-full text-[11px] font-bold';
+            span.textContent = '#' + tag.replace(/^#/, '');
+            container.appendChild(span);
+        });
+    }
+
+    function copyBlogContent() {
+        const title = document.getElementById('blogTitle').value;
+        const content = document.getElementById('blogContent').value;
+        const fullText = `${title}\n\n${content}`;
+        
+        navigator.clipboard.writeText(fullText).then(() => {
+            Utils.showToast('내용이 클립보드에 복사되었습니다.', 'success');
+        });
+    }
+
+    async function postToBlog() {
+        const title = document.getElementById('blogTitle').value;
+        const content = document.getElementById('blogContent').value;
+
+        if (!title || !content) {
+            Utils.showToast('게시할 내용이 없습니다.', 'warning');
+            return;
+        }
+
+        const platforms = getSelectedPlatforms();
+        const platformNames = platforms.map(p => p === 'wordpress' ? '워드프레스' : '구글 블로그').join(' + ');
+        if (!confirm(`${platformNames}에 이 글을 게시하시겠습니까?`)) return;
+
+        const postBtn = document.getElementById('btnPostToBlog');
+        const originalText = postBtn.querySelector('span:last-child').innerText;
+        postBtn.disabled = true;
+        postBtn.querySelector('span:last-child').innerText = '게시 중...';
+
+        try {
+            const response = await fetch('/api/blog/post', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    platforms: platforms,
+                    title: title,
+                    content: content.replace(/\n/g, '<br>'),
+                    tags: generatedTags
+                })
+            });
+
+            const result = await response.json();
+            const results = result.results || {};
+
+            // 각 플랫폼 결과 표시
+            let messages = [];
+            let urls = [];
+            for (const [platform, res] of Object.entries(results)) {
+                const name = platform === 'wordpress' ? '워드프레스' : '구글 블로그';
+                if (res.status === 'ok') {
+                    messages.push(`${name}: 게시 완료`);
+                    if (res.url) urls.push(res.url);
+                } else {
+                    messages.push(`${name}: 실패 - ${res.error}`);
+                }
+            }
+
+            if (result.status === 'ok') {
+                Utils.showToast('모든 플랫폼에 게시 완료!', 'success');
+            } else if (result.status === 'partial') {
+                Utils.showToast('일부 플랫폼 게시 완료: ' + messages.join(' | '), 'warning');
+            } else {
+                Utils.showToast('게시 실패: ' + messages.join(' | '), 'error');
+            }
+
+            // 게시된 글 확인
+            if (urls.length > 0 && confirm('게시된 글을 확인하시겠습니까?')) {
+                urls.forEach(url => window.open(url, '_blank'));
+            }
+        } catch (error) {
+            console.error('Post Error:', error);
+            Utils.showToast('서버 통신 중 오류가 발생했습니다.', 'error');
+        } finally {
+            postBtn.disabled = false;
+            postBtn.querySelector('span:last-child').innerText = originalText;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // Source type change logic
+        document.getElementById('sourceType').addEventListener('change', (e) => {
+            const inputLabel = document.querySelector('#sourceInputArea label');
+            const inputField = document.getElementById('sourceUrl');
+            
+            if (e.target.value === 'youtube') {
+                inputLabel.innerText = 'YouTube URL';
+                inputField.placeholder = 'https://youtube.com/watch?v=...';
+            } else if (e.target.value === 'url') {
+                inputLabel.innerText = '웹사이트 URL';
+                inputField.placeholder = 'https://example.com/article/...';
+            } else {
+                inputLabel.innerText = '포스팅 주제 또는 본문 텍스트';
+                inputField.placeholder = '블로그로 만들고 싶은 내용을 입력하세요...';
+            }
+        });
+
+        // 플랫폼 체크박스 이벤트
+        document.querySelectorAll('#platformSelector label').forEach(label => {
+            label.addEventListener('click', (e) => {
+                // label 안의 checkbox가 자동 토글됨
+                const cb = label.querySelector('input[type="checkbox"]');
+
+                // "동시 게시" 클릭 시 나머지 체크박스 상태 동기화
+                if (cb.classList.contains('platform-both-check')) {
+                    setTimeout(() => {
+                        const checked = cb.checked;
+                        document.querySelectorAll('.platform-check').forEach(c => c.checked = checked);
+                        updatePlatformUI();
+                    }, 10);
+                    return;
+                }
+
+                // 개별 플랫폼 클릭 시 "동시 게시" 자동 해제/체크
+                setTimeout(() => {
+                    const allChecked = [...document.querySelectorAll('.platform-check')].every(c => c.checked);
+                    const bothCb = document.querySelector('.platform-both-check');
+                    if (bothCb) bothCb.checked = allChecked;
+                    updatePlatformUI();
+                }, 10);
+            });
+        });
+
+        // 초기 UI 설정
+        updatePlatformUI();
+    });
+</script>
+{% endblock %}

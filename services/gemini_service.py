@@ -790,6 +790,26 @@ class GeminiService:
             return []
 
 
+    async def generate_blog_content(self, source_content: str, platform: str, blog_style: str, language: str = "ko", user_notes: str = "") -> dict:
+        """참고 자료를 바탕으로 블로그 포스팅 생성"""
+        prompt = prompts.GEMINI_GENERATE_BLOG.format(
+            source_content=source_content[:15000],  # 토큰 제한 고려
+            platform=platform,
+            blog_style=blog_style,
+            target_language=language,
+            user_notes=user_notes
+        )
+
+        try:
+            text = await self.generate_text(prompt, temperature=0.7)
+            json_match = re.search(r'\{[\s\S]*\}', text)
+            if json_match:
+                return json.loads(json_match.group())
+            return {"error": "블로그 생성 실패", "raw": text}
+        except Exception as e:
+            print(f"Blog Generation Error: {e}")
+            return {"error": str(e)}
+
     async def generate_video_metadata(self, script_text: str) -> dict:
         """대본을 바탕으로 제목, 설명, 태그 생성"""
         prompt = prompts.AUTOPILOT_GENERATE_METADATA.format(script_text=script_text)

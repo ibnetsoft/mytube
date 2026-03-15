@@ -1,0 +1,712 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-6 animate-fadeIn">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-black text-gray-900 dark:text-white tracking-tight">
+                퍼블리시 허브
+                <span class="ml-2 px-2 py-0.5 text-xs bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-full uppercase tracking-widest font-black">ONE SOURCE</span>
+            </h1>
+            <p class="text-gray-500 dark:text-gray-400 mt-1 font-medium">하나의 콘텐츠로 블로그 + 유튜브 동시 발행</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <button onclick="showSessionList()" class="px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                내 세션 목록
+            </button>
+            <button onclick="createNewSession()" class="btn-primary flex items-center gap-2 px-6 py-2.5 rounded-xl shadow-lg shadow-blue-500/20">
+                <span class="text-lg">+</span>
+                <span class="font-bold">새 퍼블리시</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Step Progress Bar -->
+    <div class="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-xl border border-gray-100 dark:border-gray-700/50">
+        <div class="flex items-center justify-between">
+            <div class="step-item flex-1 text-center cursor-pointer" data-step="script" onclick="goToStep('script')">
+                <div id="stepIcon_script" class="w-10 h-10 mx-auto rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-sm mb-1">1</div>
+                <span class="text-xs font-bold text-blue-600 dark:text-blue-400">글 작성</span>
+            </div>
+            <div class="flex-1 h-0.5 bg-gray-200 dark:bg-gray-700 relative top-[-10px]"><div id="stepLine_1" class="h-full bg-blue-500 transition-all" style="width:0%"></div></div>
+            <div class="step-item flex-1 text-center cursor-pointer" data-step="images" onclick="goToStep('images')">
+                <div id="stepIcon_images" class="w-10 h-10 mx-auto rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500 flex items-center justify-center font-bold text-sm mb-1">2</div>
+                <span class="text-xs font-bold text-gray-400">이미지 생성</span>
+            </div>
+            <div class="flex-1 h-0.5 bg-gray-200 dark:bg-gray-700 relative top-[-10px]"><div id="stepLine_2" class="h-full bg-blue-500 transition-all" style="width:0%"></div></div>
+            <div class="step-item flex-1 text-center cursor-pointer" data-step="blog" onclick="goToStep('blog')">
+                <div id="stepIcon_blog" class="w-10 h-10 mx-auto rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500 flex items-center justify-center font-bold text-sm mb-1">3</div>
+                <span class="text-xs font-bold text-gray-400">블로그 게시</span>
+            </div>
+            <div class="flex-1 h-0.5 bg-gray-200 dark:bg-gray-700 relative top-[-10px]"><div id="stepLine_3" class="h-full bg-blue-500 transition-all" style="width:0%"></div></div>
+            <div class="step-item flex-1 text-center cursor-pointer" data-step="video" onclick="goToStep('video')">
+                <div id="stepIcon_video" class="w-10 h-10 mx-auto rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500 flex items-center justify-center font-bold text-sm mb-1">4</div>
+                <span class="text-xs font-bold text-gray-400">영상 제작</span>
+            </div>
+            <div class="flex-1 h-0.5 bg-gray-200 dark:bg-gray-700 relative top-[-10px]"><div id="stepLine_4" class="h-full bg-blue-500 transition-all" style="width:0%"></div></div>
+            <div class="step-item flex-1 text-center cursor-pointer" data-step="youtube" onclick="goToStep('youtube')">
+                <div id="stepIcon_youtube" class="w-10 h-10 mx-auto rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500 flex items-center justify-center font-bold text-sm mb-1">5</div>
+                <span class="text-xs font-bold text-gray-400">유튜브 업로드</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== STEP 1: 글 작성 ===== -->
+    <div id="panel_script" class="step-panel">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- 왼쪽: 프로젝트 불러오기 -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl border border-gray-100 dark:border-gray-700/50">
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="p-2 bg-indigo-500/10 text-indigo-500 rounded-lg text-lg">📂</span>
+                    <h2 class="text-lg font-bold text-gray-800 dark:text-white">기존 프로젝트에서</h2>
+                </div>
+                <select id="projectSelect" class="input-field w-full mb-3" onchange="onProjectSelect()">
+                    <option value="">프로젝트 선택...</option>
+                </select>
+                <button onclick="loadFromProject()" class="w-full py-2 bg-indigo-500 text-white rounded-xl font-bold hover:bg-indigo-600 transition-colors">대본 불러오기</button>
+            </div>
+
+            <!-- 오른쪽: 직접 입력 -->
+            <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl border border-gray-100 dark:border-gray-700/50">
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="p-2 bg-blue-500/10 text-blue-500 rounded-lg text-lg">✏️</span>
+                    <h2 class="text-lg font-bold text-gray-800 dark:text-white">콘텐츠 작성</h2>
+                </div>
+                <input id="sessionTitle" type="text" class="input-field w-full mb-3" placeholder="제목을 입력하세요">
+                <textarea id="sessionContent" class="input-field w-full h-64 resize-y" placeholder="블로그/영상 대본 내용을 입력하세요...&#10;&#10;마크다운 형식도 지원합니다. (# 제목, ## 소제목 등)"></textarea>
+                <div class="flex items-center justify-between mt-4">
+                    <span id="charCount" class="text-xs text-gray-400">0자</span>
+                    <button onclick="saveAndGoToImages()" class="btn-primary px-6 py-2.5 rounded-xl font-bold">다음: 이미지 생성 →</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== STEP 2: 이미지 생성 ===== -->
+    <div id="panel_images" class="step-panel hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- 왼쪽: 이미지 포인트 리스트 -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl border border-gray-100 dark:border-gray-700/50">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                        <span class="p-2 bg-green-500/10 text-green-500 rounded-lg text-lg">🖼️</span>
+                        <h2 class="text-lg font-bold text-gray-800 dark:text-white">이미지 프롬프트</h2>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="analyzeImagePoints()" class="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-bold hover:bg-green-600 transition-colors">AI 분석</button>
+                        <button onclick="addImageSlot()" class="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 rounded-lg text-xs font-bold hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">+ 추가</button>
+                    </div>
+                </div>
+                <div id="imagePointsList" class="space-y-4 max-h-[600px] overflow-y-auto">
+                    <p class="text-gray-400 text-center py-8">이미지 분석을 실행해주세요</p>
+                </div>
+            </div>
+
+            <!-- 오른쪽: 프롬프트 복사 영역 (Flow 확장프로그램용) -->
+            <div class="space-y-6">
+                <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl border border-gray-100 dark:border-gray-700/50">
+                    <div class="flex items-center gap-2 mb-4">
+                        <span class="p-2 bg-orange-500/10 text-orange-500 rounded-lg text-lg">🔗</span>
+                        <h2 class="text-lg font-bold text-gray-800 dark:text-white">Google Flow 연동</h2>
+                    </div>
+                    <p class="text-sm text-gray-500 mb-3">프롬프트를 복사 → Google Flow(Imagen)에서 이미지 생성 → 확장프로그램으로 캡처</p>
+                    <div id="selectedPromptArea" class="bg-gray-50 dark:bg-gray-900 rounded-xl p-4 min-h-[100px]">
+                        <p class="text-gray-400 text-sm">이미지를 선택하면 프롬프트가 여기에 표시됩니다</p>
+                    </div>
+                    <div class="flex gap-2 mt-3">
+                        <button id="btnCopyPrompt" onclick="copySelectedPrompt()" class="flex-1 py-2 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-colors" disabled>프롬프트 복사</button>
+                        <button onclick="openGoogleFlow()" class="flex-1 py-2 bg-gray-200 dark:bg-gray-700 rounded-xl font-bold hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">Flow 열기</button>
+                    </div>
+                </div>
+
+                <!-- 이미지 URL 수동 입력 -->
+                <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl border border-gray-100 dark:border-gray-700/50">
+                    <div class="flex items-center gap-2 mb-4">
+                        <span class="p-2 bg-purple-500/10 text-purple-500 rounded-lg text-lg">📎</span>
+                        <h2 class="text-lg font-bold text-gray-800 dark:text-white">이미지 등록</h2>
+                    </div>
+                    <p class="text-sm text-gray-500 mb-3">생성된 이미지 URL을 입력하거나 파일을 업로드하세요</p>
+                    <div class="flex gap-2">
+                        <input id="manualImageUrl" type="text" class="input-field flex-1" placeholder="이미지 URL 붙여넣기...">
+                        <button onclick="applyManualImage()" class="px-4 py-2 bg-purple-500 text-white rounded-xl font-bold hover:bg-purple-600 transition-colors">적용</button>
+                    </div>
+                    <div class="mt-4 flex justify-between">
+                        <span id="imageProgress" class="text-xs text-gray-400">이미지: 0/0</span>
+                        <button onclick="goToStep('blog')" class="btn-primary px-6 py-2 rounded-xl font-bold text-sm">다음: 블로그 게시 →</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== STEP 3: 블로그 게시 ===== -->
+    <div id="panel_blog" class="step-panel hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- 미리보기 -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl border border-gray-100 dark:border-gray-700/50">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                        <span class="p-2 bg-blue-500/10 text-blue-500 rounded-lg text-lg">👁️</span>
+                        <h2 class="text-lg font-bold text-gray-800 dark:text-white">블로그 미리보기</h2>
+                    </div>
+                    <button onclick="buildHtml()" class="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs font-bold hover:bg-blue-600 transition-colors">HTML 생성</button>
+                </div>
+                <div id="blogPreview" class="prose dark:prose-invert max-w-none bg-gray-50 dark:bg-gray-900 rounded-xl p-6 min-h-[400px] max-h-[600px] overflow-y-auto">
+                    <p class="text-gray-400">HTML을 생성하면 미리보기가 표시됩니다</p>
+                </div>
+            </div>
+
+            <!-- 게시 설정 -->
+            <div class="space-y-6">
+                <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl border border-gray-100 dark:border-gray-700/50">
+                    <div class="flex items-center gap-2 mb-4">
+                        <span class="p-2 bg-green-500/10 text-green-500 rounded-lg text-lg">🚀</span>
+                        <h2 class="text-lg font-bold text-gray-800 dark:text-white">블로그 게시</h2>
+                    </div>
+
+                    <div class="space-y-3">
+                        <label class="flex items-center gap-3 p-3 border-2 rounded-xl cursor-pointer transition-all border-blue-500 bg-blue-50/50 dark:bg-blue-500/10">
+                            <input type="checkbox" id="chkWordpress" checked class="w-4 h-4 accent-blue-500">
+                            <span class="text-2xl">🇼</span>
+                            <span class="font-bold text-sm">WordPress</span>
+                        </label>
+                        <label class="flex items-center gap-3 p-3 border-2 rounded-xl cursor-pointer transition-all border-orange-500 bg-orange-50/50 dark:bg-orange-500/10">
+                            <input type="checkbox" id="chkBlogger" checked class="w-4 h-4 accent-orange-500">
+                            <span class="text-2xl">📝</span>
+                            <span class="font-bold text-sm">Google Blogger</span>
+                        </label>
+                    </div>
+
+                    <div class="mt-4">
+                        <label class="block text-xs font-bold text-gray-400 uppercase mb-2">태그 (쉼표 구분)</label>
+                        <input id="blogTags" type="text" class="input-field w-full" placeholder="AI, 기술, 블로그">
+                    </div>
+
+                    <button onclick="postToBlogs()" class="w-full mt-4 py-3 bg-gradient-to-r from-blue-500 to-green-500 text-white rounded-xl font-bold text-lg hover:from-blue-600 hover:to-green-600 transition-all shadow-lg">
+                        블로그 게시하기
+                    </button>
+                </div>
+
+                <!-- 게시 결과 -->
+                <div id="blogResults" class="hidden bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl border border-gray-100 dark:border-gray-700/50">
+                    <h3 class="font-bold text-gray-800 dark:text-white mb-3">게시 결과</h3>
+                    <div id="blogResultContent"></div>
+                    <button onclick="goToStep('video')" class="w-full mt-4 py-2 bg-purple-500 text-white rounded-xl font-bold hover:bg-purple-600 transition-colors">다음: 영상 제작 →</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== STEP 4: 영상 제작 ===== -->
+    <div id="panel_video" class="step-panel hidden">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl border border-gray-100 dark:border-gray-700/50">
+            <div class="flex items-center gap-2 mb-4">
+                <span class="p-2 bg-purple-500/10 text-purple-500 rounded-lg text-lg">🎬</span>
+                <h2 class="text-lg font-bold text-gray-800 dark:text-white">영상 제작</h2>
+            </div>
+            <p class="text-gray-500 mb-6">블로그에 사용된 이미지를 모션 영상으로 변환하고, TTS 나레이션과 합성합니다.</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="bg-gray-50 dark:bg-gray-900 rounded-xl p-4 text-center">
+                    <div class="text-3xl mb-2">🖼️</div>
+                    <div class="font-bold text-sm">이미지 → 영상</div>
+                    <p class="text-xs text-gray-400 mt-1">각 이미지를 5~8초 모션 영상으로 변환</p>
+                    <span id="videoStepImg" class="inline-block mt-2 px-2 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs font-bold">대기</span>
+                </div>
+                <div class="bg-gray-50 dark:bg-gray-900 rounded-xl p-4 text-center">
+                    <div class="text-3xl mb-2">🎙️</div>
+                    <div class="font-bold text-sm">TTS 나레이션</div>
+                    <p class="text-xs text-gray-400 mt-1">대본 텍스트를 음성으로 변환</p>
+                    <span id="videoStepTts" class="inline-block mt-2 px-2 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs font-bold">대기</span>
+                </div>
+                <div class="bg-gray-50 dark:bg-gray-900 rounded-xl p-4 text-center">
+                    <div class="text-3xl mb-2">🎞️</div>
+                    <div class="font-bold text-sm">최종 조립</div>
+                    <p class="text-xs text-gray-400 mt-1">영상 + 음성 + 자막 + BGM 합성</p>
+                    <span id="videoStepRender" class="inline-block mt-2 px-2 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs font-bold">대기</span>
+                </div>
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="startVideoProduction()" class="flex-1 py-3 bg-purple-500 text-white rounded-xl font-bold hover:bg-purple-600 transition-colors">
+                    영상 제작 시작 (기존 프로젝트 페이지에서)
+                </button>
+                <button onclick="goToStep('youtube')" class="px-6 py-3 bg-gray-200 dark:bg-gray-700 rounded-xl font-bold hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                    건너뛰기 →
+                </button>
+            </div>
+
+            <p class="text-xs text-gray-400 mt-3 text-center">* 영상 제작은 기존 이미지 생성/TTS/렌더링 페이지의 파이프라인을 활용합니다.</p>
+        </div>
+    </div>
+
+    <!-- ===== STEP 5: 유튜브 업로드 ===== -->
+    <div id="panel_youtube" class="step-panel hidden">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl border border-gray-100 dark:border-gray-700/50">
+            <div class="flex items-center gap-2 mb-4">
+                <span class="p-2 bg-red-500/10 text-red-500 rounded-lg text-lg">▶️</span>
+                <h2 class="text-lg font-bold text-gray-800 dark:text-white">유튜브 업로드</h2>
+            </div>
+            <p class="text-gray-500 mb-6">렌더링된 영상을 유튜브에 업로드합니다. 기존 업로드 페이지를 활용합니다.</p>
+
+            <div id="publishSummary" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="bg-blue-50 dark:bg-blue-500/10 rounded-xl p-4">
+                    <div class="font-bold text-blue-600 dark:text-blue-400 mb-1">WordPress</div>
+                    <span id="summaryWp" class="text-sm text-gray-600 dark:text-gray-400">-</span>
+                </div>
+                <div class="bg-orange-50 dark:bg-orange-500/10 rounded-xl p-4">
+                    <div class="font-bold text-orange-600 dark:text-orange-400 mb-1">Blogger</div>
+                    <span id="summaryBlogger" class="text-sm text-gray-600 dark:text-gray-400">-</span>
+                </div>
+                <div class="bg-red-50 dark:bg-red-500/10 rounded-xl p-4">
+                    <div class="font-bold text-red-600 dark:text-red-400 mb-1">YouTube</div>
+                    <span id="summaryYoutube" class="text-sm text-gray-600 dark:text-gray-400">-</span>
+                </div>
+            </div>
+
+            <button onclick="goToUploadPage()" class="w-full py-3 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600 transition-colors">
+                유튜브 업로드 페이지로 이동
+            </button>
+        </div>
+    </div>
+
+    <!-- Session List Modal -->
+    <div id="sessionListModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-bold text-gray-800 dark:text-white">퍼블리시 세션 목록</h2>
+                <button onclick="closeSessionList()" class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">&times;</button>
+            </div>
+            <div id="sessionListContent"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ==========================================
+// State
+// ==========================================
+let currentSessionId = null;
+let currentStep = 'script';
+let imagePoints = [];
+let selectedImageIdx = -1;
+
+// ==========================================
+// Init
+// ==========================================
+document.addEventListener('DOMContentLoaded', () => {
+    loadProjects();
+    document.getElementById('sessionContent').addEventListener('input', updateCharCount);
+    updateCharCount();
+});
+
+function updateCharCount() {
+    const content = document.getElementById('sessionContent').value;
+    document.getElementById('charCount').textContent = `${content.length}자`;
+}
+
+async function loadProjects() {
+    try {
+        const res = await fetch('/api/projects');
+        const data = await res.json();
+        const sel = document.getElementById('projectSelect');
+        (data.projects || []).forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = `${p.name} (${p.app_mode || 'longform'})`;
+            sel.appendChild(opt);
+        });
+    } catch(e) { console.error(e); }
+}
+
+// ==========================================
+// Step Navigation
+// ==========================================
+const STEPS = ['script', 'images', 'blog', 'video', 'youtube'];
+
+function goToStep(step) {
+    currentStep = step;
+    STEPS.forEach(s => {
+        document.getElementById(`panel_${s}`).classList.toggle('hidden', s !== step);
+    });
+    updateStepUI();
+}
+
+function updateStepUI() {
+    const idx = STEPS.indexOf(currentStep);
+    STEPS.forEach((s, i) => {
+        const icon = document.getElementById(`stepIcon_${s}`);
+        if (i < idx) {
+            icon.className = 'w-10 h-10 mx-auto rounded-full bg-green-500 text-white flex items-center justify-center font-bold text-sm mb-1';
+            icon.textContent = '✓';
+        } else if (i === idx) {
+            icon.className = 'w-10 h-10 mx-auto rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-sm mb-1';
+            icon.textContent = i + 1;
+        } else {
+            icon.className = 'w-10 h-10 mx-auto rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500 flex items-center justify-center font-bold text-sm mb-1';
+            icon.textContent = i + 1;
+        }
+    });
+    // Progress lines
+    for (let i = 1; i <= 4; i++) {
+        const line = document.getElementById(`stepLine_${i}`);
+        if (line) line.style.width = (i <= idx) ? '100%' : '0%';
+    }
+}
+
+// ==========================================
+// Step 1: Script
+// ==========================================
+async function loadFromProject() {
+    const projectId = document.getElementById('projectSelect').value;
+    if (!projectId) return alert('프로젝트를 선택해주세요.');
+
+    try {
+        const res = await fetch(`/api/projects/${projectId}/script`);
+        const data = await res.json();
+        if (data.script) {
+            document.getElementById('sessionContent').value = data.script.full_script || '';
+            // 프로젝트 이름도 제목에
+            const projRes = await fetch(`/api/projects/${projectId}/full`);
+            const projData = await projRes.json();
+            if (projData.project) {
+                document.getElementById('sessionTitle').value = projData.project.name || '';
+            }
+            updateCharCount();
+        } else {
+            alert('해당 프로젝트에 대본이 없습니다.');
+        }
+    } catch(e) { alert('불러오기 실패: ' + e.message); }
+}
+
+async function saveAndGoToImages() {
+    const title = document.getElementById('sessionTitle').value.trim();
+    const content = document.getElementById('sessionContent').value.trim();
+    if (!content) return alert('내용을 입력해주세요.');
+
+    try {
+        if (currentSessionId) {
+            // 기존 세션 업데이트
+            await fetch(`/api/publish/sessions/${currentSessionId}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ title, content })
+            });
+        } else {
+            // 새 세션 생성
+            const projectId = document.getElementById('projectSelect').value || 0;
+            const res = await fetch('/api/publish/sessions', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ project_id: parseInt(projectId), title, content })
+            });
+            const data = await res.json();
+            if (data.status !== 'ok') return alert(data.error || '세션 생성 실패');
+            currentSessionId = data.session_id;
+        }
+        goToStep('images');
+    } catch(e) { alert('저장 실패: ' + e.message); }
+}
+
+// ==========================================
+// Step 2: Images
+// ==========================================
+async function analyzeImagePoints() {
+    if (!currentSessionId) return alert('먼저 글을 저장해주세요.');
+
+    const listEl = document.getElementById('imagePointsList');
+    listEl.innerHTML = '<div class="text-center py-8"><div class="animate-spin inline-block w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full"></div><p class="text-sm text-gray-400 mt-2">AI가 이미지 포인트를 분석중...</p></div>';
+
+    try {
+        const res = await fetch('/api/publish/analyze-images', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ session_id: currentSessionId })
+        });
+        const data = await res.json();
+        if (data.status !== 'ok') return alert(data.error || '분석 실패');
+
+        imagePoints = data.images || [];
+        renderImagePoints();
+    } catch(e) {
+        listEl.innerHTML = '<p class="text-red-400 text-center py-4">분석 실패: ' + e.message + '</p>';
+    }
+}
+
+function renderImagePoints() {
+    const listEl = document.getElementById('imagePointsList');
+    if (imagePoints.length === 0) {
+        listEl.innerHTML = '<p class="text-gray-400 text-center py-4">이미지 포인트가 없습니다.</p>';
+        return;
+    }
+
+    let filled = 0;
+    listEl.innerHTML = imagePoints.map((img, i) => {
+        const hasImage = !!img.image_url;
+        if (hasImage) filled++;
+        return `
+        <div class="p-3 border-2 rounded-xl transition-all cursor-pointer ${selectedImageIdx === i ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-500/10' : (hasImage ? 'border-green-300 bg-green-50/50 dark:bg-green-500/5' : 'border-gray-200 dark:border-gray-700')}"
+             onclick="selectImagePoint(${i})">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-bold ${hasImage ? 'text-green-500' : 'text-gray-400'}">#${img.position || i+1} ${hasImage ? '✓' : '○'}</span>
+                <button onclick="event.stopPropagation();deleteImagePoint(${img.id})" class="text-xs text-red-400 hover:text-red-600">삭제</button>
+            </div>
+            <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">${img.prompt_ko || '프롬프트 없음'}</p>
+            ${hasImage ? `<img src="${img.image_url}" class="w-full h-24 object-cover rounded-lg mt-2">` : ''}
+        </div>`;
+    }).join('');
+
+    document.getElementById('imageProgress').textContent = `이미지: ${filled}/${imagePoints.length}`;
+}
+
+function selectImagePoint(idx) {
+    selectedImageIdx = idx;
+    const img = imagePoints[idx];
+    const area = document.getElementById('selectedPromptArea');
+    area.innerHTML = `
+        <p class="text-xs text-gray-400 mb-1">#${img.position} - ${img.prompt_ko || ''}</p>
+        <p class="text-sm font-mono text-gray-800 dark:text-gray-200">${img.prompt_en || '영문 프롬프트 없음'}</p>
+    `;
+    document.getElementById('btnCopyPrompt').disabled = false;
+    renderImagePoints();
+}
+
+function copySelectedPrompt() {
+    if (selectedImageIdx < 0) return;
+    const prompt = imagePoints[selectedImageIdx].prompt_en || '';
+    navigator.clipboard.writeText(prompt).then(() => {
+        const btn = document.getElementById('btnCopyPrompt');
+        btn.textContent = '복사됨!';
+        setTimeout(() => { btn.textContent = '프롬프트 복사'; }, 1500);
+    });
+}
+
+function openGoogleFlow() {
+    window.open('https://labs.google/fx/tools/image-fx', '_blank');
+}
+
+async function applyManualImage() {
+    if (selectedImageIdx < 0) return alert('먼저 이미지 포인트를 선택해주세요.');
+    const url = document.getElementById('manualImageUrl').value.trim();
+    if (!url) return alert('이미지 URL을 입력해주세요.');
+
+    const img = imagePoints[selectedImageIdx];
+    try {
+        await fetch(`/api/publish/images/${img.id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ image_url: url, status: 'done' })
+        });
+        imagePoints[selectedImageIdx].image_url = url;
+        imagePoints[selectedImageIdx].status = 'done';
+        document.getElementById('manualImageUrl').value = '';
+        renderImagePoints();
+
+        // 자동으로 다음 빈 슬롯 선택
+        const nextEmpty = imagePoints.findIndex((p, i) => i > selectedImageIdx && !p.image_url);
+        if (nextEmpty >= 0) selectImagePoint(nextEmpty);
+    } catch(e) { alert('적용 실패: ' + e.message); }
+}
+
+async function deleteImagePoint(imageId) {
+    if (!confirm('삭제할까요?')) return;
+    try {
+        await fetch(`/api/publish/images/${imageId}`, { method: 'DELETE' });
+        imagePoints = imagePoints.filter(p => p.id !== imageId);
+        selectedImageIdx = -1;
+        renderImagePoints();
+    } catch(e) { alert('삭제 실패'); }
+}
+
+async function addImageSlot() {
+    if (!currentSessionId) return;
+    try {
+        const res = await fetch(`/api/publish/images/${currentSessionId}/add`, { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'ok') {
+            imagePoints.push({
+                id: data.image_id,
+                position: data.position,
+                prompt_ko: '',
+                prompt_en: '',
+                image_url: null,
+                status: 'pending'
+            });
+            renderImagePoints();
+        }
+    } catch(e) { alert('추가 실패'); }
+}
+
+// ==========================================
+// Step 3: Blog Posting
+// ==========================================
+async function buildHtml() {
+    if (!currentSessionId) return alert('세션이 없습니다.');
+    try {
+        const res = await fetch('/api/publish/build-html', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ session_id: currentSessionId })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+            document.getElementById('blogPreview').innerHTML = data.html;
+        } else {
+            alert(data.error || 'HTML 생성 실패');
+        }
+    } catch(e) { alert('오류: ' + e.message); }
+}
+
+async function postToBlogs() {
+    if (!currentSessionId) return alert('세션이 없습니다.');
+
+    const platforms = [];
+    if (document.getElementById('chkWordpress').checked) platforms.push('wordpress');
+    if (document.getElementById('chkBlogger').checked) platforms.push('blogger');
+    if (platforms.length === 0) return alert('게시할 플랫폼을 선택해주세요.');
+
+    const tagsStr = document.getElementById('blogTags').value;
+    const tags = tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(Boolean) : [];
+
+    try {
+        const res = await fetch('/api/publish/post-blog', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ session_id: currentSessionId, platforms, tags })
+        });
+        const data = await res.json();
+
+        const resultDiv = document.getElementById('blogResultContent');
+        let html = '';
+        const results = data.results || {};
+
+        for (const [platform, result] of Object.entries(results)) {
+            if (result.status === 'ok') {
+                html += `<div class="p-3 bg-green-50 dark:bg-green-500/10 rounded-lg mb-2">
+                    <span class="font-bold text-green-600">${platform}</span>: 게시 완료
+                    ${result.url ? `<a href="${result.url}" target="_blank" class="text-blue-500 ml-2 text-sm">바로가기 →</a>` : ''}
+                </div>`;
+            } else {
+                html += `<div class="p-3 bg-red-50 dark:bg-red-500/10 rounded-lg mb-2">
+                    <span class="font-bold text-red-600">${platform}</span>: ${result.error || '실패'}
+                </div>`;
+            }
+        }
+        resultDiv.innerHTML = html;
+        document.getElementById('blogResults').classList.remove('hidden');
+
+        // 요약 업데이트
+        if (results.wordpress?.status === 'ok') {
+            document.getElementById('summaryWp').innerHTML = `<a href="${results.wordpress.url}" target="_blank" class="text-blue-500">게시됨</a>`;
+        }
+        if (results.blogger?.status === 'ok') {
+            document.getElementById('summaryBlogger').innerHTML = `<a href="${results.blogger.url}" target="_blank" class="text-orange-500">게시됨</a>`;
+        }
+    } catch(e) { alert('게시 실패: ' + e.message); }
+}
+
+// ==========================================
+// Step 4 & 5: Video & YouTube
+// ==========================================
+function startVideoProduction() {
+    if (!currentSessionId) return;
+    // 기존 프로젝트의 이미지 생성/TTS/렌더링 페이지로 이동
+    const projectId = document.getElementById('projectSelect').value;
+    if (projectId) {
+        window.open(`/image-gen?project=${projectId}`, '_blank');
+    } else {
+        alert('프로젝트를 선택해야 영상 제작이 가능합니다. 먼저 프로젝트에 연결해주세요.');
+    }
+}
+
+function goToUploadPage() {
+    const projectId = document.getElementById('projectSelect').value;
+    if (projectId) {
+        window.open(`/video-upload?project=${projectId}`, '_blank');
+    } else {
+        window.open('/video-upload', '_blank');
+    }
+}
+
+// ==========================================
+// Session Management
+// ==========================================
+async function createNewSession() {
+    currentSessionId = null;
+    selectedImageIdx = -1;
+    imagePoints = [];
+    document.getElementById('sessionTitle').value = '';
+    document.getElementById('sessionContent').value = '';
+    document.getElementById('projectSelect').value = '';
+    document.getElementById('imagePointsList').innerHTML = '<p class="text-gray-400 text-center py-8">이미지 분석을 실행해주세요</p>';
+    document.getElementById('blogPreview').innerHTML = '<p class="text-gray-400">HTML을 생성하면 미리보기가 표시됩니다</p>';
+    document.getElementById('blogResults').classList.add('hidden');
+    goToStep('script');
+    updateCharCount();
+}
+
+async function showSessionList() {
+    document.getElementById('sessionListModal').classList.remove('hidden');
+    try {
+        const res = await fetch('/api/publish/sessions');
+        const data = await res.json();
+        const sessions = data.sessions || [];
+        const el = document.getElementById('sessionListContent');
+
+        if (sessions.length === 0) {
+            el.innerHTML = '<p class="text-gray-400 text-center py-8">세션이 없습니다.</p>';
+            return;
+        }
+
+        el.innerHTML = sessions.map(s => `
+            <div class="flex items-center justify-between p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer" onclick="loadSession(${s.id})">
+                <div>
+                    <div class="font-bold text-gray-800 dark:text-white">${s.title || '무제'}</div>
+                    <div class="text-xs text-gray-400">${s.step || 'script'} | ${s.created_at || ''}</div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs font-bold">${s.status || 'draft'}</span>
+                    <button onclick="event.stopPropagation();deleteSession(${s.id})" class="text-red-400 hover:text-red-600 text-xs">삭제</button>
+                </div>
+            </div>
+        `).join('');
+    } catch(e) {
+        document.getElementById('sessionListContent').innerHTML = '<p class="text-red-400">로드 실패</p>';
+    }
+}
+
+function closeSessionList() {
+    document.getElementById('sessionListModal').classList.add('hidden');
+}
+
+async function loadSession(sessionId) {
+    try {
+        const res = await fetch(`/api/publish/sessions/${sessionId}`);
+        const data = await res.json();
+        if (data.status !== 'ok') return alert(data.error);
+
+        currentSessionId = sessionId;
+        const session = data.session;
+        document.getElementById('sessionTitle').value = session.title || '';
+        document.getElementById('sessionContent').value = session.content || '';
+        updateCharCount();
+
+        imagePoints = data.images || [];
+        renderImagePoints();
+
+        closeSessionList();
+        goToStep(session.step || 'script');
+    } catch(e) { alert('불러오기 실패: ' + e.message); }
+}
+
+async function deleteSession(sessionId) {
+    if (!confirm('이 세션을 삭제할까요?')) return;
+    try {
+        await fetch(`/api/publish/sessions/${sessionId}`, { method: 'DELETE' });
+        showSessionList();
+        if (currentSessionId === sessionId) createNewSession();
+    } catch(e) { alert('삭제 실패'); }
+}
+</script>
+{% endblock %}

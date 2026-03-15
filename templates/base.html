@@ -196,6 +196,27 @@
                                 class="ml-auto text-[8px] bg-orange-500/20 text-orange-400 px-1 py-0.5 rounded">New</span>
                         </a>
                     </li>
+                    <li class="mt-1 pt-1 border-t border-gray-200 dark:border-gray-700">
+                        <a href="/blog-automation" id="nav-blog"
+                            class="sidebar-item bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/30 {% if page == 'blog-automation' %}active{% endif %}">
+                            <span class="sidebar-icon">✍️</span>
+                            <span
+                                class="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-400 font-bold">{{
+                                t('nav_blog') }}</span>
+                            <span
+                                class="ml-auto text-[8px] bg-blue-500/20 text-blue-400 px-1 py-0.5 rounded">Beta</span>
+                        </a>
+                    </li>
+                    <li class="mt-0.5 pt-0.5">
+                        <a href="/publish-hub" id="nav-publish"
+                            class="sidebar-item bg-gradient-to-r from-green-500/10 to-teal-500/10 border border-green-500/30 {% if page == 'publish-hub' %}active{% endif %}">
+                            <span class="sidebar-icon">🚀</span>
+                            <span
+                                class="bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-teal-400 font-bold">퍼블리시 허브</span>
+                            <span
+                                class="ml-auto text-[8px] bg-green-500/20 text-green-400 px-1 py-0.5 rounded">New</span>
+                        </a>
+                    </li>
                     <li class="mt-0.5 pt-0.5">
                         <a href="/autopilot" id="nav-autopilot"
                             class="sidebar-item bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 {% if page == 'autopilot' %}active{% endif %}">
@@ -806,6 +827,7 @@
                 const navShorts = document.getElementById('nav-shorts');
                 const navWebtoon = document.getElementById('nav-webtoon');
                 const navCommerce = document.getElementById('nav-commerce-shorts');
+                const navBlog = document.getElementById('nav-blog');
                 const navTopic = document.getElementById('nav-topic');
                 const navRepository = document.getElementById('nav-repository'); // [NEW] Add repository
                 const navUpload = document.getElementById('nav-upload'); // [NEW] To hide upload/reserve in webtoon
@@ -819,8 +841,31 @@
                     else el.parentElement.classList.add('hidden');
                 };
 
-                if (mode === 'commerce') {
+                if (mode === 'blog') {
+                    // Blog Mode: Focused on writing and automation
+                    setVisible(navBlog, true);
+                    setVisible(navTopic, true);
+                    setVisible(navRepository, true);
+                    setVisible(navPlan, true);
+                    setVisible(navScript, true);
+
+                    // Hide video-specific steps
+                    setVisible(navIntro, false);
+                    setVisible(navImage, false);
+                    setVisible(navThumbnail, false);
+                    setVisible(navTts, false);
+                    setVisible(navSubtitle, false);
+                    setVisible(navRender, false);
+                    setVisible(navTitle, false);
+                    setVisible(navShorts, false);
+                    setVisible(navWebtoon, false);
+                    setVisible(navCommerce, false);
+                    setVisible(navUpload, false);
+                    setVisible(navAutopilot, true);
+
+                } else if (mode === 'commerce') {
                     // Commerce Mode: Hide almost everything except Commerce & Topic
+                    setVisible(navBlog, false);
                     setVisible(navCommerce, true);
 
                     setVisible(navPlan, false);
@@ -843,6 +888,7 @@
 
                 } else if (mode === 'shorts') {
                     // Shorts Mode
+                    setVisible(navBlog, false);
                     setVisible(navCommerce, false);
                     setVisible(navWebtoon, false);
 
@@ -870,6 +916,7 @@
 
                 } else if (mode === 'webtoon') {
                     // Webtoon Mode [USER REQUEST: Hide Topic, Repo, Plan, Thumb, Upload]
+                    setVisible(navBlog, false);
                     setVisible(navCommerce, false);
                     setVisible(navWebtoon, true);
 
@@ -901,6 +948,7 @@
 
                 } else {
                     // Longform Mode: Show everything (default)
+                    setVisible(navBlog, false);
                     setVisible(navCommerce, false);
 
                     setVisible(navPlan, true);
