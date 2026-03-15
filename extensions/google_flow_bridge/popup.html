@@ -308,6 +308,20 @@
       </div>
   </div>
 
+  <!-- 이미지 포착 패널 (퍼블리시 허브 연동) -->
+  <div id="image-capture-panel" style="margin-bottom:15px; padding:12px; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.3); border-radius:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <span style="font-size:12px; font-weight:700; color:#10b981;">🖼️ 포착된 이미지</span>
+          <div style="display:flex; gap:6px;">
+              <button id="btn-refresh-images" style="background:#10b981; color:white; border:none; padding:4px 10px; border-radius:6px; font-size:10px; cursor:pointer; font-weight:600;">새로고침</button>
+              <button id="btn-clear-images" style="background:rgba(255,255,255,0.1); color:#94a3b8; border:1px solid rgba(255,255,255,0.2); padding:4px 8px; border-radius:6px; font-size:10px; cursor:pointer;">초기화</button>
+          </div>
+      </div>
+      <div id="captured-image-list" style="font-size:11px; color:#94a3b8; max-height:200px; overflow-y:auto;">
+          Google ImageFX에서 이미지를 생성하면 자동으로 여기에 표시됩니다.
+      </div>
+  </div>
+
   <div id="scan-result" style="display:none; background:#0f172a; border:1px solid #334155; border-radius:6px; padding:8px; margin-bottom:10px; font-size:10px; color:#94a3b8; max-height:150px; overflow-y:auto;"></div>
 
   <div class="select-all-container">

@@ -1,7 +1,8 @@
-// background.js - Google Flow 영상 URL 자동 포착 v2
-// 모든 도메인에서 영상 네트워크 요청을 캡처하고 중복 제거
+// background.js - Google Flow 영상/이미지 URL 자동 포착 v3
+// 모든 도메인에서 영상+이미지 네트워크 요청을 캡처하고 중복 제거
 
 const capturedVideos = new Map(); // tabId -> [{url, timestamp, contentType, size}]
+const capturedImages = []; // [{url, timestamp, contentType, size}] - 이미지 전용
 
 // URL에서 쿼리/해시 제거한 기본 경로 추출 (중복 비교용)
 function getUrlBase(url) {
@@ -58,16 +59,36 @@ chrome.webRequest.onHeadersReceived.addListener(
         const contentType = ctHeader?.value || '';
 
         const isVideo = contentType.includes('video');
-        if (!isVideo) return;
+        const isImage = contentType.includes('image/png') || contentType.includes('image/jpeg') || contentType.includes('image/webp');
 
         // 너무 작은 응답 무시 (썸네일 등)
         const clHeader = details.responseHeaders?.find(
             h => h.name.toLowerCase() === 'content-length'
         );
         const contentLength = parseInt(clHeader?.value || '0', 10);
-        if (contentLength > 0 && contentLength < 100000) return; // 100KB 미만 무시
 
-        addVideo(details.tabId, details, contentType, contentLength);
+        if (isVideo) {
+            if (contentLength > 0 && contentLength < 100000) return; // 100KB 미만 무시
+            addVideo(details.tabId, details, contentType, contentLength);
+        }
+
+        if (isImage && contentLength > 50000) {
+            // 50KB 이상 이미지만 캡처 (아이콘/로고 제외)
+            // Google ImageFX 생성 이미지는 보통 수백KB~수MB
+            const url = details.url;
+            // UI 요소/아이콘 URL 패턴 제외
+            if (url.includes('/icon') || url.includes('favicon') || url.includes('logo') || url.includes('.svg')) return;
+            const base = getUrlBase(url);
+            if (!capturedImages.some(img => getUrlBase(img.url) === base)) {
+                capturedImages.push({
+                    url: url,
+                    timestamp: Date.now(),
+                    contentType: contentType,
+                    size: contentLength
+                });
+                console.log(`[FlowBridge BG] 🖼️ Image captured: ${contentType} ${(contentLength / 1024).toFixed(0)}KB ${url.substring(0, 150)}`);
+            }
+        }
     },
     { urls: ['<all_urls>'] },
     ['responseHeaders']
@@ -143,6 +164,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sendResponse({ count: total });
         return true;
     }
+
+    // 이미지 캡처 관련 메시지
+    if (msg.action === 'get_captured_images') {
+        const recent = capturedImages
+            .filter(v => Date.now() - v.timestamp < 2 * 60 * 60 * 1000)
+            .sort((a, b) => b.timestamp - a.timestamp); // 최신순
+        sendResponse({ images: recent });
+        return true;
+    }
+
+    if (msg.action === 'clear_captured_images') {
+        capturedImages.length = 0;
+        sendResponse({ status: 'ok' });
+        return true;
+    }
 });
 
-console.log('[FlowBridge BG] v2 started - monitoring ALL domains for video URLs');
+console.log('[FlowBridge BG] v3 started - monitoring ALL domains for video + image URLs');

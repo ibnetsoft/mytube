@@ -769,3 +769,75 @@ async function ensureContentScript(tabId) {
         }
     }
 }
+
+// =====================================
+// 이미지 포착 패널 (퍼블리시 허브 연동)
+// =====================================
+document.getElementById('btn-refresh-images')?.addEventListener('click', refreshCapturedImages);
+document.getElementById('btn-clear-images')?.addEventListener('click', async () => {
+    try {
+        await chrome.runtime.sendMessage({ action: 'clear_captured_images' });
+        document.getElementById('captured-image-list').innerHTML = '초기화 완료.';
+    } catch(e) {
+        document.getElementById('captured-image-list').innerHTML = '<span style="color:#ef4444">연결 실패</span>';
+    }
+});
+
+async function refreshCapturedImages() {
+    const container = document.getElementById('captured-image-list');
+    if (!container) return;
+    container.innerHTML = '<span style="color:#10b981">로딩 중...</span>';
+
+    try {
+        const response = await chrome.runtime.sendMessage({ action: 'get_captured_images' });
+        const images = response?.images || [];
+
+        if (images.length === 0) {
+            container.innerHTML = '포착된 이미지가 없습니다.<br><span style="font-size:10px;">Google ImageFX에서 이미지를 생성하면 자동 포착됩니다.</span>';
+            return;
+        }
+
+        container.innerHTML = '';
+        images.forEach((img, idx) => {
+            const timeStr = new Date(img.timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+            const sizeKB = img.size ? `${(img.size / 1024).toFixed(0)}KB` : '?';
+            const item = document.createElement('div');
+            item.style.cssText = 'display:flex; align-items:center; gap:8px; padding:6px; margin-bottom:4px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; flex-wrap:wrap;';
+            item.innerHTML = `
+                <span style="font-weight:700; color:#10b981; min-width:20px;">#${idx + 1}</span>
+                <span style="font-size:10px; color:#64748b;">${timeStr}</span>
+                <span style="font-size:9px; padding:2px 6px; border-radius:4px; background:rgba(16,185,129,0.2); color:#6ee7b7;">${sizeKB}</span>
+                <button class="img-preview-btn" style="background:rgba(99,102,241,0.2); color:#818cf8; border:1px solid rgba(99,102,241,0.3); padding:3px 8px; border-radius:5px; font-size:10px; cursor:pointer;">미리보기</button>
+                <button class="img-copy-btn" style="background:#10b981; color:white; border:none; padding:3px 10px; border-radius:5px; font-size:10px; cursor:pointer; font-weight:600;">URL 복사</button>
+                <div class="img-preview-area" style="display:none; width:100%; margin-top:6px;"></div>
+            `;
+            container.appendChild(item);
+
+            item.querySelector('.img-preview-btn').onclick = (e) => {
+                const area = item.querySelector('.img-preview-area');
+                if (area.style.display === 'none') {
+                    area.style.display = 'block';
+                    area.innerHTML = `<img src="${img.url}" style="width:100%; max-height:180px; object-fit:contain; border-radius:6px; background:#000;">`;
+                    e.target.textContent = '닫기';
+                } else {
+                    area.style.display = 'none';
+                    area.innerHTML = '';
+                    e.target.textContent = '미리보기';
+                }
+            };
+
+            item.querySelector('.img-copy-btn').onclick = () => {
+                navigator.clipboard.writeText(img.url).then(() => {
+                    const btn = item.querySelector('.img-copy-btn');
+                    btn.textContent = '복사됨!';
+                    setTimeout(() => { btn.textContent = 'URL 복사'; }, 1500);
+                });
+            };
+        });
+    } catch(e) {
+        container.innerHTML = `<span style="color:#ef4444">오류: ${e.message}</span>`;
+    }
+}
+
+// 팝업 열릴 때 이미지도 자동 새로고침
+setTimeout(() => refreshCapturedImages(), 700);
