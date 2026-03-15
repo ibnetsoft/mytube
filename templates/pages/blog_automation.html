@@ -41,11 +41,14 @@
                     
                     <div id="sourceInputArea">
                         <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">YouTube URL 또는 키워드</label>
-                        <div class="relative">
+                        <div class="relative" id="sourceUrlWrapper">
                             <input type="text" id="sourceUrl" class="input-field w-full pr-12 bg-gray-50/50 dark:bg-gray-900/50 border-gray-100 dark:border-gray-700" placeholder="https://youtube.com/watch?v=...">
                             <button class="absolute right-2 top-1.5 p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                             </button>
+                        </div>
+                        <div id="sourceTextWrapper" class="hidden">
+                            <textarea id="sourceText" class="input-field w-full bg-gray-50/50 dark:bg-gray-900/50 border-gray-100 dark:border-gray-700" rows="8" placeholder="블로그로 만들고 싶은 내용을 입력하세요..."></textarea>
                         </div>
                     </div>
                 </div>
@@ -213,14 +216,18 @@
     }
 
     async function startAutoBlog() {
-        const sourceUrlInput = document.getElementById('sourceUrl');
         const sourceType = document.getElementById('sourceType').value;
-        const sourceValue = sourceUrlInput.value;
+        let sourceValue;
+        if (sourceType === 'text') {
+            sourceValue = document.getElementById('sourceText').value;
+        } else {
+            sourceValue = document.getElementById('sourceUrl').value;
+        }
         const blogStyle = document.getElementById('blogStyle').value;
         const language = document.getElementById('blogLanguage').value;
         const autoImage = document.getElementById('autoImage').checked;
 
-        if (!sourceValue) {
+        if (!sourceValue || !sourceValue.trim()) {
             Utils.showToast('소스 URL이나 텍스트를 입력해주세요.', 'warning');
             return;
         }
@@ -365,17 +372,24 @@
         // Source type change logic
         document.getElementById('sourceType').addEventListener('change', (e) => {
             const inputLabel = document.querySelector('#sourceInputArea label');
+            const urlWrapper = document.getElementById('sourceUrlWrapper');
+            const textWrapper = document.getElementById('sourceTextWrapper');
             const inputField = document.getElementById('sourceUrl');
-            
+
             if (e.target.value === 'youtube') {
                 inputLabel.innerText = 'YouTube URL';
                 inputField.placeholder = 'https://youtube.com/watch?v=...';
+                urlWrapper.classList.remove('hidden');
+                textWrapper.classList.add('hidden');
             } else if (e.target.value === 'url') {
                 inputLabel.innerText = '웹사이트 URL';
                 inputField.placeholder = 'https://example.com/article/...';
+                urlWrapper.classList.remove('hidden');
+                textWrapper.classList.add('hidden');
             } else {
-                inputLabel.innerText = '포스팅 주제 또는 본문 텍스트';
-                inputField.placeholder = '블로그로 만들고 싶은 내용을 입력하세요...';
+                inputLabel.innerText = '포스팅할 내용 (본문 텍스트)';
+                urlWrapper.classList.add('hidden');
+                textWrapper.classList.remove('hidden');
             }
         });
 
@@ -407,6 +421,19 @@
 
         // 초기 UI 설정
         updatePlatformUI();
+
+        // 대본 페이지에서 넘어온 경우 자동 세팅
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('source') === 'script') {
+            const savedContent = sessionStorage.getItem('blogAutoContent');
+            if (savedContent) {
+                sessionStorage.removeItem('blogAutoContent');
+                document.getElementById('sourceType').value = 'text';
+                document.getElementById('sourceType').dispatchEvent(new Event('change'));
+                document.getElementById('sourceText').value = savedContent;
+                Utils.showToast('대본이 자동으로 불러와졌습니다. "블로그 생성 시작"을 눌러주세요.', 'success');
+            }
+        }
     });
 </script>
 {% endblock %}

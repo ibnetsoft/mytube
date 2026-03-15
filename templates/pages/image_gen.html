@@ -294,14 +294,69 @@
         <div id="promptsList" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
 
         <!-- 다음 단계 버튼 (숨김 상태로 시작) -->
-        <div id="nextStepSection" class="hidden mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-center">
-            <h4 class="font-bold text-lg mb-2 text-blue-800 dark:text-blue-300">{{ t('gen_complete_title') }}</h4>
-            <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">{{ t('gen_complete_desc') }}</p>
-            <a href="/video-gen" class="btn-primary inline-flex items-center gap-2">
-                {{ t('btn_go_video_check') }}
-            </a>
-            <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ t('or') }} <a href="/tts"
-                    class="underline hover:text-blue-600">{{ t('btn_go_tts_direct') }}</a></div>
+        <div id="nextStepSection" class="hidden mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+            <h4 class="font-bold text-lg mb-2 text-blue-800 dark:text-blue-300 text-center">{{ t('gen_complete_title') }}</h4>
+            <p class="mb-4 text-sm text-gray-600 dark:text-gray-400 text-center">{{ t('gen_complete_desc') }}</p>
+            <div class="flex flex-wrap justify-center gap-3">
+                <a href="/video-gen" class="btn-primary inline-flex items-center gap-2">
+                    {{ t('btn_go_video_check') }}
+                </a>
+                <a href="/tts" class="btn-secondary inline-flex items-center gap-2">
+                    {{ t('btn_go_tts_direct') }}
+                </a>
+                <button onclick="openBlogPostPanel()" class="inline-flex items-center gap-2 py-2 px-4 rounded-lg text-sm font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0 shadow-md hover:shadow-lg transition-all">
+                    <span>📝</span> 블로그 게시
+                </button>
+            </div>
+        </div>
+
+        <!-- 블로그 게시 패널 -->
+        <div id="blogPostPanel" class="hidden mt-6 bg-white dark:bg-gray-800 rounded-xl border-2 border-amber-300 dark:border-amber-700 shadow-lg overflow-hidden">
+            <div class="bg-gradient-to-r from-amber-500 to-orange-500 p-4">
+                <div class="flex items-center justify-between">
+                    <h4 class="font-bold text-white flex items-center gap-2"><span>📝</span> 블로그 게시 (대본 + 이미지)</h4>
+                    <button onclick="closeBlogPostPanel()" class="text-white/80 hover:text-white text-lg">&times;</button>
+                </div>
+            </div>
+            <div class="p-6 space-y-4">
+                <!-- 제목 -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-1">포스팅 제목</label>
+                    <input type="text" id="blogPostTitle" class="input-field w-full text-sm" placeholder="제목을 입력하세요 (비우면 자동 추출)">
+                </div>
+                <!-- 미리보기 정보 -->
+                <div class="flex gap-4 text-xs text-gray-500 dark:text-gray-400">
+                    <span id="blogSceneCount" class="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">0개 장면</span>
+                    <span id="blogImageCount" class="bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 px-3 py-1 rounded-full">0개 이미지 포함</span>
+                </div>
+                <!-- 플랫폼 선택 -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-2">게시 플랫폼</label>
+                    <div class="flex gap-3">
+                        <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-400 transition-colors">
+                            <input type="checkbox" id="blogPlatformWP" checked class="rounded border-gray-300 text-blue-600">
+                            <span class="text-sm">워드프레스</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-orange-400 transition-colors">
+                            <input type="checkbox" id="blogPlatformBlogger" class="rounded border-gray-300 text-orange-600">
+                            <span class="text-sm">구글 블로그</span>
+                        </label>
+                    </div>
+                </div>
+                <!-- 게시 버튼 -->
+                <div class="flex gap-3 pt-2">
+                    <button onclick="postToBlogWithImages()" id="blogPostBtn"
+                        class="flex-1 py-3 rounded-lg font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-md transition-all flex items-center justify-center gap-2">
+                        <span>🚀</span> 블로그에 게시하기
+                    </button>
+                    <button onclick="previewBlogHtml()"
+                        class="py-3 px-4 rounded-lg font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all">
+                        미리보기
+                    </button>
+                </div>
+                <!-- 결과 -->
+                <div id="blogPostResult" class="hidden mt-3 p-3 rounded-lg text-sm"></div>
+            </div>
         </div>
 
         <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
@@ -2762,6 +2817,185 @@
             }
         } catch (e) {
             console.error('Failed to load prompts from server:', e);
+        }
+    }
+
+    // ========== 블로그 게시 기능 ==========
+
+    function openBlogPostPanel() {
+        const panel = document.getElementById('blogPostPanel');
+        panel.classList.remove('hidden');
+
+        // 정보 업데이트
+        const totalScenes = prompts.length;
+        const imageScenes = prompts.filter(p => p.image_url).length;
+        document.getElementById('blogSceneCount').textContent = `${totalScenes}개 장면`;
+        document.getElementById('blogImageCount').textContent = `${imageScenes}개 이미지 포함`;
+
+        // 제목 자동 추출
+        const titleInput = document.getElementById('blogPostTitle');
+        if (!titleInput.value) {
+            const projectId = getCurrentProject();
+            if (projectId) {
+                API.project.getFull(projectId).then(data => {
+                    if (data?.project?.topic) {
+                        titleInput.value = data.project.topic;
+                    }
+                }).catch(() => {});
+            }
+        }
+
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function closeBlogPostPanel() {
+        document.getElementById('blogPostPanel').classList.add('hidden');
+    }
+
+    function buildBlogHtmlFromScenes() {
+        // 대본(script) + 이미지(prompts)를 조합해 블로그 HTML 생성
+        let html = '';
+        const projectId = getCurrentProject();
+
+        for (let i = 0; i < prompts.length; i++) {
+            const p = prompts[i];
+            const scriptText = p.script_text || p.scene_text || '';
+
+            // 이미지가 있으면 삽입
+            if (p.image_url) {
+                // 로컬 경로를 절대 URL로 변환
+                let imgSrc = p.image_url;
+                if (imgSrc.startsWith('/output/')) {
+                    imgSrc = window.location.origin + imgSrc;
+                }
+                html += `<figure style="text-align:center;margin:20px 0;">`;
+                html += `<img src="${imgSrc}" alt="Scene ${i+1}" style="max-width:100%;border-radius:8px;">`;
+                html += `</figure>\n`;
+            }
+
+            // 대본 텍스트 삽입
+            if (scriptText) {
+                const paragraphs = scriptText.split('\n').filter(l => l.trim());
+                paragraphs.forEach(para => {
+                    html += `<p>${para.trim()}</p>\n`;
+                });
+            }
+        }
+
+        return html;
+    }
+
+    function previewBlogHtml() {
+        const html = buildBlogHtmlFromScenes();
+        const title = document.getElementById('blogPostTitle').value || '미리보기';
+        const win = window.open('', '_blank', 'width=800,height=600');
+        win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title>
+            <style>body{font-family:'Noto Sans KR',sans-serif;max-width:720px;margin:40px auto;padding:0 20px;line-height:1.8;color:#333;}
+            img{max-width:100%;border-radius:8px;margin:16px 0;}h1{border-bottom:2px solid #eee;padding-bottom:12px;}</style>
+            </head><body><h1>${title}</h1>${html}</body></html>`);
+    }
+
+    async function postToBlogWithImages() {
+        const platforms = [];
+        if (document.getElementById('blogPlatformWP').checked) platforms.push('wordpress');
+        if (document.getElementById('blogPlatformBlogger').checked) platforms.push('blogger');
+
+        if (platforms.length === 0) {
+            Utils.showToast('게시할 플랫폼을 선택해주세요.', 'warning');
+            return;
+        }
+
+        const btn = document.getElementById('blogPostBtn');
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="animate-spin inline-block">⏳</span> 게시 중...';
+
+        // 먼저 대본을 가져와서 HTML 빌드
+        const projectId = getCurrentProject();
+        let scriptContent = '';
+
+        try {
+            if (projectId) {
+                const fullData = await API.project.getFull(projectId);
+                if (fullData?.script?.full_script) {
+                    scriptContent = fullData.script.full_script;
+                }
+            }
+        } catch(e) { console.error(e); }
+
+        // 대본 + 이미지 조합 HTML (대본이 있으면 대본 기반, 없으면 scene text 기반)
+        let html = '';
+        if (scriptContent && prompts.length > 0) {
+            // 대본을 장면 수로 나누어 이미지 사이에 배치
+            const paragraphs = scriptContent.split(/\n\s*\n/).filter(p => p.trim());
+            const imagesWithUrl = prompts.filter(p => p.image_url);
+            const insertInterval = imagesWithUrl.length > 0 ? Math.max(1, Math.floor(paragraphs.length / imagesWithUrl.length)) : paragraphs.length;
+
+            let imgIdx = 0;
+            for (let i = 0; i < paragraphs.length; i++) {
+                // 이미지 삽입 위치
+                if (imgIdx < imagesWithUrl.length && i > 0 && i % insertInterval === 0) {
+                    let imgSrc = imagesWithUrl[imgIdx].image_url;
+                    if (imgSrc.startsWith('/output/')) imgSrc = window.location.origin + imgSrc;
+                    html += `<figure style="text-align:center;margin:24px 0;"><img src="${imgSrc}" alt="" style="max-width:100%;border-radius:8px;"></figure>\n`;
+                    imgIdx++;
+                }
+                html += `<p>${paragraphs[i].trim().replace(/\n/g, '<br>')}</p>\n`;
+            }
+            // 남은 이미지 끝에 추가
+            while (imgIdx < imagesWithUrl.length) {
+                let imgSrc = imagesWithUrl[imgIdx].image_url;
+                if (imgSrc.startsWith('/output/')) imgSrc = window.location.origin + imgSrc;
+                html += `<figure style="text-align:center;margin:24px 0;"><img src="${imgSrc}" alt="" style="max-width:100%;border-radius:8px;"></figure>\n`;
+                imgIdx++;
+            }
+        } else {
+            html = buildBlogHtmlFromScenes();
+        }
+
+        let title = document.getElementById('blogPostTitle').value.trim();
+        if (!title) {
+            title = scriptContent ? scriptContent.split('\n')[0].substring(0, 80) : '블로그 포스팅';
+        }
+
+        try {
+            const response = await fetch('/api/blog/post', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, content: html, tags: [], platforms })
+            });
+
+            const result = await response.json();
+            const resultDiv = document.getElementById('blogPostResult');
+            resultDiv.classList.remove('hidden');
+
+            let messages = [];
+            let urls = [];
+            for (const [platform, res] of Object.entries(result.results || {})) {
+                const name = platform === 'wordpress' ? '워드프레스' : '구글 블로그';
+                if (res.status === 'ok') {
+                    messages.push(`${name}: 게시 완료!`);
+                    if (res.url) urls.push(`<a href="${res.url}" target="_blank" class="underline text-blue-500">${name} 보기</a>`);
+                } else {
+                    messages.push(`${name}: ${res.error}`);
+                }
+            }
+
+            if (result.status === 'ok') {
+                resultDiv.className = 'mt-3 p-3 rounded-lg text-sm bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300 border border-green-200 dark:border-green-700';
+                resultDiv.innerHTML = `<strong>게시 완료!</strong><br>${urls.join(' | ')}`;
+                Utils.showToast('블로그 게시 완료!', 'success');
+            } else {
+                resultDiv.className = 'mt-3 p-3 rounded-lg text-sm bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-700';
+                resultDiv.innerHTML = messages.join('<br>');
+                Utils.showToast(messages.join(' | '), 'warning');
+            }
+        } catch (error) {
+            console.error('Blog post error:', error);
+            Utils.showToast('블로그 게시 실패: ' + error.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
         }
     }
 </script>

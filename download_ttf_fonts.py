@@ -28,7 +28,9 @@ fonts = {
     "Recipekorea.ttf": "https://raw.githubusercontent.com/projectnoonnu/noonfonts_2001/master/Recipekorea_RECIPE.ttf",
     "NanumGothic.ttf": "https://fonts.gstatic.com/s/nanumgothic/v23/PN_3Rfi-oW3hYwmKDpxS7F_z-7rE.ttf",
     "NanumPen.ttf": "https://fonts.gstatic.com/s/nanumpenscript/v18/TqO2Z44hJ-Y6y-u5rQYyg41w.ttf",
-    "CookieRun-Regular.ttf": "https://raw.githubusercontent.com/projectnoonnu/noonfonts_two/master/CookieRun-Regular.ttf"
+    "CookieRun-Regular.ttf": "https://raw.githubusercontent.com/projectnoonnu/noonfonts_two/master/CookieRun-Regular.ttf",
+    "NotoSansJP-Bold.ttf": "https://raw.githubusercontent.com/minoryorg/Noto-Sans-CJK-JP/master/fonts/NotoSansCJKjp-Bold.ttf",
+    "NotoSansJP-Regular.ttf": "https://raw.githubusercontent.com/minoryorg/Noto-Sans-CJK-JP/master/fonts/NotoSansCJKjp-Medium.ttf"
 }
 
 for name, url in fonts.items():

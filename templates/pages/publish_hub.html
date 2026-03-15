@@ -308,10 +308,17 @@ let selectedImageIdx = -1;
 // ==========================================
 // Init
 // ==========================================
-document.addEventListener('DOMContentLoaded', () => {
-    loadProjects();
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadProjects();
     document.getElementById('sessionContent').addEventListener('input', updateCharCount);
     updateCharCount();
+
+    // URL에서 session_id가 있으면 해당 세션 자동 로드
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get('session_id');
+    if (sessionId) {
+        await loadSession(parseInt(sessionId));
+    }
 });
 
 function updateCharCount() {

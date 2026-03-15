@@ -1,4 +1,4 @@
-﻿"""
+"""
 영상 합성 서비스
 - MoviePy + FFmpeg를 사용한 이미지+음성 합성
 """
@@ -1902,14 +1902,15 @@ class VideoService:
         
         # 폰트 매핑 (UI 이름 -> 실제 파일명)
         font_mapping = {
-            "GmarketSans": "malgunbd.ttf",
-            "GmarketSansBold": "malgunbd.ttf",
+            "GmarketSans": "GmarketSansTTFBold.ttf",
+            "GmarketSansBold": "GmarketSansTTFBold.ttf",
+            "GmarketSansMedium": "GmarketSansMedium.ttf",
             
             "나눔명조": "NanumMyeongjo.ttf",
             "NanumMyeongjo": "NanumMyeongjo.ttf",
             
-            "쿠키런": "CookieRun Regular.ttf",
-            "CookieRun-Regular": "CookieRun Regular.ttf",
+            "쿠키런": "CookieRun-Regular.ttf",
+            "CookieRun-Regular": "CookieRun-Regular.ttf",
             
             "맑은 고딕": "malgun.ttf",
             "Malgun Gothic": "malgun.ttf",
@@ -1932,8 +1933,8 @@ class VideoService:
             # [NEW] Multilingual Fonts
             "Impact": "impact.ttf",
             "Roboto": "Roboto-Bold.ttf",
-            "NotoSansJP": "msgothic.ttc", # Fallback to standard Windows font
-            "ja": "msgothic.ttc"
+            "NotoSansJP": "NotoSansJP-Bold.ttf",
+            "ja": "NotoSansJP-Bold.ttf"
         }
         
         target_font_file = font_mapping.get(font_name, font_name)

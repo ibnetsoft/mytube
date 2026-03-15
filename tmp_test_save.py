@@ -1,17 +1,15 @@
-from database import save_image_prompts
 
-def test_save():
-    prompts = [{
-        'scene_number': 1,
-        'scene_text': 'test',
-        'prompt_ko': 'test',
-        'prompt_en': 'test'
-    }]
-    try:
-        save_image_prompts(1, prompts)
-        print("Success!")
-    except Exception as e:
-        print("Exception:", e)
+import httpx
 
-if __name__ == '__main__':
-    test_save()
+data = {
+    "wp_url": "https://pipmaker.co.kr",
+    "wp_username": "피카디리",
+    "wp_password": "dV5A CaNz 3MpT E0se mtMX xJAU"
+}
+
+try:
+    res = httpx.post("http://localhost:8000/api/settings/api-keys", json=data)
+    print(f"API Key Save: {res.status_code}")
+    print(res.json())
+except Exception as e:
+    print(f"Post failed: {e}")
