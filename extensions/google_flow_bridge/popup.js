@@ -1,843 +1,722 @@
-
 let statusBadge, projectInfo, promptList;
 window.projectId = null;
+window.projectName = null;
 window.serverBase = 'http://localhost:8000';
+let _isRunning = false;
+let currentTab = 'image';
+let currentPrompts = [];
 
 document.addEventListener('DOMContentLoaded', async () => {
     promptList = document.getElementById('prompt-list');
     projectInfo = document.getElementById('project-info');
     statusBadge = document.getElementById('status-badge');
 
+    // UI Bindings: Tabs
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.onclick = () => {
+            const tab = btn.dataset.tab;
+            if (currentTab === tab) return;
+            switchTab(tab);
+        };
+    });
+
+    const manualBtn = document.getElementById('manual-reconnect');
+    if (manualBtn) {
+        manualBtn.onclick = () => {
+             console.log('[Bridge] Manual reconnect triggered');
+             initializeBridge();
+        };
+    }
+    
+    if (statusBadge) {
+        statusBadge.onclick = () => initializeBridge();
+    }
+
+    if (document.getElementById('btn-refresh-videos')) {
+        document.getElementById('btn-refresh-videos').onclick = () => refreshCapturedVideos();
+    }
+    if (document.getElementById('btn-clear-videos')) {
+        document.getElementById('btn-clear-videos').onclick = () => clearCapturedVideos();
+    }
+    if (document.getElementById('btn-refresh-images')) {
+        document.getElementById('btn-refresh-images').onclick = () => refreshCapturedImages();
+    }
+    if (document.getElementById('btn-clear-images')) {
+        document.getElementById('btn-clear-images').onclick = () => clearCapturedImages();
+    }
+    
+    if (document.getElementById('batch-image-all')) {
+        document.getElementById('batch-image-all').onclick = () => startBatch('image');
+    }
+    if (document.getElementById('batch-animate-all')) {
+        document.getElementById('batch-animate-all').onclick = () => startBatchAnimate();
+    }
+
+    ['batch-stop-image', 'batch-stop-video'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.onclick = () => {
+             _isRunning = false;
+             btn.classList.add('hidden');
+        };
+    });
+
+    const selectAll = document.getElementById('select-all-scenes');
+    if (selectAll) {
+        selectAll.onchange = (e) => {
+            const checked = e.target.checked;
+            document.querySelectorAll('.scene-checkbox').forEach(cb => cb.checked = checked);
+        };
+    }
+
+    initializeBridge();
+    
+    // Auto-refresh captured media on open
+    setTimeout(() => {
+        refreshCapturedVideos();
+        refreshCapturedImages();
+    }, 500);
+});
+
+function switchTab(tab) {
+    currentTab = tab;
+    // UI update
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    document.getElementById('section-image').classList.toggle('hidden', tab !== 'image');
+    document.getElementById('section-video').classList.toggle('hidden', tab !== 'video');
+    
+    // Label update
+    const label = document.getElementById('label-select-all');
+    if (label) {
+        label.innerText = tab === 'image' ? '이미지 장면 일괄 선택' : '영상 장면 일괄 선택';
+    }
+
+    // Re-render prompts with current tab's specific text
+    if (currentPrompts.length > 0) {
+        renderPrompts(currentPrompts);
+    }
+}
+
+async function initializeBridge() {
+    if (!statusBadge) return;
+    
+    statusBadge.innerText = 'Searching...';
+    statusBadge.style.color = '#f59e0b';
+    projectInfo.innerHTML = `
+        <div style="font-size:11px; color:#94a3b8;">피카디리 스튜디오 탭을 찾는 중...</div>
+        <div style="font-size:9px; color:#64748b; margin-top:4px;">(localhost:8000 또는 127.0.0.1:8000)</div>
+    `;
+
     try {
         const tabs = await chrome.tabs.query({});
-        const platformTab = tabs.find(t => t.url && (t.url.includes('127.0.0.1:8000') || t.url.includes('localhost:8000')));
+        // Support common local patterns and ports (127.0.0.1 and localhost)
+        // [REFINE] prioritize 127.0.0.1 first if multiple exist
+        const platformTab = tabs.find(t => t && t.url && 
+            (t.url.includes('127.0.0.1') || t.url.includes('localhost')) &&
+            (t.url.includes(':8000') || t.url.includes(':5000'))
+        );
         
         if (!platformTab) {
-            statusBadge.innerText = 'Platform Offline';
+            statusBadge.innerText = 'Not Found';
             statusBadge.style.color = '#ef4444';
-            projectInfo.innerText = '피카디리스튜디오(localhost:8000) 탭이 필요합니다.';
+            projectInfo.innerHTML = `
+                <div style="font-size:11px; color:#f87171; margin-bottom:8px;">피카디리 스튜디오 탭이 없습니다.</div>
+                <div style="font-size:10px; color:#94a3b8; margin-bottom:10px;">브라우저에 스튜디오(127.0.0.1:8000)를 먼저 띄워주세요.</div>
+                <button id="retry-btn" style="background:#3b82f6; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; width:100%;">🔄 다시 찾기</button>
+            `;
+            const retry = document.getElementById('retry-btn');
+            if (retry) retry.onclick = () => initializeBridge();
             return;
         }
 
-        window.serverBase = platformTab.url.includes('localhost') ? 'http://localhost:8000' : 'http://127.0.0.1:8000';
+        const url = new URL(platformTab.url);
+        window.serverBase = `${url.protocol}//${url.host}`;
+        console.log('[Bridge] Connecting to:', window.serverBase);
+        
+        statusBadge.innerText = 'Syncing...';
+        projectInfo.innerHTML = `
+            <div style="font-size:11px; color:#3b82f6;">${window.serverBase}</div>
+            <div style="font-size:10px; color:#94a3b8;">프로젝트 정보를 가져오는 중...</div>
+        `;
+
+        let projectId = null;
+        let projectName = null;
 
         try {
             const result = await chrome.scripting.executeScript({
                 target: { tabId: platformTab.id },
-                func: () => ({
-                    projectId: localStorage.getItem('currentProjectId'),
-                    projectName: document.title.split(' - ')[0]
-                })
+                func: () => {
+                    const pid = localStorage.getItem('currentProjectId');
+                    // Look for the project name in the selector dropdown (the current visible text)
+                    const ps = document.querySelector('#project-selector');
+                    let pname = ps ? ps.options[ps.selectedIndex]?.text : '';
+                    if (!pname || pname.includes('선택')) {
+                        pname = document.title.replace(' - 피카디리 스튜디오', '').trim();
+                    }
+                    // Final cleanup: remove (done) etc if needed or show exactly as in UI
+                    return { projectId: pid, projectName: pname };
+                }
             });
-            let { projectId, projectName } = result[0].result;
-            if (projectId) projectId = projectId.toString().trim();
-            window.projectId = projectId;
-            window.projectName = projectName;
+            if (result && result[0] && result[0].result) {
+                const data = result[0].result;
+                projectId = data.projectId ? data.projectId.toString().trim() : null;
+                projectName = data.projectName;
+            }
         } catch (scriptError) {
             console.warn('Scripting failed, trying fallback API...', scriptError);
-            // Fallback: Try to get project from server directly if script fails
+        }
+
+        // 1. Fallback to 'current' if ID not found yet
+        if (!projectId || projectId === "None" || projectId === "null") {
             try {
-                const srvResp = await fetch(`${serverBase}/api/projects/current`);
-                const srvData = await srvResp.json();
-                window.projectId = srvData.id;
-                window.projectName = srvData.name;
-            } catch(e) {}
+                const srvResp = await fetch(`${window.serverBase}/api/projects/current`);
+                if (srvResp.ok) {
+                    const srvData = await srvResp.json();
+                    projectId = srvData.id;
+                    projectName = srvData.name;
+                }
+            } catch(e) { console.error('API Fallback failed:', e); }
+        }
+
+        // 2. Definitive name fetch (to avoid tool-specific page titles)
+        if (projectId && projectId !== "None" && projectId !== "null") {
+            try {
+                const pResp = await fetch(`${window.serverBase}/api/projects/${projectId}`);
+                if (pResp.ok) {
+                    const pData = await pResp.json();
+                    if (pData && pData.name) projectName = pData.name;
+                }
+            } catch(e) { console.warn('Failed to fetch detailed project info:', e); }
         }
         
-        if (!window.projectId) {
-            projectInfo.innerHTML = '<span style="color:#94a3b8">프로젝트를 선택해주세요 (localhost:8000)</span>';
+        if (!projectId || projectId === "None" || projectId === "null") {
+            statusBadge.innerText = 'No Project';
+            statusBadge.style.color = '#f59e0b';
+            projectInfo.innerHTML = `
+                <div style="font-size:11px; color:#3b82f6;">${window.serverBase}</div>
+                <div style="font-size:11px; color:#94a3b8; margin:8px 0;">활성 프로젝트가 없습니다.</div>
+                <div style="font-size:10px; color:#64748b; margin-bottom:10px;">스튜디오에서 프로젝트를 먼저 열어주세요.</div>
+                <button id="retry-btn" style="background:#475569; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; width:100%;">🔄 다시 확인</button>
+            `;
+            const retry = document.getElementById('retry-btn');
+            if (retry) retry.onclick = () => initializeBridge();
             return;
         }
 
-        projectInfo.innerText = `Project: ${window.projectName || window.projectId}`;
+        window.projectId = projectId;
+        window.projectName = projectName;
+        
+        // Update header
+        const headerName = document.getElementById('header-project-name');
+        if (headerName) headerName.innerText = projectName || 'Unnamed Project';
+        
+        // Compact info area
+        projectInfo.innerHTML = `<div style="font-size:9px; color:#64748b; font-family:monospace; margin-top:2px;">Connected (ID: ${projectId})</div>`;
+
         statusBadge.innerText = 'Connected';
         statusBadge.style.color = '#10b981';
 
-        const pResp = await fetch(`${serverBase}/api/projects/${window.projectId}/image-prompts`);
-        const pData = await pResp.json();
+        try {
+            const pResp = await fetch(`${window.serverBase}/api/projects/${window.projectId}/image-prompts`);
+            const pData = await pResp.json();
 
-        if (pData.status === 'ok' && pData.prompts) {
-            renderPrompts(pData.prompts, window.projectId, window.serverBase);
+            if (pData.status === 'ok' && pData.prompts) {
+                renderPrompts(pData.prompts);
+            } else {
+                promptList.innerHTML = '<div class="empty">가져올 장면 프롬프트가 없습니다.</div>';
+            }
+        } catch (fetchErr) {
+            promptList.innerHTML = `<div class="empty">장면 데이터를 불러오지 못했습니다.<br>(${fetchErr.message})</div>`;
         }
 
     } catch (error) {
-        console.error('Fatal Bridge Error:', error);
-        statusBadge.innerText = 'Check Permission';
-        
-        if (error.message.includes('permission') || error.message.includes('access') || error.message.includes('manifest')) {
-            projectInfo.innerHTML = `
-                <div style="color:#f87171; font-size:11px; margin-bottom:8px;">⚠️ Google Flow 접근 권한이 제한됨</div>
-                <button id="grant-btn" style="background:#3b82f6; color:white; border:none; padding:10px; border-radius:8px; cursor:pointer; width:100\%; font-weight:600;">
-                    🔓 모든 권한 강제 승인하기
-                </button>
-            `;
-            document.getElementById('grant-btn').onclick = async () => {
-                try {
-                    const granted = await chrome.permissions.request({
-                        origins: ['https://labs.google/*', 'http://localhost:8000/*']
-                    });
-                    if (granted) {
-                        alert('권한이 승인되었습니다. 페이지를 새로고침(F5) 해주세요.');
-                        window.location.reload();
-                    }
-                } catch(e) {
-                    alert('권한 요청 실패: ' + e.message + '\n\n확장 프로그램 페이지(chrome://extensions)에서 "모든 사이트 허용"을 켜주세요.');
-                }
-            };
-        } else {
-            projectInfo.innerHTML = `<span style="color:#ef4444">오류: ${error.message}</span>`;
-        }
+        handleFatalError(error);
     }
-});
+}
 
-function renderPrompts(prompts, projectId, serverBase) {
-    const list = document.getElementById('prompt-list');
-    list.innerHTML = '';
-    _sceneCount = prompts.length;
+function handleFatalError(error) {
+    console.error('Fatal Bridge Error:', error);
+    statusBadge.innerText = 'Error';
+    statusBadge.style.color = '#ef4444';
+    
+    if (error.message.includes('permission') || error.message.includes('access')) {
+        projectInfo.innerHTML = `
+            <div style="color:#f87171; font-size:11px; margin-bottom:8px;">⚠️ 권한이 제한되었습니다.</div>
+            <button id="grant-btn" style="background:#3b82f6; color:white; border:none; padding:8px; border-radius:6px; cursor:pointer; width:100%;">
+                🔓 모든 권한 강제 승인
+            </button>
+        `;
+        document.getElementById('grant-btn').onclick = async () => {
+            const granted = await chrome.permissions.request({
+                origins: ['https://labs.google/*', 'http://localhost:8000/*', 'http://127.0.0.1:8000/*']
+            });
+            if (granted) window.location.reload();
+        };
+    } else {
+        projectInfo.innerHTML = `<div style="color:#ef4444; font-size:10px;">시스템 오류: ${error.message}</div>
+        <button id="retry-btn" style="margin-top:5px; background:#475569; color:white; border:none; padding:4px; width:100%; border-radius:4px;">🔄 재시도</button>`;
+        const retry = document.getElementById('retry-btn');
+        if (retry) retry.onclick = () => initializeBridge();
+    }
+}
+
+function renderPrompts(prompts) {
+    currentPrompts = prompts; // Store for tab switching
+    promptList.innerHTML = '';
+    
+    if (!prompts || prompts.length === 0) {
+        promptList.innerHTML = '<div class="empty">가져올 장면 데이터가 없습니다.</div>';
+        return;
+    }
 
     prompts.forEach((p, i) => {
         const card = document.createElement('div');
         card.className = 'prompt-card';
         
-        const text = p.flow_prompt || p.prompt_en || '';
-        // Ensure sceneNum is just the number, no 'Scene ' prefix
-        let sceneNum = p.scene_number;
-        if (typeof sceneNum === 'string') {
-            const match = sceneNum.match(/\d+/);
-            sceneNum = match ? match[0] : (i + 1).toString();
-        } else if (!sceneNum) {
-            sceneNum = (i + 1).toString();
+        // Pick text: Image tab -> prompt_en / Video tab -> flow_prompt
+        const text = (currentTab === 'image') 
+            ? (p.prompt_en || p.prompt_ko || '') 
+            : (p.flow_prompt || p.prompt_en || '');
+            
+        let sceneNum = p.scene_number || (i+1);
+        const pickLabel = currentTab === 'image' ? '이미지 회수' : '영상 회수';
+
+        // Thumbnail logic: Prefer tab-specific media
+        let thumbPath = (currentTab === 'video') ? (p.video_url || p.image_url) : (p.image_url || p.video_url);
+        let fullThumbUrl = '';
+        let isVideoThumb = false;
+
+        if (thumbPath) {
+            fullThumbUrl = thumbPath.startsWith('http') ? thumbPath : `${window.serverBase}${thumbPath}`;
+            isVideoThumb = thumbPath.toLowerCase().match(/\.(mp4|webm|mov|ogg)$/) || thumbPath.includes('video');
         }
         
         card.innerHTML = `
             <div class="prompt-header">
-                <div style="display:flex; align-items:center; gap:8px;">
+                <div>
                     <input type="checkbox" class="scene-checkbox" data-scene="${sceneNum}" checked>
                     <span class="scene-num">Scene ${sceneNum}</span>
                 </div>
                 <div class="actions">
-                    <button class="action-btn look-btn" id="look-${sceneNum}" title="위치 확인">👀</button>
-                    <button class="action-btn pick-btn" id="pick-${sceneNum}">영상 회수</button>
+                    <button class="action-btn pick-btn" id="pick-${sceneNum}">${pickLabel}</button>
                     <button class="action-btn fill-btn" data-text="${encodeURIComponent(text)}">입력</button>
                 </div>
             </div>
-            <div class="prompt-text">${text}</div>
+            <div class="prompt-body">
+                <div class="prompt-thumbnail ${fullThumbUrl ? 'has-media' : ''}" id="thumb-${sceneNum}" title="클릭하여 이 장면의 결과물을 페이지에서 직접 선택">
+                    ${fullThumbUrl ? (isVideoThumb ? 
+                        `<video src="${fullThumbUrl}" muted loop onmouseover="this.play()" onmouseout="this.pause()"></video>` : 
+                        `<img src="${fullThumbUrl}">`) : ''}
+                </div>
+                <div class="prompt-text">${text}</div>
+            </div>
         `;
-        list.appendChild(card);
+        promptList.appendChild(card);
 
-        // 위치 확인 로직
-        card.querySelector(`#look-${sceneNum}`).onclick = async (e) => {
+        // Hyper-Vision UI Bindings
+        const triggerPick = async () => {
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            if (tab) {
-                chrome.tabs.sendMessage(tab.id, { 
-                    action: 'show_in_flow', 
-                    prompt: text 
-                });
+            if (!tab || !tab.url.includes('labs.google')) {
+                alert('구글 생성 페이지(Flow/ImageFX) 탭을 활성화한 상태에서 눌러주세요.');
+                return;
             }
+            await ensureContentScript(tab.id);
+            chrome.tabs.sendMessage(tab.id, { action: 'start_picker', sceneNum });
         };
 
-        // 영상 회수 로직 (Ensure no double listeners)
         const pickBtn = card.querySelector(`#pick-${sceneNum}`);
-        pickBtn.onclick = null; // Clear existing
-        pickBtn.onclick = async (e) => {
-            console.log(`[v16] Manual pick triggered for Scene ${sceneNum}`);
-            const btn = e.target;
-            btn.innerText = '가져오는 중...';
-            btn.disabled = true;
-
-            try {
-                // 1. 구글 Flow 탭에서 영상 데이터 가져오기
-                const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-                if (!tab || !tab.url.includes('labs.google')) {
-                    alert('Google Flow 페이지를 활성화해주세요.');
-                    return;
-                }
-
-                try {
-                    await ensureContentScript(tab.id);
-                } catch(e) {
-                    alert(e.message);
-                    btn.innerText = '실패 (권한)';
-                    btn.disabled = false;
-                    return;
-                }
-
-                chrome.tabs.sendMessage(tab.id, { 
-                    action: 'collect_video',
-                    prompt: text,
-                    index: i 
-                }, async (response) => {
-                    if (chrome.runtime.lastError || !response || response.status !== 'ok') {
-                        const errorMsg = response?.message || '영상을 찾지 못했습니다. 구글 Flow 화면을 활성화하고 재시도하세요.';
-                        statusBadge.innerText = 'Collect Fail';
-                        projectInfo.innerText = errorMsg;
-                        btn.innerText = '실패 (재시도)';
-                        btn.disabled = false;
-                        return;
-                    }
-
-                    // 2. 서버로 전송 (Base64 -> Blob -> File)
-                    try {
-                        const blobResponse = await fetch(response.data);
-                        const blob = await blobResponse.blob();
-                        
-                        // Determine extension
-                        let ext = '.mp4';
-                        if (blob.type.includes('image')) ext = '.png';
-                        else if (blob.type.includes('webm')) ext = '.webm';
-                        
-                        console.log(`[Pick] Uploading Scene ${sceneNum} to Project ${window.projectId}...`);
-                        
-                        const formData = new FormData();
-                        formData.append('file', blob, `scene_${sceneNum}${ext}`);
-
-                        const targetUrl = `${window.serverBase}/api/upload-video-to-project/${window.projectId}/${sceneNum}`;
-                        console.log(`[Pick] Target URL: ${targetUrl}`);
-                        
-                        const uploadResp = await fetch(targetUrl, {
-                            method: 'POST',
-                            body: formData
-                        });
-
-                        if (uploadResp.ok) {
-                            btn.innerText = '완료 ✅';
-                            btn.style.background = '#10b981';
-                        } else {
-                            let errorDetail = '';
-                            try {
-                                const errJson = await uploadResp.json();
-                                errorDetail = errJson.error || errJson.message || JSON.stringify(errJson);
-                            } catch(e) {
-                                errorDetail = await uploadResp.text();
-                            }
-                            throw new Error(`Upload failed (${uploadResp.status}): ${errorDetail}`);
-                        }
-                    } catch (err) {
-                        console.error('Upload error:', err);
-                        alert('서버 전송 실패: ' + err.message);
-                        btn.innerText = '전송 실패';
-                        btn.disabled = false;
-                    }
-                });
-            } catch (err) {
-                alert('오류: ' + err.message);
-                btn.innerText = '오류';
-                btn.disabled = false;
-            }
-        };
+        if (pickBtn) pickBtn.onclick = triggerPick;
+        
+        const thumbBox = card.querySelector(`#thumb-${sceneNum}`);
+        if (thumbBox) thumbBox.onclick = triggerPick;
     });
 
-    // 입력 버튼 바인딩
+    // Input Fill Action
     document.querySelectorAll('.fill-btn').forEach(btn => {
         btn.onclick = async () => {
             const val = decodeURIComponent(btn.dataset.text);
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            if (tab && tab.url.includes('labs.google')) {
-                try {
-                    await ensureContentScript(tab.id);
-                    chrome.tabs.sendMessage(tab.id, { action: 'fill_prompt', text: val });
-                    btn.innerText = 'Filled!';
-                    setTimeout(() => btn.innerText = '입력', 2000);
-                } catch(e) {
-                    alert(e.message);
-                }
+            if (tab && (tab.url.includes('labs.google') || tab.url.includes('google.com/search'))) {
+                await ensureContentScript(tab.id);
+                chrome.tabs.sendMessage(tab.id, { action: 'fill_prompt', text: val });
+                btn.innerText = 'Filled!';
+                setTimeout(() => btn.innerText = '입력', 2000);
             } else {
-                alert('Google Flow 페이지에서 실행해주세요.');
+                alert('구글 생성 페이지(Flow/ImageFX)에서 실행해주세요.');
             }
         };
     });
 }
 
+function getUrlBase(url) {
+    if (!url) return '';
+    return url.split('#')[0];
+}
 
-// ── Page Scan Debug Button ────────────────────────────
-document.getElementById('btn-scan-page')?.addEventListener('click', async () => {
-    const scanDiv = document.getElementById('scan-result');
-    scanDiv.style.display = 'block';
-    scanDiv.textContent = '🔍 스캔 중...';
-    
+function getMediaFilename(url, index) {
     try {
-        // Get the active tab first to show its URL
-        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        const tabUrl = activeTab?.url || '알 수 없음';
+        const u = new URL(url);
+        // ID extraction
+        const docid = u.searchParams.get('docid') || u.searchParams.get('id');
+        if (docid) return `Asset ${index} (ID: ${docid.substring(0, 6)})`;
         
-        scanDiv.innerHTML = `<b style="color:#f59e0b">현재 탭 URL:</b><br>${tabUrl}<br><br>`;
+        // Fallback: Path segments
+        let pathParts = u.pathname.split('/');
+        const longPart = pathParts.find(p => p.length > 20);
+        if (longPart) return `Asset ${index} (pID: ${longPart.substring(0, 6)})`;
         
-        if (!activeTab) {
-            scanDiv.textContent += '❌ 활성 탭을 찾을 수 없습니다.';
-            return;
-        }
-        
-        // Inject and execute scan script directly
-        const results = await chrome.scripting.executeScript({
-            target: { tabId: activeTab.id },
-            func: () => {
-                const btns = Array.from(document.querySelectorAll('button, [role="button"]'))
-                    .map(b => ({
-                        text: (b.innerText || '').trim().substring(0, 50),
-                        aria: b.getAttribute('aria-label') || '',
-                        title: b.title || ''
-                    }))
-                    .filter(b => b.text || b.aria || b.title);
-                return { url: location.href, buttons: btns };
+        // Final fallback: Use a simple hash of the URL to ensure it's not just "(new)"
+        let hash = 0;
+        for (let i = 0; i < url.length; i++) hash = ((hash << 5) - hash) + url.charCodeAt(i);
+        return `Asset ${index} (h${Math.abs(hash % 1000)})`;
+    } catch(e) { return `Asset ${index}`; }
+}
+
+// ────────────────────────────────────────────────────────
+// Captured Media Management
+// ────────────────────────────────────────────────────────
+async function getMediaBlob(url, isVideo) {
+    // If it's a blob url or a labs.google url, fetch it via the content script
+    if (url.startsWith('blob:') || url.includes('google.com')) {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tab && tab.url.includes('labs.google')) {
+            await ensureContentScript(tab.id);
+            const resp = await chrome.tabs.sendMessage(tab.id, { action: 'get_media_blob', url, isVideo });
+            if (resp && resp.status === 'ok') {
+                const dataRes = await fetch(resp.data);
+                return await dataRes.blob();
+            } else {
+                throw new Error(resp?.message || 'Content script fetch failed');
             }
-        });
-        
-        const data = results?.[0]?.result;
-        const btns = data?.buttons || [];
-        
-        if (btns.length > 0) {
-            scanDiv.innerHTML += `<b style="color:#6366f1">🔍 버튼 ${btns.length}개 발견:</b><br>` + 
-                btns.slice(0, 40).map(b => 
-                    `<div style="border-bottom:1px solid #1e293b;padding:2px 0;">text="${b.text}" aria="${b.aria}"</div>`
-                ).join('');
-        } else {
-            scanDiv.innerHTML += '버튼을 찾지 못했습니다.';
         }
-    } catch(e) {
-        const scanDiv2 = document.getElementById('scan-result');
-        scanDiv2.innerHTML = `<b style="color:#ef4444">❌ 오류:</b> ${e.message}<br><br>` +
-            `<b>해결방법:</b><br>` +
-            `1. chrome://extensions/ 에서 확장프로그램 새로고침<br>` +
-            `2. Google Flow 탭 새로고침 (F5)<br>` +
-            `3. 현재 탭이 Google Flow인지 확인`;
     }
-});
-
-let isBatchRunning = false;
-let _sceneCount = 0; // 전체 씬 개수
-
-document.getElementById('batch-image-all').onclick = () => startBatch('image');
-document.getElementById('batch-video-all').onclick = () => startBatch('video');
-document.getElementById('batch-animate-all').onclick = () => startBatchAnimate();
-document.getElementById('batch-stop').onclick = () => {
-    isBatchRunning = false;
-    statusBadge.innerText = 'Stopping...';
-    document.getElementById('batch-stop').style.display = 'none';
-};
-document.getElementById('select-all-scenes').onchange = (e) => {
-    document.querySelectorAll('.scene-checkbox').forEach(cb => cb.checked = e.target.checked);
-};
-
-// ── 영상 포착 패널 ──
-document.getElementById('btn-refresh-videos').onclick = () => refreshCapturedVideos();
-document.getElementById('btn-clear-videos').onclick = async () => {
-    try {
-        await chrome.runtime.sendMessage({ action: 'clear_captured_videos' });
-        document.getElementById('captured-video-list').innerHTML = '초기화 완료. Google Flow에서 영상을 재생하면 여기에 표시됩니다.';
-    } catch(e) {
-        document.getElementById('captured-video-list').innerHTML = '<span style="color:#ef4444">Background 연결 실패. 확장 프로그램을 새로고침해주세요.</span>';
-    }
-};
+    // Fallback: Direct fetch in popup
+    const res = await fetch(url);
+    return await res.blob();
+}
 
 async function refreshCapturedVideos() {
-    const container = document.getElementById('captured-video-list');
-    container.innerHTML = '<span style="color:#f59e0b">로딩 중...</span>';
-
-    try {
-        // 현재 활성 탭의 tabId를 보내서 해당 탭의 영상만 가져옴
-        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        const response = await chrome.runtime.sendMessage({
-            action: 'get_captured_videos',
-            tabId: activeTab?.id
-        });
-        const videos = response?.videos || [];
+    const list = document.getElementById('captured-video-list');
+    if (!list) return;
+    list.innerHTML = '스캔 중...';
+    
+    chrome.runtime.sendMessage({ action: 'get_captured_videos' }, async (bgResp) => {
+        let videos = bgResp?.videos || [];
+        const seen = new Set(videos.map(v => getUrlBase(v.url)));
+        
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tab && tab.url.includes('labs.google')) {
+            try {
+                await ensureContentScript(tab.id);
+                const domResp = await chrome.tabs.sendMessage(tab.id, { action: 'scan_media' });
+                if (domResp?.videos) {
+                    domResp.videos.forEach(v => {
+                        const base = getUrlBase(v.url);
+                        if (!seen.has(base)) {
+                            videos.push({...v, isDom: true});
+                            seen.add(base);
+                        }
+                    });
+                }
+            } catch(e) { console.warn('DOM scan failed:', e); }
+        }
 
         if (videos.length === 0) {
-            container.innerHTML = '포착된 영상이 없습니다.<br><span style="font-size:10px;">Google Flow에서 영상을 한 번 재생(클릭)하면 자동 포착됩니다.</span>';
+            list.innerHTML = '포착된 영상이 없습니다.<br>(영상을 재생하거나 생성 후 눌러주세요)';
             return;
         }
-
-        // 중복 제거
-        const unique = [];
-        const seen = new Set();
-        for (const v of videos) {
-            if (!seen.has(v.url)) {
-                seen.add(v.url);
-                unique.push(v);
-            }
-        }
-
-        container.innerHTML = '';
-
-        unique.forEach((video, idx) => {
+        
+        list.innerHTML = '';
+        videos.forEach((v, i) => {
             const item = document.createElement('div');
             item.className = 'video-item';
-            item.style.flexWrap = 'wrap';
-
-            // 생성 시각 표시
-            const timeStr = new Date(video.timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-            // 씬 선택 드롭다운 (순서대로 자동 매칭)
-            let sceneOptions = '<option value="">씬 선택</option>';
-            for (let s = 1; s <= Math.max(_sceneCount, 20); s++) {
-                const selected = (idx + 1 === s && s <= _sceneCount) ? ' selected' : '';
-                sceneOptions += `<option value="${s}"${selected}>Scene ${s}</option>`;
-            }
-
+            const sizeStr = v.size > 0 ? (v.size/1024/1024).toFixed(1) + 'MB' : (v.isDom ? 'Live View' : 'Unknown');
+            const timeStr = new Date(v.timestamp).toLocaleTimeString();
+            const fileName = getMediaFilename(v.url, i + 1);
+            
             item.innerHTML = `
-                <span style="font-weight:700; color:#f59e0b; min-width:20px;">#${idx + 1}</span>
-                <span style="font-size:10px; color:#64748b;">${timeStr}</span>
-                <button class="preview-btn" style="background:rgba(99,102,241,0.2); color:#818cf8; border:1px solid rgba(99,102,241,0.3); padding:3px 8px; border-radius:5px; font-size:10px; cursor:pointer;">▶ 미리보기</button>
-                <select class="scene-select">${sceneOptions}</select>
-                <button class="upload-scene-btn" data-idx="${idx}">업로드</button>
-                <div class="preview-area" style="display:none; width:100%; margin-top:6px;"></div>
+                <div class="preview-box">
+                    <video src="${v.url}" muted loop onmouseover="this.play()" onmouseout="this.pause()"></video>
+                </div>
+                <div class="media-info">
+                    <div class="url-text" title="${v.url}">${fileName}</div>
+                    <div class="size-text">${timeStr} | ${sizeStr}</div>
+                </div>
+                <select class="scene-select"></select>
+                <button class="upload-scene-btn">배정</button>
             `;
-            container.appendChild(item);
-
-            // 미리보기 토글
-            item.querySelector('.preview-btn').onclick = (e) => {
-                const area = item.querySelector('.preview-area');
-                if (area.style.display === 'none') {
-                    area.style.display = 'block';
-                    area.innerHTML = `<video src="${video.url}" controls autoplay muted style="width:100%; max-height:180px; border-radius:6px; background:#000;"></video>`;
-                    e.target.textContent = '✕ 닫기';
-                    e.target.style.background = 'rgba(239,68,68,0.2)';
-                    e.target.style.color = '#f87171';
-                    e.target.style.borderColor = 'rgba(239,68,68,0.3)';
-                } else {
-                    area.style.display = 'none';
-                    area.innerHTML = '';
-                    e.target.textContent = '▶ 미리보기';
-                    e.target.style.background = 'rgba(99,102,241,0.2)';
-                    e.target.style.color = '#818cf8';
-                    e.target.style.borderColor = 'rgba(99,102,241,0.3)';
-                }
-            };
-
-            // 업로드 버튼
+            
+            const sel = item.querySelector('.scene-select');
+            // If we have real prompts, use that length. If not, fallback to 20 but highlight the real ones.
+            const totalScenes = currentPrompts.length > 0 ? currentPrompts.length : 20;
+            for(let j=1; j<=totalScenes; j++) {
+                const opt = document.createElement('option');
+                opt.value = j; opt.innerText = `Scene ${j}`;
+                sel.appendChild(opt);
+            }
+            
             item.querySelector('.upload-scene-btn').onclick = async (e) => {
+                const sNum = sel.value;
                 const btn = e.target;
-                const select = item.querySelector('.scene-select');
-                const sceneNum = select.value;
-
-                if (!sceneNum) {
-                    alert('씬 번호를 선택해주세요.');
-                    return;
-                }
-                if (!window.projectId) {
-                    alert('프로젝트가 선택되지 않았습니다.');
-                    return;
-                }
-
+                btn.innerText = '전송...';
                 btn.disabled = true;
-                btn.innerText = '전송중...';
-
+                
                 try {
-                    // 영상 다운로드
-                    const res = await fetch(video.url);
-                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                    const blob = await res.blob();
-
-                    let ext = '.mp4';
-                    if (blob.type.includes('webm')) ext = '.webm';
-                    else if (blob.type.includes('image')) ext = '.png';
-
-                    // 서버로 업로드
-                    const formData = new FormData();
-                    formData.append('file', blob, `scene_${sceneNum}${ext}`);
-
-                    const uploadResp = await fetch(
-                        `${window.serverBase}/api/upload-video-to-project/${window.projectId}/${sceneNum}`,
-                        { method: 'POST', body: formData }
-                    );
-
-                    if (uploadResp.ok) {
-                        btn.innerText = '완료!';
-                        btn.style.background = '#6366f1';
-                        item.style.borderColor = '#10b981';
-                    } else {
-                        const errText = await uploadResp.text();
-                        throw new Error(errText);
-                    }
-                } catch (err) {
-                    console.error('Upload error:', err);
-                    btn.innerText = '실패';
-                    btn.style.background = '#ef4444';
+                    const blob = await getMediaBlob(v.url, true);
+                    await uploadBlobToServer(blob, sNum, btn);
+                } catch(err) {
+                    btn.innerText = '실패 ('+err.message.substring(0,10)+')';
                     btn.disabled = false;
-                    alert('업로드 실패: ' + err.message);
+                    setTimeout(() => btn.innerText = '배정', 2000);
                 }
             };
+            list.appendChild(item);
         });
+    });
+}
 
-        // 일괄 업로드 버튼 추가
-        if (unique.length > 1) {
-            const batchDiv = document.createElement('div');
-            batchDiv.style.cssText = 'margin-top:8px; text-align:center;';
-            batchDiv.innerHTML = `<button id="btn-batch-upload" style="background:#f59e0b; color:white; border:none; padding:6px 16px; border-radius:6px; font-size:11px; cursor:pointer; font-weight:600;">순서대로 일괄 업로드 (영상1→Scene1, 영상2→Scene2...)</button>`;
-            container.appendChild(batchDiv);
+async function refreshCapturedImages() {
+    const list = document.getElementById('captured-image-list');
+    if (!list) return;
+    list.innerHTML = '스캔 중...';
+    
+    chrome.runtime.sendMessage({ action: 'get_captured_images' }, async (bgResp) => {
+        let images = bgResp?.images || [];
+        const seen = new Set(images.map(img => getUrlBase(img.url)));
 
-            document.getElementById('btn-batch-upload').onclick = async () => {
-                const btn = document.getElementById('btn-batch-upload');
-                btn.disabled = true;
-                btn.innerText = '업로드 중...';
-
-                const items = container.querySelectorAll('.video-item');
-                let success = 0;
-
-                for (let i = 0; i < items.length; i++) {
-                    const sceneNum = i + 1;
-                    const uploadBtn = items[i].querySelector('.upload-scene-btn');
-                    const select = items[i].querySelector('.scene-select');
-
-                    // 씬 번호 자동 설정
-                    select.value = sceneNum.toString();
-
-                    // 클릭 시뮬레이션
-                    uploadBtn.click();
-
-                    // 완료 대기
-                    await new Promise(r => setTimeout(r, 3000));
-                    if (uploadBtn.innerText === '완료!') success++;
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tab && tab.url.includes('labs.google')) {
+            try {
+                await ensureContentScript(tab.id);
+                const domResp = await chrome.tabs.sendMessage(tab.id, { action: 'scan_media' });
+                if (domResp?.images) {
+                    domResp.images.forEach(img => {
+                        const base = getUrlBase(img.url);
+                        if (!seen.has(base)) {
+                            images.push({...img, isDom: true});
+                            seen.add(base);
+                        }
+                    });
                 }
-
-                btn.innerText = `완료! (${success}/${items.length})`;
-            };
+            } catch(e) { console.warn('DOM scan failed:', e); }
         }
 
+        if (images.length === 0) {
+            list.innerHTML = '포착된 이미지가 없습니다.';
+            return;
+        }
+        list.innerHTML = '';
+        images.forEach((img, i) => {
+            const item = document.createElement('div');
+            item.className = 'video-item';
+            const sizeDisplay = img.isDom ? 'Display View' : (img.size/1024).toFixed(0) + 'KB';
+            const fileName = getMediaFilename(img.url, i + 1);
+            
+            item.innerHTML = `
+                <div class="preview-box"><img src="${img.url}"></div>
+                <div class="media-info">
+                    <div class="url-text" title="${img.url}">${fileName}</div>
+                    <div class="size-text">${sizeDisplay}</div>
+                </div>
+                <select class="scene-select"></select>
+                <button class="upload-scene-btn">배정</button>
+            `;
+            
+            const sel = item.querySelector('.scene-select');
+            const totalScenes = currentPrompts.length > 0 ? currentPrompts.length : 20;
+            for(let j=1; j<=totalScenes; j++) {
+                const opt = document.createElement('option');
+                opt.value = j; opt.innerText = `Scene ${j}`;
+                sel.appendChild(opt);
+            }
+            
+            item.querySelector('.upload-scene-btn').onclick = async (e) => {
+                const sNum = sel.value;
+                const btn = e.target;
+                btn.innerText = '전송...';
+                btn.disabled = true;
+                
+                try {
+                    const blob = await getMediaBlob(img.url, false);
+                    await uploadBlobToServer(blob, sNum, btn);
+                } catch(err) {
+                    btn.innerText = '실패 ('+err.message.substring(0,10)+')';
+                    btn.disabled = false;
+                    setTimeout(() => btn.innerText = '배정', 2000);
+                }
+            };
+            list.appendChild(item);
+        });
+    });
+}
+
+async function clearCapturedVideos() {
+    chrome.runtime.sendMessage({ action: 'clear_captured_videos' }, () => refreshCapturedVideos());
+}
+async function clearCapturedImages() {
+    chrome.runtime.sendMessage({ action: 'clear_captured_images' }, () => refreshCapturedImages());
+}
+
+async function uploadBlobToServer(blob, sceneNum, btn) {
+    let ext = blob.type.includes('video') ? '.mp4' : '.png';
+    const formData = new FormData();
+    formData.append('file', blob, `scene_${sceneNum}${ext}`);
+    const targetUrl = `${window.serverBase}/api/upload-video-to-project/${window.projectId}/${sceneNum}`;
+    
+    try {
+        const resp = await fetch(targetUrl, { method: 'POST', body: formData });
+        if (resp.ok) {
+            btn.innerText = '완료 ✅';
+            // Refresh logic: Refresh prompts to show new thumbnail
+            setTimeout(() => { 
+                btn.innerText = '배정'; 
+                btn.disabled = false;
+                initializeBridge(); 
+            }, 1000);
+        } else {
+            btn.innerText = '전송 실패';
+            btn.disabled = false;
+        }
     } catch(e) {
-        container.innerHTML = `<span style="color:#ef4444">오류: ${e.message}</span><br><span style="font-size:10px;">확장 프로그램을 새로고침(chrome://extensions)해주세요.</span>`;
+        btn.innerText = '연결 오류';
+        btn.disabled = false;
     }
 }
 
-// 팝업 열릴 때 자동 새로고침
-setTimeout(() => refreshCapturedVideos(), 500);
-
-async function startBatch(mode) {
-    if (isBatchRunning) return;
-    isBatchRunning = true;
-    
-    // UI Update
-    document.getElementById('batch-stop').style.display = 'flex';
-    document.querySelectorAll('.batch-btn:not(.btn-stop)').forEach(b => b.disabled = true);
-
-    const cards = document.querySelectorAll('.prompt-card');
-    
-    for (const card of cards) {
-        if (!isBatchRunning) {
-            console.log('Batch stopped by user.');
-            break;
-        }
-
-        // Skip if not checked
-        const checkbox = card.querySelector('.scene-checkbox');
-        if (!checkbox || !checkbox.checked) continue;
-
-        // Robust extraction of scene number (digits only)
-        let sceneNum = card.querySelector('.scene-num').innerText.match(/\d+/);
-        sceneNum = sceneNum ? sceneNum[0] : (i + 1).toString();
-        
-        const promptText = card.querySelector('.prompt-text').innerText;
-        console.log(`[Batch] Scene ${sceneNum} - Project: ${window.projectId}`);
-        
-        // Show running status
-        card.style.borderColor = '#3b82f6';
-        card.style.boxShadow = '0 0 10px rgba(59, 130, 246, 0.3)';
-        
-        try {
-            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            if (!tab || !tab.url.includes('labs.google')) {
-                statusBadge.innerText = 'Tab Error';
-                projectInfo.innerText = 'Google Flow 페이지가 활성화되어 있지 않습니다.';
-                break;
-            }
-
-            await ensureContentScript(tab.id);
-
-            console.log(`Starting generation for Scene ${sceneNum}...`);
-            // 1. Fill and click generate
-            const response = await chrome.tabs.sendMessage(tab.id, { 
-                action: 'fill_and_generate', 
-                text: promptText,
-                mode: mode
-            });
-
-            if (response && response.status === 'ok') {
-                console.log(`Generation completed for Scene ${sceneNum}.`);
-                
-                // 2. Auto-collect if video mode
-                if (mode === 'video') {
-                    console.log(`Collecting video for Scene ${sceneNum}...`);
-                    await performAutoCollect(card, sceneNum);
+// ────────────────────────────────────────────────────────
+// Hyper-Vision Result Handler
+// ────────────────────────────────────────────────────────
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg.action === 'manual_pick_result') {
+        const { sceneNum, result } = msg;
+        if (result && result.status === 'ok') {
+            (async () => {
+                try {
+                    const blobRes = await fetch(result.data);
+                    const blob = await blobRes.blob();
+                    const btn = document.getElementById(`pick-${sceneNum}`);
+                    if (btn) btn.innerText = '전송...';
+                    await uploadBlobToServer(blob, sceneNum, btn);
+                    if (btn) btn.innerText = '회수 완료';
+                    sendResponse({ status: 'ok' });
+                } catch (e) {
+                    sendResponse({ status: 'error', message: e.message });
                 }
-                card.style.borderColor = '#10b981';
-                card.style.boxShadow = 'none';
-            } else {
-                console.error(`Error in Scene ${sceneNum}:`, response);
-                card.style.borderColor = '#ef4444';
-                card.style.boxShadow = 'none';
-                const msg = response && typeof response === 'object' ? (response.message || JSON.stringify(response)) : String(response);
-                statusBadge.innerText = 'Scene Error';
-                projectInfo.innerText = `장면 ${sceneNum} 오류: ${msg}`;
-                break; // Stop batch on error
-            }
-        } catch (e) {
-            console.error(`Batch error on Scene ${sceneNum}:`, e);
-            card.style.borderColor = '#ef4444';
-            card.style.boxShadow = 'none';
-            statusBadge.innerText = 'System Error';
-            projectInfo.innerText = `장면 ${sceneNum} 시스템 오류: ${e.message}`;
-            break;
-        }
-        
-        // Brief pause between tasks
-        if (isBatchRunning) {
-            console.log('Waiting 3 seconds before next scene...');
-            await new Promise(r => setTimeout(r, 3000));
+            })();
+            return true; // Keep channel open
+        } else {
+            sendResponse({ status: 'error' });
         }
     }
+});
 
-    isBatchRunning = false;
-    document.getElementById('batch-stop').style.display = 'none';
-    document.querySelectorAll('.batch-btn').forEach(b => b.disabled = false);
+// ────────────────────────────────────────────────────────
+// Batch Automation Logic
+// ────────────────────────────────────────────────────────
+async function startBatch(type) {
+    if (_isRunning) return;
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.url.includes('labs.google')) {
+        alert('Google Flow/ImageFX 탭을 열어주세요.');
+        return;
+    }
     
-    // Reset borders
-    cards.forEach(card => card.style.boxShadow = 'none');
+    _isRunning = true;
+    const stopBtn = document.getElementById(type === 'image' ? 'batch-stop-image' : 'batch-stop-video');
+    const startBtn = document.getElementById(type === 'image' ? 'batch-image-all' : 'batch-video-all');
+    
+    if (stopBtn) stopBtn.classList.remove('hidden');
+    if (startBtn) startBtn.classList.add('hidden');
+    
+    const selectedCbs = document.querySelectorAll('.scene-checkbox:checked');
+    for (const cb of selectedCbs) {
+        if (!_isRunning) break;
+        const sceneNum = cb.dataset.scene;
+        const card = cb.closest('.prompt-card');
+        const fillBtn = card.querySelector('.fill-btn');
+        const text = decodeURIComponent(fillBtn.dataset.text);
+        
+        card.style.background = 'rgba(245, 158, 11, 0.15)'; // Indicating generation in progress
+        
+        await ensureContentScript(tab.id);
+        const action = 'fill_and_generate';
+        
+        try {
+            const resp = await chrome.tabs.sendMessage(tab.id, { action, text: text, mode: type });
+            console.log(`[Batch] Scene ${sceneNum} result:`, resp);
+        } catch (e) {
+            console.error(`[Batch] Scene ${sceneNum} error:`, e);
+        }
+        
+        // Short breather before starting next task
+        await new Promise(r => setTimeout(r, 2000));
+        card.style.background = '';
+
+    }
+    
+    _isRunning = false;
+    if (stopBtn) stopBtn.classList.add('hidden');
+    if (startBtn) startBtn.classList.remove('hidden');
+    alert('작업이 완료되었습니다.');
 }
 
 async function startBatchAnimate() {
-    if (isBatchRunning) return;
+    if (_isRunning) return;
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.url.includes('labs.google')) {
+        alert('Google Flow/ImageFX 탭을 열어주세요.');
+        return;
+    }
     
-    // Collect video prompts from cards
-    const cardEls = document.querySelectorAll('.prompt-card');
-    const prompts = Array.from(cardEls).map(card => {
-        return card.querySelector('.prompt-text')?.innerText || '';
-    }); // Don't filter, keep indices aligned with scenes
+    _isRunning = true;
+    const stopBtn = document.getElementById('batch-stop-video');
+    const startBtn = document.getElementById('batch-animate-all');
+    
+    if (stopBtn) stopBtn.classList.remove('hidden');
+    if (startBtn) startBtn.classList.add('hidden');
+    
+    const selectedCbs = Array.from(document.querySelectorAll('.scene-checkbox:checked'));
+    const prompts = selectedCbs.map(cb => {
+        const card = cb.closest('.prompt-card');
+        const fillBtn = card.querySelector('.fill-btn');
+        return decodeURIComponent(fillBtn.dataset.text);
+    });
 
     if (prompts.length === 0) {
-        statusBadge.innerText = 'Empty Project';
-        projectInfo.innerText = '장면 리스트가 비어있습니다.';
+        alert('선택된 장면이 없습니다.');
+        _isRunning = false;
+        if (stopBtn) stopBtn.classList.add('hidden');
+        if (startBtn) startBtn.classList.remove('hidden');
         return;
     }
     
-    isBatchRunning = true;
-    document.getElementById('batch-stop').style.display = 'flex';
-    document.querySelectorAll('.batch-btn:not(.btn-stop)').forEach(b => b.disabled = true);
+    await ensureContentScript(tab.id);
+    const action = 'animate_all';
     
     try {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (!tab) {
-            alert('Google Flow 탭을 찾을 수 없습니다.');
-            return;
-        }
-        
-        await ensureContentScript(tab.id);
-        
-        await chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            func: () => { window._animateRunning = true; }
-        });
-        
-        // Pass the collected prompts to the content script
-        const response = await chrome.tabs.sendMessage(tab.id, { 
-            action: 'animate_all',
-            prompts: prompts 
-        });
-        
-        if (response) {
-            if (response.status === 'error') {
-                statusBadge.innerText = 'Error';
-                projectInfo.innerText = response.message;
-            } else {
-                statusBadge.innerText = 'Finished';
-                projectInfo.innerText = response.message || '작업이 완료되었습니다.';
-            }
-        }
-        
-    } catch(e) {
-        statusBadge.innerText = 'Error';
-        projectInfo.innerText = '오류: ' + e.message;
-    } finally {
-        // CRITICAL: Always reset UI state
-        isBatchRunning = false;
-        const stopBtn = document.getElementById('batch-stop');
-        if (stopBtn) stopBtn.style.display = 'none';
-        document.querySelectorAll('.batch-btn').forEach(b => b.disabled = false);
-        
-        // Clear running flag on the page
-        try {
-            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            if (tab) {
-                await chrome.scripting.executeScript({
-                    target: { tabId: tab.id },
-                    func: () => { window._animateRunning = false; }
-                });
-            }
-        } catch(e) {}
-    }
-}
-
-
-async function startBatchCollect() {
-    if (isBatchRunning) return;
-    if (!window.projectId) {
-        alert('프로젝트가 선택되지 않았습니다.');
-        return;
-    }
-    
-    isBatchRunning = true;
-    const stopBtn = document.getElementById('batch-stop');
-    if (stopBtn) stopBtn.style.display = 'flex';
-    document.querySelectorAll('.batch-btn:not(.btn-stop)').forEach(b => b.disabled = true);
-    
-    const cards = document.querySelectorAll('.prompt-card');
-    statusBadge.innerText = 'Collecting...';
-    console.log(`[v5] [BatchCollect] Starting collection for ${cards.length} scenes...`);
-
-    try {
-        for (const card of cards) {
-            if (!isBatchRunning) break;
-            
-            const checkbox = card.querySelector('.scene-checkbox');
-            if (checkbox && !checkbox.checked) continue;
-
-            let sceneNum = card.querySelector('.scene-num').innerText.match(/\d+/);
-            sceneNum = sceneNum ? sceneNum[0] : '1';
-
-            card.style.borderColor = '#f59e0b';
-            statusBadge.innerText = `Scene ${sceneNum}...`;
-            console.log(`[v5] [BatchCollect] Collecting Scene ${sceneNum}...`);
-            
-            await performAutoCollect(card, sceneNum);
-            
-            card.style.borderColor = '#10b981';
-            await new Promise(r => setTimeout(r, 800));
+        const resp = await chrome.tabs.sendMessage(tab.id, { action, count: prompts.length, prompts: prompts });
+        if (resp && resp.status === 'ok') {
+            alert(resp.message || '사진을 영상으로 변환하는 작업이 완료되었습니다.');
+        } else {
+            alert('작업 중지/실패: ' + (resp?.message || '알 수 없는 오류'));
         }
     } catch (e) {
-        console.error('[v5] Batch collect error:', e);
-    } finally {
-        isBatchRunning = false;
-        if (stopBtn) stopBtn.style.display = 'none';
-        document.querySelectorAll('.batch-btn').forEach(b => b.disabled = false);
-        statusBadge.innerText = 'Connected';
+        console.error(`[Batch Animate] Error:`, e);
+        alert('통신 오류: 구글 Flow 화면을 새로고침해주세요.');
     }
+    
+    _isRunning = false;
+    if (stopBtn) stopBtn.classList.add('hidden');
+    if (startBtn) startBtn.classList.remove('hidden');
 }
 
-// Wrapper to programmatically trigger the collect logic we already wrote
-async function performAutoCollect(card, sceneNum) {
-    const pickBtn = card.querySelector(`#pick-${sceneNum}`);
-    if (pickBtn) {
-        return new Promise(resolve => {
-            // override the default alert/behavior to be non-blocking in batch mode
-            const originalClick = pickBtn.onclick;
-            
-            // Just simulate a click, but since existing click is async, we need a way to know it finished.
-            // A simpler approach is to repeat the fetch logic here, or just wrap it in a setTimeout for now 
-            // relying on the original UI logic. For true automation, repeating the collect logic is safer.
-            
-            // To be safe and clean, let's trigger it and wait 10 seconds for upload
-            // The user will see the button states changing.
-            pickBtn.click(); 
-            
-            // Check button text periodically to see if it finished (완료 ✅ or 실패)
-            let checkInterval = setInterval(() => {
-                if (pickBtn.innerText.includes('완료') || pickBtn.innerText.includes('실패') || pickBtn.innerText.includes('오류')) {
-                    clearInterval(checkInterval);
-                    resolve();
-                }
-            }, 1000);
-            
-            // Timeout after 60 seconds
-            setTimeout(() => {
-                clearInterval(checkInterval);
-                resolve();
-            }, 60000);
-        });
-    }
-}
-
-// =====================================
-// HELPER: Auto-inject content script
-// =====================================
 async function ensureContentScript(tabId) {
     try {
-        await chrome.tabs.sendMessage(tabId, { action: 'ping' });
+        const resp = await chrome.tabs.sendMessage(tabId, { action: 'ping' });
+        return resp;
     } catch (e) {
-        if (e.message.includes('Receiving end does not exist')) {
-            console.log('Injecting content script dynamically...');
-            try {
-                await chrome.scripting.executeScript({
-                    target: { tabId: tabId },
-                    files: ['content.js']
-                });
-                await new Promise(r => setTimeout(r, 300)); // wait for init
-            } catch (err) {
-                console.error('Failed to inject script:', err);
-                throw new Error("탭에 권한이 없습니다. (페이지 새로고침 한 번 해주세요)");
-            }
-        } else {
-            throw e;
-        }
-    }
-}
-
-// =====================================
-// 이미지 포착 패널 (퍼블리시 허브 연동)
-// =====================================
-document.getElementById('btn-refresh-images')?.addEventListener('click', refreshCapturedImages);
-document.getElementById('btn-clear-images')?.addEventListener('click', async () => {
-    try {
-        await chrome.runtime.sendMessage({ action: 'clear_captured_images' });
-        document.getElementById('captured-image-list').innerHTML = '초기화 완료.';
-    } catch(e) {
-        document.getElementById('captured-image-list').innerHTML = '<span style="color:#ef4444">연결 실패</span>';
-    }
-});
-
-async function refreshCapturedImages() {
-    const container = document.getElementById('captured-image-list');
-    if (!container) return;
-    container.innerHTML = '<span style="color:#10b981">로딩 중...</span>';
-
-    try {
-        const response = await chrome.runtime.sendMessage({ action: 'get_captured_images' });
-        const images = response?.images || [];
-
-        if (images.length === 0) {
-            container.innerHTML = '포착된 이미지가 없습니다.<br><span style="font-size:10px;">Google ImageFX에서 이미지를 생성하면 자동 포착됩니다.</span>';
-            return;
-        }
-
-        container.innerHTML = '';
-        images.forEach((img, idx) => {
-            const timeStr = new Date(img.timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-            const sizeKB = img.size ? `${(img.size / 1024).toFixed(0)}KB` : '?';
-            const item = document.createElement('div');
-            item.style.cssText = 'display:flex; align-items:center; gap:8px; padding:6px; margin-bottom:4px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; flex-wrap:wrap;';
-            item.innerHTML = `
-                <span style="font-weight:700; color:#10b981; min-width:20px;">#${idx + 1}</span>
-                <span style="font-size:10px; color:#64748b;">${timeStr}</span>
-                <span style="font-size:9px; padding:2px 6px; border-radius:4px; background:rgba(16,185,129,0.2); color:#6ee7b7;">${sizeKB}</span>
-                <button class="img-preview-btn" style="background:rgba(99,102,241,0.2); color:#818cf8; border:1px solid rgba(99,102,241,0.3); padding:3px 8px; border-radius:5px; font-size:10px; cursor:pointer;">미리보기</button>
-                <button class="img-copy-btn" style="background:#10b981; color:white; border:none; padding:3px 10px; border-radius:5px; font-size:10px; cursor:pointer; font-weight:600;">URL 복사</button>
-                <div class="img-preview-area" style="display:none; width:100%; margin-top:6px;"></div>
-            `;
-            container.appendChild(item);
-
-            item.querySelector('.img-preview-btn').onclick = (e) => {
-                const area = item.querySelector('.img-preview-area');
-                if (area.style.display === 'none') {
-                    area.style.display = 'block';
-                    area.innerHTML = `<img src="${img.url}" style="width:100%; max-height:180px; object-fit:contain; border-radius:6px; background:#000;">`;
-                    e.target.textContent = '닫기';
-                } else {
-                    area.style.display = 'none';
-                    area.innerHTML = '';
-                    e.target.textContent = '미리보기';
-                }
-            };
-
-            item.querySelector('.img-copy-btn').onclick = () => {
-                navigator.clipboard.writeText(img.url).then(() => {
-                    const btn = item.querySelector('.img-copy-btn');
-                    btn.textContent = '복사됨!';
-                    setTimeout(() => { btn.textContent = 'URL 복사'; }, 1500);
-                });
-            };
+        return await chrome.scripting.executeScript({
+            target: { tabId },
+            files: ['content.js']
         });
-    } catch(e) {
-        container.innerHTML = `<span style="color:#ef4444">오류: ${e.message}</span>`;
     }
 }
-
-// 팝업 열릴 때 이미지도 자동 새로고침
-setTimeout(() => refreshCapturedImages(), 700);

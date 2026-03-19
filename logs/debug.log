@@ -6081,3 +6081,17 @@ detail: You have insufficient credit to run this model. Go to https://replicate.
 [2026-03-11 19:37:33.758112] DEBUG_FONT: Loading 'GmarketSansBold' from 'C:/Windows/Fonts\malgunbd.ttf' with index 0
 [2026-03-11 19:37:33.758761] DEBUG_FONT: Successfully loaded ('Malgun Gothic', 'Bold')
 [2026-03-11 19:37:33.826170] calling writes_videofile code in video_service (720p safe mode)
+[2026-03-19 12:00:52.463297] Starting render for project 119
+[2026-03-19 12:00:52.463315] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\年をとったら、お金の貸し借りをしてはいけない理由_20260319\tts_20260319_115820.mp3
+[2026-03-19 12:00:52.644889] create_slideshow(PROJ=119) Effects: ['random', 'random', 'random']
+[2026-03-19 12:00:56.870606] RENDER_SETTINGS: font='NotoSansJP', color='white', style='Basic_White', stroke_color='black', stroke_enabled=1, stroke_width=0.44999999999999996, bg_enabled=1
+[2026-03-19 12:00:56.877480] FONT_DEBUG: target='NotoSansJP-Bold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\NotoSansJP-Bold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-03-19 12:00:56.878036] DEBUG_FONT: Loading 'NotoSansJP' from 'C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\NotoSansJP-Bold.ttf' with index 0
+[2026-03-19 12:00:56.903517] DEBUG_FONT: Successfully loaded ('Noto Sans CJK JP', 'Bold')
+[2026-03-19 12:00:57.234881] FONT_DEBUG: target='NotoSansJP-Bold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\NotoSansJP-Bold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-03-19 12:00:57.235447] DEBUG_FONT: Loading 'NotoSansJP' from 'C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\NotoSansJP-Bold.ttf' with index 0
+[2026-03-19 12:00:57.236430] DEBUG_FONT: Successfully loaded ('Noto Sans CJK JP', 'Bold')
+[2026-03-19 12:00:57.304583] FONT_DEBUG: target='NotoSansJP-Bold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\NotoSansJP-Bold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-03-19 12:00:57.305289] DEBUG_FONT: Loading 'NotoSansJP' from 'C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\NotoSansJP-Bold.ttf' with index 0
+[2026-03-19 12:00:57.306710] DEBUG_FONT: Successfully loaded ('Noto Sans CJK JP', 'Bold')
+[2026-03-19 12:00:57.407783] calling writes_videofile code in video_service (720p safe mode)

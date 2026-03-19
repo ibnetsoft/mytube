@@ -10,7 +10,7 @@
       --text: #f8fafc;
     }
     body {
-      width: 350px;
+      min-width: 320px;
       margin: 0;
       padding: 16px;
       background: var(--bg);
@@ -132,11 +132,64 @@
       font-size: 11px;
       color: #cbd5e1;
       line-height: 1.5;
-      display: -webkit-box;
-      -webkit-line-clamp: 3;
-      line-clamp: 3;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
+      flex: 1;
+      min-width: 0;
+    }
+    .prompt-body {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+    }
+    .prompt-thumbnail {
+        width: 80px;
+        height: 50px;
+        background: rgba(0,0,0,0.2);
+        border-radius: 6px;
+        overflow: hidden;
+        flex-shrink: 0;
+        border: 1px solid rgba(255,255,255,0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .prompt-thumbnail:hover {
+        transform: scale(1.05);
+        border-color: #3b82f6;
+        box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+    }
+    .prompt-thumbnail::before {
+        content: '회수';
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(59, 130, 246, 0.6);
+        color: white;
+        font-size: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition: opacity 0.2s;
+        z-index: 2;
+    }
+    .prompt-thumbnail:hover::before {
+        opacity: 1;
+    }
+    .prompt-thumbnail img, .prompt-thumbnail video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    .prompt-thumbnail::after {
+        content: 'No Media';
+        font-size: 9px;
+        color: #475569;
+        position: absolute;
+    }
+    .prompt-thumbnail.has-media::after {
+        display: none;
     }
     .empty {
       text-align: center;
@@ -198,6 +251,46 @@
         line-height: 1.4;
     }
     .guide-box b { color: var(--primary); }
+    
+    /* Tabs System */
+    .tabs-nav {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 16px;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 4px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .tab-btn {
+        flex: 1;
+        padding: 10px;
+        background: transparent;
+        border: none;
+        color: #64748b;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        border-radius: 8px;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+    .tab-btn:hover {
+        background: rgba(255, 255, 255, 0.05);
+        color: #94a3b8;
+    }
+    .tab-btn.active {
+        background: rgba(255, 255, 255, 0.08);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .tab-btn.active[data-tab="image"] { color: #3b82f6; border-bottom: 2px solid #3b82f6; border-radius: 8px 8px 2px 2px; }
+    .tab-btn.active[data-tab="video"] { color: #a78bfa; border-bottom: 2px solid #a78bfa; border-radius: 8px 8px 2px 2px; }
+
+    .hidden { display: none !important; }
+
     .select-all-container {
         display: flex;
         align-items: center;
@@ -213,12 +306,45 @@
     .video-item {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
       padding: 8px;
-      margin-bottom: 6px;
+      margin-bottom: 8px;
       background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+    }
+    .preview-box {
+      width: 48px;
+      height: 48px;
+      background: #000;
+      border-radius: 6px;
+      overflow: hidden;
+      flex-shrink: 0;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .preview-box img, .preview-box video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .media-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .video-item .url-text {
+      font-size: 11px;
+      font-weight: 600;
+      color: #f8fafc;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .video-item .size-text {
+      font-size: 10px;
+      color: #94a3b8;
     }
     .video-item select {
       background: #1e293b;
@@ -240,26 +366,6 @@
       font-weight: 600;
       white-space: nowrap;
     }
-    .video-item .upload-scene-btn:disabled {
-      background: #475569;
-      cursor: not-allowed;
-    }
-    .video-item .url-text {
-      flex: 1;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-size: 10px;
-      color: #94a3b8;
-    }
-    .video-item .size-badge {
-      font-size: 9px;
-      padding: 2px 6px;
-      border-radius: 4px;
-      background: rgba(139,92,246,0.2);
-      color: #a78bfa;
-      white-space: nowrap;
-    }
     .footer {
       margin-top: 20px;
       padding-top: 15px;
@@ -271,66 +377,74 @@
   </style>
 </head>
 <body>
-  <div class="header">
-    <img src="icons/icon48.png" class="logo">
-    <h1>Flow Bridge</h1>
-    <div class="status" id="status-badge">Wait</div>
+  <div class="header" style="justify-content: space-between;">
+    <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1;">
+        <img src="icons/icon48.png" class="logo" style="width:24px; height:24px;">
+        <div id="header-project-name" style="font-size:12px; font-weight:700; color:#60a5fa; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">프로젝트 연결 중...</div>
+    </div>
+    <div class="status" id="status-badge" style="cursor:pointer; border:1px solid rgba(255,255,255,0.2); outline:none; margin-left:8px;">Wait</div>
   </div>
 
-  <div class="project-info" id="project-info">
-      장면 데이터를 불러오는 중...
+  <div class="project-info" id="project-info" style="margin-top:-10px; background:transparent; padding:4px 8px; font-size:9px; color:#475569;">
+      <!-- ID info goes here -->
   </div>
 
-  <div class="guide-box">
-      <b>[ 생성 모드 ]</b> "이미지/영상 자동생성" 순서로 진행하거나,<br>
-      <b>[ 변환 모드 ]</b> 이미 생성된 사진이 있다면 "사진을 영상으로 변환"을 누르세요.<br>
-      <b>[ 영상 회수 ]</b> Google Flow에서 영상 재생 후 "포착된 영상" 패널에서 수동 매칭
+  <div class="tabs-nav">
+      <button class="tab-btn active" data-tab="image">🖼️ 이미지 작업</button>
+      <button class="tab-btn" data-tab="video">🎬 영상 작업</button>
   </div>
 
-  <div class="batch-actions" id="batch-panel">
-      <button class="batch-btn btn-image" id="batch-image-all">🎞 이미지 자동생성</button>
-      <button class="batch-btn btn-video" id="batch-video-all">🎬 영상 자동생성</button>
-      <button class="batch-btn btn-video" id="batch-animate-all" style="background: #db2777; grid-column: span 2;">✨ 사진을 영상으로 변환 (애니메이션)</button>
-      <button class="batch-btn btn-stop" id="batch-stop">⏹ 자동화 중단</button>
+  <!-- 이미지 작업 섹션 -->
+  <div id="section-image">
+    <div class="batch-actions">
+        <button class="batch-btn btn-image" id="batch-image-all" style="grid-column: span 2;">🎞 이미지 일괄 생성</button>
+        <button class="batch-btn btn-stop hidden" id="batch-stop-image" style="grid-column: span 2;">⏹ 중단</button>
+    </div>
+
+    <div id="image-capture-panel" style="margin-bottom:15px; padding:12px; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.3); border-radius:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <span style="font-size:12px; font-weight:700; color:#10b981;">🖼️ 포착된 이미지</span>
+            <div style="display:flex; gap:6px;">
+                <button id="btn-refresh-images" style="background:#10b981; color:white; border:none; padding:4px 10px; border-radius:6px; font-size:10px; cursor:pointer; font-weight:600;">새로고침</button>
+                <button id="btn-clear-images" style="background:rgba(255,255,255,0.1); color:#94a3b8; border:1px solid rgba(255,255,255,0.2); padding:4px 8px; border-radius:6px; font-size:10px; cursor:pointer;">초기화</button>
+            </div>
+        </div>
+        <div id="captured-image-list" style="font-size:11px; color:#94a3b8; max-height:200px; overflow-y:auto;">
+            Google Flow에서 이미지를 생성하거나 찾으면 표시됩니다.
+        </div>
+    </div>
   </div>
 
-  <!-- 영상 수동 매칭 패널 -->
-  <div id="video-capture-panel" style="margin-bottom:15px; padding:12px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.3); border-radius:12px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-          <span style="font-size:12px; font-weight:700; color:#f59e0b;">📡 포착된 영상</span>
-          <div style="display:flex; gap:6px;">
-              <button id="btn-refresh-videos" style="background:#f59e0b; color:white; border:none; padding:4px 10px; border-radius:6px; font-size:10px; cursor:pointer; font-weight:600;">새로고침</button>
-              <button id="btn-clear-videos" style="background:rgba(255,255,255,0.1); color:#94a3b8; border:1px solid rgba(255,255,255,0.2); padding:4px 8px; border-radius:6px; font-size:10px; cursor:pointer;">초기화</button>
-          </div>
-      </div>
-      <div id="captured-video-list" style="font-size:11px; color:#94a3b8;">
-          Google Flow에서 영상을 재생하면 자동으로 여기에 표시됩니다.
-      </div>
-  </div>
+  <!-- 영상 작업 섹션 -->
+  <div id="section-video" class="hidden">
+    <div class="batch-actions">
+        <button class="batch-btn btn-video" id="batch-animate-all" style="background: #db2777; grid-column: span 2;">✨ 사진을 영상으로 변환</button>
+        <button class="batch-btn btn-stop hidden" id="batch-stop-video" style="grid-column: span 2;">⏹ 중단</button>
+    </div>
 
-  <!-- 이미지 포착 패널 (퍼블리시 허브 연동) -->
-  <div id="image-capture-panel" style="margin-bottom:15px; padding:12px; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.3); border-radius:12px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-          <span style="font-size:12px; font-weight:700; color:#10b981;">🖼️ 포착된 이미지</span>
-          <div style="display:flex; gap:6px;">
-              <button id="btn-refresh-images" style="background:#10b981; color:white; border:none; padding:4px 10px; border-radius:6px; font-size:10px; cursor:pointer; font-weight:600;">새로고침</button>
-              <button id="btn-clear-images" style="background:rgba(255,255,255,0.1); color:#94a3b8; border:1px solid rgba(255,255,255,0.2); padding:4px 8px; border-radius:6px; font-size:10px; cursor:pointer;">초기화</button>
-          </div>
-      </div>
-      <div id="captured-image-list" style="font-size:11px; color:#94a3b8; max-height:200px; overflow-y:auto;">
-          Google ImageFX에서 이미지를 생성하면 자동으로 여기에 표시됩니다.
-      </div>
+    <div id="video-capture-panel" style="margin-bottom:15px; padding:12px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.3); border-radius:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <span style="font-size:12px; font-weight:700; color:#f59e0b;">📡 포착된 영상</span>
+            <div style="display:flex; gap:6px;">
+                <button id="btn-refresh-videos" style="background:#f59e0b; color:white; border:none; padding:4px 10px; border-radius:6px; font-size:10px; cursor:pointer; font-weight:600;">새로고침</button>
+                <button id="btn-clear-videos" style="background:rgba(255,255,255,0.1); color:#94a3b8; border:1px solid rgba(255,255,255,0.2); padding:4px 8px; border-radius:6px; font-size:10px; cursor:pointer;">초기화</button>
+            </div>
+        </div>
+        <div id="captured-video-list" style="font-size:11px; color:#94a3b8; max-height:200px; overflow-y:auto;">
+            Google Flow에서 영상을 재생하면 표시됩니다.
+        </div>
+    </div>
   </div>
 
   <div id="scan-result" style="display:none; background:#0f172a; border:1px solid #334155; border-radius:6px; padding:8px; margin-bottom:10px; font-size:10px; color:#94a3b8; max-height:150px; overflow-y:auto;"></div>
 
   <div class="select-all-container">
       <input type="checkbox" id="select-all-scenes" checked>
-      <label for="select-all-scenes">모든 장면 선택/해제</label>
+      <label for="select-all-scenes" id="label-select-all">장면 일괄 선택</label>
   </div>
 
   <div class="prompt-list-container" id="prompt-list">
-    <div class="empty">피카디리스튜디오(localhost:8000)가 실행 중이어야 합니다.</div>
+    <div class="empty">데이터를 불러오는 중...</div>
   </div>
 
   <div class="footer">

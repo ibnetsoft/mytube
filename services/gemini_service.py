@@ -24,7 +24,7 @@ class GeminiService:
     def api_key(self):
         return config.GEMINI_API_KEY
 
-    async def generate_text(self, prompt: str, temperature: float = 0.7) -> str:
+    async def generate_text(self, prompt: str, temperature: float = 0.7, max_tokens: int = 8192) -> str:
         """텍스트 생성"""
         url = f"{self.base_url}/models/gemini-2.0-flash:generateContent?key={self.api_key}"
 
@@ -32,11 +32,11 @@ class GeminiService:
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {
                 "temperature": temperature,
-                "maxOutputTokens": 8192
+                "maxOutputTokens": max_tokens
             }
         }
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(url, json=payload)
             result = response.json()
 
@@ -376,9 +376,10 @@ class GeminiService:
                 
                 # [NEW] Style Reinforcement for Non-Realistic Styles
                 # If the prompt contains stylistic markers but avoids realism, reinforce negative prompts
-                stylistic_keywords = ["k_manhwa", "k_webtoon", "anime", "cartoon", "ghibli", "sketch", "line art", "doodle", "wimpy", "webtoon"]
+                stylistic_keywords = ["k_manhwa", "k_webtoon", "anime", "cartoon", "ghibli", "sketch", "line art", "doodle", "wimpy", "webtoon", "infographic"]
                 is_stylistic = any(kw in prompt.lower() for kw in stylistic_keywords)
                 contains_photo = any(kw in prompt.lower() for kw in ["photo", "realistic", "8k", "cinematic"])
+                is_infographic = "infographic" in prompt.lower()
                 
                 is_wimpy = any(kw in prompt.lower() for kw in ["wimpy", "stick figure", "stickman", "졸라맨", "jollaman"])
                 # K만화/웹툰은 배경이 있어야 하므로 wimpy(흰배경) 처리 제외
@@ -388,7 +389,10 @@ class GeminiService:
                 final_prompt = prompt
                 # 비실사 스타일: 실사 키워드 차단
                 if is_stylistic and not contains_photo:
-                    final_prompt += ", flat 2D style, no photorealism, no text, no words"
+                    if is_infographic:
+                        final_prompt += ", professional graphic design, vector illustration, clean lines"
+                    else:
+                        final_prompt += ", flat 2D style, no photorealism, no text, no words"
                 # 졸라맨 여부 재판단 (배경 유무와 상관없이 캐릭터 형태 기준)
                 is_jollaman = any(kw in prompt.lower() for kw in ["wimpy", "stick figure", "stickman", "졸라맨", "jollaman"])
                 
@@ -1235,20 +1239,24 @@ Motion prompt for this image:"""
         _wimpy_kws = ["wimpy", "stick figure", "stickman", "졸라맨", "jollaman"]
         _sp_lower = (style_prompt or "").lower()
         _sk_lower = (style_key or "").lower()
-        is_wimpy_style = (
-            any(kw in _sp_lower for kw in _wimpy_kws) or
-            any(kw in _sk_lower for kw in _wimpy_kws)
+
+        # 명시적 비졸라맨 스타일 (최우선 — force_wimpy보다 우선)
+        _explicit_non_wimpy = (
+            (_sk_lower and any(kw in _sk_lower for kw in ["webtoon", "k_manhwa", "manhwa", "realistic", "anime", "3d"])) or
+            (_sp_lower and any(kw in _sp_lower for kw in ["webtoon", "manhwa"]))
         )
-        force_wimpy = any(kw in _sp_lower for kw in ["bald", "white head", "stick figure", "minimalist cartoon", "teal-blue hoodie", "teal blue hoodie"])
-        if force_wimpy:
-            is_wimpy_style = True
+
+        if _explicit_non_wimpy:
+            is_wimpy_style = False
         else:
-            # 일반 웹툰 스타일은 wimpy에서 제외 (하지만 특정 키워드 있으면 강제)
-            if style_key and any(kw in style_key.lower() for kw in ["webtoon", "k_manhwa", "manhwa"]):
-                is_wimpy_style = False
-            if style_prompt and any(kw in style_prompt.lower() for kw in ["webtoon", "manhwa"]):
-                is_wimpy_style = False
-        print(f"[Gemini] style_key={style_key!r}, is_wimpy_style={is_wimpy_style}")
+            is_wimpy_style = (
+                any(kw in _sp_lower for kw in _wimpy_kws) or
+                any(kw in _sk_lower for kw in _wimpy_kws)
+            )
+            force_wimpy = any(kw in _sp_lower for kw in ["bald", "white head", "stick figure", "minimalist cartoon", "teal-blue hoodie", "teal blue hoodie"])
+            if force_wimpy:
+                is_wimpy_style = True
+        print(f"[Gemini] style_key={style_key!r}, is_wimpy_style={is_wimpy_style}, explicit_non_wimpy={_explicit_non_wimpy}")
         _CHAR_BASE = (
             "STRICTLY TWO ARMS AND TWO HANDS ONLY. NO EXTRA LIMBS. NO EXTRA ARMS. NO EXTRA HANDS. "
             "A full-body cartoon illustration of a cute cheerful character, "
@@ -1318,6 +1326,10 @@ Motion prompt for this image:"""
   character_main: minimalist narrator stickman(teal-blue hooded, bald white head with expressive face) in center + layered webtoon background + no text
   character_support: Detailed webtoon illustration of [Subject mentioned in script] across the scene + small narrator stickman(teal-blue hooded) in lower-right corner pointing + no text
   infographic: Pure data visualization/infographic, no character, no human + no text
+
+【STEP 5: flow_prompt】
+  - "{style_prefix}" 스타일을 기반으로, 캐릭터의 외형(흰 대머리, 청록색 후드티, 단 두 개의 팔)과 배경, 그리고 구체적인 영상 움직임(Motion)을 하나의 자연스러운 문단으로 서술하세요.
+  - 모든 씬(infographic 제외)에는 'a stickman character with a bald white head and a teal-blue hoodie'가 반드시 포함되어야 합니다.
 """
 
         # 비 wimpy 스타일에 대한 커스텀 지침 (DB에서 저장된 gemini_instruction 사용)
@@ -1351,9 +1363,14 @@ Motion prompt for this image:"""
 
 모든 prompt_en의 시작 부분에 이 스타일 키워드를 포함시켜야 합니다.
 예: "{style_prompt}, ..."
+
+[★ 졸라맨/스틱맨 스타일 금지 — 비졸라맨 스타일이므로 절대 금지 ★]
+- "bald", "white sphere head", "stick figure", "stickman", "teal-blue hoodie", "white gloves", "black trousers with sneakers" 등 졸라맨/스틱맨 캐릭터 묘사를 절대 사용하지 마세요.
+- 캐릭터는 반드시 "{style_prompt}" 스타일에 맞는 일반적인 인물로 그리세요 (머리카락, 자연스러운 의상, 자연스러운 표정).
+- prompt_char, prompt_bg 필드는 비워두세요 (빈 문자열 "").
+- scene_type 필드도 비워두세요 (빈 문자열 "").
 {style_conflict_prevention}
 {universal_prevention}
-{wimpy_instruction}
 {custom_style_instruction}
 """
 
@@ -1390,10 +1407,14 @@ Motion prompt for this image:"""
             elif not is_realistic:
                 char_descriptions = "\n".join([f"- {c['name']} ({c['role']}): {c['prompt_en']}" for c in characters])
                 char_color_rule = """
-[캐릭터 색상 일관성 - 비실사/만화 스타일 전용]
-- 캐릭터의 몸 색상, 의상 색상을 위 묘사에서 절대 변경하지 마세요.
+[캐릭터 외형 일관성 - 비실사/만화 스타일 전용 — 최우선 규칙]
+- ★ 모든 씬에서 내레이터/주인공 캐릭터의 외형을 100% 동일하게 유지하세요.
+- ★ 매 prompt_en마다 캐릭터의 핵심 외형 키워드를 반복 포함하세요 (머리카락 색+스타일, 의상 색+종류, 체형).
+  예: "young male narrator with short black hair, wearing teal-blue hoodie" — 이 묘사를 매번 동일하게 넣어야 합니다.
+- 캐릭터의 머리카락 색, 헤어스타일, 의상 색상, 의상 종류를 씬마다 절대 변경하지 마세요.
 - 얼굴·몸통 일부만 다른 색이 되는 현상을 방지하세요: 캐릭터 전신이 동일한 색상으로 일관되게 표현되어야 합니다.
 - 조명/명암 처리로 인해 캐릭터 색상이 달라 보이지 않도록 하세요 (플랫 컬러 유지).
+- ★ 금지: 씬마다 캐릭터의 헤어스타일이 바뀌거나, 대머리↔머리카락이 왔다갔다 하거나, 의상이 달라지는 것.
 """
             else:
                 char_descriptions = "\n".join([f"- {c['name']} ({c['role']}): {c['prompt_en']}" for c in characters])
@@ -1585,6 +1606,75 @@ Motion prompt for this image:"""
                         enforced_count += 1
                 if enforced_count > 0:
                     print(f"[StyleEnforce] Injected style prefix into {enforced_count}/{len(scenes)} scenes")
+
+            # [NON-WIMPY CLEANUP] 비졸라맨 스타일에서 Gemini가 졸라맨 캐릭터를 생성한 경우 제거
+            if not is_wimpy_style:
+                import re as _re
+                # 졸라맨 캐릭터 묘사 문장 블록을 통째로 제거
+                wimpy_sentence_patterns = [
+                    # "A minimalist cartoon character with ... head" 블록
+                    r'A\s+minimalist\s+cartoon\s+character\s+with[^.]+\.',
+                    # "perfectly plain/bare/bald white circular/round head" 포함 문장
+                    r'[^.]*perfectly\s+(plain\s+)?white\s+circular\s+head[^.]*\.',
+                    r'[^.]*perfectly\s+bald[^.]*head[^.]*\.',
+                    r'[^.]*perfectly\s+bare\s+smooth\s+bald[^.]*\.',
+                    r'[^.]*bald\s+white\s+sphere[^.]*\.',
+                    # "Wing/Wearing a teal-cyan/teal-blue hoodie" 블록
+                    r'[^.]*(?:Wing|Wearing)\s+a\s+teal[^.]+\.',
+                    # "Limbs are all-black" 문장
+                    r'[^.]*Limbs\s+are\s+all-black[^.]*\.',
+                    # "hands are plain round white gloved hands" 문장
+                    r'[^.]*hands\s+are\s+plain\s+round\s+white\s+gloved[^.]*\.',
+                    # STRICTLY / DRESS CODE 전체 문장
+                    r'[^.]*STRICTLY\s+(?:NO\s+BLACK|EXACTLY\s+TWO|TWO\s+ARMS)[^.]*\.',
+                    r'[^.]*DRESS\s+CODE[^.]*\.',
+                    r'[^.]*THE\s+CHARACTER\s+FACE\s+MUST[^.]*\.',
+                    r'[^.]*Face\s+must\s+NEVER\s+be\s+blank[^.]*\.',
+                    r'[^.]*Head\s+is\s+a\s+perfectly[^.]*\.',
+                    r'[^.]*The\s+sleeves\s+MUST\s+be[^.]*\.',
+                    r'[^.]*NO\s+EXTRA\s+APPENDAGES[^.]*\.',
+                    r'[^.]*NO\s+MUTATED\s+LIMBS[^.]*\.',
+                    r'[^.]*strictly\s+correct\s+anatomy[^.]*\.',
+                    r'[^.]*strictly\s+two\s+arms\s+and\s+two\s+hands[^.]*\.',
+                    # teal-blue/teal-cyan hoodie 관련
+                    r'[^.]*teal-(?:blue|cyan)\s+(?:long-sleeved\s+)?hoodie[^.]*\.',
+                    r'[^.]*teal-(?:blue|cyan)\s+(?:long-sleeved\s+)?hooded\s+sweatshirt[^.]*\.',
+                    # 기타 졸라맨 키워드 문장
+                    r'[^.]*white\s+gloved?\s+hands[^.]*\.',
+                    r'[^.]*black\s+trousers,?\s*(?:simple\s+)?sneakers[^.]*\.',
+                ]
+                cleaned_count = 0
+                for scene in scenes:
+                    pen = scene.get("prompt_en", "")
+                    original = pen
+                    for pat in wimpy_sentence_patterns:
+                        pen = _re.sub(pat, '', pen, flags=_re.IGNORECASE)
+                    # Clean up whitespace
+                    pen = _re.sub(r'\s{2,}', ' ', pen).strip()
+                    pen = _re.sub(r',\s*,', ',', pen)
+                    pen = _re.sub(r'\.\s*\.', '.', pen)
+                    if pen != original:
+                        scene["prompt_en"] = pen
+                        cleaned_count += 1
+                    
+                    # Clean flow_prompt as well
+                    flow = scene.get("flow_prompt", "")
+                    if flow:
+                        original_flow = flow
+                        for pat in wimpy_sentence_patterns:
+                            flow = _re.sub(pat, '', flow, flags=_re.IGNORECASE)
+                        flow = _re.sub(r'\s{2,}', ' ', flow).strip()
+                        flow = _re.sub(r',\s*,', ',', flow)
+                        flow = _re.sub(r'\.\s*\.', '.', flow)
+                        if flow != original_flow:
+                            scene["flow_prompt"] = flow
+                            cleaned_count += 1
+                    # Clear wimpy-only fields
+                    scene["prompt_char"] = ""
+                    scene["prompt_bg"] = ""
+                    scene["scene_type"] = ""
+                if cleaned_count > 0:
+                    print(f"[WimpyCleanup] Removed stickman descriptions from {cleaned_count}/{len(scenes)} scenes")
 
             # [WIMPY] 졸라맨 스타일이면 prompt_en/prompt_char에서 물건 들기 표현을 강제 교체
             if is_wimpy_style:

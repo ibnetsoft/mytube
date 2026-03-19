@@ -127,6 +127,7 @@
                             <span>{{ t('nav_image') }}</span>
                         </a>
                     </li>
+                    {% if app_mode != 'blog' %}
                     <li>
                         <a href="/audio-gen" id="nav-audio"
                             class="sidebar-item {% if page == 'audio-gen' %}active{% endif %}">
@@ -134,6 +135,7 @@
                             <span>Audio Studio</span>
                         </a>
                     </li>
+                    {% endif %}
                     <li>
                         <a href="/thumbnail" id="nav-thumbnail"
                             class="sidebar-item {% if page == 'thumbnail' %}active{% endif %}">
@@ -207,7 +209,18 @@
                                 class="ml-auto text-[8px] bg-blue-500/20 text-blue-400 px-1 py-0.5 rounded">Beta</span>
                         </a>
                     </li>
+                    {% if app_mode != 'blog' %}
+                    <li class="mt-0.5">
+                        <a href="/blog-image-gen" id="nav-blog-image"
+                            class="sidebar-item hover:bg-amber-500/10 {% if page == 'blog-image-gen' %}active{% endif %}">
+                            <span class="sidebar-icon">🖼️</span>
+                            <span class="font-bold text-gray-700 dark:text-gray-300">블로그 이미지 생성</span>
+                        </a>
+                    </li>
+                    {% endif %}
+
                     <!-- 퍼블리시 허브: 이미지 생성 페이지의 블로그 게시 기능으로 통합됨 -->
+                    {% if app_mode != 'blog' %}
                     <li class="mt-0.5 pt-0.5">
                         <a href="/autopilot" id="nav-autopilot"
                             class="sidebar-item bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 {% if page == 'autopilot' %}active{% endif %}">
@@ -219,6 +232,7 @@
                                 class="ml-auto text-[8px] bg-purple-500/20 text-purple-400 px-1 py-0.5 rounded">Beta</span>
                         </a>
                     </li>
+                    {% endif %}
                     <li class="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
                         <a href="/settings" id="nav-settings"
                             class="sidebar-item flex items-center gap-3 {% if page == 'settings' %}active{% endif %}">
@@ -480,26 +494,36 @@
     <script src="/static/js/api_v2.js?v={{ range(1, 100000) | random }}"></script>
     {% block scripts %}{% endblock %}
 
-    <div
-        class="fixed top-3 right-6 z-50 flex gap-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur p-1 rounded-full shadow-lg border border-gray-200 dark:border-gray-700 transition-all hover:scale-105">
-        <button onclick="changeGlobalLanguage('ko')"
-            class="w-6 h-6 rounded-full overflow-hidden border-2 border-transparent hover:border-indigo-500 transition-all transform hover:-translate-y-1 relative group"
-            title="한국어">
-            <img src="https://flagcdn.com/w40/kr.png" alt="Korean" class="w-full h-full object-cover">
-            <div class="absolute inset-0 bg-black/10 group-hover:bg-transparent transition"></div>
-        </button>
-        <button onclick="changeGlobalLanguage('en')"
-            class="w-6 h-6 rounded-full overflow-hidden border-2 border-transparent hover:border-indigo-500 transition-all transform hover:-translate-y-1 relative group"
-            title="English">
-            <img src="https://flagcdn.com/w40/gb.png" alt="English" class="w-full h-full object-cover">
-            <div class="absolute inset-0 bg-black/10 group-hover:bg-transparent transition"></div>
-        </button>
-        <button onclick="changeGlobalLanguage('vi')"
-            class="w-6 h-6 rounded-full overflow-hidden border-2 border-transparent hover:border-indigo-500 transition-all transform hover:-translate-y-1 relative group"
-            title="Tiếng Việt">
-            <img src="https://flagcdn.com/w40/vn.png" alt="Vietnamese" class="w-full h-full object-cover">
-            <div class="absolute inset-0 bg-black/10 group-hover:bg-transparent transition"></div>
-        </button>
+    <div class="fixed top-3 right-6 z-50 flex items-center gap-3">
+        <!-- 모드 표시 (롱폼, 숏폼, 커머스, 블로그) -->
+        <div class="flex items-center gap-2 px-3 py-1.5 bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-full shadow-lg border border-gray-200 dark:border-gray-700">
+            <span class="w-1.5 h-1.5 rounded-full {% if app_mode == 'blog' %}bg-blue-500 animate-pulse{% elif app_mode == 'shorts' %}bg-purple-500{% elif app_mode == 'commerce' %}bg-orange-500{% elif app_mode == 'webtoon' %}bg-indigo-500{% else %}bg-green-500{% endif %}"></span>
+            <span class="text-[10px] font-black uppercase tracking-tighter text-gray-700 dark:text-gray-300">
+                {% if app_mode == 'blog' %}블로그{% elif app_mode == 'shorts' %}숏폼{% elif app_mode == 'commerce' %}커머스{% elif app_mode == 'webtoon' %}웹툰{% else %}롱폼{% endif %} 모드
+            </span>
+        </div>
+
+        <!-- 언어 선택 -->
+        <div class="flex gap-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur p-1 rounded-full shadow-lg border border-gray-200 dark:border-gray-700 transition-all hover:scale-105">
+            <button onclick="changeGlobalLanguage('ko')"
+                class="w-6 h-6 rounded-full overflow-hidden border-2 border-transparent hover:border-indigo-500 transition-all transform hover:-translate-y-1 relative group"
+                title="한국어">
+                <img src="https://flagcdn.com/w40/kr.png" alt="Korean" class="w-full h-full object-cover">
+                <div class="absolute inset-0 bg-black/10 group-hover:bg-transparent transition"></div>
+            </button>
+            <button onclick="changeGlobalLanguage('en')"
+                class="w-6 h-6 rounded-full overflow-hidden border-2 border-transparent hover:border-indigo-500 transition-all transform hover:-translate-y-1 relative group"
+                title="English">
+                <img src="https://flagcdn.com/w40/gb.png" alt="English" class="w-full h-full object-cover">
+                <div class="absolute inset-0 bg-black/10 group-hover:bg-transparent transition"></div>
+            </button>
+            <button onclick="changeGlobalLanguage('vi')"
+                class="w-6 h-6 rounded-full overflow-hidden border-2 border-transparent hover:border-indigo-500 transition-all transform hover:-translate-y-1 relative group"
+                title="Tiếng Việt">
+                <img src="https://flagcdn.com/w40/vn.png" alt="Vietnamese" class="w-full h-full object-cover">
+                <div class="absolute inset-0 bg-black/10 group-hover:bg-transparent transition"></div>
+            </button>
+        </div>
     </div>
 
     <script>

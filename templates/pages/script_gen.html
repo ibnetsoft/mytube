@@ -183,9 +183,11 @@
                         <button onclick="goToTTS()" class="btn-secondary py-2 px-4 rounded-lg text-sm">
                             {{ t('btn_go_tts') }}
                         </button>
-                        <button onclick="postScriptToBlog()" class="py-2 px-4 rounded-lg text-sm font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0 flex items-center gap-1" title="대본만 바로 블로그에 게시 (이미지 없이)">
-                            <span>📝</span> 블로그 바로 게시
+                        {% if app_mode == 'blog' %}
+                        <button onclick="goToBlogAutomation()" class="py-2 px-6 rounded-lg text-sm font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0 flex items-center gap-2 shadow-lg shadow-orange-500/20" title="블로그 자동화 도구로 이동하여 글과 이미지 생성">
+                            <span>✨</span> 블로그 자동화
                         </button>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -762,6 +764,15 @@
             console.error('Blog post error:', error);
             Utils.showToast('블로그 게시 실패: ' + error.message, 'error');
         }
+    }
+
+    function goToBlogAutomation() {
+        const projectId = getCurrentProject();
+        if (!projectId) {
+            Utils.showToast('먼저 프로젝트를 선택하거나 대본을 저장해주세요.', 'warning');
+            return;
+        }
+        window.location.href = `/blog-automation?project_id=${projectId}`;
     }
 
     // ========== INITIALIZATION ==========

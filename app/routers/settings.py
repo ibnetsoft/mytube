@@ -114,6 +114,9 @@ async def save_global_settings_api(settings: GlobalSettings):
     
     if settings.app_mode:
         db.save_global_setting("app_mode", settings.app_mode)
+        # 템플릿 전역 변수 즉시 업데이트
+        from services import app_state
+        app_state.switch_mode(settings.app_mode)
     if settings.gemini_tts:
         db.save_global_setting("gemini_tts", settings.gemini_tts)
     if settings.script_styles:

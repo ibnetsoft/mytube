@@ -323,28 +323,41 @@ def slice_webtoon(image_path: str, output_dir: str, min_padding=30, start_idx=1,
         valid_cols = ~is_bg_col
         
         if not np.any(valid_rows) or not np.any(valid_cols):
+            print(f"      - Skipping empty panel after tight crop detection")
             continue
             
         rmin, rmax = np.where(valid_rows)[0][[0, -1]]
         cmin, cmax = np.where(valid_cols)[0][[0, -1]]
         
+        # [SAFETY] Ensure rmax/cmax don't result in 0-size
+        if rmax < rmin or cmax < cmin:
+            print(f"      - Skipping invalid panel range: r({rmin}-{rmax}), c({cmin}-{cmax})")
+            continue
+
         # 상하좌우 여백 없이 완벽하게 타이트하게 2차 크롭
         cmin = max(0, cmin)
         cmax = min(w, cmax)
         rmin = max(0, rmin)
         rmax = min(p_end - p_start, rmax)
         
-        cut_full = cut_full.crop((cmin, rmin, cmax, rmax))
+        # [FIX] PIL crop (left, top, right, bottom) - right and bottom are exclusive.
+        # np.where returns indices, so to include the last valid pixel, we must add 1.
+        # This also prevents 0-width/height if rmin == rmax or cmin == cmax.
+        cut_full = cut_full.crop((cmin, rmin, cmax + 1, rmax + 1))
         
         # [REFINED] 정밀 필터링 강화 (짜투리 제거)
+        if cut_full.width <= 0 or cut_full.height <= 0:
+            print(f"      - Skipping 0-sized panel after crop")
+            continue
+
         cut_gray = np.array(cut_full.convert('L'))
         std_val = np.std(cut_gray)
         mean_val = np.mean(cut_gray)
         h_cut, w_cut = float(cut_gray.shape[0]), float(cut_gray.shape[1])
         
-        # 1. 너무 작은 조각 제거 (높이 100px 미만)
-        if h_cut < 100:
-            print(f"      - Skipping too small panel (h={h_cut})")
+        # 1. 너무 작은 조각 제거 (높이 100px 미만 또는 너비 10px 미만)
+        if h_cut < 100 or w_cut < 10:
+            print(f"      - Skipping too small/empty panel (w={w_cut}, h={h_cut})")
             continue
 
         # 2. 단색(검은색/흰색) 배경 제거
@@ -380,10 +393,10 @@ def slice_webtoon(image_path: str, output_dir: str, min_padding=30, start_idx=1,
         if w_cut > max_dim or h_cut > max_dim:
             if w_cut > h_cut:
                 new_w = max_dim
-                new_h = int(h_cut * (max_dim / w_cut))
+                new_h = max(1, int(h_cut * (max_dim / w_cut)))
             else:
                 new_h = max_dim
-                new_w = int(w_cut * (max_dim / h_cut))
+                new_w = max(1, int(w_cut * (max_dim / h_cut)))
             cut_full_resised = cut_full.resize((new_w, new_h), Image.LANCZOS)
         
         # Reset hash buffer for new function calls if this is the start
@@ -397,7 +410,13 @@ def slice_webtoon(image_path: str, output_dir: str, min_padding=30, start_idx=1,
         # 파일 저장 (분석용 - 용량 축소)
         analysis_filename = f"scene_{current_idx:03d}_ana.jpg"
         analysis_path = os.path.join(output_dir, analysis_filename)
-        cut_full_resised.save(analysis_path, "JPEG", quality=85) # Quality 85 is enough
+        
+        # [FINAL SAFETY] Check size before JPEG save
+        if cut_full_resised.width > 0 and cut_full_resised.height > 0:
+            cut_full_resised.save(analysis_path, "JPEG", quality=85) 
+        else:
+            print(f"      - Skipping save: Analysis image has 0 size ({cut_full_resised.width}x{cut_full_resised.height})")
+            continue
         
         video_path = analysis_path # 기본값
         
@@ -405,9 +424,15 @@ def slice_webtoon(image_path: str, output_dir: str, min_padding=30, start_idx=1,
             # 클린 이미지 잘라내기 (영상용)
             # 좌표는 원본과 동일하게 사용
             cut_clean = clean_img.crop((0, p_start, w, p_end))
-            video_filename = f"scene_{current_idx:03d}.jpg"
-            video_path = os.path.join(output_dir, video_filename)
-            cut_clean.save(video_path, "JPEG", quality=95)
+            # 다시 한번 타이트하게 잘라야 함 (cut_full과 일치시키기 위해)
+            cut_clean = cut_clean.crop((cmin, rmin, cmax + 1, rmax + 1))
+
+            if cut_clean.width > 0 and cut_clean.height > 0:
+                video_filename = f"scene_{current_idx:03d}.jpg"
+                video_path = os.path.join(output_dir, video_filename)
+                cut_clean.save(video_path, "JPEG", quality=95)
+            else:
+                print(f"      - Warning: Clean image has 0 size, using analysis image instead.")
         
         cuts.append({
             "video": video_path,
@@ -418,9 +443,13 @@ def slice_webtoon(image_path: str, output_dir: str, min_padding=30, start_idx=1,
     if not cuts:
          print("⚠️ No cuts found after slicing. Fallback to using the whole image.")
          # 전체 이미지를 하나로 저장해서라도 반환
-         full_ana_path = os.path.join(output_dir, "scene_001_ana.jpg")
-         img.save(full_ana_path, "JPEG")
-         cuts.append({"video": full_ana_path, "analysis": full_ana_path})
+         if img.width > 0 and img.height > 0:
+            full_ana_path = os.path.join(output_dir, "scene_001_ana.jpg")
+            img.save(full_ana_path, "JPEG")
+            cuts.append({"video": full_ana_path, "analysis": full_ana_path})
+         else:
+            print("❌ Failure: Original image has 0 dimension. Slicing aborted.")
+            return []
          
     # [NEW] AI 기반 파이프라인 1단계: Auto-crop (검은색 테두리 등 여백 제거)
     video_paths = []

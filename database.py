@@ -1112,6 +1112,97 @@ def delete_project(project_id: int):
     conn.commit()
     conn.close()
 
+def move_project(project_id: int, target_mode: str):
+    """프로젝트 모드(app_mode) 변경"""
+    conn = get_db()
+    cursor = conn.cursor()
+    # project_settings 테이블의 app_mode 업데이트
+    cursor.execute("UPDATE project_settings SET app_mode = ?, updated_at = CURRENT_TIMESTAMP WHERE project_id = ?", (target_mode, project_id))
+    # projects 테이블의 status는 유지되지만, 모드에 따라 UI에서 다르게 보일 수 있음
+    conn.commit()
+    conn.close()
+    return True
+
+def copy_project(project_id: int, target_mode: str):
+    """프로젝트 전체 데이터 복제 (대상 모드로 변경)"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # 1. 원본 프로젝트 정보 가져오기
+    cursor.execute("SELECT name, topic, language FROM projects WHERE id = ?", (project_id,))
+    orig = cursor.fetchone()
+    if not orig:
+        conn.close()
+        return None
+    
+    orig_name, topic, language = orig
+    new_name = f"{orig_name} (Copy)"
+    
+    # 2. 새 프로젝트 생성
+    cursor.execute("INSERT INTO projects (name, topic, language) VALUES (?, ?, ?)", 
+                   (new_name, topic, language))
+    new_pid = cursor.lastrowid
+    
+    # 3. 데이터 복사 대상 테이블 목록
+    tables = [
+        ('project_settings', 'id'),
+        ('analysis', 'id'),
+        ('script_structure', 'id'),
+        ('scripts', 'id'),
+        ('image_prompts', 'id'),
+        ('tts_audio', 'id'),
+        ('metadata', 'id'),
+        ('thumbnails', 'id'),
+        ('project_sources', 'id'),
+        ('project_characters', 'id')
+    ]
+    
+    for table, pk_col in tables:
+        try:
+            # 테이블 컬럼 정보 조회
+            cursor.execute(f"PRAGMA table_info({table})")
+            columns = [info[1] for info in cursor.fetchall() if info[1] != pk_col]
+            
+            if not columns:
+                continue
+            
+            # INSERT INTO ... SELECT 문 구성
+            col_list = ", ".join(columns)
+            
+            # SELECT 절 구성 (project_id는 new_pid로, app_mode는 target_mode로 치환)
+            select_parts = []
+            for col in columns:
+                if col == 'project_id':
+                    select_parts.append("? as project_id")
+                elif col == 'app_mode' and table == 'project_settings':
+                    select_parts.append("? as app_mode")
+                elif col == 'title' and table == 'project_settings':
+                    select_parts.append("? as title") # 썸네일 제목도 새 이름으로? 일단 그대로 둠
+                else:
+                    select_parts.append(col)
+            
+            select_list = ", ".join(select_parts)
+            
+            query = f"INSERT INTO {table} ({col_list}) SELECT {select_list} FROM {table} WHERE project_id = ?"
+            
+            # 파라미터 구성
+            params = [new_pid]
+            if 'app_mode' in columns and table == 'project_settings':
+                params.append(target_mode)
+            if 'title' in columns and table == 'project_settings':
+                params.append(new_name)
+            params.append(project_id)
+            
+            cursor.execute(query, tuple(params))
+        except Exception as e:
+            print(f"[DB] Error copying table {table}: {e}")
+            continue
+            
+    conn.commit()
+    conn.close()
+    return new_pid
+
+
 def get_top_analyses(limit: int = 10) -> List[Dict]:
     """바이럴 점수가 높은 과거 분석 데이터 조회 (학습용)"""
     conn = get_db()
@@ -2778,3 +2869,12 @@ def delete_publish_image(image_id: int):
     cursor.execute("DELETE FROM publish_images WHERE id = ?", (image_id,))
     conn.commit()
     conn.close()
+
+def get_recent_projects(limit: int = 10) -> List[Dict]:
+    """최근 업데이트된 프로젝트 목록 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM projects ORDER BY updated_at DESC LIMIT ?", (limit,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]

@@ -47,3 +47,15 @@ def switch_language(lang: str) -> bool:
     except Exception as e:
         print(f"[AppState] switch_language error: {e}")
         return False
+
+def switch_mode(mode: str) -> bool:
+    """앱 모드를 즉시 전환. 성공하면 True 반환."""
+    global _templates
+    if _templates is None:
+        return False
+    try:
+        _templates.env.globals['app_mode'] = mode
+        return True
+    except Exception as e:
+        print(f"[AppState] switch_mode error: {e}")
+        return False

@@ -1870,6 +1870,13 @@ class VideoService:
             # 3. Newline Safety
             text = text.replace('\r', '').strip()
             print(f"DEBUG_RENDER: Cleaned Text: '{text}'")
+            
+            # 4. [NEW] Auto-Fallback for Japanese Fonts
+            if re.search(r'[\u3040-\u30ff]', text):
+                ko_fonts = ["Gmarket", "Jalnan", "Monsori", "CookieRun", "Nanum", "Binggrae", "Mapo", "Netmarble", "Chosun", "-Core", "Gungsuh", "batang"]
+                if any(k in font_name for k in ko_fonts):
+                    print(f"DEBUG_RENDER: Japanese text detected in K-Font '{font_name}'. Falling back to NotoSansJP.")
+                    font_name = "NotoSansJP"
         
         # 스타일 조회
         style = self.SUBTITLE_STYLES.get(style_name, self.SUBTITLE_STYLES["Basic_White"])

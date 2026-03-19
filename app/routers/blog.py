@@ -21,14 +21,43 @@ class BlogGenerateRequest(BaseModel):
     blog_style: str = "review"
     language: str = "ko"
     user_notes: str = ""
-
+ 
+class BlogTranslateRequest(BaseModel):
+    title: str
+    content: str
+    target_language: str
+ 
+class BlogImagePromptRequest(BaseModel):
+    project_id: int
 
 class BlogPostRequest(BaseModel):
     title: str
     content: str
     tags: List[str] = []
+    categories: List[int] = []
     platforms: List[str] = ["wordpress"]
 
+
+class BlogAutoProcessRequest(BaseModel):
+    platform: str = "wordpress"
+    blog_style: str = "review"
+    language: str = "ko"
+    user_notes: str = ""
+
+@router.post("/auto-process/{project_id}")
+async def auto_process_blog(project_id: int, req: BlogAutoProcessRequest):
+    """프로젝트 데이터를 기반으로 제목, 본문, 이미지를 자동으로 생성 및 구성"""
+    try:
+        result = await blog_service.process_blog_automation_v2(
+            project_id=project_id,
+            platform=req.platform,
+            blog_style=req.blog_style,
+            language=req.language,
+            user_notes=req.user_notes
+        )
+        return result
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
 
 @router.post("/generate")
 async def generate_blog(req: BlogGenerateRequest):
@@ -46,7 +75,35 @@ async def generate_blog(req: BlogGenerateRequest):
     except Exception as e:
         print(f"Blog generate error: {e}")
         return {"status": "error", "error": str(e)}
-
+ 
+@router.post("/translate")
+async def translate_blog(req: BlogTranslateRequest):
+    """블로그 콘텐츠 번역"""
+    try:
+        result = await blog_service.translate_blog(
+            title=req.title,
+            content=req.content,
+            target_language=req.target_language
+        )
+        return result
+    except Exception as e:
+        print(f"Blog translate error: {e}")
+        return {"status": "error", "error": str(e)}
+ 
+@router.post("/generate-image-prompt")
+async def generate_image_prompt(req: BlogImagePromptRequest):
+    """블로그 내용을 분석하여 최적의 이미지 생성 프롬프트 제안"""
+    try:
+        # 프로젝트에서 대본/내용 가져오기
+        full_data = db.get_project_full(req.project_id)
+        content = full_data.get('script', '')
+        if not content:
+            return {"status": "error", "error": "블로그 내용이 없습니다."}
+             
+        prompt = await blog_service.generate_image_prompt_from_content(content)
+        return {"status": "ok", "prompt": prompt}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
 
 @router.post("/post")
 async def post_blog(req: BlogPostRequest):
@@ -54,16 +111,25 @@ async def post_blog(req: BlogPostRequest):
     results = {}
     platforms = req.platforms or ["wordpress"]
 
+    # 사전 처리: 로컬 이미지(/output/)를 WP에 한 번만 업로드하여 공개 URL로 치환
+    # 모든 플랫폼에서 동일한 공개 URL 사용
+    processed_content = req.content
+    try:
+        processed_content = await blog_service.upload_local_images_to_public(req.content)
+        print(f"[BlogPost] Image pre-upload done, content_len={len(processed_content)}")
+    except Exception as img_err:
+        print(f"[BlogPost] Image pre-upload error (will use original): {img_err}")
+
     for platform in platforms:
         try:
             if platform == "wordpress":
                 res = await blog_service.post_to_wordpress(
-                    title=req.title, content=req.content, tags=req.tags
+                    title=req.title, content=processed_content, tags=req.tags, categories=req.categories
                 )
                 results["wordpress"] = res
             elif platform == "blogger":
                 res = await blog_service.post_to_blogger(
-                    title=req.title, content=req.content, tags=req.tags
+                    title=req.title, content=processed_content, tags=req.tags
                 )
                 results["blogger"] = res
             else:

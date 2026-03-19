@@ -1,10 +1,10 @@
 // Version guard: prevent duplicate listeners from old+new content scripts
-if (window._flowBridgeVersion && window._flowBridgeVersion >= 18) {
-    console.log('%c[v18] Flow Bridge already loaded, skipping duplicate', 'color: #888');
+if (window._flowBridgeVersion && window._flowBridgeVersion >= 20) {
+    console.log('%c[v20] Flow Bridge already loaded, skipping duplicate', 'color: #888');
 } else {
-window._flowBridgeVersion = 18;
+window._flowBridgeVersion = 20;
 
-console.log("%c[v18] 🚀 Google Flow Bridge: Hyper-Vision Active", "color: #ff00ff; font-weight: bold; font-size: 14px;");
+console.log("%c[v20] 🚀 Google Flow Bridge: Hyper-Vision Active", "color: #ff00ff; font-weight: bold; font-size: 14px;");
 
 let _lastClickedAsset = null;
 let _lastCapturedUrl = null;
@@ -41,6 +41,51 @@ if (document.readyState === 'loading') {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'ping') {
         sendResponse({ status: 'ok' });
+    } else if (request.action === 'scan_media') {
+        const videos = Array.from(document.querySelectorAll('video')).map(v => ({
+            url: v.src || v.currentSrc || v.querySelector('source')?.src || '',
+            type: 'video/mp4',
+            timestamp: Date.now(),
+            size: 0
+        })).filter(v => v.url && !v.url.startsWith('data:'));
+        
+        const rawImages = Array.from(document.querySelectorAll('img')).map(i => ({
+            i_elem: i, // keep reference for DOM context checks
+            url: i.src || i.currentSrc || '',
+            type: 'image/png',
+            timestamp: Date.now(),
+            size: (i.naturalWidth * i.naturalHeight) / 5
+        }));
+
+        const images = rawImages.filter(item => {
+            const img = item.i_elem;
+            if (!item.url || item.url.startsWith('data:')) return false;
+            if (item.url.includes('/icon') || item.url.includes('logo') || item.url.includes('avatar') || item.url.includes('profile')) return false;
+            if (item.size < 20000) return false; // Only capture substantial images
+
+            // Filtering out Video posters (Google Flow Veo assets)
+            let p = img.parentElement;
+            for(let level=0; level<=3 && p; level++, p=p.parentElement) {
+                if (['BODY','MAIN','ARTICLE','SECTION','FORM'].includes(p.tagName)) break;
+                
+                // If this tight container holds a video, the img is almost certainly its poster
+                if (p.querySelector('video')) return false;
+                
+                // Fallback: Check for Veo watermark or duration pattern indicating a video player wrapper
+                const txt = p.innerText || '';
+                if ((txt.includes('Veo') || /\b0:\d\d\b/.test(txt)) && p.querySelector('svg')) {
+                    return false;
+                }
+            }
+
+            return true;
+        }).map(item => {
+            delete item.i_elem; // remove DOM reference before sending to background
+            return item;
+        });
+        
+        sendResponse({ videos, images });
+        return true;
     } else if (request.action === 'fill_prompt') {
         fillFlowInput(request.text);
         sendResponse({status: 'ok'});
@@ -75,6 +120,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             .filter(b => b.text || b.aria || b.title);
         console.log('[FlowBridge] PAGE SCAN:', JSON.stringify(btns, null, 2));
         sendResponse({ status: 'ok', buttons: btns });
+        return true;
+    } else if (request.action === 'start_picker') {
+        startHyperVision(request.sceneNum).then(sendResponse);
+        return true;
+    } else if (request.action === 'get_media_blob') {
+        fetchAndReturn(request.url, request.isVideo).then(sendResponse);
         return true;
     }
 });
@@ -123,41 +174,32 @@ async function fillFlowInput(text) {
         input.focus();
         input.scrollIntoView({ block: 'center' });
         
-        try {
-            document.execCommand('selectAll', false, null);
-            document.execCommand('delete', false, null);
-        } catch(e) {
-            if (input.isContentEditable) input.innerText = '';
-            else input.value = '';
-        }
-
-        for (const char of text) {
-            const inputEvent = new InputEvent('beforeinput', {
-                bubbles: true, cancelable: true, data: char, inputType: 'insertText'
-            });
-            input.dispatchEvent(inputEvent);
-
-            if (!inputEvent.defaultPrevented) {
-                let success = false;
-                try { success = document.execCommand('insertText', false, char); } catch(e) {}
-                if (!success) {
-                    const lastValue = input.value || input.innerText;
-                    if (input.isContentEditable) {
-                        input.innerText += char;
-                    } else {
-                        const prototype = input.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
-                        const nativeSetter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
-                        if (nativeSetter) nativeSetter.call(input, lastValue + char);
-                        else input.value = lastValue + char;
-                    }
-                }
-                input.dispatchEvent(new InputEvent('input', { bubbles: true, data: char, inputType: 'insertText' }));
+        if (!input.isContentEditable) {
+            const prototype = input.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+            const nativeSetter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+            if (nativeSetter) nativeSetter.call(input, text);
+            else input.value = text;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        } else {
+            // Natively safe for React Slate editors
+            const clearEv = new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'deleteContentBackward' });
+            input.dispatchEvent(clearEv);
+            if (!clearEv.defaultPrevented) {
+                try { document.execCommand('selectAll', false, null); } catch(e) {}
+                try { document.execCommand('delete', false, null); } catch(e) {}
             }
-            await new Promise(r => setTimeout(r, 5));
+
+            const insertEv = new InputEvent('beforeinput', { bubbles: true, cancelable: true, data: text, inputType: 'insertText' });
+            input.dispatchEvent(insertEv);
+            if (!insertEv.defaultPrevented) {
+                try { document.execCommand('insertText', false, text); } catch(e) {}
+            }
+            
+            input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+            input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: ' ' }));
         }
 
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
         input.blur();
         await new Promise(r => setTimeout(r, 100));
         input.focus();
@@ -199,7 +241,10 @@ async function collectGeneratedVideo(targetPrompt, targetIndex) {
                 });
 
                 if (uniqueUrls.length > 0) {
-                    const idx = targetIndex < uniqueUrls.length ? targetIndex : targetIndex % uniqueUrls.length;
+                    const idx = targetIndex;
+                    if (idx >= uniqueUrls.length) {
+                        return { status: 'error', message: `새로 생성된 영상을 발견하지 못했습니다. (필요: ${targetIndex+1}개, 발견: ${uniqueUrls.length}개)` };
+                    }
                     let targetUrl = uniqueUrls[idx].url;
 
                     // 이전에 캡처한 URL과 같으면 다음 것 사용
@@ -276,13 +321,17 @@ async function collectGeneratedVideo(targetPrompt, targetIndex) {
 
         // <video> 있으면 바로 사용
         if (videoEls.length > 0) {
-            const idx = targetIndex < videoEls.length ? targetIndex : targetIndex % videoEls.length;
-            const v = videoEls[idx];
-            const src = v.src || v.currentSrc || v.querySelector('source')?.src || '';
-            if (src && src !== _lastCapturedUrl) {
-                console.log(`[v19] 🎥 DOM video #${idx}: ${src.substring(0, 100)}`);
-                _lastCapturedUrl = src;
-                return await fetchAndReturn(src, true);
+            const idx = targetIndex;
+            if (idx >= videoEls.length) {
+                 console.log(`[v20] ⚠️ Scene index ${idx} exceeds available DOM videos (${videoEls.length})`);
+            } else {
+                const v = videoEls[idx];
+                const src = v.src || v.currentSrc || v.querySelector('source')?.src || '';
+                if (src && src !== _lastCapturedUrl) {
+                    console.log(`[v20] 🎥 DOM video #${idx}: ${src.substring(0, 100)}`);
+                    _lastCapturedUrl = src;
+                    return await fetchAndReturn(src, true);
+                }
             }
         }
 
@@ -304,15 +353,16 @@ async function collectGeneratedVideo(targetPrompt, targetIndex) {
         });
 
         if (uniqueMedia.length > 0) {
-            const idx = targetIndex < uniqueMedia.length ? targetIndex : targetIndex % uniqueMedia.length;
-            let target = uniqueMedia[idx];
-            if ((target.src || target.currentSrc) === _lastCapturedUrl && idx + 1 < uniqueMedia.length) {
-                target = uniqueMedia[idx + 1];
+            const idx = targetIndex;
+            if (idx >= uniqueMedia.length) {
+                console.log(`[v20] ⚠️ Scene index ${idx} exceeds available DOM media (${uniqueMedia.length})`);
+            } else {
+                let target = uniqueMedia[idx];
+                const src = target.src || target.currentSrc;
+                console.log(`[v20] 📍 DOM media #${idx}: ${target.tagName} ${src.substring(0, 100)}`);
+                _lastCapturedUrl = src;
+                return await fetchAndReturn(src, target.tagName === 'VIDEO');
             }
-            const src = target.src || target.currentSrc;
-            console.log(`[v19] 📍 DOM media #${idx}: ${target.tagName} ${src.substring(0, 100)}`);
-            _lastCapturedUrl = src;
-            return await fetchAndReturn(src, target.tagName === 'VIDEO');
         }
 
         return { status: 'error', message: `장면 ${sceneDisplayNum}: 미디어를 찾지 못했습니다. Google Flow 페이지를 새로고침(F5) 후 재시도해주세요.` };
@@ -438,27 +488,43 @@ async function fillAndClick(text, mode) {
     await new Promise(r => setTimeout(r, 2000));
 
     const buttons = Array.from(document.querySelectorAll('button, div[role="button"], span[role="button"]'));
-    const genBtn = buttons.find(b => {
+    let genBtn = buttons.find(b => {
         const id = (b.getAttribute('id') || '').toLowerCase();
         const className = (b.className || '').toLowerCase();
         const txt = (b.innerText || '').toLowerCase().trim();
-        const aria = (b.getAttribute('aria-label') || '').toLowerCase().trim();
+        const aria = (b.getAttribute('aria-label') || b.getAttribute('title') || '').toLowerCase().trim();
         if (id.includes('bot') || id.includes('diag') || id.startsWith('at-') || id.startsWith('af-') || className.includes('bot')) return false;
         if (txt.includes('새 프로젝트') || txt.includes('new project') || txt.includes('create new')) return false;
         if (b.getAttribute('aria-haspopup') === 'true' || b.getAttribute('aria-haspopup') === 'menu') return false;
-        const hints = ['generate', '생성', '제출', '보내기', 'submit', 'send'];
+        const hints = ['generate', '생성', '제출', '보내기', 'submit', 'send', 'create', '만들기', '미디어 만들기'];
         const matchesHint = hints.some(h => txt.includes(h) || aria.includes(h)) || (txt === 'run' || aria === 'run');
         const isArrow = txt.includes('arrow_forward') || aria.includes('arrow_forward') || txt.includes('arrow_upward') || aria.includes('arrow_upward');
-        const isKoreanSubmit = (txt.includes('만들기') || txt.includes('생성')) && (txt.includes('arrow') || isArrow || b.classList.contains('filled-button'));
-        const isTrap = txt.includes('settings') || txt.includes('설정') || txt.includes('close') || txt.includes('닫기') || txt.includes('diagnostic') || txt.includes('진단') || txt.includes('pro') || (txt.includes('add') && !txt.includes('arrow'));
-        return (matchesHint || isArrow || isKoreanSubmit) && !isTrap;
+        const isTrap = txt.includes('settings') || txt.includes('설정') || txt.includes('close') || txt.includes('닫기') || txt.includes('diagnostic') || txt.includes('진단') || txt.includes('pro') || (txt.includes('add') && !txt.includes('arrow')) || b.getAttribute('aria-disabled') === 'true';
+        return (matchesHint || isArrow) && !isTrap;
     });
+
+    if (!genBtn) {
+        // Fallback: Structural search near the textarea
+        const textarea = document.querySelector('textarea, div[role="textbox"]');
+        if (textarea) {
+            let p = textarea.parentElement;
+            for(let i=0; i<3; i++) {
+                if(!p) break;
+                const innerBtns = Array.from(p.querySelectorAll('button, div[role="button"]'));
+                for(let b of innerBtns) {
+                    if(b.querySelector('svg') && !b.innerText.toLowerCase().includes('settings') && b.getAttribute('aria-disabled') !== 'true') {
+                        genBtn = b; break;
+                    }
+                }
+                if(genBtn) break;
+                p = p.parentElement;
+            }
+        }
+    }
 
     if (genBtn) {
         const initialAssetCount = document.querySelectorAll('video, img[src*="blob"], div[data-asset-id], .asset-container').length;
-        genBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-        genBtn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-        genBtn.click();
+        realClick(genBtn);
         console.log('🚀 Generation started automatically');
         return monitorGeneration(initialAssetCount);
     } else {
@@ -1052,4 +1118,209 @@ function highlightElement(el) {
     }, 3000);
 }
 
+// ========== 웹페이지 ↔ 확장프로그램 브릿지 (localhost용) ==========
+// localhost 페이지에서 window.postMessage로 확장프로그램의 포착된 이미지/영상을 요청할 수 있도록 함
+window.addEventListener('message', (event) => {
+    // 보안: 같은 origin만 허용
+    if (event.source !== window) return;
+    if (!event.data || event.data.source !== 'FLOW_BRIDGE_PAGE') return;
+
+    const { action, requestId } = event.data;
+
+    if (action === 'get_captured_images') {
+        chrome.runtime.sendMessage({ action: 'get_captured_images' }, (response) => {
+            window.postMessage({
+                source: 'FLOW_BRIDGE_EXT',
+                requestId: requestId,
+                action: 'captured_images_result',
+                data: response
+            }, '*');
+        });
+    } else if (action === 'get_captured_videos') {
+        chrome.runtime.sendMessage({ action: 'get_captured_videos' }, (response) => {
+            window.postMessage({
+                source: 'FLOW_BRIDGE_EXT',
+                requestId: requestId,
+                action: 'captured_videos_result',
+                data: response
+            }, '*');
+        });
+    } else if (action === 'clear_captured_images') {
+        chrome.runtime.sendMessage({ action: 'clear_captured_images' }, (response) => {
+            window.postMessage({
+                source: 'FLOW_BRIDGE_EXT',
+                requestId: requestId,
+                action: 'clear_images_result',
+                data: response
+            }, '*');
+        });
+    }
+});
+
+// 확장프로그램 연결 상태를 페이지에 알림
+window.postMessage({ source: 'FLOW_BRIDGE_EXT', action: 'extension_ready' }, '*');
+console.log('[FlowBridge] Page bridge ready for localhost communication');
+
 } // end version guard
+
+// ══════════════════════════════════════════════════════
+// Hyper-Vision: 수동 선택 모드 (Visual Picker)
+// ══════════════════════════════════════════════════════
+let _pickerOverlay = null;
+
+async function startHyperVision(sceneNum) {
+    console.log(`[v20] 🎯 Hyper-Vision Active for Scene ${sceneNum}`);
+    
+    if (!_pickerOverlay) {
+        _pickerOverlay = document.createElement('div');
+        _pickerOverlay.style.cssText = `
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            background: #1e293b; color: white; padding: 15px 25px; border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); z-index: 9999999;
+            font-family: sans-serif; text-align: center; border: 2px solid #3b82f6;
+            pointer-events: none; opacity: 1; transition: opacity 0.3s;
+        `;
+        document.body.appendChild(_pickerOverlay);
+    }
+    
+    _pickerOverlay.innerHTML = `
+        <div style="font-weight:700; font-size:16px; margin-bottom:5px;">🎯 Hyper-Vision 활성화</div>
+        <div style="font-size:13px; color:#94a3b8;">가져올 <span style="color:#60a5fa; font-weight:700;">영상 또는 이미지</span>를 클릭하세요.<br>(Scene ${sceneNum}으로 자동 배정됩니다)</div>
+        <button id="hv-cancel" style="margin-top:10px; background:#475569; border:none; color:white; padding:4px 12px; border-radius:6px; cursor:pointer; pointer-events:auto;">취소 (ESC)</button>
+    `;
+    _pickerOverlay.style.display = 'block';
+    
+    const highlightStyle = 'outline: 5px solid #3b82f6; outline-offset: -5px;';
+    let lastEl = null;
+
+    const onMouseOver = (e) => {
+        let el = e.target;
+        if (el === _pickerOverlay || _pickerOverlay.contains(el)) return;
+        for (let i = 0; i < 5; i++) {
+            if (!el || el === document.body) break;
+            const target = (el.tagName === 'VIDEO' || el.tagName === 'IMG') ? el : el.querySelector('video, img');
+            if (target) {
+                if (lastEl) lastEl.style.outline = '';
+                target.style.cssText += highlightStyle;
+                lastEl = target;
+                return;
+            }
+            el = el.parentElement;
+        }
+    };
+
+    const onClick = async (e) => {
+        e.preventDefault(); e.stopPropagation();
+        let el = e.target;
+        let targetMedia = null;
+        for (let i = 0; i < 5; i++) {
+            if (!el || el === document.body) break;
+            targetMedia = (el.tagName === 'VIDEO' || el.tagName === 'IMG') ? el : el.querySelector('video, img');
+            if (targetMedia) break;
+            el = el.parentElement;
+        }
+
+        if (targetMedia) {
+            let src = targetMedia.src || targetMedia.currentSrc;
+            if (!src && targetMedia.tagName === 'VIDEO') {
+                const sourceEl = targetMedia.querySelector('source');
+                if (sourceEl) src = sourceEl.src;
+            }
+            const isVideo = targetMedia.tagName === 'VIDEO';
+            stopHyperVision();
+            
+            if (!src) {
+                console.warn('[FlowBridge] Clicked media has no src:', targetMedia);
+                return;
+            }
+            
+            let btn = document.createElement('div');
+            btn.style.cssText = 'position:fixed; top:20px; left:50%; transform:translateX(-50%); background:#3b82f6; color:white; padding:10px 20px; border-radius:8px; z-index:999999; font-weight:bold; font-family:sans-serif; box-shadow:0 4px 6px rgba(0,0,0,0.3);';
+            btn.innerText = '미디어 가져오는 중...';
+            document.body.appendChild(btn);
+
+            console.log(`[FlowBridge] Fetching clicked media: ${src}`);
+            const result = await fetchAndReturn(src, isVideo);
+            
+            if (result.status === 'ok') {
+                btn.innerText = '스튜디오로 배정 중...';
+                chrome.runtime.sendMessage({ 
+                    action: 'manual_pick_result', 
+                    sceneNum: sceneNum,
+                    result: result 
+                }, () => {
+                    const lastErr = chrome.runtime.lastError;
+                    if (lastErr) {
+                        btn.style.background = '#ef4444';
+                        btn.innerText = '전송 실패 (브릿지 사이드패널이 안열려있음)';
+                    } else {
+                        btn.style.background = '#10b981';
+                        btn.innerText = '✅ 배정 완료!';
+                    }
+                    setTimeout(() => btn.remove(), 4000);
+                });
+            } else {
+                btn.style.background = '#ef4444';
+                btn.innerText = `가져오기 실패: ${result.message}`;
+                setTimeout(() => btn.remove(), 5000);
+            }
+        }
+    };
+
+    const stopHyperVision = () => {
+        if (_pickerOverlay) _pickerOverlay.style.display = 'none';
+        document.removeEventListener('mouseover', onMouseOver, true);
+        document.removeEventListener('click', onClick, true);
+        document.removeEventListener('keydown', onKeyDown, true);
+        if (lastEl) lastEl.style.outline = '';
+    }
+
+    const onKeyDown = (e) => { if (e.key === 'Escape') stopHyperVision(); };
+
+    document.addEventListener('mouseover', onMouseOver, true);
+    document.addEventListener('click', onClick, true);
+    document.addEventListener('keydown', onKeyDown, true);
+    
+    setTimeout(() => {
+        const btn = document.getElementById('hv-cancel');
+        if (btn) btn.onclick = stopHyperVision;
+    }, 100);
+
+    return { status: 'picker_started' };
+}
+
+// ─────────────────────────────────────────────────────────
+// fetchAndReturn: Download blob or real URL and return base64
+// ─────────────────────────────────────────────────────────
+async function fetchAndReturn(url, isVideo) {
+    try {
+        if (url.startsWith('blob:')) {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+            const blob = await res.blob();
+            
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve({ status: 'ok', data: reader.result });
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        } else {
+            // External URL -> use background proxy to avoid CORS
+            return await new Promise((resolve) => {
+                chrome.runtime.sendMessage({ action: 'fetch_proxy', url: url }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        resolve({ status: 'error', message: chrome.runtime.lastError.message });
+                    } else if (response && response.status === 'ok') {
+                        resolve({ status: 'ok', data: response.data });
+                    } else {
+                        resolve({ status: 'error', message: response ? response.message : 'Unknown proxy error' });
+                    }
+                });
+            });
+        }
+    } catch (e) {
+        console.error('[FlowBridge] fetchAndReturn failed:', e);
+        return { status: 'error', message: e.toString() };
+    }
+}

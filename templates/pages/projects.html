@@ -11,6 +11,20 @@
             class="text-red-600 hover:text-red-700 text-xs font-bold flex items-center gap-1">
             <span>🗑️</span> 선택 삭제
         </button>
+        <div class="h-4 w-px bg-gray-300 dark:bg-gray-600"></div>
+        <select id="targetModeSelect" class="text-xs bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-1 py-0.5 outline-none">
+            <option value="longform">롱폼</option>
+            <option value="shorts">쇼츠</option>
+            <option value="webtoon">웹툰</option>
+            <option value="commerce">커머스</option>
+            <option value="blog">블로그</option>
+        </select>
+        <button onclick="bulkCopyMove('copy')" class="text-blue-600 hover:text-blue-700 text-xs font-bold flex items-center gap-1">
+            <span>👯</span> 복사
+        </button>
+        <button onclick="bulkCopyMove('move')" class="text-amber-600 hover:text-amber-700 text-xs font-bold flex items-center gap-1">
+            <span>🚚</span> 이동
+        </button>
     </div>
 
     <button onclick="openProjectModal()" class="btn-primary flex items-center gap-2 ml-auto">
@@ -525,6 +539,57 @@
         } catch (e) {
             console.error('Bulk delete error:', e);
             Utils.showToast(`삭제 중 오류 발생: ${e.message}`, 'error');
+        }
+    }
+
+    async function bulkCopyMove(action) {
+        const checkboxes = document.getElementsByName('projectSelect');
+        const selectedIds = Array.from(checkboxes).filter(cb => cb.checked).map(cb => parseInt(cb.value));
+        const targetMode = document.getElementById('targetModeSelect').value;
+
+        if (selectedIds.length === 0) return;
+
+        const actionText = action === 'copy' ? '복사' : '이동';
+        const targetModeText = {
+            'longform': '롱폼',
+            'shorts': '쇼츠',
+            'webtoon': '웹툰',
+            'commerce': '커머스',
+            'blog': '블로그'
+        }[targetMode];
+
+        if (!confirm(`선택한 ${selectedIds.length}개의 프로젝트를 [${targetModeText}] 모드로 ${actionText}하시겠습니까?`)) return;
+
+        try {
+            Utils.showToast(`${actionText} 중...`, 'info');
+            const res = await fetch('/api/projects/bulk-copy-move', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ids: selectedIds,
+                    target_mode: targetMode,
+                    action: action
+                })
+            });
+
+            const data = await res.json();
+
+            if (res.ok && data.status === 'success') {
+                Utils.showToast(`${data.processed_count}개 프로젝트 ${actionText} 완료`, 'success');
+                // Reset Selection
+                document.getElementById('selectAllCheckbox').checked = false;
+                document.getElementById('selectAllCheckbox').indeterminate = false;
+                document.getElementById('bulkActions').classList.add('hidden');
+
+                loadProjectList();
+                // Sidebar refresh
+                if (window.loadProjects) window.loadProjects();
+            } else {
+                throw new Error(data.detail || `${actionText} 실패`);
+            }
+        } catch (e) {
+            console.error(`${action} error:`, e);
+            Utils.showToast(`오류 발생: ${e.message}`, 'error');
         }
     }
 

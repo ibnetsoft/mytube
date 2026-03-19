@@ -250,7 +250,7 @@ JSON만 반환하세요."""
             "visual_reasoning": "왜 이 연출을 선택했는지 (예: 긴장감을 고조시키기 위해 줌인 선택)",
             "prompt_ko": "이미지 묘사 (한글)",
             "prompt_en": "{style_prefix}, [Detailed Visual Description], [Camera Angle & Movement], [Lighting & Atmosphere]",
-            "flow_prompt": "A single comprehensive descriptive paragraph optimized for Google Flow (Veo 3.1). Combine the visual scene and motion instructions into a cohesive story-driven prompt. Include core character identity (teal-blue hoodie, bald white head, TWO arms only).",
+            "flow_prompt": "A single comprehensive descriptive paragraph optimized for Google Flow (Veo 3.1). Combine the visual scene and motion instructions into a cohesive story-driven prompt. Include core character identity adapted to the current style.",
             "scene_type": "(졸라맨 스타일 전용) character_main | character_support | infographic 중 하나. 다른 스타일은 빈 문자열로.",
             "prompt_char": "(졸라맨 스타일 전용) scene_type=character_main이면 전신 캐릭터, scene_type=character_support이면 작은 구석 캐릭터, scene_type=infographic이면 빈 문자열. 다른 스타일은 빈 문자열로.",
             "prompt_bg": "(졸라맨 스타일 전용) 씬 내용에 맞는 풍부한 배경/환경/인포그래픽 이미지 프롬프트. 다른 스타일은 빈 문자열로."
@@ -272,7 +272,7 @@ JSON만 반환하세요."""
   4. **모든 prompt_en 끝에 반드시 추가**: "no text, no words, no letters, no labels, no watermarks, no speech bubbles, no captions"
 - **flow_prompt 작성 지침**:
   - Google Flow (Veo 3.1) 모델에 최적화된 통합 프롬프트입니다.
-  - "{style_prefix}" 스타일을 기반으로, 캐릭터의 외형(흰 대머리, 청록색 후드티, 단 두 개의 팔)과 배경, 그리고 구체적인 **영상 움직임(Motion)**을 하나의 자연스러운 문단으로 서술하세요.
+  - "{style_prefix}" 스타일을 기반으로, 등장인물의 외형(지정된 스타일에 따름)과 배경, 그리고 구체적인 **영상 움직임(Motion)**을 하나의 자연스러운 문단으로 서술하세요.
   - 단순히 나열하지 말고 "A cinematic video of [Subject] [Action] while [Background Detail] as camera [Motion]..." 형식으로 생동감 있게 작성하세요.
 - **ABSOLUTELY NO TEXT IN IMAGE [최우선]**:
   - 이미지 내에 어떠한 텍스트, 글자, 단어, 레이블, 자막, 워터마크, 말풍선도 절대 포함 금지.
@@ -453,34 +453,45 @@ JSON만 반환하세요."""
 }}
 JSON만 반환하세요."""
 
-    GEMINI_GENERATE_BLOG = """당신은 세계 최고의 전문 블로거이자 마케터입니다.
+    GEMINI_GENERATE_BLOG = """당신은 세계 최고의 전문 블로거이자 마케터입니다. 특히 데이터 분석 기반의 스포츠 경기 예측 및 전략 분석에 정통합니다.
 제공된 참고 자료를 바탕으로, 가독성이 높고 SEO(검색 엔진 최적화)에 최적화된 고품질 블로그 포스팅을 작성하는 것이 당신의 임무입니다.
 
 ### 1. 참고 자료
 {source_content}
 
 ### 2. 블로그 설정
-- **플랫폼:** {platform} (Naver Blog 또는 Tistory 스타일)
+- **플랫폼:** {platform} (Naver Blog 또는 Tistory/WordPress 스타일)
 - **블로그 스타일:** {blog_style} (Information, Review, Storytelling 등)
 - **목표 언어:** {target_language}
 - **추가 요청:** {user_notes}
 
-### 3. 블로그 작성 지침
-- **SEO 최적화 제목**: 클릭을 유도하면서도 핵심 키워드가 포함된 강렬한 제목을 만드세요.
-- **체계적인 구조**: 서론(도입) - 본론(소주제별 구분) - 결론(요약 및 의견)으로 구성하세요.
-- **문체 및 톤**: {blog_style}에 맞춰 친근하거나(Professional/Friendly) 또는 전문적으로(Expert) 작성하세요.
-- **가독성 향상**: 리스트(Bullet points), 강조(Bold), 적절한 문단 나누기를 활용하세요.
-- **이미지 배치 가이드**: 글 중간중간에 이미지가 들어가면 좋을 위치와 해당 이미지에 대한 설명을 [이미지: 설명] 형식으로 삽입하세요.
-- **태그 추천**: 관련성이 높은 해시태그 10개를 추천하세요.
+### 3. 블로그 작성 지침 (SEO 최적화 전략)
+- **SEO 최적화 제목**: 타겟 키워드({user_notes} 포함)가 앞쪽에 위치한 강렬한 제목을 만드세요.
+- **H2/H3 태그 활용**: 본문 내 소주제는 반드시 <h2>, <h3> 태그를 사용하여 구조화하세요. (워드프레스 최적화)
+- **핵심 정보 요약 표(Table)**: 경기 데이터, 배당률, 또는 예상 스코어 등은 HTML <table> 태그를 사용하여 한눈에 들어오게 정리하세요.
+- **가독성 향상**: 리스트(Bullet points), 강조(<strong>), 적절한 문단 나누기를 활용하세요.
+- **결론 및 CTA**: 마지막에 독자의 의견을 묻거나 다른 글을 추천하는 문구(Call to Action)를 포함하세요.
+
+### 4. 일본 시장 특화 지침 (일본 스포츠 예측 전문)
+- **필수 키워드**: J리그(Jリーグ), toto(トト), WINNER(ウィナー), 予想(예측), 考察(고찰), 傾向(경향) 등을 적재적소에 배치하세요.
+- **분석적 톤**: "철저 분석(徹底分析)", "독점 데이터(独占データ)" 등 전문적인 표현을 활용하세요.
+- **정보성 가치**: 리그 상황이나 부상자 정보 등 구체적인 이유를 제시하여 신뢰도를 높이세요.
+
+### 5. HTML 스타일 규칙 (중요)
+- **인라인 스타일에 색상(color)을 절대 지정하지 마세요.** font-color, color, background-color 등 색상 관련 CSS를 인라인으로 넣지 마세요.
+- 워드프레스/구글 블로그의 테마가 자동으로 색상을 처리합니다.
+- 허용되는 인라인 스타일: text-align, margin, padding, border 정도만 사용하세요.
+- <blockquote>, <table>, <strong>, <h2>, <h3> 등 시맨틱 태그는 자유롭게 사용하세요.
 
 ---
 다음 JSON 형식으로만 응답하세요:
 {{
     "title": "블로그 포스팅 제목",
-    "content": "HTML 또는 마크다운 형식이 가미된 블로그 본문 내용",
+    "content": "HTML 형식 블로그 본문 (인라인 color 스타일 금지)",
     "tags": ["태그1", "태그2", ...],
     "summary": "포스팅 1줄 요약"
 }}
 JSON만 반환하세요."""
+
 
 prompts = Prompts()

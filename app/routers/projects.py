@@ -7,6 +7,16 @@ from pydantic import BaseModel
 class BulkDeleteRequest(BaseModel):
     ids: List[int]
 
+class ProjectCopyMoveRequest(BaseModel):
+    project_id: int
+    target_mode: str
+    action: str  # 'copy' | 'move'
+
+class BulkCopyMoveRequest(BaseModel):
+    ids: List[int]
+    target_mode: str
+    action: str  # 'copy' | 'move'
+
 router = APIRouter(prefix="/api", tags=["Projects"])
 
 @router.post("/projects/bulk-delete")
@@ -21,6 +31,32 @@ async def bulk_delete_projects(req: BulkDeleteRequest):
         return {"status": "success", "deleted_count": count}
     except Exception as e:
         raise HTTPException(500, str(e))
+
+@router.post("/projects/bulk-copy-move")
+async def bulk_copy_move(req: BulkCopyMoveRequest):
+    try:
+        count = 0
+        for pid in req.ids:
+            try:
+                if req.action == 'copy':
+                    db.copy_project(pid, req.target_mode)
+                else:
+                    db.move_project(pid, req.target_mode)
+                count += 1
+            except Exception as inner_e:
+                print(f"Error in bulk {req.action}: {inner_e}")
+        return {"status": "success", "processed_count": count}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@router.get("/projects/current")
+async def get_current_project():
+    """가장 최근에 작업한 프로젝트 정보 반환 (연결 폴백용)"""
+    recent = db.get_recent_projects(limit=1)
+    if recent:
+        return recent[0]
+    return {"id": None, "name": "No Project"}
 
 @router.get("/projects")
 async def get_projects():

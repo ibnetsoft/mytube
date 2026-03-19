@@ -1896,47 +1896,50 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             self.is_batch_running = False
             print("🛑 [Batch] 일괄 제작 프로세스 종료")
     
-    def _alignment_to_subtitles(self, alignments: list, max_chars: int = 25) -> list:
+    def _alignment_to_subtitles(self, alignments: list, max_chars: int = 45) -> list:
         """
-        단어 타이밍 정보를 2줄 자막으로 변환 (정밀 싱크)
-        
+        단어 타이밍 정보를 의미 단위 자막으로 변환 (정밀 싱크)
+
+        원칙: 자막 하나가 최소 15자 이상 되도록. 짧은 자막은 반드시 병합.
+        예시 (좋음): "종합적으로 분석해서 여러분의 궁금증을 시원하게 해결해 드릴게요."
+        예시 (나쁨): "사로잡고" / "있죠." / "사랑을 받고" ← 이런 건 안 됨
+
         Args:
             alignments: [{"word": "안녕", "start": 0.0, "end": 0.3}, ...]
-            max_chars: 자막당 최대 글자 수 (2줄 기준)
-        
+            max_chars: 자막당 최대 글자 수 (기본 45자)
+
         Returns:
             [{"text": "자막 텍스트", "start": 0.0, "end": 1.5}, ...]
         """
         if not alignments:
             return []
-        
+
+        MIN_SUBTITLE_LEN = 15   # 자막 최소 길이 (이보다 짧으면 무조건 병합)
+        MIN_TERMINAL_LEN = 25   # 마침표/물음표/느낌표로 끊는 최소 길이
+        MIN_COMMA_LEN = 30      # 쉼표로 끊는 최소 길이
+
         subtitles = []
-        current_words = []
         current_text = ""
         block_start = None
         block_end = None
-        
-        MIN_MERGE_LEN = 15 # 최소 이 정도는 되어야 문장부호로 끊음
+
         for i, word_info in enumerate(alignments):
             word = word_info.get("word", "").strip()
             if not word:
                 continue
-            
+
             start = word_info.get("start", 0)
             end = word_info.get("end", start + 0.1)
-            
-            # 새 블록 시작
+
             if block_start is None:
                 block_start = start
-            
-            # 텍스트 누적 시도
+
             test_text = f"{current_text} {word}".strip() if current_text else word
-            
-            # [FIX] Breaking logic: Break BEFORE if too long, Break AFTER if punctuation + enough content
+
             is_terminal = word.endswith(('.', '?', '!'))
             is_light = word.endswith(',')
-            
-            # 1. 텍스트가 너무 길면 바로 끊기 (현재 단어 제외)
+
+            # 1. max_chars 초과 시 현재 단어 제외하고 끊기
             if len(test_text) > max_chars and current_text:
                 subtitles.append({
                     "text": current_text,
@@ -1946,17 +1949,17 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                 current_text = word
                 block_start = start
                 block_end = end
-                test_text = word
             else:
                 current_text = test_text
                 block_end = end
 
-            # 2. 문장 부호 기반 끊기 (현재 단어 포함 후 끊기)
-            # - 마침표/느낌표/물음표는 내용이 조금만 있어도 끊기 가능
-            # - 쉼표는 내용이 일정 이상(15자)일 때만 끊기
-            should_break_after = (is_terminal and len(current_text) >= 10) or (is_light and len(current_text) >= MIN_MERGE_LEN)
-            
-            if should_break_after:
+            # 2. 문장 부호 기반 끊기 (충분한 길이일 때만)
+            should_break = (
+                (is_terminal and len(current_text) >= MIN_TERMINAL_LEN) or
+                (is_light and len(current_text) >= MIN_COMMA_LEN)
+            )
+
+            if should_break:
                 subtitles.append({
                     "text": current_text,
                     "start": round(block_start, 2),
@@ -1965,7 +1968,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                 current_text = ""
                 block_start = None
                 block_end = None
-        
+
         # 마지막 블록
         if current_text:
             subtitles.append({
@@ -1973,7 +1976,47 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                 "start": round(block_start, 2),
                 "end": round(block_end, 2)
             })
-        
+
+        # ── 후처리: 짧은 자막 병합 (MIN_SUBTITLE_LEN 미만) ──
+        # 여러 라운드 반복하여 확실히 병합
+        for _ in range(3):
+            if len(subtitles) <= 1:
+                break
+            merged = []
+            i = 0
+            while i < len(subtitles):
+                sub = subtitles[i]
+                # 현재 자막이 너무 짧으면 다음 자막과 합치기
+                if len(sub["text"]) < MIN_SUBTITLE_LEN and i + 1 < len(subtitles):
+                    next_sub = subtitles[i + 1]
+                    combined = f"{sub['text']} {next_sub['text']}"
+                    if len(combined) <= max_chars:
+                        merged.append({
+                            "text": combined,
+                            "start": sub["start"],
+                            "end": next_sub["end"]
+                        })
+                        i += 2
+                        continue
+                # 이전 자막과 합칠 수 있으면 합치기
+                if len(sub["text"]) < MIN_SUBTITLE_LEN and merged:
+                    prev = merged[-1]
+                    combined = f"{prev['text']} {sub['text']}"
+                    if len(combined) <= max_chars:
+                        merged[-1] = {
+                            "text": combined,
+                            "start": prev["start"],
+                            "end": sub["end"]
+                        }
+                        i += 1
+                        continue
+                merged.append(sub)
+                i += 1
+
+            if len(merged) == len(subtitles):
+                break  # 더 이상 병합 안 됨
+            subtitles = merged
+
         return subtitles
 
     def get_queue_status(self):

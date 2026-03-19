@@ -64,20 +64,22 @@ def get_project_output_dir(project_id: int):
         return config.OUTPUT_DIR, "/output" # Fallback
 
     # 폴더명 생성 (프로젝트명 + 생성일자 YYYYMMDD)
-    # 안전한 파일명을 위해 공백/특수문자 처리
-    safe_name = re.sub(r'[\\/*?:"<>|]', "", project['name']).strip().replace(" ", "_")
+    # 안전한 파일명을 위해 공백/특수문자 처리 (모든 공백을 언더바로 변환)
+    safe_name = re.sub(r'[\\/*?:"<>|]', "", project['name']).strip()
+    safe_name = re.sub(r'\s+', '_', safe_name) # 모든 연속된 공백을 _로 변환
     
     # 날짜는 오늘 날짜 기준 (또는 프로젝트 생성일? 사용자 요청은 '날짜' 형식)
     # 보통 작업을 수행하는 '오늘' 날짜가 적절함.
     today = datetime.datetime.now().strftime("%Y%m%d")
     folder_name = f"{safe_name}_{today}"
     
-    # 전체 경로
+    # 전체 경로 (파일 시스템용)
     abs_path = os.path.join(config.OUTPUT_DIR, folder_name)
     os.makedirs(abs_path, exist_ok=True)
     
-    # 웹 접근 경로 (static mount 기준)
-    # config.OUTPUT_DIR가 base이므로 relative path 필요
+    # 웹 접근 경로 (URL용)
+    # 기존: 브라우저 호환성을 위해 quote를 썼으나, DB 저장 시 중복 인코딩 이슈가 있어 원본 문자열 반환
+    # 브라우저가 src 속성 렌더링 시 자동으로 필요한 인코딩을 수행함.
     web_path = f"/output/{folder_name}"
     
     return abs_path, web_path
@@ -113,6 +115,7 @@ translator = Translator(app_lang)
 # Add t function to Jinja2 globals
 templates.env.globals['t'] = translator.t
 templates.env.globals['current_lang'] = app_lang
+templates.env.globals['app_mode'] = db.get_global_setting("app_mode", "longform")
 templates.env.globals['membership'] = auth_service.get_membership()
 templates.env.globals['is_independent'] = auth_service.is_independent()
 def get_license_key():
@@ -149,6 +152,7 @@ def _load_saved_lang():
                 translator.set_lang(saved_lang)
                 app_lang = saved_lang
                 templates.env.globals['current_lang'] = app_lang
+                templates.env.globals['app_mode'] = db.get_global_setting("app_mode", "longform")
                 print(f"[I18N] Loaded language from file: {app_lang}")
 
 _load_saved_lang()
@@ -302,6 +306,16 @@ async def page_script_plan(request: Request):
         "page": "script-plan",
         "title": "대본 기획"
     })
+
+@app.get("/blog-image-gen", response_class=HTMLResponse)
+async def page_blog_image_gen(request: Request):
+    """블로그 이미지 생성 페이지"""
+    return templates.TemplateResponse("pages/blog_image_gen.html", {
+        "request": request,
+        "page": "blog-image-gen",
+        "title": "블로그 이미지 생성"
+    })
+
 
 @app.get("/script-gen", response_class=HTMLResponse)
 async def page_script_gen(request: Request):
@@ -806,6 +820,49 @@ async def get_image_prompts(project_id: int):
     """이미지 프롬프트 조회"""
     return {"status": "ok", "prompts": db.get_image_prompts(project_id)}
 
+class BulkPromptUpdate(BaseModel):
+    texts: str
+
+@app.post("/api/projects/{project_id}/bulk-update-prompts")
+async def bulk_update_prompts(project_id: int, req: BulkPromptUpdate):
+    """프롬프트 일괄 업데이트 (텍스트 목록 기반)"""
+    try:
+        # 1. 텍스트 분리 (빈 줄 제외)
+        lines = [line.strip() for line in req.texts.split('\n') if line.strip()]
+        if not lines:
+            raise HTTPException(400, "입력된 프롬프트가 없습니다.")
+
+        # 2. 기존 프롬프트 조회
+        existing = db.get_image_prompts(project_id)
+        
+        new_prompts = []
+        for i, line in enumerate(lines):
+            scene_number = i + 1
+            # 기존 데이터가 있으면 필드 유지, 아니면 신규 생성
+            base = next((p for p in existing if p['scene_number'] == scene_number), {})
+            
+            prompt_item = {
+                "scene_number": scene_number,
+                "scene_text": base.get("scene_text") or f"Scene {scene_number}",
+                "prompt_ko": line,                     # 프롬프트 내용을 KO/EN 모두에 일단 넣음 (사용자 편의)
+                "prompt_en": line, 
+                "image_url": base.get("image_url", ""),
+                "video_url": base.get("video_url", ""),
+                "engine": base.get("engine", "wan"),
+                "scene_type": base.get("scene_type", ""),
+                "motion_desc": base.get("motion_desc", "")
+            }
+            new_prompts.append(prompt_item)
+            
+        # 3. DB 저장
+        db.save_image_prompts(project_id, new_prompts)
+        
+        return {"status": "success", "count": len(new_prompts)}
+    except Exception as e:
+        print(f"Bulk Update Error: {e}")
+        raise HTTPException(500, str(e))
+
+
 class AnimateRequest(BaseModel):
     scene_number: int
     prompt: str = "Cinematic slow motion, high quality"
@@ -880,14 +937,19 @@ async def animate_scene(project_id: int, req: AnimateRequest):
 
 @app.post("/api/upload-video-to-project/{project_id}/{scene_number}")
 async def upload_scene_video(project_id: int, scene_number: int, file: UploadFile = File(...)):
-    """확장프로그램 혹은 수동 업로드를 통한 장면 비디오 저장"""
+    """확장프로그램 혹은 수동 업로드를 통한 장면 미디어(비디오/이미지) 저장"""
     try:
-        print(f"DEBUG: upload_scene_video called with project_id={project_id}, scene_number={scene_number}")
+        print(f"DEBUG: upload_scene_media called with project_id={project_id}, scene_number={scene_number}")
         output_dir, web_dir = get_project_output_dir(project_id)
         
         ext = os.path.splitext(file.filename)[1]
         if not ext: ext = ".mp4"
-        filename = f"flow_p{project_id}_s{scene_number}_{int(time.time())}{ext}"
+        
+        # Determine prefix and DB update function based on extension
+        is_image = ext.lower() in [".png", ".jpg", ".jpeg", ".webp"]
+        prefix = "flow_img" if is_image else "flow_vid"
+        
+        filename = f"{prefix}_p{project_id}_s{scene_number}_{int(time.time())}{ext}"
         file_path = os.path.join(output_dir, filename)
         web_url = f"{web_dir}/{filename}"
         
@@ -895,12 +957,15 @@ async def upload_scene_video(project_id: int, scene_number: int, file: UploadFil
         with open(file_path, "wb") as f:
             f.write(content)
             
-        # DB 업데이트
-        db.update_image_prompt_video_url(project_id, scene_number, web_url)
+        # DB 업데이트 (이미지/비디오 구분)
+        if is_image:
+            db.update_image_prompt_url(project_id, scene_number, web_url)
+        else:
+            db.update_image_prompt_video_url(project_id, scene_number, web_url)
         
-        return {"status": "ok", "url": web_url, "path": file_path}
+        return {"status": "ok", "url": web_url, "path": file_path, "is_image": is_image}
     except Exception as e:
-        print(f"Error saving scene video: {e}")
+        print(f"Error saving scene media: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
@@ -1160,7 +1225,18 @@ async def youtube_search(req: SearchRequest):
             f"{config.YOUTUBE_BASE_URL}/search",
             params=params
         )
-        return response.json()
+        data = response.json()
+        
+        # [NEW] Error Handling for API Credentials
+        if response.status_code != 200:
+            error_data = data.get("error", {})
+            message = error_data.get("message", "YouTube API Error")
+            print(f"[YouTube Search] Failed: {response.status_code} - {message}")
+            if "API key not valid" in message or "API_KEY_INVALID" in str(error_data):
+                return {"error": "API_KEY_INVALID", "message": "유효하지 않은 YouTube API 키입니다. 설정에서 확인해주세요."}
+            return {"error": "API_ERROR", "message": message}
+
+        return data
 
 @app.post("/api/projects/{project_id}/youtube/auto-upload")
 async def auto_upload_youtube(project_id: int):
@@ -1276,7 +1352,13 @@ async def youtube_video_detail(video_id: str):
             f"{config.YOUTUBE_BASE_URL}/videos",
             params=params
         )
-        return response.json()
+        data = response.json()
+        if response.status_code != 200:
+            error_data = data.get("error", {})
+            message = error_data.get("message", "YouTube API Error")
+            print(f"[YouTube Video] Failed: {response.status_code} - {message}")
+            return {"error": "API_ERROR", "message": message}
+        return data
 
 
 @app.get("/api/youtube/comments/{video_id}")
