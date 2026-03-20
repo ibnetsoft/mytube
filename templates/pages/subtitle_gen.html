@@ -1789,7 +1789,7 @@
             });
             const data = await res.json();
             if (data.status === 'ok') {
-                subtitles = data.subtitles;
+                subtitles = applyAutoWrapToSubtitles(data.subtitles);
                 images = data.images || images; // Update images if provided
                 imageTimings = data.image_timings || []; // Update timings
                 renderSubtitles();
@@ -1809,7 +1809,7 @@
             const data = await res.json();
             if (data.status === 'ok') {
                 const prevSelected = selectedIndex >= 0 ? selectedIndex : 0;
-                subtitles = data.subtitles;
+                subtitles = applyAutoWrapToSubtitles(data.subtitles);
                 images = data.images || images;
                 imageTimings = data.image_timings || [];
                 renderSubtitles();
@@ -2632,6 +2632,43 @@
                 btn.innerHTML = originalText;
             }
         }
+    }
+
+    // [NEW] 긴 자막 텍스트에 자동으로 \n 줄바꿈 삽입
+    // 기존 \n이 있으면 유지, 너무 긴 경우만 처리
+    function autoWrapSubtitleText(text, maxCharsPerLine) {
+        if (!text || !text.trim()) return text;
+        // 이미 줄바꿈이 있으면 건드리지 않음
+        if (text.includes('\n')) return text;
+        if (text.length <= maxCharsPerLine) return text;
+
+        const result = [];
+        let remaining = text;
+        while (remaining.length > maxCharsPerLine) {
+            let breakPos = maxCharsPerLine;
+            // maxCharsPerLine 근처에서 자연스러운 공백/구두점 찾기
+            for (let i = maxCharsPerLine - 1; i >= Math.max(0, maxCharsPerLine - 6); i--) {
+                const ch = remaining[i];
+                if (ch === ' ' || ch === ',' || ch === '.' || ch === '!' || ch === '?') {
+                    breakPos = i + 1;
+                    break;
+                }
+            }
+            result.push(remaining.substring(0, breakPos).trim());
+            remaining = remaining.substring(breakPos).trim();
+        }
+        if (remaining) result.push(remaining);
+        return result.join('\n');
+    }
+
+    // 전체 자막 리스트에 자동 줄바꿈 적용
+    function applyAutoWrapToSubtitles(subtitleList) {
+        const isShorts = window.currentAppMode === 'shorts';
+        const maxChars = isShorts ? 16 : 24;
+        return subtitleList.map(sub => ({
+            ...sub,
+            text: autoWrapSubtitleText(sub.text || '', maxChars)
+        }));
     }
 
     // Helper: Split text into subtitle chunks (max 2 lines, ~20 chars per line)
