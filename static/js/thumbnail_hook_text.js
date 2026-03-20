@@ -13,7 +13,10 @@ async function generateHookTexts(buttonId = 'hookTextBtn') {
 
     try {
         const style = document.getElementById('thumbnailStyle').value;
-        const lang = window.targetLang || 'ko';
+        const title = document.getElementById('videoTitle')?.value?.trim() || '';
+        const lang = (typeof detectLanguageFromTitle === 'function')
+            ? detectLanguageFromTitle(title)
+            : (window.targetLang || 'ko');
 
         const response = await fetch('/api/thumbnail/generate-text', {
             method: 'POST',
@@ -33,24 +36,20 @@ async function generateHookTexts(buttonId = 'hookTextBtn') {
             // 모든 문구를 캔버스 레이어로 자동 적용
             if (result.texts && result.texts.length > 0) {
                 const textsToApply = result.texts.slice(0, 3);
-                textLayers = textsToApply.map((text, i) => {
-                    let position = 'center';
-                    if (i === 0) position = 'row2';
-                    else if (i === 1) position = 'center';
-                    else position = 'row4';
-
-                    return {
-                        text: text,
-                        position: position,
-                        x_offset: 0,
-                        y_offset: 0,
-                        font_family: 'Recipekorea',
-                        font_size: i === 1 ? 85 : 75,
-                        color: i === 1 ? '#ffff00' : '#ffffff',
-                        stroke_color: '#000000',
-                        stroke_width: 8
-                    };
-                });
+                const _pos = ['row3', 'row4', 'row5'];
+                const _colors = ['#FFFFFF', '#FFFF00', '#00D4FF'];
+                textLayers = textsToApply.map((text, i) => ({
+                    text: text,
+                    position: _pos[i] || 'row5',
+                    x_offset: 0,
+                    y_offset: 0,
+                    font_family: 'Recipekorea',
+                    font_size: 89,
+                    color: _colors[i] || '#FFFFFF',
+                    stroke_color: '#000000',
+                    stroke_width: 8,
+                    bg_color: null
+                }));
 
                 if (typeof renderLayers === 'function') renderLayers();
                 if (typeof drawPreview === 'function') drawPreview();
@@ -142,9 +141,9 @@ function applyHookText(text, index = 0) {
         layer.font_family = config.font_family;
 
         // 위치 자동 조정
-        if (index === 0) layer.position = 'row2';
-        else if (index === 1) layer.position = 'center';
-        else layer.position = 'row4';
+        if (index === 0) layer.position = 'row3';
+        else if (index === 1) layer.position = 'row4';
+        else layer.position = 'row5';
     }
 
     // UI 업데이트

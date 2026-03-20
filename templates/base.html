@@ -79,99 +79,97 @@
                             <span>{{ t('nav_my_projects') }}</span>
                         </a>
                     </li>
-                    <li>
+                    <li class="{% if app_mode == 'webtoon' %}hidden{% endif %}">
                         <a href="/" id="nav-topic" class="sidebar-item {% if page == 'topic' %}active{% endif %}">
                             <span class="sidebar-icon">🔍</span>
                             <span>{{ t('nav_topic') }}</span>
                         </a>
                     </li>
-                    <li>
+                    <li class="{% if app_mode == 'webtoon' %}hidden{% endif %}">
                         <a href="/repository" id="nav-repository"
                             class="sidebar-item {% if page == 'repository' %}active{% endif %}">
                             <span class="sidebar-icon">💾</span>
                             <span>{{ t('nav_repository') }}</span>
                         </a>
                     </li>
-                    <li>
+                    <li class="{% if app_mode != 'webtoon' %}hidden{% endif %}">
                         <a href="/webtoon" id="nav-webtoon"
                             class="sidebar-item {% if page == 'webtoon-studio' %}active{% endif %}">
                             <span class="sidebar-icon">🖌️</span>
                             <span>{{ t('nav_webtoon') }}</span>
                         </a>
                     </li>
-                    <li>
+                    <li class="{% if app_mode in ['commerce', 'blog', 'webtoon'] %}hidden{% endif %}">
                         <a href="/script-plan" id="nav-plan"
                             class="sidebar-item {% if page == 'script-plan' %}active{% endif %}">
                             <span class="sidebar-icon">📋</span>
                             <span>{{ t('nav_plan') }}</span>
                         </a>
                     </li>
-                    <li>
+                    <li class="{% if app_mode == 'commerce' %}hidden{% endif %}">
                         <a href="/script-gen" id="nav-script"
                             class="sidebar-item {% if page == 'script-gen' %}active{% endif %}">
                             <span class="sidebar-icon">✍️</span>
                             <span>{{ t('nav_script') }}</span>
                         </a>
                     </li>
-                    <li>
+                    <li class="{% if app_mode in ['commerce', 'blog', 'shorts', 'webtoon'] %}hidden{% endif %}">
                         <a href="/video-gen" id="nav-intro"
                             class="sidebar-item {% if page == 'video-gen' %}active{% endif %}">
                             <span class="sidebar-icon">🎥</span>
                             <span>{{ t('nav_intro') }}</span>
                         </a>
                     </li>
-                    <li>
+                    <li class="{% if app_mode in ['commerce', 'blog'] %}hidden{% endif %}">
                         <a href="/image-gen" id="nav-image"
                             class="sidebar-item {% if page == 'image-gen' %}active{% endif %}">
                             <span class="sidebar-icon">🖼️</span>
                             <span>{{ t('nav_image') }}</span>
                         </a>
                     </li>
-                    {% if app_mode != 'blog' %}
-                    <li>
+                    <li class="{% if app_mode in ['blog', 'commerce'] %}hidden{% endif %}">
                         <a href="/audio-gen" id="nav-audio"
                             class="sidebar-item {% if page == 'audio-gen' %}active{% endif %}">
                             <span class="sidebar-icon">🎵</span>
-                            <span>Audio Studio</span>
+                            <span>{{ t('nav_audio') }}</span>
                         </a>
                     </li>
-                    {% endif %}
-                    <li>
+                    <li class="{% if app_mode in ['commerce', 'blog', 'webtoon'] %}hidden{% endif %}">
                         <a href="/thumbnail" id="nav-thumbnail"
                             class="sidebar-item {% if page == 'thumbnail' %}active{% endif %}">
                             <span class="sidebar-icon">🎨</span>
                             <span>{{ t('nav_thumbnail') }}</span>
                         </a>
                     </li>
-                    <li>
+                    <li class="{% if app_mode in ['commerce', 'blog'] %}hidden{% endif %}">
                         <a href="/tts" id="nav-tts" class="sidebar-item {% if page == 'tts' %}active{% endif %}">
                             <span class="sidebar-icon">🔊</span>
                             <span>{{ t('nav_tts') }}</span>
                         </a>
                     </li>
 
-                    <li>
+                    <li class="{% if app_mode in ['commerce', 'blog'] %}hidden{% endif %}">
                         <a href="/subtitle-gen" id="nav-subtitle"
                             class="sidebar-item {% if page == 'subtitle-gen' %}active{% endif %}">
                             <span class="sidebar-icon">📝</span>
                             <span>{{ t('nav_subtitle') }}</span>
                         </a>
                     </li>
-                    <li>
+                    <li class="{% if app_mode in ['commerce', 'blog'] %}hidden{% endif %}">
                         <a href="/render" id="nav-render"
                             class="sidebar-item {% if page == 'render' %}active{% endif %}">
                             <span class="sidebar-icon">🎬</span>
                             <span>{{ t('nav_render') }}</span>
                         </a>
                     </li>
-                    <li>
+                    <li class="{% if app_mode in ['commerce', 'blog', 'shorts', 'webtoon'] %}hidden{% endif %}">
                         <a href="/title-desc" id="nav-title"
                             class="sidebar-item {% if page == 'title-desc' %}active{% endif %}">
                             <span class="sidebar-icon">📝</span>
                             <span>{{ t('nav_title_desc') }}</span>
                         </a>
                     </li>
-                    <li>
+                    <li class="{% if app_mode in ['blog', 'webtoon'] %}hidden{% endif %}">
                         <a href="/video-upload" id="nav-upload"
                             class="sidebar-item {% if page == 'video-upload' %}active{% endif %}">
                             <span class="sidebar-icon">📤</span>
@@ -180,25 +178,24 @@
                         </a>
                     </li>
 
-                    <li>
+                    <li class="{% if app_mode in ['commerce', 'blog', 'shorts', 'webtoon'] %}hidden{% endif %}">
                         <a href="/shorts" id="nav-shorts"
                             class="sidebar-item {% if page == 'shorts' %}active{% endif %}">
                             <span class="sidebar-icon">📱</span>
                             <span>{{ t('nav_shorts') }}</span>
                         </a>
                     </li>
-                    <li class="mt-1 pt-1 border-t border-gray-200 dark:border-gray-700">
+                    <li class="mt-1 pt-1 border-t border-gray-200 dark:border-gray-700 {% if app_mode != 'commerce' %}hidden{% endif %}">
                         <a href="/commerce-shorts" id="nav-commerce-shorts"
                             class="sidebar-item bg-gradient-to-r from-orange-500/10 to-yellow-500/10 border border-orange-500/30 {% if page == 'commerce-shorts' %}active{% endif %}">
                             <span class="sidebar-icon">🛍️</span>
                             <span
-                                class="bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-yellow-400 font-bold">커머스
-                                쇼츠</span>
+                                class="bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-yellow-400 font-bold">{{ t('nav_commerce_shorts') }}</span>
                             <span
                                 class="ml-auto text-[8px] bg-orange-500/20 text-orange-400 px-1 py-0.5 rounded">New</span>
                         </a>
                     </li>
-                    <li class="mt-1 pt-1 border-t border-gray-200 dark:border-gray-700">
+                    <li class="mt-1 pt-1 border-t border-gray-200 dark:border-gray-700 {% if app_mode != 'blog' %}hidden{% endif %}">
                         <a href="/blog-automation" id="nav-blog"
                             class="sidebar-item bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/30 {% if page == 'blog-automation' %}active{% endif %}">
                             <span class="sidebar-icon">✍️</span>
@@ -209,19 +206,18 @@
                                 class="ml-auto text-[8px] bg-blue-500/20 text-blue-400 px-1 py-0.5 rounded">Beta</span>
                         </a>
                     </li>
-                    {% if app_mode != 'blog' %}
+                    {% if app_mode == 'blog' %}
                     <li class="mt-0.5">
                         <a href="/blog-image-gen" id="nav-blog-image"
                             class="sidebar-item hover:bg-amber-500/10 {% if page == 'blog-image-gen' %}active{% endif %}">
                             <span class="sidebar-icon">🖼️</span>
-                            <span class="font-bold text-gray-700 dark:text-gray-300">블로그 이미지 생성</span>
+                            <span class="font-bold text-gray-700 dark:text-gray-300">{{ t('nav_blog_image') }}</span>
                         </a>
                     </li>
                     {% endif %}
 
                     <!-- 퍼블리시 허브: 이미지 생성 페이지의 블로그 게시 기능으로 통합됨 -->
-                    {% if app_mode != 'blog' %}
-                    <li class="mt-0.5 pt-0.5">
+                    <li class="mt-0.5 pt-0.5 {% if app_mode == 'webtoon' %}hidden{% endif %}">
                         <a href="/autopilot" id="nav-autopilot"
                             class="sidebar-item bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 {% if page == 'autopilot' %}active{% endif %}">
                             <span class="sidebar-icon">🤖</span>
@@ -232,19 +228,18 @@
                                 class="ml-auto text-[8px] bg-purple-500/20 text-purple-400 px-1 py-0.5 rounded">Beta</span>
                         </a>
                     </li>
-                    {% endif %}
                     <li class="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
                         <a href="/settings" id="nav-settings"
                             class="sidebar-item flex items-center gap-3 {% if page == 'settings' %}active{% endif %}">
                             <span class="sidebar-icon">⚙️</span>
-                            <span class="font-bold">환경설정 (Settings)</span>
+                            <span class="font-bold">{{ t('nav_settings') }}</span>
                         </a>
                     </li>
                     <li class="mt-1">
                         <a href="https://wallet.airing.work/" target="_blank"
                             class="sidebar-item group hover:bg-blue-500/10 transition-all flex items-center gap-3">
                             <span class="sidebar-icon grayscale group-hover:grayscale-0">💎</span>
-                            <span class="font-black text-blue-500 dark:text-blue-400">WALLET 서비스</span>
+                            <span class="font-black text-blue-500 dark:text-blue-400">{{ t('nav_wallet') }}</span>
                             <span class="ml-auto opacity-30 dark:opacity-60 text-white">
                                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
@@ -294,12 +289,12 @@
                                 Project:</span>
                             <h2 id="currentProjectNameDisplay"
                                 class="text-sm font-black text-gray-800 dark:text-white border-b-2 border-blue-500/30 pb-0.5">
-                                프로젝트명
+                                {{ t('th_project_name') }}
                             </h2>
                         </div>
                         <button onclick="closeProjectContext()"
                             class="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-gray-400 transition-colors"
-                            title="프로젝트 닫기">
+                            title="{{ t('btn_close_project') }}">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M6 18L18 6M6 6l12 12"></path>
@@ -458,18 +453,18 @@
     <div id="projectModal" class="modal-overlay hidden">
         <div class="modal-content max-w-md">
             <div class="p-6 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-bold text-gray-800 dark:text-white">새 프로젝트 만들기</h3>
+                <h3 class="text-lg font-bold text-gray-800 dark:text-white">{{ t('title_new_project') }}</h3>
             </div>
             <div class="p-6">
                 <div class="mb-4">
                     <label class="block text-sm font-bold text-gray-800 dark:text-white mb-2">프로젝트 이름</label>
                     <input type="text" id="newProjectName"
                         class="input-field py-3 text-base dark:bg-gray-800 dark:border-gray-700"
-                        placeholder="예: 삼국지 영상 시리즈">
+                        placeholder="{{ t('placeholder_project_name_example') }}">
                 </div>
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">주제 (선택)</label>
-                    <input type="text" id="newProjectTopic" class="input-field" placeholder="예: 삼국지 인물 분석">
+                    <input type="text" id="newProjectTopic" class="input-field" placeholder="{{ t('placeholder_project_topic_example') }}">
                 </div>
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">콘텐츠 언어</label>
@@ -482,8 +477,8 @@
                     </select>
                 </div>
                 <div class="flex gap-3">
-                    <button onclick="createNewProject()" class="flex-1 btn-primary">생성</button>
-                    <button onclick="closeProjectModal()" class="btn-secondary">취소</button>
+                    <button onclick="createNewProject()" class="flex-1 btn-primary">{{ t('btn_create') }}</button>
+                    <button onclick="closeProjectModal()" class="btn-secondary">{{ t('btn_cancel') }}</button>
                 </div>
             </div>
         </div>
@@ -499,7 +494,7 @@
         <div class="flex items-center gap-2 px-3 py-1.5 bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-full shadow-lg border border-gray-200 dark:border-gray-700">
             <span class="w-1.5 h-1.5 rounded-full {% if app_mode == 'blog' %}bg-blue-500 animate-pulse{% elif app_mode == 'shorts' %}bg-purple-500{% elif app_mode == 'commerce' %}bg-orange-500{% elif app_mode == 'webtoon' %}bg-indigo-500{% else %}bg-green-500{% endif %}"></span>
             <span class="text-[10px] font-black uppercase tracking-tighter text-gray-700 dark:text-gray-300">
-                {% if app_mode == 'blog' %}블로그{% elif app_mode == 'shorts' %}숏폼{% elif app_mode == 'commerce' %}커머스{% elif app_mode == 'webtoon' %}웹툰{% else %}롱폼{% endif %} 모드
+                {% if app_mode == 'blog' %}{{ t('mode_blog') }}{% elif app_mode == 'shorts' %}{{ t('mode_shorts') }}{% elif app_mode == 'commerce' %}{{ t('mode_commerce') }}{% elif app_mode == 'webtoon' %}{{ t('mode_webtoon') }}{% else %}{{ t('mode_longform') }}{% endif %} {{ t('label_mode') }}
             </span>
         </div>
 
@@ -558,16 +553,135 @@
     </script>
 
     <script>
-        // 프로젝트 상태 한글
-        const statusLabels = {
-            'draft': '시작',
-            'analyzed': '분석 완료',
-            'planned': '기획 완료',
-            'scripted': '대본 완료',
-            'tts_done': 'TTS 완료',
-            'rendered': '렌더링 완료',
-            'completed': '완료'
-        };
+        // i18n for JS
+        var i18n = Object.assign(window.i18n || {}, {
+            status_labels: {
+                'draft': "{{ t('status_start') }}",
+                'analyzed': "{{ t('status_analyzed') }}",
+                'planned': "{{ t('status_planned') }}",
+                'scripted': "{{ t('status_scripted') }}",
+                'tts_done': "{{ t('status_tts_done') }}",
+                'rendered': "{{ t('status_rendered') }}",
+                'completed': "{{ t('status_completed') }}"
+            },
+            select_project_placeholder: "{{ t('select_project_placeholder') }}",
+            status_label_prefix: "{{ t('status_label_prefix') }}",
+            toast_loading_project_prefix: "{{ t('toast_loading_project_prefix') }}",
+            toast_loading_project_suffix: "{{ t('toast_loading_project_suffix') }}",
+            toast_load_done_prefix: "{{ t('toast_load_done_prefix') }}",
+            toast_load_done_suffix: "{{ t('toast_load_done_suffix') }}",
+            err_fail_load_project: "{{ t('err_fail_load_project') }}",
+            err_no_project_name: "{{ t('err_no_project_name') }}",
+            toast_project_created: "{{ t('toast_project_created') }}",
+            err_fail_create_project: "{{ t('err_fail_create_project') }}",
+
+            // Autopilot keys
+            label_preset: "{{ t('label_preset') }}",
+            preset_custom: "{{ t('preset_custom') }}",
+            tab_single_production: "{{ t('tab_single_production') }}",
+            tab_queue_management: "{{ t('tab_queue_management') }}",
+            label_autopilot_start: "{{ t('label_autopilot_start') }}",
+            helper_autopilot_desc: "{{ t('helper_autopilot_desc') }}",
+            btn_start_production: "{{ t('btn_start_production') }}",
+            status_ai_server_waiting: "{{ t('status_ai_server_waiting') }}",
+            label_subtitle_preview: "{{ t('label_subtitle_preview') }}",
+            label_script_style: "{{ t('label_script_style') }}",
+            label_target_duration: "{{ t('label_target_duration') }}",
+            label_engine: "{{ t('label_engine') }}",
+            label_voice_char: "{{ t('label_voice_char') }}",
+            label_yt_upload_settings: "{{ t('label_yt_upload_settings') }}",
+            label_upload_channel: "{{ t('label_upload_channel') }}",
+            label_thumbnail_style: "{{ t('label_thumbnail_style') }}",
+            label_video_engine: "{{ t('label_video_engine') }}",
+            label_gen_method: "{{ t('label_gen_method') }}",
+            label_standard: "{{ t('label_standard') }}",
+            label_high_res_8s: "{{ t('label_high_res_8s') }}",
+            label_slowmo_8s: "{{ t('label_slowmo_8s') }}",
+            label_all_caps: "{{ t('label_all_caps') }}",
+            label_image_focused: "{{ t('label_image_focused') }}",
+            label_video_focused: "{{ t('label_video_focused') }}",
+            label_char_analysis: "{{ t('label_char_analysis') }}",
+            helper_char_analysis: "{{ t('helper_char_analysis') }}",
+            label_queue: "{{ t('label_queue') }}",
+            label_queue_management_desc: "{{ t('label_queue_management_desc') }}",
+            label_execution_logs: "{{ t('label_execution_logs') }}",
+            label_overall_progress: "{{ t('label_overall_progress') }}",
+            label_system_logs: "{{ t('label_system_logs') }}",
+            label_privacy_scope: "{{ t('label_privacy_scope') }}",
+            label_scheduled_time: "{{ t('label_scheduled_time') }}",
+            label_creation_mode: "{{ t('label_creation_mode') }}",
+            label_scene: "{{ t('label_scene') }}",
+            label_no_title: "{{ t('label_no_title') }}",
+            mode_longform: "{{ t('mode_longform') }}",
+            mode_shorts: "{{ t('mode_shorts') }}",
+            unit_scenes: "{{ t('unit_scenes') }}",
+            unit_min_short: "{{ t('unit_min_short') }}",
+            unit_sec_short: "{{ t('unit_sec_short') }}",
+            status_loading: "{{ t('status_loading') }}",
+            status_loading_thumbnail_styles: "{{ t('status_loading_thumbnail_styles') }}",
+            status_autopilot_in_progress: "{{ t('status_autopilot_in_progress') }}",
+            status_waiting_task: "{{ t('status_waiting_task') }}",
+            status_preparing: "{{ t('status_preparing') }}",
+            status_done_redirecting: "{{ t('status_done_redirecting') }}",
+            status_error_occurred_check_logs: "{{ t('status_error_occurred_check_logs') }}",
+            status_processing_monitor: "{{ t('status_processing_monitor') }}",
+            status_no_voices_available: "{{ t('status_no_voices_available') }}",
+            status_error_loading_voices: "{{ t('status_error_loading_voices') }}",
+            status_no_queue_items: "{{ t('status_no_queue_items') }}",
+            status_no_queued_projects: "{{ t('status_no_queued_projects') }}",
+            status_failed_to_load_list: "{{ t('status_failed_to_load_list') }}",
+            status_load_failed: "{{ t('status_load_failed') }}",
+            status_connection_error: "{{ t('status_connection_error') }}",
+            status_queued: "{{ t('status_queued') }}",
+            status_preset_loaded_prefix: "{{ t('status_preset_loaded_prefix') }}",
+            status_preset_loaded_suffix: "{{ t('status_preset_loaded_suffix') }}",
+            status_failed_to_load_preset: "{{ t('status_failed_to_load_preset') }}",
+            status_preset_saved: "{{ t('status_preset_saved') }}",
+            status_preset_deleted: "{{ t('status_preset_deleted') }}",
+            status_batch_started: "{{ t('status_batch_started') }}",
+            status_batch_started_check_queue: "{{ t('status_batch_started_check_queue') }}",
+            status_all_tasks_done: "{{ t('status_all_tasks_done') }}",
+            status_requesting_start: "{{ t('status_requesting_start') }}",
+            status_processing: "{{ t('status_processing') }}",
+            status_removed_from_queue: "{{ t('status_removed_from_queue') }}",
+            status_system_initialized: "{{ t('status_system_initialized') }}",
+            helper_scene_gen_prefix: "{{ t('helper_scene_gen_prefix') }}",
+            helper_scene_gen_mid: "{{ t('helper_scene_gen_mid') }}",
+            helper_subtitle_autoreload: "{{ t('helper_subtitle_autoreload') }}",
+            helper_add_from_plan: "{{ t('helper_add_from_plan') }}",
+            helper_topview_ai: "{{ t('helper_topview_ai') }}",
+            helper_scheduled_warn: "{{ t('helper_scheduled_warn') }}",
+            helper_do_not_close_browser: "{{ t('helper_do_not_close_browser') }}",
+            btn_start_batch: "{{ t('btn_start_batch') }}",
+            btn_clear_logs: "{{ t('btn_clear_logs') }}",
+            btn_go_to_results: "{{ t('btn_go_to_results') }}",
+            btn_delete: "{{ t('btn_delete') }}",
+            confirm_close_modal_keep_task: "{{ t('confirm_close_modal_keep_task') }}",
+            confirm_start_batch: "{{ t('confirm_start_batch') }}",
+            confirm_remove_from_queue: "{{ t('confirm_remove_from_queue') }}",
+            confirm_delete_preset: "{{ t('confirm_delete_preset') }}",
+            alert_enter_preset_name: "{{ t('alert_enter_preset_name') }}",
+            alert_enter_product_url: "{{ t('alert_enter_product_url') }}",
+            privacy_private: "{{ t('privacy_private') }}",
+            privacy_public: "{{ t('privacy_public') }}",
+            privacy_unlisted: "{{ t('privacy_unlisted') }}",
+            privacy_scheduled: "{{ t('privacy_scheduled') }}",
+            channel_default: "{{ t('channel_default') }}",
+            theme_default: "{{ t('theme_default') }}",
+            theme_commerce_review: "{{ t('theme_commerce_review') }}",
+            badge_topview: "{{ t('badge_topview') }}",
+            tip_save_presets: "{{ t('tip_save_presets') }}",
+            engine_akool_premium: "{{ t('engine_akool_premium') }}",
+            style_viral: "{{ t('style_viral') }}",
+            ethnicity_1: "{{ t('ethnicity_1') }}",
+            ethnicity_2: "{{ t('ethnicity_2') }}",
+            ethnicity_3: "{{ t('ethnicity_3') }}",
+            ethnicity_4: "{{ t('ethnicity_4') }}",
+            ethnicity_5: "{{ t('ethnicity_5') }}",
+            ethnicity_6: "{{ t('ethnicity_6') }}",
+            ethnicity_7: "{{ t('ethnicity_7') }}",
+            ethnicity_8: "{{ t('ethnicity_8') }}"
+        });
 
         // 프로젝트 목록 로드
         async function loadProjects() {
@@ -576,7 +690,7 @@
                 const select = document.getElementById('projectSelect');
                 const currentId = getCurrentProject();
 
-                select.innerHTML = '<option value="">프로젝트 선택...</option>';
+                select.innerHTML = `<option value="">${i18n.select_project_placeholder}</option>`;
 
                 const mode = window.APP_MODE || 'longform';
                 const filteredProjects = data.projects.filter(p => (p.app_mode || 'longform') === mode);
@@ -584,7 +698,7 @@
                 filteredProjects.forEach(p => {
                     const option = document.createElement('option');
                     option.value = p.id;
-                    option.textContent = `${p.name} (${statusLabels[p.status] || p.status})`;
+                    option.textContent = `${p.name} (${i18n.status_labels[p.status] || p.status})`;
                     if (p.id == currentId) option.selected = true;
                     select.appendChild(option);
                 });
@@ -606,7 +720,7 @@
 
             if (project) {
                 infoDiv.classList.remove('hidden');
-                statusSpan.textContent = `상태: ${statusLabels[project.status] || project.status}`;
+                statusSpan.textContent = `${i18n.status_label_prefix}: ${i18n.status_labels[project.status] || project.status}`;
             } else {
                 infoDiv.classList.add('hidden');
             }
@@ -637,12 +751,12 @@
                     // Header Display Update
                     const headerDisplay = document.getElementById('currentProjectNameDisplay');
                     if (headerDisplay) {
-                        const statusText = statusLabels[project.status] || project.status;
+                        const statusText = i18n.status_labels[project.status] || project.status;
                         headerDisplay.textContent = `${project.name} (${statusText})`;
                         document.getElementById('projectProgressHeader').classList.remove('hidden');
                     }
 
-                    Utils.showToast(`프로젝트 "${project.name}" 불러오는 중...`, 'info');
+                    Utils.showToast(`${i18n.toast_loading_project_prefix} "${project.name}" ${i18n.toast_loading_project_suffix}`, 'info');
 
                     // 3. ✨ 전체 데이터 동기화 (Context Switching 핵심) ✨
                     const fullData = await API.project.getFull(projectId);
@@ -709,12 +823,12 @@
                         });
 
 
-                        Utils.showToast(`"${project.name}" 데이터 로드 완료`, 'success');
+                        Utils.showToast(`${i18n.toast_load_done_prefix} "${project.name}" ${i18n.toast_load_done_suffix}`, 'success');
                     }
 
                 } catch (e) {
                     console.error("프로젝트 로드 실패", e);
-                    Utils.showToast('프로젝트 정보를 불러오는데 실패했습니다.', 'error');
+                    Utils.showToast(i18n.err_fail_load_project, 'error');
                 }
 
             } else {
@@ -752,7 +866,7 @@
             const language = document.getElementById('newProjectLanguage').value; // [NEW] Read language
 
             if (!name) {
-                Utils.showToast('프로젝트 이름을 입력하세요', 'warning');
+                Utils.showToast(i18n.err_no_project_name, 'warning');
                 return;
             }
 
@@ -779,7 +893,7 @@
                 if (result.project_id) {
                     setCurrentProject(result.project_id);
                     closeProjectModal();
-                    Utils.showToast('프로젝트가 생성되었습니다', 'success');
+                    Utils.showToast(i18n.toast_project_created, 'success');
 
                     // [FIX] Redirect to projects page to see the newly created project
                     setTimeout(() => {
@@ -787,7 +901,7 @@
                     }, 500);
                 }
             } catch (e) {
-                Utils.showToast('프로젝트 생성 실패', 'error');
+                Utils.showToast(i18n.err_fail_create_project, 'error');
             }
         }
 
@@ -833,6 +947,7 @@
                 const navIntro = document.getElementById('nav-intro');
 
                 const navImage = document.getElementById('nav-image');
+                const navAudio = document.getElementById('nav-audio');
                 const navThumbnail = document.getElementById('nav-thumbnail');
                 const navTts = document.getElementById('nav-tts');
                 const navSubtitle = document.getElementById('nav-subtitle');
@@ -844,14 +959,13 @@
                 const navCommerce = document.getElementById('nav-commerce-shorts');
                 const navBlog = document.getElementById('nav-blog');
                 const navTopic = document.getElementById('nav-topic');
-                const navRepository = document.getElementById('nav-repository'); // [NEW] Add repository
-                const navUpload = document.getElementById('nav-upload'); // [NEW] To hide upload/reserve in webtoon
-                const navAutopilot = document.getElementById('nav-autopilot'); // [NEW] Hide in webtoon mode
+                const navRepository = document.getElementById('nav-repository');
+                const navUpload = document.getElementById('nav-upload');
+                const navAutopilot = document.getElementById('nav-autopilot');
 
                 // Helper to hide/show
                 const setVisible = (el, show) => {
                     if (!el) return;
-                    // Check if parent matches li or just toggle logic
                     if (show) el.parentElement.classList.remove('hidden');
                     else el.parentElement.classList.add('hidden');
                 };
@@ -867,6 +981,7 @@
                     // Hide video-specific steps
                     setVisible(navIntro, false);
                     setVisible(navImage, false);
+                    setVisible(navAudio, false);
                     setVisible(navThumbnail, false);
                     setVisible(navTts, false);
                     setVisible(navSubtitle, false);
@@ -879,14 +994,18 @@
                     setVisible(navAutopilot, true);
 
                 } else if (mode === 'commerce') {
-                    // Commerce Mode: Hide almost everything except Commerce & Topic
-                    setVisible(navBlog, false);
+                    // Commerce Mode
                     setVisible(navCommerce, true);
+                    setVisible(navTopic, true);
+                    setVisible(navRepository, true);
+                    setVisible(navUpload, true);
 
+                    setVisible(navBlog, false);
                     setVisible(navPlan, false);
                     setVisible(navScript, false);
                     setVisible(navIntro, false);
                     setVisible(navImage, false);
+                    setVisible(navAudio, false);
                     setVisible(navThumbnail, false);
                     setVisible(navTts, false);
                     setVisible(navSubtitle, false);
@@ -894,12 +1013,6 @@
                     setVisible(navTitle, false);
                     setVisible(navShorts, false);
                     setVisible(navWebtoon, false);
-                    // Commerce might need topic? User didn't say to hide it for commerce, but let's keep it visible or follow pattern. 
-                    // Previous code had: Commerce Mode: Hide almost everything except Commerce & Topic. 
-                    // Let's assume navTopic stays for Commerce unless specified otherwise.
-                    setVisible(navTopic, true);
-                    setVisible(navRepository, true);
-                    setVisible(navUpload, true);
 
                 } else if (mode === 'shorts') {
                     // Shorts Mode
@@ -907,15 +1020,14 @@
                     setVisible(navCommerce, false);
                     setVisible(navWebtoon, false);
 
-                    // Hide specifics
                     setVisible(navIntro, false);
                     setVisible(navTitle, false);
                     setVisible(navShorts, false);
 
-                    // Show standard steps
                     setVisible(navPlan, true);
                     setVisible(navScript, true);
                     setVisible(navImage, true);
+                    setVisible(navAudio, true);
                     setVisible(navThumbnail, true);
                     setVisible(navTts, true);
                     setVisible(navSubtitle, true);
@@ -923,6 +1035,7 @@
                     setVisible(navTopic, true);
                     setVisible(navRepository, true);
                     setVisible(navUpload, true);
+                    setVisible(navAutopilot, true);
 
                     // Rename Script Gen
                     if (navScript) {
@@ -930,12 +1043,11 @@
                     }
 
                 } else if (mode === 'webtoon') {
-                    // Webtoon Mode [USER REQUEST: Hide Topic, Repo, Plan, Thumb, Upload]
+                    // Webtoon Mode
                     setVisible(navBlog, false);
                     setVisible(navCommerce, false);
                     setVisible(navWebtoon, true);
 
-                    // Hide specifics for Webtoon
                     setVisible(navTopic, false);
                     setVisible(navRepository, false);
                     setVisible(navPlan, false);
@@ -946,41 +1058,40 @@
                     setVisible(navTitle, false);
                     setVisible(navShorts, false);
 
-                    // Show remaining steps
                     setVisible(navScript, true);
                     setVisible(navImage, true);
+                    setVisible(navAudio, true);
                     setVisible(navTts, true);
                     setVisible(navSubtitle, true);
                     setVisible(navRender, true);
 
-                    // 오토파일럿 숨김 (웹툰 모드에선 불필요)
                     setVisible(navAutopilot, false);
 
-                    // Rename Script Gen
                     if (navScript) {
                         navScript.querySelector('span:last-child').innerText = "{{ t('nav_script_webtoon') }}";
                     }
 
                 } else {
-                    // Longform Mode: Show everything (default)
+                    // Longform Mode (default): Show standard production pipeline
                     setVisible(navBlog, false);
                     setVisible(navCommerce, false);
+                    setVisible(navWebtoon, false);
 
                     setVisible(navPlan, true);
                     setVisible(navScript, true);
                     setVisible(navIntro, true);
                     setVisible(navImage, true);
+                    setVisible(navAudio, true);
                     setVisible(navThumbnail, true);
                     setVisible(navTts, true);
                     setVisible(navSubtitle, true);
                     setVisible(navRender, true);
                     setVisible(navTitle, true);
                     setVisible(navShorts, true);
-                    setVisible(navWebtoon, false);
                     setVisible(navTopic, true);
                     setVisible(navRepository, true);
                     setVisible(navUpload, true);
-                    setVisible(navAutopilot, true); // 롱폼에서는 오토파일럿 표시
+                    setVisible(navAutopilot, true);
 
                     if (navScript) {
                         navScript.querySelector('span:last-child').innerText = "{{ t('nav_script') }}";

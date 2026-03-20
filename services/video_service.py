@@ -2144,20 +2144,49 @@ class VideoService:
         # Consistent total height calculation regardless of background
         full_line_height = line_height_font + line_spacing
         
+        # [FIX] 공백 글리프 깨짐 감지 (GmarketSans 등 일부 폰트의 space 문자가 □로 렌더링됨)
+        def _has_broken_space_glyph(fnt):
+            try:
+                mask = fnt.getmask(' ')
+                return any(p != 0 for p in mask)
+            except:
+                return False
+
+        broken_space = _has_broken_space_glyph(font)
+
+        def _draw_line(drw, pos, txt, fnt, fill, sw=0, sf=None):
+            """공백 글리프가 깨진 폰트: 문자 단위로 그리고 공백은 건너뜀"""
+            if not broken_space:
+                if sw > 0 and sf:
+                    drw.text(pos, txt, font=fnt, fill=fill, stroke_width=sw, stroke_fill=sf)
+                else:
+                    drw.text(pos, txt, font=fnt, fill=fill)
+                return
+            x, y = float(pos[0]), float(pos[1])
+            for ch in txt:
+                if ch in (' ', '\u00A0', '\u2009', '\u202F', '\u3000'):
+                    x += drw.textlength(ch, font=fnt)
+                else:
+                    if sw > 0 and sf:
+                        drw.text((x, y), ch, font=fnt, fill=fill, stroke_width=sw, stroke_fill=sf)
+                    else:
+                        drw.text((x, y), ch, font=fnt, fill=fill)
+                    x += drw.textlength(ch, font=fnt)
+
         for idx, line in enumerate(wrapped_lines):
             if not line or not line.strip():
                 current_y += full_line_height
                 continue
-                
+
             # Measure Precise line dimensions
             s_width = int(max(1, round(final_stroke_width))) if final_stroke_width > 0.01 else 0
             l_bbox = draw.textbbox((0, 0), line, font=font, stroke_width=s_width)
             lw = l_bbox[2] - l_bbox[0]
             lh = l_bbox[3] - l_bbox[1]
-            
+
             # Calculate actual line_x to center the text
             line_x = center_x - (lw / 2)
-            
+
             # Draw Background (per line)
             if bg_color:
                 # [SAFETY] Ensure bg_color is always a PIL-compatible tuple
@@ -2185,14 +2214,10 @@ class VideoService:
                     draw.rounded_rectangle([bx0, by0, bx1, by1], radius=10, fill=_bg)
                 except (AttributeError, TypeError):
                     draw.rectangle([bx0, by0, bx1, by1], fill=_bg)
-            
+
             # 2. Draw Text (Always at the same current_y)
-            if s_width > 0:
-                draw.text((line_x, current_y), line, font=font, fill=final_font_color, 
-                          stroke_width=s_width, stroke_fill=stroke_color)
-            else:
-                draw.text((line_x, current_y), line, font=font, fill=final_font_color)
-                
+            _draw_line(draw, (line_x, current_y), line, font, final_font_color, s_width, stroke_color if s_width > 0 else None)
+
             # Next Line
             current_y += full_line_height
 

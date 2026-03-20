@@ -45,6 +45,9 @@
             <button onclick="switchTab('webtoon')" id="tab-webtoon" class="tab-button">
                 🎨 웹툰 설정
             </button>
+            <button onclick="switchTab('video-engine')" id="tab-video-engine" class="tab-button">
+                🎬 영상AI엔진
+            </button>
         </div>
     </div>
 
@@ -53,8 +56,8 @@
         <!-- API Settings Tab -->
         <div id="tab-content-api" class="tab-content active">
             <div class="grid grid-cols-1 xl:grid-cols-12 gap-4">
-                <!-- Left Column: API Keys & Connections (5/12) -->
-                <div class="xl:col-span-5 space-y-4">
+                <!-- Expanded Column for API Keys & Connections -->
+                <div class="xl:col-span-12 space-y-4">
 
                     <!-- API Keys & Connectivity -->
                     <div class="card p-3 shadow-sm border border-gray-200 dark:border-gray-700">
@@ -65,7 +68,7 @@
                                 class="text-[10px] text-blue-500 hover:underline">Console 바로가기 ↗</a>
                         </h3>
 
-                        <div class="space-y-3">
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
                             <!-- YouTube -->
                             <div
                                 class="bg-gray-50 dark:bg-gray-800/50 rounded-md p-2 border border-gray-100 dark:border-gray-700">
@@ -809,45 +812,6 @@
                     </div>
                 </div>
 
-                <!-- [NEW] AI Video Engine Selection -->
-                <div class="card p-4 shadow-sm border border-gray-200 dark:border-gray-700 mt-4">
-                    <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-3 flex items-center gap-2">
-                        <span>🎞️ 영상 생성 AI 엔진 선택</span>
-                        <span
-                            class="text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded border border-purple-200">중요</span>
-                    </h3>
-
-                    <div class="flex gap-4">
-                        <!-- Option A: Replicate -->
-                        <label
-                            class="flex items-start gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer flex-1 transition-colors dark:bg-gray-900">
-                            <input type="radio" name="ws_video_engine" value="wan" class="mt-1" checked>
-                            <div>
-                                <div class="font-bold text-sm text-gray-800 dark:text-gray-200">Replicate (Wan 2.1)
-                                </div>
-                                <div class="text-xs text-gray-500 mt-1 dark:text-gray-400">
-                                    ✅ 검증된 품질, 안정적<br>
-                                    기본 설정입니다. Wan 2.1 모델을 사용하여 웹툰 스타일에 최적화된 모션을 생성합니다.
-                                </div>
-                            </div>
-                        </label>
-
-                        <!-- Option B: Akool -->
-                        <label
-                            class="flex items-start gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer flex-1 transition-colors dark:bg-gray-900">
-                            <input type="radio" name="ws_video_engine" value="akool">
-                            <div>
-                                <div class="font-bold text-sm text-gray-800 dark:text-gray-200">Akool (Alternative)
-                                </div>
-                                <div class="text-xs text-gray-500 mt-1 dark:text-gray-400">
-                                    🔄 대안 엔진<br>
-                                    Replicate가 불안정하거나 크레딧이 부족할 때 사용하세요. Akool의 영상 생성 API를 사용합니다.
-                                </div>
-                            </div>
-                        </label>
-                    </div>
-                </div>
-
                 <!-- [NEW] Webtoon Video Motion Prompts -->
                 <div class="card p-4 shadow-sm border border-gray-200 dark:border-gray-700 mt-4">
                     <div class="flex justify-between items-center mb-3">
@@ -949,6 +913,155 @@
             </div>
         </div>
         <!-- End Webtoon Tab -->
+
+        <!-- Video AI Engine Tab -->
+        <div id="tab-content-video-engine" class="tab-content">
+            <div class="space-y-4">
+
+                <!-- 엔진 선택 -->
+                <div class="card p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+                    <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-3 flex items-center gap-2">
+                        <span>🎞️ 영상 생성 AI 엔진 선택</span>
+                        <span class="text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded border border-purple-200">중요</span>
+                    </h3>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <!-- Wan 2.1 -->
+                        <label class="flex items-start gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors dark:bg-gray-900">
+                            <input type="radio" name="ws_video_engine" value="wan" class="mt-1" checked onchange="onVideoEngineChange()">
+                            <div>
+                                <div class="font-bold text-sm text-gray-800 dark:text-gray-200">Replicate (Wan 2.1)</div>
+                                <div class="text-xs text-gray-500 mt-1 dark:text-gray-400">
+                                    ✅ 검증된 품질, 안정적<br>
+                                    Wan 2.1 모델 기반 동적 카메라 효과
+                                </div>
+                            </div>
+                        </label>
+
+                        <!-- Akool -->
+                        <label class="flex items-start gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors dark:bg-gray-900">
+                            <input type="radio" name="ws_video_engine" value="akool" class="mt-1" onchange="onVideoEngineChange()">
+                            <div>
+                                <div class="font-bold text-sm text-gray-800 dark:text-gray-200">Akool</div>
+                                <div class="text-xs text-gray-500 mt-1 dark:text-gray-400">
+                                    🔄 대안 엔진<br>
+                                    Replicate 불안정 시 사용
+                                </div>
+                            </div>
+                        </label>
+
+                        <!-- Seedance -->
+                        <label class="flex items-start gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors dark:bg-gray-900">
+                            <input type="radio" name="ws_video_engine" value="seedance" class="mt-1" onchange="onVideoEngineChange()">
+                            <div>
+                                <div class="font-bold text-sm text-gray-800 dark:text-gray-200">🌱 Seedance 1.5 Pro</div>
+                                <div class="text-xs text-gray-500 mt-1 dark:text-gray-400">
+                                    💰 저렴한 비용<br>
+                                    Akool API 기반, 크레딧 절감
+                                </div>
+                            </div>
+                        </label>
+
+                        <!-- Google Veo -->
+                        <label class="flex items-start gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors dark:bg-gray-900">
+                            <input type="radio" name="ws_video_engine" value="veo" class="mt-1" onchange="onVideoEngineChange()">
+                            <div>
+                                <div class="font-bold text-sm text-gray-800 dark:text-gray-200">Google Veo</div>
+                                <div class="text-xs text-gray-500 mt-1 dark:text-gray-400">
+                                    🤖 AI 영상 생성<br>
+                                    Gemini API 키로 사용
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Veo 버전 선택 (Veo 선택 시에만 표시) -->
+                <div id="veo-version-panel" class="card p-4 shadow-sm border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 hidden">
+                    <h3 class="font-bold text-sm text-blue-800 dark:text-blue-300 mb-3 flex items-center gap-2">
+                        🤖 Google Veo 버전 선택
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+
+                        <label class="flex items-start gap-2 p-3 rounded-lg border border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40 cursor-pointer transition-colors bg-white dark:bg-gray-900">
+                            <input type="radio" name="veo_model_version" value="veo-2.0-generate-001" class="mt-1" checked>
+                            <div>
+                                <div class="flex items-center gap-1.5 mb-0.5">
+                                    <span class="font-bold text-sm text-gray-800 dark:text-gray-200">Veo 2</span>
+                                    <span class="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">안정</span>
+                                </div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">
+                                    검증된 품질, 안정적 운영<br>
+                                    <code class="text-[10px] bg-gray-100 dark:bg-gray-700 px-1 rounded">veo-2.0-generate-001</code>
+                                </div>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start gap-2 p-3 rounded-lg border border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40 cursor-pointer transition-colors bg-white dark:bg-gray-900">
+                            <input type="radio" name="veo_model_version" value="veo-3.0-generate-001" class="mt-1">
+                            <div>
+                                <div class="flex items-center gap-1.5 mb-0.5">
+                                    <span class="font-bold text-sm text-gray-800 dark:text-gray-200">Veo 3</span>
+                                    <span class="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">최신</span>
+                                </div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">
+                                    향상된 화질과 자연스러운 동작<br>
+                                    <code class="text-[10px] bg-gray-100 dark:bg-gray-700 px-1 rounded">veo-3.0-generate-001</code>
+                                </div>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start gap-2 p-3 rounded-lg border border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40 cursor-pointer transition-colors bg-white dark:bg-gray-900">
+                            <input type="radio" name="veo_model_version" value="veo-3.0-fast-generate-001" class="mt-1">
+                            <div>
+                                <div class="flex items-center gap-1.5 mb-0.5">
+                                    <span class="font-bold text-sm text-gray-800 dark:text-gray-200">Veo 3 Fast</span>
+                                    <span class="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full">빠름</span>
+                                </div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">
+                                    속도 우선, 비용 절감<br>
+                                    <code class="text-[10px] bg-gray-100 dark:bg-gray-700 px-1 rounded">veo-3.0-fast-generate-001</code>
+                                </div>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start gap-2 p-3 rounded-lg border border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40 cursor-pointer transition-colors bg-white dark:bg-gray-900">
+                            <input type="radio" name="veo_model_version" value="veo-3.1-generate-preview" class="mt-1">
+                            <div>
+                                <div class="flex items-center gap-1.5 mb-0.5">
+                                    <span class="font-bold text-sm text-gray-800 dark:text-gray-200">Veo 3.1 Preview</span>
+                                    <span class="text-[10px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">프리뷰</span>
+                                </div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">
+                                    실험적 최신 기능<br>
+                                    <code class="text-[10px] bg-gray-100 dark:bg-gray-700 px-1 rounded">veo-3.1-generate-preview</code>
+                                </div>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start gap-2 p-3 rounded-lg border border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40 cursor-pointer transition-colors bg-white dark:bg-gray-900">
+                            <input type="radio" name="veo_model_version" value="veo-3.1-fast-generate-preview" class="mt-1">
+                            <div>
+                                <div class="flex items-center gap-1.5 mb-0.5">
+                                    <span class="font-bold text-sm text-gray-800 dark:text-gray-200">Veo 3.1 Fast Preview</span>
+                                    <span class="text-[10px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">프리뷰</span>
+                                </div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">
+                                    프리뷰 빠른 버전<br>
+                                    <code class="text-[10px] bg-gray-100 dark:bg-gray-700 px-1 rounded">veo-3.1-fast-generate-preview</code>
+                                </div>
+                            </div>
+                        </label>
+
+                    </div>
+                    <p class="text-xs text-blue-600 dark:text-blue-400 mt-3">
+                        ※ Veo 사용 시 Gemini API 크레딧이 소모됩니다. 씬당 약 30~60초 생성 시간이 소요됩니다.
+                    </p>
+                </div>
+
+            </div>
+        </div>
+        <!-- End Video AI Engine Tab -->
 
     </div>
 </div>
@@ -2479,7 +2592,12 @@
             // [NEW] Video Engine
             const engine = data.video_engine || "wan";
             const radio = document.querySelector(`input[name="ws_video_engine"][value="${engine}"]`);
-            if (radio) radio.checked = true;
+            if (radio) { radio.checked = true; onVideoEngineChange(); }
+
+            // Veo version
+            const veoVer = data.veo_model_version || "veo-2.0-generate-001";
+            const veoRadio = document.querySelector(`input[name="veo_model_version"][value="${veoVer}"]`);
+            if (veoRadio) veoRadio.checked = true;
 
         } catch (e) {
             console.error('웹툰 설정 로드 실패:', e);
@@ -2510,6 +2628,13 @@
     function setCheckbox(id, val) {
         const el = document.getElementById(id);
         if (el) el.checked = !!val;
+    }
+
+    // Video Engine 변경 시 Veo 패널 토글
+    function onVideoEngineChange() {
+        const engine = document.querySelector('input[name="ws_video_engine"]:checked')?.value;
+        const panel = document.getElementById('veo-version-panel');
+        if (panel) panel.classList.toggle('hidden', engine !== 'veo');
     }
 
     // [MODIFIED] saveAllSettings to include Webtoon Prompt
@@ -2637,6 +2762,7 @@
                 webtoon_motion_zoom: safeVal('ws_motion_zoom'),
                 webtoon_motion_action: safeVal('ws_motion_action'),
                 video_engine: document.querySelector('input[name="ws_video_engine"]:checked')?.value || "wan",
+                veo_model_version: document.querySelector('input[name="veo_model_version"]:checked')?.value || "veo-2.0-generate-001",
                 blog_client_id: safeVal('blogClientId'),
                 blog_client_secret: safeVal('blogClientSecret'),
                 blog_id: safeVal('blogId'),

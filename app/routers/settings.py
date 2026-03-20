@@ -27,6 +27,7 @@ class GlobalSettings(BaseModel):
     webtoon_motion_zoom: Optional[str] = None
     webtoon_motion_action: Optional[str] = None
     video_engine: Optional[str] = None # 'wan' or 'akool'
+    veo_model_version: Optional[str] = None
     # [NEW] Blog Settings
     blog_client_id: Optional[str] = None
     blog_client_secret: Optional[str] = None
@@ -56,6 +57,7 @@ async def get_global_settings_api():
         "webtoon_motion_zoom": db.get_global_setting("webtoon_motion_zoom", ""),
         "webtoon_motion_action": db.get_global_setting("webtoon_motion_action", ""),
         "video_engine": db.get_global_setting("video_engine", "wan"),
+        "veo_model_version": db.get_global_setting("veo_model_version", "veo-2.0-generate-001"),
         # [NEW] Blog
         "blog_client_id": db.get_global_setting("blog_client_id", ""),
         "blog_client_secret": db.get_global_setting("blog_client_secret", ""),
@@ -97,6 +99,7 @@ async def get_global_settings_api():
     merged["webtoon_motion_zoom"] = global_conf["webtoon_motion_zoom"]
     merged["webtoon_motion_action"] = global_conf["webtoon_motion_action"]
     merged["video_engine"] = global_conf["video_engine"]
+    merged["veo_model_version"] = global_conf["veo_model_version"]
     merged["blog_client_id"] = global_conf["blog_client_id"]
     merged["blog_client_secret"] = global_conf["blog_client_secret"]
     merged["blog_id"] = global_conf["blog_id"]
@@ -143,6 +146,8 @@ async def save_global_settings_api(settings: GlobalSettings):
         db.save_global_setting("webtoon_motion_action", settings.webtoon_motion_action)
     if settings.video_engine is not None:
         db.save_global_setting("video_engine", settings.video_engine)
+    if settings.veo_model_version is not None:
+        db.save_global_setting("veo_model_version", settings.veo_model_version)
     if settings.blog_client_id is not None:
         db.save_global_setting("blog_client_id", settings.blog_client_id)
     if settings.blog_client_secret is not None:

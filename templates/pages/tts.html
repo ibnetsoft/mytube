@@ -19,8 +19,8 @@
             <span class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('label_service') }}</span>
             <select id="providerSelect"
                 class="text-xs border-gray-300 dark:border-gray-600 rounded-md py-1 px-2 focus:ring-primary focus:border-primary bg-gray-50 dark:bg-gray-700 dark:text-white">
-                <option value="gemini">Gemini (무료)</option>
-                <option value="openai">OpenAI (유료)</option>
+                <option value="gemini">Gemini ({{ t('label_free') }})</option>
+                <option value="openai">OpenAI ({{ t('label_paid') }})</option>
                 <option value="elevenlabs" selected>ElevenLabs</option>
                 <option value="google_cloud">Google Cloud</option>
             </select>
@@ -151,7 +151,7 @@
                 <h3 class="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
                     {{ t('script_input_title') }}
                     <span class="font-normal text-gray-400">|</span>
-                    <span class="font-normal text-gray-500 dark:text-gray-400"><span id="charCount">0</span>자</span>
+                    <span class="font-normal text-gray-500 dark:text-gray-400"><span id="charCount">0</span>{{ t('chars_unit') }}</span>
                 </h3>
                 <button onclick="loadScript()"
                     class="text-xs text-gray-500 hover:text-primary flex items-center gap-1 transition-colors dark:text-gray-400">
@@ -367,9 +367,9 @@
         const statusText = document.getElementById('apiStatusText');
 
         let msg = '';
-        if (health.apis?.elevenlabs) msg += '<span class="text-green-600">✅ EL </span>';
-        if (health.apis?.openai) msg += '<span class="text-green-600">✅ OA </span>';
-        if (!msg) msg = '<span class="text-blue-600">✨ Gemini</span>';
+        if (health.apis?.elevenlabs) msg += `<span class="text-green-600">✅ EL </span>`;
+        if (health.apis?.openai) msg += `<span class="text-green-600">✅ OA </span>`;
+        if (!msg) msg = `<span class="text-blue-600">✨ Gemini</span>`;
 
         statusText.innerHTML = msg;
         // handleProviderChange(); // [MOD] Removed to avoid redundant calls, will be handled by restoreTTSSettings or default
@@ -402,13 +402,13 @@
 
             const result = await API.project.saveSettings(projectId, settings);
             if (result.status === 'ok') {
-                Utils.showToast(`{{ t('toast_tts_settings_saved') }}`, "success");
+                Utils.showToast(`${i18n.toast_tts_settings_saved}`, "success");
             } else {
                 throw new Error(result.error || "Save failed");
             }
         } catch (e) {
             console.error(e);
-            Utils.showToast("설정 저장 실패: " + e.message, "error");
+            Utils.showToast(`${i18n.toast_save_settings_fail}: ` + e.message, "error");
         } finally {
             if (btn) {
                 btn.disabled = false;
@@ -535,17 +535,17 @@
                 voices = browserVoices.map(v => ({ id: v.name, name: v.name }));
             } else if (provider === 'google_cloud') {
                 voices = [
-                    { id: 'ko-KR-Neural2-A', name: 'G-Neural2 A(여)' },
-                    { id: 'ko-KR-Neural2-C', name: 'G-Neural2 C(남)' },
-                    { id: 'ko-KR-Standard-A', name: 'G-Std A(여)' }
+                    { id: 'ko-KR-Neural2-A', name: `${i18n.label_voice_kor} Neural2 A(${i18n.label_female})` },
+                    { id: 'ko-KR-Neural2-C', name: `${i18n.label_voice_kor} Neural2 C(${i18n.label_male})` },
+                    { id: 'ko-KR-Standard-A', name: `${i18n.label_voice_kor} Std A(${i18n.label_female})` }
                 ]; // Simplified for now, or full list
             } else if (provider === 'gemini') {
                 voices = [
-                    { id: 'Puck', name: 'Puck (남/중)' },
-                    { id: 'Charon', name: 'Charon (남/저)' },
-                    { id: 'Kore', name: 'Kore (여/부드)' },
-                    { id: 'Fenrir', name: 'Fenrir (남/거침)' },
-                    { id: 'Aoede', name: 'Aoede (여/높)' }
+                    { id: 'Puck', name: `Puck (${i18n.label_male}/${i18n.label_mid})` },
+                    { id: 'Charon', name: `Charon (${i18n.label_male}/${i18n.label_low})` },
+                    { id: 'Kore', name: `Kore (${i18n.label_female}/${i18n.label_soft})` },
+                    { id: 'Fenrir', name: `Fenrir (${i18n.label_male}/${i18n.label_rough})` },
+                    { id: 'Aoede', name: `Aoede (${i18n.label_female}/${i18n.label_high})` }
                 ];
             } else if (provider === 'openai') {
                 voices = [
@@ -771,11 +771,11 @@
                 if (window.updateStepStatus) window.updateStepStatus('tts', true);
 
             } else {
-                Utils.showToast('업로드 실패: ' + (result.error || 'Unknown'), 'error');
+                Utils.showToast("{{ t('status_fail') }}: " + (result.error || 'Unknown'), 'error');
             }
         } catch (e) {
             console.error(e);
-            Utils.showToast('업로드 중 오류 발생', 'error');
+            Utils.showToast("{{ t('status_error') }}", 'error');
         } finally {
             input.value = ''; // Reset
         }

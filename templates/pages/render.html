@@ -228,7 +228,7 @@
         document.getElementById('renderBtn').innerHTML = `<span class="animate-spin">⏳</span> {{ t('status_loading') }}`;
 
         const log = document.getElementById('renderLogContent');
-        log.innerHTML += `\n[${new Date().toLocaleTimeString()}] Rendering Started...`;
+        log.innerHTML += `\n[${new Date().toLocaleTimeString()}] {{ t('log_render_started') }}...`;
 
         // Start Timer
         let sec = 0;
@@ -274,7 +274,7 @@
         isPolling = false;
         clearInterval(window.renderTimer);
         document.getElementById('renderProgressBar').style.width = '100%';
-        document.getElementById('renderLogContent').innerHTML += `\n[DONE] Video Created Successfully!`;
+        document.getElementById('renderLogContent').innerHTML += `\n[DONE] {{ t('log_render_success') }}!`;
 
         const btn = document.getElementById('renderBtn');
         btn.disabled = false;
@@ -294,7 +294,7 @@
         isPolling = false;
         clearInterval(window.renderTimer);
         document.getElementById('renderProgressBar').style.backgroundColor = 'red';
-        document.getElementById('renderLogContent').innerHTML += `\n[ERROR] Rendering Failed. Call support.`;
+        document.getElementById('renderLogContent').innerHTML += `\n[ERROR] {{ t('log_render_fail') }}.`;
         const btn = document.getElementById('renderBtn');
         btn.disabled = false;
         btn.innerHTML = `<span>⚠️ {{ t('btn_retry_video') }}</span>`;
@@ -351,7 +351,7 @@
     }
 
     async function deleteIntroVideo() {
-        if (!confirm('삭제하시겠습니까?')) return;
+        if (!confirm("{{ t('confirm_delete') }}")) return;
         const projectId = getCurrentProject();
         await fetch(`/api/video/delete-intro/${projectId}`, { method: 'DELETE' });
         document.getElementById('introPreview').classList.add('hidden');

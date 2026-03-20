@@ -12,13 +12,13 @@
             </h2>
             <div class="flex items-center gap-2 mt-2">
                 <p class="text-gray-500 dark:text-gray-400 text-sm">
-                    웹툰 이미지를 분석하여 세로형 쇼츠 영상으로 자동 변환합니다.
+                    {{ t('webtoon_desc') }}
                 </p>
                 <!-- [NEW] Sync Status Indicator -->
                 <div id="sync-status"
                     class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[10px] font-bold text-gray-400 opacity-60 transition-all">
                     <span id="sync-icon" class="w-1.5 h-1.5 rounded-full bg-gray-300"></span>
-                    <span id="sync-text">READY</span>
+                    <span id="sync-text">${i18n.status_ready}</span>
                 </div>
             </div>
         </div>
@@ -31,7 +31,7 @@
                     class="tab-btn active px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 text-purple-700 bg-purple-50">
                     <span
                         class="w-5 h-5 rounded-lg bg-purple-600 text-white flex items-center justify-center text-[10px] shadow-sm shadow-purple-500/30">1</span>
-                    설정 및 업로드
+                    {{ t('tab_setup_upload') }}
                 </button>
 
                 <div class="w-4 h-px bg-gray-100 dark:bg-gray-700 mx-1"></div>
@@ -40,14 +40,14 @@
                     class="tab-btn text-gray-400 px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 dark:bg-gray-900">
                     <span
                         class="w-5 h-5 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-400 flex items-center justify-center text-[10px]">2</span>
-                    분석 및 분류
+                    {{ t('tab_analysis_classification') }}
                 </button>
 
                 <button id="tab-btn-produce" onclick="switchWebtoonTab('produce')"
                     class="tab-btn text-gray-400 px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 dark:bg-gray-900">
                     <span
                         class="w-5 h-5 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-400 flex items-center justify-center text-[10px]">3</span>
-                    최종 제작
+                    {{ t('tab_final_produce') }}
                 </button>
             </div>
         </div>
@@ -69,10 +69,7 @@
                             <div
                                 class="card bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 p-0 overflow-hidden relative min-h-[400px]">
                                 <div class="p-6 flex flex-col h-full justify-center">
-                                    <h3 class="font-bold text-gray-800 dark:text-white mb-6 text-center text-xl">웹툰 소스
-                                        불러오기
-                                        (로컬 폴더)
-                                    </h3>
+                                    <h3 class="font-bold text-gray-800 dark:text-white mb-6 text-center text-xl">{{ t('load_webtoon_source_title') }}</h3>
 
                                     <!-- Directory Input Area -->
                                     <div class="w-full max-w-2xl mx-auto space-y-4">
@@ -92,18 +89,18 @@
                                                     class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                                                     <span class="text-gray-400 text-lg">✂️</span>
                                                 </div>
-                                                <input type="text" id="psd-layer-input" value="식자"
-                                                    placeholder="제외할 레이어 (예: 식자, 대사)"
+                                                <input type="text" id="psd-layer-input" value="{{ t('default_psd_layer_name') }}"
+                                                    placeholder="{{ t('placeholder_exclude_layers') }}"
                                                     class="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:border-purple-500 outline-none transition-all text-gray-700 dark:text-gray-200">
                                                 <div
                                                     class="absolute -top-6 left-0 text-[10px] font-bold text-blue-500 uppercase tracking-wider">
-                                                    PSD 전용: 클린본 추출 레이어 명칭</div>
+                                                    {{ t('psd_layer_helper') }}</div>
                                             </div>
                                         </div>
 
                                         <button onclick="scanDirectory()"
                                             class="w-full btn-primary py-3 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 shadow-lg shadow-purple-500/20 font-bold text-white hover:scale-[1.02] transition-transform">
-                                            🔍 폴더 스캔 및 파일 불러오기
+                                            🔍 {{ t('btn_scan_folder') }}
                                         </button>
                                     </div>
 
@@ -111,8 +108,8 @@
                                     <div id="scanned-files-container" class="hidden mt-8 w-full max-w-2xl mx-auto">
                                         <h4
                                             class="font-bold text-gray-700 dark:text-gray-300 mb-3 flex justify-between items-center">
-                                            <span>발견된 파일 <span id="file-count" class="text-purple-500">0</span>개</span>
-                                            <span class="text-xs text-gray-400 font-normal">파일명 순으로 자동 정렬됩니다</span>
+                                            <span>{{ t('label_found_files') }} <span id="file-count" class="text-purple-500">0</span>{{ t('items_unit') }}</span>
+                                            <span class="text-xs text-gray-400 font-normal">{{ t('helper_auto_sort') }}</span>
                                         </h4>
 
                                         <div id="file-list"
@@ -127,7 +124,7 @@
                                         <button onclick="startAnalysisFromDir()"
                                             class="w-full max-w-md btn-primary py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/20 font-black text-white hover:scale-105 transition-transform flex items-center justify-center gap-2">
                                             <span>✨</span>
-                                            <span>AI 시각 엔진 분석 및 컷 분할 (Full Auto)</span>
+                                            <span>AI {{ t('btn_ai_vision_analysis') }}</span>
                                         </button>
 
                                         <div class="relative w-full max-w-md my-2">
@@ -135,14 +132,14 @@
                                                 <div class="w-full border-t border-gray-200 dark:border-gray-700"></div>
                                             </div>
                                             <div class="relative flex justify-center"><span
-                                                    class="bg-white dark:bg-gray-800 px-4 text-xs font-bold text-gray-400">또는
-                                                    수동 추출 (비권장)</span></div>
+                                                    class="bg-white dark:bg-gray-800 px-4 text-xs font-bold text-gray-400">{{ t('or_label') }}
+                                                    {{ t('btn_manual_extract') }}</span></div>
                                         </div>
 
                                         <button onclick="startExtractCuts()"
                                             class="w-full max-w-md btn-secondary py-3 rounded-xl border-2 border-purple-500 text-purple-600 dark:text-purple-400 font-bold hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all flex justify-center items-center gap-2">
                                             <span>✂️</span>
-                                            <span>PNG 컷 이미지만 우선 추출하기</span>
+                                            <span>{{ t('btn_extract_png_only') }}</span>
                                         </button>
                                     </div>
                                 </div>
@@ -156,8 +153,7 @@
                                             class="bg-purple-600 h-full w-0 transition-all duration-300">
                                         </div>
                                     </div>
-                                    <p id="progress-text" class="text-sm font-bold text-gray-800 dark:text-white">업로드
-                                        중...
+                                    <p id="progress-text" class="text-sm font-bold text-gray-800 dark:text-white">{{ t('status_uploading') }}
                                         (0%)</p>
                                 </div>
                             </div>
@@ -168,28 +164,28 @@
                             <div
                                 class="card bg-gradient-to-br from-indigo-600 to-purple-700 text-white border-0 shadow-lg p-6">
                                 <h4 class="font-bold text-lg mb-4 flex items-center gap-2">
-                                    <span>💡</span> 제작 가이드
+                                    <span>💡</span> {{ t('guide_title') }}
                                 </h4>
                                 <ul class="space-y-4 text-sm opacity-90">
                                     <li class="flex gap-3">
                                         <span class="font-black text-purple-200">01</span>
-                                        <span>웹툰 스크립트 이미지(PSD 등)를 준비합니다.</span>
+                                        <span>{{ t('guide_step_1') }}</span>
                                     </li>
                                     <li class="flex gap-3">
                                         <span class="font-black text-purple-200">02</span>
-                                        <span>AI가 장면과 대사를 자동으로 분석합니다.</span>
+                                        <span>{{ t('guide_step_2') }}</span>
                                     </li>
                                     <li class="flex gap-3">
                                         <span class="font-black text-purple-200">03</span>
-                                        <span>TTS와 모션 효과를 입혀 영상을 완성합니다.</span>
+                                        <span>{{ t('guide_step_3') }}</span>
                                     </li>
                                 </ul>
                             </div>
 
                             <div class="card bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 p-6">
-                                <h4 class="font-bold text-gray-800 dark:text-white mb-3">최근 작업 이력</h4>
+                                <h4 class="font-bold text-gray-800 dark:text-white mb-3">{{ t('recent_history_title') }}</h4>
                                 <div id="recent-list" class="space-y-3">
-                                    <p class="text-xs text-gray-400 py-8 text-center">최근 작업한 웹툰이 없습니다.</p>
+                                    <p class="text-xs text-gray-400 py-8 text-center">{{ t('no_recent_history') }}</p>
                                 </div>
                             </div>
                         </div>
@@ -200,7 +196,7 @@
                         class="mt-12 p-8 bg-gray-50 dark:bg-gray-900/50 rounded-3xl border-2 border-dashed border-gray-200 dark:border-gray-700">
                         <div class="flex items-center gap-3 mb-6">
                             <span class="text-2xl">📐</span>
-                            <h4 class="text-xl font-black text-gray-800 dark:text-white">웹툰 자동 Crop 및 분할 원칙 (AI 엔진)</h4>
+                            <h4 class="text-xl font-black text-gray-800 dark:text-white">{{ t('crop_principles_title') }}</h4>
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -211,11 +207,10 @@
                                     class="text-purple-600 dark:text-purple-400 font-bold mb-2 flex items-center gap-2">
                                     <span
                                         class="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-xs">1</span>
-                                    사다리꼴 및 비정형 처리
+                                    {{ t('crop_principle_1_title') }}
                                 </div>
                                 <p class="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-                                    기하학적 왜곡이 있는 컷이나 사다리꼴 형태의 연출도 AI가 외곽선을 추적하여,
-                                    그림의 가장 바깥쪽 경계를 기준으로 <strong>단 1px의 잘림 없이 온전하게 추출</strong>합니다.
+                                    {{ t('crop_principle_1_desc') | safe }}
                                 </p>
                             </div>
 
@@ -225,11 +220,10 @@
                                 <div class="text-blue-600 dark:text-blue-400 font-bold mb-2 flex items-center gap-2">
                                     <span
                                         class="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-xs">2</span>
-                                    화이트/블랙 여백 제로화
+                                    {{ t('crop_principle_2_title') }}
                                 </div>
                                 <p class="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-                                    컷 주변의 불필요한 흰색/검은색 여백을 0.1px 단위로 정밀하게 도려냅니다.
-                                    <strong>그림 내용만 꽉 차게 추출</strong>하여 영상화 시 몰입감을 극대화합니다.
+                                    {{ t('crop_principle_2_desc') | safe }}
                                 </p>
                             </div>
 
@@ -240,11 +234,10 @@
                                     class="text-emerald-600 dark:text-emerald-400 font-bold mb-2 flex items-center gap-2">
                                     <span
                                         class="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-xs">3</span>
-                                    중복 이미지 자동 제거
+                                    {{ t('crop_principle_3_title') }}
                                 </div>
                                 <p class="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-                                    동일한 장면이 중복 추출되는 현상을 방지하기 위해
-                                    <strong>시각적 해시(Vision Hash) 비교</strong>를 거쳐 내용이 같은 컷은 자동으로 하나만 남기고 제거합니다.
+                                    {{ t('crop_principle_3_desc') | safe }}
                                 </p>
                             </div>
 
@@ -255,11 +248,10 @@
                                     class="text-orange-600 dark:text-orange-400 font-bold mb-2 flex items-center gap-2">
                                     <span
                                         class="w-6 h-6 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-xs">4</span>
-                                    가로형 컷 전체 보존 (L-Box)
+                                    {{ t('crop_principle_4_title') }}
                                 </div>
                                 <p class="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-                                    가로로 긴 영화적 연출 컷은 크롭하지 않고 온전하게 추출하되,
-                                    숏폼 비율(9:16) 규격에 맞춰 <strong>레터박스를 적용하여 전체 내용을 보존</strong>합니다.
+                                    {{ t('crop_principle_4_desc') | safe }}
                                 </p>
                             </div>
 
@@ -269,11 +261,10 @@
                                 <div class="text-pink-600 dark:text-pink-400 font-bold mb-2 flex items-center gap-2">
                                     <span
                                         class="w-6 h-6 rounded-full bg-pink-100 dark:bg-pink-900/30 flex items-center justify-center text-xs">5</span>
-                                    개별 컷 독립 분할 원칙
+                                    {{ t('crop_principle_5_title') }}
                                 </div>
                                 <p class="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-                                    장면 병합 로직을 배제하고, 웹툰의 모든 의미 있는 컷은
-                                    <strong>독립된 하나의 장면으로 분할</strong>하여 정확한 TTS 매칭과 모션 제어를 보장합니다.
+                                    {{ t('crop_principle_5_desc') | safe }}
                                 </p>
                             </div>
 
@@ -284,11 +275,10 @@
                                     class="text-indigo-600 dark:text-indigo-400 font-bold mb-2 flex items-center gap-2">
                                     <span
                                         class="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-xs">6</span>
-                                    측면(Side) 여백 완벽 제거
+                                    {{ t('crop_principle_6_title') }}
                                 </div>
                                 <p class="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-                                    상하뿐만 아니라 <strong>좌우측에 남은 편중된 여백</strong>도 시각적으로 분석하여 제거합니다.
-                                    일러스트가 한쪽으로 쏠리지 않도록 비정상적인 측면 공간을 스캔하여 배제합니다.
+                                    {{ t('crop_principle_6_desc') | safe }}
                                 </p>
                             </div>
                         </div>
@@ -305,9 +295,9 @@
                     <div
                         class="w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-6">
                     </div>
-                    <h3 class="text-2xl font-black text-gray-800 dark:text-white mb-2">AI 시각 분석 엔진 가동 중...</h3>
+                    <h3 class="text-2xl font-black text-gray-800 dark:text-white mb-2">{{ t('status_ai_vision_running') }}</h3>
                     <p id="analysis-status-text" class="text-gray-500 dark:text-gray-400 text-sm max-w-md text-center">
-                        웹툰의 이미지를 스캔하여 장면을 분할하고 말풍선 대사를 추출하고 있습니다.
+                        {{ t('ai_vision_running_desc') }}
                     </p>
                 </div>
 
@@ -316,30 +306,30 @@
                     <div
                         class="flex items-center justify-between bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-purple-100 dark:border-purple-900/30">
                         <div class="flex flex-col">
-                            <h3 class="text-xl font-black text-gray-800 dark:text-white">분석 완료: 총 <span id="scene-count"
-                                    class="text-purple-500">0</span>개 장면</h3>
-                            <p class="text-sm text-gray-400 mt-1">장면을 검토하고 제작 기획서를 생성하세요.</p>
+                            <h3 class="text-xl font-black text-gray-800 dark:text-white">{{ t('status_analysis_done') }}: {{ t('total_label') }} <span id="scene-count"
+                                    class="text-purple-500">0</span>{{ t('items_unit') }}</h3>
+                            <p class="text-sm text-gray-400 mt-1">{{ t('analysis_done_desc') }}</p>
                         </div>
                         <div class="flex gap-3">
                             <button onclick="resetAnalysis()"
                                 class="btn-secondary px-4 py-2 rounded-xl text-sm font-bold border border-gray-200 dark:border-gray-700">🔄
-                                다시 하기</button>
+                                {{ t('btn_retry') }}</button>
                             <!-- [NEW] Image Classification Button -->
                             <button id="classify-btn" onclick="classifyScenes()"
                                 class="px-6 py-2 rounded-xl bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 border-2 border-purple-300 dark:border-purple-700 shadow-lg shadow-purple-500/10 font-bold flex items-center gap-2 hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-all">
-                                ✨ 이미지 유형 자동 분류
+                                ✨ {{ t('btn_auto_classify_type') }}
                             </button>
                             <button id="plan-btn" onclick="generatePlan()"
                                 class="px-6 py-2 rounded-xl bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 border-2 border-indigo-600 dark:border-indigo-400 shadow-lg shadow-indigo-500/10 font-bold flex items-center gap-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all">
-                                📋 컷별 꼼꼼 AI 제작 기획 완성하기
+                                📋 {{ t('btn_gen_detailed_plan') }}
                             </button>
                             <button id="direct-produce-btn" onclick="startAutomation()"
                                 class="hidden px-6 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xl shadow-blue-500/20 font-black flex items-center gap-2 hover:scale-105 active:scale-95 transition-all animate-bounce-subtle">
-                                🚀 즉시 영상 제작 시작
+                                🚀 {{ t('btn_start_immediate_production') }}
                             </button>
                             <button onclick="switchWebtoonTab('produce')"
                                 class="btn-primary px-6 py-2 rounded-xl text-sm font-bold">
-                                다음 (최종제작) 👉
+                                {{ t('btn_next_produce') }} 👉
                             </button>
                         </div>
                     </div>
@@ -355,8 +345,7 @@
                 <div class="flex items-center gap-3 mb-3">
                     <span class="text-2xl">🧠</span>
                     <div>
-                        <h4 class="text-base font-black text-indigo-900 dark:text-indigo-300">AI 장면 상황 및 연출 요약 (Story
-                            Overview)</h4>
+                        <h4 class="text-base font-black text-indigo-900 dark:text-indigo-300">{{ t('ai_narrative_summary_title') }}</h4>
                         <p class="text-[10px] text-indigo-400 font-bold uppercase tracking-widest">AI Content
                             Understanding & Narrative Analysis</p>
                     </div>
@@ -378,16 +367,16 @@
                 <div class="flex items-center justify-between mb-4">
                     <div class="flex items-center gap-2">
                         <span class="text-xl">👥</span>
-                        <h4 class="text-lg font-black text-gray-800 dark:text-white">프로젝트 등장인물 일괄 관리</h4>
+                        <h4 class="text-lg font-black text-gray-800 dark:text-white">{{ t('character_manager_title') }}</h4>
                     </div>
                     <button onclick="addNewCharacterPrompt()"
                         class="text-xs font-bold text-purple-500 hover:text-purple-600 px-3 py-1 rounded-lg border border-purple-500/20 hover:bg-purple-500/5 transition-all">
-                        ➕ 새 캐릭터 추가
+                        ➕ {{ t('btn_add_character') }}
                     </button>
                 </div>
                 <div id="global-character-list" class="flex flex-wrap gap-2">
                     <!-- Discovered characters populated by JS -->
-                    <div class="text-sm text-gray-400 py-2">분석 완료 후 캐릭터 목록이 표시됩니다.</div>
+                    <div class="text-sm text-gray-400 py-2">{{ t('status_waiting_analysis_chars') }}</div>
                 </div>
             </div>
 
@@ -403,7 +392,7 @@
                             🔍
                         </div>
                         <div>
-                            <h4 class="text-xl font-black text-gray-800 dark:text-white">PSD 레이어 정밀 분석 리포트</h4>
+                            <h4 class="text-xl font-black text-gray-800 dark:text-white">{{ t('psd_layer_report_title') }}</h4>
                             <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">PSD
                                 Layer Inspection & Debugging Information</p>
                         </div>
@@ -423,8 +412,8 @@
                     <div id="layer-trace-area" class="hidden">
                         <div class="flex items-center gap-2 mb-4">
                             <span class="text-lg">🚫</span>
-                            <h5 class="text-xs font-black text-blue-600 uppercase tracking-widest">자동 필터링 및 제외된
-                                레이어</h5>
+                            <h5 class="text-xs font-black text-gray-500 uppercase tracking-widest dark:text-gray-400">
+                                {{ t('filtered_layers_title') }}</h5>
                         </div>
                         <div id="trace-layer-list"
                             class="flex flex-wrap gap-2 p-6 bg-blue-50/50 dark:bg-blue-900/10 rounded-2xl border border-blue-100 dark:border-blue-800/30">
@@ -436,12 +425,11 @@
                         <div class="flex items-center gap-2 mb-4">
                             <span class="text-lg">📄</span>
                             <h5 class="text-xs font-black text-gray-500 uppercase tracking-widest dark:text-gray-400">
-                                파일별 레이어 구조 및
-                                엔진 분석 상태</h5>
+                                {{ t('layer_structure_status_title') }}</h5>
                         </div>
                         <div id="all-layers-area" class="space-y-6 max-h-[600px] overflow-y-auto custom-scrollbar pr-2">
                             <!-- Populated by JS -->
-                            <div class="text-center py-12 text-gray-400 italic">레이어 정보를 불러오는 중입니다...</div>
+                            <div class="text-center py-12 text-gray-400 italic">{{ t('status_loading_layer_info') }}</div>
                         </div>
                     </div>
                 </div>
@@ -457,7 +445,7 @@
 <div id="tab-produce" class="tab-content hidden space-y-8">
     <!-- Production Settings & Start -->
     <div id="production-settings-area" class="card bg-white dark:bg-gray-800 p-8">
-        <h3 class="text-xl font-black text-gray-800 dark:text-white mb-6">최종 제작 설정</h3>
+        <h3 class="text-xl font-black text-gray-800 dark:text-white mb-6">{{ t('final_production_settings_title') }}</h3>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
             <!-- Option 1: Lip Sync -->
             <div
@@ -465,12 +453,11 @@
                 <label class="relative inline-flex items-center cursor-pointer group w-full justify-between">
                     <span class="text-sm font-bold text-gray-700 dark:text-gray-300 flex flex-col">
                         <span class="flex items-center gap-2">
-                            🎭 AI 립싱크 활성화
+                            🎭 {{ t('label_use_lipsync') }}
                             <span
                                 class="text-[10px] bg-purple-100 text-purple-600 px-2 py-0.5 rounded-md">PREMIUM</span>
                         </span>
-                        <span class="text-xs text-gray-400 font-normal mt-1">캐릭터 입모양을 대사에 맞춰
-                            애니메이션화합니다.</span>
+                        <span class="text-xs text-gray-400 font-normal mt-1">{{ t('lipsync_desc') }}</span>
                     </span>
                     <input type="checkbox" id="use-lipsync" class="sr-only peer" checked>
                     <div
@@ -483,9 +470,8 @@
             <div class="bg-blue-50 dark:bg-blue-900/10 p-4 rounded-xl border border-blue-100 dark:border-blue-800/30">
                 <label class="relative inline-flex items-center cursor-pointer group w-full justify-between">
                     <span class="text-sm font-bold text-gray-700 dark:text-gray-300 flex flex-col">
-                        <span class="flex items-center gap-2">📝 자막 생성 포함</span>
-                        <span class="text-xs text-gray-400 font-normal mt-1">대사에 맞는 자막을 영상에
-                            자동으로 입힙니다.</span>
+                        <span class="flex items-center gap-2">📝 {{ t('label_use_subtitles') }}</span>
+                        <span class="text-xs text-gray-400 font-normal mt-1">{{ t('subtitles_production_desc') }}</span>
                     </span>
                     <input type="checkbox" id="use-subtitles" class="sr-only peer" checked>
                     <div
@@ -497,15 +483,13 @@
 
         <div class="flex flex-col items-center justify-center gap-4">
             <div class="flex items-center gap-2">
-                <label for="automation-scene-range" class="text-sm font-bold text-gray-600 dark:text-gray-300">영상 생성
-                    범위:</label>
-                <input type="text" id="automation-scene-range" value="ALL" placeholder="ALL 또는 1-3"
-                    class="w-32 px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-bold text-center text-purple-600 dark:text-purple-400 outline-none uppercase tracking-wider title='ALL을 입력하면 전체 씬, 1-3을 입력하면 1~3번 씬만 영상 생성합니다'">
+                <label for="automation-scene-range" class="text-sm font-bold text-gray-600 dark:text-gray-300">{{ t('label_production_range') }}:</label>
+                <input type="text" id="automation-scene-range" value="ALL" placeholder="{{ t('placeholder_range_all_example') }}"
+                    class="w-32 px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-bold text-center text-purple-600 dark:text-purple-400 outline-none uppercase tracking-wider title='{{ t('tooltip_range_desc') }}'">
             </div>
             <button id="step-3-start-btn" onclick="startAutomation()"
                 class="px-12 py-4 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 shadow-xl shadow-purple-500/30 font-black text-xl text-white hover:scale-105 transition-transform flex items-center gap-3">
-                <span>🎬</span>
-                <span>오토파일럿 제작 시작 (Start Automation)</span>
+                <span>🎬 {{ t('btn_start_automation') }}</span>
             </button>
         </div>
     </div>
@@ -515,14 +499,12 @@
             <div
                 class="w-24 h-24 bg-green-100 dark:bg-green-900/30 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6 text-5xl">
                 ✅</div>
-            <h3 id="step-3-title" class="text-3xl font-black text-gray-800 dark:text-white mb-4">제작 대기열에
-                추가되었습니다!</h3>
+            <h3 id="step-3-title" class="text-3xl font-black text-gray-800 dark:text-white mb-4">{{ t('status_added_to_queue') }}</h3>
 
             <!-- [NEW] Real-time Progress Section -->
             <div id="automation-progress-container" class="mt-8 mb-10 max-w-md mx-auto">
                 <div class="flex justify-between items-center mb-3">
-                    <span id="automation-status-text" class="text-sm font-bold text-gray-400">오토파일럿 워커 대기
-                        중...</span>
+                    <span id="automation-status-text" class="text-sm font-bold text-gray-400">{{ t('status_waiting_worker') }}</span>
                     <span id="automation-percent" class="text-sm font-black text-purple-500">0%</span>
                 </div>
                 <div class="w-full bg-gray-100 dark:bg-gray-700 h-3 rounded-full overflow-hidden shadow-inner">
@@ -532,21 +514,16 @@
                 </div>
                 <div id="automation-logs"
                     class="mt-6 text-[10px] text-gray-400 font-mono text-left bg-gray-50 dark:bg-gray-900/40 p-4 rounded-2xl h-40 overflow-y-auto custom-scrollbar border border-gray-100 dark:border-gray-800 shadow-sm">
-                    <div class="text-blue-500 font-bold opacity-50">> 시스템 연결 대기 중...</div>
+                    <div class="text-blue-500 font-bold opacity-50">> {{ t('status_waiting_system_connect') }}</div>
                 </div>
             </div>
 
-            <p id="step-3-desc" class="text-gray-500 dark:text-gray-400 mb-8 max-w-lg mx-auto">
-                모든 장면에 대한 대본, TTS, 모션 설정이 완료되었습니다. <br>
-                브라우저를 닫으셔도 서버에서 제작이 계속 진행됩니다.
-            </p>
+                {{ t('automation_added_desc') | safe }}
 
             <div class="flex justify-center gap-4">
-                <a href="/projects" class="btn-primary px-8 py-3 rounded-xl bg-blue-600 font-bold text-white">내
-                    프로젝트 바로가기</a>
+                <a href="/projects" class="btn-primary px-8 py-3 rounded-xl bg-blue-600 font-bold text-white">{{ t('btn_go_my_projects') }}</a>
                 <button onclick="location.reload()"
-                    class="btn-secondary px-8 py-3 rounded-xl border border-gray-200 dark:border-gray-700 font-bold hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 dark:bg-gray-900">새
-                    작업 시작</button>
+                    class="btn-secondary px-8 py-3 rounded-xl border border-gray-200 dark:border-gray-700 font-bold hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 dark:bg-gray-900">{{ t('btn_new_job') }}</button>
             </div>
         </div>
     </div>
@@ -559,7 +536,7 @@
         <div
             class="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900">
             <h3 class="font-bold text-lg flex items-center gap-2">
-                <span>✨</span> 9:16 최적화 결과
+                <span>✨</span> {{ t('optimization_result_title') }}
             </h3>
             <button onclick="closeOptModal()"
                 class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 dark:text-gray-300">
@@ -580,10 +557,10 @@
             <div class="flex justify-end gap-3">
                 <a id="download-opt-btn" href="#" download="optimized_image.png"
                     class="btn-secondary px-4 py-2 rounded-lg text-sm">
-                    💾 이미지 저장
+                    💾 {{ t('btn_save_image') }}
                 </a>
                 <button onclick="closeOptModal()" class="btn-primary px-6 py-2 rounded-lg text-sm">
-                    닫기
+                    {{ t('btn_close') }}
                 </button>
             </div>
         </div>
@@ -595,14 +572,14 @@
 <script>
     let currentFile = null;
     let selectedProjectId = null;
-    let discoveredCharacters = new Set(['주인공', '나레이션']); // Default
+    let discoveredCharacters = new Set([i18n.label_protagonist, i18n.label_narration]); // Default
     let analyzedScenes = [];
     let currentProductionPlan = null; // [NEW] Added for persistence tracking
 
     // Image Optimization Logic
     async function optimizeImage(filePath, btn) {
         const originalHtml = btn.innerHTML;
-        erHTML = `<span class="animate-spin">⏳</span>`;
+        btn.innerHTML = `<span class="animate-spin">⏳</span>`;
         btn.classList.add('opacity-70', 'cursor-not-allowed');
         btn.disabled = true;
 
@@ -652,7 +629,7 @@
 
         } catch (e) {
             console.error(e);
-            Utils.showToast("최적화 실패: " + e.message, "error");
+            Utils.showToast(i18n.status_opt_failed_prefix + e.message, "error");
         } finally {
             btn.innerHTML = originalHtml;
             btn.classList.remove('opacity-70', 'cursor-not-allowed');
@@ -668,8 +645,8 @@
         img.src = url;
         info.innerHTML = `
                     <div class="space-y-2 text-sm text-gray-600 dark:text-gray-300">
-                        <p><span class="font-bold">감지된 타입:</span> ${type === 'horizontal' ? '가로형 (확장)' : '세로형 (최적화)'}</p>
-                        <p><span class="font-bold">적용된 프롬프트:</span> <span class="text-xs italic text-gray-400">${prompt}</span></p>
+                        <p><span class="font-bold">${i18n.label_detected_type}:</span> ${type === 'horizontal' ? i18n.label_horizontal_expanded : i18n.label_vertical_optimized}</p>
+                        <p><span class="font-bold">${i18n.label_applied_prompt}:</span> <span class="text-xs italic text-gray-400">${prompt}</span></p>
                     </div>
                 `;
 
@@ -747,7 +724,7 @@
     async function fetchWebtoonFromUrl() {
         const url = document.getElementById('webtoon-url').value.trim();
         if (!url) {
-            Utils.showToast('웹툰 URL을 입력해 주세요.', 'warning');
+            Utils.showToast(i18n.alert_enter_webtoon_url, 'warning');
             return;
         }
 
@@ -755,7 +732,7 @@
         selectedProjectId = document.getElementById('projectSelect')?.value || getCurrentProject();
 
         if (!selectedProjectId) {
-            Utils.showToast('먼저 프로젝트를 선택하거나 새로 생성해주세요.', 'warning');
+            Utils.showToast(i18n.alert_select_project_first, 'warning');
             return;
         }
 
@@ -766,7 +743,7 @@
         try {
             progressOverlay.classList.remove('hidden');
             progressBar.style.width = '30%';
-            progressText.textContent = '웹툰 데이터를 분석하여 가져오고 있습니다...';
+            progressText.textContent = i18n.status_fetching_webtoon_data;
 
             const formData = new FormData();
             formData.append('project_id', selectedProjectId);
@@ -780,7 +757,7 @@
             if (res.status === 200) {
                 const result = await res.json();
                 progressBar.style.width = '100%';
-                progressText.textContent = '수집 완료!';
+                progressText.textContent = i18n.status_fetch_complete;
 
                 setTimeout(() => {
                     handleFetchSuccess(result);
@@ -791,7 +768,7 @@
             }
         } catch (e) {
             console.error(e);
-            Utils.showToast('URL 수집 실패: ' + e.message, 'error');
+            Utils.showToast(i18n.status_fetch_failed_prefix + e.message, 'error');
             progressOverlay.classList.add('hidden');
         }
     }
@@ -804,11 +781,11 @@
         const path = dirInput.value.trim();
         // Remove quotes if user copied path as "C:\Path"
         const cleanPath = path.replace(/"/g, '');
-        if (!cleanPath) return Utils.showToast("폴더 경로를 입력해주세요", "error");
+        if (!cleanPath) return Utils.showToast(i18n.alert_enter_folder_path, "error");
 
         const btn = document.querySelector('button[onclick="scanDirectory()"]');
         const originalText = btn.innerHTML;
-        btn.innerHTML = "⏳ 스캔 중...";
+        btn.innerHTML = `⏳ ${i18n.status_scanning}`;
         btn.disabled = true;
 
         try {
@@ -828,14 +805,14 @@
                     document.getElementById('start-analysis-container').classList.remove('hidden');
                 } else {
                     document.getElementById('start-analysis-container').classList.add('hidden');
-                    Utils.showToast("폴더에 이미지나 PSD 파일이 없습니다.", "warning");
+                    Utils.showToast(i18n.status_no_images_or_psd, "warning");
                 }
             } else {
-                throw new Error(result.error || "스캔 실패");
+                throw new Error(result.error || i18n.status_scan_failed);
             }
         } catch (e) {
             console.error(e);
-            Utils.showToast("폴더 스캔 실패: " + e.message, "error");
+            Utils.showToast(i18n.status_scan_failed_prefix + e.message, "error");
         } finally {
             btn.innerHTML = originalText;
             btn.disabled = false;
@@ -859,7 +836,7 @@
                     <button onclick="optimizeImage('${f.path.replace(/\\/g, '\\\\')}', this)" 
                         class="text-[10px] font-bold bg-gradient-to-r from-purple-500 to-indigo-500 text-white px-2.5 py-1.5 rounded-lg hover:shadow-md hover:scale-105 transition-all flex items-center gap-1 group/btn">
                         <span>✨</span>
-                        <span class="group-hover/btn:inline hidden sm:inline">9:16 최적화</span>
+                        <span class="group-hover/btn:inline hidden sm:inline">${i18n.btn_optimize_9_16}</span>
                     </button>
                     ` : ''}
                     <span class="text-xs text-gray-400 font-mono whitespace-nowrap min-w-[60px] text-right">${(f.size / 1024 / 1024).toFixed(1)} MB</span>
@@ -873,7 +850,7 @@
 
         // 이미 데이터가 있는 경우 확인
         if (analyzedScenes && analyzedScenes.length > 0) {
-            if (!confirm("이미 추출된 장면들이 있습니다. 다시 추출하면 기존 데이터가 삭제됩니다. 계속할까요?")) {
+            if (!confirm(i18n.confirm_overwrite_extracted_scenes)) {
                 switchWebtoonTab('analysis');
                 return;
             }
@@ -883,7 +860,7 @@
         const projectId = selectedProjectId || getCurrentProject();
 
         if (!projectId) {
-            Utils.showToast("상단에서 프로젝트를 먼저 선택해주세요.", "warning");
+            Utils.showToast(i18n.alert_select_project_first_top, "warning");
             return;
         }
 
@@ -900,11 +877,11 @@
             const excludeLayer = document.getElementById('psd-layer-input').value.trim();
             console.log("🚀 Starting Batch Analysis with files:", scannedGroups.map(f => f.path));
 
-            addLog("🚀 AI 분석 시작... (파일 개수에 따라 최대 수 분이 소요될 수 있습니다)", "process");
+            addLog(`🚀 ${i18n.log_starting_ai_analysis}`, "process");
 
             // [NEW] Heartbeat logging to show progress
             const heartbeat = setInterval(() => {
-                addLog("⏳ 분석 엔진 가동 중... 잠시만 기다려주세요.", "info");
+                addLog(`⏳ ${i18n.log_engine_running_wait}`, "info");
             }, 15000);
 
             // [NEW] 10 minute timeout for long batch analysis
@@ -978,11 +955,11 @@
         } catch (e) {
             console.error('[Webtoon Analysis Error]', e);
             console.error('[Stack]', e.stack);
-            let msg = e.message || "분석 도중 오류가 발생했습니다.";
+            let msg = e.message || i18n.status_analysis_error_generic;
             if (typeof msg === 'object') msg = JSON.stringify(msg);
             // 스택 트레이스에서 줄 번호 추출
             const stackLine = e.stack ? e.stack.split('\n')[1] : '';
-            alert("분석 중 오류가 발생했습니다: " + msg + "\n\n위치: " + stackLine);
+            alert(`${i18n.status_analysis_error_prefix} ${msg}\n\n${i18n.label_location}: ` + stackLine);
             // 실패 시 다시 Step 1으로 (Tab Setup)
             switchWebtoonTab('setup');
         }
@@ -993,19 +970,19 @@
         if (scannedGroups.length === 0) return;
         const projectId = selectedProjectId || getCurrentProject();
         if (!projectId) {
-            Utils.showToast("상단에서 프로젝트를 먼저 선택해주세요.", "warning");
+            Utils.showToast(i18n.alert_select_project_first_top, "warning");
             return;
         }
         const btn = document.querySelector('button[onclick="startExtractCuts()"]');
         const originalText = btn.innerHTML;
-        btn.innerHTML = "⏳ 컷 추출 중...";
+        btn.innerHTML = `⏳ ${i18n.status_extracting_cuts}`;
         btn.disabled = true;
 
         try {
             const excludeLayer = document.getElementById('psd-layer-input').value.trim();
             const inputDir = document.getElementById('dir-input').value.replace(/"/g, '');
 
-            addLog("⏳ 매뉴얼 모드 - PNG 파일 컷 분할 중...", "process");
+            addLog(`⏳ ${i18n.log_manual_mode_splitting}`, "process");
             const response = await fetch('/webtoon/extract-cuts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1018,15 +995,15 @@
 
             const result = await response.json();
             if (response.ok && result.status === 'ok') {
-                addLog(`✅ 컷 분할이 완료되었습니다. (출장경로: ${result.output_dir})`, "success");
-                Utils.showToast(`${result.files.length}개의 컷이 성공적으로 분할되었습니다.`, "success");
+                addLog(`✅ ${i18n.log_cut_split_done_prefix}${result.output_dir}${i18n.log_cut_split_done_suffix}`, "success");
+                Utils.showToast(`${result.files.length}${i18n.status_cuts_split_success_suffix}`, "success");
             } else {
-                throw new Error(result.error || "분할 실패");
+                throw new Error(result.error || i18n.status_split_failed);
             }
         } catch (e) {
             console.error('[Cut Extract Error]', e);
             Utils.showToast("오류: " + e.message, "error");
-            addLog(`❌ 추출 오류: ${e.message}`, "error");
+            addLog(`❌ ${i18n.log_extract_error_prefix}${e.message}`, "error");
         } finally {
             btn.innerHTML = originalText;
             btn.disabled = false;
@@ -1249,7 +1226,7 @@
                 if (e.lengthComputable) {
                     const percent = Math.round((e.loaded / e.total) * 100);
                     progressBar.style.width = percent + '%';
-                    progressText.textContent = `업로드 중... (${percent}%)`;
+                    progressText.textContent = `${i18n.status_uploading}... (${percent}%)`;
                 }
             };
 
@@ -1259,20 +1236,20 @@
                     console.log('Upload success:', result);
                     transitionToAnalysis(result.filename);
                 } else {
-                    Utils.showToast('업로드 실패: ' + xhr.responseText, 'error');
+                    Utils.showToast(i18n.status_upload_failed_prefix + xhr.responseText, 'error');
                     progressOverlay.classList.add('hidden');
                 }
             };
 
             xhr.onerror = () => {
-                Utils.showToast('서버 통신 오류가 발생했습니다.', 'error');
+                Utils.showToast(i18n.status_server_comm_error, 'error');
                 progressOverlay.classList.add('hidden');
             };
 
             xhr.send(formData);
         } catch (e) {
             console.error(e);
-            Utils.showToast('처리 중 오류가 발생했습니다.', 'error');
+            Utils.showToast(i18n.status_process_error_generic, 'error');
             progressOverlay.classList.add('hidden');
         }
     }
@@ -1330,9 +1307,9 @@
 
                 // [DEBUG] 숨겨진 레이어 정보 표시
                 if (data.layer_trace && data.layer_trace.length > 0) {
-                    Utils.showToast(`${data.layer_trace.length}개의 레이어를 성공적으로 숨겼습니다: ${data.layer_trace.join(', ')}`, 'info');
+                    Utils.showToast(`${data.layer_trace.length}${i18n.status_layers_hidden_prefix}${data.layer_trace.join(', ')}`, 'info');
                 } else if (data.layer_debug && data.layer_debug.trace && data.layer_debug.trace.length > 0) {
-                    Utils.showToast(`${data.layer_debug.trace.length}개의 레이어를 숨겼습니다.`, 'info');
+                    Utils.showToast(`${data.layer_debug.trace.length}${i18n.status_layers_hidden_suffix}`, 'info');
                 }
 
                 // Populate discovered characters
@@ -1355,7 +1332,7 @@
             }
         } catch (e) {
             console.error(e);
-            Utils.showToast('분석 중 오류: ' + e.message, 'error');
+            Utils.showToast(`${i18n.status_analysis_error_prefix} ` + e.message, 'error');
             // 에러 시에도 수동 조작 가능하게 컨테이너 노출 검토
         }
     }
@@ -1391,7 +1368,7 @@
                         currentProductionPlan = d.plan;
                         // [FIXED] renderProductionPlan call removed as it was deprecated
                         window.currentPlanSpecs = currentProductionPlan.scene_specifications || currentProductionPlan.scene_plans;
-                        addLog("📋 기존 기획서 데이터를 복원했습니다.", "success");
+                        addLog(`📋 ${i18n.log_restored_existing_plan}`, "success");
 
                         // [NEW] Show direct production button if plan exists
                         document.getElementById('direct-produce-btn')?.classList.remove('hidden');
@@ -1420,7 +1397,7 @@
                     }
 
                     // Populate discovered characters
-                    discoveredCharacters = new Set(['주인공', '나레이션']);
+                    discoveredCharacters = new Set([i18n.label_protagonist || 'Protagonist', i18n.label_narration || 'Narration']);
 
                     // [NEW] Restore from dedicated character table first (if in data)
                     if (d.characters && Array.isArray(d.characters)) {
@@ -1431,7 +1408,7 @@
 
                     // Backup: restore from scenes if character table was empty
                     d.scenes.forEach(s => {
-                        if (s.analysis && s.analysis.character && s.analysis.character !== 'Unknown' && s.analysis.character !== 'None') {
+                        if (s.analysis && s.analysis.character && s.analysis.character !== 'Unknown' && s.analysis.character !== i18n.label_none) {
                             discoveredCharacters.add(s.analysis.character);
                         }
                     });
@@ -1482,7 +1459,7 @@
                 // If current state is empty or different, re-apply
                 if (!analyzedScenes || analyzedScenes.length === 0 || JSON.stringify(freshData.scenes) !== JSON.stringify(analyzedScenes)) {
                     applyData(freshData);
-                    addLog(`✅ 최신 분석 데이터(${freshData.scenes.length}개 장면)를 동기화했습니다.`, "success");
+                    addLog(`✅ ${i18n.log_synced_latest_analysis_prefix}${freshData.scenes.length}${i18n.log_synced_latest_analysis_suffix}`, "success");
                 }
             }
         } catch (e) {
@@ -1492,7 +1469,7 @@
     }
 
     async function resetAnalysis() {
-        if (!confirm("현재 분석 결과를 삭제하고 처음부터 다시 시작할까요?")) return;
+        if (!confirm(i18n.confirm_reset_analysis)) return;
 
         try {
             await fetch('/webtoon/save-analysis', {
@@ -1619,12 +1596,12 @@
                     <div class="relative group/type shadow-md rounded-lg pointer-events-auto">
                         <select onchange="updateSceneType(${index}, this.value)" 
                             class="appearance-none px-2 py-1 bg-purple-600/90 hover:bg-purple-700 text-white text-[9px] font-black border border-purple-400/50 cursor-pointer transition-all outline-none pr-4 rounded-lg">
-                            <option value="1" ${cut_type == '1' ? 'selected' : ''}>TYPE 1: 긴 컷 (패닝)</option>
-                            <option value="2" ${cut_type == '2' ? 'selected' : ''}>TYPE 2: 가로 (확장/크롭)</option>
-                            <option value="3" ${cut_type == '3' ? 'selected' : ''}>TYPE 3: 일반 (여백)</option>
-                            <option value="4" ${cut_type == '4' ? 'selected' : ''}>TYPE 4: 장면 전환</option>
-                            <option value="5" ${cut_type == '5' ? 'selected' : ''}>TYPE 5: 깊이 (레이어)</option>
-                            <option value="6" ${cut_type == '6' ? 'selected' : ''}>TYPE 6: 톤 통일</option>
+                            <option value="1" ${cut_type == '1' ? 'selected' : ''}>TYPE 1: {{ t('type_1_label') }}</option>
+                            <option value="2" ${cut_type == '2' ? 'selected' : ''}>TYPE 2: {{ t('type_2_label') }}</option>
+                            <option value="3" ${cut_type == '3' ? 'selected' : ''}>TYPE 3: {{ t('type_3_label') }}</option>
+                            <option value="4" ${cut_type == '4' ? 'selected' : ''}>TYPE 4: {{ t('type_4_label') }}</option>
+                            <option value="5" ${cut_type == '5' ? 'selected' : ''}>TYPE 5: {{ t('type_5_label') }}</option>
+                            <option value="6" ${cut_type == '6' ? 'selected' : ''}>TYPE 6: {{ t('type_6_label') }}</option>
                         </select>
                         <div class="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none text-[7px] opacity-70 text-white">▼</div>
                     </div>
@@ -1640,7 +1617,7 @@
                         <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 backdrop-blur-[2px]">
                             <button onclick="document.getElementById('replace-input-${index}').click()" 
                                     class="bg-white/90 hover:bg-white text-gray-900 text-[10px] font-black px-4 py-2 rounded-xl shadow-xl transform transition-transform hover:scale-110 active:scale-95 dark:text-gray-100 dark:bg-gray-800">
-                                🔄 이미지 교체
+                                🔄 ${i18n.btn_replace_image}
                             </button>
                             <input type="file" id="replace-input-${index}" class="hidden" accept="image/*" onchange="replaceSceneImage(${index}, this)">
                         </div>
@@ -1657,16 +1634,16 @@
                         `<div class="relative w-full h-full group/video-box flex items-center justify-center">
                             <video src="${scene.video_url}" class="max-w-full max-h-full object-contain" controls></video>
                             <button id="scene-gen-btn-${index}" onclick="generateSingleVideo(${index})" 
-                                class="absolute top-2 left-2 bg-blue-600/90 hover:bg-blue-500 text-white text-[10px] font-black px-3 py-1.5 rounded-xl shadow-lg opacity-0 group-hover/video-box:opacity-100 transition-all flex items-center gap-1 z-20 tooltip" title="영상을 다시 생성합니다 (기존 영상은 덮어쓰기 됨)">
-                                🔄 재생성
+                                class="absolute top-2 left-2 bg-blue-600/90 hover:bg-blue-500 text-white text-[10px] font-black px-3 py-1.5 rounded-xl shadow-lg opacity-0 group-hover/video-box:opacity-100 transition-all flex items-center gap-1 z-20 tooltip" title="${i18n.tooltip_regenerate_video_desc}">
+                                🔄 ${i18n.btn_regenerate}
                             </button>
                          </div>` :
                         `<div class="flex flex-col items-center gap-2 p-4 transition-all">
                                     <div class="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center text-xl mb-1 group-hover/vid:scale-110 transition-transform dark:bg-gray-800">🎬</div>
-                                    <span class="text-[9px] font-black uppercase text-white/40 tracking-widest text-center group-hover/vid:text-white transition-colors">Ready to Generate</span>
+                                    <span class="text-[9px] font-black uppercase text-white/40 tracking-widest text-center group-hover/vid:text-white transition-colors">${i18n.label_ready_to_generate}</span>
                                     <button id="scene-gen-btn-${index}" onclick="generateSingleVideo(${index})" 
                                         class="mt-3 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black px-4 py-2 rounded-xl shadow-lg transform transition-all hover:scale-105 active:scale-95 flex items-center gap-2 whitespace-nowrap">
-                                        <span>▶️</span> 생성하기
+                                        <span>▶️</span> ${i18n.btn_generate}
                                     </button>
                                 </div>`
                     }
@@ -1677,7 +1654,7 @@
                 <!-- Delete Button (Top Right) -->
                 <button onclick="removeScene(${index})" 
                         class="absolute top-2 right-2 p-1.5 bg-gray-900/50 hover:bg-red-500 text-white rounded-lg transition-all opacity-0 group-hover:opacity-100 z-30 border border-gray-700 backdrop-blur-sm shadow-xl"
-                        title="장면 삭제">
+                        title="${i18n.btn_delete_scene}">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                     </svg>
@@ -1696,7 +1673,7 @@
                                 </div>
                                 <input type="text" value="${scene.analysis.character}" 
                                     class="scene-char-manual w-full bg-white dark:bg-gray-800 text-[10px] p-2.5 rounded-xl border border-dashed border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-300 focus:text-gray-700 dark:focus:text-white outline-none focus:border-purple-500 transition-colors shadow-sm" 
-                                    placeholder="직접 입력..."
+                                    placeholder="${i18n.placeholder_manual_entry}"
                                     onchange="updateSceneCharacterManual(${index}, this.value)"
                                     data-idx="${index}">
                             </div>
@@ -1705,7 +1682,7 @@
                                     <span class="w-1 h-3 bg-emerald-500 rounded-full"></span> 🎙️ Voice Actor
                                 </label>
                                 ${(() => {
-                        if (scene.analysis && scene.analysis.character === '내레이션' && (!scene.voice_name || scene.voice_name.toLowerCase() === 'none')) {
+                        if (scene.analysis && scene.analysis.character === i18n.label_narration && (!scene.voice_name || scene.voice_name.toLowerCase() === 'none')) {
                             scene.voice_name = 'Brian';
                         }
                         let vName = scene.voice_name || (scene.analysis?.voice_recommendation?.name) || '';
@@ -1775,21 +1752,21 @@
                         <div>
                             <div class="flex items-center justify-between mb-1">
                                 <label class="block text-xs font-black text-orange-400 uppercase drop-shadow-sm">Internal Target Motion (for Wan)</label>
-                                <button onclick="saveCurrentAnalysis(selectedProjectId, analyzedScenes); Utils.showToast('기획안이 저장되었습니다!', 'success')" 
+                                <button onclick="saveCurrentAnalysis(selectedProjectId, analyzedScenes); Utils.showToast(i18n.status_plan_saved, 'success')" 
                                     class="text-[9px] px-2 py-0.5 bg-orange-100 hover:bg-orange-200 dark:bg-orange-950 dark:hover:bg-orange-900 text-orange-600 dark:text-orange-400 font-black rounded-lg transition-colors border border-orange-200 dark:border-orange-800 flex items-center gap-1 shadow-sm">
-                                    💾 SAVE PROMPT
+                                    💾 ${i18n.btn_save_prompt}
                                 </button>
                             </div>
-                            <textarea placeholder="예: Intense fire burning" 
+                            <textarea placeholder="${i18n.placeholder_motion_example}" 
                                 id="scene-${index}-motion-desc"
                                 onchange="updateSceneMotionDesc(${index}, this.value)"
                                 class="w-full bg-orange-50/50 dark:bg-orange-900/10 text-xs font-bold p-3 rounded-lg border border-orange-200 dark:border-orange-800/50 text-orange-900 dark:text-orange-200 focus:ring-2 focus:ring-orange-500 outline-none leading-relaxed transition-colors h-24 resize-y">${scene.motion_desc || ''}</textarea>
-                            ${scene.motion_ko ? `<p class="mt-1.5 text-[11px] text-orange-600/80 dark:text-orange-400/80 font-medium italic bg-orange-50/30 dark:bg-orange-900/5 p-2 rounded">번역: ${scene.motion_ko}</p>` : ''}
+                            ${scene.motion_ko ? `<p class="mt-1.5 text-[11px] text-orange-600/80 dark:text-orange-400/80 font-medium italic bg-orange-50/30 dark:bg-orange-900/5 p-2 rounded">${i18n.label_translation}: ${scene.motion_ko}</p>` : ''}
                         </div>
 
                         <div class="bg-blue-50/40 dark:bg-blue-900/20 p-3 rounded-lg flex flex-col gap-2 text-xs border border-blue-100 dark:border-blue-800/30">
                             <div class="text-blue-800 dark:text-blue-200">
-                                <span class="font-black drop-shadow-sm">💡 기획 의도 (Reason):</span> <p class="mt-1 leading-relaxed bg-white/50 dark:bg-black/20 p-2 rounded">${scene.rationale || '생성된 기획이 없습니다.'}</p>
+                                <span class="font-black drop-shadow-sm">💡 ${i18n.label_planning_rationale}:</span> <p class="mt-1 leading-relaxed bg-white/50 dark:bg-black/20 p-2 rounded">${scene.rationale || i18n.status_no_plan_generated}</p>
                             </div>
                             <div class="flex items-center gap-2 justify-end mt-1">
                                 <span class="font-bold text-gray-500 dark:text-gray-400">Expected Size / Time:</span>
@@ -1819,12 +1796,12 @@
                 `).join('');
 
         if (discoveredCharacters.size === 0) {
-            globalList.innerHTML = '<div class="text-sm text-gray-400 py-2">캐릭터가 아직 발견되지 않았습니다.</div>';
+            globalList.innerHTML = `<div class="text-sm text-gray-400 py-2">${i18n.status_no_characters_found}</div>`;
         }
     }
 
     function removeGlobalCharacter(name) {
-        if (['주인공', '나레이션'].includes(name)) return; // Prevent deleting defaults
+        if ([i18n.label_protagonist, i18n.label_narration].includes(name)) return; // Prevent deleting defaults
         discoveredCharacters.delete(name);
         updateGlobalCharacterUI();
         renderScenes(analyzedScenes); // Re-render to update pills
@@ -1832,7 +1809,7 @@
     }
 
     function addNewCharacterPrompt() {
-        const name = prompt("새로운 등장인물 이름을 입력하세요:");
+        const name = prompt(i18n.prompt_enter_new_char_name);
         if (name && name.trim()) {
             discoveredCharacters.add(name.trim());
             updateGlobalCharacterUI();
@@ -1889,7 +1866,7 @@
     async function replaceSceneImage(idx, input) {
         if (!input.files || input.files.length === 0) return;
         if (!selectedProjectId) {
-            Utils.showToast("프로젝트가 선택되지 않았습니다.", "error");
+            Utils.showToast(i18n.alert_project_not_selected, "error");
             return;
         }
         const file = input.files[0];
@@ -1900,7 +1877,7 @@
         formData.append('file', file);
 
         try {
-            addLog(`🖼️ Scene ${idx + 1} 이미지 교체 중...`, "info");
+            addLog(`🖼️ ${i18n.label_scene} ${idx + 1} ${i18n.log_replacing_image}`, "info");
 
             // Show loading state on image
             const img = document.getElementById(`scene-img-${idx}`);
@@ -1926,20 +1903,20 @@
                 }
 
                 saveCurrentAnalysis(selectedProjectId, analyzedScenes);
-                addLog(`✅ Scene ${idx + 1} 이미지가 성공적으로 교체되었습니다.`, "success");
-                Utils.showToast("이미지가 교체되었습니다.", "success");
-            } else throw new Error(result.message || "서버 응답 오류");
+                addLog(`✅ ${i18n.label_scene} ${idx + 1} ${i18n.log_image_replaced_success}`, "success");
+                Utils.showToast(i18n.status_image_replaced, "success");
+            } else throw new Error(result.message || i18n.err_server_error);
         } catch (e) {
             console.error(e);
             const img = document.getElementById(`scene-img-${idx}`);
             if (img) img.style.opacity = "1";
-            addLog(`❌ 이미지 교체 실패: ${e.message}`, "error");
-            Utils.showToast("이미지 교체 중 오류가 발생했습니다.", "error");
+            addLog(`❌ ${i18n.log_image_replace_failed_prefix}${e.message}`, "error");
+            Utils.showToast(i18n.status_image_replace_error, "error");
         }
     }
 
     function removeScene(idx) {
-        if (!confirm("이 장면을 삭제하시겠습니까?")) return;
+        if (!confirm(i18n.confirm_delete_scene)) return;
 
         // Remove from array
         analyzedScenes.splice(idx, 1);
@@ -1952,7 +1929,7 @@
         // Re-render
         renderScenes(analyzedScenes);
         saveCurrentAnalysis(selectedProjectId, analyzedScenes);
-        Utils.showToast("장면이 삭제되었습니다.", "info");
+        Utils.showToast(i18n.status_scene_deleted, "info");
     }
 
     function updateSceneCharacterManual(idx, value) {
@@ -2054,7 +2031,7 @@
         if (!area) return;
         const div = document.createElement('div');
         div.className = `mb-1 ${type === 'error' ? 'text-red-400' : type === 'success' ? 'text-green-400' : 'text-gray-400'}`;
-        const time = new Date().toLocaleTimeString('ko-KR', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const time = new Date().toLocaleTimeString('vi-VN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
         div.innerHTML = `<span class="opacity-30">[${time}]</span> <span class="text-blue-500 font-bold">></span> ${msg}`;
         area.appendChild(div);
         area.scrollTop = area.scrollHeight;
@@ -2062,10 +2039,10 @@
 
     // --- Analysis & Classification ---
     async function classifyScenes() {
-        if (!analyzedScenes || analyzedScenes.length === 0) return Utils.showToast("분석된 장면이 없습니다.", "warning");
+        if (!analyzedScenes || analyzedScenes.length === 0) return Utils.showToast(i18n.status_no_scenes_to_classify, "warning");
         const btn = document.getElementById('classify-btn');
         const originalText = btn.innerHTML;
-        btn.innerHTML = "⏳ AI 분류 중...";
+        btn.innerHTML = `⏳ ${i18n.status_ai_classifying}`;
         btn.disabled = true;
 
         addLog("🔮 [AI Classification] Categorizing scenes based on cinematic guide...", "process");
@@ -2081,12 +2058,12 @@
                 analyzedScenes = result.scenes;
                 renderScenes(analyzedScenes);
                 saveCurrentAnalysis(selectedProjectId, analyzedScenes);
-                addLog("✅ Scenes classified successfully.", "success");
-                Utils.showToast("이미지 유형 자동 분류가 완료되었습니다.", "success");
+                addLog(`✅ ${i18n.log_scenes_classified_success}`, "success");
+                Utils.showToast(i18n.status_classification_complete, "success");
             } else throw new Error(result.error);
         } catch (e) {
             console.error(e);
-            Utils.showToast("폴더 스캔 실패: " + e.message, "error");
+            Utils.showToast(i18n.status_scan_failed_prefix + e.message, "error");
         } finally {
             btn.innerHTML = originalText;
             btn.disabled = false;
@@ -2107,7 +2084,7 @@
             statusEl.classList.remove('opacity-60');
             statusEl.classList.add('opacity-100', 'border-blue-500/30', 'bg-blue-50/50', 'dark:bg-blue-900/20');
             if (iconEl) iconEl.className = 'w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse';
-            if (textEl) textEl.innerText = 'SAVING...';
+            if (textEl) textEl.innerText = i18n.status_saving_upper;
         }
 
         // [NEW] Local Cache for refresh persistence
@@ -2138,7 +2115,7 @@
                 // Visual Feedback: Synced
                 setTimeout(() => {
                     if (iconEl) iconEl.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500';
-                    if (textEl) textEl.innerText = 'SYNCED';
+                    if (textEl) textEl.innerText = i18n.status_synced_upper;
                     if (statusEl) {
                         statusEl.classList.replace('border-blue-500/30', 'border-emerald-500/30');
                         statusEl.classList.replace('bg-blue-50/50', 'bg-emerald-50/30');
@@ -2148,20 +2125,20 @@
             } else throw new Error(result.message);
         } catch (e) {
             console.error("Save Analysis Error:", e);
-            if (textEl) textEl.innerText = 'SYNC ERROR';
+            if (textEl) textEl.innerText = i18n.status_sync_error_upper;
             if (iconEl) iconEl.className = 'w-1.5 h-1.5 rounded-full bg-red-500';
         }
     };
 
     window.generatePlan = async function () {
         if (!analyzedScenes || analyzedScenes.length === 0) {
-            Utils.showToast("분석된 장면이 없습니다. 먼저 분석을 완료해 주세요.", "warning");
+            Utils.showToast(i18n.alert_no_scenes_to_plan, "warning");
             return;
         }
 
         const btn = document.getElementById('plan-btn');
         const originalText = btn.innerHTML;
-        btn.innerHTML = "⏳ AI 컷별 세부 기획 중...";
+        btn.innerHTML = `⏳ ${i18n.status_ai_planning_detail}`;
         btn.disabled = true;
 
         addLog("📋 [AI Planning] Generating detailed production plan for each scene...", "process");
@@ -2195,7 +2172,7 @@
                     if (target) {
                         target.engine_override = (spec.engine || 'akool').toLowerCase();
                         target.motion_desc = spec.motion || '';
-                        target.motion_ko = spec.motion_ko || ''; // [NEW] 한글 번역 저장
+                        target.motion_ko = spec.motion_ko || '';
                         if (spec.effect) target.effect_override = spec.effect.toLowerCase();
                         target.rationale = spec.rationale || '';
                         target.cropping_advice = spec.cropping_advice || '';
@@ -2204,13 +2181,13 @@
                         const rationaleLower = (target.rationale || '').toLowerCase();
                         if (rationaleLower.includes("type 1") || rationaleLower.includes("vertical long")) {
                             target.scene_type = "1";
-                            target.type_label = "Type 1: 세로로 긴 컷 (패닝)";
+                            target.type_label = `Type 1: ${i18n.type_1_label}`;
                         } else if (rationaleLower.includes("type 2") || rationaleLower.includes("horizontal")) {
                             target.scene_type = "2";
-                            target.type_label = "Type 2: 가로로 긴 컷 (여백 포함)";
+                            target.type_label = `Type 2: ${i18n.type_2_label}`;
                         } else if (rationaleLower.includes("type 3") || rationaleLower.includes("standard")) {
                             target.scene_type = "3";
-                            target.type_label = "Type 3: 일반 (여백)";
+                            target.type_label = `Type 3: ${i18n.type_3_label}`;
                         }
                         updateCount++;
                     }
@@ -2226,13 +2203,13 @@
                 saveCurrentAnalysis(selectedProjectId, analyzedScenes);
                 renderScenes(analyzedScenes);
 
-                addLog(`✅ 제작 기획서 컷별 자동 적용 완료. (총 ${updateCount}컷)`, "success");
-                Utils.showToast(`${updateCount}개의 컷에 기획 설정이 자동 적용되었습니다.`, "success");
-            } else throw new Error(result.error || "기획서 생성 실패");
+                addLog(`✅ ${i18n.log_plan_applied_prefix}${updateCount}${i18n.log_plan_applied_suffix}`, "success");
+                Utils.showToast(`${updateCount}${i18n.status_plan_applied_suffix}`, "success");
+            } else throw new Error(result.error || i18n.err_plan_gen_failed);
         } catch (e) {
             console.error(e);
-            Utils.showToast("기획서 자동 생성 실패: " + e.message, "error");
-            addLog(`❌ 자동 기획 실패: ${e.message}`, "error");
+            Utils.showToast(i18n.status_plan_gen_failed_prefix + e.message, "error");
+            addLog(`❌ ${i18n.log_plan_gen_failed_prefix}${e.message}`, "error");
         } finally {
             btn.innerHTML = originalText;
             btn.disabled = false;
@@ -2240,14 +2217,14 @@
     };
 
     window.generateSingleVideo = async function (idx) {
-        if (!selectedProjectId) return Utils.showToast("프로젝트를 먼저 선택해 주세요.", "error");
+        if (!selectedProjectId) return Utils.showToast(i18n.alert_select_project_first, "error");
         const scene = analyzedScenes[idx];
         if (!scene) return;
 
         // [NEW] 컷별 기획(motion_desc)이 있는지 확인하여 선행 강제
         if (!scene.motion_desc || scene.motion_desc.trim() === '') {
-            Utils.showToast("상단의 [📋 컷별 꼼꼼 AI 제작 기획 완성하기]를 먼저 진행해야 영상을 생성할 수 있습니다.", "warning");
-            addLog(`❌ 기획 누락: 씬 ${idx + 1}의 연출 기획이 없습니다. 기획하기를 먼저 실행해주세요.`, "error");
+            Utils.showToast(i18n.alert_plan_required_first, "warning");
+            addLog(`❌ ${i18n.log_plan_missing_prefix}${idx + 1}${i18n.log_plan_missing_suffix}`, "error");
             return;
         }
 
@@ -2257,9 +2234,9 @@
 
         try {
             btn.disabled = true;
-            btn.innerHTML = `⏳ 생성 중...`;
+            btn.innerHTML = `⏳ ${i18n.status_generating}`;
             preview.classList.add('animate-pulse', 'ring-2', 'ring-blue-500/50');
-            addLog(`🎬 Scene ${idx + 1} 영상 단독 생성 시작...`, "process");
+            addLog(`🎬 ${i18n.label_scene} ${idx + 1} ${i18n.log_single_gen_start}`, "process");
 
             const res = await fetch('/webtoon/generate-scene-video', {
                 method: 'POST',
@@ -2273,7 +2250,7 @@
 
             const result = await res.json();
             if (result.status === 'ok') {
-                addLog(`✅ Scene ${idx + 1} 영상 생성 성공!`, "success");
+                addLog(`✅ ${i18n.label_scene} ${idx + 1} ${i18n.log_single_gen_success}`, "success");
                 scene.video_url = result.video_url;
 
                 // Update UI immediately
@@ -2281,14 +2258,14 @@
                 preview.classList.remove('animate-pulse', 'ring-2', 'ring-blue-500/50');
 
                 saveCurrentAnalysis(selectedProjectId, analyzedScenes);
-                Utils.showToast(`장면 ${idx + 1} 영상이 제작되었습니다.`, "success");
+                Utils.showToast(`${i18n.label_scene} ${idx + 1} ${i18n.status_video_produced_success}`, "success");
             } else {
-                throw new Error(result.error || "생성 중 오류 발생");
+                throw new Error(result.error || i18n.err_gen_error);
             }
         } catch (e) {
             console.error(e);
-            addLog(`❌ Scene ${idx + 1} 생성 실패: ${e.message}`, "error");
-            Utils.showToast(`실패: ${e.message}`, "error");
+            addLog(`❌ ${i18n.label_scene} ${idx + 1} ${i18n.log_single_gen_failed_prefix}${e.message}`, "error");
+            Utils.showToast(`${i18n.label_failed}: ${e.message}`, "error");
             btn.disabled = false;
             btn.innerHTML = originalHtml;
             preview.classList.remove('animate-pulse', 'ring-2', 'ring-blue-500/50');
@@ -2310,8 +2287,8 @@
             // [NEW] 컷별 기획 데이터 존재 유무 확인
             const hasPlan = analyzedScenes && analyzedScenes.some(s => s.motion_desc && s.motion_desc.trim() !== '');
             if (!hasPlan) {
-                Utils.showToast("상단의 [📋 컷별 꼼꼼 AI 제작 기획 완성하기]를 먼저 진행해 주세요.", "warning");
-                addLog("❌ 기획 누락: 컷별 기획 데이터가 없습니다. 기획하기를 먼저 실행해주세요.", "error");
+                Utils.showToast(i18n.alert_plan_required_first, "warning");
+                addLog(`❌ ${i18n.log_plan_missing_generic}`, "error");
                 Utils.setLoading(btn, false);
                 return;
             }
@@ -2354,12 +2331,12 @@
                     const target = parseInt(matchSingle[1]);
                     finalData = finalData.filter(s => s.scene_number === target);
                 } else {
-                    throw new Error('잘못된 범위 형식입니다. ALL, 1-3, 또는 5 와 같이 입력해주세요.');
+                    throw new Error(i18n.err_invalid_range_format);
                 }
             }
 
             if (finalData.length === 0) {
-                throw new Error('선택된 범위에 해당하는 씬이 없습니다.');
+                throw new Error(i18n.err_no_scenes_in_range);
             }
 
             const res = await fetch('/webtoon/automate', {
@@ -2383,12 +2360,12 @@
                 if (settings) settings.classList.add('hidden');
                 if (step3) step3.classList.remove('hidden');
                 startStatusPolling(selectedProjectId);
-                Utils.showToast('자동화가 시작되었습니다!', 'success');
+                Utils.showToast(i18n.status_automation_started, 'success');
             } else throw new Error(result.error);
         } catch (e) {
             console.error(e);
             addLog(`❌ Error: ${e.message}`, "error");
-            Utils.showToast('오류 발생: ' + e.message, 'error');
+            Utils.showToast(`${i18n.status_error_occurred}: ` + e.message, 'error');
         } finally {
             Utils.setLoading(btn, false);
             btn.innerHTML = originalText;
@@ -2397,13 +2374,22 @@
 
     function getFriendlyStatus(status) {
         const map = {
-            'queued': '대기 중...', 'created': '생성 중...', 'analyzing': '분석 중...', 'analyzed': '분석 완료',
-            'planning': '기획 중...', 'planned': '기획 완료', 'scripting': '대본 작성 중...', 'scripted': '대본 완료',
-            'generating_assets': '영상 생성 중...', 'rendering': '인코딩 중...', 'done': '완료! ✨', 'failed': '실패'
+            'queued': i18n.status_waiting_polling, 
+            'created': i18n.status_generating_polling, 
+            'analyzing': i18n.status_analyzing_polling, 
+            'analyzed': i18n.status_analyzed_polling,
+            'planning': i18n.status_planning_polling, 
+            'planned': i18n.status_planned_polling, 
+            'scripting': i18n.status_scripting_polling, 
+            'scripted': i18n.status_scripted_polling,
+            'generating_assets': i18n.status_generating_assets_polling, 
+            'rendering': i18n.status_rendering_polling, 
+            'done': i18n.status_done_polling, 
+            'failed': i18n.status_failed_polling
         };
         if (status && status.includes('videos_')) {
             const p = status.split('_')[1];
-            return `영상 제작 중 (${p})...`;
+            return `${i18n.status_producing_video_polling} (${p})...`;
         }
         return map[status] || status;
     }
@@ -2436,7 +2422,7 @@
                 if (statusTxt) statusTxt.innerText = getFriendlyStatus(s);
 
                 if (s !== lastS) {
-                    const time = new Date().toLocaleTimeString('ko-KR', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    const time = new Date().toLocaleTimeString('vi-VN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
                     const log = document.createElement('div');
                     log.className = "mb-1 text-[11px]";
                     log.innerHTML = `<span class="opacity-30">[${time}]</span> <span class="text-blue-500 font-bold">></span> ${getFriendlyStatus(s)}`;
@@ -2570,14 +2556,14 @@
 <div
     class="mt-20 mb-20 p-8 rounded-3xl bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-gray-900 dark:to-indigo-950 border border-blue-100 dark:border-indigo-900 shadow-xl dark:text-white">
     <h2 class="text-2xl font-bold mb-6 flex items-center gap-3 dark:text-white">
-        <span class="text-3xl">📐</span> Webtoon Production & Crop Master Guide
+        <span class="text-3xl">📐</span> {{ t('master_guide_title') }}
     </h2>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
         <!-- Type 1 -->
         <div
             class="p-5 bg-white/50 dark:bg-black/40 rounded-2xl border border-white dark:border-white/10 flex flex-col h-full shadow-sm hover:shadow-md transition-shadow">
-            <div class="font-black text-indigo-600 dark:text-indigo-300 mb-3 text-lg">Type 1: Vertical Long (세로형)
+            <div class="font-black text-indigo-600 dark:text-indigo-300 mb-3 text-lg">{{ t('type_1_full_label') }}
             </div>
             <ul class="text-sm space-y-3 dark:text-gray-200">
                 <li class="flex items-start gap-2">
@@ -2589,11 +2575,11 @@
                 </li>
                 <li class="flex items-start gap-2">
                     <span class="mt-1">•</span>
-                    <span>너비를 화면에 맞추고(Fit Width) 높이 방향으로 위아래 전체를 훑는 다이나믹한 연출</span>
+                    <span>{{ t('type_1_desc_1') }}</span>
                 </li>
                 <li class="flex items-start gap-2">
                     <span class="mt-1">•</span>
-                    <span>배경 공개나 전신샷에 최적화</span>
+                    <span>{{ t('type_1_desc_2') }}</span>
                 </li>
             </ul>
         </div>
@@ -2601,7 +2587,7 @@
         <!-- Type 2 -->
         <div
             class="p-5 bg-white/50 dark:bg-black/40 rounded-2xl border border-white dark:border-white/10 flex flex-col h-full shadow-sm hover:shadow-md transition-shadow">
-            <div class="font-black text-emerald-600 dark:text-emerald-400 mb-3 text-lg">Type 2: Horizontal Wide (가로형)
+            <div class="font-black text-emerald-600 dark:text-emerald-400 mb-3 text-lg">{{ t('type_2_full_label') }}
             </div>
             <ul class="text-sm space-y-3 dark:text-gray-200">
                 <li class="flex items-start gap-2">
@@ -2613,11 +2599,11 @@
                 </li>
                 <li class="flex items-start gap-2">
                     <span class="mt-1">•</span>
-                    <span>높이를 화면에 맞추고(Fit Height) 좌우로 이동하며 파노라마처럼 전체 배경을 노출</span>
+                    <span>{{ t('type_2_desc_1') }}</span>
                 </li>
                 <li class="flex items-start gap-2">
                     <span class="mt-1">•</span>
-                    <span>시네마틱한 풍경이나 긴 배경 컷에 사용</span>
+                    <span>{{ t('type_2_desc_2') }}</span>
                 </li>
             </ul>
         </div>
@@ -2625,7 +2611,7 @@
         <!-- Type 3 -->
         <div
             class="p-5 bg-white/50 dark:bg-black/40 rounded-2xl border border-white dark:border-white/10 flex flex-col h-full shadow-sm hover:shadow-md transition-shadow">
-            <div class="font-black text-amber-600 dark:text-amber-400 mb-3 text-lg">Type 3: Standard (일반)</div>
+            <div class="font-black text-amber-600 dark:text-amber-400 mb-3 text-lg">{{ t('type_3_full_label') }}</div>
             <ul class="text-sm space-y-3 dark:text-gray-200">
                 <li class="flex items-start gap-2">
                     <span class="mt-1">•</span>
@@ -2636,11 +2622,11 @@
                 </li>
                 <li class="flex items-start gap-2">
                     <span class="mt-1">•</span>
-                    <span>화면 가득 채운 후 중심(또는 얼굴)을 향해 서서히 확대/축소</span>
+                    <span>{{ t('type_3_desc_1') }}</span>
                 </li>
                 <li class="flex items-start gap-2">
                     <span class="mt-1">•</span>
-                    <span>일반적인 대화나 클로즈업 컷에 범용적으로 사용</span>
+                    <span>{{ t('type_3_desc_2') }}</span>
                 </li>
             </ul>
         </div>
@@ -2648,7 +2634,7 @@
         <!-- Type 4 -->
         <div
             class="p-5 bg-white/50 dark:bg-black/40 rounded-2xl border border-white dark:border-white/10 flex flex-col h-full shadow-sm hover:shadow-md transition-shadow">
-            <div class="font-black text-slate-600 dark:text-slate-400 mb-3 text-lg">Type 4: Static (고정)</div>
+            <div class="font-black text-slate-600 dark:text-slate-400 mb-3 text-lg">{{ t('type_4_full_label') }}</div>
             <ul class="text-sm space-y-3 dark:text-gray-200">
                 <li class="flex items-start gap-2">
                     <span class="mt-1">•</span>
@@ -2657,11 +2643,11 @@
                 </li>
                 <li class="flex items-start gap-2">
                     <span class="mt-1">•</span>
-                    <span>고정된 화면 유지. 대사가 길거나 짧은 전환 컷에 적합</span>
+                    <span>{{ t('type_4_desc_1') }}</span>
                 </li>
                 <li class="flex items-start gap-2">
                     <span class="mt-1">•</span>
-                    <span>2D 이미지가 그대로 노출되는 가장 깔끔한 연출</span>
+                    <span>{{ t('type_4_desc_2') }}</span>
                 </li>
             </ul>
         </div>
@@ -2671,11 +2657,7 @@
         class="mt-8 p-6 bg-blue-100/50 dark:bg-blue-900/40 rounded-2xl text-sm flex gap-4 items-start border border-blue-200 dark:border-blue-700/50 shadow-inner">
         <span class="text-2xl mt-0.5">💡</span>
         <div class="dark:text-blue-100 leading-relaxed">
-            <b class="text-blue-700 dark:text-blue-300 font-black">Pro Tip:</b> 기획서 자동 생성을 이용하면 이미지의 가로세로 비율을 AI가 스스로
-            판단하여 위의 효과들을 자동으로 배정합니다.
-            가로가 매우 넓은 컷은 자동으로 <span class="text-emerald-700 dark:text-emerald-400 font-black">TYPE 2 좌우 패닝</span>이 적용되어
-            원본을 거의 손실 없이
-            보여줍니다.
+            <b class="text-blue-700 dark:text-blue-300 font-black">Pro Tip:</b> {{ t('pro_tip_guide_desc') | safe }}
         </div>
     </div>
 </div>

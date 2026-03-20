@@ -3,7 +3,7 @@
 {% block content %}
 <div class="card mb-6">
     <div class="flex flex-wrap items-center gap-6 mb-6">
-        <h3 class="font-bold text-gray-800 dark:text-white shrink-0">🎥 인트로 설정 (Loop Mode)</h3>
+        <h3 class="font-bold text-gray-800 dark:text-white shrink-0">{{ t('intro_settings_title') }}</h3>
 
         <div class="flex flex-wrap items-center gap-4">
             <!-- Video Options -->
@@ -11,7 +11,7 @@
                 <!-- Search Controls -->
                 <div id="vidSearchControls" class="flex flex-wrap items-center gap-2">
                     <div class="relative">
-                        <input type="text" id="videoSearchQuery" placeholder="검색어 (예: winter night)"
+                        <input type="text" id="videoSearchQuery" placeholder="{{ t('placeholder_video_search') }}"
                             class="pl-3 pr-10 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 w-40">
                         <button onclick="searchVideos()"
                             class="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-blue-600 dark:text-gray-400">
@@ -21,7 +21,7 @@
 
                     <button onclick="searchVideos(true)" id="autoVideoBtn"
                         class="btn-primary py-1.5 px-3 flex items-center justify-center gap-2 text-xs font-bold shadow-md bg-gradient-to-r from-teal-500 to-emerald-600">
-                        <span>🤖 자동</span>
+                        <span>{{ t('btn_auto') }}</span>
                     </button>
                 </div>
 
@@ -34,9 +34,9 @@
                         onchange="uploadIntroVideo(this)">
                     <button onclick="document.getElementById('introVideoInput').click()"
                         class="btn-secondary py-1.5 px-3 flex items-center justify-center gap-2 text-xs font-bold shadow-sm">
-                        <span>📤 영상 업로드</span>
+                        <span>{{ t('btn_video_upload') }}</span>
                     </button>
-                    <span id="uploadStatus" class="text-xs text-gray-500 hidden dark:text-gray-400">업로드 중...</span>
+                    <span id="uploadStatus" class="text-xs text-gray-500 hidden dark:text-gray-400">{{ t('status_uploading') }}</span>
                 </div>
             </div>
         </div>
@@ -57,7 +57,7 @@
     <div class="card">
         <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-100 dark:border-gray-700">
             <h3 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                <span>🎬</span> 동영상 결과
+                <span>🎬</span> {{ t('video_results_title') }}
             </h3>
         </div>
 
@@ -66,10 +66,10 @@
 
         <!-- 다음 단계 버튼 (숨김 상태로 시작) -->
         <div id="nextStepSection" class="hidden mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-center">
-            <h4 class="font-bold text-lg mb-2 text-blue-800 dark:text-blue-300">🎉 동영상 설정이 완료되었습니다!</h4>
-            <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">배경 동영상은 자동으로 반복 재생됩니다.</p>
+            <h4 class="font-bold text-lg mb-2 text-blue-800 dark:text-blue-300">{{ t('vgen_complete_title') }}</h4>
+            <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">{{ t('vgen_complete_desc') }}</p>
             <a href="/tts" class="btn-primary inline-flex items-center gap-2">
-                <span>🔊</span> 음성(TTS) 생성하러 가기
+                <span>🔊</span> {{ t('btn_go_tts') }}
             </a>
         </div>
     </div>
@@ -103,19 +103,19 @@
                 }
 
                 if (!script) {
-                    Utils.showToast('대본이 없어 자동 검색을 할 수 없습니다.', 'warning');
+                    Utils.showToast("{{ t('err_no_script') }}", 'warning');
                     return;
                 }
             }
         } else {
             if (!query) {
-                Utils.showToast('검색어를 입력해주세요.', 'warning');
+                Utils.showToast(`${i18n.status_enter_search_query}`, 'warning');
                 return;
             }
         }
 
         const btn = isAuto ? document.getElementById('autoVideoBtn') : null;
-        if (btn) Utils.setLoading(btn, true, '검색 중...');
+        if (btn) Utils.setLoading(btn, true, `${i18n.status_searching}`);
 
         try {
             // Style Default: realistic or cinematic
@@ -127,13 +127,13 @@
                     document.getElementById('videoSearchQuery').value = result.search_query;
                 }
                 renderVideoResults(result.videos);
-                Utils.showToast(`${result.videos.length}개의 영상을 찾았습니다.`, 'success');
+                Utils.showToast(`${result.videos.length}${i18n.status_videos_found}`, 'success');
             } else {
-                Utils.showToast('검색 실패: ' + result.error, 'error');
+                Utils.showToast(`${i18n.status_failed_search}: ` + result.error, 'error');
             }
         } catch (e) {
             console.error(e);
-            Utils.showToast('검색 중 오류 발생', 'error');
+            Utils.showToast(`${i18n.status_failed_search_err}`, 'error');
         } finally {
             if (btn) Utils.setLoading(btn, false);
         }
@@ -142,7 +142,7 @@
     function renderVideoResults(videos) {
         const container = document.getElementById('videoResultsList');
         if (!videos || videos.length === 0) {
-            container.innerHTML = '<div class="col-span-full text-center py-8 text-gray-500 dark:text-gray-400">검색 결과가 없습니다.</div>';
+            container.innerHTML = `<div class="col-span-full text-center py-8 text-gray-500 dark:text-gray-400">${Utils.t('status_no_results')}</div>`;
             return;
         }
 
@@ -179,7 +179,7 @@
             try {
                 await API.project.updateSetting(projectId, 'background_video_url', url);
                 await API.project.updateSetting(projectId, 'video_path', null); // Reset video path to force re-render perception
-                Utils.showToast('배경 동영상이 선택되었습니다. (Loop Mode)', 'success');
+                Utils.showToast(`${i18n.status_video_selected}`, 'success');
 
                 // [NEW] Update Stepper
                 if (window.updateStepStatus) window.updateStepStatus('intro', true);
@@ -187,7 +187,7 @@
                 document.getElementById('nextStepSection').classList.remove('hidden');
             } catch (e) {
                 console.error(e);
-                Utils.showToast('설정 저장 실패', 'error');
+                Utils.showToast(`${i18n.status_failed_save}`, 'error');
             }
         }
     }
@@ -201,13 +201,13 @@
         const projectId = getCurrentProject();
 
         if (!projectId) {
-            Utils.showToast("프로젝트를 먼저 선택해주세요.", "warning");
+            Utils.showToast(`${i18n.status_select_project_first}`, "warning");
             input.value = ''; // Reset
             return;
         }
 
         const status = document.getElementById('uploadStatus');
-        status.textContent = "업로드 중...";
+        status.textContent = `${i18n.status_uploading}`;
         status.classList.remove('hidden');
 
         const formData = new FormData();
@@ -221,8 +221,8 @@
             const result = await response.json();
 
             if (result.status === 'ok') {
-                Utils.showToast('인트로 영상이 업로드 및 설정되었습니다.', 'success');
-                status.textContent = "완료!";
+                Utils.showToast(`${i18n.status_intro_uploaded}`, 'success');
+                status.textContent = `${i18n.status_done}`;
                 setTimeout(() => status.classList.add('hidden'), 2000);
 
                 // [NEW] Update Stepper
@@ -234,7 +234,7 @@
                     id: 'uploaded_' + Date.now(),
                     url: result.url,
                     image: '/static/img/video_placeholder.png', // You might not have this, so use a data URI or just a colored box
-                    duration: 'Uploaded'
+                    duration: `${i18n.label_uploaded}`
                 };
 
                 // If we don't have a placeholder image, let's use a colored div in render
@@ -251,7 +251,7 @@
                         <div class="aspect-video relative flex items-center justify-center bg-gray-800">
                              <video src="${result.url}" class="w-full h-full object-contain" muted onmouseover="this.play()" onmouseout="this.pause();this.currentTime=0;"></video>
                             <div class="absolute bottom-1 right-1 bg-blue-600 text-white text-[10px] px-1 rounded">
-                                Uploaded
+                                ${i18n.label_uploaded}
                             </div>
                         </div>
                         <div class="absolute inset-0 bg-blue-500/30 border-4 border-blue-500 flex items-start justify-end p-2 pointer-events-none">
@@ -261,12 +261,12 @@
                 `;
 
             } else {
-                Utils.showToast('업로드 실패: ' + (result.error || 'Unknown'), 'error');
+                Utils.showToast(`${i18n.status_failed_upload}: ` + (result.error || 'Unknown'), 'error');
                 status.classList.add('hidden');
             }
         } catch (e) {
             console.error(e);
-            Utils.showToast('업로드 중 오류가 발생했습니다.', 'error');
+            Utils.showToast(`${i18n.status_failed_upload_err}`, 'error');
             status.classList.add('hidden');
         } finally {
             input.value = ''; // Reset input
@@ -308,6 +308,12 @@
                     isIntroUpload = false;
                 }
 
+                // [AUTOPILOT] 오토파일럿이 렌더링한 최종 영상 폴백
+                if (!videoPath) {
+                    videoPath = fullData.settings && fullData.settings.video_path;
+                    isIntroUpload = false;
+                }
+
                 if (videoPath) {
                     // Normalize Path
                     let webPath = videoPath;
@@ -321,7 +327,7 @@
                     // Render Card
                     const container = document.getElementById('videoResultsList');
                     if (container) {
-                        const label = isIntroUpload ? "Uploaded" : "Selected";
+                        const label = isIntroUpload ? "Uploaded" : (fullData.settings && fullData.settings.video_path && videoPath === fullData.settings.video_path ? "Rendered" : "Selected");
                         container.innerHTML = `
                             <div class="group relative rounded-lg overflow-hidden border border-blue-500 shadow-md bg-black cursor-pointer">
                                 <div class="aspect-video relative flex items-center justify-center bg-gray-800">
@@ -346,7 +352,7 @@
                     // Status Badge Update
                     const status = document.getElementById('uploadStatus');
                     if (status) {
-                        status.textContent = "저장된 영상 불러옴";
+                        status.textContent = "{{ t('status_loading_video') }}";
                         status.classList.remove('hidden');
                     }
                 }
