@@ -658,8 +658,8 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
         # Pass 2: TTS Generation (Collected for each scene)
         print("🎙️ [Auto-Pilot] Pass 2: Generating Scene-based TTS...")
         db.update_project(project_id, status="generating_tts")
-        provider = config_dict.get("voice_provider")
-        voice_id = config_dict.get("voice_id")
+        provider = config_dict.get("voice_provider") or None  # empty string → None
+        voice_id = config_dict.get("voice_id") or None  # empty string → None
         
         sorted_prompts = sorted(image_prompts, key=lambda x: x.get('scene_number', 0))
         
@@ -672,9 +672,10 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
              has_sfx = any(p.get("sound_effects") not in [None, 'None', 'Unknown'] for p in sorted_prompts)
              if not provider and has_sfx:
                  provider = "elevenlabs"
-                 if not voice_id:
-                     voice_id = "4JJwo477JUAx3HV0T7n7" # Default ElevenLabs voice
-             
+             # If provider is ElevenLabs but voice_id is missing, use default ElevenLabs voice
+             if provider == "elevenlabs" and not voice_id:
+                 voice_id = "4JJwo477JUAx3HV0T7n7"  # Default ElevenLabs voice
+
              # Ultimate Fallback
              if not provider: provider = "google_cloud"
              if not voice_id: voice_id = "ko-KR-Neural2-A"
@@ -722,11 +723,12 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                         audio_path = result["audio_path"]
                         duration = result.get("duration", 3.0)
                         alignment = result.get("alignment", [])
-                        
+
                         temp_audios.append(audio_path)
                         scene_audio_files.append(audio_path)
                         scene_audio_map[scene_num] = audio_path
                         scene_durations.append(duration)
+                        used_voices.add(current_voice_id)
                         
                         for word_info in alignment:
                             all_alignments.append({
@@ -749,6 +751,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                         temp_audios.append(s_out)
                         scene_audio_files.append(s_out)
                         scene_audio_map[scene_num] = s_out
+                        used_voices.add(current_voice_id)
                         try:
                             try:
                                 from moviepy import AudioFileClip
