@@ -1050,11 +1050,18 @@
                 const isShorts = (window.currentAppMode === 'shorts');
 
                 if (container) {
-                    if (isVideo) {
+                    if (isVideo && isShorts) {
+                        // 숏츠 모드 비디오: object-contain으로 레터박스 유지
                         container.innerHTML = `
-                            <video src="${imgUrl}" 
-                                   style="width: 100%; height: 100%; object-fit: cover; background: black;" 
-                                   class="w-full h-full" 
+                            <div class="relative w-full h-full overflow-hidden bg-black">
+                                <video src="${imgUrl}" class="absolute inset-0 w-full h-full object-cover blur-md opacity-50 scale-110" autoplay muted loop playsinline></video>
+                                <video src="${imgUrl}" class="relative z-10 w-full h-full object-contain" autoplay muted loop playsinline></video>
+                            </div>`;
+                    } else if (isVideo) {
+                        container.innerHTML = `
+                            <video src="${imgUrl}"
+                                   style="width: 100%; height: 100%; object-fit: cover; background: black;"
+                                   class="w-full h-full"
                                    autoplay muted loop playsinline>
                             </video>`;
                     } else if (isShorts) {
@@ -1801,11 +1808,14 @@
             const res = await fetch(`/api/project/${projectId}/subtitle/regenerate`, { method: 'POST' });
             const data = await res.json();
             if (data.status === 'ok') {
+                const prevSelected = currentSubtitleIndex || 0;
                 subtitles = data.subtitles;
                 images = data.images || images;
                 imageTimings = data.image_timings || [];
                 renderSubtitles();
-                selectSubtitle(0);
+                // 이전 선택 위치 유지 (범위 초과 시 마지막으로)
+                const restoreIdx = Math.min(prevSelected, subtitles.length - 1);
+                selectSubtitle(restoreIdx);
                 Utils.showToast('재분석 완료', 'success');
             } else throw new Error(data.error);
         } catch (e) { Utils.showToast('실패: ' + e.message, 'error'); }
