@@ -1345,14 +1345,22 @@
 
         const aspectRatio = styleSettings.aspect_ratio || '9:16';
         const [w, h] = aspectRatio.split(':').map(Number);
-        const imageWidth = previewContainer.clientWidth;
+        const boxWidth = previewBox.clientWidth;
+        const isShortsPrev = window.currentAppMode === 'shorts';
+
+        // 숏츠(9:16)는 1:1 정사각형 컨테이너 안에서 실제 이미지 너비 = 박스너비 × (9/16)
+        // 자막은 이미지 영역 안에만 표시되어야 함
+        const imageWidth = isShortsPrev
+            ? Math.round(boxWidth * (9 / 16))
+            : previewBox.clientWidth;
+
         const videoHeight = (imageWidth * h) / w;
 
         const previewHeight = previewBox.clientHeight;
         const scaleFactor = previewHeight / videoHeight;
 
         const actualSize = Math.round(videoHeight * (fontSizePercent / 100) * scaleFactor * 1.0);
-        const containerWidth = Math.round(imageWidth * 0.98);
+        const containerWidth = Math.round(imageWidth * 0.90);
 
         text.style.color = color;
         text.style.fontSize = `${actualSize}px`;
@@ -2919,8 +2927,9 @@
             updateDebug(`[Func] Data JSON parsed. Status: ${data.status}`);
 
             if (data.status === 'ok') {
-                // 1. Set Data
-                subtitles = data.subtitles || [];
+                // 1. Set Data (app_mode 먼저 세팅 후 auto-wrap 적용)
+                window.currentAppMode = (data.settings && data.settings.app_mode) || window.APP_MODE || 'longform';
+                subtitles = applyAutoWrapToSubtitles(data.subtitles || []);
                 imageTimings = (data.image_timings || [0.0]).map(Number);
                 images = data.timeline_images || [];
                 sourceImages = data.source_images || [];
