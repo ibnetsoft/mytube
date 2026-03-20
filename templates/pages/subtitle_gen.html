@@ -1103,8 +1103,10 @@
                 document.getElementById('strokeWidthValue').textContent = s.subtitle_stroke_width;
             }
         }
-        // [NEW] Aspect Ratio
-        if (s.aspect_ratio) {
+        // [NEW] Aspect Ratio — shorts 모드는 항상 9:16 강제
+        if (window.currentAppMode === 'shorts') {
+            setAspectRatio('9:16');
+        } else if (s.aspect_ratio) {
             setAspectRatio(s.aspect_ratio);
         }
 
@@ -1281,8 +1283,8 @@
             if (ratio === '9:16') {
                 // 숏츠: 정사각형 컨테이너 — 9:16 영상이 위아래 꽉차고 좌우는 검정 레터박스
                 box.style.aspectRatio = '1 / 1';
-                box.classList.remove('max-w-2xl', 'max-w-[300px]');
-                box.classList.add('max-w-[360px]');
+                box.classList.remove('max-w-2xl', 'max-w-[300px]', 'max-w-[360px]');
+                // max-w 제거 → w-full로 패널 전체 너비 사용 → 더 큰 정사각형
             } else {
                 box.style.aspectRatio = ratio.replace(':', '/');
                 box.classList.remove('max-w-[300px]', 'max-w-[360px]');
@@ -2987,10 +2989,9 @@
                         }
                     }
 
-                    // Aspect Ratio — shorts 모드면 9:16 기본값 (저장된 값 우선)
+                    // Aspect Ratio — shorts 모드는 항상 9:16 강제 (저장된 값 무시)
                     const _isShorts = window.currentAppMode === 'shorts';
-                    const _defaultRatio = _isShorts ? '9:16' : '16:9';
-                    setAspectRatio(data.settings.aspect_ratio || _defaultRatio);
+                    setAspectRatio(_isShorts ? '9:16' : (data.settings.aspect_ratio || '16:9'));
                 }
 
                 // [NEW] Auto-split long subtitles into 2-line chunks
