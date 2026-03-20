@@ -1278,16 +1278,15 @@
     function setAspectRatio(ratio) {
         const box = document.getElementById('mainPreviewBox');
         if (box) {
-            // Apply Aspect Ratio
-            box.style.aspectRatio = ratio.replace(':', '/');
-
-            // Adjust Width for Mobile vs Desktop feel
             if (ratio === '9:16') {
-                box.classList.remove('max-w-2xl');
-                box.classList.add('max-w-[300px]'); // Phone width (reduced)
+                // 숏츠: 정사각형 컨테이너 — 9:16 영상이 위아래 꽉차고 좌우는 검정 레터박스
+                box.style.aspectRatio = '1 / 1';
+                box.classList.remove('max-w-2xl', 'max-w-[300px]');
+                box.classList.add('max-w-[360px]');
             } else {
-                box.classList.remove('max-w-[300px]');
-                box.classList.add('max-w-2xl'); // Desktop width (reduced)
+                box.style.aspectRatio = ratio.replace(':', '/');
+                box.classList.remove('max-w-[300px]', 'max-w-[360px]');
+                box.classList.add('max-w-2xl');
             }
         }
 
