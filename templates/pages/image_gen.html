@@ -411,6 +411,12 @@
     let prompts = [];
     window.defaultVideoEngine = 'wan'; // Global default, overridden by settings
 
+    // [FIX] settings를 DOMContentLoaded보다 빨리 로드 시작 (projectStateRestored 타이밍 문제 방지)
+    window._globalSettingsPromise = fetch('/api/settings').then(r => r.json()).then(s => {
+        if (s.video_engine) window.defaultVideoEngine = s.video_engine;
+        return s;
+    }).catch(() => ({}));
+
     // [NEW] 프롬프트 최적화 유틸리티
     function extractDynamicPart(fullPrompt) {
         if (!fullPrompt) return "동작 묘사 없음";
@@ -2233,6 +2239,7 @@
             }
         }
 
+
         // [RESTORE] Image Prompts - 데이터가 있을 때만 업데이트 (없으면 기존 유지)
         if (data && data.image_prompts && data.image_prompts.length > 0) {
             prompts = data.image_prompts;
@@ -2245,8 +2252,11 @@
                     style_tags: ''
                 }));
             }
-            drawPromptsUI(prompts);
-            document.getElementById('resultSection').classList.remove('hidden');
+            // [FIX] settings 로드 완료 후 렌더링 (defaultVideoEngine 반영 보장)
+            (window._globalSettingsPromise || Promise.resolve()).then(() => {
+                drawPromptsUI(prompts);
+                document.getElementById('resultSection').classList.remove('hidden');
+            });
             console.log(`[projectStateRestored] Restored ${prompts.length} prompts`);
         }
         // 데이터 없으면 기존 prompts 유지 (새로고침 케이스는 DOMContentLoaded가 처리)
@@ -2334,12 +2344,15 @@
         checkScriptStatus();
         loadProjectThumbnail();
 
-        // [SYNC] Load global video engine setting
+        // [SYNC] Load global video engine setting (reuse early-started promise to avoid duplicate fetch)
         try {
-            const _settingsRes = await fetch('/api/settings');
-            const _settings = await _settingsRes.json();
+            const _settings = await window._globalSettingsPromise;
             if (_settings.video_engine) {
                 window.defaultVideoEngine = _settings.video_engine;
+                // [FIX] projectStateRestored가 먼저 실행되어 'wan'으로 렌더링됐을 수 있으므로 재렌더링
+                if (_settings.video_engine !== 'wan' && prompts && prompts.length > 0) {
+                    drawPromptsUI(prompts);
+                }
             }
         } catch (e) { /* use default wan */ }
 
