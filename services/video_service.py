@@ -1396,17 +1396,17 @@ class VideoService:
                         final_words.append({"word": w.get("word", ""), "start": w.get("start", 0), "end": w.get("end", 0)})
 
             # [IMPROVED] Smart Semantic Segmentation (2-Line Limit Rule)
-            # 1. 절대 한계: 40자 (2줄 초과 방지)
-            # 2. 의미 분할: 조사/어미 뒤, 문장부호 뒤
-            # 3. 호흡 분할: 0.5초 이상 침묵
-            
-            MAX_CHARS_PER_BLOCK = 40
-            SOFT_LIMIT_CHARS = 12     # 이 길이 넘으면 조사/어미 체크 시작 (조금 더 자주 끊기게 수정)
-            MIN_SILENCE_GAP = 0.5
-            
-            # Heuristics
-            SEMANTIC_ENDINGS = ('은', '는', '이', '가', '을', '를', '에', '서', '로', '에게', '고', '며', '니', '면', '지', '나', '해', '돼', '요', '죠')
-            SENTENCE_ENDINGS = ('.', '?', '!', ',', '…')
+            # 1. 절대 한계: 70자 (문맥 단위 유지)
+            # 2. 의미 분할: 문장부호 뒤 (조사/어미는 25자 이상일 때만 체크)
+            # 3. 호흡 분할: 0.8초 이상 침묵
+
+            MAX_CHARS_PER_BLOCK = 70   # 40→70: 문맥 단위 유지
+            SOFT_LIMIT_CHARS = 25      # 12→25: 너무 짧게 끊기는 현상 방지
+            MIN_SILENCE_GAP = 0.8      # 0.5→0.8: 짧은 호흡에도 끊기는 현상 방지
+
+            # Heuristics — 조사 목록 축소 (문장 의미가 완결되는 어미/부호만)
+            SEMANTIC_ENDINGS = ('고', '며', '니', '면', '요', '죠', '다', '까')
+            SENTENCE_ENDINGS = ('.', '?', '!', '…')
 
             if final_words:
                 current_words = []
@@ -2395,27 +2395,27 @@ class VideoService:
                 current_block = []
                 current_start = 0.0
                 current_chars = 0
-                MAX_CHARS = 40
-                
+                MAX_CHARS = 70   # 40→70: 문맥 단위 유지
+
                 # Check format: Is it list of {word, start, end}?
                 # Yes, tts_service saves it that way.
-                
+
                 for i, item in enumerate(data):
                     word = item.get('word', '')
                     start = item.get('start', 0.0)
                     end = item.get('end', 0.0)
-                    
+
                     if not current_block:
                         current_start = start
-                    
+
                     current_block.append(word)
                     current_chars += len(word)
-                    
-                    # Grouping Logic
-                    is_end_char = word.strip().endswith(('.', '?', '!'))
+
+                    # Grouping Logic — 문장부호(. ? !)에서만 끊음, 쉼표는 제외
+                    is_end_char = word.strip().endswith(('.', '?', '!', '…'))
                     is_long = current_chars > MAX_CHARS
                     is_last = (i == len(data) - 1)
-                    
+
                     if is_end_char or is_long or is_last:
                         # Reconstruct sentence
                         text = "".join(current_block)
