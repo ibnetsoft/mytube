@@ -276,10 +276,6 @@
                 title="{{ t('label_yellow') }}">A</button>
         </div>
 
-        <div class=" flex items-center gap-2 border-l border-gray-600 pl-4 ml-2">
-            <span class="text-xs font-bold text-gray-400">{{ t('label_aspect_ratio') }}</span>
-                {{ t('btn_aspect_ratio') }} 16:9
-        </div>
 
         <div class="flex-1"></div>
 
@@ -397,7 +393,7 @@
 
 
                 <!-- Overlay Text (CSS Fallback) -->
-                <div id="subtitlePreviewBox" class="absolute inset-0 overflow-hidden pointer-events-none">
+                <div id="subtitlePreviewBox" class="absolute inset-0 overflow-hidden pointer-events-none z-20">
                     <!-- CSS 기반 미리보기 (기본 표시, 이미지 로드 시 숨김) -->
                     <div id="previewTextMain"
                         class="absolute transform -translate-x-1/2 pointer-events-auto cursor-move select-none whitespace-pre-wrap text-center hover:border hover:border-blue-400/50 hover:bg-white/10 rounded transition-colors dark:bg-gray-800"
@@ -2885,8 +2881,8 @@
                 console.log("[Load] Received Image Effects:", imageEffects);
                 updateDebug(`[Load] Effects Raw: ${JSON.stringify(imageEffects)}`);
 
-                // [FIX] Store App Mode for UI Logic early
-                window.currentAppMode = (data.settings && data.settings.app_mode) || 'longform';
+                // [FIX] Store App Mode for UI Logic early — project setting > global APP_MODE > 'longform'
+                window.currentAppMode = (data.settings && data.settings.app_mode) || window.APP_MODE || 'longform';
                 const defaultEffect = window.currentAppMode === 'shorts' ? 'none' : 'random';
 
                 // Ensure imageEffects matches images length
@@ -2938,8 +2934,8 @@
                         aspect_ratio: data.settings.aspect_ratio || '9:16'
                     };
 
-                    // [NEW] Store App Mode for UI Logic
-                    window.currentAppMode = data.settings.app_mode || 'longform';
+                    // [NEW] Store App Mode for UI Logic — project setting > global APP_MODE > 'longform'
+                    window.currentAppMode = data.settings.app_mode || window.APP_MODE || 'longform';
                     console.log("App Mode:", window.currentAppMode);
 
                     // Apply UI
@@ -2992,17 +2988,10 @@
                         }
                     }
 
-                    // Aspect Ratio
-                    if (data.settings.aspect_ratio) {
-                        setAspectRatio(data.settings.aspect_ratio);
-                    }
-                    else if (data.settings.app_mode === 'shorts') {
-                        setAspectRatio('9:16');
-                    }
-                    else {
-                        // Default for Longform
-                        setAspectRatio('16:9');
-                    }
+                    // Aspect Ratio — shorts 모드면 9:16 기본값 (저장된 값 우선)
+                    const _isShorts = window.currentAppMode === 'shorts';
+                    const _defaultRatio = _isShorts ? '9:16' : '16:9';
+                    setAspectRatio(data.settings.aspect_ratio || _defaultRatio);
                 }
 
                 // [NEW] Auto-split long subtitles into 2-line chunks
