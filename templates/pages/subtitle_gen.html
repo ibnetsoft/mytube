@@ -1808,7 +1808,7 @@
             const res = await fetch(`/api/project/${projectId}/subtitle/regenerate`, { method: 'POST' });
             const data = await res.json();
             if (data.status === 'ok') {
-                const prevSelected = currentSubtitleIndex || 0;
+                const prevSelected = selectedIndex >= 0 ? selectedIndex : 0;
                 subtitles = data.subtitles;
                 images = data.images || images;
                 imageTimings = data.image_timings || [];
