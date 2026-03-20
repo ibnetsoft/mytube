@@ -35,41 +35,41 @@
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{
                         t('plan_style_label') }}</label>
                     <select id="scriptStyleSelect" class="input-field">
-                        <optgroup label="📹 기본 스타일">
-                            <option value="default" selected>기본 설정 (자연스럽고 선명한 스타일)</option>
-                            <option value="news">뉴스 보도 (News Delivery)</option>
-                            <option value="story">옛날 이야기 (Old Story)</option>
-                            <option value="senior_story">시니어 사연 (Senior Story)</option>
-                            <option value="bgm">배경음악 중심 (BGM Focus)</option>
+                        <optgroup label="📹 {{ t('style_basic') }}">
+                            <option value="default" selected>{{ t('style_default') }}</option>
+                            <option value="news">{{ t('style_news') }}</option>
+                            <option value="story">{{ t('style_old_story') }}</option>
+                            <option value="senior_story">{{ t('style_senior_story') }}</option>
+                            <option value="bgm">{{ t('style_bgm_focus') }}</option>
                         </optgroup>
-                        <optgroup label="🎬 시대별 영화 스타일">
-                            <option value="classic_50s">50년대 클래식영화 (테크니컬러, 부드러운 조명)</option>
-                            <option value="joseon_sageuk">조선시대 사극 (전통 건축/의복, 자연광)</option>
-                            <option value="north_korean_drama">북한 드라마 (빈티지 영화, 강렬한 색감)</option>
-                            <option value="silent_20s">20년대 무성영화 (흑백, 높은 콘트라스트, 빈티지 그레인)</option>
-                            <option value="camcorder_90s">90년대 캠코더 (VHS 화질, 낮은 프레임)</option>
-                            <option value="modern_drama">현대 드라마 (자글자글한 화질, 자연스러운 색감)</option>
+                        <optgroup label="🎬 {{ t('style_movie_era') }}">
+                            <option value="classic_50s">{{ t('style_classic_50s') }}</option>
+                            <option value="joseon_sageuk">{{ t('style_joseon_sageuk') }}</option>
+                            <option value="north_korean_drama">{{ t('style_north_korean_drama') }}</option>
+                            <option value="silent_20s">{{ t('style_silent_20s') }}</option>
+                            <option value="camcorder_90s">{{ t('style_camcorder_90s') }}</option>
+                            <option value="modern_drama">{{ t('style_modern_drama') }}</option>
                         </optgroup>
-                        <optgroup label="🎭 장르별 스타일">
-                            <option value="mystery_thriller">미스터리 스릴러 (저조도, 영사기 톤, 음영 그림자)</option>
-                            <option value="horror_suspense">공포-서스펜스 (어두운 조명, 음침 분위기)</option>
-                            <option value="melodrama">멜로드라마 (부드러운 콘트라스트, 따뜻하고 화사함)</option>
-                            <option value="crime_drama">범죄 드라마 (차갑고 어두운 화질, 낮은 채도)</option>
-                            <option value="cyberpunk_neon">사이버펑크 네온 (네온 색상, 비, 미래적 분위기)</option>
+                        <optgroup label="🎭 {{ t('style_genre') }}">
+                            <option value="mystery_thriller">{{ t('style_mystery_thriller') }}</option>
+                            <option value="horror_suspense">{{ t('style_horror_suspense') }}</option>
+                            <option value="melodrama">{{ t('style_melodrama') }}</option>
+                            <option value="crime_drama">{{ t('style_crime_drama') }}</option>
+                            <option value="cyberpunk_neon">{{ t('style_cyberpunk_neon') }}</option>
                         </optgroup>
-                        <optgroup label="📺 캐릭터/웹툰 시리즈">
-                            <option value="k_manhwa">K만화 (초등학생 일기장 스타일)</option>
+                        <optgroup label="📺 {{ t('style_character_webtoon') }}">
+                            <option value="k_manhwa">{{ t('style_k_manhwa') }}</option>
                         </optgroup>
-                        <optgroup label="🎨 일러스트/애니메이션 스타일">
-                            <option value="watercolor_analog">수채화풍 아날로그 일러스트 (감성적 수채화 텍스처)</option>
-                            <option value="k_webtoon">K웹툰 (선명한 라인, 화려한 색감)</option>
-                            <option value="graphite_sketch">흑연 드로잉 스케치 (거친 연필선 스케치)</option>
-                            <option value="joseon_2d_anime">조선시대 풍속화 2D 애니 (조선 웹툰 스타일)</option>
-                            <option value="oriental_ink">동양 수묵화 모노크롬 (여백의 미, 먹물 그림)</option>
-                            <option value="neonsign_citypop">네온사인 시티팝 (80년대 레트로 퓨처, 화려한 야경)</option>
-                            <option value="buddhist_minimal">불교 미니멀리즘 (한국 사찰, 불상, 포토리얼리즘)</option>
-                            <option value="renaissance_sacred">르네상스 성화 (성경 인물 성화풍, 현대인 실사풍)</option>
-                            <option value="cute_animal_char">귀여운 동물 캐릭터 (의인화된 동물 웹툰 일러스트)</option>
+                        <optgroup label="🎨 {{ t('style_illustration_anime') }}">
+                            <option value="watercolor_analog">{{ t('style_watercolor_analog') }}</option>
+                            <option value="k_webtoon">{{ t('style_k_webtoon') }}</option>
+                            <option value="graphite_sketch">{{ t('style_graphite_sketch') }}</option>
+                            <option value="joseon_2d_anime">{{ t('style_joseon_2d_anime') }}</option>
+                            <option value="oriental_ink">{{ t('style_oriental_ink') }}</option>
+                            <option value="neonsign_citypop">{{ t('style_neonsign_citypop') }}</option>
+                            <option value="buddhist_minimal">{{ t('style_buddhist_minimal') }}</option>
+                            <option value="renaissance_sacred">{{ t('style_renaissance_sacred') }}</option>
+                            <option value="cute_animal_char">{{ t('style_cute_animal_char') }}</option>
                         </optgroup>
                     </select>
                 </div>
@@ -97,13 +97,13 @@
                     <div class="flex flex-col gap-2">
                         <select id="deepDiveMode"
                             class="input-field text-xs py-2 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800">
-                            <option value="monologue">🎙️ 1인 나레이션</option>
-                            <option value="dialogue">👥 팟캐스트 (대화형)</option>
+                            <option value="monologue">🎙️ {{ t('voice_solo') }}</option>
+                            <option value="dialogue">👥 {{ t('voice_podcast') }}</option>
                         </select>
                         <button onclick="generateDeepDive()" id="deepDiveBtn"
                             class="w-full py-3 text-sm font-bold shadow-md hover:shadow-xl transition-all rounded-lg flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-0">
                             <span>🚀</span>
-                            <span>딥다이브 생성</span>
+                            <span>{{ t('btn_deep_dive') }}</span>
                         </button>
                     </div>
                 </div>
@@ -141,21 +141,21 @@
                 </button>
             </div>
 
-            <p class="text-[10px] text-gray-500 dark:text-gray-400 mt-2 text-center">* 영상 주제와 프로젝트 제목으로 즉시 적용됩니다.</p>
+            <p class="text-[10px] text-gray-500 dark:text-gray-400 mt-2 text-center">* {{ t('plan_recommend_helper') }}</p>
         </div>
 
         <!-- 2. Learning Sources (NotebookLM) -->
         <div class="card w-full">
-            <h3 class="card-title">📚 학습 자료 (Sources)</h3>
-            <p class="text-[11px] text-gray-500 mb-3 dark:text-gray-400">뉴스 URL, 유튜브 URL 또는 텍스트 파일을 추가하여 AI가 학습하게 하세요.
+            <h3 class="card-title">📚 {{ t('plan_sources_title') }}</h3>
+            <p class="text-[11px] text-gray-500 mb-3 dark:text-gray-400">{{ t('plan_sources_desc') }}
             </p>
 
             <!-- URL Add -->
             <div class="flex gap-2 mb-3">
                 <input type="text" id="sourceUrlInput" class="input-field text-xs py-1.5"
-                    placeholder="뉴스 기사 또는 유튜브 URL">
+                    placeholder="{{ t('plan_sources_placeholder') }}">
                 <button onclick="addUrlSource()"
-                    class="btn-secondary text-[10px] px-2 py-1 whitespace-nowrap bg-blue-50 text-blue-600 border-blue-200">추가</button>
+                    class="btn-secondary text-[10px] px-2 py-1 whitespace-nowrap bg-blue-50 text-blue-600 border-blue-200">{{ t('btn_add') }}</button>
             </div>
 
             <!-- File Upload -->
@@ -164,7 +164,7 @@
                     onchange="uploadFileSource(this)">
                 <button onclick="document.getElementById('sourceFileInput').click()"
                     class="btn-secondary w-full text-[10px] py-1.5 flex items-center justify-center gap-1 border-dashed">
-                    <span>📁</span> 텍스트 파일 업로드
+                    <span>📁</span> {{ t('btn_upload_text_file') }}
                 </button>
             </div>
 
@@ -172,13 +172,13 @@
             <div class="mb-3">
                 <button onclick="openSourceLibrary()"
                     class="btn-secondary w-full text-[10px] py-1.5 flex items-center justify-center gap-1 bg-purple-50 text-purple-600 border-purple-200 hover:bg-purple-100 transition-colors">
-                    <span>📚</span> 기존 자료 가져오기
+                    <span>📚</span> {{ t('btn_get_existing_sources') }}
                 </button>
             </div>
 
             <!-- List of Sources -->
             <div id="sourcesList" class="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-1">
-                <div class="text-center py-4 text-gray-400 text-[10px]">등록된 자료가 없습니다.</div>
+                <div class="text-center py-4 text-gray-400 text-[10px]">{{ t('status_no_sources') }}</div>
             </div>
         </div>
 
@@ -246,7 +246,7 @@
     let currentStructure = '';
 
     // i18n for JS
-    const i18n = {
+    var i18n = {
         unit_min: "{{ t('plan_duration_unit_min') }}",
         unit_sec: "{{ t('plan_duration_unit_sec') }}",
         helper_min: "{{ t('plan_duration_helper_min') }}",
@@ -258,7 +258,13 @@
         cta_label: "{{ t('plan_cta_label') }}",
         style_label: "{{ t('plan_info_style') }}",
         duration_label: "{{ t('plan_info_duration') }}",
-        regenerate: "{{ t('btn_regenerate') }}"
+        regenerate: "{{ t('btn_regenerate') }}",
+        status_saving: "{{ t('status_saving') }}",
+        status_saved: "{{ t('status_saved') }}",
+        status_failed_save: "{{ t('status_failed_save') }}",
+        status_generating: "{{ t('status_generating') }}",
+        err_no_topic: "{{ t('status_no_topic') }}",
+        err_gen_fail: "{{ t('err_gen_fail') }}"
     };
 
     // 페이지 로드 시 분석 데이터 확인
@@ -592,7 +598,7 @@
         if (!projectId) return;
 
         const originalText = btn.innerHTML;
-        Utils.setLoading(btn, true, '저장 중...');
+        Utils.setLoading(btn, true, i18n.status_saving);
 
         try {
             const topic = document.getElementById('topicInput').value.trim();
@@ -610,13 +616,13 @@
             });
 
             if (result.status === 'ok') {
-                Utils.showToast('설정이 저장되었습니다.', 'success');
+                Utils.showToast(i18n.status_saved, 'success');
             } else {
-                throw new Error(result.error || '저장 실패');
+                throw new Error(result.error || i18n.status_failed_save);
             }
         } catch (e) {
             console.error(e);
-            Utils.showToast('설정 저장 실패: ' + e.message, 'error');
+            Utils.showToast(i18n.status_failed_save + ': ' + e.message, 'error');
         } finally {
             Utils.setLoading(btn, false);
             btn.innerHTML = originalText;
@@ -643,7 +649,7 @@
         }
 
         if (!topic) {
-            Utils.showToast('영상 주제를 입력하세요', 'warning');
+            Utils.showToast(i18n.err_no_topic, 'warning');
             return;
         }
 
@@ -659,7 +665,7 @@
         const notes = document.getElementById('additionalNotes').value;
 
         const btn = document.getElementById('generateBtn');
-        Utils.setLoading(btn, true, '생성 중...');
+        Utils.setLoading(btn, true, i18n.status_generating);
 
         try {
             const projectId = getCurrentProject();
@@ -730,7 +736,7 @@
                     } catch (e) { console.error('DB 저장 실패:', e); }
                 }
             } else {
-                Utils.showToast('생성 실패: ' + (result.error || '알 수 없는 오류'), 'error');
+                Utils.showToast(i18n.err_gen_fail + ': ' + (result.error || '알 수 없는 오류'), 'error');
             }
         } catch (error) {
             console.error('생성 오류:', error);
@@ -1287,7 +1293,7 @@
             const data = await res.json();
             if (data.status === 'ok') {
                 const result = data.result;
-                Utils.showToast('딥다이브 대본 생성 완료! 🚀', 'success');
+                Utils.showToast(`${i18n.deepdive_gen_done}`, 'success');
 
                 // Save to DB and Redirect or Show
                 // We'll save the script and recommend it in script-gen page
@@ -1316,7 +1322,7 @@
                 }
 
                 // Redirect to script-gen
-                if (confirm('대본이 생성되었습니다. 확인하시겠습니까?')) {
+                if (confirm(`${i18n.confirm_script_gen}`)) {
                     window.location.href = `/script-gen?project_id=${projectId}`;
                 }
             } else {
@@ -1335,7 +1341,7 @@
         const modal = document.getElementById('sourceLibraryModal');
         modal.classList.remove('hidden');
         const list = document.getElementById('libraryProjectList');
-        list.innerHTML = '<div class="text-center py-10"><div class="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div></div>';
+        list.innerHTML = `<div class="text-center py-10"><div class="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div></div>`;
 
         try {
             const res = await fetch('/api/projects/all-sources-summary');
@@ -1348,7 +1354,7 @@
                 const filtered = data.projects.filter(p => p.id !== currentId);
 
                 if (filtered.length === 0) {
-                    list.innerHTML = '<div class="text-center py-10 text-gray-500 text-sm dark:text-gray-400">가져올 수 있는 다른 프로젝트 자료가 없습니다.</div>';
+                    list.innerHTML = `<div class="text-center py-10 text-gray-500 text-sm dark:text-gray-400">${i18n.no_other_sources}</div>`;
                     return;
                 }
 
@@ -1359,18 +1365,18 @@
                     btn.innerHTML = `
                         <div class="text-left">
                             <div class="text-sm font-bold text-gray-800 dark:text-gray-100 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors font-noto">${proj.name}</div>
-                            <div class="text-[10px] text-gray-400 mt-1">등록된 자료: ${proj.source_count}개</div>
+                            <div class="text-[10px] text-gray-400 mt-1">${i18n.source_count_label}: ${proj.source_count}${i18n.items_unit}</div>
                         </div>
                         <span class="text-purple-400 group-hover:translate-x-1 transition-transform">→</span>
                     `;
                     list.appendChild(btn);
                 });
             } else {
-                list.innerHTML = '<div class="text-center py-10 text-gray-500 text-sm dark:text-gray-400">등록된 학습 자료가 있는 프로젝트가 없습니다.</div>';
+                list.innerHTML = `<div class="text-center py-10 text-gray-500 text-sm dark:text-gray-400">${i18n.no_projects_with_sources}</div>`;
             }
         } catch (e) {
             console.error(e);
-            list.innerHTML = '<div class="text-center py-10 text-red-500 text-sm">목록을 불러오지 못했습니다.</div>';
+            list.innerHTML = `<div class="text-center py-10 text-red-500 text-sm">${i18n.status_failed_load_list}</div>`;
         }
     }
 
@@ -1379,18 +1385,18 @@
     }
 
     async function cloneSourcesFrom(fromProjectId, fromProjectName) {
-        if (!confirm(`'${fromProjectName}' 프로젝트의 모든 자료를 현재 프로젝트로 가져오시겠습니까?`)) return;
+        if (!confirm(`'${fromProjectName}' ${i18n.confirm_clone_sources}`)) return;
 
         const currentId = getCurrentProject();
         try {
-            Utils.showToast('자료를 복제하고 있습니다...', 'info');
+            Utils.showToast(`${i18n.status_cloning_sources}`, 'info');
             const res = await fetch(`/api/projects/${currentId}/sources/clone/${fromProjectId}`, {
                 method: 'POST'
             });
             const data = await res.json();
 
             if (data.status === 'ok') {
-                Utils.showToast(`${data.cloned_count}개의 자료를 성공적으로 가져왔습니다!`, 'success');
+                Utils.showToast(`${data.cloned_count}${i18n.cloned_success_msg}`, 'success');
                 closeSourceLibrary();
                 loadSources(); // 목록 새로고침
             } else {
@@ -1412,7 +1418,7 @@
         <div
             class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-900/50">
             <h3 class="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                <span>📚</span> 자료 라이브러리
+                <span>📚</span> {{ t('source_library_title') }}
             </h3>
             <button onclick="closeSourceLibrary()"
                 class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors dark:text-gray-300">
@@ -1423,8 +1429,7 @@
             </button>
         </div>
         <div class="p-6">
-            <p class="text-xs text-gray-500 mb-4 font-medium uppercase tracking-wider font-noto dark:text-gray-400">자료용
-                프로젝트 선택</p>
+            <p class="text-xs text-gray-500 mb-4 font-medium uppercase tracking-wider font-noto dark:text-gray-400">{{ t('select_project_for_source') }}</p>
             <div id="libraryProjectList" class="space-y-1 max-h-80 overflow-y-auto custom-scrollbar pr-1">
                 <!-- Project List Inject Here -->
             </div>

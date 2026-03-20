@@ -64,6 +64,25 @@
 <script>
     let shortsData = [];
 
+    // i18n for JS
+    var i18n = {
+        prompt_shorts_master: "{{ t('prompt_shorts_master') }}",
+        label_origin_script: "{{ t('label_origin_script') }}",
+        label_settings: "{{ t('label_settings') }}",
+        label_shorts_count: "{{ t('label_shorts_count') }}",
+        unit_count: "{{ t('unit_count') }}",
+        label_shorts_length: "{{ t('label_shorts_length') }}",
+        unit_sec: "{{ t('unit_sec') }}",
+        label_shorts_style: "{{ t('label_shorts_style') }}",
+        prompt_json_format: "{{ t('prompt_json_format') }}",
+        shorts_title_placeholder: "{{ t('shorts_title_placeholder') }}",
+        shorts_hook_placeholder: "{{ t('shorts_hook_placeholder') }}",
+        shorts_script_placeholder: "{{ t('shorts_script_placeholder') }}",
+        label_hashtag: "{{ t('label_hashtag') }}",
+        prompt_indep_context: "{{ t('prompt_indep_context') }}",
+        prompt_only_json: "{{ t('prompt_only_json') }}"
+    };
+
     async function generateShorts() {
         const scriptData = Utils.storage.get('fullScript');
         if (!scriptData?.script) {
@@ -78,29 +97,29 @@
         const btn = document.getElementById('generateBtn');
         Utils.setLoading(btn, true, "{{ t('status_generating') }}");
 
-        const prompt = `유튜브 쇼츠 전문가로서 다음 롱폼 대본에서 쇼츠용 하이라이트를 추출해주세요.
-
-[원본 대본]
+        const prompt = `${i18n.prompt_shorts_master}
+        
+[${i18n.label_origin_script}]
 ${scriptData.script.substring(0, 3000)}
 
-[설정]
-- 쇼츠 개수: ${count}개
-- 길이: ${length}초
-- 스타일: ${style}
+[${i18n.label_settings}]
+- ${i18n.label_shorts_count}: ${count}${i18n.unit_count}
+- ${i18n.label_shorts_length}: ${length}${i18n.unit_sec}
+- ${i18n.label_shorts_style}: ${style}
 
-JSON 형식으로 반환:
+${i18n.prompt_json_format}:
 {
     "shorts": [
         {
-            "title": "쇼츠 제목",
-            "hook": "첫 1초에 말할 후킹 멘트",
-            "script": "전체 쇼츠 대본 (${length}초 분량)",
-            "hashtags": "#해시태그1 #해시태그2 #해시태그3"
+            "title": "${i18n.shorts_title_placeholder}",
+            "hook": "${i18n.shorts_hook_placeholder}",
+            "script": "${i18n.shorts_script_placeholder} (${length}${i18n.unit_sec})",
+            "hashtags": "#${i18n.label_hashtag}1 #${i18n.label_hashtag}2 #${i18n.label_hashtag}3"
         }
     ]
 }
 
-각 쇼츠는 독립적으로 이해 가능해야 합니다. JSON만 반환하세요.`;
+${i18n.prompt_indep_context} JSON ${i18n.prompt_only_json}.`;
 
         try {
             const result = await API.gemini.generate(prompt, { temperature: 0.8 });

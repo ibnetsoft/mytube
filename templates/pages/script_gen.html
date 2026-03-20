@@ -79,20 +79,20 @@
                     <!-- Narration Mode Selection -->
                     <div class="flex items-center gap-3 bg-gray-800/80 px-3 py-1.5 rounded-lg border border-gray-700">
                         <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{{
-                            t('label_voice_mode') or '나레이션 모드' }}</span>
+                            t('label_voice_mode') }}</span>
                         <div class="flex gap-1">
                             <label class="cursor-pointer">
                                 <input type="radio" name="narrationMode" value="single" class="sr-only peer" checked>
                                 <div
                                     class="px-3 py-1 text-[10px] rounded bg-gray-700 text-gray-500 peer-checked:bg-blue-600 peer-checked:text-white transition-all dark:text-gray-400">
-                                    {{ t('mode_monologue') or '단독' }}
+                                    {{ t('mode_monologue') }}
                                 </div>
                             </label>
                             <label class="cursor-pointer">
                                 <input type="radio" name="narrationMode" value="multi" class="sr-only peer">
                                 <div
                                     class="px-3 py-1 text-[10px] rounded bg-gray-700 text-gray-500 peer-checked:bg-purple-600 peer-checked:text-white transition-all dark:text-gray-400">
-                                    {{ t('mode_multivoice') or '다중' }}
+                                    {{ t('mode_multivoice') }}
                                 </div>
                             </label>
                         </div>
@@ -144,7 +144,7 @@
                             <!-- [NEW] Clean Script Button -->
                             <button onclick="cleanCurrentScript()"
                                 class="btn-secondary text-xs flex items-center gap-1 border-yellow-600/50 text-yellow-500 hover:bg-yellow-500/10 px-3">
-                                ✨ 정제
+                                <span>✨</span> {{ t('btn_refine') }}
                             </button>
                             <button onclick="copyScript()"
                                 class="btn-primary text-xs flex items-center gap-1 bg-blue-600 hover:bg-blue-500 text-white px-3">
@@ -174,7 +174,7 @@
                         <button onclick="addToQueue()" id="queueBtn"
                             class="py-2 px-6 font-bold shadow-md hover:shadow-xl transition-all rounded-lg flex items-center gap-2 bg-gradient-to-r from-green-600 to-teal-600 text-white border-0">
                             <span>📥</span>
-                            <span>제작 대기열에 담기</span>
+                            <span>{{ t('btn_add_queue') }}</span>
                         </button>
 
                         <button onclick="goToImageGen()" class="btn-primary py-2 px-4 rounded-lg text-sm">
@@ -184,8 +184,7 @@
                             {{ t('btn_go_tts') }}
                         </button>
                         {% if app_mode == 'blog' %}
-                        <button onclick="goToBlogAutomation()" class="py-2 px-6 rounded-lg text-sm font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0 flex items-center gap-2 shadow-lg shadow-orange-500/20" title="블로그 자동화 도구로 이동하여 글과 이미지 생성">
-                            <span>✨</span> 블로그 자동화
+                            <span>✨</span> {{ t('btn_blog_automation') }}
                         </button>
                         {% endif %}
                     </div>
@@ -218,7 +217,7 @@
     let explorerData = { folders: [], files: [] };
 
     // i18n for JS
-    const i18n = {
+    var i18n = {
         loading: "{{ t('status_loading_explorer') }}",
         empty_title: "{{ t('empty_explorer_title') }}",
         empty_desc: "{{ t('empty_explorer_desc') }}",
@@ -232,7 +231,40 @@
         file_moved: "{{ t('toast_file_moved') }}",
         stats_chars: "{{ t('stats_chars') }}",
         stats_read_time: "{{ t('stats_read_time') }}",
-        stats_unit_min: "{{ t('stats_unit_min') }}"
+        stats_unit_min: "{{ t('stats_unit_min') }}",
+        status_failed_load: "{{ t('status_failed_load') }}",
+        status_script_opened: "{{ t('status_script_opened') }}",
+        status_debug_mode: "{{ t('status_debug_mode') }}",
+        status_failed_open_file: "{{ t('status_failed_open_file') }}",
+        status_enter_folder_name: "{{ t('status_enter_folder_name') }}",
+        status_folder_prefix: "{{ t('status_folder_prefix') }}",
+        status_folder_created: "{{ t('status_folder_created') }}",
+        prompt_new_folder_name: "{{ t('prompt_new_folder_name') }}",
+        confirm_delete_folder: "{{ t('confirm_delete_folder') }}",
+        status_removed_from_folder: "{{ t('status_removed_from_folder') }}",
+        confirm_delete_project: "{{ t('confirm_delete_project') }}",
+        warn_irreversible: "{{ t('warn_irreversible') }}",
+        btn_delete: "{{ t('btn_delete') }}",
+        status_deleted: "{{ t('status_deleted') }}",
+        status_failed_delete: "{{ t('status_failed_delete') }}",
+        status_no_content_to_save: "{{ t('status_no_content_to_save') }}",
+        status_select_project_first: "{{ t('status_select_project_first') }}",
+        status_saved: "{{ t('status_saved') }}",
+        status_failed_save: "{{ t('status_failed_save') }}",
+        status_no_script_to_copy: "{{ t('status_no_script_to_copy') }}",
+        status_copied_all: "{{ t('status_copied_all') }}",
+        confirm_clean_script: "{{ t('confirm_clean_script') }}",
+        status_script_refined: "{{ t('status_script_refined') }}",
+        status_no_content_blog: "{{ t('status_no_content_blog') }}",
+        blog_post_default_title: "{{ t('blog_post_default_title') }}",
+        confirm_wp_post: "{{ t('confirm_wp_post') }}",
+        confirm_blogger_post: "{{ t('confirm_blogger_post') }}",
+        status_no_platform_selected: "{{ t('status_no_platform_selected') }}",
+        status_posting_blog: "{{ t('status_posting_blog') }}",
+        status_no_motion_desc: "{{ t('status_no_motion_desc') }}",
+        status_no_motion_desc_content: "{{ t('status_no_motion_desc_content') }}",
+        marker_script_based_dynamic_change: "{{ t('marker_script_based_dynamic_change') }}",
+        marker_additional_visual_effects: "{{ t('marker_additional_visual_effects') }}"
     };
 
     // ========== EXPLORER FUNCTIONS ==========
@@ -272,7 +304,7 @@
             renderExplorer();
         } catch (e) {
             console.error('Explorer load failed:', e);
-            container.innerHTML = '<div class="text-center py-8 text-red-400 text-sm">불러오기 실패</div>';
+            container.innerHTML = `<div class="text-center py-8 text-red-400 text-sm">${i18n.status_failed_load}</div>`;
         }
     }
 
@@ -357,7 +389,7 @@
             </div>
             <span class="text-[10px] ${statusColor} select-none">${statusText}</span>
             <button onclick="event.stopPropagation(); deleteProject(${file.id}, '${file.name.replace(/'/g, "\\'")}')"
-                        class="opacity-0 group-hover:opacity-100 text-xs text-red-400 hover:text-red-300 ml-1" title="삭제">🗑️</button>
+                        class="opacity-0 group-hover:opacity-100 text-xs text-red-400 hover:text-red-300 ml-1" title="${i18n.btn_delete}">🗑️</button>
             </div >
             `;
     }
@@ -426,7 +458,7 @@
             document.getElementById('scriptContent').value = currentScript;
 
             if (scriptContent) {
-                Utils.showToast(`"${full.project?.name}" 대본 열림`, 'success');
+                Utils.showToast(`"${full.project?.name}" ${i18n.status_script_opened}`, 'success');
             } else {
                 // REVERTED TO FULL DUMP TO CHECK DEBUG KEY
                 console.warn("Script loading failed, dumping FULL object");
@@ -443,7 +475,7 @@
                 scriptContent = debugMsg + JSON.stringify(full, null, 2);
                 document.getElementById('scriptContent').value = scriptContent;
 
-                Utils.showToast('디버그 모드: 전체 구조 확인 (캡처해주세요)', 'warning');
+                Utils.showToast(`${i18n.status_debug_mode}`, 'warning');
             }
 
             updateStats();
@@ -461,7 +493,7 @@
 
         } catch (e) {
             console.error(e);
-            Utils.showToast('파일 열기 실패', 'error');
+            Utils.showToast(`${i18n.status_failed_open_file}`, 'error');
         }
     }
 
@@ -482,7 +514,7 @@
     function confirmCreateFolder() {
         const name = document.getElementById('newFolderName').value.trim();
         if (!name) {
-            Utils.showToast('폴더 이름을 입력하세요', 'warning');
+            Utils.showToast(`${i18n.status_enter_folder_name}`, 'warning');
             return;
         }
 
@@ -496,11 +528,11 @@
 
         closeFolderModal();
         refreshExplorer();
-        Utils.showToast(`폴더 "${name}" 생성됨`, 'success');
+        Utils.showToast(`${i18n.status_folder_prefix} "${name}" ${i18n.status_folder_created}`, 'success');
     }
 
     function renameFolder(folderId) {
-        const newName = prompt('새 폴더 이름:');
+        const newName = prompt(`${i18n.prompt_new_folder_name}`);
         if (!newName) return;
 
         const folders = JSON.parse(localStorage.getItem('scriptFolders') || '[]');
@@ -514,7 +546,7 @@
     }
 
     function deleteFolder(folderId) {
-        if (!confirm('이 폴더를 삭제하시겠습니까? (파일은 삭제되지 않습니다)')) return;
+        if (!confirm(`${i18n.confirm_delete_folder}`)) return;
 
         let folders = JSON.parse(localStorage.getItem('scriptFolders') || '[]');
         folders = folders.filter(f => f.id !== folderId);
@@ -564,12 +596,12 @@
             file.folderId = null;
         }
         renderExplorer();
-        Utils.showToast('폴더에서 제거됨', 'info');
+        Utils.showToast(`${i18n.status_removed_from_folder}`, 'info');
     }
 
     // Delete project
     async function deleteProject(projectId, projectName) {
-        if (!confirm(`"${projectName}" 프로젝트를 삭제하시겠습니까 ?\n\n⚠️ 이 작업은 되돌릴 수 없습니다!`)) {
+        if (!confirm(`"${projectName}" ${i18n.confirm_delete_project}\n\n⚠️ ${i18n.warn_irreversible}`)) {
             return;
         }
 
@@ -594,13 +626,13 @@
                     document.getElementById('currentFileIndicator').textContent = i18n.indicator_new_script;
                 }
 
-                Utils.showToast(`"${projectName}" 삭제됨`, 'success');
+                Utils.showToast(`"${projectName}" ${i18n.status_deleted}`, 'success');
             } else {
                 throw new Error('삭제 실패');
             }
         } catch (e) {
             console.error('Delete error:', e);
-            Utils.showToast('삭제 중 오류 발생', 'error');
+            Utils.showToast(`${i18n.status_failed_delete}`, 'error');
         }
     }
 
@@ -634,12 +666,12 @@
         const script = document.getElementById('scriptContent').value;
 
         if (!script.trim()) {
-            Utils.showToast('저장할 내용이 없습니다', 'warning');
+            Utils.showToast(`${i18n.status_no_content_to_save}`, 'warning');
             return;
         }
 
         if (!projectId) {
-            Utils.showToast('프로젝트를 먼저 선택해주세요', 'warning');
+            Utils.showToast(`${i18n.status_select_project_first}`, 'warning');
             return;
         }
 
@@ -647,11 +679,11 @@
             const charCount = script.length;
             const readTime = Math.ceil(charCount / 415);
             await API.project.saveScript(projectId, script, charCount, readTime);
-            Utils.showToast('저장되었습니다', 'success');
+            Utils.showToast(`${i18n.status_saved}`, 'success');
             refreshExplorer();
         } catch (e) {
             console.error(e);
-            Utils.showToast('저장 실패', 'error');
+            Utils.showToast(`${i18n.status_failed_save}`, 'error');
         }
     }
 
@@ -669,18 +701,18 @@
     function copyScript() {
         const text = document.getElementById('scriptContent').value;
         if (!text) {
-            Utils.showToast('복사할 대본이 없습니다.', 'warning');
+            Utils.showToast(`${i18n.status_no_script_to_copy}`, 'warning');
             return;
         }
         Utils.copyToClipboard(text);
-        Utils.showToast('대본 전체가 복사되었습니다! 📋', 'success');
+        Utils.showToast(`${i18n.status_copied_all}`, 'success');
     }
 
     function cleanCurrentScript() {
         let text = document.getElementById('scriptContent').value;
         if (!text) return;
 
-        if (!confirm('대본에서 괄호, 별표(**), 이모지, 화자 표시 등을 모두 제거하시겠습니까?')) return;
+        if (!confirm(`${i18n.confirm_clean_script}`)) return;
 
         const cleaned = text
             .replace(/\([^)]*\)/g, '')
@@ -693,7 +725,7 @@
 
         document.getElementById('scriptContent').value = cleaned;
         updateStats();
-        Utils.showToast('대본이 깨끗하게 정리되었습니다! ✨', 'success');
+        Utils.showToast(`${i18n.status_script_refined}`, 'success');
     }
 
     function goToImageGen() { window.location.href = '/image-gen'; }
@@ -702,7 +734,7 @@
     async function postScriptToBlog() {
         const content = document.getElementById('scriptContent').value;
         if (!content || content.trim().length < 10) {
-            Utils.showToast('게시할 대본 내용이 없습니다.', 'warning');
+            Utils.showToast(`${i18n.status_no_content_blog}`, 'warning');
             return;
         }
 
@@ -710,21 +742,21 @@
         const firstLine = content.split('\n')[0].trim();
         const title = firstLine.length > 5 && firstLine.length < 100
             ? firstLine
-            : (document.querySelector('.text-primary')?.textContent || '블로그 포스팅');
+            : (document.querySelector('.text-primary')?.textContent || i18n.blog_post_default_title);
 
         const platforms = [];
-        const wpCheck = confirm('워드프레스에 게시하시겠습니까?');
+        const wpCheck = confirm(`${i18n.confirm_wp_post}`);
         if (wpCheck) platforms.push('wordpress');
-        const bloggerCheck = confirm('구글 블로그에도 게시하시겠습니까?');
+        const bloggerCheck = confirm(`${i18n.confirm_blogger_post}`);
         if (bloggerCheck) platforms.push('blogger');
 
         if (platforms.length === 0) {
-            Utils.showToast('게시할 플랫폼을 선택하지 않았습니다.', 'info');
+            Utils.showToast(`${i18n.status_no_platform_selected}`, 'info');
             return;
         }
 
         try {
-            Utils.showToast('블로그 게시 중...', 'info');
+            Utils.showToast(`${i18n.status_posting_blog}`, 'info');
             const response = await fetch('/api/blog/post', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -742,9 +774,9 @@
             let messages = [];
             let urls = [];
             for (const [platform, res] of Object.entries(results)) {
-                const name = platform === 'wordpress' ? '워드프레스' : '구글 블로그';
+                const name = platform === 'wordpress' ? i18n.platform_wp : i18n.platform_blogger;
                 if (res.status === 'ok') {
-                    messages.push(`${name}: 완료`);
+                    messages.push(`${name}: ${i18n.status_done}`);
                     if (res.url) urls.push(res.url);
                 } else {
                     messages.push(`${name}: ${res.error}`);
@@ -752,24 +784,24 @@
             }
 
             if (result.status === 'ok') {
-                Utils.showToast('게시 완료! ' + messages.join(' | '), 'success');
+                Utils.showToast(`${i18n.status_post_done}` + messages.join(' | '), 'success');
             } else {
                 Utils.showToast(messages.join(' | '), result.status === 'partial' ? 'warning' : 'error');
             }
 
-            if (urls.length > 0 && confirm('게시된 글을 확인하시겠습니까?')) {
+            if (urls.length > 0 && confirm(`${i18n.confirm_view_post}`)) {
                 urls.forEach(url => window.open(url, '_blank'));
             }
         } catch (error) {
             console.error('Blog post error:', error);
-            Utils.showToast('블로그 게시 실패: ' + error.message, 'error');
+            Utils.showToast(`${i18n.status_failed_blog_post}: ` + error.message, 'error');
         }
     }
 
     function goToBlogAutomation() {
         const projectId = getCurrentProject();
         if (!projectId) {
-            Utils.showToast('먼저 프로젝트를 선택하거나 대본을 저장해주세요.', 'warning');
+            Utils.showToast(`${i18n.status_select_project_or_save}`, 'warning');
             return;
         }
         window.location.href = `/blog-automation?project_id=${projectId}`;

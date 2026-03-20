@@ -7,10 +7,10 @@
     <div class="flex justify-between items-center mb-6">
         <h2 class="text-2xl font-bold flex items-center gap-2">
             <span>🛍️</span>
-            <span>커머스 쇼츠 제작</span>
+            <span>{{ t('nav_commerce_shorts') }}</span>
         </h2>
         <div class="text-sm text-gray-500 dark:text-gray-400">
-            제품 URL만으로 프로모션 영상 생성
+            {{ t('commerce_shorts_desc') }}
         </div>
     </div>
 
@@ -21,28 +21,28 @@
                 <div id="step-indicator-1"
                     class="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold">1
                 </div>
-                <span class="text-sm font-medium">URL 입력</span>
+                <span class="text-sm font-medium">{{ t('step_url_input') }}</span>
             </div>
             <div class="w-16 h-1 bg-gray-300 dark:bg-gray-700"></div>
             <div class="flex items-center gap-2">
                 <div id="step-indicator-2"
                     class="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-700 text-gray-500 flex items-center justify-center font-bold dark:text-gray-400">
                     2</div>
-                <span class="text-sm text-gray-500 dark:text-gray-400">제품 정보</span>
+                <span class="text-sm text-gray-500 dark:text-gray-400">{{ t('step_product_info') }}</span>
             </div>
             <div class="w-16 h-1 bg-gray-300 dark:bg-gray-700"></div>
             <div class="flex items-center gap-2">
                 <div id="step-indicator-3"
                     class="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-700 text-gray-500 flex items-center justify-center font-bold dark:text-gray-400">
                     3</div>
-                <span class="text-sm text-gray-500 dark:text-gray-400">스타일 선택</span>
+                <span class="text-sm text-gray-500 dark:text-gray-400">{{ t('step_style_selection') }}</span>
             </div>
             <div class="w-16 h-1 bg-gray-300 dark:bg-gray-700"></div>
             <div class="flex items-center gap-2">
                 <div id="step-indicator-4"
                     class="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-700 text-gray-500 flex items-center justify-center font-bold dark:text-gray-400">
                     4</div>
-                <span class="text-sm text-gray-500 dark:text-gray-400">생성</span>
+                <span class="text-sm text-gray-500 dark:text-gray-400">{{ t('step_generating') }}</span>
             </div>
         </div>
     </div>
@@ -56,14 +56,14 @@
             <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-5">
                 <div>
                     <h2 class="text-xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
-                        <span class="text-2xl">🇺🇸</span> 미국 아마존 떡상 아이템 발굴
+                        <span class="text-2xl">🇺🇸</span> {{ t('amazon_trends_title') }}
                     </h2>
-                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">AI가 현재 시즌, 트렌드를 분석하여 구매 전환율 높은 키워드를 추출합니다.
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">{{ t('amazon_trends_desc') }}
                     </p>
                 </div>
                 <button onclick="fetchAmazonTrends(this)"
                     class="w-full md:w-auto bg-orange-500 hover:bg-orange-600 text-white px-5 py-2.5 rounded-lg font-bold transition-all flex items-center justify-center gap-2 shadow-sm hover:shadow-md">
-                    <span>🚀</span> 지금 뜨는 키워드 추출
+                    <span>🚀</span> {{ t('btn_extract_keywords') }}
                 </button>
             </div>
 
@@ -71,27 +71,27 @@
                 class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 hidden animate-fade-in">
                 <!-- Cards injected here -->
             </div>
-            <p class="text-right text-xs text-orange-400 mt-2">* 키워드 클릭 시 아마존 검색 결과로 이동합니다.</p>
+            <p class="text-right text-xs text-orange-400 mt-2">* {{ t('amazon_trends_hint') }}</p>
         </div>
 
         <!-- Step 1: URL Input -->
         <div id="step-1" class="card p-6 mb-4">
             <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
                 <span>🔗</span>
-                <span>1단계: 제품 URL 입력</span>
+                <span>{{ t('label_step_1_url') }}</span>
             </h3>
             <div class="space-y-4">
                 <div>
-                    <label class="block text-sm font-medium mb-2">제품 페이지 URL</label>
+                    <label class="block text-sm font-medium mb-2">{{ t('label_product_url') }}</label>
                     <input type="text" id="product-url" class="input w-full"
                         placeholder="https://smartstore.naver.com/..." />
                     <p class="text-xs text-gray-500 mt-1 dark:text-gray-400">
-                        네이버 스마트스토어, 쿠팡, 11번가 등의 제품 페이지 URL을 입력하세요
+                        {{ t('product_url_hint') }}
                     </p>
                 </div>
                 <button onclick="analyzeProduct()" class="btn-primary w-full py-3">
                     <span>🔍</span>
-                    <span>제품 분석하기</span>
+                    <span>{{ t('btn_analyze_product') }}</span>
                 </button>
             </div>
         </div>
@@ -100,13 +100,13 @@
         <div id="step-2" class="card p-6 mb-4 hidden">
             <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
                 <span>📦</span>
-                <span>2단계: 제품 정보 확인</span>
+                <span>{{ t('label_step_2_info') }}</span>
             </h3>
             <div id="product-info" class="space-y-4">
                 <!-- Will be populated by JS -->
             </div>
             <button onclick="goToStep3()" class="btn-primary w-full py-3 mt-4">
-                다음 단계 →
+                {{ t('btn_next_step') }} →
             </button>
         </div>
 
@@ -114,12 +114,12 @@
         <div id="step-3" class="card p-6 mb-4 hidden">
             <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
                 <span>🎨</span>
-                <span>3단계: 영상 스타일 커스터마이징</span>
+                <span>{{ t('label_step_3_style') }}</span>
             </h3>
             <div class="space-y-6">
                 <!-- 프리셋 선택 -->
                 <div>
-                    <label class="block text-sm font-medium mb-2">스타일 프리셋</label>
+                    <label class="block text-sm font-medium mb-2">{{ t('label_style_preset') }}</label>
                     <div id="style-presets" class="grid grid-cols-2 gap-3">
                         <!-- Will be populated by JS -->
                     </div>
@@ -130,7 +130,7 @@
                     <button onclick="toggleAdvancedOptions()"
                         class="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
                         <span id="advanced-toggle-icon">▶</span>
-                        <span>고급 옵션</span>
+                        <span>{{ t('label_advanced_options') }}</span>
                     </button>
                 </div>
 
@@ -139,47 +139,47 @@
 
                     <!-- 모델 선택 -->
                     <div>
-                        <label class="block text-sm font-medium mb-2">모델 타입</label>
+                        <label class="block text-sm font-medium mb-2">{{ t('label_model_type') }}</label>
                         <select id="model-type" class="input w-full">
-                            <option value="">자동 선택</option>
-                            <option value="female_20s">여성 (20대)</option>
-                            <option value="female_30s">여성 (30대)</option>
-                            <option value="male_20s">남성 (20대)</option>
-                            <option value="male_30s">남성 (30대)</option>
-                            <option value="neutral">중성적</option>
+                            <option value="">{{ t('option_auto_select') }}</option>
+                            <option value="female_20s">{{ t('option_female_20s') }}</option>
+                            <option value="female_30s">{{ t('option_female_30s') }}</option>
+                            <option value="male_20s">{{ t('option_male_20s') }}</option>
+                            <option value="male_30s">{{ t('option_male_30s') }}</option>
+                            <option value="neutral">{{ t('option_neutral') }}</option>
                         </select>
                     </div>
 
                     <!-- 배경 선택 -->
                     <div>
-                        <label class="block text-sm font-medium mb-2">배경 타입</label>
+                        <label class="block text-sm font-medium mb-2">{{ t('label_background_type') }}</label>
                         <select id="background-type" class="input w-full">
-                            <option value="">자동 선택</option>
-                            <option value="studio_clean">스튜디오 (깔끔)</option>
-                            <option value="studio_tech">스튜디오 (기술)</option>
-                            <option value="home">실내 (가정)</option>
-                            <option value="kitchen">주방</option>
-                            <option value="outdoor">야외</option>
-                            <option value="gradient">그라데이션</option>
+                            <option value="">{{ t('option_auto_select') }}</option>
+                            <option value="studio_clean">{{ t('option_studio_clean') }}</option>
+                            <option value="studio_tech">{{ t('option_studio_tech') }}</option>
+                            <option value="home">{{ t('option_home') }}</option>
+                            <option value="kitchen">{{ t('option_kitchen') }}</option>
+                            <option value="outdoor">{{ t('option_outdoor') }}</option>
+                            <option value="gradient">{{ t('option_gradient') }}</option>
                         </select>
                     </div>
 
                     <!-- 음악 선택 -->
                     <div>
-                        <label class="block text-sm font-medium mb-2">배경 음악</label>
+                        <label class="block text-sm font-medium mb-2">{{ t('label_bgm_type') }}</label>
                         <select id="music-type" class="input w-full">
-                            <option value="">음악 없음</option>
-                            <option value="upbeat">경쾌한</option>
-                            <option value="calm">차분한</option>
-                            <option value="energetic">활기찬</option>
-                            <option value="corporate">기업용</option>
+                            <option value="">{{ t('option_no_music') }}</option>
+                            <option value="upbeat">{{ t('option_upbeat') }}</option>
+                            <option value="calm">{{ t('option_calm') }}</option>
+                            <option value="energetic">{{ t('option_energetic') }}</option>
+                            <option value="corporate">{{ t('option_corporate') }}</option>
                         </select>
                     </div>
 
                     <!-- 이미지 업로드 -->
                     <div>
-                        <label class="block text-sm font-medium mb-2">추가 이미지 업로드</label>
-
+                        <label class="block text-sm font-medium mb-2">{{ t('label_upload_extra_images') }}</label>
+ 
                         <!-- 드래그 앤 드롭 영역 -->
                         <div id="upload-dropzone"
                             class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center hover:border-blue-500 transition-all cursor-pointer"
@@ -187,10 +187,10 @@
                             ondrop="handleDrop(event)" onclick="document.getElementById('custom-images').click()">
                             <div class="text-4xl mb-2">📸</div>
                             <p class="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                                클릭하거나 이미지를 드래그하세요
+                                {{ t('drag_or_click_images') }}
                             </p>
                             <p class="text-xs text-gray-500 dark:text-gray-400">
-                                최대 5장, JPG/PNG/WEBP (각 10MB 이하)
+                                {{ t('upload_images_hint') }}
                             </p>
                         </div>
 
@@ -209,19 +209,19 @@
                                 <div id="upload-progress-bar" class="bg-blue-500 h-2 rounded-full transition-all"
                                     style="width: 0%"></div>
                             </div>
-                            <p class="text-xs text-gray-500 mt-1 text-center dark:text-gray-400">업로드 중...</p>
+                            <p class="text-xs text-gray-500 mt-1 text-center dark:text-gray-400">{{ t('status_uploading') }}</p>
                         </div>
                     </div>
 
                     <!-- CTA 선택 -->
                     <div>
-                        <label class="block text-sm font-medium mb-2">행동 유도 (CTA)</label>
+                        <label class="block text-sm font-medium mb-2">{{ t('label_cta_type') }}</label>
                         <select id="cta-type" class="input w-full">
-                            <option value="buy_now">지금 구매</option>
-                            <option value="learn_more">자세히 보기</option>
-                            <option value="limited_offer">한정 특가</option>
-                            <option value="new_arrival">신제품</option>
-                            <option value="discount">할인 중</option>
+                            <option value="buy_now">{{ t('option_cta_buy_now') }}</option>
+                            <option value="learn_more">{{ t('option_cta_learn_more') }}</option>
+                            <option value="limited_offer">{{ t('option_cta_limited_offer') }}</option>
+                            <option value="new_arrival">{{ t('option_cta_new_arrival') }}</option>
+                            <option value="discount">{{ t('option_cta_discount') }}</option>
                         </select>
                     </div>
                 </div>
@@ -229,16 +229,16 @@
                 <!-- 핵심 메시지 -->
                 <div>
                     <div class="flex justify-between items-end mb-2">
-                        <label class="block text-sm font-medium">핵심 메시지 (대본)</label>
+                        <label class="block text-sm font-medium">{{ t('label_core_message') }}</label>
                         <button type="button" onclick="generateCopywriting(this)"
                             class="text-xs bg-gradient-to-r from-purple-500 to-indigo-500 text-white px-3 py-1.5 rounded-full hover:shadow-lg transition-all flex items-center gap-1">
                             <span>✨</span>
-                            <span>AI 매운맛 카피 생성</span>
+                            <span>{{ t('btn_ai_copy_gen') }}</span>
                         </button>
                     </div>
-                    <input type="text" id="message" class="input w-full" placeholder="예: 신제품 출시! 특별 할인 중" />
+                    <input type="text" id="message" class="input w-full" placeholder="{{ t('placeholder_core_message') }}" />
                     <p class="text-xs text-gray-500 mt-1 dark:text-gray-400">
-                        영상에 사용될 멘트입니다. AI 생성을 눌러보세요.
+                        {{ t('core_message_hint') }}
                     </p>
 
                     <!-- Copy Suggestions -->
@@ -252,7 +252,7 @@
             <div
                 class="mt-6 mb-4 p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
                 <label class="block text-sm font-bold mb-3 flex items-center gap-2">
-                    <span>🎬 영상 생성 엔진 선택</span>
+                    <span>🎬 {{ t('label_select_engine') }}</span>
                 </label>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <label
@@ -261,10 +261,8 @@
                             class="mt-1 text-blue-600 focus:ring-blue-500">
                         <div class="ml-3">
                             <span class="block text-sm font-bold text-gray-800 dark:text-gray-100">TopView AI
-                                (추천)</span>
-                            <span class="block text-[10px] text-gray-500 dark:text-gray-400 mt-1">제품 영상을 자동으로 편집하여 고품질
-                                광고 영상을 제작합니다. (URL
-                                기반)</span>
+                                ({{ t('label_recommended') }})</span>
+                            <span class="block text-[10px] text-gray-500 dark:text-gray-400 mt-1">{{ t('engine_topview_desc') }}</span>
                         </div>
                     </label>
 
@@ -275,9 +273,7 @@
                         <div class="ml-3">
                             <span class="block text-sm font-bold text-purple-700 dark:text-purple-400">Akool
                                 Avatar</span>
-                            <span class="block text-[10px] text-gray-500 dark:text-gray-400 mt-1">AI 아바타가 등장하여 제품을 직접
-                                설명하는 영상을 생성합니다. (이미지
-                                기반)</span>
+                            <span class="block text-[10px] text-gray-500 dark:text-gray-400 mt-1">{{ t('engine_akool_desc') }}</span>
                         </div>
                     </label>
 
@@ -287,9 +283,7 @@
                             class="mt-1 text-pink-600 focus:ring-pink-500">
                         <div class="ml-3">
                             <span class="block text-sm font-bold text-pink-700 dark:text-pink-400">Akool Premium</span>
-                            <span class="block text-[10px] text-gray-500 dark:text-gray-400 mt-1">Wan 2.5 최고 화질 I2V 엔진을
-                                사용하여 감각적인 제품 영상을
-                                만듭니다.</span>
+                            <span class="block text-[10px] text-gray-500 dark:text-gray-400 mt-1">{{ t('engine_akool_premium_desc') }}</span>
                         </div>
                     </label>
                 </div>
@@ -297,7 +291,7 @@
 
             <button onclick="generateVideo()"
                 class="btn-primary w-full py-3 mt-6 text-lg font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all">
-                ✨ 숏폼 영상 생성 시작
+                ✨ {{ t('btn_start_shorts_gen') }}
             </button>
         </div>
 
@@ -305,12 +299,12 @@
         <div id="step-4" class="card p-6 mb-4 hidden">
             <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
                 <span>⏳</span>
-                <span>4단계: 영상 생성 중...</span>
+                <span>{{ t('label_step_4_generating') }}</span>
             </h3>
             <div class="text-center py-8">
                 <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
                 <p class="text-gray-600 dark:text-gray-400">
-                    영상을 생성하고 있습니다. 약 2분 소요됩니다...
+                    {{ t('status_generating_video_wait') }}
                 </p>
                 <div id="generation-status" class="mt-4 text-sm text-gray-500 dark:text-gray-400">
                     <!-- Status updates -->
@@ -322,11 +316,11 @@
         <div class="card p-6">
             <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
                 <span>📹</span>
-                <span>내 커머스 영상</span>
+                <span>{{ t('label_my_commerce_videos') }}</span>
             </h3>
             <div id="my-videos" class="space-y-3">
                 <p class="text-sm text-gray-500 text-center py-8 dark:text-gray-400">
-                    아직 생성된 영상이 없습니다
+                    {{ t('status_no_videos_yet') }}
                 </p>
             </div>
         </div>
@@ -341,6 +335,38 @@
         stylePreset: 'electronics',
         message: '',
         uploadedImages: []  // 업로드된 이미지 URL 저장
+    };
+
+    // i18n for JS
+    var i18n = {
+        err_max_5_images: "{{ t('err_max_5_images') }}",
+        err_file_too_large: "{{ t('err_file_too_large') }}",
+        status_upload_failed: "{{ t('status_upload_failed') }}",
+        toast_images_uploaded_suffix: "{{ t('toast_images_uploaded_suffix') }}",
+        label_upload_img_prefix: "{{ t('label_upload_img_prefix') }}",
+        status_img_removed: "{{ t('status_img_removed') }}",
+        alert_enter_product_url: "{{ t('alert_enter_product_url') }}",
+        status_analyzing_product: "{{ t('status_analyzing_product') }}",
+        label_product_img: "{{ t('label_product_img') }}",
+        label_extracted_images_prefix: "{{ t('label_extracted_images_prefix') }}",
+        label_extracted_images_suffix: "{{ t('label_extracted_images_suffix') }}",
+        status_product_loaded: "{{ t('status_product_loaded') }}",
+        status_analysis_failed: "{{ t('status_analysis_failed') }}",
+        status_analyzing: "{{ t('status_analyzing') }}",
+        status_extract_keywords_done: "{{ t('status_extract_keywords_done') }}",
+        status_extract_keywords_fail: "{{ t('status_extract_keywords_fail') }}",
+        alert_complete_step1: "{{ t('alert_complete_step1') }}",
+        status_generating: "{{ t('status_generating') }}",
+        status_ai_copy_gen_done: "{{ t('status_ai_copy_gen_done') }}",
+        err_gen_failed: "{{ t('err_gen_failed') }}",
+        status_applied_copy: "{{ t('status_applied_copy') }}",
+        label_product: "{{ t('label_product') }}",
+        status_gen_started: "{{ t('status_gen_started') }}",
+        status_gen_failed: "{{ t('status_gen_failed') }}",
+        status_no_videos_yet: "{{ t('status_no_videos_yet') }}",
+        label_engine: "{{ t('label_engine') }}",
+        label_task_id: "{{ t('label_task_id') }}",
+        click_to_apply: "{{ t('click_to_apply') }}"
     };
 
     // ============ 이미지 업로드 관련 함수 ============
@@ -378,14 +404,14 @@
     async function uploadImages(files) {
         // 파일 개수 확인
         if (files.length > 5) {
-            Utils.showToast('최대 5장까지 업로드 가능합니다', 'error');
+            Utils.showToast(i18n.err_max_5_images, 'error');
             return;
         }
 
         // 파일 크기 확인 (각 10MB)
         for (let file of files) {
             if (file.size > 10 * 1024 * 1024) {
-                Utils.showToast(`파일이 너무 큽니다: ${file.name} (최대 10MB)`, 'error');
+                Utils.showToast(`${i18n.err_file_too_large}: ${file.name} (Max 10MB)`, 'error');
                 return;
             }
         }
@@ -407,7 +433,7 @@
             });
 
             if (!response.ok) {
-                throw new Error('업로드 실패');
+                throw new Error(i18n.status_upload_failed);
             }
 
             const data = await response.json();
@@ -420,8 +446,8 @@
 
             // 미리보기 표시
             displayUploadedImages(data.images);
-
-            Utils.showToast(`${data.count}장의 이미지가 업로드되었습니다`, 'success');
+ 
+            Utils.showToast(`${data.count}${i18n.toast_images_uploaded_suffix}`, 'success');
 
             // 진행 상태 숨기기
             setTimeout(() => {
@@ -430,7 +456,7 @@
 
         } catch (error) {
             console.error('Upload failed:', error);
-            Utils.showToast('이미지 업로드에 실패했습니다', 'error');
+            Utils.showToast(i18n.status_upload_failed, 'error');
             document.getElementById('upload-progress').classList.add('hidden');
         }
     }
@@ -443,7 +469,7 @@
                 <img 
                     src="${url}" 
                     class="w-full h-20 object-cover rounded border-2 border-gray-300 dark:border-gray-600"
-                    alt="업로드 이미지 ${index + 1}"
+                    alt="${i18n.label_upload_img_prefix} ${index + 1}"
                 />
                 <button 
                     onclick="removeUploadedImage(${index})"
@@ -458,7 +484,7 @@
     function removeUploadedImage(index) {
         currentData.uploadedImages.splice(index, 1);
         displayUploadedImages(currentData.uploadedImages);
-        Utils.showToast('이미지가 제거되었습니다', 'info');
+        Utils.showToast(i18n.status_img_removed, 'info');
     }
 
     // ============ 기존 함수들 ============
@@ -507,17 +533,17 @@
 
     async function analyzeProduct() {
         const url = document.getElementById('product-url').value.trim();
-
+ 
         if (!url) {
-            alert('제품 URL을 입력해주세요');
+            alert(i18n.alert_enter_product_url);
             return;
         }
 
         currentData.productUrl = url;
 
         try {
-            Utils.showToast('제품 정보를 분석하고 있습니다...', 'info');
-
+            Utils.showToast(i18n.status_analyzing_product, 'info');
+ 
             const response = await fetch('/api/commerce/analyze-product', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -529,11 +555,10 @@
 
             // Display product info
             document.getElementById('product-info').innerHTML = `
-            <div class="flex gap-4">
                 <div class="flex-shrink-0">
                     <img src="${data.product_images[0] || '/static/img/placeholder.png'}" 
                          class="w-32 h-32 object-cover rounded-lg" 
-                         alt="제품 이미지">
+                         alt="${i18n.label_product_img}">
                 </div>
                 <div class="flex-1">
                     <h4 class="font-bold text-lg mb-2">${data.product_name}</h4>
@@ -542,10 +567,10 @@
                 </div>
             </div>
             <div class="mt-4">
-                <p class="text-sm font-medium mb-2">추출된 이미지 (${data.product_images.length}장)</p>
+                <p class="text-sm font-medium mb-2">${i18n.label_extracted_images_prefix} (${data.product_images.length}${i18n.label_extracted_images_suffix})</p>
                 <div class="flex gap-2">
                     ${data.product_images.map((img, i) => `
-                        <img src="${img}" class="w-20 h-20 object-cover rounded border-2 border-gray-300 dark:border-gray-700" alt="이미지 ${i + 1}">
+                        <img src="${img}" class="w-20 h-20 object-cover rounded border-2 border-gray-300 dark:border-gray-700" alt="Image ${i + 1}">
                     `).join('')}
                 </div>
             </div>
@@ -554,15 +579,15 @@
             // Show step 2
             document.getElementById('step-2').classList.remove('hidden');
             updateStepIndicator(2);
-
-            Utils.showToast('제품 정보를 불러왔습니다', 'success');
+ 
+            Utils.showToast(i18n.status_product_loaded, 'success');
 
             // Scroll to step 2
             document.getElementById('step-2').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
         } catch (error) {
             console.error('Analysis failed:', error);
-            Utils.showToast('제품 분석에 실패했습니다', 'error');
+            Utils.showToast(i18n.status_analysis_failed, 'error');
         }
     }
 
@@ -591,7 +616,7 @@
     // ============ 트렌드 검색 ============
     async function fetchAmazonTrends(btn) {
         const originalHTML = btn.innerHTML;
-        btn.innerHTML = '<span>⏳</span> 분석 중...';
+        btn.innerHTML = `<span>⏳</span> ${i18n.status_analyzing}`;
         btn.disabled = true;
 
         try {
@@ -609,11 +634,11 @@
             `).join('');
 
                 container.classList.remove('hidden');
-                Utils.showToast("트렌드 키워드 추출 완료! 클릭하여 검색하세요.", "success");
+                Utils.showToast(i18n.status_extract_keywords_done, "success");
             }
         } catch (e) {
             console.error(e);
-            Utils.showToast("트렌드 분석 실패: " + (e.message || "Unknown error"), "error");
+            Utils.showToast(`${i18n.status_extract_keywords_fail}: ` + (e.message || "Unknown error"), "error");
         } finally {
             btn.innerHTML = originalHTML;
             btn.disabled = false;
@@ -623,12 +648,12 @@
     // ============ 카피라이팅 생성 ============
     async function generateCopywriting(btn) {
         if (!currentData.productInfo) {
-            alert("먼저 제품 분석(1단계)을 완료해주세요.");
+            alert(i18n.alert_complete_step1);
             return;
         }
 
         const originalHTML = btn.innerHTML;
-        btn.innerHTML = '<span>⏳</span><span>생성 중...</span>';
+        btn.innerHTML = `<span>⏳</span><span>${i18n.status_generating}</span>`;
         btn.disabled = true;
 
         try {
@@ -654,7 +679,7 @@
                      class="group p-3 border border-purple-100 dark:border-purple-900 bg-white dark:bg-gray-800 rounded-lg cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/50 hover:border-purple-300 dark:hover:border-purple-500 transition-all shadow-sm">
                     <div class="flex items-center gap-2 mb-1">
                         <span class="text-xs font-bold text-white bg-purple-500 px-2 py-0.5 rounded-full">${copy.title}</span>
-                        <span class="text-xs text-gray-400 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">클릭하여 적용</span>
+                        <span class="text-xs text-gray-400 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">${i18n.click_to_apply}</span>
                     </div>
                     <p class="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">"${copy.hook}"</p>
                     <p class="text-xs text-gray-600 dark:text-gray-300 line-clamp-2">${copy.body}</p>
@@ -663,14 +688,14 @@
                 }).join('');
 
                 container.classList.remove('hidden');
-                Utils.showToast("매운맛 카피 3종이 생성되었습니다!", "success");
+                Utils.showToast(i18n.status_ai_copy_gen_done, "success");
             } else {
-                throw new Error(data.message || "생성 실패");
+                throw new Error(data.message || i18n.err_gen_failed);
             }
 
         } catch (error) {
             console.error('Copywriting failed:', error);
-            Utils.showToast('카피라이팅 생성 실패: ' + error.message, 'error');
+            Utils.showToast(`${i18n.err_gen_failed}: ` + error.message, 'error');
         } finally {
             btn.innerHTML = originalHTML;
             btn.disabled = false;
@@ -684,8 +709,8 @@
         // Highlight effect
         el.classList.add('ring-2', 'ring-purple-500');
         setTimeout(() => el.classList.remove('ring-2', 'ring-purple-500'), 300);
-
-        Utils.showToast("대본이 적용되었습니다.", "info");
+ 
+        Utils.showToast(i18n.status_applied_copy, "info");
     }
 
     async function generateVideo() {
@@ -712,7 +737,7 @@
 
         const payload = {
             product_url: currentData.productUrl,
-            product_name: currentData.productInfo?.product_name || '제품',
+            product_name: currentData.productInfo?.product_name || i18n.label_product,
             product_price: currentData.productInfo?.product_price || '',
             product_description: currentData.productInfo?.product_description || '',
             product_images: finalImages,
@@ -746,11 +771,11 @@
             if (data.status === 'success') {
                 document.getElementById('generation-status').innerHTML = `
                     <p class="text-green-600 font-medium">✅ ${data.message}</p>
-                    <p class="text-xs text-gray-500 mt-1 dark:text-gray-400">엔진: ${videoEngine === 'akool' ? 'Akool Avatar' : 'TopView AI'}</p>
-                    <p class="mt-2 text-xs text-gray-400">Task ID: ${data.task_id || '-'}</p>
+                    <p class="text-xs text-gray-500 mt-1 dark:text-gray-400">${i18n.label_engine}: ${videoEngine === 'akool' ? 'Akool Avatar' : 'TopView AI'}</p>
+                    <p class="mt-2 text-xs text-gray-400">${i18n.label_task_id}: ${data.task_id || '-'}</p>
                 `;
-
-                Utils.showToast('영상 생성이 시작되었습니다', 'success');
+ 
+                Utils.showToast(i18n.status_gen_started, 'success');
 
                 // Reload video list after a delay
                 setTimeout(loadMyVideos, 3000);
@@ -760,9 +785,9 @@
 
         } catch (error) {
             console.error('Generation failed:', error);
-            Utils.showToast('영상 생성에 실패했습니다: ' + error.message, 'error');
+            Utils.showToast(`${i18n.status_gen_failed}: ` + error.message, 'error');
             document.getElementById('generation-status').innerHTML = `
-                <p class="text-red-600 font-medium">❌ 생성 실패</p>
+                <p class="text-red-600 font-medium">❌ ${i18n.status_gen_failed}</p>
                 <p class="text-xs text-gray-500 mt-1 dark:text-gray-400">${error.message}</p>
             `;
         }
@@ -778,7 +803,7 @@
             if (data.videos.length === 0) {
                 container.innerHTML = `
                 <p class="text-sm text-gray-500 text-center py-8 dark:text-gray-400">
-                    아직 생성된 영상이 없습니다
+                    ${i18n.status_no_videos_yet}
                 </p>
             `;
                 return;

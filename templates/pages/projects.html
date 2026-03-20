@@ -5,31 +5,30 @@
     <!-- Bulk Actions -->
     <div id="bulkActions"
         class="hidden flex items-center gap-3 bg-white dark:bg-gray-800 px-4 py-1.5 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-        <span id="selectedCount" class="text-xs font-bold text-gray-700 dark:text-gray-300">0개 선택됨</span>
+        <span id="selectedCount" class="text-xs font-bold text-gray-700 dark:text-gray-300">0 {{ t('selected_count_suffix') }}</span>
         <div class="h-4 w-px bg-gray-300 dark:bg-gray-600"></div>
-        <button onclick="deleteSelectedProjects()"
-            class="text-red-600 hover:text-red-700 text-xs font-bold flex items-center gap-1">
-            <span>🗑️</span> 선택 삭제
+        <button onclick="deleteSelectedProjects()" class="text-red-500 hover:text-red-600 text-xs font-bold flex items-center gap-1">
+            <span>🗑️</span> {{ t('btn_delete_selected') }}
         </button>
         <div class="h-4 w-px bg-gray-300 dark:bg-gray-600"></div>
         <select id="targetModeSelect" class="text-xs bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-1 py-0.5 outline-none">
-            <option value="longform">롱폼</option>
-            <option value="shorts">쇼츠</option>
-            <option value="webtoon">웹툰</option>
-            <option value="commerce">커머스</option>
-            <option value="blog">블로그</option>
+            <option value="longform">{{ t('mode_longform') }}</option>
+            <option value="shorts">{{ t('mode_shorts') }}</option>
+            <option value="webtoon">{{ t('mode_webtoon') }}</option>
+            <option value="commerce">{{ t('mode_commerce') }}</option>
+            <option value="blog">{{ t('mode_blog') }}</option>
         </select>
         <button onclick="bulkCopyMove('copy')" class="text-blue-600 hover:text-blue-700 text-xs font-bold flex items-center gap-1">
-            <span>👯</span> 복사
+            <span>👯</span> {{ t('btn_copy') }}
         </button>
         <button onclick="bulkCopyMove('move')" class="text-amber-600 hover:text-amber-700 text-xs font-bold flex items-center gap-1">
-            <span>🚚</span> 이동
+            <span>🚚</span> {{ t('btn_move') }}
         </button>
     </div>
 
     <button onclick="openProjectModal()" class="btn-primary flex items-center gap-2 ml-auto">
         <span>+</span>
-        <span>New Project</span>
+        <span>{{ t('btn_new_project') }}</span>
     </button>
 </div>
 
@@ -37,7 +36,7 @@
 <div id="loadingSection" class="hidden">
     <div class="card text-center py-12">
         <div class="loader mx-auto mb-4"></div>
-        <p class="text-gray-500 dark:text-gray-400">프로젝트를 불러오는 중...</p>
+        <p class="text-gray-500 dark:text-gray-400">{{ t('status_loading_projects') }}</p>
     </div>
 </div>
 
@@ -53,51 +52,51 @@
                 <th scope="col"
                     class="px-3 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap sticky z-10 bg-gray-50 dark:bg-gray-700 border-r border-gray-100 dark:border-gray-600"
                     style="left: 40px;">
-                    프로젝트명</th>
+                    {{ t('th_project_name') }}</th>
                 <th scope="col"
                     class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap w-20">
-                    시작일</th>
+                    {{ t('th_start_date') }}</th>
                 <th scope="col"
                     class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap w-20">
-                    수정일</th>
+                    {{ t('th_edit_date') }}</th>
                 <th scope="col"
                     class="px-2 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap">
-                    주제</th>
+                    {{ t('th_topic') }}</th>
                 <th scope="col"
                     class="px-2 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap max-w-[150px]">
-                    영상 제목</th>
+                    {{ t('th_video_title') }}</th>
                 <th scope="col"
                     class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="대본 기획">기획</th>
+                    title="대본 기획">{{ t('th_plan') }}</th>
                 <th scope="col"
                     class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="대본 생성">대본</th>
+                    title="대본 생성">{{ t('th_script') }}</th>
                 <th scope="col"
                     class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="이미지 생성">이미지</th>
+                    title="이미지 생성">{{ t('th_image') }}</th>
                 <th scope="col"
                     class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="TTS 생성">TTS</th>
+                    title="TTS 생성">{{ t('th_tts') }}</th>
                 <th scope="col"
                     class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="영상 렌더링">영상</th>
+                    title="영상 렌더링">{{ t('th_video') }}</th>
                 <th scope="col"
                     class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="썸네일 생성">썸네일</th>
+                    title="썸네일 생성">{{ t('th_thumbnail') }}</th>
                 <th scope="col"
                     class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="설명/태그">설명</th>
+                    title="설명/태그">{{ t('th_desc') }}</th>
                 <th scope="col"
                     class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="업로드/예약 완료">{% if is_independent %}업로드{% else %}예약{% endif %}</th>
+                    title="업로드/예약 완료">{% if is_independent %}{{ t('th_upload') }}{% else %}{{ t('th_publish') }}{% endif %}</th>
                 {% if is_independent %}
                 <th scope="col"
                     class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="발행 완료">발행</th>
+                    title="발행 완료">{{ t('th_publish') }}</th>
                 {% endif %}
                 <th scope="col"
                     class="px-2 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap">
-                    관리</th>
+                    {{ t('th_manage') }}</th>
             </tr>
         </thead>
         <tbody id="projectTableBody" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -108,10 +107,10 @@
 
 <div id="emptySection" class="card text-center py-12 hidden">
     <div class="text-5xl mb-4">📁</div>
-    <h3 class="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">프로젝트가 없습니다</h3>
-    <p class="text-gray-500 mb-6 dark:text-gray-400">첫 번째 프로젝트를 시작해보세요!</p>
+    <h3 class="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">{{ t('no_projects_title') }}</h3>
+    <p class="text-gray-500 mb-6 dark:text-gray-400">{{ t('no_projects_desc') }}</p>
     <button onclick="openProjectModal()" class="btn-primary">
-        + 새 프로젝트 만들기
+        + {{ t('btn_new_project') }}
     </button>
 </div>
 {% endblock %}
@@ -120,6 +119,50 @@
 <script>
     const isIndependent = JSON.parse('{{ is_independent | tojson | safe }}');
     const licenseKey = '{{ get_license_key() }}';
+
+    // i18n for JS (var 사용 - base.html의 var i18n과 전역 충돌 방지)
+    var i18n = {
+        title_go_to: "{{ t('title_go_to') }}",
+        title_page: "{{ t('title_page') }}",
+        no_shorts_projects: "{{ t('no_shorts_projects') }}",
+        no_webtoon_projects: "{{ t('no_webtoon_projects') }}",
+        no_commerce_projects: "{{ t('no_commerce_projects') }}",
+        no_longform_projects: "{{ t('no_longform_projects') }}",
+        status_failed_load_projects: "{{ t('status_failed_load_projects') }}",
+        status_failed_fetch_list: "{{ t('status_failed_fetch_list') }}",
+        status_saved: "{{ t('status_saved') }}",
+        status_failed_save: "{{ t('status_failed_save') }}",
+        confirm_delete_project_permanent: "{{ t('confirm_delete_project_permanent') }}",
+        status_deleted: "{{ t('status_deleted') }}",
+        status_failed_delete: "{{ t('status_failed_delete') }}",
+        confirm_yt_auto_upload: "{{ t('confirm_yt_auto_upload') }}",
+        status_yt_upload_start: "{{ t('status_yt_upload_start') }}",
+        status_yt_upload_done: "{{ t('status_yt_upload_done') }}",
+        status_failed_upload: "{{ t('status_failed_upload') }}",
+        confirm_yt_cloud_reserve: "{{ t('confirm_yt_cloud_reserve') }}",
+        status_yt_reserving: "{{ t('status_yt_reserving') }}",
+        status_failed_yt_upload: "{{ t('status_failed_yt_upload') }}",
+        status_yt_cloud_done: "{{ t('status_yt_cloud_done') }}",
+        status_failed_central_record: "{{ t('status_failed_central_record') }}",
+        confirm_yt_public: "{{ t('confirm_yt_public') }}",
+        status_yt_publicizing: "{{ t('status_yt_publicizing') }}",
+        status_yt_publicized: "{{ t('status_yt_publicized') }}",
+        status_failed_conversion: "{{ t('status_failed_conversion') }}",
+        selected_count_suffix: "{{ t('selected_count_suffix') }}",
+        confirm_bulk_delete_prefix: "{{ t('confirm_bulk_delete_prefix') }}",
+        confirm_bulk_delete_suffix: "{{ t('confirm_bulk_delete_suffix') }}",
+        warn_irreversible: "{{ t('warn_irreversible') }}",
+        status_bulk_deleted_done: "{{ t('status_bulk_deleted_done') }}",
+        confirm_bulk_copy_move_prefix: "{{ t('confirm_bulk_copy_move_prefix') }}",
+        confirm_bulk_copy_move_mid: "{{ t('confirm_bulk_copy_move_mid') }}",
+        confirm_bulk_copy_move_suffix: "{{ t('confirm_bulk_copy_move_suffix') }}",
+        confirm_bulk_copy_move_end: "{{ t('confirm_bulk_copy_move_end') }}",
+        status_in_progress_suffix: "{{ t('status_in_progress_suffix') }}",
+        status_bulk_action_prefix: "{{ t('status_bulk_action_prefix') }}",
+        status_done: "{{ t('status_done') }}",
+        title_yt_rocket_independent: "{{ t('title_yt_rocket_independent') }}",
+        title_yt_rocket_cloud: "{{ t('title_yt_rocket_cloud') }}"
+    };
 
     async function loadProjectList() {
         document.getElementById('loadingSection').classList.remove('hidden');
@@ -167,9 +210,9 @@
                 document.querySelector('.overflow-x-auto').classList.add('hidden');
 
                 document.querySelector('#emptySection h3').textContent =
-                    targetMode === 'shorts' ? '쇼츠 프로젝트가 없습니다' :
-                        targetMode === 'webtoon' ? '웹툰 프로젝트가 없습니다' :
-                            targetMode === 'commerce' ? '커머스 쇼츠 프로젝트가 없습니다' : '롱폼 프로젝트가 없습니다';
+                    targetMode === 'shorts' ? `${i18n.no_shorts_projects}` :
+                        targetMode === 'webtoon' ? `${i18n.no_webtoon_projects}` :
+                            targetMode === 'commerce' ? `${i18n.no_commerce_projects}` : `${i18n.no_longform_projects}`;
                 return;
             } else {
                 document.querySelector('.overflow-x-auto').classList.remove('hidden');
@@ -179,9 +222,9 @@
             renderProjects(filteredProjects);
             document.getElementById('loadingSection').classList.add('hidden');
         } catch (e) {
-            console.error('프로젝트 로드 실패:', e);
+            console.error(`${i18n.status_failed_load_projects}:`, e);
             document.getElementById('loadingSection').classList.add('hidden');
-            Utils.showToast('목록을 불러오지 못했습니다', 'error');
+            Utils.showToast(`${i18n.status_failed_fetch_list}`, 'error');
         }
     }
 
@@ -201,7 +244,7 @@
                 const cursor = isDone ? 'cursor-pointer' : 'cursor-default';
                 const clickHandler = isDone ? `onclick="event.stopPropagation(); navigateToStep('${pid}', '${type}')"` : '';
 
-                return `<div class="flex items-center justify-center w-6 h-6 mx-auto rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition ${cursor}" ${clickHandler} title="${type} 페이지로 이동">
+                return `<div class="flex items-center justify-center w-6 h-6 mx-auto rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition ${cursor}" ${clickHandler} title="${i18n.title_go_to} ${type} ${i18n.title_page}">
                     <span class="${color} text-base font-bold">${symbol}</span>
                 </div>`;
             };
@@ -245,7 +288,7 @@
                     ${s.desc && (s.video || s.upload) ? `
                     <button onclick="event.stopPropagation(); autoUploadYouTube('${p.id}')" 
                         class="absolute -right-2 top-1/2 -translate-y-1/2 text-sm hover:scale-125 transition-transform z-20" 
-                        title="${isIndependent ? '유튜브 원클릭 자동 업로드 (영상+메타+썸네일)' : '클라우드 전송 및 업로드 예약 신청'}">
+                        title="${isIndependent ? i18n.title_yt_rocket_independent : i18n.title_yt_rocket_cloud}">
                         🚀
                     </button>` : ''}
                 </td>
@@ -255,7 +298,7 @@
                     ${s.upload && !s.publish ? `
                     <button onclick="event.stopPropagation(); publicizeVideo('${p.id}')" 
                         class="absolute -right-2 top-1/2 -translate-y-1/2 text-sm hover:scale-125 transition-transform" 
-                        title="유튜브 영상을 '공개'로 전환">
+                        title="${i18n.title_yt_public}">
                         📢
                     </button>` : ''}
                 </td>` : ''}
@@ -322,7 +365,7 @@
                     data[field] = newValue;
                     const res = await API.project.update(projectId, data);
                     if (res.status === 'ok') {
-                        Utils.showToast('저장되었습니다', 'success');
+                        Utils.showToast(`${i18n.status_saved}`, 'success');
                         // Update UI
                         if (field === 'name') {
                             cell.innerHTML = `
@@ -338,7 +381,7 @@
                             cell.title = newValue;
                         }
                     } else {
-                        throw new Error(res.error || '저장 실패');
+                        throw new Error(res.error || `${i18n.status_failed_save}`);
                     }
                 } catch (e) {
                     Utils.showToast(e.message, 'error');
@@ -361,16 +404,16 @@
     };
 
     async function deleteProject(projectId) {
-        if (!confirm('정말 이 프로젝트를 삭제하시겠습니까? 복구할 수 없습니다.')) return;
+        if (!confirm(`${i18n.confirm_delete_project_permanent}`)) return;
 
         try {
             await API.project.delete(projectId);
-            Utils.showToast('삭제되었습니다', 'success');
+            Utils.showToast(`${i18n.status_deleted}`, 'success');
             loadProjectList();
             // 사이드바 목록도 갱신
             if (window.loadProjects) window.loadProjects();
         } catch (e) {
-            Utils.showToast('삭제 실패', 'error');
+            Utils.showToast(`${i18n.status_failed_delete}`, 'error');
         }
     }
 
@@ -379,19 +422,19 @@
         const originalText = rocketBtn.innerText;
 
         if (isIndependent) {
-            if (!confirm('유튜브에 영상을 자동으로 업로드하고 썸네일/메타데이터를 설정하시겠습니까?')) return;
+            if (!confirm(`${i18n.confirm_yt_auto_upload}`)) return;
             try {
                 rocketBtn.innerText = '⏳';
                 rocketBtn.disabled = true;
-                Utils.showToast('유튜브 업로드를 시작합니다...', 'info');
+                Utils.showToast(`${i18n.status_yt_upload_start}`, 'info');
 
                 const res = await fetch(`/api/youtube/upload-external/${projectId}`, { method: 'POST' });
                 const data = await res.json();
 
                 if (res.ok && data.status === 'ok') {
-                    Utils.showToast('유튜브 업로드 및 설정 완료!', 'success');
+                    Utils.showToast(`${i18n.status_yt_upload_done}`, 'success');
                     loadProjectList();
-                } else throw new Error(data.error || '업로드 실패');
+                } else throw new Error(data.error || `${i18n.status_failed_upload}`);
             } catch (e) {
                 Utils.showToast(`업로드 실패: ${e.message}`, 'error');
             } finally {
@@ -400,16 +443,16 @@
             }
         } else {
             // [STANDARD USER] Direct YouTube Private Upload + Admin Record
-            if (!confirm('유튜브 채널 (@Honjada)에 "비공개"로 예약 업로드하고 검토를 요청하시겠습니까?')) return;
+            if (!confirm(`${i18n.confirm_yt_cloud_reserve}`)) return;
             try {
                 rocketBtn.innerText = '⏳';
                 rocketBtn.disabled = true;
-                Utils.showToast('유튜브 예약 업로드 중...', 'info');
+                Utils.showToast(`${i18n.status_yt_reserving}`, 'info');
 
                 // 1. YouTube Upload
                 const ytRes = await fetch(`/api/youtube/upload-external/${projectId}`, { method: 'POST' });
                 const ytData = await ytRes.json();
-                if (ytRes.status !== 200 || ytData.status !== 'ok') throw new Error(ytData.error || "유튜브 업로드 실패");
+                if (ytRes.status !== 200 || ytData.status !== 'ok') throw new Error(ytData.error || `${i18n.status_failed_yt_upload}`);
 
                 // 2. Submit record to Central Server
                 const fullData = await API.project.get(projectId);
@@ -434,9 +477,9 @@
 
                 const pubData = await pubRes.json();
                 if (pubData.success) {
-                    Utils.showToast("성공! 유튜브 채널에 비공개로 업로드되었으며 검토 요청이 완료되었습니다.", 'success');
+                    Utils.showToast(`${i18n.status_yt_cloud_done}`, 'success');
                     loadProjectList();
-                } else throw new Error(pubData.error || "중앙 서버 기록 실패");
+                } else throw new Error(pubData.error || `${i18n.status_failed_central_record}`);
             } catch (e) {
                 console.error('발행 요청 실패:', e);
                 Utils.showToast(`오류: ${e.message}`, 'error');
@@ -448,20 +491,20 @@
     }
 
     async function publicizeVideo(projectId) {
-        if (!confirm('유튜브 영상을 "공개" 상태로 전환하시겠습니까?\n모든 사람이 영상을 볼 수 있게 됩니다.')) return;
+        if (!confirm(`${i18n.confirm_yt_public}`)) return;
 
         try {
-            Utils.showToast('공개 상태로 전환 중...', 'info');
+            Utils.showToast(`${i18n.status_yt_publicizing}`, 'info');
             const res = await fetch(`/api/projects/${projectId}/youtube/public`, {
                 method: 'POST'
             });
             const data = await res.json();
 
             if (res.ok && data.status === 'ok') {
-                Utils.showToast('성공적으로 공개 전환되었습니다!', 'success');
+                Utils.showToast(`${i18n.status_yt_publicized}`, 'success');
                 loadProjectList();
             } else {
-                throw new Error(data.detail || '전환 실패');
+                throw new Error(data.detail || `${i18n.status_failed_conversion}`);
             }
         } catch (e) {
             console.error('공개 전환 실패:', e);
@@ -487,7 +530,7 @@
 
         if (checkedCount > 0) {
             bulkActions.classList.remove('hidden');
-            selectedCountSpan.textContent = `${checkedCount}개 선택됨`;
+            selectedCountSpan.textContent = `${checkedCount}${i18n.selected_count_suffix}`;
         } else {
             bulkActions.classList.add('hidden');
         }
@@ -511,7 +554,7 @@
 
         if (selectedIds.length === 0) return;
 
-        if (!confirm(`선택한 ${selectedIds.length}개의 프로젝트를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
+        if (!confirm(`${i18n.confirm_bulk_delete_prefix} ${selectedIds.length}${i18n.confirm_bulk_delete_suffix}\n${i18n.warn_irreversible}`)) return;
 
         try {
             // Bulk Delete API Call
@@ -524,7 +567,7 @@
             const data = await res.json();
 
             if (res.ok && data.status === 'success') {
-                Utils.showToast(`${data.deleted_count}개 프로젝트 삭제 완료`, 'success');
+                Utils.showToast(`${data.deleted_count}${i18n.status_bulk_deleted_done}`, 'success');
                 // Reset Selection
                 document.getElementById('selectAllCheckbox').checked = false;
                 document.getElementById('selectAllCheckbox').indeterminate = false;
@@ -534,7 +577,7 @@
                 // Sidebar refresh
                 if (window.loadProjects) window.loadProjects();
             } else {
-                throw new Error(data.detail || '삭제 실패');
+                throw new Error(data.detail || `${i18n.status_failed_delete}`);
             }
         } catch (e) {
             console.error('Bulk delete error:', e);
@@ -549,19 +592,19 @@
 
         if (selectedIds.length === 0) return;
 
-        const actionText = action === 'copy' ? '복사' : '이동';
+        const actionText = action === 'copy' ? "{{ t('btn_copy') }}" : "{{ t('btn_move') }}";
         const targetModeText = {
-            'longform': '롱폼',
-            'shorts': '쇼츠',
-            'webtoon': '웹툰',
-            'commerce': '커머스',
-            'blog': '블로그'
+            'longform': "{{ t('mode_longform') }}",
+            'shorts': "{{ t('mode_shorts') }}",
+            'webtoon': "{{ t('mode_webtoon') }}",
+            'commerce': "{{ t('mode_commerce') }}",
+            'blog': "{{ t('mode_blog') }}"
         }[targetMode];
 
-        if (!confirm(`선택한 ${selectedIds.length}개의 프로젝트를 [${targetModeText}] 모드로 ${actionText}하시겠습니까?`)) return;
+        if (!confirm(`${i18n.confirm_bulk_copy_move_prefix} ${selectedIds.length}${i18n.confirm_bulk_copy_move_mid} [${targetModeText}] ${i18n.confirm_bulk_copy_move_suffix} ${actionText}${i18n.confirm_bulk_copy_move_end}`)) return;
 
         try {
-            Utils.showToast(`${actionText} 중...`, 'info');
+            Utils.showToast(`${actionText}${i18n.status_in_progress_suffix}`, 'info');
             const res = await fetch('/api/projects/bulk-copy-move', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -575,7 +618,7 @@
             const data = await res.json();
 
             if (res.ok && data.status === 'success') {
-                Utils.showToast(`${data.processed_count}개 프로젝트 ${actionText} 완료`, 'success');
+                Utils.showToast(`${data.processed_count}${i18n.status_bulk_action_prefix} ${actionText} ${i18n.status_done}`, 'success');
                 // Reset Selection
                 document.getElementById('selectAllCheckbox').checked = false;
                 document.getElementById('selectAllCheckbox').indeterminate = false;

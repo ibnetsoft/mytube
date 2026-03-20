@@ -59,42 +59,26 @@
 
 <!-- 1단계: 아이디어 생성 -->
 <div class="card mb-6">
-    <h3 class="font-bold text-gray-800 dark:text-white mb-4">{{ t('thumb_stage_1') }}</h3>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-        <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">{{ t('label_video_topic')
-                }}</label>
-            <input type="text" id="videoTitle" class="input-field" placeholder="{{ t('placeholder_video_topic') }}">
+    <input type="hidden" id="thumbnailStyle" value="japanese_viral">
+    <!-- 단일 행 레이아웃: 썸네일이미지 | 영상주제 | 아이디어버튼 | 세팅저장 -->
+    <div class="flex items-center gap-3">
+        <!-- 선택된 썸네일 스타일 이미지 -->
+        <div id="thumbnailStyleGrid" class="style-grid flex-shrink-0" style="width:110px;">
+            <!-- Loaded via JS -->
         </div>
-        <div class="md:col-span-2">
-            <div class="flex items-center justify-between mb-3">
-                <label class="block text-sm font-medium text-gray-700 dark:text-white">{{ t('label_select_style') }}
-                    <span class="text-[10px] font-normal text-blue-500 ml-1">(* 전체 이미지 스타일 설정을 따릅니다)</span>
-                </label>
-                <button onclick="saveThumbnailStyle()" id="saveStyleBtn"
-                    class="px-3 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded shadow transition flex items-center gap-1">
-                    <span>💾</span>
-                    <span>{{ t('btn_save_settings_only') }}</span>
-                </button>
-            </div>
-            <input type="hidden" id="thumbnailStyle" value="japanese_viral">
-            <div id="thumbnailStyleGrid" class="style-grid">
-                <!-- Loaded via JS -->
-            </div>
-        </div>
-    </div>
-    <!-- 색상 톤, 비율 설정 제거됨 -->
-
-
-    <!-- 버튼 그리드 (Unified) -->
-    <div class="grid grid-cols-1 gap-3 md:col-span-3">
+        <!-- 영상 주제 입력 -->
+        <input type="text" id="videoTitle" class="input-field flex-1" placeholder="{{ t('placeholder_video_topic') }}">
+        <!-- 아이디어 및 후킹 문구 생성 버튼 (소형) -->
         <button onclick="generateUnifiedIdea()" id="unifiedIdeaBtn"
-            class="btn-primary py-4 text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2">
-            <span class="text-lg">✨</span>
-            <div class="flex flex-col items-center">
-                <span>{{ t('btn_gen_ideas_unified') or '💡 아이디어 및 후킹 문구 생성' }}</span>
-                <span class="text-[10px] opacity-80">대본을 분석하여 최적의 썸네일 기획과 문구를 제안합니다</span>
-            </div>
+            class="px-3 py-1 text-xs btn-primary rounded shadow transition flex items-center gap-1 whitespace-nowrap">
+            <span>✨</span>
+            <span>{{ t('btn_gen_ideas_unified') }}</span>
+        </button>
+        <!-- 세팅저장 버튼 -->
+        <button onclick="saveThumbnailStyle()" id="saveStyleBtn"
+            class="px-3 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded shadow transition flex items-center gap-1 whitespace-nowrap">
+            <span>💾</span>
+            <span>{{ t('btn_save_settings_only') }}</span>
         </button>
     </div>
 </div>
@@ -117,13 +101,10 @@
 
 <!-- 3단계: 텍스트 추가 -->
 <div id="textSection" class="card mb-6">
-    <h3 class="font-bold text-gray-800 dark:text-white mb-4">{{ t('thumb_stage_3') }}</h3>
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
             <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">{{
-                    t('label_text_candidates') }}</label>
                 <div id="textCandidates" class="flex flex-wrap gap-2 mb-3"></div>
             </div>
 
@@ -161,15 +142,15 @@
                         class="flex-1 btn-secondary py-3 flex items-center justify-center gap-2"
                         title="현재 모든 설정을 서버에 영구 저장합니다.">
                         <span>💾</span>
-                        <span class="hidden md:inline">설정 저장</span>
+                        <span class="hidden md:inline">{{ t('btn_save_settings') }}</span>
                     </button>
                 </div>
                 <div class="flex gap-2 mt-2">
-                    <button onclick="saveStylePreset()" class="flex-1 btn-secondary py-2 text-xs flex items-center justify-center gap-1" title="현재 텍스트/도형 스타일을 기본값으로 저장">
-                        🎨 스타일 저장
+                    <button onclick="saveStylePreset()" class="flex-1 btn-secondary py-2 text-xs flex items-center justify-center gap-1" title="{{ t('tooltip_save_style') }}">
+                        🎨 {{ t('btn_save_style') }}
                     </button>
-                    <button onclick="loadStylePreset()" class="flex-1 btn-secondary py-2 text-xs flex items-center justify-center gap-1" title="저장된 기본 스타일 불러오기">
-                        📂 스타일 불러오기
+                    <button onclick="loadStylePreset()" class="flex-1 btn-secondary py-2 text-xs flex items-center justify-center gap-1" title="{{ t('tooltip_load_style') }}">
+                        📂 {{ t('btn_load_style') }}
                     </button>
                     <button onclick="clearStylePreset()" class="btn-secondary py-2 text-xs px-3 flex items-center justify-center" title="저장된 기본 스타일 삭제">
                         🗑️
@@ -180,8 +161,6 @@
 
         <div class="space-y-4">
             <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">{{
-                    t('label_preview_layout') }}</label>
                 <div id="previewContainer"
                     class="bg-gray-100 dark:bg-gray-700 rounded-lg p-2 relative overflow-hidden flex items-center justify-center transition-all duration-300 max-h-[600px] mx-auto">
                     <canvas id="thumbnailCanvas" width="1280" height="720"
@@ -196,7 +175,7 @@
             <div class="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4">
                 <h4 class="text-xs font-bold text-yellow-800 dark:text-yellow-300 mb-1 uppercase">Styling Tip</h4>
                 <p class="text-xs text-yellow-700 dark:text-yellow-400">
-                    바이럴 스타일을 위해 <b>외곽선(Stroke)</b>을 굵게 하고 <b>Gmarket Sans</b> 폰트를 사용해 보세요.
+                    {{ t('styling_tip_desc') }}
                 </p>
             </div>
 
@@ -226,7 +205,7 @@
                 <h4 class="font-medium text-gray-800 dark:text-white mb-2">📐 {{ t('image_info_title') }}</h4>
                 <p id="thumbnailSizeInfo" class="text-sm text-gray-600 dark:text-gray-400">{{ t('label_size') }}:
                     1280 x 720 (16:9)</p>
-                <p class="text-sm text-gray-600 dark:text-gray-400">형식: PNG</p>
+                <p class="text-sm text-gray-600 dark:text-gray-400">{{ t('label_format') }}: PNG</p>
             </div>
             <div class="flex gap-2">
                 <a id="downloadLink" href="" download="thumbnail.png" class="flex-1 btn-primary text-center">
@@ -237,11 +216,11 @@
                 </button>
             </div>
             <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-                <h4 class="font-medium text-blue-800 dark:text-blue-300 mb-2">💡 팁</h4>
+                <h4 class="font-medium text-blue-800 dark:text-blue-300 mb-2">💡 {{ t('title_tip') }}</h4>
                 <ul class="text-sm text-blue-700 dark:text-blue-400 space-y-1">
-                    <li>• 텍스트는 3-5단어가 최적</li>
-                    <li>• 대비가 강한 색상 사용</li>
-                    <li>• 얼굴이 있으면 클릭률 UP</li>
+                    <li>• {{ t('tip_text_length') }}</li>
+                    <li>• {{ t('tip_contrast') }}</li>
+                    <li>• {{ t('tip_face') }}</li>
                 </ul>
             </div>
         </div>
@@ -314,7 +293,7 @@
                     const titleEl = document.getElementById('videoTitle');
                     // Only set title if empty (preserve local change)
                     if (titleEl && !titleEl.value) {
-                        titleEl.value = project.title || project.topic || '';
+                        titleEl.value = project.title || project.topic || project.name || '';
                     }
                 }
 
@@ -619,9 +598,9 @@
         if (styleId === 'japanese_viral') {
             // 레이어 3개 확보
             textLayers = [
-                { text: '5분 안에 배고픔? 😳', position: 'row2', x_offset: 0, y_offset: 0, font_family: 'Recipekorea', font_size: 100, color: '#FFFFFF', stroke_color: '#000000', stroke_width: 8, bg_color: null },
-                { text: '배고픔 STOP! 4가지 마법', position: 'row3', x_offset: 0, y_offset: 10, font_family: 'Recipekorea', font_size: 100, color: '#FFFF00', stroke_color: '#000000', stroke_width: 8, bg_color: null },
-                { text: '물 한잔의 놀라운 효과 💧', position: 'row4', x_offset: 0, y_offset: 20, font_family: 'Recipekorea', font_size: 100, color: '#00D4FF', stroke_color: '#000000', stroke_width: 8, bg_color: null }
+                { text: '', position: 'row3', x_offset: 0, y_offset: 0, font_family: 'Recipekorea', font_size: 89, color: '#FFFFFF', stroke_color: '#000000', stroke_width: 8, bg_color: null },
+                { text: '', position: 'row4', x_offset: 0, y_offset: 0, font_family: 'Recipekorea', font_size: 89, color: '#FFFF00', stroke_color: '#000000', stroke_width: 8, bg_color: null },
+                { text: '', position: 'row5', x_offset: 0, y_offset: 0, font_family: 'Recipekorea', font_size: 89, color: '#00D4FF', stroke_color: '#000000', stroke_width: 8, bg_color: null }
             ];
 
             // 도형 레이어: 하단 그라데이션 추가
@@ -662,6 +641,17 @@
         console.log(`Thumbnail style changed to: ${styleId}`);
     }
 
+    // 제목 텍스트에서 언어 자동 감지
+    function detectLanguageFromTitle(title) {
+        if (!title) return window.targetLang || 'ko';
+        if (/[\u3040-\u30ff]/.test(title)) return 'ja';          // 히라가나/가타카나 → 일본어
+        if (/[\uac00-\ud7af\u1100-\u11ff]/.test(title)) return 'ko'; // 한글 → 한국어
+        if (/[\u4e00-\u9fff]/.test(title)) return 'zh';           // 한자 → 중국어
+        if (/[\u0600-\u06ff]/.test(title)) return 'ar';           // 아랍어
+        if (/^[\x00-\x7F\s]+$/.test(title.trim())) return 'en';  // ASCII만 → 영어
+        return window.targetLang || 'ko';
+    }
+
     // 1. 아이디어 생성
     async function generateIdeas(buttonId = 'ideaBtn') {
         const title = document.getElementById('videoTitle').value.trim() || '영상';
@@ -694,9 +684,15 @@
         const btn = document.getElementById(buttonId);
         if (btn) Utils.setLoading(btn, true, '생성 중...');
 
-        const langInstruction = window.targetLang === 'ja' ? '썸네일 텍스트 후보(texts)는 반드시 "일본어(Japanese)"로 작성하세요.' :
-            window.targetLang === 'en' ? '썸네일 텍스트 후보(texts)는 반드시 "영어(English)"로 작성하세요.' :
-                '썸네일 텍스트 후보(texts)는 "한국어"로 작성하세요.';
+        const _detectedLang = detectLanguageFromTitle(title);
+        const _langMap = {
+            'ja': '썸네일 텍스트 후보(texts)는 반드시 "일본어(Japanese)"로 작성하세요.',
+            'en': '썸네일 텍스트 후보(texts)는 반드시 "영어(English)"로 작성하세요.',
+            'zh': '썸네일 텍스트 후보(texts)는 반드시 "중국어 간체(Chinese Simplified)"로 작성하세요.',
+            'ar': '썸네일 텍스트 후보(texts)는 반드시 "아랍어(Arabic)"로 작성하세요.',
+            'ko': '썸네일 텍스트 후보(texts)는 "한국어"로 작성하세요.',
+        };
+        const langInstruction = _langMap[_detectedLang] || _langMap['ko'];
 
         // Art style instruction for prompt_en
         const artStyleInstruction = artStylePrompt
@@ -795,13 +791,8 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
         Utils.setLoading(btn, true, 'AI 분석 및 생성 중...');
 
         try {
-            // 1. Generate Context/Background
+            // Generate Ideas + Texts (language auto-detected from title)
             await generateIdeas('unifiedIdeaBtn');
-
-            // 2. Generate Hooking Texts
-            if (typeof generateHookTexts === 'function') {
-                await generateHookTexts('unifiedIdeaBtn');
-            }
 
             Utils.showToast('아이디어와 후킹 문구가 생성되었습니다!', 'success');
             // 서버에도 자동 저장 (새로고침 시 유지)
@@ -914,25 +905,20 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
             };
             const config = styleConfigs[currentStyle] || styleConfigs['face'];
 
-            textLayers = textsToApply.map((text, i) => {
-                let position = 'center';
-                if (i === 0) position = 'row2';
-                else if (i === 1) position = 'center';
-                else position = 'row4';
-
-                return {
-                    text: text,
-                    position: position,
-                    x_offset: 0,
-                    y_offset: 0,
-                    font_family: config.font_family || 'Recipekorea',
-                    font_size: i === 1 ? 85 : 75,
-                    color: i === 1 ? '#FFFF00' : config.color, // 중앙은 항상 노랑 강조
-                    stroke_color: config.stroke_color,
-                    stroke_width: config.stroke_width,
-                    bg_color: null
-                };
-            });
+            const bottomPositions = ['row3', 'row4', 'row5'];
+            const bottomColors = ['#FFFFFF', '#FFFF00', '#00D4FF'];
+            textLayers = textsToApply.map((text, i) => ({
+                text: text,
+                position: bottomPositions[i] || 'row5',
+                x_offset: 0,
+                y_offset: 0,
+                font_family: 'Recipekorea',
+                font_size: 89,
+                color: bottomColors[i] || '#FFFFFF',
+                stroke_color: '#000000',
+                stroke_width: 8,
+                bg_color: null
+            }));
 
             // 상단 'AI 추천 후킹 문구' 섹션 연동
             const hookSection = document.getElementById('hookTextsSection');
@@ -963,11 +949,7 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
         renderLayers();
         drawPreview();
 
-        // [NEW] 아이디어 선택 시 자동으로 배경 생성까지 시작
-        const currentStyleName = document.getElementById('thumbnailStyle').value;
-        generateBackground(currentStyleName);
-
-        Utils.showToast(`아이디어 적용 및 배경 생성 시작`, 'success');
+        Utils.showToast(`아이디어가 적용되었습니다.`, 'success');
 
         // 스크롤
         document.getElementById('textSection').scrollIntoView({ behavior: 'smooth' });
@@ -1421,20 +1403,18 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
 
     // 배경 생성 함수
     async function generateBackground(style = null) {
-        if (!selectedPrompt) {
-            Utils.showToast('먼저 아이디어를 선택하세요', 'warning');
-            return;
-        }
-
         const btn = document.getElementById('bgBtn');
         Utils.setLoading(btn, true, '배경 생성 중...');
 
         // 스타일 파라미터가 없으면 현재 선택된 스타일 사용
         const currentStyle = style || document.getElementById('thumbnailStyle').value;
 
+        // selectedPrompt가 없으면 영상 제목을 폴백으로 사용 (텍스트 생성 불필요)
+        const promptToUse = selectedPrompt || document.getElementById('videoTitle')?.value?.trim() || '';
+
         try {
             const projectId = getCurrentProject();
-            const result = await API.image.generateThumbnailBackground(selectedPrompt, currentAspectRatio, currentStyle, projectId);
+            const result = await API.image.generateThumbnailBackground(promptToUse, currentAspectRatio, currentStyle, projectId);
 
 
             if (result.status === 'ok') {

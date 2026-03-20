@@ -83,8 +83,7 @@
             <div class="flex flex-col md:flex-row gap-6">
                 <!-- Left: Controls -->
                 <div class="flex-1">
-                    <label class="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-3">👤 주인공/캐릭터 일관성 유지
-                        (Reference)</label>
+                    <label class="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-3">{{ t('char_consistency_title') }}</label>
 
                     <div class="flex flex-col gap-3">
                         <div class="flex items-center flex-wrap gap-4">
@@ -109,6 +108,12 @@
                                 <span class="text-xs font-medium text-gray-700 dark:text-white">{{
                                     t('curr_thumb_as_char') }}</span>
                             </label>
+
+                            <!-- Analyze Button (moved to top row) -->
+                            <button onclick="analyzeAndSetConsistency()" id="analyzeBtn"
+                                class="btn-primary text-xs py-2 px-4 bg-indigo-600 hover:bg-indigo-700 flex items-center gap-1">
+                                {{ t('btn_ai_vision_apply') }}
+                            </button>
                         </div>
 
                         <!-- Preview (Upload) -->
@@ -121,114 +126,101 @@
                             <button onclick="clearCharImage()"
                                 class="text-red-500 hover:text-red-700 text-xs ml-2">❌</button>
                         </div>
-
-                        <!-- Analyze Button -->
-                        <div class="flex items-center gap-2 mt-1">
-                            <button onclick="analyzeAndSetConsistency()" id="analyzeBtn"
-                                class="btn-primary flex-1 md:flex-none text-xs py-2 px-4 bg-indigo-600 hover:bg-indigo-700">
-                                {{ t('btn_ai_vision_apply') }}
-                            </button>
-                            <p class="text-[10px] text-gray-400">
-                                {{ t('ai_vision_helper') }}
-                            </p>
-                        </div>
                     </div>
                 </div>
 
                 <!-- Right: Thumbnail Reference Display -->
                 <div
                     class="w-full md:w-1/3 flex flex-col items-center justify-center border-l border-gray-200 dark:border-gray-600 pl-0 md:pl-6 pt-4 md:pt-0 border-dashed">
-                    <label class="block text-xs font-medium text-gray-500 mb-2 w-full text-center dark:text-gray-400">{{
-                        t('curr_proj_thumb') }}</label>
                     <div id="thumbnailReferenceContainer"
                         class="relative w-[30%] aspect-video bg-gray-800 rounded-lg overflow-hidden shadow-sm group border border-gray-200 dark:border-gray-700">
                         <img id="currentProjectThumbnail" src=""
                             class="w-full h-full object-contain opacity-50 transition-opacity duration-300"
                             alt="Thumbnail" onerror="this.style.opacity=0">
                         <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <span class="text-xs text-gray-400" id="thumbPlaceholder">{{ t('no_thumb') }}</span>
+                            <span class="text-xs text-gray-400" id="thumbPlaceholder">{{ t('status_no_thumb') }}</span>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
+        <!-- 가로 배치: globalPrompt + Ethnicity side by side -->
         <div class="w-full mt-3">
-            <label class="block text-sm font-medium text-gray-700 dark:text-white mb-1">{{ t('global_consistency_label')
-                }}</label>
-            <textarea id="globalPrompt"
-                class="input-field w-full text-sm p-3 h-24 bg-yellow-50 dark:bg-yellow-900/10 border-yellow-200 dark:border-yellow-800 focus:border-yellow-400 focus:ring-yellow-400"
-                placeholder="{{ t('global_consistency_placeholder') }}"></textarea>
-
-            <!-- [MOVED] 캐릭터 분석 결과 -->
-            <!-- [MOVED] 캐릭터 분석 결과 -->
-            <div id="characterResultContainer"
-                class="hidden mt-4 bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-
-                <div
-                    class="flex flex-col sm:flex-row items-center justify-between mb-4 pb-2 border-b border-gray-100 dark:border-gray-700 gap-3">
-                    <h4 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                        <span>👥</span> {{ t('btn_char_analysis') }} 결과 및 관리
-                    </h4>
-                    <div class="flex items-center gap-2 w-full sm:w-auto">
-                        <button onclick="addCharacterManually()"
-                            class="flex-1 sm:flex-none btn-secondary text-[10px] py-1.5 px-3 flex items-center justify-center gap-1 border-dashed">
-                            <span>➕</span> {{ t('btn_add_char_manual') or '직접 추가' }}
-                        </button>
-                        <button onclick="resetAllCharacters()"
-                            class="flex-1 sm:flex-none btn-secondary text-[10px] py-1.5 px-3 flex items-center justify-center gap-1 text-red-500 border-red-200 hover:bg-red-50">
-                            <span>🗑️</span> 전체 초기화
-                        </button>
-                        <button onclick="saveCharactersToProject()" id="saveCharsBtn"
-                            class="flex-1 sm:flex-none btn-primary text-[10px] py-1.5 px-3 flex items-center justify-center gap-1 bg-green-600 hover:bg-green-700 border-none shadow-sm">
-                            <span>💾</span> {{ t('btn_save_to_server') or '서버에 저장' }}
-                        </button>
-                    </div>
+            <div class="flex gap-4 items-stretch">
+                <div class="flex-[6] min-w-0 flex flex-col">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-white mb-1">{{ t('global_consistency_label') }}</label>
+                    <textarea id="globalPrompt"
+                        class="input-field w-full flex-1 text-sm p-3 min-h-[80px] bg-yellow-50 dark:bg-yellow-900/10 border-yellow-200 dark:border-yellow-800 focus:border-yellow-400 focus:ring-yellow-400"
+                        placeholder="{{ t('global_consistency_placeholder') }}"></textarea>
                 </div>
-
-                <div id="characterList" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3"></div>
-
-                <p class="mt-3 text-[10px] text-gray-400 italic">
-                    * 이름을 클릭하여 수정할 수 있습니다. 수동으로 편집한 내용은 반드시 [서버에 저장]을 눌러야 오토파일럿에 반영됩니다.
-                </p>
-            </div>
-
-            <!-- [MOVED] 로딩 인디케이터 -->
-            <div id="characterLoading" class="hidden mt-4 text-center py-4">
-                <div
-                    class="inline-block animate-spin rounded-full h-6 w-6 border-4 border-indigo-500 border-t-transparent">
+                <div class="flex-[4] bg-indigo-50 dark:bg-gray-800 p-4 rounded-lg border border-indigo-100 dark:border-gray-700">
+                    <label class="block text-sm font-bold text-gray-800 dark:text-white mb-1">🌍 {{ t('ethnicity_title') }}</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">{{ t('ethnicity_desc') }}</p>
+                    <select id="charEthnicity" class="input-field w-full p-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-gray-800 dark:text-gray-200">
+                        <option value="East Asian heritage, Polished porcelain skin">{{ t('ethnicity_1') }}</option>
+                        <option value="Southeast Asian features, Golden tan complexion">{{ t('ethnicity_2') }}</option>
+                        <option value="South Asian descent, Desi features, Deep almond eyes">{{ t('ethnicity_3') }}</option>
+                        <option value="European ancestry, Fair complexion, High bridge nose">{{ t('ethnicity_4') }}</option>
+                        <option value="Middle Eastern features, Olive undertone, Prominent facial structure">{{ t('ethnicity_5') }}</option>
+                        <option value="Sub-Saharan African descent, Rich melanin, Natural textured hair">{{ t('ethnicity_6') }}</option>
+                        <option value="Latino heritage, Sun-kissed skin, Diverse ethnic blend">{{ t('ethnicity_7') }}</option>
+                        <option value="Indigenous features, Weathered complexion, Distinctive tribal look">{{ t('ethnicity_8') }}</option>
+                    </select>
                 </div>
-                <p class="mt-2 text-xs text-indigo-600 font-medium">{{ t('status_analyzing') }}</p>
             </div>
         </div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- [NEW] 인물 인종 (Ethnicity) 설정 추가 -->
-        <div class="col-span-1 md:col-span-2 bg-indigo-50 dark:bg-gray-800 p-4 rounded-lg border border-indigo-100 dark:border-gray-700 mb-2">
-            <label class="block text-sm font-bold text-gray-800 dark:text-white mb-1">🌍 주인공/등장인물 인종 (Ethnicity) 설정</label>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">전 세계 8대 주요 그룹 중 하나를 선택하세요. (생성되는 이미지 프롬프트에 자동 반영됩니다)</p>
-            <select id="charEthnicity" class="input-field w-full md:w-1/2 p-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-gray-800 dark:text-gray-200">
-                <option value="East Asian heritage, Polished porcelain skin">1. 동북아시아 계열 (East Asian)</option>
-                <option value="Southeast Asian features, Golden tan complexion">2. 동남아시아 및 태평양 계열 (Southeast Asian & Pacific Islander)</option>
-                <option value="South Asian descent, Desi features, Deep almond eyes">3. 남부 아시아 계열 (South Asian)</option>
-                <option value="European ancestry, Fair complexion, High bridge nose">4. 유럽 및 코카서스 계열 (European / Caucasian)</option>
-                <option value="Middle Eastern features, Olive undertone, Prominent facial structure">5. 중동 및 북아프리카 계열 (Middle Eastern & North African)</option>
-                <option value="Sub-Saharan African descent, Rich melanin, Natural textured hair">6. 아프리카 사하라 이남 계열 (Sub-Saharan African)</option>
-                <option value="Latino heritage, Sun-kissed skin, Diverse ethnic blend">7. 라틴 아메리카 혼혈 계열 (Hispanic / Latino - Mestizo)</option>
-                <option value="Indigenous features, Weathered complexion, Distinctive tribal look">8. 원주민 및 오세아니아 계열 (Indigenous / Indigenous Australian)</option>
-            </select>
+    <!-- 스타일 선택 (위로 올라옴) -->
+    <div class="mt-3">
+        <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">{{ t('select_style_label') }}</label>
+        <input type="hidden" id="imageStyle" value="realistic">
+
+        <!-- [Modified] Styles loaded dynamically -->
+        <div id="styleSelectorGrid" class="grid grid-cols-6 md:grid-cols-12 gap-3">
+            <!-- Loaded via JS -->
         </div>
+    </div>
 
-        <div class="col-span-1 md:col-span-2">
-            <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">{{ t('select_style_label') }}</label>
-            <input type="hidden" id="imageStyle" value="realistic">
+    <!-- [MOVED] 캐릭터 분석 결과 -->
+    <div id="characterResultContainer"
+        class="hidden mt-4 bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
 
-            <!-- [Modified] Styles loaded dynamically -->
-            <div id="styleSelectorGrid" class="grid grid-cols-6 md:grid-cols-12 gap-3">
-                <!-- Loaded via JS -->
+        <div
+            class="flex flex-col sm:flex-row items-center justify-between mb-4 pb-2 border-b border-gray-100 dark:border-gray-700 gap-3">
+            <h4 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                <span>👥</span> {{ t('char_analysis_result_title') }}
+            </h4>
+            <div class="flex items-center gap-2 w-full sm:w-auto">
+                <button onclick="addCharacterManually()"
+                    class="flex-1 sm:flex-none btn-secondary text-[10px] py-1.5 px-3 flex items-center justify-center gap-1 border-dashed">
+                    <span>➕</span> {{ t('btn_add_char_manual') }}
+                </button>
+                <button onclick="resetAllCharacters()"
+                    class="flex-1 sm:flex-none btn-secondary text-[10px] py-1.5 px-3 flex items-center justify-center gap-1 text-red-500 border-red-200 hover:bg-red-50">
+                    <span>🗑️</span> {{ t('btn_reset_all') }}
+                </button>
+                <button onclick="saveCharactersToProject()" id="saveCharsBtn"
+                    class="flex-1 sm:flex-none btn-primary text-[10px] py-1.5 px-3 flex items-center justify-center gap-1 bg-green-600 hover:bg-green-700 border-none shadow-sm">
+                    <span>💾</span> {{ t('btn_save_to_server') }}
+                </button>
             </div>
         </div>
+
+        <div id="characterList" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3"></div>
+
+        <p class="mt-3 text-[10px] text-gray-400 italic">
+            {{ t('char_edit_helper') }}
+        </p>
+    </div>
+
+    <!-- [MOVED] 로딩 인디케이터 -->
+    <div id="characterLoading" class="hidden mt-4 text-center py-4">
+        <div
+            class="inline-block animate-spin rounded-full h-6 w-6 border-4 border-indigo-500 border-t-transparent">
+        </div>
+        <p class="mt-2 text-xs text-indigo-600 font-medium">{{ t('status_analyzing') }}</p>
     </div>
 </div>
 
@@ -252,19 +244,19 @@
                 <!-- [NEW] Manual Save Button -->
                 <button onclick="manualSavePrompts()" id="manualSaveBtn"
                     class="btn-secondary text-sm px-4 flex items-center gap-2 bg-blue-50 text-blue-600 border-blue-200">
-                    <span>💾</span> {{ t('btn_save_all') or '서버에 저장' }}
+                    <span>💾</span> {{ t('btn_save_all') }}
                 </button>
 
                 <!-- [NEW] 선택씬 이미지 분석 → 모션 생성 버튼 -->
                 <button onclick="generateMotionFromSelectedImages()" id="imageMotionBtn"
                     class="btn-secondary text-sm px-4 flex items-center gap-2 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-300 border-teal-200 dark:border-teal-700 hover:bg-teal-100">
-                    <span>🔍</span> 선택씬 모션
+                    <span>🔍</span> {{ t('btn_scene_analysis') }} (Motion)
                 </button>
 
                 <!-- [NEW] Motion 일괄 자동생성 버튼 -->
                 <button onclick="showMotionGenModal()" id="bulkMotionBtn"
                     class="btn-secondary text-sm px-4 flex items-center gap-2 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 border-purple-200 dark:border-purple-700 hover:bg-purple-100">
-                    <span>🎬</span> Motion 자동생성
+                    <span>🎬</span> {{ t('motion_gen_title') }}
                 </button>
 
                 <button onclick="generateSelectedImages()" id="autoGenBtn"
@@ -278,26 +270,25 @@
         <!-- [NEW] Motion 자동생성 모달 -->
         <div id="motionGenModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
             <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-80">
-                <h4 class="font-bold text-gray-800 dark:text-white mb-3">🎬 Motion 자동생성</h4>
+                <h4 class="font-bold text-gray-800 dark:text-white mb-3">🎬 {{ t('motion_gen_title') }}</h4>
                 <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
-                    각 씬의 내용을 분석하여 영상 모션 프롬프트를 AI가 자동 생성합니다.<br>
-                    <span class="text-purple-500">기존 Motion이 있는 씬은 덮어씁니다.</span>
+                    {{ t('motion_gen_desc') }}
                 </p>
                 <div class="mb-4">
-                    <label class="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-1">생성할 씬 범위</label>
+                    <label class="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-1">{{ t('motion_gen_range') }}</label>
                     <div class="flex items-center gap-2">
-                        <span class="text-xs text-gray-500">씬 1 ~</span>
+                        <span class="text-xs text-gray-500">{{ t('motion_gen_from') }}</span>
                         <input type="number" id="motionGenMaxScene" value="5" min="1" max="50"
                             class="w-16 text-center text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-800 dark:text-white">
-                        <span class="text-xs text-gray-500">씬까지</span>
+                        <span class="text-xs text-gray-500">{{ t('motion_gen_to') }}</span>
                     </div>
                 </div>
                 <div class="flex gap-2">
                     <button onclick="closeMotionGenModal()"
-                        class="flex-1 py-2 text-sm rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50">취소</button>
+                        class="flex-1 py-2 text-sm rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50">{{ t('btn_cancel') }}</button>
                     <button onclick="bulkGenerateMotion()" id="motionGenConfirmBtn"
                         class="flex-1 py-2 text-sm rounded bg-purple-600 text-white font-bold hover:bg-purple-700">
-                        ✨ 생성 시작
+                        {{ t('btn_start_gen') }}
                     </button>
                 </div>
                 <div id="motionGenProgress" class="hidden mt-3 text-xs text-center text-purple-500"></div>
@@ -318,7 +309,7 @@
                     {{ t('btn_go_tts_direct') }}
                 </a>
                 <button onclick="openBlogPostPanel()" class="inline-flex items-center gap-2 py-2 px-4 rounded-lg text-sm font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0 shadow-md hover:shadow-lg transition-all">
-                    <span>📝</span> 블로그 게시
+                    <span>📝</span> {{ t('btn_blog_post') }}
                 </button>
             </div>
         </div>
@@ -327,32 +318,32 @@
         <div id="blogPostPanel" class="hidden mt-6 bg-white dark:bg-gray-800 rounded-xl border-2 border-amber-300 dark:border-amber-700 shadow-lg overflow-hidden">
             <div class="bg-gradient-to-r from-amber-500 to-orange-500 p-4">
                 <div class="flex items-center justify-between">
-                    <h4 class="font-bold text-white flex items-center gap-2"><span>📝</span> 블로그 게시 (대본 + 이미지)</h4>
+                    <h4 class="font-bold text-white flex items-center gap-2"><span>📝</span> {{ t('blog_panel_title') }}</h4>
                     <button onclick="closeBlogPostPanel()" class="text-white/80 hover:text-white text-lg">&times;</button>
                 </div>
             </div>
             <div class="p-6 space-y-4">
                 <!-- 제목 -->
                 <div>
-                    <label class="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-1">포스팅 제목</label>
-                    <input type="text" id="blogPostTitle" class="input-field w-full text-sm" placeholder="제목을 입력하세요 (비우면 자동 추출)">
+                    <label class="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-1">{{ t('blog_post_title_label') }}</label>
+                    <input type="text" id="blogPostTitle" class="input-field w-full text-sm" placeholder="{{ t('blog_post_title_placeholder') }}">
                 </div>
                 <!-- 미리보기 정보 -->
                 <div class="flex gap-4 text-xs text-gray-500 dark:text-gray-400">
-                    <span id="blogSceneCount" class="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">0개 장면</span>
-                    <span id="blogImageCount" class="bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 px-3 py-1 rounded-full">0개 이미지 포함</span>
+                    <span id="blogSceneCount" class="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">{{ t('blog_scene_count') }}</span>
+                    <span id="blogImageCount" class="bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 px-3 py-1 rounded-full">{{ t('blog_image_count') }}</span>
                 </div>
                 <!-- 플랫폼 선택 -->
                 <div>
-                    <label class="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-2">게시 플랫폼</label>
+                    <label class="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-2">{{ t('blog_platform_label') }}</label>
                     <div class="flex gap-3">
                         <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-400 transition-colors">
                             <input type="checkbox" id="blogPlatformWP" checked class="rounded border-gray-300 text-blue-600">
-                            <span class="text-sm">워드프레스</span>
+                            <span class="text-sm">{{ t('blog_platform_wp') }}</span>
                         </label>
                         <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-orange-400 transition-colors">
                             <input type="checkbox" id="blogPlatformBlogger" class="rounded border-gray-300 text-orange-600">
-                            <span class="text-sm">구글 블로그</span>
+                            <span class="text-sm">{{ t('blog_platform_blogger') }}</span>
                         </label>
                     </div>
                 </div>
@@ -360,34 +351,34 @@
                 <div class="border border-green-200 dark:border-green-700 rounded-lg overflow-hidden">
                     <div class="bg-green-50 dark:bg-green-900/30 p-3 flex items-center justify-between">
                         <div class="flex items-center gap-2">
-                            <span class="text-green-600 dark:text-green-400 font-bold text-sm">🖼 포착된 이미지 (무료)</span>
-                            <span id="extStatusBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500">확장 확인중...</span>
+                            <span class="text-green-600 dark:text-green-400 font-bold text-sm">{{ t('blog_captured_images_title') }}</span>
+                            <span id="extStatusBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500">{{ t('status_checking_extension') }}</span>
                         </div>
                         <div class="flex gap-2">
                             <button onclick="refreshCapturedBlogImages()" class="text-xs bg-green-500 text-white px-3 py-1 rounded-lg font-bold hover:bg-green-600 transition-colors">
-                                새로고침
+                                {{ t('blog_refresh_btn') }}
                             </button>
                             <a href="https://aitestkitchen.withgoogle.com/tools/image-fx" target="_blank"
                                class="text-xs bg-blue-500 text-white px-3 py-1 rounded-lg font-bold hover:bg-blue-600 transition-colors">
-                                ImageFX 열기
+                                {{ t('blog_open_imagefx') }}
                             </a>
                         </div>
                     </div>
                     <div class="p-3">
                         <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-2">
-                            Google ImageFX에서 이미지를 생성하면 Flow Bridge 확장프로그램이 자동 포착합니다. 클릭하면 블로그 삽입 목록에 추가됩니다.
+                            {{ t('blog_captured_helper') }}
                         </p>
                         <div id="capturedBlogImages" class="grid grid-cols-4 gap-2 min-h-[60px]">
                             <div class="col-span-4 text-center text-xs text-gray-400 py-4">
-                                "새로고침"을 눌러 포착된 이미지를 불러오세요
+                                {{ t('blog_no_captured') }}
                             </div>
                         </div>
                     </div>
                     <!-- 선택된 이미지 목록 -->
                     <div id="selectedBlogImagesSection" class="hidden border-t border-green-200 dark:border-green-700 p-3 bg-green-50/50 dark:bg-green-900/20">
                         <div class="flex items-center justify-between mb-2">
-                            <span class="text-xs font-bold text-green-700 dark:text-green-300">삽입할 이미지 (<span id="selectedImageCount">0</span>개)</span>
-                            <button onclick="clearSelectedBlogImages()" class="text-[10px] text-red-500 hover:text-red-700">모두 제거</button>
+                            <span class="text-xs font-bold text-green-700 dark:text-green-300">{{ t('blog_selected_images_label') }}</span>
+                            <button onclick="clearSelectedBlogImages()" class="text-[10px] text-red-500 hover:text-red-700">{{ t('blog_clear_selected') }}</button>
                         </div>
                         <div id="selectedBlogImageList" class="flex gap-2 flex-wrap"></div>
                     </div>
@@ -397,11 +388,11 @@
                 <div class="flex gap-3 pt-2">
                     <button onclick="postToBlogWithImages()" id="blogPostBtn"
                         class="flex-1 py-3 rounded-lg font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-md transition-all flex items-center justify-center gap-2">
-                        <span>🚀</span> 블로그에 게시하기
+                        <span>🚀</span> {{ t('btn_post_to_blog') }}
                     </button>
                     <button onclick="previewBlogHtml()"
                         class="py-3 px-4 rounded-lg font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all">
-                        미리보기
+                        {{ t('btn_preview_blog') }}
                     </button>
                 </div>
                 <!-- 결과 -->
@@ -409,14 +400,7 @@
             </div>
         </div>
 
-        <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-            <h4 class="font-medium text-gray-800 dark:text-white mb-3">{{ t('external_services_title') }}</h4>
-            <div class="flex flex-wrap gap-2">
-                <a href="https://midjourney.com" target="_blank" class="btn-secondary text-sm">Midjourney</a>
-                <a href="https://labs.openai.com" target="_blank" class="btn-secondary text-sm">DALL-E</a>
-                <a href="https://leonardo.ai" target="_blank" class="btn-secondary text-sm">Leonardo AI</a>
-            </div>
-        </div>
+
     </div>
 </div>
 {% endblock %}
@@ -425,6 +409,7 @@
 </script>
 <script>
     let prompts = [];
+    window.defaultVideoEngine = 'wan'; // Global default, overridden by settings
 
     // [NEW] 프롬프트 최적화 유틸리티
     function extractDynamicPart(fullPrompt) {
@@ -456,7 +441,7 @@
         if (full.classList.contains('hidden')) {
             full.classList.remove('hidden');
             summary.classList.add('hidden');
-            if (btn) btn.innerHTML = '간략히 보기 📁';
+            if (btn) btn.innerHTML = `${i18n.btn_shrink_view}`;
 
             // 펼쳐질 때 높이 자동 조절
             const ta = document.getElementById(`prompt-json-${index}`);
@@ -467,11 +452,11 @@
         } else {
             full.classList.add('hidden');
             summary.classList.remove('hidden');
-            if (btn) btn.innerHTML = '전체 보기 📂';
+            if (btn) btn.innerHTML = `${i18n.btn_expand_view}`;
         }
     }
 
-    const i18n = {
+    var i18n = {
         err_no_script: "{{ t('err_no_script') }}",
         status_analyzing: "{{ t('status_analyzing') }}",
         char_not_found: "{{ t('char_not_found') }}",
@@ -483,26 +468,26 @@
         toast_vision_fail: "{{ t('toast_vision_fail') }}",
         status_analyzing_script: "{{ t('status_analyzing_script') }}",
         msg_scenes_analyzed: "{{ t('msg_scenes_analyzed') }}",
-        confirm_delete_char: "이 캐릭터 카드를 삭제하시겠습니까?",
+        confirm_delete_char: "{{ t('confirm_delete_char') }}",
         label_fadein: "{{ t('label_fadein') }}",
         no_script_desc: "{{ t('no_script_desc') }}",
         label_start: "{{ t('label_start') }}",
         label_end: "{{ t('label_end') }}",
         toast_json_copied: "{{ t('toast_json_copied') }}",
-        opt_motion_standard: "⚡ 5s (표준)",
-        opt_motion_extend: "💎 8s (고화질 연장)",
-        opt_motion_slowmo: "🐢 8s (부드러운 슬로우모)",
+        opt_motion_standard: `⚡ {{ t('unit_5s') }} ({{ t('label_standard') }})`,
+        opt_motion_extend: `💎 {{ t('unit_8s') }} ({{ t('label_high_res_extend') }})`,
+        opt_motion_slowmo: `🐢 {{ t('unit_8s') }} ({{ t('label_smooth_slowmo') }})`,
         btn_media_upload_v2: "{{ t('btn_media_upload_v2') }}",
-        char_name_unknown: "Unknown",
-        char_role: "Character",
+        char_name_unknown: "{{ t('char_name_unknown') }}",
+        char_role: "{{ t('char_role') }}",
         btn_json_copy: "📋 JSON {{ t('btn_copy') }}",
         btn_gen_single_img: "🎨 {{ t('btn_gen_images') }}",
-        err_server_comm: "서버 통신 오류가 발생했습니다.",
-        err_char_analysis_fail: "캐릭터 분석 실패",
+        err_server_comm: "{{ t('err_server_comm') }}",
+        err_char_analysis_fail: "{{ t('err_char_analysis_fail') }}",
         btn_regen_prompt: "{{ t('btn_regen_prompt') }}",
         btn_delete: "{{ t('btn_delete') }}",
         no_desc: "{{ t('label_no_desc') }}",
-        status_generating: "생성 중..."
+        status_generating: "{{ t('status_generating') }}"
     };
 
     // [NEW] 캐릭터 분석 함수
@@ -613,9 +598,9 @@
                     
                     <select onchange="updateCharLocal(${index}, 'role', this.value)"
                         class="text-[10px] px-2 py-0.5 rounded-full ${roleBadgeColor} font-medium border-none focus:ring-1 focus:ring-indigo-300 cursor-pointer bg-white/50 dark:bg-gray-700 whitespace-nowrap">
-                        <option value="주인공" ${char.role === '주인공' ? 'selected' : ''}>주인공</option>
-                        <option value="조연" ${char.role === '조연' ? 'selected' : ''}>조연</option>
-                        <option value="배경인물" ${char.role === '배경인물' ? 'selected' : ''}>배경인물</option>
+                        <option value="주인공" ${char.role === '주인공' ? 'selected' : ''}>{{ t('role_main') }}</option>
+                        <option value="조연" ${char.role === '조연' ? 'selected' : ''}>{{ t('role_sub') }}</option>
+                        <option value="배경인물" ${char.role === '배경인물' ? 'selected' : ''}>{{ t('role_bg') }}</option>
                     </select>
                 </div>
                 
@@ -632,13 +617,13 @@
                 </div>
 
                 <div class="mb-2">
-                    <label class="text-[9px] text-gray-400 block mb-1">외형 묘사 (Description)</label>
+                    <label class="text-[9px] text-gray-400 block mb-1">{{ t('label_appearance_desc') }}</label>
                     <textarea class="w-full text-[11px] text-gray-600 dark:text-gray-300 bg-gray-50/50 dark:bg-gray-900/30 border border-gray-100 dark:border-gray-700 rounded p-1.5 focus:ring-1 focus:ring-indigo-300 outline-none"
                         rows="2" onchange="updateCharLocal(${index}, 'description_ko', this.value)">${char.description_ko || ''}</textarea>
                 </div>
 
                 <div>
-                    <label class="text-[9px] text-gray-400 block mb-1">프롬프트 (AI Prompt)</label>
+                    <label class="text-[9px] text-gray-400 block mb-1">{{ t('label_ai_prompt') }}</label>
                     <textarea class="w-full text-[10px] text-gray-500 dark:text-gray-400 font-mono bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-700 rounded p-1.5 min-h-[60px] focus:ring-1 focus:ring-indigo-300 outline-none scrollbar-thin"
                         onchange="updateCharLocal(${index}, 'prompt_en', this.value)">${char.prompt_en || ''}</textarea>
                 </div>
@@ -667,10 +652,10 @@
     function addCharacterManually() {
         const chars = Utils.storage.get('characterPrompts') || [];
         const newChar = {
-            name: "새 캐릭터",
+            name: "{{ t('char_new_name') }}",
             role: "조연",
-            description_ko: "외형에 대한 설명을 입력하세요.",
-            prompt_en: "Add English visual prompt here.",
+            description_ko: `${i18n.default_char_desc}`,
+            prompt_en: `${i18n.default_char_prompt}`,
             image_url: "",
             image_path: ""
         };
@@ -717,7 +702,7 @@
     async function saveCharactersToProject() {
         const projectId = getCurrentProject();
         if (!projectId) {
-            Utils.showToast('프로젝트를 먼저 선택해야 서버에 저장할 수 있습니다.', 'warning');
+            Utils.showToast(`${i18n.status_select_project_first}`, 'warning');
             return;
         }
 
@@ -727,7 +712,7 @@
         const originalHtml = btn ? btn.innerHTML : '';
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = `<span>⏳</span> 저장 중...`;
+            btn.innerHTML = `<span>⏳</span> ${i18n.status_saving}`;
         }
 
         try {
@@ -739,13 +724,13 @@
 
             const result = await response.json();
             if (result.status === 'ok') {
-                Utils.showToast('캐릭터 설정이 서버에 영구 저장되었습니다. 이제 오토파일럿 실행 시 이 설정이 반영됩니다.', 'success');
+                Utils.showToast(i18n.toast_char_saved_server, 'success');
             } else {
                 throw new Error(result.error || '저장 실패');
             }
         } catch (e) {
             console.error(e);
-            Utils.showToast('서버 저장 실패: ' + e.message, 'error');
+            Utils.showToast(i18n.toast_server_save_fail + ': ' + e.message, 'error');
         } finally {
             btn.disabled = false;
             btn.innerHTML = originalHtml;
@@ -754,7 +739,7 @@
 
     // [NEW] Delete Character
     async function deleteCharacter(index) {
-        if (!confirm(i18n.confirm_delete_char || '캐릭터를 삭제하시겠습니까?')) return;
+        if (!confirm(i18n.confirm_delete_char)) return;
 
         let chars = Utils.storage.get('characterPrompts') || [];
         const deletedChar = chars[index];
@@ -780,7 +765,7 @@
     }
 
     async function resetAllCharacters() {
-        if (!confirm('분석된 모든 캐릭터 정보를 서버에서 완전히 삭제하시겠습니까? 설정된 주인공 이미지도 함께 초기화됩니다.')) return;
+        if (!confirm(`${i18n.confirm_reset_all_chars}`)) return;
 
         // 1. 로컬 데이터 초기화
         Utils.storage.set('characterPrompts', []);
@@ -796,7 +781,7 @@
                 // 3. 서버 캐릭터 목록 초기화 (saveCharactersToProject는 storage 데이터를 사용함)
                 await saveCharactersToProject();
 
-                Utils.showToast('모든 캐릭터 데이터가 삭제되었습니다.', 'success');
+                Utils.showToast(`${i18n.status_all_chars_deleted}`, 'success');
             } catch (e) {
                 console.error("Reset all failed:", e);
             }
@@ -1041,19 +1026,14 @@
             const rawSceneText = p.scene_text || p.scene || p.scene_title || p.prompt_ko || '';
             const rawPromptKo = p.prompt_ko || p.scene || '';
             const rawPromptEn = p.prompt_en || p.prompt_content || p.prompt || '';
-            // [NEW] Script segment info
             const scriptStart = p.script_start || '';
             const scriptEnd = p.script_end || '';
-            // [NEW] Two-prompt compositing fields
             const rawPromptChar = p.prompt_char || '';
             const rawPromptBg = p.prompt_bg || '';
 
-            // Extract first and last portions (Visual only)
             const words = rawSceneText.split(/\s+/);
             const firstText = words.slice(0, 10).join(' ') + (words.length > 10 ? '...' : '');
-            const lastText = words.length > 20 ? '...' + words.slice(-10).join(' ') : '';
 
-            // Build JSON object for display
             const jsonData = {
                 scene_number: i + 1,
                 scene_text: rawSceneText,
@@ -1066,13 +1046,9 @@
 
             return `
             <div id="prompt-card-${i}" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-                <!-- Header -->
                 <div class="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                     <div class="flex items-center gap-3">
-                        <input type="checkbox" 
-                               id="scene-checkbox-${i}" 
-                               class="scene-checkbox w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                               onchange="handleSceneSelection()">
+                        <input type="checkbox" id="scene-checkbox-${i}" class="scene-checkbox w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 cursor-pointer" onchange="handleSceneSelection()">
                         <span class="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-sm">${i + 1}</span>
                         <div>
                             <span class="font-bold text-gray-800 dark:text-white">Scene ${i + 1}</span>
@@ -1080,12 +1056,8 @@
                         </div>
                     </div>
                 </div>
-                
-                <!-- Content Grid -->
                 <div class="p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
-                    
-                    <!-- Left Column: Asset Preview (Video/Image) -->
-                    <div class="lg:col-span-3 flex flex-col gap-3">
+                    <div class="lg:col-span-3 flex flex-col gap-2">
                         <div class="image-container relative w-full bg-gray-100 dark:bg-gray-900 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 group" style="${getContainerStyle()}">
                             ${p.video_url ? `
                                 <video src="${p.video_url}" class="absolute inset-0 w-full h-full object-cover" controls autoplay loop muted></video>
@@ -1098,17 +1070,13 @@
                                 <div class="flex flex-col items-center justify-center h-full text-gray-400">
                                     <span class="text-2xl mb-2">🖼️</span>
                                     <span class="text-xs">No Asset</span>
-                                    <!-- [NEW] Upload Button -->
                                     <button onclick="document.getElementById('scene-upload-${i}').click()" 
                                             class="mt-2 text-[10px] text-blue-500 hover:text-blue-600 border border-blue-200 px-2 py-1 rounded bg-blue-50 dark:bg-blue-900/40 dark:border-blue-800 transition-colors">
                                         📁 ${i18n.btn_upload || 'Upload'}
                                     </button>
                                 </div>
                             `}
-
-                            <!-- [NEW] Asset Replacement Hidden Input & Overlay -->
                             <input type="file" id="scene-upload-${i}" class="hidden" accept="image/*,video/*" onchange="uploadSceneImage(${i}, this)">
-                            
                             ${(p.image_url || p.video_url) ? `
                                 <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                     <button onclick="document.getElementById('scene-upload-${i}').click()" 
@@ -1119,28 +1087,24 @@
                             ` : ''}
                         </div>
 
-                        <!-- Generation Controls -->
-                        <div class="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                            <div class="flex items-center justify-between mb-2">
-                                <span class="text-xs font-bold text-gray-700 dark:text-gray-300">🎥 Video Generator</span>
-                                <div class="flex bg-gray-200 dark:bg-gray-800 rounded p-0.5 gap-0.5">
-                                    <button class="px-2 py-0.5 text-[10px] rounded ${(!p.engine || p.engine === 'wan') ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-white font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'wan')" title="Wan 2.1 - Replicate (크레딧 소진 시 Seedance 사용)">Wan 2.1</button>
-                                    <button class="px-2 py-0.5 text-[10px] rounded ${(p.engine === 'seedance') ? 'bg-green-100 dark:bg-green-900 shadow text-green-700 dark:text-green-300 font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'seedance')" title="Seedance 1.5 Pro - Akool API (가장 저렴)">🌱 Seedance</button>
-                                    <button class="px-2 py-0.5 text-[10px] rounded ${(p.engine === 'akool') ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-white font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'akool')" title="Akool - Lip-Sync (음성 필요)">LipSync</button>
+                        <!-- Compact Generation Controls -->
+                        <div class="bg-gray-50 dark:bg-gray-900 rounded-lg p-1.5 border border-gray-200 dark:border-gray-700">
+                            <div class="flex items-center justify-between gap-1.5">
+                                <button onclick="generateSingleVideo(${i})" id="gen-vid-btn-${i}"
+                                    class="flex-1 py-1.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold rounded text-[10px] shadow-sm transition-all flex items-center justify-center gap-1"
+                                    ${!p.image_url ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>
+                                    <span>⚡</span> Generate
+                                </button>
+                                <div class="flex bg-gray-200 dark:bg-gray-800 rounded p-0.5 gap-0.5 shrink-0">
+                                    <button class="px-1.5 py-0.5 text-[9px] rounded ${((p.engine || window.defaultVideoEngine || 'wan') === 'wan') ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-white font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'wan')" title="Wan 2.1">Wan</button>
+                                    <button class="px-1.5 py-0.5 text-[9px] rounded ${((p.engine || window.defaultVideoEngine || 'wan') === 'seedance') ? 'bg-green-100 dark:bg-green-900 shadow text-green-700 dark:text-green-300 font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'seedance')" title="Seedance">🌱 Seed</button>
+                                    <button class="px-1.5 py-0.5 text-[9px] rounded ${((p.engine || window.defaultVideoEngine || 'wan') === 'akool') ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-white font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'akool')" title="LipSync">Lip</button>
+                                    <button class="px-1.5 py-0.5 text-[9px] rounded ${((p.engine || window.defaultVideoEngine || 'wan') === 'veo') ? 'bg-blue-100 dark:bg-blue-900 shadow text-blue-700 dark:text-blue-300 font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'veo')" title="Veo">Veo</button>
                                 </div>
                             </div>
-
-                            <button onclick="generateSingleVideo(${i})" id="gen-vid-btn-${i}"
-                                class="w-full py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold rounded text-xs shadow-md transition-all flex items-center justify-center gap-2"
-                                ${!p.image_url ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>
-                                <span>⚡</span> Generate Video
-                            </button>
-                            <p class="text-[9px] text-gray-400 text-center mt-1">
-                                ${(!p.engine || p.engine === 'wan') ? 'Wan 2.1 · Dynamic Camera Effects (Replicate)' : (p.engine === 'seedance') ? '🌱 Seedance 1.5 Pro · 저렴 · Akool API' : 'Akool LipSync · 음성 립싱크'}
-                            </p>
                         </div>
                     </div>
-                    
+
                     <!-- Right Column: Prompt Editors -->
                     <div class="lg:col-span-9 flex flex-col gap-3">
 
@@ -2016,7 +1980,7 @@
         if (!projectId) return Utils.showToast('프로젝트를 찾을 수 없습니다', 'error');
 
         const p = prompts[index];
-        const engine = p.engine || 'wan';
+        const engine = p.engine || window.defaultVideoEngine || 'wan';
 
         if (!p.image_url) return Utils.showToast('먼저 이미지를 생성해주세요', 'warning');
 
@@ -2369,6 +2333,15 @@
 
         checkScriptStatus();
         loadProjectThumbnail();
+
+        // [SYNC] Load global video engine setting
+        try {
+            const _settingsRes = await fetch('/api/settings');
+            const _settings = await _settingsRes.json();
+            if (_settings.video_engine) {
+                window.defaultVideoEngine = _settings.video_engine;
+            }
+        } catch (e) { /* use default wan */ }
 
         const projectId = getCurrentProject();
         const autoBtn = document.getElementById('autoGenBtn');

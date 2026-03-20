@@ -6,12 +6,12 @@
     <div class="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
         <div class="p-4 border-b border-gray-200 dark:border-gray-700">
             <h2 class="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                <span>📁</span> 분석 폴더
+                <span>📁</span> {{ t('repo_folder') }}
             </h2>
         </div>
         <div class="flex-1 overflow-y-auto p-2 space-y-1" id="folderList">
             <!-- Folders will be injected here -->
-            <div class="text-center text-gray-500 text-sm mt-4 dark:text-gray-400">로딩 중...</div>
+            <div class="text-center text-gray-500 text-sm mt-4 dark:text-gray-400">{{ t('status_loading') }}</div>
         </div>
     </div>
 
@@ -21,16 +21,16 @@
         <div
             class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between shadow-sm z-10">
             <div>
-                <h1 id="currentFolderName" class="text-xl font-bold text-gray-800 dark:text-white">폴더를 선택하세요</h1>
+                <h1 id="currentFolderName" class="text-xl font-bold text-gray-800 dark:text-white">{{ t('repo_select_folder') }}</h1>
                 <p id="currentFolderDate" class="text-xs text-gray-500 dark:text-gray-400 mt-1"></p>
             </div>
             <div id="actionButtons" class="hidden gap-2">
                 <button onclick="createPlanFromSelection()"
                     class="btn-primary text-sm flex items-center gap-1 bg-purple-600 hover:bg-purple-700">
-                    <span>✨</span> 대본 기획
+                    <span>✨</span> {{ t('btn_script_plan') }}
                 </button>
                 <button onclick="downloadCurrentSheet()" class="btn-secondary text-sm flex items-center gap-1">
-                    <span>⬇️</span> 엑셀 다운로드
+                    <span>⬇️</span> {{ t('btn_excel_download') }}
                 </button>
             </div>
         </div>
@@ -39,7 +39,7 @@
         <div class="flex-1 overflow-auto p-6" id="tableContainer">
             <div class="flex flex-col items-center justify-center h-full text-gray-400">
                 <span class="text-4xl mb-4">👈</span>
-                <p>왼쪽 목록에서 폴더를 선택해주세요.</p>
+                <p>{{ t('repo_select_folder_desc') }}</p>
             </div>
         </div>
     </div>
@@ -51,6 +51,25 @@
     let currentFolderData = null;
     let currentFolderName = "";
 
+    // i18n for JS
+    var i18n = {
+        no_analysis_saved: "{{ t('no_analysis_saved') }}",
+        err_fail_load_folders: "{{ t('err_fail_load_folders') }}",
+        err_fail_load_data: "{{ t('err_fail_load_data') }}",
+        data_is_empty: "{{ t('data_is_empty') }}",
+        label_success_factor: "{{ t('label_success_factor') }}",
+        label_benchmarked_title: "{{ t('label_benchmarked_title') }}",
+        label_planning_intent: "{{ t('label_planning_intent') }}",
+        warn_select_item_first: "{{ t('warn_select_item_first') }}",
+        warn_select_single_item: "{{ t('warn_select_single_item') }}",
+        err_insufficient_info: "{{ t('err_insufficient_info') }}",
+        confirm_start_plan: "{{ t('confirm_start_plan') }}",
+        toast_creating_plan: "{{ t('toast_creating_plan') }}",
+        toast_plan_created_moving: "{{ t('toast_plan_created_moving') }}",
+        err_occurred: "{{ t('err_occurred') }}",
+        toast_excel_download_info: "{{ t('toast_excel_download_info') }}"
+    };
+
     // 1. Load Folder List
     async function loadFolders() {
         try {
@@ -61,7 +80,7 @@
             listEl.innerHTML = '';
 
             if (data.folders.length === 0) {
-                listEl.innerHTML = '<div class="text-center text-gray-500 text-sm mt-4 dark:text-gray-400">저장된 분석이 없습니다.</div>';
+                listEl.innerHTML = `<div class="text-center text-gray-500 text-sm mt-4 dark:text-gray-400">${i18n.no_analysis_saved}</div>`;
                 return;
             }
 
@@ -81,7 +100,7 @@
             });
         } catch (e) {
             console.error(e);
-            Utils.showToast("폴더 목록 로드 실패", "error");
+            Utils.showToast(i18n.err_fail_load_folders, "error");
         }
     }
 
@@ -118,14 +137,14 @@
 
         } catch (e) {
             console.error(e);
-            container.innerHTML = `<div class="text-center text-red-500 mt-10">데이터 로드 실패: ${e.message}</div>`;
+            container.innerHTML = `<div class="text-center text-red-500 mt-10">${i18n.err_fail_load_data}: ${e.message}</div>`;
         }
     }
 
     // 3. Render Table
     function renderTable(rows) {
         if (!rows || rows.length === 0) {
-            document.getElementById('tableContainer').innerHTML = '<div class="text-center text-gray-500 mt-10 dark:text-gray-400">데이터가 비어있습니다.</div>';
+            document.getElementById('tableContainer').innerHTML = `<div class="text-center text-gray-500 mt-10 dark:text-gray-400">${i18n.data_is_empty}</div>`;
             return;
         }
 
@@ -177,15 +196,15 @@
                     </td>
                     <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-300 align-top">
                         <div class="mb-3">
-                            <span class="px-2 py-0.5 rounded textxs font-bold bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">성공 요인</span>
+                            <span class="px-2 py-0.5 rounded textxs font-bold bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">${i18n.label_success_factor}</span>
                             <div class="mt-1">${row['Success Factor']}</div>
                         </div>
                         <div class="mb-3">
-                            <span class="px-2 py-0.5 rounded textxs font-bold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">벤치마킹 제목</span>
+                            <span class="px-2 py-0.5 rounded textxs font-bold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">${i18n.label_benchmarked_title}</span>
                             <div class="mt-1 font-medium text-blue-600 dark:text-blue-300">${row['Benchmarked Title']}</div>
                         </div>
                         <div>
-                            <span class="px-2 py-0.5 rounded textxs font-bold bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">기획 의도 (시놉시스)</span>
+                            <span class="px-2 py-0.5 rounded textxs font-bold bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">${i18n.label_planning_intent}</span>
                             <div class="mt-1 text-xs opacity-80">${row['Synopsis']}</div>
                         </div>
                     </td>
@@ -204,11 +223,11 @@
     async function createPlanFromSelection() {
         const checkboxes = document.querySelectorAll('.repo-checkbox:checked');
         if (checkboxes.length === 0) {
-            Utils.showToast("기획할 항목을 선택해주세요.", "warning");
+            Utils.showToast(i18n.warn_select_item_first, "warning");
             return;
         }
         if (checkboxes.length > 1) {
-            Utils.showToast("한 번에 하나의 항목만 기획할 수 있습니다.", "warning");
+            Utils.showToast(i18n.warn_select_single_item, "warning");
             return;
         }
 
@@ -218,13 +237,13 @@
         const factor = el.dataset.factor;
 
         if (!title || !synopsis) {
-            Utils.showToast("제목이나 시놉시스 정보가 부족합니다.", "error");
+            Utils.showToast(i18n.err_insufficient_info, "error");
             return;
         }
 
-        if (!confirm(`'${title}'\n이 주제로 대본 기획을 시작하시겠습니까?`)) return;
+        if (!confirm(`'${title}'\n${i18n.confirm_start_plan}`)) return;
 
-        Utils.showToast("대본 구조를 생성 중입니다... (약 10-20초)", "info");
+        Utils.showToast(`${i18n.toast_creating_plan}... (약 10-20초)`, "info");
 
         try {
             const res = await fetch('/api/repository/create-plan', {
@@ -235,7 +254,7 @@
             const data = await res.json();
 
             if (data.status === 'ok') {
-                Utils.showToast("기획 생성 완료! 이동합니다.", "success");
+                Utils.showToast(i18n.toast_plan_created_moving, "success");
                 setTimeout(() => {
                     window.location.href = `/script-plan?project_id=${data.project_id}`;
                 }, 1000);
@@ -244,19 +263,14 @@
             }
         } catch (e) {
             console.error(e);
-            Utils.showToast(`오류 발생: ${e.message}`, "error");
+            Utils.showToast(`${i18n.err_occurred}: ${e.message}`, "error");
         }
     }
 
 
     function downloadCurrentSheet() {
         if (!currentFolderName) return;
-        // Re-use logic or direct link if available. 
-        // For simplicity, link to the file if we can guess the name, OR verify file existence via API.
-        // Or finding the file in data response.
-        // Actually, let's just use window.open if backend provides URL.
-        // Ideally backend `content` endpoint should return file_url too.
-        Utils.showToast("파일 다운로드는 현재 폴더 경로에서 직접 가능합니다.", "info");
+        Utils.showToast(i18n.toast_excel_download_info, "info");
     }
 
     // Init

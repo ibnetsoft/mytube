@@ -2476,9 +2476,9 @@ async def generate_thumbnail_background(req: ThumbnailBackgroundRequest):
         final_style_prefix = ". ".join(final_style_components) + ". " if final_style_components else ""
 
         # negative_constraints 강화
-        negative_constraints = "text, words, letters, alphabet, typography, watermark, signature, speech bubble, logo, brand name, writing, caption, chinese characters, japanese kanji, korean hangul, hanzi"
-        
-        final_prompt = f"ABSOLUTELY NO TEXT. NO CHARACTERS. {final_style_prefix}{clean_prompt}. High quality, 8k, YouTube thumbnail background, empty background, no watermark. DO NOT INCLUDE: {negative_constraints}."
+        negative_constraints = "text, words, letters, alphabet, typography, watermark, signature, speech bubble, logo, brand name, writing, caption, chinese characters, japanese kanji, korean hangul, hanzi, extra arms, multiple arms, four arms, extra limbs, deformed limbs, mutated limbs, extra hands, extra fingers, abnormal anatomy, disfigured"
+
+        final_prompt = f"ABSOLUTELY NO TEXT. {final_style_prefix}{clean_prompt}. Anatomically correct, two arms only, proper human anatomy. High quality, 8k, YouTube thumbnail background, no watermark. DO NOT INCLUDE: {negative_constraints}."
 
         # 이미지 생성 (전략: Replicate -> Gemini -> AKOOL Fallback)
         images_bytes = None

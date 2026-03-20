@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (sceneRange && sceneVal) {
         sceneRange.addEventListener('input', (e) => {
             if (allVideoCheck && allVideoCheck.checked) return;
-            sceneVal.textContent = `${e.target.value} Scenes`;
+            sceneVal.textContent = `${e.target.value} ${i18n.unit_scenes}`;
             if (sceneInline) sceneInline.textContent = e.target.value;
         });
     }
@@ -32,14 +32,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (e.target.checked) {
                 sceneRange.disabled = true;
                 sceneRange.classList.add('opacity-30');
-                sceneVal.textContent = `ALL Scenes`;
+                sceneVal.textContent = `${i18n.label_all_caps} ${i18n.unit_scenes}`;
                 sceneVal.classList.replace('bg-pink-500/10', 'bg-pink-500');
                 sceneVal.classList.replace('text-pink-400', 'text-white');
-                if (sceneInline) sceneInline.textContent = 'ALL';
+                if (sceneInline) sceneInline.textContent = i18n.label_all_caps;
             } else {
                 sceneRange.disabled = false;
                 sceneRange.classList.remove('opacity-30');
-                sceneVal.textContent = `${sceneRange.value} Scenes`;
+                sceneVal.textContent = `${sceneRange.value} ${i18n.unit_scenes}`;
                 sceneVal.classList.replace('bg-pink-500', 'bg-pink-500/10');
                 sceneVal.classList.replace('text-white', 'text-pink-400');
                 if (sceneInline) sceneInline.textContent = sceneRange.value;
@@ -60,7 +60,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const startBtn = document.getElementById('startAutopilotBtn');
         if (startBtn) {
             startBtn.disabled = true;
-            startBtn.innerText = "🔄 Processing... (Monitoring Mode)";
+            startBtn.innerText = `${i18n.status_processing_monitor}`;
         }
         pollStatus(pid);
     }
@@ -71,7 +71,7 @@ async function loadStyles() {
     // 1. Visual Styles (fetch from DB)
     const vGrid = document.getElementById('styleSelectorGrid');
     if (vGrid) {
-        vGrid.innerHTML = '<div class="col-span-full py-4 text-center text-gray-500 text-[10px]">불러오는 중...</div>';
+        vGrid.innerHTML = `<div class="col-span-full py-4 text-center text-gray-500 text-[10px]">${i18n.status_loading}</div>`;
         try {
             const res = await fetch('/api/settings/style-presets');
             const data = await res.json();
@@ -108,26 +108,25 @@ async function loadStyles() {
     // 2. Thumbnail Styles (fetch from DB)
     const tGrid = document.getElementById('thumbnailStyleGrid');
     if (tGrid) {
-        tGrid.innerHTML = '<div class="col-span-full py-4 text-center text-gray-500 text-[10px]">불러오는 중...</div>';
+        tGrid.innerHTML = `<div class="col-span-full py-4 text-center text-gray-500 text-[10px]">${i18n.status_loading}</div>`;
         try {
             const res = await fetch('/api/settings/thumbnail-style-presets');
             const data = await res.json();
 
-            // Default Korean Labels for system styles
-            const displayedStyles = {
-                'japanese_viral': '바이럴'
-            };
-
             tGrid.innerHTML = '';
             Object.entries(data).forEach(([key, val]) => {
-                if (!displayedStyles[key]) return; // 바이럴 외에는 안보이게 처리
+                // Special labels for specific styles; others use their stored name
+                const specialLabels = {
+                    'japanese_viral': i18n.style_viral
+                };
 
                 const imgUrl = (typeof val === 'object' && val.image_url) ? val.image_url : `/static/img/thumbs/${key}.png`;
                 const hasInstruction = (typeof val === 'object' && val.gemini_instruction && val.gemini_instruction.trim().length > 0);
+                const displayName = specialLabels[key] || (typeof val === 'object' && val.name_ko ? val.name_ko : key);
 
                 const style = {
                     id: key,
-                    name: displayedStyles[key],
+                    name: displayName,
                     img: imgUrl,
                     hasInstruction: hasInstruction
                 };
@@ -137,10 +136,10 @@ async function loadStyles() {
 
             // Set default
             const currentThumbStyle = document.getElementById('thumbnailStyle').value;
-            if (currentThumbStyle && displayedStyles[currentThumbStyle]) {
+            if (currentThumbStyle && data[currentThumbStyle]) {
                 selectStyle('thumbnailStyle', currentThumbStyle);
             } else {
-                const firstKey = Object.keys(displayedStyles)[0];
+                const firstKey = Object.keys(data)[0];
                 if (firstKey) selectStyle('thumbnailStyle', firstKey);
             }
         } catch (e) {
@@ -218,7 +217,7 @@ function setMode(mode) {
         btnShort.classList.add('text-gray-500');
 
         const durLabel = document.querySelector('#targetDuration + span');
-        if (durLabel) durLabel.innerText = '분';
+        if (durLabel) durLabel.innerText = i18n.unit_min_short;
         const durInput = document.getElementById('targetDuration');
         if (durInput && durInput.value == 60) durInput.value = 10;
 
@@ -232,7 +231,7 @@ function setMode(mode) {
         btnLong.classList.add('text-gray-500');
 
         const durLabel = document.querySelector('#targetDuration + span');
-        if (durLabel) durLabel.innerText = '초';
+        if (durLabel) durLabel.innerText = i18n.unit_sec_short;
         const durInput = document.getElementById('targetDuration');
         if (durInput) durInput.value = 60;
 
@@ -363,7 +362,7 @@ async function loadVoices() {
     // Provider Change Event
     providerSelect.onchange = async () => {
         const provider = providerSelect.value;
-        voiceSelect.innerHTML = '<option>Loading...</option>';
+        voiceSelect.innerHTML = `<option>${i18n.status_loading}</option>`;
         await fetchVoices(provider);
     };
 
@@ -375,7 +374,7 @@ async function fetchVoices(provider) {
     const voiceSelect = document.getElementById('voiceSelect');
     if (!voiceSelect) return;
 
-    voiceSelect.innerHTML = '<option>Loading...</option>';
+    voiceSelect.innerHTML = `<option>${i18n.status_loading}</option>`;
     console.log("[Autopilot] Fetching voices for provider:", provider);
 
     try {
@@ -427,7 +426,7 @@ async function fetchVoices(provider) {
         const voices = (data.voices || []).filter(v => v.provider === provider || (!v.provider && provider === 'elevenlabs'));
 
         if (voices.length === 0) {
-            voiceSelect.innerHTML = '<option value="">No voices available (Check API Key)</option>';
+            voiceSelect.innerHTML = `<option value="">${i18n.status_no_voices_available}</option>`;
             return;
         }
 
@@ -442,7 +441,7 @@ async function fetchVoices(provider) {
 
     } catch (e) {
         console.error("Voice load error:", e);
-        voiceSelect.innerHTML = '<option value="">Error loading voices</option>';
+        voiceSelect.innerHTML = `<option value="">${i18n.status_error_loading_voices}</option>`;
     }
 }
 
@@ -534,6 +533,12 @@ async function loadSavedSettings() {
                 const sSelect = document.getElementById('scriptStyleSelect');
                 if (sSelect) sSelect.value = data.script_style;
             }
+            
+            // [NEW] Ethnicity
+            if (data.char_ethnicity) {
+                const ethSelect = document.getElementById('charEthnicity');
+                if (ethSelect) ethSelect.value = data.char_ethnicity;
+            }
 
             // [NEW] Duration
             if (data.duration_seconds) {
@@ -565,7 +570,7 @@ async function loadSavedSettings() {
                 if (range) {
                     range.value = estScenes;
                     const sceneValEl = document.getElementById('sceneCountVal');
-                    if (sceneValEl) sceneValEl.innerText = estScenes + " Scenes";
+                    if (sceneValEl) sceneValEl.innerText = estScenes + ` ${i18n.unit_scenes}`;
                     const sceneInlineEl = document.getElementById('sceneCountInline');
                     if (sceneInlineEl) sceneInlineEl.textContent = estScenes;
                 }
@@ -596,6 +601,11 @@ async function loadSavedSettings() {
                 if (charAnalysisCheck) {
                     charAnalysisCheck.checked = data.use_character_analysis === '1' || data.use_character_analysis === true;
                 }
+            }
+
+            // [SYNC] Video Engine from Global Settings
+            if (data.video_engine) {
+                setVideoEngine(data.video_engine);
             }
         }
     } catch (e) {
@@ -671,7 +681,7 @@ function openAutopilotModal(topic = "") {
         document.getElementById('modalTopicTitle').innerText = topic ? `(${topic})` : "";
         document.getElementById('modalProgressPercent').innerText = "0%";
         document.getElementById('modalProgressBar').style.width = "0%";
-        document.getElementById('modalStatusText').innerText = "작업 시작 준비 중...";
+        document.getElementById('modalStatusText').innerText = i18n.status_preparing;
         document.getElementById('modalDoneBtn').classList.add('hidden');
     }
 }
@@ -680,7 +690,7 @@ function closeAutopilotModal() {
     const modal = document.getElementById('autopilotModal');
     if (modal) {
         if (isProcessing) {
-            if (!confirm("작업이 백그라운드에서 계속 진행됩니다.\n모달을 닫으시겠습니까?")) return;
+            if (!confirm(i18n.confirm_close_modal_keep_task)) return;
         }
         modal.classList.add('hidden');
     }
@@ -742,7 +752,7 @@ async function startAutopilot() {
     }
 
     if (creationMode === 'commerce' && !productUrl) {
-        alert("상품 URL을 입력해주세요.");
+        alert(i18n.alert_enter_product_url);
         document.getElementById('productUrlInput').focus();
         return;
     }
@@ -760,6 +770,7 @@ async function startAutopilot() {
         all_video: document.getElementById('allVideoCheck')?.checked || false,
         video_engine: document.getElementById('videoEngine')?.value || 'wan',
         motion_method: document.getElementById('motionMethod').value || 'standard',
+        char_ethnicity: document.getElementById('charEthnicity')?.value || 'East Asian heritage, Polished porcelain skin',
         script_style: document.getElementById('scriptStyleSelect').value,
         voice_provider: document.getElementById('providerSelect').value,
         voice_id: document.getElementById('voiceSelect').value,
@@ -796,6 +807,12 @@ async function startAutopilot() {
 
         if (data.status === 'ok') {
             log("✅ Workflow started. Project ID: " + data.project_id);
+            // 오토파일럿이 생성한 새 프로젝트를 현재 프로젝트로 설정
+            if (typeof setCurrentProject === 'function') {
+                setCurrentProject(data.project_id);
+            } else {
+                localStorage.setItem('currentProjectId', data.project_id);
+            }
             pollStatus(data.project_id);
         } else {
             throw new Error(data.error || "Failed to start");
@@ -843,7 +860,7 @@ function pollStatus(projectId) {
             if (status === 'done') {
                 clearInterval(interval);
                 isProcessing = false;
-                log("🏁 제작이 완료되었습니다! 잠시 후 이동합니다.");
+                log(`🏁 ${i18n.status_done_redirecting}`);
 
                 const doneBtn = document.getElementById('modalDoneBtn');
                 if (doneBtn) doneBtn.classList.remove('hidden');
@@ -862,7 +879,7 @@ function pollStatus(projectId) {
             } else if (status === 'error') {
                 clearInterval(interval);
                 isProcessing = false;
-                log("❌ 제작 중 오류가 발생했습니다. 로그를 확인하세요.");
+                log(`❌ ${i18n.status_error_occurred_check_logs}`);
 
                 const startBtn = document.getElementById('startAutopilotBtn');
                 if (startBtn) {
@@ -909,7 +926,7 @@ async function refreshQueue() {
     const badge = document.getElementById('queueBadge');
     const countEl = document.getElementById('queueCount');
 
-    list.innerHTML = `<div class="text-center py-12 text-gray-500"><div class="loader-sm mx-auto mb-2"></div>로딩 중...</div>`;
+    list.innerHTML = `<div class="text-center py-12 text-gray-500"><div class="loader-sm mx-auto mb-2"></div>${i18n.status_loading}</div>`;
 
     try {
         const res = await fetch('/api/autopilot/queue');
@@ -927,7 +944,7 @@ async function refreshQueue() {
         const btnStart = document.getElementById('btnStartBatch');
 
         if (count === 0) {
-            list.innerHTML = `<div class="text-center py-12 text-gray-500">대기 중인 프로젝트가 없습니다.<br><span class="text-xs">기획 페이지에서 '담기' 버튼을 눌러 추가하세요.</span></div>`;
+            list.innerHTML = `<div class="text-center py-12 text-gray-500">${i18n.status_no_queued_projects}<br><span class="text-xs">${i18n.helper_add_from_plan}</span></div>`;
             if (btnStart) btnStart.disabled = true;
             return;
         }
@@ -942,44 +959,44 @@ async function refreshQueue() {
                         <span class="text-purple-400 font-bold bg-purple-500/10 px-2 py-0.5 rounded text-sm">${idx + 1}</span>
                     </div>
                     <div>
-                        <h4 class="font-bold text-white text-base mb-1">${p.topic || '제목 없음'}</h4>
+                        <h4 class="font-bold text-white text-base mb-1">${p.topic || i18n.label_no_title}</h4>
                         <p class="text-xs text-gray-400 flex items-center gap-2">
                             <span>ID: ${p.id}</span>
                             <span class="text-gray-600">|</span>
                             <span>${new Date(p.created_at).toLocaleString()}</span>
-                            ${p.status === 'queued' ? '<span class="text-yellow-500 bg-yellow-500/10 px-1.5 py-0.5 rounded ml-2">대기중</span>' : ''}
+                            ${p.status === 'queued' ? `<span class="text-yellow-500 bg-yellow-500/10 px-1.5 py-0.5 rounded ml-2">${i18n.status_queued}</span>` : ''}
                         </p>
                     </div>
                 </div>
                 <div class="flex items-center gap-3">
-                    <button onclick="deleteFromQueue(${p.id})" class="text-xs text-red-500 bg-red-500/10 px-3 py-1.5 rounded hover:bg-red-500 hover:text-white transition-all ml-2">삭제</button>
+                    <button onclick="deleteFromQueue(${p.id})" class="text-xs text-red-500 bg-red-500/10 px-3 py-1.5 rounded hover:bg-red-500 hover:text-white transition-all ml-2">${i18n.btn_delete}</button>
                 </div>
             </div>
         `).join('');
 
     } catch (e) {
         console.error(e);
-        list.innerHTML = `<div class="text-center py-12 text-red-500">목록 로드 실패</div>`;
+        list.innerHTML = `<div class="text-center py-12 text-red-500">${i18n.status_failed_to_load_list}</div>`;
     }
 }
 
 async function startBatch() {
-    if (!confirm("대기열에 있는 모든 프로젝트를 순차적으로 제작하시겠습니까? (이 작업은 시간이 걸립니다)")) return;
+    if (!confirm(i18n.confirm_start_batch)) return;
 
     const btn = document.getElementById('btnStartBatch');
     btn.disabled = true;
-    btn.innerHTML = `<span>⏳</span> 시작 요청 중...`;
+    btn.innerHTML = `<span>⏳</span> ${i18n.status_requesting_start}`;
 
     try {
         const res = await fetch('/api/queue/start', { method: 'POST' });
         const data = await res.json();
 
         if (data.status === 'success' || data.status === 'started') {
-            Utils.showToast("일괄 제작이 시작되었습니다! 🚀", "success");
-            btn.innerHTML = `<span class="loader-sm border-white"></span> 처리 중...`;
+            Utils.showToast(`${i18n.status_batch_started} 🚀`, "success");
+            btn.innerHTML = `<span class="loader-sm border-white"></span> ${i18n.status_processing}`;
 
             const logArea = document.getElementById('batchConsoleLogs');
-            logArea.innerHTML = `<div class="text-yellow-400 p-2">✅ 일괄 처리 작업이 시작되었습니다. 대기열이 줄어드는지 확인하세요.</div>`;
+            logArea.innerHTML = `<div class="text-yellow-400 p-2">✅ ${i18n.status_batch_started_check_queue}</div>`;
 
             // Start Polling Queue Count to show progress
             const interval = setInterval(async () => {
@@ -988,9 +1005,9 @@ async function startBatch() {
                 if (countText === "0") {
                     clearInterval(interval);
                     btn.disabled = false;
-                    btn.innerHTML = `<span>▶️</span> 일괄 처리 시작`;
-                    logArea.innerHTML += `<div class="text-green-400 p-2">🏁 모든 작업이 완료되었습니다!</div>`;
-                    Utils.showToast("모든 작업 완료!", "success");
+                    btn.innerHTML = `<span>▶️</span> ${i18n.btn_start_batch}`;
+                    logArea.innerHTML += `<div class="text-green-400 p-2">🏁 ${i18n.status_all_tasks_done}</div>`;
+                    Utils.showToast(`${i18n.status_all_tasks_done}!`, "success");
                 }
             }, 5000);
 
@@ -998,12 +1015,12 @@ async function startBatch() {
     } catch (e) {
         alert("실패: " + e.message);
         btn.disabled = false;
-        btn.innerHTML = `<span>▶️</span> 일괄 처리 시작`;
+        btn.innerHTML = `<span>▶️</span> ${i18n.btn_start_batch}`;
     }
 }
 
 async function deleteFromQueue(pid) {
-    if (!confirm("이 프로젝트를 대기열에서 제거하시겠습니까? (상태가 'planning'으로 되돌아갑니다)")) return;
+    if (!confirm(i18n.confirm_remove_from_queue)) return;
     try {
         const res = await fetch(`/api/projects/${pid}`, {
             method: 'PATCH',
@@ -1011,7 +1028,7 @@ async function deleteFromQueue(pid) {
             body: JSON.stringify({ status: 'planning' })
         });
         refreshQueue();
-        Utils.showToast("대기열에서 제거되었습니다.", "info");
+        Utils.showToast(i18n.status_removed_from_queue, "info");
     } catch (e) { console.error(e); }
 }
 
@@ -1031,11 +1048,11 @@ async function loadSubtitleDefaults() {
         if (data.status === 'ok') {
             // Already rendered by renderSubtitlePreview(s)
         } else {
-            panel.innerHTML = `<div class="col-span-2 text-red-400 text-xs">설정 로드 실패</div>`;
+            panel.innerHTML = `<div class="col-span-2 text-red-400 text-xs">${i18n.status_load_failed}</div>`;
         }
     } catch (e) {
         console.error(e);
-        panel.innerHTML = `<div class="col-span-2 text-red-400 text-xs">연결 오류</div>`;
+        panel.innerHTML = `<div class="col-span-2 text-red-400 text-xs">${i18n.status_connection_error}</div>`;
     }
 }
 
@@ -1092,7 +1109,7 @@ async function fetchPresets() {
         const res = await fetch('/api/autopilot/presets');
         const data = await res.json();
 
-        select.innerHTML = '<option value="">-- 현재 설정 (Custom) --</option>';
+        select.innerHTML = `-- ${i18n.preset_custom} --`;
         if (data.presets) {
             data.presets.forEach(p => {
                 const opt = document.createElement('option');
@@ -1126,11 +1143,11 @@ async function loadPreset(presetId) {
 
         if (preset && preset.settings) {
             applyPresetSettings(preset.settings);
-            Utils.showToast(`프리셋 '${preset.name}' 로드 완료`, 'success');
+            Utils.showToast(`${i18n.status_preset_loaded_prefix} '${preset.name}' ${i18n.status_preset_loaded_suffix}`, 'success');
         }
     } catch (e) {
         console.error(e);
-        Utils.showToast('프리셋 로드 실패', 'error');
+        Utils.showToast(i18n.status_failed_to_load_preset, 'error');
     }
 }
 
@@ -1161,7 +1178,7 @@ function applyPresetSettings(s) {
     // 2. Video
     if (s.video_scene_count !== undefined) {
         document.getElementById('videoSceneCount').value = s.video_scene_count;
-        document.getElementById('sceneCountVal').innerText = s.video_scene_count + " Scenes";
+        document.getElementById('sceneCountVal').innerText = s.video_scene_count + ` ${i18n.unit_scenes}`;
     }
 
     // [NEW] All Video Toggle
@@ -1228,7 +1245,7 @@ function applyPresetSettings(s) {
 async function saveCurrentPreset() {
     const nameInput = document.getElementById('newPresetName');
     const name = nameInput.value.trim();
-    if (!name) return alert("프리셋 이름을 입력해주세요.");
+    if (!name) return alert(i18n.alert_enter_preset_name);
 
     const currentSettings = {
         name: name,
@@ -1258,7 +1275,7 @@ async function saveCurrentPreset() {
         });
         const data = await res.json();
         if (data.status === 'ok') {
-            Utils.showToast("프리셋이 저장되었습니다!", "success");
+            Utils.showToast(i18n.status_preset_saved, "success");
             fetchPresets(); // refresh list
         } else {
             alert("Error: " + data.error);
@@ -1274,13 +1291,13 @@ async function deleteCurrentPreset() {
     if (!pid) return;
 
     const name = select.options[select.selectedIndex].innerText;
-    if (!confirm(`'${name}' 프리셋을 정말 삭제할까요?`)) return;
+    if (!confirm(`'${name}' ${i18n.confirm_delete_preset}`)) return;
 
     try {
         const res = await fetch(`/api/autopilot/presets/${pid}`, { method: 'DELETE' });
         const data = await res.json();
         if (data.status === 'ok') {
-            Utils.showToast("프리셋이 삭제되었습니다.", "success");
+            Utils.showToast(i18n.status_preset_deleted, "success");
             fetchPresets();
             document.getElementById('btnDeletePreset').classList.add('hidden');
             document.getElementById('newPresetName').value = "";

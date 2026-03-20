@@ -4,30 +4,29 @@
 <div class="card mb-6">
     <div class="flex flex-wrap items-center justify-between gap-6 mb-6">
         <h3 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
-            <span>🎵</span> Audio Studio (SFX & BGM)
+            <span>🎵</span> {{ t('audio_studio_title') }}
         </h3>
 
         <div class="flex gap-2">
             <button onclick="analyzeAudio()" id="analyzeBtn"
                 class="btn-primary flex items-center gap-2 bg-gradient-to-r from-pink-500 to-rose-500">
-                <span>🤖</span> Analyze Scenes (Auto-Fill Prompts)
+                <span>🤖</span> {{ t('btn_analyze_scenes_audio') }}
             </button>
             <button onclick="saveAudioPrompts()" id="saveBtn" class="btn-secondary flex items-center gap-2">
-                <span>💾</span> Save All Prompts
-            </button>
+                <span>💾</span> {{ t('btn_save_all_prompts') }}
         </div>
     </div>
 
     <!-- Audio Settings -->
     <div class="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg border border-gray-200 dark:border-gray-600 mb-6">
-        <h4 class="font-bold text-sm mb-2 text-gray-700 dark:text-gray-300">Global Settings</h4>
+        <h4 class="font-bold text-sm mb-2 text-gray-700 dark:text-gray-300">{{ t('global_settings') }}</h4>
         <div class="flex gap-6">
             <label class="flex items-center gap-2">
                 <input type="checkbox" id="autoGenerateBoth" class="rounded text-pink-500 focus:ring-pink-500">
-                <span class="text-sm">Generate Both SFX & BGM per scene</span>
+                <span class="text-sm">{{ t('label_generate_both_sfx_bgm') }}</span>
             </label>
             <label class="flex items-center gap-2">
-                <span class="text-sm">Default Duration:</span>
+                <span class="text-sm">{{ t('label_default_duration') }}:</span>
                 <select id="defaultDuration" class="text-xs border-gray-300 rounded dark:border-gray-700">
                     <option value="5">5s (SFX)</option>
                     <option value="10">10s</option>
@@ -40,8 +39,7 @@
     <!-- Scene List -->
     <div id="sceneList" class="space-y-4">
         <!-- Scenes will be rendered here -->
-        <div class="text-center py-10 text-gray-400">
-            Loading scenes...
+            {{ t('status_loading_scenes') }}
         </div>
     </div>
 </div>
@@ -49,6 +47,33 @@
 <script>
     let audioScenes = [];
     let currentAspectRatio = '16:9'; // Default
+
+    // i18n for JS
+    var i18n = {
+        status_failed_to_load_scenes: "{{ t('status_failed_to_load_scenes') }}",
+        status_no_scenes_found_helper: "{{ t('status_no_scenes_found_helper') }}",
+        label_scene: "{{ t('label_scene') }}",
+        label_no_text: "{{ t('label_no_text') }}",
+        label_no_image: "{{ t('label_no_image') }}",
+        label_no_visual_desc: "{{ t('label_no_visual_desc') }}",
+        btn_download: "{{ t('btn_download') }}",
+        label_no_audio: "{{ t('label_no_audio') }}",
+        status_analyzing: "{{ t('status_analyzing') }}",
+        status_scenes_analyzed: "{{ t('status_scenes_analyzed') }}",
+        status_analysis_failed: "{{ t('status_analysis_failed') }}",
+        btn_analyze_scenes_audio: "{{ t('btn_analyze_scenes_audio') }}",
+        alert_enter_prefix: "{{ t('alert_enter_prefix') }}",
+        alert_enter_suffix: "{{ t('alert_enter_suffix') }}",
+        status_generating: "{{ t('status_generating') }}",
+        status_generated: "{{ t('status_generated') }}",
+        status_generation_failed: "{{ t('status_generation_failed') }}",
+        err_generation: "{{ t('err_generation') }}",
+        label_error: "{{ t('label_error') }}",
+        status_saving: "{{ t('status_saving') }}",
+        btn_save_all_prompts: "{{ t('btn_save_all_prompts') }}",
+        status_saved_prefix: "{{ t('status_saved_prefix') }}",
+        status_saved_suffix: "{{ t('status_saved_suffix') }}"
+    };
 
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
@@ -80,22 +105,22 @@
             }
         } catch (e) {
             console.error("Failed to load scenes:", e);
-            document.getElementById('sceneList').innerHTML = `<p class="text-red-500 text-center">Failed to load scenes.</p>`;
+            document.getElementById('sceneList').innerHTML = `<p class="text-red-500 text-center">${i18n.status_failed_to_load_scenes}</p>`;
         }
     }
 
     function renderSceneList() {
         const container = document.getElementById('sceneList');
         if (audioScenes.length === 0) {
-            container.innerHTML = `<p class="text-gray-500 text-center py-10 dark:text-gray-400">No scenes found. Please generate image prompts first.</p>`;
+            container.innerHTML = `<p class="text-gray-500 text-center py-10 dark:text-gray-400">${i18n.status_no_scenes_found_helper}</p>`;
             return;
         }
 
         container.innerHTML = audioScenes.map((scene, i) => `
             <div id="scene-card-${i}" class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
                 <div class="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
-                    <span class="font-bold text-gray-700 dark:text-gray-300">Scene ${scene.scene_number}</span>
-                    <span class="text-xs text-gray-500 truncate max-w-[300px] dark:text-gray-400">${scene.scene_text || 'No Text'}</span>
+                    <span class="font-bold text-gray-700 dark:text-gray-300">${i18n.label_scene} ${scene.scene_number}</span>
+                    <span class="text-xs text-gray-500 truncate max-w-[300px] dark:text-gray-400">${scene.scene_text || i18n.label_no_text}</span>
                 </div>
                 
                 <div class="p-4 grid grid-cols-1 md:grid-cols-12 gap-6">
@@ -105,9 +130,9 @@
                         <!-- Reduced size: max-width 128px -->
                         <div class="bg-gray-100 dark:bg-black rounded overflow-hidden border border-gray-200 dark:border-gray-700 relative group"
                              style="aspect-ratio: ${currentAspectRatio.replace(':', '/')}; width: 100%; max-width: 128px;">
-                            ${scene.image_url ? `<img src="${scene.image_url}" class="w-full h-full object-cover">` : `<div class="flex items-center justify-center h-full text-xs text-gray-400">No Image</div>`}
+                            ${scene.image_url ? `<img src="${scene.image_url}" class="w-full h-full object-cover">` : `<div class="flex items-center justify-center h-full text-xs text-gray-400">${i18n.label_no_image}</div>`}
                             <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs p-2 text-center">
-                                ${scene.prompt_en || 'No visual description'}
+                                ${scene.prompt_en || i18n.label_no_visual_desc}
                             </div>
                         </div>
                     </div>
@@ -118,42 +143,42 @@
                         <!-- SFX Column -->
                         <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded border border-blue-100 dark:border-blue-800">
                             <div class="flex justify-between items-center mb-2">
-                                <label class="text-xs font-bold text-blue-700 dark:text-blue-300">🔊 Sound Effects (SFX)</label>
+                                <label class="text-xs font-bold text-blue-700 dark:text-blue-300">🔊 {{ t('audio_type_sfx') }}</label>
                                 <button onclick="generateAudio(${i}, 'sfx')" id="btn-sfx-${i}" class="text-[10px] bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded">
-                                    Generate
+                                    {{ t('btn_generate') }}
                                 </button>
                             </div>
                             <textarea id="sfx-prompt-${i}" rows="2" 
                                 class="w-full text-xs p-2 rounded border border-blue-200 dark:border-blue-700 focus:ring-blue-500 mb-2"
-                                placeholder="e.g. Footsteps on gravel, wind blowing">${scene.sfx_prompt || ''}</textarea>
+                                placeholder="{{ t('placeholder_sfx_prompt') }}">${scene.sfx_prompt || ''}</textarea>
                             
                             <!-- Player -->
                             <div id="player-sfx-${i}" class="min-h-[32px]">
                                 ${scene.sfx_url ? `
                                     <audio controls src="${scene.sfx_url}" class="w-full h-8"></audio>
-                                    <a href="${scene.sfx_url}" download class="text-[10px] text-blue-500 underline ml-1">Download</a>
-                                ` : `<span class="text-[10px] text-gray-400">No Audio</span>`}
+                                    <a href="${scene.sfx_url}" download class="text-[10px] text-blue-500 underline ml-1">${i18n.btn_download}</a>
+                                ` : `<span class="text-[10px] text-gray-400">${i18n.label_no_audio}</span>`}
                             </div>
                         </div>
 
                         <!-- BGM Column -->
                         <div class="bg-purple-50 dark:bg-purple-900/20 p-3 rounded border border-purple-100 dark:border-purple-800">
                             <div class="flex justify-between items-center mb-2">
-                                <label class="text-xs font-bold text-purple-700 dark:text-purple-300">🎵 Background Music (BGM)</label>
+                                <label class="text-xs font-bold text-purple-700 dark:text-purple-300">🎵 {{ t('audio_type_bgm') }}</label>
                                 <button onclick="generateAudio(${i}, 'bgm')" id="btn-bgm-${i}" class="text-[10px] bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded">
-                                    Generate
+                                    {{ t('btn_generate') }}
                                 </button>
                             </div>
                             <textarea id="bgm-prompt-${i}" rows="2" 
                                 class="w-full text-xs p-2 rounded border border-purple-200 dark:border-purple-700 focus:ring-purple-500 mb-2"
-                                placeholder="e.g. Suspenseful ambient drone, slow tempo">${scene.bgm_prompt || ''}</textarea>
+                                placeholder="{{ t('placeholder_bgm_prompt') }}">${scene.bgm_prompt || ''}</textarea>
 
                             <!-- Player -->
                             <div id="player-bgm-${i}" class="min-h-[32px]">
                                 ${scene.bgm_url ? `
                                     <audio controls src="${scene.bgm_url}" class="w-full h-8"></audio>
-                                    <a href="${scene.bgm_url}" download class="text-[10px] text-purple-500 underline ml-1">Download</a>
-                                ` : `<span class="text-[10px] text-gray-400">No Audio</span>`}
+                                    <a href="${scene.bgm_url}" download class="text-[10px] text-purple-500 underline ml-1">${i18n.btn_download}</a>
+                                ` : `<span class="text-[10px] text-gray-400">${i18n.label_no_audio}</span>`}
                             </div>
                         </div>
 
@@ -168,7 +193,7 @@
         const btn = document.getElementById('analyzeBtn');
 
         btn.disabled = true;
-        btn.innerHTML = `<span class="animate-spin">⏳</span> Analyzing...`;
+        btn.innerHTML = `<span class="animate-spin">⏳</span> ${i18n.status_analyzing}`;
 
         try {
             const res = await fetch('/api/audio/analyze-scenes', {
@@ -179,17 +204,17 @@
 
             const result = await res.json();
             if (result.status === 'success') {
-                Utils.showToast(`${result.count} Scenes Analyzed!`, 'success');
+                Utils.showToast(`${result.count} ${i18n.status_scenes_analyzed}`, 'success');
                 loadScenes(); // Refresh
             } else {
-                throw new Error(result.detail || "Analysis Failed");
+                throw new Error(result.detail || i18n.status_analysis_failed);
             }
         } catch (e) {
             console.error(e);
-            Utils.showToast("Analysis Failed: " + e.message, 'error');
+            Utils.showToast(`${i18n.status_analysis_failed}: ` + e.message, 'error');
         } finally {
             btn.disabled = false;
-            btn.innerHTML = `<span>🤖</span> Analyze Scenes (Auto-Fill Prompts)`;
+            btn.innerHTML = `<span>🤖</span> ${i18n.btn_analyze_scenes_audio}`;
         }
     }
 
@@ -202,7 +227,7 @@
         const playerDiv = document.getElementById(`player-${type}-${index}`);
 
         if (!prompt) {
-            Utils.showToast(`Please enter a ${type.toUpperCase()} prompt`, 'warning');
+            Utils.showToast(`${i18n.alert_enter_prefix}${type.toUpperCase()}${i18n.alert_enter_suffix}`, 'warning');
             promptInput.focus();
             return;
         }
@@ -216,7 +241,7 @@
         const originalText = btn.innerText;
         btn.disabled = true;
         btn.innerText = "⏳...";
-        playerDiv.innerHTML = `<span class="text-xs text-gray-500 animate-pulse dark:text-gray-400">Generating...</span>`;
+        playerDiv.innerHTML = `<span class="text-xs text-gray-500 animate-pulse dark:text-gray-400">${i18n.status_generating}</span>`;
 
         try {
             // Save prompt first
@@ -243,18 +268,18 @@
                 // Update Player
                 playerDiv.innerHTML = `
                     <audio controls src="${result.audio_url}" class="w-full h-8" autoplay></audio>
-                    <a href="${result.audio_url}" download class="text-[10px] text-${type === 'sfx' ? 'blue' : 'purple'}-500 underline ml-1">Download</a>
+                    <a href="${result.audio_url}" download class="text-[10px] text-${type === 'sfx' ? 'blue' : 'purple'}-500 underline ml-1">${i18n.btn_download}</a>
                 `;
 
-                Utils.showToast(`${type.toUpperCase()} Generated!`, 'success');
+                Utils.showToast(`${type.toUpperCase()} ${i18n.status_generated}`, 'success');
             } else {
-                throw new Error(result.detail || "Generation Failed");
+                throw new Error(result.detail || i18n.status_generation_failed);
             }
 
         } catch (e) {
             console.error(e);
-            Utils.showToast("Generation Error: " + e.message, 'error');
-            playerDiv.innerHTML = `<span class="text-xs text-red-500">Error: ${e.message}</span>`;
+            Utils.showToast(`${i18n.err_generation}: ` + e.message, 'error');
+            playerDiv.innerHTML = `<span class="text-xs text-red-500">${i18n.label_error}: ${e.message}</span>`;
         } finally {
             btn.disabled = false;
             btn.innerText = originalText;
@@ -265,7 +290,7 @@
         const projectId = getCurrentProject();
         const btn = document.getElementById('saveBtn');
         btn.disabled = true;
-        btn.innerHTML = "Saving...";
+        btn.innerHTML = i18n.status_saving;
 
         let success = 0;
         for (let i = 0; i < audioScenes.length; i++) {
@@ -289,8 +314,8 @@
         }
 
         btn.disabled = false;
-        btn.innerHTML = `<span>💾</span> Save All Prompts`;
-        Utils.showToast(`Saved ${success} prompts`, 'success');
+        btn.innerHTML = `<span>💾</span> ${i18n.btn_save_all_prompts}`;
+        Utils.showToast(`${i18n.status_saved_prefix}${success}${i18n.status_saved_suffix}`, 'success');
     }
 
 </script>

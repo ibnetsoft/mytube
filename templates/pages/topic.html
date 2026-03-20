@@ -47,13 +47,13 @@
                 <!-- 언어 선택 -->
                 <div class="flex bg-white dark:bg-gray-800 rounded-lg p-1 shadow-sm">
                     <button onclick="changeTrendLanguage('ko')" id="btn-ko"
-                        class="lang-btn px-3 py-1.5 rounded-md text-sm font-medium transition-all bg-indigo-500 text-white shadow-md">한국어</button>
+                        class="lang-btn px-3 py-1.5 rounded-md text-sm font-medium transition-all bg-indigo-500 text-white shadow-md">{{ t('lang_ko') }}</button>
                     <button onclick="changeTrendLanguage('ja')" id="btn-ja"
-                        class="lang-btn px-3 py-1.5 rounded-md text-sm font-medium text-gray-500 hover:text-indigo-500 transition-all dark:text-gray-400">日本語</button>
+                        class="lang-btn px-3 py-1.5 rounded-md text-sm font-medium text-gray-500 hover:text-indigo-500 transition-all dark:text-gray-400">{{ t('lang_ja') }}</button>
                     <button onclick="changeTrendLanguage('en')" id="btn-en"
-                        class="lang-btn px-3 py-1.5 rounded-md text-sm font-medium text-gray-500 hover:text-indigo-500 transition-all dark:text-gray-400">Eng</button>
+                        class="lang-btn px-3 py-1.5 rounded-md text-sm font-medium text-gray-500 hover:text-indigo-500 transition-all dark:text-gray-400">{{ t('lang_en') }}</button>
                     <button onclick="changeTrendLanguage('es')" id="btn-es"
-                        class="lang-btn px-3 py-1.5 rounded-md text-sm font-medium text-gray-500 hover:text-indigo-500 transition-all dark:text-gray-400">Esp</button>
+                        class="lang-btn px-3 py-1.5 rounded-md text-sm font-medium text-gray-500 hover:text-indigo-500 transition-all dark:text-gray-400">{{ t('lang_es') }}</button>
                 </div>
             </div>
         </div>
@@ -75,7 +75,7 @@
             </div>
         </div>
 
-        <p class="text-center text-xs text-gray-500 mt-2 dark:text-gray-400">* 검색량 기반 AI 분석 데이터입니다. 원을 클릭하면 해당 키워드로 검색됩니다.</p>
+        <p class="text-center text-xs text-gray-500 mt-2 dark:text-gray-400">{{ t('trend_info_desc') }}</p>
     </div>
 </div>
 
@@ -144,13 +144,13 @@
         </select>
         <select id="searchLanguage" class="input-field w-40">
             <option value="">{{ t('search_lang_all') }}</option>
-            <option value="ko">한국어</option>
-            <option value="en">English</option>
-            <option value="th">ภาษาไทย</option>
-            <option value="id">Bahasa Indonesia</option>
-            <option value="fr">Français</option>
-            <option value="ru">Русский</option>
-            <option value="pt">Português</option>
+            <option value="ko">{{ t('lang_ko') }}</option>
+            <option value="en">{{ t('lang_en') }}</option>
+            <option value="th">{{ t('lang_th') }}</option>
+            <option value="id">{{ t('lang_id') }}</option>
+            <option value="fr">{{ t('lang_fr') }}</option>
+            <option value="ru">{{ t('lang_ru') }}</option>
+            <option value="pt">{{ t('lang_pt') }}</option>
         </select>
         <button onclick="searchVideos()" class="btn-primary flex items-center gap-2">
             <span>🔍</span>
@@ -162,22 +162,19 @@
     <div class="flex flex-wrap gap-2">
         <span class="text-sm text-gray-500 mr-2 dark:text-gray-400">{{ t('recommended_topics') }}:</span>
         <button onclick="setSearchTopic('일상 브이로그')"
-            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">일상
-            브이로그</button>
+            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">{{ t('rec_vlog') }}</button>
         <button onclick="setSearchTopic('먹방')"
-            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">먹방</button>
+            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">{{ t('rec_mukbang') }}</button>
         <button onclick="setSearchTopic('IT 테크')"
-            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">IT
-            테크</button>
+            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">{{ t('rec_it_tech') }}</button>
         <button onclick="setSearchTopic('재테크')"
-            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">재테크</button>
+            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">{{ t('rec_finance') }}</button>
         <button onclick="setSearchTopic('운동 헬스')"
-            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">운동
-            헬스</button>
+            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">{{ t('rec_health') }}</button>
         <button onclick="setSearchTopic('게임')"
-            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">게임</button>
+            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">{{ t('rec_game') }}</button>
         <button onclick="setSearchTopic('자기계발')"
-            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">자기계발</button>
+            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">{{ t('rec_self_dev') }}</button>
     </div>
 </div>
 
@@ -268,7 +265,7 @@
         <div class="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
             <h3 class="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
                 <span>📊</span>
-                <span>일괄 분석 및 생성</span>
+                <span>{{ t('batch_analysis_title') }}</span>
             </h3>
             <button onclick="closeBatchModal()"
                 class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition">
@@ -276,22 +273,22 @@
             </button>
         </div>
         <div class="p-6">
-            <p class="text-gray-600 dark:text-white mb-4">선택한 <span id="batchCount"
-                    class="font-bold text-blue-600">0</span>개의 영상에 대해<br />성공 요인을 분석하고 새로운 기획을 생성합니다.</p>
+            <p class="text-gray-600 dark:text-white mb-4">{{ t('batch_analysis_desc_prefix') }} <span id="batchCount"
+                    class="font-bold text-blue-600">0</span>{{ t('batch_analysis_desc_suffix') }}</p>
 
             <div class="mb-6">
                 <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">
-                    📁 저장할 폴더명 (프로젝트명)
+                    {{ t('batch_folder_label') }}
                 </label>
                 <input type="text" id="batchFolderName"
                     class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white"
-                    placeholder="예: 먹방_아이디어_모음">
+                    placeholder="{{ t('batch_folder_placeholder') }}">
             </div>
 
             <button id="btnStartBatch" onclick="startBatchAnalysis()"
                 class="w-full btn-primary py-3 flex items-center justify-center gap-2">
                 <span>🚀</span>
-                <span>분석 시작 및 파일 생성</span>
+                <span>{{ t('btn_start_batch_analysis') }}</span>
             </button>
         </div>
     </div>
@@ -302,7 +299,36 @@
 <script>
     let currentVideos = [];
     let currentVideoForAnalysis = null;
-    let currentAnalysisResult = null; // [NEW] State persistence
+    let currentAnalysisResult = null;
+
+    // i18n for JS
+    var i18n = {
+        alert_enter_search_query: "{{ t('alert_enter_search_query') }}",
+        status_no_search_results: "{{ t('status_no_search_results') }}",
+        mode_shorts: "{{ t('mode_shorts') }}",
+        mode_longform: "{{ t('mode_longform') }}",
+        status_no_matching_videos: "{{ t('status_no_matching_videos') }}",
+        btn_analyze: "{{ t('btn_analyze') }}",
+        btn_download_thumb: "{{ t('btn_download_thumb') }}",
+        btn_archive_video: "{{ t('btn_archive_video') }}",
+        status_no_thumb_url: "{{ t('status_no_thumb_url') }}",
+        status_added_to_archive_demo: "{{ t('status_added_to_archive_demo') }}",
+        status_no_items_selected: "{{ t('status_no_items_selected') }}",
+        status_saved_to_archive_demo: "{{ t('status_saved_to_archive_demo') }}",
+        status_analysis_failed: "{{ t('status_analysis_failed') }}",
+        status_analysis_error_prefix: "{{ t('status_analysis_error_prefix') }}",
+        status_no_analysis_result: "{{ t('status_no_analysis_result') }}",
+        status_project_create_failed: "{{ t('status_project_create_failed') }}",
+        status_analysis_saved: "{{ t('status_analysis_saved') }}",
+        status_save_error: "{{ t('status_save_error') }}",
+        status_no_data: "{{ t('status_no_data') }}",
+        status_load_error: "{{ t('status_load_error') }}",
+        lang_ko: "{{ t('lang_ko') }}",
+        lang_ja: "{{ t('lang_ja') }}",
+        lang_en: "{{ t('lang_en') }}",
+        status_filter_set_refresh: "{{ t('status_filter_set_refresh') }}",
+        err_search_failed: "{{ t('err_search_failed') }}"
+    };
 
     // 주제 설정
     function setSearchTopic(topic) {
@@ -325,7 +351,7 @@
     async function searchVideos() {
         const query = document.getElementById('searchInput').value.trim();
         if (!query) {
-            Utils.showToast('검색어를 입력하세요', 'warning');
+            Utils.showToast(i18n.alert_enter_search_query, 'warning');
             return;
         }
 
@@ -364,7 +390,7 @@
             if (!searchResult.items || searchResult.items.length === 0) {
                 document.getElementById('loadingSection').classList.add('hidden');
                 document.getElementById('emptySection').classList.remove('hidden');
-                Utils.showToast('검색 결과가 없습니다', 'info');
+                Utils.showToast(i18n.status_no_search_results, 'info');
                 return;
             }
 
@@ -441,7 +467,7 @@
 
             // 5. 렌더링
             if (currentVideos.length === 0) {
-                Utils.showToast(`${appMode === 'shorts' ? '쇼츠' : '롱폼'} 조건에 맞는 영상이 없습니다.`, 'info');
+                Utils.showToast(`${appMode === 'shorts' ? i18n.mode_shorts : i18n.mode_longform} ${i18n.status_no_matching_videos}`, 'info');
             }
             renderVideos();
 
@@ -452,9 +478,9 @@
             savePageState(); // [NEW] Save State
 
         } catch (error) {
-            console.error('검색 오류:', error);
+            console.error('Search error:', error);
             document.getElementById('loadingSection').classList.add('hidden');
-            Utils.showToast('검색 중 오류가 발생했습니다', 'error');
+            Utils.showToast(i18n.err_search_failed, 'error');
         }
     }
 
@@ -513,14 +539,14 @@
                     </td>
                     <td class="px-2 py-3 text-center">
                         <div class="flex items-center justify-center gap-1">
-                             <button onclick="openAnalysisModal('${video.id}')" class="p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-gray-700 rounded transition" title="분석">
+                             <button onclick="openAnalysisModal('${video.id}')" class="p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-gray-700 rounded transition" title="${i18n.btn_analyze}">
                                 🤖
                             </button>
-                             <button onclick="downloadThumbnail('${video.id}', '${video.snippet.thumbnails.high?.url}')" class="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition dark:text-gray-400" title="썸네일 다운로드">
+                             <button onclick="downloadThumbnail('${video.id}', '${video.snippet.thumbnails.high?.url}')" class="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition dark:text-gray-400" title="${i18n.btn_download_thumb}">
                                 ⬇️
                             </button>
                             <!-- Archive Actions -->
-                             <button onclick="archiveVideo('${video.id}')" class="p-1.5 text-green-500 hover:bg-green-50 dark:hover:bg-gray-700 rounded transition" title="영상 보관">
+                             <button onclick="archiveVideo('${video.id}')" class="p-1.5 text-green-500 hover:bg-green-50 dark:hover:bg-gray-700 rounded transition" title="${i18n.btn_archive_video}">
                                 🎬
                             </button>
                         </div>
@@ -554,7 +580,7 @@
     // [New] Download helper
     function downloadThumbnail(videoId, url) {
         if (!url) {
-            Utils.showToast("썸네일 URL이 없습니다.", "error");
+            Utils.showToast(i18n.status_no_thumb_url, "error");
             return;
         }
         const a = document.createElement('a');
@@ -568,7 +594,7 @@
 
     // [New] Archive placeholder
     function archiveVideo(videoId) {
-        Utils.showToast("영상 보관함에 추가되었습니다 (Demo)", "success");
+        Utils.showToast(i18n.status_added_to_archive_demo, "success");
     }
 
     function saveSelectedToArchive() {
@@ -578,10 +604,10 @@
             if (checkboxes[i].checked) count++;
         }
         if (count === 0) {
-            Utils.showToast("선택된 항목이 없습니다", "warning");
+            Utils.showToast(i18n.status_no_items_selected, "warning");
             return;
         }
-        Utils.showToast(`${count}개의 영상을 보관함에 저장했습니다 (Demo)`, "success");
+        Utils.showToast(`${count} ${i18n.status_saved_to_archive_demo}`, "success");
     }
 
     // 분석 준비 및 실행 (이제 팝업 없이 바로 실행 후 이동)
@@ -624,11 +650,11 @@
                 // 3. 자동으로 대본 기획 페이지로 이동 (분석 결과 저장 포함)
                 await goToScriptPlan();
             } else {
-                throw new Error(result.error || '분석에 실패했습니다');
+                throw new Error(result.error || i18n.status_analysis_failed);
             }
         } catch (error) {
             console.error('분석 오류:', error);
-            Utils.showToast('분석 중 오류가 발생했습니다: ' + error.message, 'error');
+            Utils.showToast(i18n.status_analysis_error_prefix + error.message, 'error');
             if (overlay) {
                 overlay.classList.add('hidden');
                 overlay.classList.remove('flex');
@@ -643,7 +669,7 @@
     // 대본 기획으로 이동 (프로젝트 저장)
     async function goToScriptPlan() {
         if (!currentVideoForAnalysis || !currentAnalysisResult) {
-            Utils.showToast('분석 결과가 없습니다', 'warning');
+            Utils.showToast(i18n.status_no_analysis_result, 'warning');
             return;
         }
 
@@ -672,7 +698,7 @@
                 setCurrentProject(projectId);
                 loadProjects();
             } else {
-                Utils.showToast('프로젝트 생성 실패', 'error');
+                Utils.showToast(i18n.status_project_create_failed, 'error');
                 return;
             }
         }
@@ -680,7 +706,7 @@
         // 분석 결과를 DB에 저장
         try {
             await API.project.saveAnalysis(projectId, currentVideoForAnalysis, currentAnalysisResult);
-            Utils.showToast('분석 결과가 저장되었습니다', 'success');
+            Utils.showToast(i18n.status_analysis_saved, 'success');
 
             // [MODIFIED] Check App Mode for Redirection and Pass Project ID
             // Use the determined keyword (video title) for the topic param
@@ -692,7 +718,7 @@
             window.location.href = redirectUrl;
         } catch (e) {
             console.error('저장 실패:', e);
-            Utils.showToast('저장 중 오류가 발생했습니다', 'error');
+            Utils.showToast(i18n.status_save_error, 'error');
         }
     }
 
@@ -748,13 +774,13 @@
 
                 renderBubbleChart(data.keywords);
             } else {
-                container.innerHTML = '<div class="text-gray-500 text-center py-20 dark:text-gray-400">데이터가 없습니다</div>';
+                container.innerHTML = `<div class="text-gray-500 text-center py-20 dark:text-gray-400">${i18n.status_no_data}</div>`;
             }
         } catch (e) {
             console.error('Trend keywords loading error:', e);
             spinner.classList.add('hidden');
             placeholder.classList.remove('hidden');
-            Utils.showToast('로딩 중 오류가 발생했습니다', 'error');
+            Utils.showToast(i18n.status_load_error, 'error');
         }
     }
 
@@ -764,7 +790,8 @@
         // We no longer auto-load when language tab is clicked to follow user request
         // But maybe users still want to switch lang and reload? 
         // User said "click the button to load", so I'll keep it manual.
-        Utils.showToast(`${lang === 'ko' ? '한국어' : lang === 'ja' ? '일본어' : '영어'} 필터가 설정되었습니다. 새로고침을 눌러주세요.`, 'info');
+        const langText = lang === 'ko' ? i18n.lang_ko : (lang === 'ja' ? i18n.lang_ja : i18n.lang_en);
+        Utils.showToast(`${langText} ${i18n.status_filter_set_refresh}`, 'info');
     }
 
     function updateTrendLangUI(lang) {
@@ -827,7 +854,7 @@
         }
 
         if (selectedVideos.length === 0) {
-            Utils.showToast("선택된 영상이 없습니다.", "warning");
+            Utils.showToast(i18n.status_no_videos_selected, "warning");
             return;
         }
 
@@ -838,7 +865,7 @@
         }
 
         // 3. Confirm Action (Optional, but good UX to confirm before long process)
-        if (!confirm(`${selectedVideos.length}개의 영상을 '${folderName}' 폴더로 분석하시겠습니까?`)) {
+        if (!confirm(`${selectedVideos.length}${i18n.confirm_batch_analysis_prefix} '${folderName}' ${i18n.confirm_batch_analysis_suffix}`)) {
             return;
         }
 
@@ -846,7 +873,7 @@
         // Note: The button ID might need to be passed or found if we changed the caller
         // We will assume the caller button has ID 'btnAnalyzeAction' (I should add this ID to HTML)
         // OR generic loading toast
-        Utils.showToast("분석을 시작합니다... (잠시만 기다려주세요)", "info");
+        Utils.showToast(i18n.status_starting_analysis_wait, "info");
 
         try {
             const res = await fetch('/api/topic/analyze-batch', {
@@ -861,12 +888,9 @@
             const data = await res.json();
             if (data.status === 'ok') {
                 // Success
-                Utils.showToast(`분석 완료! ${data.count}개 영상`, "success");
-
-                // Show Repository Link
-                Utils.showToast('저장소에 분석 결과가 저장되었습니다.', 'info');
+                Utils.showToast(i18n.status_analysis_saved_in_repository, 'info');
                 setTimeout(() => {
-                    if (confirm('저장소로 이동하여 결과를 확인하시겠습니까?')) {
+                    if (confirm(i18n.confirm_move_to_repository)) {
                         window.location.href = '/repository';
                     }
                 }, 500);
@@ -876,7 +900,7 @@
             }
         } catch (e) {
             console.error(e);
-            Utils.showToast(`오류 발생: ${e.message}`, "error");
+            Utils.showToast(`${i18n.status_error_occurred}: ${e.message}`, "error");
         }
     }
 
@@ -1115,7 +1139,7 @@
                 document.getElementById('emptySection').classList.add('hidden');
                 document.getElementById('loadingSection').classList.add('hidden');
                 document.getElementById('resultsSection').classList.remove('hidden');
-                document.getElementById('resultCount').textContent = `(${currentVideos.length}개)`;
+                document.getElementById('resultCount').textContent = `(${currentVideos.length})`;
             }
 
             // 3. Restore Analysis Modal (Legacy check removed as we now use direct navigation)

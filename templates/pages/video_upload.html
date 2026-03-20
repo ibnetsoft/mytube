@@ -92,10 +92,10 @@
                     {% else %}
                     <button onclick="requestPublish()" id="requestPublishBtn"
                         class="btn-primary py-2.5 bg-purple-600 hover:bg-purple-700 flex items-center justify-center gap-2 text-sm shadow-md">
-                        <span>📤</span> {{ t('btn_reserve') }} 신청 (검수 필요)
+                        <span>📤</span> {{ t('btn_reserve') }} {{ t('status_request_review') }}
                     </button>
                     <p class="text-[10px] text-gray-500 text-center mt-1 dark:text-gray-400">
-                        * 일반 회원은 업로드 예약 후 관리자 확인을 거쳐 최종 게시됩니다.
+                        * {{ t('upload_notice_standard') }}
                     </p>
                     {% endif %}
                     <button onclick="deleteVideo()"
@@ -111,6 +111,22 @@
 <script>
     let uploadedVideoPath = null;
     let currentVideoFile = null; // Store the original file for cloud upload
+
+    // i18n for JS
+    var i18n = {
+        status_reserving_yt: "{{ t('status_reserving_yt') }}",
+        err_yt_upload_fail: "{{ t('err_yt_upload_fail') }}",
+        status_cloud_uploading: "{{ t('status_cloud_uploading') }}",
+        status_submitting_record: "{{ t('status_submitting_record') }}",
+        toast_upload_success_prefix: "{{ t('toast_upload_success_prefix') }}",
+        toast_upload_success_suffix: "{{ t('toast_upload_success_suffix') }}",
+        btn_reserve_finished: "{{ t('btn_reserve_finished') }}",
+        err_central_server_fail: "{{ t('err_central_server_fail') }}",
+        err_processing: "{{ t('err_processing') }}",
+        confirm_delete: "{{ t('confirm_delete') }}",
+        label_rendered_video: "{{ t('label_rendered_video') }}",
+        label_uploaded_video: "{{ t('label_uploaded_video') }}"
+    };
 
     function handleDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('border-primary', 'bg-blue-50'); }
     function handleDragLeave(e) { e.preventDefault(); e.currentTarget.classList.remove('border-primary', 'bg-blue-50'); }
@@ -181,7 +197,7 @@
         if (!uploadedVideoPath) return Utils.showToast("{{ t('toast_no_video_uploaded') }}", 'warning');
 
         const btn = document.getElementById('requestPublishBtn');
-        Utils.setLoading(btn, true, "유튜브에 예약 업로드 중...");
+        Utils.setLoading(btn, true, i18n.status_reserving_yt);
 
         try {
             // 1. YouTube Upload (as Private by default in backend for Standard)
@@ -192,7 +208,7 @@
             const ytData = await ytRes.json();
 
             if (ytData.status !== 'ok') {
-                throw new Error(ytData.error || "유튜브 업로드 중 오류 발생");
+                throw new Error(ytData.error || i18n.err_yt_upload_fail);
             }
 
             const videoId = ytData.video_id;
@@ -202,7 +218,7 @@
             let cloudPath = null;
             if (currentVideoFile) {
                 try {
-                    Utils.setLoading(btn, true, "클라우드 검토용 영상 업로드 중...");
+                    Utils.setLoading(btn, true, i18n.status_cloud_uploading);
 
                     // A. Get Signed URL
                     const signRes = await fetch('{{ AUTH_SERVER_URL }}/api/publishing/presigned-url', {
@@ -234,7 +250,7 @@
             }
 
             // 2. Submit record to Central Server for Admin tracking
-            Utils.setLoading(btn, true, "검토 레코드 등록 중...");
+            Utils.setLoading(btn, true, i18n.status_submitting_record);
             const project = await API.project.get(projectId);
             const settings = await API.project.getSettings(projectId);
 
@@ -260,16 +276,16 @@
 
             const data = await res.json();
             if (data.success) {
-                Utils.showToast("성공! 유튜브 채널에 '비공개'로 업로드되었으며 관리자에게 검토가 요청되었습니다.", 'success');
+                Utils.showToast(`${i18n.toast_upload_success_prefix} "${i18n.toast_upload_success_suffix}"`, 'success');
                 btn.disabled = true;
                 btn.className = "btn-secondary py-2.5 w-full bg-green-500/10 text-green-500 border-green-500/20";
-                btn.innerHTML = "<span>✅</span> 유튜브 예약 업로드 완료";
+                btn.innerHTML = `<span>✅</span> ${i18n.btn_reserve_finished}`;
             } else {
-                throw new Error(data.error || "중앙 서버 전송 실패");
+                throw new Error(data.error || i18n.err_central_server_fail);
             }
         } catch (e) {
             console.error(e);
-            Utils.showToast(e.message || "처리 중 오류 발생", 'error');
+            Utils.showToast(e.message || i18n.err_processing, 'error');
         } finally {
             Utils.setLoading(btn, false);
         }
@@ -298,7 +314,7 @@
     }
 
     async function deleteVideo() {
-        if (!confirm('삭제하시겠습니까?')) return;
+        if (!confirm(i18n.confirm_delete)) return;
         const projectId = getCurrentProject();
         try {
             await fetch(`/api/video/delete-external/${projectId}`, { method: 'DELETE' });
@@ -340,12 +356,12 @@
                         const headRes = await fetch(webUrl, { method: 'HEAD' });
                         const size = headRes.headers.get('content-length');
                         showVideoPreview({
-                            name: videoSource === 'rendered' ? 'Rendered Final Video' : 'Uploaded Video',
+                            name: videoSource === 'rendered' ? i18n.label_rendered_video : i18n.label_uploaded_video,
                             size: size ? parseInt(size) : 0
                         }, { url: webUrl });
                     } catch (e) {
                         showVideoPreview({
-                            name: videoSource === 'rendered' ? 'Rendered Final Video' : 'Uploaded Video',
+                            name: videoSource === 'rendered' ? i18n.label_rendered_video : i18n.label_uploaded_video,
                             size: 0
                         }, { url: webUrl });
                     }

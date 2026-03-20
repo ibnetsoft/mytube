@@ -132,11 +132,42 @@
 
     let metaData = null;
 
+    // i18n for JS
+    var i18n = {
+        prompt_seo_master: "{{ t('prompt_seo_master') }}",
+        prompt_sleep_style: "{{ t('prompt_sleep_style') }}",
+        label_script_summary: "{{ t('label_script_summary') }}",
+        default_video_type: "{{ t('default_video_type') }}",
+        label_title_style: "{{ t('label_title_style') }}",
+        label_target_keyword: "{{ t('label_target_keyword') }}",
+        label_none: "{{ t('label_none') }}",
+        prompt_json_format: "{{ t('prompt_json_format') }}",
+        title_placeholder_1: "{{ t('title_placeholder_1') }}",
+        title_placeholder_2: "{{ t('title_placeholder_2') }}",
+        title_placeholder_5: "{{ t('title_placeholder_5') }}",
+        desc_placeholder: "{{ t('desc_placeholder') }}",
+        tag_placeholder: "{{ t('tag_placeholder') }}",
+        hashtag_placeholder: "{{ t('hashtag_placeholder') }}",
+        prompt_only_json: "{{ t('prompt_only_json') }}"
+    };
+
     document.addEventListener('DOMContentLoaded', () => {
         if (projectId) {
             loadMetadata();
         } else {
             Utils.showToast("{{ t('toast_select_project_first') }}", 'warning');
+        }
+    });
+
+    // 프로젝트 전환 시 메타데이터 재로드
+    window.addEventListener('projectStateRestored', (e) => {
+        const data = e.detail;
+        if (!data || !data.project) return;
+        const newProjectId = data.project.id;
+        if (newProjectId && newProjectId !== projectId) {
+            projectId = newProjectId;
+            metaData = null;
+            loadMetadata();
         }
     });
 
@@ -150,24 +181,24 @@
                 }
             }
 
-            // [NEW] Load Title from Settings
+            // Load Full data (includes settings with autopilot-saved title/description/hashtags)
+            let fullData = null;
             try {
                 const fullRes = await fetch(`/api/projects/${projectId}/full`);
                 if (fullRes.ok) {
-                    const fullData = await fullRes.json();
+                    fullData = await fullRes.json();
                     const title = fullData.settings?.title;
                     if (title) {
                         const disp = document.getElementById('projectTitleDisplay');
                         if (disp) {
                             disp.innerText = title;
                             disp.title = title;
-                            // 부모 div의 hidden 클래스 제거 (혹시 모바일이 아니고 내용이 있을 때 보장)
                             disp.parentElement.classList.remove('hidden');
                             disp.parentElement.classList.add('flex');
                         }
                     }
                 }
-            } catch (e) { console.error("Title load failed", e); }
+            } catch (e) { console.error("Full data load failed", e); }
 
             const res = await fetch(`/api/projects/${projectId}/metadata`);
             const data = await res.json();
@@ -175,9 +206,22 @@
                 metaData = data;
                 renderResults();
                 showResultSection();
+            } else if (fullData && fullData.settings) {
+                // Fallback: autopilot saves title/description/hashtags to project_settings
+                const s = fullData.settings;
+                if (s.title || s.description) {
+                    metaData = {
+                        titles: s.title ? [s.title] : [],
+                        description: s.description || '',
+                        tags: [],
+                        hashtags: s.hashtags ? s.hashtags.split(',').map(h => h.trim()).filter(h => h) : []
+                    };
+                    renderResults();
+                    showResultSection();
+                }
             }
         } catch (e) {
-            console.error('메타데이터 로드 실패', e);
+            console.error('Metadata load failed', e);
         }
     }
 
@@ -210,7 +254,7 @@
             });
             Utils.showToast("{{ t('toast_save_success') }}", 'success');
         } catch (e) {
-            console.error('저장 실패', e);
+            console.error('Save failed', e);
             Utils.showToast("{{ t('toast_save_fail') }}", 'error');
         } finally {
             Utils.setLoading(btn, false);
@@ -226,7 +270,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(metaData)
             });
-        } catch (e) { console.error('자동 저장 실패', e); }
+        } catch (e) { console.error('Auto save failed', e); }
     }
 
     async function generateMeta() {
@@ -244,7 +288,7 @@
                     scriptData = { script: fullData.script.full_script };
                 }
             }
-        } catch (e) { console.error("대본 로드 실패", e); }
+        } catch (e) { console.error("Script load failed", e); }
 
         if (!scriptData) scriptData = Utils.storage.get('fullScript');
 
@@ -255,30 +299,30 @@
 
         Utils.setLoading(btn, true, "{{ t('status_generating') }}");
 
-        let sysPrompt = `유튜브 SEO 전문가로서 다음 대본에 맞는 메타데이터를 생성해주세요.`;
+        let sysPrompt = `${i18n.prompt_seo_master}`;
         if (style === 'sleep') {
-            sysPrompt += `\n특히 '수면 유도', 'ASMR', '힐링', '잠잘 때 듣는' 컨셉을 강조하여, 편안함을 느끼고 클릭하게 만드는 제목을 만드세요. 안정감을 주는 단어 사용.`;
+            sysPrompt += `\n${i18n.prompt_sleep_style}`;
         }
 
         const prompt = `${sysPrompt}
         
-[대본 요약]
-${scriptData?.script?.substring(0, 1000) || '일반 유튜브 영상'}
+[${i18n.label_script_summary}]
+${scriptData?.script?.substring(0, 1000) || i18n.default_video_type}
 
-[제목 스타일]
+[${i18n.label_title_style}]
 ${style}
 
-[타겟 키워드]
-${keyword || '없음'}
+[${i18n.label_target_keyword}]
+${keyword || i18n.label_none}
 
-JSON 형식으로 반환:
+${i18n.prompt_json_format}:
 {
-    "titles": ["제목1 (50자 이내)", "제목2", "...", "제목5"],
-    "description": "영상 설명 (타임스탬프 포함, 500자 내외)",
-    "tags": ["태그1", "태그2", ...],
-    "hashtags": ["#해시태그1", "#해시태그2", ...]
+    "titles": ["${i18n.title_placeholder_1}", "${i18n.title_placeholder_2}", "...", "${i18n.title_placeholder_5}"],
+    "description": "${i18n.desc_placeholder}",
+    "tags": ["${i18n.tag_placeholder}1", "${i18n.tag_placeholder}2", ...],
+    "hashtags": ["#${i18n.hashtag_placeholder}1", "#${i18n.hashtag_placeholder}2", ...]
 }
-JSON만 반환하세요.`;
+${i18n.prompt_only_json}.`;
 
         try {
             const result = await API.gemini.generate(prompt, { temperature: 0.7 });
