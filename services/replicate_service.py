@@ -302,7 +302,18 @@ class ReplicateService:
             wimpy_scene_rules = wimpy_char_rules + ", ARM COLOR MUST BE TEAL-BLUE, NO BLACK ARMS"
             enforced_prompt = prompt + suffix + wimpy_scene_rules + scene_suffix
         else:
-            enforced_prompt = prompt + suffix
+            # [FIX] 비-윔피 스타일: 초강력 해부학 제약 적용 (여러 팔/손 생성 방지)
+            anatomy_enforcement = (
+                "CRITICAL ANATOMY RULES: EXACTLY TWO ARMS ONLY. EXACTLY TWO HANDS ONLY. "
+                "EXACTLY FIVE FINGERS PER HAND. PERFECT ANATOMICALLY CORRECT HUMAN BODY. "
+                "SINGLE CHARACTER WITH ONE PAIR OF ARMS ATTACHED TO SHOULDERS. "
+                "ABSOLUTELY DO NOT GENERATE: extra arms, extra hands, multiple arms, too many arms, "
+                "too many hands, extra fingers, too many fingers, additional limbs, additional arms, "
+                "floating arms, disconnected arms, deformed arms, deformed hands, "
+                "mutated arms, mutated hands, mutated fingers, fused arms, fused hands, "
+                "wrong anatomy, bad anatomy, anatomical error, more than 2 arms, more than 10 fingers. "
+            )
+            enforced_prompt = anatomy_enforcement + prompt + suffix
 
         # 윔피 스타일은 Flux Dev (품질 우선), 그 외는 Flux Schnell
         if is_wimpy:

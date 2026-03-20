@@ -2476,9 +2476,23 @@ async def generate_thumbnail_background(req: ThumbnailBackgroundRequest):
         final_style_prefix = ". ".join(final_style_components) + ". " if final_style_components else ""
 
         # negative_constraints 강화
-        negative_constraints = "text, words, letters, alphabet, typography, watermark, signature, speech bubble, logo, brand name, writing, caption, chinese characters, japanese kanji, korean hangul, hanzi, extra arms, multiple arms, four arms, extra limbs, deformed limbs, mutated limbs, extra hands, extra fingers, abnormal anatomy, disfigured"
+        negative_constraints = (
+            "text, words, letters, alphabet, typography, watermark, signature, speech bubble, "
+            "logo, brand name, writing, caption, chinese characters, japanese kanji, korean hangul, hanzi, "
+            "extra arms, multiple arms, four arms, too many arms, more than 2 arms, "
+            "extra hands, too many hands, extra fingers, too many fingers, more than 10 fingers, "
+            "additional limbs, additional arms, floating arms, disconnected arms, "
+            "deformed arms, deformed hands, mutated arms, mutated hands, mutated fingers, "
+            "fused arms, fused hands, fused fingers, wrong anatomy, bad anatomy, anatomical error, "
+            "abnormal anatomy, disfigured, worst quality, low quality"
+        )
 
-        final_prompt = f"ABSOLUTELY NO TEXT. {final_style_prefix}{clean_prompt}. Anatomically correct, two arms only, proper human anatomy. High quality, 8k, YouTube thumbnail background, no watermark. DO NOT INCLUDE: {negative_constraints}."
+        final_prompt = (
+            f"ABSOLUTELY NO TEXT. CRITICAL ANATOMY RULES: EXACTLY TWO ARMS ONLY. EXACTLY TWO HANDS ONLY. "
+            f"EXACTLY FIVE FINGERS PER HAND. PERFECT ANATOMICALLY CORRECT HUMAN BODY. "
+            f"{final_style_prefix}{clean_prompt}. "
+            f"High quality, 8k, YouTube thumbnail background, no watermark. DO NOT INCLUDE: {negative_constraints}."
+        )
 
         # 이미지 생성 (전략: Replicate -> Gemini -> AKOOL Fallback)
         images_bytes = None
@@ -3307,7 +3321,17 @@ async def generate_image(
 
         # 윔피 스타일: 폴백 시에도 반드시 캐릭터 제약 prefix 추가
         # (Replicate is_wimpy 감지 보장 + Gemini/AKOOL 스타일 오염 방지)
-        effective_prompt = prompt
+        # [FIX] 비-윔피 스타일: 초강력 해부학 제약 적용 (여러 팔/손 생성 방지)
+        _anatomy_prefix = (
+            "CRITICAL ANATOMY RULES: EXACTLY TWO ARMS ONLY. EXACTLY TWO HANDS ONLY. "
+            "EXACTLY FIVE FINGERS PER HAND. PERFECT ANATOMICALLY CORRECT HUMAN BODY. "
+            "ABSOLUTELY DO NOT GENERATE: extra arms, extra hands, multiple arms, too many arms, "
+            "too many hands, extra fingers, too many fingers, additional limbs, additional arms, "
+            "floating arms, disconnected arms, deformed arms, deformed hands, "
+            "mutated arms, mutated hands, mutated fingers, fused arms, fused hands, "
+            "wrong anatomy, bad anatomy, anatomical error, more than 2 arms, more than 10 fingers. "
+        )
+        effective_prompt = _anatomy_prefix + prompt
         if is_wimpy_style:
             wimpy_char_prefix = (
                 "YouTube educational cartoon illustration, stick-figure style character, "

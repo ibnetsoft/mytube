@@ -430,8 +430,17 @@ class GeminiService:
                         " NO ROLLED-UP SLEEVES, no black skin visible on arms, NO BLACK ARMS, NO SHORT SLEEVES,"
                         " strictly two arms total, no extra limbs"
                     )
-                # 모든 스타일 공통: 단일 이미지 + 해부학
-                final_prompt += ", single person, exactly two arms and two hands only, anatomically correct, no extra limbs, NO THREE ARMS, NO FOUR ARMS, NO MULTIPLE LIMBS, NO MUTATED HANDS"
+                # 모든 스타일 공통: 초강력 해부학 제약 (여러 팔/손 생성 방지)
+                final_prompt += (
+                    ", single person, solo, EXACTLY TWO ARMS AND TWO HANDS ONLY, EXACTLY FIVE FINGERS PER HAND, "
+                    "anatomically correct, perfect human anatomy, natural arm position, realistic limb count. "
+                    "DO NOT GENERATE: extra arms, extra hands, multiple arms, too many arms, too many hands, "
+                    "extra fingers, too many fingers, additional limbs, additional arms, "
+                    "floating arms, disconnected arms, deformed arms, deformed hands, "
+                    "mutated arms, mutated hands, mutated fingers, fused arms, fused hands, "
+                    "wrong anatomy, bad anatomy, anatomical error, more than 2 arms, more than 10 fingers, "
+                    "worst quality, low quality"
+                )
 
                 payload = {
                     "instances": [{"prompt": final_prompt}],
@@ -1290,11 +1299,13 @@ Motion prompt for this image:"""
    - 해부도, 다이어그램, 차트, 포스터, 간판 등 원래 텍스트가 있는 소재를 묘사할 때도 글자 없이 시각적 요소만 묘사하세요.
    - "4k", "8k", "HD", "4K", "UHD" 등 해상도 키워드를 prompt_en에 절대 포함하지 마세요 — 이미지에 텍스트 워터마크로 나타납니다.
    - 모든 prompt_en 끝에 반드시 추가: "no text, no words, no letters, no labels, no watermarks, no captions"
-2. **CORRECT ANATOMY — EXACTLY TWO ARMS AND TWO HANDS (해부학적 정확성 - 최우선)**:
-   - 인물·캐릭터의 팔은 반드시 정확히 **2개**, 손도 반드시 정확히 **2개**입니다. 팔 3개·손 3개·여분의 팔다리는 절대 금지.
-   - **물건을 잡고 있는 장면에서도 동일**: 한 손으로 물건을 잡으면 나머지 한 손만 존재합니다. 물건을 잡은 손 외에 손이 추가로 나타나면 안 됩니다.
+2. **CRITICAL: CORRECT ANATOMY — EXACTLY TWO ARMS AND TWO HANDS (해부학적 정확성 - 절대 최우선)**:
+   - 인물·캐릭터의 팔은 반드시 정확히 **2개**, 손도 반드시 정확히 **2개**, 손가락은 각 손당 **5개**입니다.
+   - 팔 3개·손 3개·여분의 팔다리·떠다니는 팔·분리된 팔은 절대 금지.
+   - **물건을 잡고 있는 장면에서도 동일**: 한 손으로 물건을 잡으면 나머지 한 손만 존재합니다.
    - 예: 책을 한 손으로 들고 있을 때 → 책 잡은 손 1개 + 반대쪽 손 1개 = 총 손 2개만 허용.
-   - 모든 prompt_en에 반드시 포함: "correct anatomy, exactly two arms, exactly two hands, no extra limbs, no extra hands"
+   - **여러 인물이 등장하는 장면**: 각 인물 당 팔 2개, 손 2개. 인물 수 × 2 = 총 팔 수.
+   - 모든 prompt_en에 반드시 포함: "(exactly two arms:1.5), (exactly two hands:1.5), (five fingers per hand:1.4), (anatomically correct hands:1.4), (correct body proportions:1.3), correct anatomy, no extra limbs, no extra hands, no extra arms, no floating arms, no disconnected arms, no deformed arms, no mutated hands"
 """
 
         # 졸라맨(두꺼운 팔다리) 스타일 전용 지침
