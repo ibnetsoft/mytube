@@ -940,17 +940,15 @@ class VideoService:
                             except:
                                 y_pos = None
 
-                        # 2. If no custom pos, use Default (11/16ths rule for Shorts, or Bottom Margin for others)
+                        # 2. If no custom pos, use Default (bottom 10% margin)
                         if y_pos is None:
-                            # 11/16 is approx 0.6875.
-                            # Standard Lower Third is often around 70-80%.
-                            # User requested 11/16ths specifically.
-                            target_ratio = video.h * (11/16)
-                            y_pos = int(target_ratio)
+                            # Default: top of subtitle box at 80% from top
+                            # = bottom edge at ~88%, leaving ~12% margin
+                            y_pos = int(video.h * 0.80)
 
                         # Ensure it stays on screen (bottom padding)
-                        if y_pos + txt_clip.h > video.h:
-                             y_pos = video.h - txt_clip.h - 50 # Safety buffer
+                        if y_pos + txt_clip.h > video.h - 30:
+                             y_pos = video.h - txt_clip.h - 30
 
                         txt_clip = txt_clip.with_position(("center", y_pos))
 
@@ -1991,14 +1989,29 @@ class VideoService:
                  pass
 
         # Balanced Wrapping Logic with Manual Newline Support
-        # [FIX] 프리뷰와 렌더링 일치를 위한 개선
-        # - 이미 \n으로 나뉜 텍스트는 최대한 존중
-        # - 픽셀 너비 초과 시에만 단어 단위로 줄바꿈 (화면 넘침 방지)
-        safe_width = int(width * 0.9)
-        
+        safe_width = int(width * 0.8)
+
+        # broken_space 조기 감지 - 줄바꿈 계산에도 동일한 공백 폭 적용
+        def _check_broken_space(fnt):
+            try:
+                mask = fnt.getmask(' ')
+                return any(p != 0 for p in mask)
+            except:
+                return False
+        _broken_space_early = _check_broken_space(font)
+
         def get_text_width(text, font):
             dummy_draw = ImageDraw.Draw(Image.new('RGBA', (1, 1)))
-            return dummy_draw.textlength(text, font=font)
+            if not _broken_space_early:
+                return dummy_draw.textlength(text, font=font)
+            # broken_space 폰트: 공백 폭을 폰트크기의 30%로 제한
+            total = 0.0
+            for ch in text:
+                if ch in (' ', '\u00A0', '\u2009', '\u202F', '\u3000'):
+                    total += min(dummy_draw.textlength(ch, font=font), font_size * 0.30)
+                else:
+                    total += dummy_draw.textlength(ch, font=font)
+            return total
 
         # [FIX] Manual Newline Support - 사용자가 입력한 \n을 기준으로 먼저 분리
         manual_lines = text.split('\n')
@@ -2073,22 +2086,25 @@ class VideoService:
         # Padding Logic Split (X, Y)
         padding_default = style.get("bg_padding", 20)
         pad_x = style.get("bg_padding_x", padding_default)
-        pad_y = style.get("bg_padding_y", padding_default)
+        # pad_y는 이미지 캔버스 여백에만 사용 (배경 박스는 별도로 strip_pad_y 사용)
+        pad_y = 0  # 세로 캔버스 패딩 제거 - strip_pad_y가 실제 배경 패딩 담당
+
+        # 배경 박스 세로 패딩 = 폰트 크기의 3% (위아래 동일)
+        strip_pad_y = font_size * 0.03
 
         # [FIX] 높이 계산 - 줄 수에 비례하여 충분한 공간 확보 + Stroke 공간 추가
         line_count = len(wrapped_lines)
         ascent, descent = font.getmetrics()
-        
-        # [CHANGED] More robust height calculation: (LineHeight * Count) + Spacing + Stroke + Padding
-        # This is more reliable than multiline_textbbox for some fonts
+
+        # More robust height calculation
         total_text_h = (ascent + descent) * line_count + (int((ascent + descent) * line_spacing_ratio) * (line_count - 1))
-        
-        vertical_safety = int(font_size * 0.8) # Increased from 0.5 to 0.8
-        
+
         img_w = width
         # Use max of measured height and calculated height for safety
         actual_h = max(text_h, total_text_h)
-        img_h = int(actual_h + (pad_y * 2) + final_stroke_width * 6 + vertical_safety)
+        # 이미지 높이 = 텍스트 높이 + 배경 패딩 + 스트로크 + descent 여유분
+        # descent를 추가 확보해야 두 번째 줄 하단이 잘리지 않음
+        img_h = int(actual_h + strip_pad_y * 2 + final_stroke_width * 2 + descent + 8)
         
         img = Image.new('RGBA', (img_w, img_h), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
@@ -2140,7 +2156,9 @@ class VideoService:
             x, y = float(pos[0]), float(pos[1])
             for ch in txt:
                 if ch in (' ', '\u00A0', '\u2009', '\u202F', '\u3000'):
-                    x += drw.textlength(ch, font=fnt)
+                    raw_sp = drw.textlength(ch, font=fnt)
+                    # GmarketSans 등 일부 폰트의 공백 advance가 비정상적으로 넓음 → 폰트크기의 30%로 제한
+                    x += min(raw_sp, font_size * 0.30)
                 else:
                     if sw > 0 and sf:
                         drw.text((x, y), ch, font=fnt, fill=fill, stroke_width=sw, stroke_fill=sf)
@@ -2156,7 +2174,12 @@ class VideoService:
             # Measure Precise line dimensions
             s_width = int(max(1, round(final_stroke_width))) if final_stroke_width > 0.01 else 0
             l_bbox = draw.textbbox((0, 0), line, font=font, stroke_width=s_width)
-            lw = l_bbox[2] - l_bbox[0]
+
+            # broken_space 폰트: textbbox의 lw가 공백 포함 과대 측정됨 → get_text_width로 재측정
+            if broken_space:
+                lw = get_text_width(line, font)
+            else:
+                lw = l_bbox[2] - l_bbox[0]
             lh = l_bbox[3] - l_bbox[1]
 
             # Calculate actual line_x to center the text
@@ -2177,13 +2200,12 @@ class VideoService:
                     else:
                         _bg = (0, 0, 0, 178)
 
-                # [FIX] Tighter vertical positioning to prevent merging into one block
-                bg_h = line_height_font * 1.05
-                offset_y = (bg_h - line_height_font) / 2
+                # 배경 박스: l_bbox 기준으로 실제 텍스트 위치에 맞춤 (위아래 3% 패딩)
+                # l_bbox[1]: 텍스트 상단 오프셋, l_bbox[3]: 텍스트 하단 오프셋
                 bx0 = line_x - pad_x
                 bx1 = line_x + lw + pad_x
-                by0 = current_y - offset_y
-                by1 = current_y + line_height_font + offset_y
+                by0 = current_y + l_bbox[1] - strip_pad_y
+                by1 = current_y + l_bbox[3] + strip_pad_y
 
                 try:
                     draw.rounded_rectangle([bx0, by0, bx1, by1], radius=10, fill=_bg)

@@ -297,12 +297,12 @@
                 class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-600/30 disabled:opacity-50">
                 ⚙️ {{ t('btn_save_setting') }}
             </button>
-            <button onclick="saveSubtitles(this)"
+            <button id="saveBtn" onclick="saveSubtitles(this)"
                 class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white shadow-sm shadow-green-600/30 disabled:opacity-50"
                 title="{{ t('tooltip_save_sync') }}">
                 💾 {{ t('btn_save') }}
             </button>
-            <button onclick="renderVideo(this)"
+            <button id="renderBtn" onclick="renderVideoInPlace()"
                 class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-purple-600 hover:bg-purple-700 text-white shadow-sm shadow-purple-600/30 animate-pulse-slow disabled:opacity-50">
                 🎬 {{ t('btn_render_video') }}
             </button>
@@ -361,15 +361,38 @@
     <div class="col-span-12 xl:col-span-4 lg:col-span-5 flex flex-col gap-3 min-h-0 overflow-y-auto custom-scrollbar pr-1">
 
             <!-- Preview Area (Top) -->
-            <div class="relative bg-black rounded-lg border border-gray-800 shadow-sm overflow-hidden group h-auto">
+            <div class="bg-black rounded-lg border border-gray-800 shadow-sm overflow-hidden group h-auto flex flex-col">
+                <div class="relative w-full">
                 <!-- Preview Container -->
                 <div class="rounded-lg flex items-center justify-center">
                     <div id="mainPreviewBox"
-                        class="relative w-full max-w-2xl bg-black shadow-2xl overflow-hidden transition-all duration-300">
+                        class="relative w-full max-w-2xl bg-black shadow-2xl transition-all duration-300"> <!-- Removed overflow-hidden from here -->
+                        
                         <!-- Background Image/Video -->
-                        <div id="previewContainer" class="absolute inset-0 flex items-start justify-center bg-gray-900">
+                        <div id="previewContainer" class="absolute inset-0 flex items-start justify-center bg-gray-900 overflow-hidden"> <!-- Added overflow-hidden here -->
                             <p class="text-gray-600 text-xs dark:text-gray-300">{{ t('preview_helper') }}</p>
                         </div>
+
+                        <!-- Overlay Text (CSS Fallback) -->
+                        <div id="subtitlePreviewBox" class="absolute inset-0 pointer-events-none z-20"> <!-- Back to simple inset-0, no flex bugs -->
+                            <!-- CSS 기반 미리보기 (기본 표시, 이미지 로드 시 숨김) -->
+                            <div id="previewTextMain"
+                                class="absolute transform -translate-x-1/2 pointer-events-auto cursor-move select-none whitespace-pre-wrap text-center hover:border-blue-500 hover:bg-white/5 rounded-sm transition-colors dark:bg-gray-800 border-[1.5px] border-transparent group"
+                                style="left: 50%; top: 80%; bottom: auto; width: auto; max-width: 90%; font-weight: bold; color: white; display: inline-block; box-decoration-break: clone; -webkit-box-decoration-break: clone; line-height: 1.4;">
+                                {{ t('subtitle_preview_label') }}
+                            </div>
+                            <!-- 백엔드 렌더링 이미지 기반 미리보기 (정확한 결과) -->
+                            <img id="previewSubtitleImage"
+                                class="absolute left-1/2 transform -translate-x-1/2 pointer-events-none max-w-[95%]"
+                                style="bottom: 10%; display: none;" alt="{{ t('subtitle_preview_label') }}">
+                            <!-- 로딩 표시 -->
+                            <div id="previewSubtitleLoading"
+                                class="absolute left-1/2 transform -translate-x-1/2 text-white/50 text-sm hidden"
+                                style="bottom: 15%;">
+                                🔄 {{ t('status_rendering') }}
+                            </div>
+                        </div>
+
                     </div>
                 </div>
 
@@ -391,33 +414,24 @@
                         </filter>
                     </defs>
                 </svg>
+                </div> <!-- End of relative wrapper -->
 
-
-                <!-- Overlay Text (CSS Fallback) -->
-                <div id="subtitlePreviewBox" class="absolute inset-0 overflow-hidden pointer-events-none z-20">
-                    <!-- CSS 기반 미리보기 (기본 표시, 이미지 로드 시 숨김) -->
-                    <div id="previewTextMain"
-                        class="absolute transform -translate-x-1/2 pointer-events-auto cursor-move select-none whitespace-pre-wrap text-center hover:border hover:border-blue-400/50 hover:bg-white/10 rounded transition-colors dark:bg-gray-800"
-                        style="left: 50%; bottom: 10%; width: auto; max-width: 90%; font-weight: bold; color: white; display: inline-block; box-decoration-break: clone; -webkit-box-decoration-break: clone; line-height: 1.4;">
-                        {{ t('subtitle_preview_label') }}
+                <!-- Custom Player Controls (Below Screen) -->
+                <div class="bg-[#1f2937] border-t border-gray-800 py-2 px-3 flex flex-col gap-1.5 z-30 flex-shrink-0 w-full shadow-inner">
+                    <div id="customProgressContainer" class="relative w-full h-1.5 bg-gray-600 rounded-full cursor-pointer mt-1 hover:h-2 transition-all group/track">
+                        <div id="customProgressFill" class="absolute top-0 left-0 h-full bg-[#1daaaa] rounded-full pointer-events-none" style="width: 0%;"></div>
+                        <div id="customPlayhead" class="absolute top-1/2 -translate-y-1/2 w-2 h-4 bg-[#1daaaa] shadow-sm transform -translate-x-1/2 pointer-events-none rounded-[1px]" style="left: 0%;"></div>
                     </div>
-                    <!-- 백엔드 렌더링 이미지 기반 미리보기 (정확한 결과) -->
-                    <img id="previewSubtitleImage"
-                        class="absolute left-1/2 transform -translate-x-1/2 pointer-events-none max-w-[95%]"
-                        style="bottom: 10%; display: none;" alt="{{ t('subtitle_preview_label') }}">
-                    <!-- 로딩 표시 -->
-                    <div id="previewSubtitleLoading"
-                        class="absolute left-1/2 transform -translate-x-1/2 text-white/50 text-sm hidden"
-                        style="bottom: 15%;">
-                        🔄 {{ t('status_rendering') }}
+                    
+                    <div class="flex items-center gap-3 pl-1 mb-0.5 mt-1">
+                        <button id="customPlayBtn" class="text-gray-400 hover:text-[#1daaaa] transition-colors focus:outline-none flex items-center justify-center p-1 rounded hover:bg-gray-700">
+                            <svg id="iconPlay" class="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4l12 6-12 6V4z"></path></svg>
+                            <svg id="iconPause" class="w-4 h-4 hidden" fill="currentColor" viewBox="0 0 20 20"><path d="M5 4h3v12H5V4zm7 0h3v12h-3V4z"></path></svg>
+                        </button>
+                        <span id="customTimeDisplay" class="text-[11px] font-mono text-gray-400 font-medium tracking-wide">00:00 / 00:00</span>
                     </div>
                 </div>
-
-                <!-- Audio Controls Overlay -->
-                <div
-                    class="absolute bottom-0 left-0 right-0 bg-black/50 backdrop-blur-sm p-2 flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <audio id="audioPlayer" controls class="w-full h-8 opacity-90"></audio>
-                </div>
+                <audio id="audioPlayer" class="hidden" preload="auto"></audio>
             </div>
 
             <!-- View Mode Switch Tabs -->
@@ -807,7 +821,117 @@
         // Draggable Preview
         const previewEl = document.getElementById('previewTextMain');
         if (previewEl) makeDraggable(previewEl);
+
+        setupCustomPlayer(); // [NEW] Initialize Custom Player Sync
     });
+
+    // [NEW] Custom Player Logic
+    function setupCustomPlayer() {
+        const audio = document.getElementById('audioPlayer');
+        const playBtn = document.getElementById('customPlayBtn');
+        const iconPlay = document.getElementById('iconPlay');
+        const iconPause = document.getElementById('iconPause');
+        const timeDisplay = document.getElementById('customTimeDisplay');
+        const progressContainer = document.getElementById('customProgressContainer');
+        const progressFill = document.getElementById('customProgressFill');
+        const playhead = document.getElementById('customPlayhead');
+
+        function formatTime(sec) {
+            if (isNaN(sec) || !isFinite(sec)) return "00:00";
+            const m = Math.floor(sec / 60);
+            const s = Math.floor(sec % 60);
+            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+
+        if(playBtn) {
+            playBtn.addEventListener('click', () => {
+                if(!audio.src) return;
+                if (audio.paused) audio.play();
+                else audio.pause();
+            });
+        }
+
+        if(audio) {
+            audio.addEventListener('play', () => {
+                if(iconPlay) iconPlay.classList.add('hidden');
+                if(iconPause) iconPause.classList.remove('hidden');
+            });
+            audio.addEventListener('pause', () => {
+                if(iconPlay) iconPlay.classList.remove('hidden');
+                if(iconPause) iconPause.classList.add('hidden');
+            });
+
+            audio.addEventListener('loadedmetadata', () => {
+                 audioDuration = audio.duration;
+                 if(timeDisplay) timeDisplay.textContent = `${formatTime(audio.currentTime)} / ${formatTime(audio.duration)}`;
+            });
+
+            audio.addEventListener('timeupdate', () => {
+                if (!audio.duration) return;
+                const cur = audio.currentTime;
+                const dur = audio.duration;
+                const pct = (cur / dur) * 100;
+                
+                if (progressFill) progressFill.style.width = `${pct}%`;
+                if (playhead) playhead.style.left = `${pct}%`;
+                if (timeDisplay) timeDisplay.textContent = `${formatTime(cur)} / ${formatTime(dur)}`;
+
+                // SYNC PREVIEW TO TIME
+                if (!subtitles || subtitles.length === 0) return;
+                
+                // Ignore sync if manually seeking or dragging, but we'll keep it simple
+                let activeSubIndex = -1;
+                for (let i = 0; i < subtitles.length; i++) {
+                    const s = subtitles[i];
+                    if (cur >= s.start && cur <= s.end) {
+                        activeSubIndex = i;
+                        break;
+                    }
+                }
+                
+                // fallback to finding the closest subtitle if there's a small gap
+                if (activeSubIndex === -1 && cur < dur) {
+                    for (let i = 0; i < subtitles.length; i++) {
+                        if (cur < subtitles[i].start) {
+                            activeSubIndex = i > 0 ? i - 1 : 0;
+                            break;
+                        }
+                    }
+                }
+
+                if (activeSubIndex !== -1 && activeSubIndex !== selectedIndex) {
+                    // Update UI automatically by reusing selectSubtitle
+                    selectSubtitle(activeSubIndex);
+                }
+            });
+        }
+
+        if(progressContainer) {
+            progressContainer.addEventListener('mousedown', (e) => {
+                if (!audioDuration || !audio.src) return;
+                const updatePlayhead = (e) => {
+                    const rect = progressContainer.getBoundingClientRect();
+                    let clickX = e.clientX - rect.left;
+                    clickX = Math.max(0, Math.min(clickX, rect.width));
+                    const pct = clickX / rect.width;
+                    if(progressFill) progressFill.style.width = `${pct * 100}%`;
+                    if(playhead) playhead.style.left = `${pct * 100}%`;
+                    audio.currentTime = pct * audioDuration;
+                };
+                updatePlayhead(e);
+                
+                const onMouseMove = (e) => updatePlayhead(e);
+                const onMouseUp = () => {
+                    document.removeEventListener('mousemove', onMouseMove);
+                    document.removeEventListener('mouseup', onMouseUp);
+                    if (audio.paused) audio.play();
+                };
+                
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            });
+        }
+    }
 
     // renderSubtitles 구현은 아래에 있음
 
@@ -1120,8 +1244,15 @@
 
         const preview = document.getElementById('previewTextMain');
         if (preview) {
-            if (s.subtitle_pos_x) preview.style.left = s.subtitle_pos_x;
-            if (s.subtitle_pos_y) preview.style.top = s.subtitle_pos_y;
+            if (s.subtitle_pos_x && String(s.subtitle_pos_x).includes('%')) preview.style.left = s.subtitle_pos_x;
+            const loadPosYStr = String(s.subtitle_pos_y || '');
+            const loadPosYPct = parseFloat(loadPosYStr);
+            if (loadPosYStr.includes('%') && !isNaN(loadPosYPct) && loadPosYPct >= 20) {
+                preview.style.top = loadPosYStr;
+            } else {
+                preview.style.top = '80%';
+            }
+            preview.style.bottom = 'auto';
         }
 
         updateSubtitlePreview();
@@ -1321,7 +1452,24 @@
 
     function updateSubtitlePreview() {
         const text = document.getElementById('previewTextMain');
+        const preview = text; // Alias for position logic
         if (!text) return;
+
+        const s = styleSettings || {}; // Fix ReferenceError
+
+        if (preview) {
+            if (s.subtitle_pos_x && String(s.subtitle_pos_x).includes('%')) preview.style.left = s.subtitle_pos_x;
+            // 위치 로직: top만 사용, bottom은 항상 auto
+            // 20% 미만 값은 이전 버그(박스 늘어남)로 저장된 잘못된 값으로 간주 → 기본값 80% 사용
+            const posYStr = String(s.subtitle_pos_y || '');
+            const posYPct = parseFloat(posYStr);
+            if (posYStr.includes('%') && !isNaN(posYPct) && posYPct >= 20) {
+                preview.style.top = posYStr;
+            } else {
+                preview.style.top = '80%';
+            }
+            preview.style.bottom = 'auto';
+        }
 
         const fontEl = document.getElementById('fontFamilySelect');
         const sizeEl = document.getElementById('fontSizeSlider');
@@ -1347,11 +1495,10 @@
         const aspectRatio = styleSettings.aspect_ratio || '9:16';
         const [w, h] = aspectRatio.split(':').map(Number);
         const boxWidth = previewBox.clientWidth;
-        const isShortsPrev = window.currentAppMode === 'shorts';
 
-        // 숏츠(9:16)는 1:1 정사각형 컨테이너 안에서 실제 이미지 너비 = 박스너비 × (9/16)
-        // 자막은 이미지 영역 안에만 표시되어야 함
-        const imageWidth = isShortsPrev
+        // 숏츠(9:16) 모드일 경우 정사각형 컨테이너 내부의 실제 이미지 너비를 계산
+        const isNineSixteen = aspectRatio === '9:16';
+        const imageWidth = isNineSixteen
             ? Math.round(boxWidth * (9 / 16))
             : previewBox.clientWidth;
 
@@ -1361,7 +1508,8 @@
         const scaleFactor = previewHeight / videoHeight;
 
         const actualSize = Math.round(videoHeight * (fontSizePercent / 100) * scaleFactor * 1.0);
-        const containerWidth = Math.round(imageWidth * 0.90);
+        // 화면 가로길이의 80%로 제한 (사용자 요청 사항)
+        const containerWidth = Math.round(imageWidth * 0.80);
 
         text.style.color = color;
         text.style.fontSize = `${actualSize}px`;
@@ -1402,12 +1550,26 @@
         }
         text.style.webkitTextFillColor = color;
 
-        text.style.width = containerWidth + 'px';
-        text.style.maxWidth = containerWidth + 'px';
+        // 너비: 비디오 프레임 기준 80% (픽셀 고정 금지 → % 사용)
+        const previewBoxEl = document.getElementById('mainPreviewBox');
+        const frameW = previewBoxEl ? previewBoxEl.clientWidth : 0;
+        const frameH = previewBoxEl ? previewBoxEl.clientHeight : 0;
+        const widthPct = frameW > 0 ? Math.round(imageWidth * 0.80 / frameW * 100) : 80;
+        text.style.width = widthPct + '%';
+        text.style.maxWidth = widthPct + '%';
+        text.style.height = 'auto';
+        text.style.minHeight = '0';
         text.style.wordWrap = 'break-word';
         text.style.whiteSpace = 'pre-wrap';
         text.style.textAlign = 'center';
         text.style.boxSizing = 'border-box';
+        // 위치: top이 유효한 %가 없으면 기본 80%
+        const curTopStr = text.style.top || '';
+        const curTopPct = parseFloat(curTopStr);
+        if (!curTopStr.includes('%') || isNaN(curTopPct) || curTopPct < 20) {
+            text.style.top = '80%';
+            text.style.bottom = 'auto';
+        }
 
         // [Cleaned up] No extra textShadow clearing here
 
@@ -1439,20 +1601,41 @@
             const bgRgba = `rgba(${r},${g},${b},${bgOpacity})`;
             console.log(`[Preview] BG CSS: ${bgRgba}, Enabled: ${bgToggle.checked}`);
 
+            const handlesHtml = `
+                <span class="absolute -top-[4px] -left-[4px] w-[8px] h-[8px] bg-white border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
+                <span class="absolute -top-[4px] -right-[4px] w-[8px] h-[8px] bg-white border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
+                <span class="absolute -bottom-[4px] -left-[4px] w-[8px] h-[8px] bg-white border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
+                <span class="absolute -bottom-[4px] -right-[4px] w-[8px] h-[8px] bg-white border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
+                <span class="absolute top-1/2 -left-[4px] transform -translate-y-1/2 w-[8px] h-[8px] bg-white border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
+                <span class="absolute top-1/2 -right-[4px] transform -translate-y-1/2 w-[8px] h-[8px] bg-white border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
+                <span class="absolute -top-[4px] left-1/2 transform -translate-x-1/2 w-[8px] h-[8px] bg-white border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
+                <span class="absolute -bottom-[4px] left-1/2 transform -translate-x-1/2 w-[8px] h-[8px] bg-white border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
+                <span class="absolute -bottom-[20px] left-1/2 transform -translate-x-1/2 w-[16px] h-[16px] bg-white border border-blue-500 rounded-full opacity-0 group-hover:opacity-100 shadow-sm flex items-center justify-center pointer-events-none block"><span style="font-size: 8px; color: #3b82f6;">↻</span></span>
+            `;
+
             if (bgToggle.checked) {
                 // Create separate span for each line with its own background
-                text.innerHTML = lines.map(line =>
-                    `<span style="background:${bgRgba}; padding: 0.2em 0.6em; border-radius: 0.3em; display: inline-block; margin: 0.1em 0;">${line}</span>`
+                let contentHtml = lines.map(line =>
+                    `<span style="background:${bgRgba}; padding: 0.03em 0.5em; border-radius: 0.2em; display: inline-block;">${line}</span>`
                 ).join('<br>');
+                text.innerHTML = contentHtml + handlesHtml;
                 text.style.backgroundColor = 'transparent';
             } else {
                 // No background - plain text
-                text.innerHTML = lines.join('<br>');
+                text.innerHTML = lines.join('<br>') + handlesHtml;
                 text.style.backgroundColor = 'transparent';
             }
         } else {
             // Fallback
-            text.textContent = subtitleText;
+            const handlesHtml = `
+                <span class="absolute -top-[4px] -left-[4px] w-[8px] h-[8px] bg-white border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
+                <span class="absolute -top-[4px] -right-[4px] w-[8px] h-[8px] bg-white border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
+                <span class="absolute -bottom-[4px] -left-[4px] w-[8px] h-[8px] bg-white border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
+                <span class="absolute -bottom-[4px] -right-[4px] w-[8px] h-[8px] bg-white border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
+            `;
+            // convert plain text to simple spans or just insert
+            let safeText = subtitleText.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, '<br>');
+            text.innerHTML = safeText + handlesHtml;
             text.style.backgroundColor = 'transparent';
         }
 
@@ -1698,10 +1881,10 @@
             const bgColor = document.getElementById('bgColorInput').value;
             const bgOpacity = parseFloat(document.getElementById('bgOpacityInput').value || 0.5);
 
-            // Get current positions
+            // Get current positions (top 기준으로 통일)
             const preview = document.getElementById('previewTextMain');
-            const posX = preview ? preview.style.left : '50%';
-            const posY = preview ? preview.style.top : '75%';
+            const posX = preview ? (preview.style.left || '50%') : '50%';
+            const posY = preview ? (preview.style.top || '80%') : '80%';
             const ratioBtn = document.getElementById('ratioToggleBtn');
             const ratio = (ratioBtn && ratioBtn.textContent.includes('9:16')) ? '9:16' : '16:9';
 
@@ -1738,15 +1921,17 @@
     }
 
     // --- Action Functions ---
-    async function saveSubtitles(isAutoSave = false) {
-        const btn = document.getElementById('saveBtn');
-        if (!isAutoSave) Utils.setLoading(btn, true, '저장..');
+    async function saveSubtitles(btnOrAutoSave = false) {
+        const isAutoSave = (typeof btnOrAutoSave === 'boolean') ? btnOrAutoSave : false;
+        const btn = (btnOrAutoSave instanceof Element) ? btnOrAutoSave : null;
+        const btnOrigText = btn ? btn.innerHTML : null;
+        if (!isAutoSave && btn) { btn.disabled = true; btn.innerHTML = '⏳ 저장..'; }
         try {
             // Update Position before save
             const preview = document.getElementById('previewTextMain');
             if (preview) {
-                await API.project.updateSetting(projectId, 'subtitle_pos_x', preview.style.left);
-                await API.project.updateSetting(projectId, 'subtitle_pos_y', preview.style.top);
+                await API.project.updateSetting(projectId, 'subtitle_pos_x', preview.style.left || '50%');
+                await API.project.updateSetting(projectId, 'subtitle_pos_y', preview.style.top || '80%');
             }
 
             // [Fix] Force save font size to ensure consistency and update timestamp
@@ -1784,7 +1969,7 @@
             if (!isAutoSave) Utils.showToast('저장 실패: ' + e.message, 'error');
             else console.error("AutoSave Failed:", e);
         } finally {
-            if (!isAutoSave) Utils.setLoading(btn, false);
+            if (!isAutoSave && btn) { btn.disabled = false; btn.innerHTML = btnOrigText || '💾 저장'; }
         }
     }
 
@@ -2331,6 +2516,10 @@
             pos2 = pos4 - e.clientY;
             pos3 = e.clientX;
             pos4 = e.clientY;
+
+            // [FIX] 아래쪽 고정값(bottom)이 남아있는 상태에서 top값을 지정하면 브라우저가 위아래로 박스를 강제 스크래치(Stretch)하는 버그 발생
+            elmnt.style.bottom = 'auto';
+
             elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
             elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
         }
@@ -2339,8 +2528,20 @@
             document.onmouseup = null;
             document.onmousemove = null;
             if (projectId) {
-                API.project.updateSetting(projectId, 'subtitle_pos_x', elmnt.style.left);
-                API.project.updateSetting(projectId, 'subtitle_pos_y', elmnt.style.top);
+                // 픽셀값 대신 퍼센트로 저장 → 창 크기 변경 시에도 정확한 위치 유지
+                const container = elmnt.parentElement;
+                const containerW = (container && container.offsetWidth > 0) ? container.offsetWidth : 1;
+                const containerH = (container && container.offsetHeight > 0) ? container.offsetHeight : 1;
+                const leftPx = parseFloat(elmnt.style.left) || 0;
+                const topPx = parseFloat(elmnt.style.top) || 0;
+                const posX = (leftPx / containerW * 100).toFixed(1) + '%';
+                const posY = (topPx / containerH * 100).toFixed(1) + '%';
+                if (window.styleSettings) {
+                    window.styleSettings.subtitle_pos_x = posX;
+                    window.styleSettings.subtitle_pos_y = posY;
+                }
+                API.project.updateSetting(projectId, 'subtitle_pos_x', posX);
+                API.project.updateSetting(projectId, 'subtitle_pos_y', posY);
             }
         }
     }
@@ -2989,7 +3190,9 @@
                         lineSpacing: parseFloat(data.settings.subtitle_line_spacing || 0.1),
                         bgColor: data.settings.subtitle_bg_color || '#000000',
                         bgOpacity: parseFloat(data.settings.subtitle_bg_opacity || 0.5),
-                        aspect_ratio: data.settings.aspect_ratio || '9:16'
+                        aspect_ratio: data.settings.aspect_ratio || '9:16',
+                        subtitle_pos_x: data.settings.subtitle_pos_x || null,
+                        subtitle_pos_y: data.settings.subtitle_pos_y || null
                     };
 
                     // [NEW] Store App Mode for UI Logic — project setting > global APP_MODE > 'longform'
@@ -3025,24 +3228,24 @@
                     const bgOpacityEl = document.getElementById('bgOpacityInput');
                     if (bgOpacityEl) bgOpacityEl.value = styleSettings.bgOpacity;
 
-                    // Position
-                    if (data.settings.subtitle_pos_x && data.settings.subtitle_pos_y) {
+                    // Position — top만 사용 (bottom: auto 고정)
+                    // 20% 미만 값은 이전 버그로 저장된 잘못된 값 → 기본값 80% 사용
+                    {
                         const preview = document.getElementById('previewTextMain');
                         if (preview) {
-                            preview.style.left = data.settings.subtitle_pos_x;
-                            preview.style.top = data.settings.subtitle_pos_y;
-                        }
-                    } else if (window.currentAppMode === 'shorts') {
-                        // [NEW] Default Position for Shorts (11/16ths down)
-                        const preview = document.getElementById('previewTextMain');
-                        if (preview) {
-                            // 11/16 = 68.75%
-                            preview.style.top = '68.75%';
-                            // Ensure centered horizontally if not set
-                            if (!data.settings.subtitle_pos_x) preview.style.left = '50%';
-
-                            // Save this default so it persists? 
-                            // Or just visual default. Let's apply visually.
+                            if (data.settings.subtitle_pos_x && String(data.settings.subtitle_pos_x).includes('%')) {
+                                preview.style.left = data.settings.subtitle_pos_x;
+                            }
+                            const initPosYStr = String(data.settings.subtitle_pos_y || '');
+                            const initPosYPct = parseFloat(initPosYStr);
+                            if (initPosYStr.includes('%') && !isNaN(initPosYPct) && initPosYPct >= 20) {
+                                preview.style.top = initPosYStr;
+                            } else if (window.currentAppMode === 'shorts') {
+                                preview.style.top = '75%'; // 숏츠 기본: 3/4 지점
+                            } else {
+                                preview.style.top = '80%'; // 롱폼 기본: 하단
+                            }
+                            preview.style.bottom = 'auto';
                         }
                     }
 

@@ -1066,14 +1066,14 @@ async def render_project_video(
                 print(f"DEBUG: Upgraded {upgraded_count} scene(s) to video assets (including auto-generated).")
                 images = patched_images
 
+        project_settings = db.get_project_settings(project_id)
         if not images:
-             project_settings = db.get_project_settings(project_id)
              bg_video_url = project_settings.get("background_video_url")
              if not bg_video_url:
                  raise HTTPException(400, "유효한 이미지 파일 또는 배경 동영상이 없습니다.")
         else:
-             project_settings = db.get_project_settings(project_id)
-             bg_video_url = project_settings.get("background_video_url")
+             # 이미지가 있으면 배경 동영상 무시 (이미지 슬라이드쇼가 항상 우선)
+             bg_video_url = None
             
         # [AUTO-DETECT] Resolution based on Aspect Ratio to fix User Issue
         if images and len(images) > 0:
@@ -1160,7 +1160,7 @@ async def render_project_video(
                         "stroke_color": s_settings.get("subtitle_stroke_color", "black"),
                         "stroke_width": float(s_settings.get("subtitle_stroke_width") or 0.0),
                         "subtitle_stroke_enabled": 1 if str(s_settings.get("subtitle_stroke_enabled", 0)).lower() in ['true', '1'] else 0, 
-                        "position_y": s_settings.get("subtitle_pos_y"), 
+                        "subtitle_pos_y": s_settings.get("subtitle_pos_y"),
                         "bg_enabled": 1 if str(s_settings.get("subtitle_bg_enabled", 1)).lower() in ['true', '1'] else 0,
                         "line_spacing": float(s_settings.get("subtitle_line_spacing", 0.1)),
                         "bg_color": s_settings.get("subtitle_bg_color", "#000000"),
