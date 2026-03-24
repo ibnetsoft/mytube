@@ -538,6 +538,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
 
         style_prefix = style_data.get("prompt_value", "photorealistic")
         gemini_instruction = style_data.get("gemini_instruction", "")
+        reference_image_url = style_data.get("image_url") or None
 
         # 1. Image Prompts
         # [CRITICAL FIX] Use actual target duration for image count calculation
@@ -545,14 +546,15 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
 
         image_prompts = db.get_image_prompts(project_id)
         if not image_prompts:
-            print(f"🖼️ [Auto-Pilot] Generating image prompts for {target_duration}s video (style_key={image_style_key})...")
+            print(f"🖼️ [Auto-Pilot] Generating image prompts for {target_duration}s video (style_key={image_style_key}, ref_img={'yes' if reference_image_url else 'no'})...")
             # [NEW] 캐릭터 정보 조회 및 전달
             characters = db.get_project_characters(project_id)
             image_prompts = await gemini_service.generate_image_prompts_from_script(
                 script, target_duration, style_prefix,
                 characters=characters,
                 style_key=image_style_key,
-                gemini_instruction=gemini_instruction
+                gemini_instruction=gemini_instruction,
+                reference_image_url=reference_image_url
             )
             db.save_image_prompts(project_id, image_prompts)
             image_prompts = db.get_image_prompts(project_id)

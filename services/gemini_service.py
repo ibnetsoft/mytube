@@ -1213,7 +1213,7 @@ Motion prompt for this image:"""
             result = cut[:last_sep].rstrip(', ') if last_sep > 100 else cut
         return result
 
-    async def generate_image_prompts_from_script(self, script: str, duration_seconds: int, style_prompt: str = None, characters: List[dict] = None, target_scene_count: int = None, style_key: str = None, gemini_instruction: str = None) -> List[dict]:
+    async def generate_image_prompts_from_script(self, script: str, duration_seconds: int, style_prompt: str = None, characters: List[dict] = None, target_scene_count: int = None, style_key: str = None, gemini_instruction: str = None, reference_image_url: str = None) -> List[dict]:
         """대본을 분석하여 장면별 이미지 프롬프트 생성 (가변 페이싱 및 캐릭터 일관성 적용)"""
 
         # target_scene_count가 전달된 경우 우선 사용 (씬 분석 결과)
@@ -1528,6 +1528,44 @@ Motion prompt for this image:"""
 
         style_prefix_val = style_prompt or 'High quality, photorealistic'
 
+        # ── 레퍼런스 이미지 로딩 (스타일 프리셋 썸네일) ──────────────────
+        _ref_image_bytes: bytes | None = None
+        _ref_mime: str = "image/jpeg"
+        if reference_image_url and reference_image_url.strip():
+            try:
+                import httpx as _httpx
+                _ref_url = reference_image_url.strip()
+                # 로컬 경로(/static/...) 처리
+                if _ref_url.startswith("/"):
+                    import os as _os
+                    _base = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+                    _local = _os.path.join(_base, _ref_url.lstrip("/"))
+                    if _os.path.exists(_local):
+                        with open(_local, "rb") as _f:
+                            _ref_image_bytes = _f.read()
+                        _ext = _os.path.splitext(_local)[1].lower()
+                        _ref_mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "webp": "image/webp"}.get(_ext.lstrip("."), "image/jpeg")
+                else:
+                    async with _httpx.AsyncClient(timeout=15.0) as _hc:
+                        _resp = await _hc.get(_ref_url)
+                        if _resp.status_code == 200:
+                            _ref_image_bytes = _resp.content
+                            _ct = _resp.headers.get("content-type", "")
+                            if "png" in _ct: _ref_mime = "image/png"
+                            elif "webp" in _ct: _ref_mime = "image/webp"
+                if _ref_image_bytes:
+                    print(f"[RefImage] Loaded style reference image ({len(_ref_image_bytes)} bytes, {_ref_mime})")
+            except Exception as _e:
+                print(f"[RefImage] Failed to load reference image: {_e}")
+                _ref_image_bytes = None
+
+        async def _gen_text_or_vision(prompt_text: str) -> str:
+            """레퍼런스 이미지가 있으면 Vision(멀티모달), 없으면 텍스트 전용 호출"""
+            if _ref_image_bytes:
+                ref_hint = "\n\n[STYLE REFERENCE IMAGE ATTACHED]\nThe attached image shows the exact visual style, character design, and art direction to follow. Use it as the primary visual reference when writing image prompts."
+                return await self.generate_text_from_image(prompt_text + ref_hint, _ref_image_bytes, _ref_mime)
+            return await self.generate_text(prompt_text, temperature=0.7)
+
         if use_chunked:
             # ── 청크 분할 모드 ─────────────────────────────────────────────
             # 씬 수 기반 최소 청크 수 계산 (각 청크 최대 SCENES_PER_CHUNK 씬)
@@ -1583,7 +1621,7 @@ Motion prompt for this image:"""
                     limit_instruction=chunk_limit,
                     style_prefix=style_prefix_val
                 )
-                c_text = await self.generate_text(c_prompt, temperature=0.7)
+                c_text = await _gen_text_or_vision(c_prompt)
                 c_scene_list = _parse_text_to_scenes(c_text)
                 print(f"[ChunkedGen] Chunk {c_idx+1}/{num_chunks}: got {len(c_scene_list)} scenes")
                 all_scenes.extend(c_scene_list)
@@ -1599,7 +1637,7 @@ Motion prompt for this image:"""
                 limit_instruction=limit_instruction,
                 style_prefix=style_prefix_val
             )
-            text = await self.generate_text(prompt, temperature=0.7)
+            text = await _gen_text_or_vision(prompt)
             scenes = _parse_text_to_scenes(text)
 
         try:
