@@ -1027,6 +1027,10 @@
         container.className = 'space-y-4';
 
         container.innerHTML = data.map((p, i) => {
+            // [FIX] 엔진 결정: 사용자가 직접 바꾼 씬(_engine_overridden)은 p.engine 유지,
+            //       그 외에는 항상 글로벌 설정(window.defaultVideoEngine) 사용
+            const effectiveEngine = p._engine_overridden ? (p.engine || window.defaultVideoEngine || 'wan') : (window.defaultVideoEngine || 'wan');
+
             // [Fix] 키 값 호환성 처리 (scene vs scene_text, prompt vs prompt_en)
             // 대본 텍스트를 최대한 찾아내기 위해 prompt_ko와 scene_title까지 확인
             const rawSceneText = p.scene_text || p.scene || p.scene_title || p.prompt_ko || '';
@@ -1102,10 +1106,10 @@
                                     <span>⚡</span> Generate
                                 </button>
                                 <div class="flex bg-gray-200 dark:bg-gray-800 rounded p-0.5 gap-0.5 shrink-0">
-                                    <button class="px-1.5 py-0.5 text-[9px] rounded ${((p.engine || window.defaultVideoEngine || 'wan') === 'wan') ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-white font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'wan')" title="Wan 2.1">Wan</button>
-                                    <button class="px-1.5 py-0.5 text-[9px] rounded ${((p.engine || window.defaultVideoEngine || 'wan') === 'seedance') ? 'bg-green-100 dark:bg-green-900 shadow text-green-700 dark:text-green-300 font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'seedance')" title="Seedance">🌱 Seed</button>
-                                    <button class="px-1.5 py-0.5 text-[9px] rounded ${((p.engine || window.defaultVideoEngine || 'wan') === 'akool') ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-white font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'akool')" title="LipSync">Lip</button>
-                                    <button class="px-1.5 py-0.5 text-[9px] rounded ${((p.engine || window.defaultVideoEngine || 'wan') === 'veo') ? 'bg-blue-100 dark:bg-blue-900 shadow text-blue-700 dark:text-blue-300 font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'veo')" title="Veo">Veo</button>
+                                    <button class="px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'wan' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-white font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'wan')" title="Wan 2.1">Wan</button>
+                                    <button class="px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'seedance' ? 'bg-green-100 dark:bg-green-900 shadow text-green-700 dark:text-green-300 font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'seedance')" title="Seedance">🌱 Seed</button>
+                                    <button class="px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'akool' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-white font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'akool')" title="LipSync">Lip</button>
+                                    <button class="px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'veo' ? 'bg-blue-100 dark:bg-blue-900 shadow text-blue-700 dark:text-blue-300 font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'veo')" title="Veo">Veo</button>
                                 </div>
                             </div>
                         </div>
@@ -1661,6 +1665,7 @@
     function setEngine(index, engine) {
         if (!prompts[index]) return;
         prompts[index].engine = engine;
+        prompts[index]._engine_overridden = true; // 사용자가 직접 선택했음을 표시
         Utils.storage.set('imagePrompts', prompts);
 
         // [NEW] Sync with server
