@@ -568,13 +568,23 @@ def migrate_db():
            cursor.execute("ALTER TABLE style_presets ADD COLUMN image_url TEXT")
         except sqlite3.OperationalError:
            pass
-    # [NEW] 마이그레이션: style_presets 테이블에 gemini_instruction 컬럼 추가
+    # [Migration] style_presets 테이블에 gemini_instruction 컬럼 추가
     cursor.execute("PRAGMA table_info(style_presets)")
     style_presets_columns2 = [info[1] for info in cursor.fetchall()]
     if 'gemini_instruction' not in style_presets_columns2:
         print("[Migration] Adding gemini_instruction column to style_presets table...")
         try:
             cursor.execute("ALTER TABLE style_presets ADD COLUMN gemini_instruction TEXT")
+        except sqlite3.OperationalError:
+            pass
+    # [Migration] style_presets 테이블에 mode 컬럼 추가 (image | blog | all)
+    cursor.execute("PRAGMA table_info(style_presets)")
+    style_presets_columns3 = [info[1] for info in cursor.fetchall()]
+    if 'mode' not in style_presets_columns3:
+        print("[Migration] Adding mode column to style_presets table...")
+        try:
+            cursor.execute("ALTER TABLE style_presets ADD COLUMN mode TEXT DEFAULT 'image'")
+            conn.commit()
         except sqlite3.OperationalError:
             pass
     # [Migration] project_sources 테이블에 type 컬럼 추가 (source_type 과 통일)
@@ -2446,22 +2456,25 @@ def delete_autopilot_preset(preset_id: int):
 
 # ============ 스타일 프리셋 관리 ============
 
-def get_style_presets():
-    """이미지 스타일 프리셋 조회"""
+def get_style_presets(mode: str = None):
+    """이미지 스타일 프리셋 조회. mode 지정 시 해당 mode + 'all' 스타일만 반환"""
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM style_presets")
+    if mode:
+        cursor.execute("SELECT * FROM style_presets WHERE mode = ? OR mode = 'all' OR mode IS NULL", (mode,))
+    else:
+        cursor.execute("SELECT * FROM style_presets")
     rows = cursor.fetchall()
     conn.close()
 
-    # {style_key: {prompt_value, image_url, gemini_instruction}} 형태로 반환
     result = {}
     for row in rows:
         row_dict = dict(row)
         result[row_dict['style_key']] = {
             'prompt_value': row_dict['prompt_value'],
             'image_url': row_dict.get('image_url'),
-            'gemini_instruction': row_dict.get('gemini_instruction') or ''
+            'gemini_instruction': row_dict.get('gemini_instruction') or '',
+            'mode': row_dict.get('mode') or 'image'
         }
     return result
 
@@ -2483,45 +2496,49 @@ def get_style_preset(style_key: str) -> Optional[Dict]:
     return None
 
 
-def save_style_preset(style_key: str, prompt_value: str, image_url: str = None, gemini_instruction: str = None):
-    """이미지 스타일 프리셋 저장"""
+def save_style_preset(style_key: str, prompt_value: str, image_url: str = None, gemini_instruction: str = None, mode: str = None):
+    """이미지 스타일 프리셋 저장. mode: 'image'(기본) | 'blog' | 'all'"""
     conn = get_db()
     cursor = conn.cursor()
 
-    # Check if exists
     cursor.execute("SELECT * FROM style_presets WHERE style_key = ?", (style_key,))
     existing = cursor.fetchone()
 
     if existing:
+        # mode가 None이면 기존 mode 유지
+        mode_sql = ", mode = ?" if mode is not None else ""
+        mode_params = (mode,) if mode is not None else ()
+
         if image_url is None and gemini_instruction is None:
-            cursor.execute("""
+            cursor.execute(f"""
                 UPDATE style_presets
-                SET prompt_value = ?, updated_at = CURRENT_TIMESTAMP
+                SET prompt_value = ?{mode_sql}, updated_at = CURRENT_TIMESTAMP
                 WHERE style_key = ?
-            """, (prompt_value, style_key))
+            """, (prompt_value,) + mode_params + (style_key,))
         elif image_url is None:
-            cursor.execute("""
+            cursor.execute(f"""
                 UPDATE style_presets
-                SET prompt_value = ?, gemini_instruction = ?, updated_at = CURRENT_TIMESTAMP
+                SET prompt_value = ?, gemini_instruction = ?{mode_sql}, updated_at = CURRENT_TIMESTAMP
                 WHERE style_key = ?
-            """, (prompt_value, gemini_instruction, style_key))
+            """, (prompt_value, gemini_instruction) + mode_params + (style_key,))
         elif gemini_instruction is None:
-            cursor.execute("""
+            cursor.execute(f"""
                 UPDATE style_presets
-                SET prompt_value = ?, image_url = ?, updated_at = CURRENT_TIMESTAMP
+                SET prompt_value = ?, image_url = ?{mode_sql}, updated_at = CURRENT_TIMESTAMP
                 WHERE style_key = ?
-            """, (prompt_value, image_url, style_key))
+            """, (prompt_value, image_url) + mode_params + (style_key,))
         else:
-            cursor.execute("""
+            cursor.execute(f"""
                 UPDATE style_presets
-                SET prompt_value = ?, image_url = ?, gemini_instruction = ?, updated_at = CURRENT_TIMESTAMP
+                SET prompt_value = ?, image_url = ?, gemini_instruction = ?{mode_sql}, updated_at = CURRENT_TIMESTAMP
                 WHERE style_key = ?
-            """, (prompt_value, image_url, gemini_instruction, style_key))
+            """, (prompt_value, image_url, gemini_instruction) + mode_params + (style_key,))
     else:
+        effective_mode = mode or 'image'
         cursor.execute("""
-            INSERT INTO style_presets (style_key, prompt_value, image_url, gemini_instruction)
-            VALUES (?, ?, ?, ?)
-        """, (style_key, prompt_value, image_url, gemini_instruction))
+            INSERT INTO style_presets (style_key, prompt_value, image_url, gemini_instruction, mode)
+            VALUES (?, ?, ?, ?, ?)
+        """, (style_key, prompt_value, image_url, gemini_instruction, effective_mode))
 
     conn.commit()
     conn.close()

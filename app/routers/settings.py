@@ -176,17 +176,18 @@ class StylePreset(BaseModel):
     prompt_value: str
     image_url: Optional[str] = None
     gemini_instruction: Optional[str] = None
+    mode: Optional[str] = None  # 'image' | 'blog' | 'all'
 
 # ===========================================
 # API: 이미지 스타일 프리셋 관리
 # ===========================================
 
 @router.get("/style-presets")
-async def get_style_presets_api():
-    """모든 이미지 스타일 프리셋 조회"""
+async def get_style_presets_api(mode: Optional[str] = None):
+    """이미지 스타일 프리셋 조회. mode=image|blog|all 필터 가능"""
     presets = db.get_style_presets()
-    
-    # DB에 하나도 없으면 기본값으로 초기화
+
+    # DB가 완전 비어있을 때만 기본 스타일 초기화 (삭제한 스타일은 재추가 안 함)
     if not presets:
         default_styles = {
             "realistic": "photorealistic, 8k uhd, high quality, detailed",
@@ -199,20 +200,75 @@ async def get_style_presets_api():
             "pixel_art": "pixel art, 16-bit style, retro gaming",
             "3d": "3d render, pixar style, 3d animation, cute, vibrant lighting",
             "k_webtoon": "Modern K-webtoon manhwa style, high-quality digital illustration, sharp line art, vibrant colors, expressive character, modern manhwa aesthetic, professional digital art, no text, no speech bubbles",
-            "k_manhwa": "Korean manhwa webtoon illustration style, bold black outlines, cel-shading, vibrant flat colors, anime-inspired character design, dynamic composition, professional digital art, modern Korean comic aesthetic. ABSOLUTELY NO TEXT."
+            "k_manhwa": "Korean manhwa webtoon illustration style, bold black outlines, cel-shading, vibrant flat colors, anime-inspired character design, dynamic composition, professional digital art, modern Korean comic aesthetic. ABSOLUTELY NO TEXT.",
         }
         for key, val in default_styles.items():
-            db.save_style_preset(key, val) # image_url=None implicitly
-        
-        # Reload to get the structured dict
+            db.save_style_preset(key, val)
         presets = db.get_style_presets()
-        
+
+    # 새로 추가된 시스템 스타일만 없을 때 개별 삽입 (기존 스타일과 독립)
+    _new_system_styles = {
+        "animal_cooking_shorts": {
+            "prompt": (
+                "Warm cozy photorealistic scene, anthropomorphic animals wearing aprons and chef hats, "
+                "natural soft warm lighting, high quality food photography style, rich textures of ingredients "
+                "and cooking tools, adorable expressive animal faces, 9:16 vertical shorts format"
+            ),
+            "gemini_instruction": (
+                "[쇼츠 3x2 시퀀스 생성기 - 필수 준수]\n"
+                "반드시 정확히 6개의 씬을 아래 스토리보드 순서대로 생성하세요. "
+                "캐릭터는 부모 동물 1마리 + 아기 동물 2마리 총 3마리입니다. "
+                "모든 씬은 동일한 캐릭터·배경·조명·스타일로 일관성을 유지하세요.\n\n"
+                "씬1 (재료 준비 1): 부모 동물이 주요 재료를 씻거나 다듬고 있습니다. "
+                "아기 동물 한 마리가 옆에서 호기심 어린 눈으로 바라보거나 작은 도구를 들고 돕는 시늉을 합니다.\n"
+                "씬2 (재료 준비 2): 다른 재료를 손질하거나 섞는 과정입니다. "
+                "아기 동물 두 마리가 밀가루를 묻히거나 재료로 장난치는 귀엽고 서툰 모습. 부모 동물은 흐뭇하게 바라봅니다.\n"
+                "씬3 (조리 시작): 냄비나 팬에 재료를 넣고 조리를 시작합니다. "
+                "불 위에서 재료가 볶아지거나 끓으며 김이 모락모락 납니다. 세 마리가 함께 불 앞을 지켜봅니다.\n"
+                "씬4 (조리 중): 요리가 한창 진행 중입니다. 오븐 속에서 굽거나 냄비에서 보글보글 끓고 있습니다. "
+                "음식 색감이 먹음직스럽게 변해가고 아기 동물들이 기대에 찬 표정으로 기다립니다.\n"
+                "씬5 (조리 완료): 완성된 요리를 예쁜 그릇에 플레이팅하는 장면입니다. "
+                "부모 동물이 마지막 장식을 더하고, 아기 동물들은 숟가락을 들고 먹을 준비를 완료하며 기뻐합니다.\n"
+                "씬6 (함께 식사): 세 마리가 식탁에 둘러앉아 완성된 요리를 행복하게 먹는 장면입니다. "
+                "모두 입가에 음식을 묻히며 만족스러운 표정, 따뜻하고 화목한 분위기의 절정.\n\n"
+                "스타일 요구사항:\n"
+                "- 의인화된 동물: 앞치마·요리 모자 착용, 표정에서 즐거움과 행복함이 느껴질 것\n"
+                "- 따뜻하고 아늑한 분위기, 자연광 활용한 부드러운 사진 스타일\n"
+                "- 동물 털 질감·음식 식재료 질감·요리 도구 디테일을 생생하게 표현\n"
+                "- 6개 씬 전체가 하나의 연속된 이야기처럼 자연스럽게 연결될 것"
+            )
+        },
+    }
+    needs_reload = False
+    for key, data in _new_system_styles.items():
+        if key not in presets:
+            db.save_style_preset(key, data["prompt"], image_url=None,
+                                 gemini_instruction=data.get("gemini_instruction"),
+                                 mode=data.get("mode", "image"))
+            needs_reload = True
+    if needs_reload:
+        presets = db.get_style_presets()
+
+    # sports_analysis가 있으면 mode를 'blog'로 설정 (아직 'image'인 경우만)
+    if 'sports_analysis' in presets and presets['sports_analysis'].get('mode', 'image') == 'image':
+        db.save_style_preset('sports_analysis',
+                             presets['sports_analysis']['prompt_value'],
+                             mode='blog')
+        needs_reload = True
+    if needs_reload:
+        presets = db.get_style_presets()
+
+    # mode 쿼리 파라미터 필터 적용
+    if mode:
+        presets = {k: v for k, v in presets.items() if v.get('mode') == mode or v.get('mode') == 'all'}
+
     return presets
 
 @router.post("/style-presets")
 async def save_style_preset_api(preset: StylePreset):
     """이미지 스타일 프리셋 저장"""
-    db.save_style_preset(preset.style_key, preset.prompt_value, preset.image_url, preset.gemini_instruction)
+    db.save_style_preset(preset.style_key, preset.prompt_value, preset.image_url,
+                         preset.gemini_instruction, preset.mode)
     return {"status": "ok"}
 
 @router.post("/style-presets/custom")

@@ -93,7 +93,7 @@
                                     class="btn-secondary text-xs py-2 px-3 flex items-center gap-1">
                                     <span>📂</span> {{ t('btn_upload_image') }}
                                 </button>
-                                <input type="file" id="charUploadInput" class="hidden" accept="image/*"
+                                <input type="file" id="charUploadInput" class="hidden" accept="image/*" multiple
                                     onchange="previewCharImage(this)">
                             </div>
 
@@ -116,15 +116,12 @@
                             </button>
                         </div>
 
-                        <!-- Preview (Upload) -->
+                        <!-- Preview (Upload) - 다중 이미지 지원 -->
                         <div id="charPreviewArea"
-                            class="hidden items-center gap-3 bg-white dark:bg-gray-900 p-2 rounded border border-gray-200 dark:border-gray-700 w-fit">
-                            <img id="charPreviewImg" src=""
-                                class="w-10 h-10 rounded object-cover border border-gray-300 dark:border-gray-700">
-                            <span class="text-xs text-gray-500 dark:text-gray-400" id="charPreviewName">{{
-                                t('img_selected') }}</span>
+                            class="hidden flex-wrap items-center gap-2 bg-white dark:bg-gray-900 p-2 rounded border border-gray-200 dark:border-gray-700">
+                            <div id="charPreviewList" class="flex flex-wrap gap-2"></div>
                             <button onclick="clearCharImage()"
-                                class="text-red-500 hover:text-red-700 text-xs ml-2">❌</button>
+                                class="text-red-500 hover:text-red-700 text-xs ml-1">❌ 전체삭제</button>
                         </div>
                     </div>
                 </div>
@@ -2231,11 +2228,18 @@
             if (data.settings.character_ref_text && gp) {
                 gp.value = data.settings.character_ref_text;
             }
-            if (data.settings.character_ref_image_path && preview) {
-                preview.src = data.settings.character_ref_image_path;
-                preview.classList.remove('hidden');
-                if (placeholder) placeholder.classList.add('hidden');
-                if (charArea) { charArea.classList.remove('hidden'); charArea.classList.add('flex'); }
+            if (data.settings.character_ref_image_path) {
+                // 쉼표로 구분된 여러 이미지 경로 지원
+                const paths = data.settings.character_ref_image_path.split(',').map(p => p.trim()).filter(Boolean);
+                const list = document.getElementById('charPreviewList');
+                if (list && paths.length > 0) {
+                    list.innerHTML = paths.map((p, i) => `
+                        <div class="flex flex-col items-center gap-1">
+                            <img src="${p}" class="w-10 h-10 rounded object-cover border border-gray-300 dark:border-gray-700" title="${p}">
+                            <span class="text-[10px] text-gray-400">${paths.length > 1 ? (i + 1) + '번' : ''}</span>
+                        </div>`).join('');
+                    if (charArea) { charArea.classList.remove('hidden'); charArea.classList.add('flex'); }
+                }
             }
             if (data.settings.image_style_prompt) {
                 const styleId = data.settings.image_style_prompt;
@@ -2377,17 +2381,16 @@
                         if (gp) gp.value = fullData.settings.character_ref_text;
                     }
                     if (fullData.settings.character_ref_image_path) {
-                        const preview = document.getElementById('charPreviewImg');
-                        const placeholder = document.getElementById('charPlaceholder');
-                        if (preview) {
-                            preview.src = fullData.settings.character_ref_image_path;
-                            preview.classList.remove('hidden');
-                            if (placeholder) placeholder.classList.add('hidden');
-                            const area = document.getElementById('charPreviewArea');
-                            if (area) {
-                                area.classList.remove('hidden');
-                                area.classList.add('flex');
-                            }
+                        const paths = fullData.settings.character_ref_image_path.split(',').map(p => p.trim()).filter(Boolean);
+                        const list = document.getElementById('charPreviewList');
+                        const area = document.getElementById('charPreviewArea');
+                        if (list && paths.length > 0) {
+                            list.innerHTML = paths.map((p, i) => `
+                                <div class="flex flex-col items-center gap-1">
+                                    <img src="${p}" class="w-10 h-10 rounded object-cover border border-gray-300 dark:border-gray-700" title="${p}">
+                                    <span class="text-[10px] text-gray-400">${paths.length > 1 ? (i + 1) + '번' : ''}</span>
+                                </div>`).join('');
+                            if (area) { area.classList.remove('hidden'); area.classList.add('flex'); }
                         }
                     }
                     if (fullData.settings.image_style_prompt) {
@@ -2461,22 +2464,31 @@
     // ==========================================
 
     function previewCharImage(input) {
-        if (input.files && input.files[0]) {
+        if (!input.files || input.files.length === 0) return;
+
+        const list = document.getElementById('charPreviewList');
+        list.innerHTML = ''; // 기존 미리보기 초기화
+
+        Array.from(input.files).forEach((file, idx) => {
             const reader = new FileReader();
             reader.onload = function (e) {
-                document.getElementById('charPreviewImg').src = e.target.result;
-                document.getElementById('charPreviewName').textContent = input.files[0].name;
-
-                const area = document.getElementById('charPreviewArea');
-                area.classList.remove('hidden');
-                area.classList.add('flex');
-
-                // Clear checkbox if explicit upload
-                document.getElementById('useThumbnailCheck').checked = false;
-                localStorage.setItem('useThumbnailCheck', 'false');
+                const item = document.createElement('div');
+                item.className = 'flex flex-col items-center gap-1';
+                item.innerHTML = `
+                    <img src="${e.target.result}" class="w-10 h-10 rounded object-cover border border-gray-300 dark:border-gray-700" title="${file.name}">
+                    <span class="text-[10px] text-gray-400 max-w-[40px] truncate">${idx + 1}번</span>
+                `;
+                list.appendChild(item);
             };
-            reader.readAsDataURL(input.files[0]);
-        }
+            reader.readAsDataURL(file);
+        });
+
+        const area = document.getElementById('charPreviewArea');
+        area.classList.remove('hidden');
+        area.classList.add('flex');
+
+        document.getElementById('useThumbnailCheck').checked = false;
+        localStorage.setItem('useThumbnailCheck', 'false');
     }
 
     async function clearCharImage() {
@@ -2506,90 +2518,90 @@
         const btn = document.getElementById('analyzeBtn');
         const uploadInput = document.getElementById('charUploadInput');
         const useThumb = document.getElementById('useThumbnailCheck').checked;
-
-        let formData = new FormData();
-        let hasSource = false;
-        let pid = getCurrentProject(); // Define pid here for broader scope
+        const pid = getCurrentProject();
 
         if (!pid) return Utils.showToast('프로젝트를 선택하세요', 'warning');
-        formData.append('project_id', pid); // Append project_id here
 
-        if (uploadInput.files && uploadInput.files[0]) {
-            formData.append('file', uploadInput.files[0]);
-            hasSource = true;
-        } else if (useThumb) {
+        // ── 소스 결정 ──
+        const files = uploadInput.files && uploadInput.files.length > 0
+            ? Array.from(uploadInput.files)
+            : null;
+
+        let thumbPath = null;
+        if (!files && useThumb) {
             try {
-                // Fetch settings for thumbnail path
                 const fullData = await API.project.getFull(pid);
-                // Try to find thumbnail path in settings or project root
                 const settings = fullData.settings || {};
-                const thumb = settings.thumbnail_path || fullData.project?.thumbnail_path;
-
-                if (thumb) {
-                    formData.append('image_path', thumb);
-                    hasSource = true;
-                } else {
-                    return Utils.showToast('썸네일 이미지가 확인되지 않습니다. 먼저 썸네일을 생성하거나 이미지를 직접 업로드해주세요.', 'warning');
-                }
+                thumbPath = settings.thumbnail_path || fullData.project?.thumbnail_path || null;
+                if (!thumbPath) return Utils.showToast('썸네일 이미지가 확인되지 않습니다.', 'warning');
             } catch (e) {
-                console.error(e);
-                return Utils.showToast('프로젝트 정보 로드 로드 실패', 'error');
+                return Utils.showToast('프로젝트 정보 로드 실패', 'error');
             }
         }
 
-        if (!hasSource) {
+        if (!files && !thumbPath) {
             return Utils.showToast('이미지를 선택하거나 "썸네일 사용"을 체크해주세요.', 'warning');
         }
 
-        Utils.setLoading(btn, true, '이미지 분석 중... (Vision AI)');
+        // ── 분석할 소스 목록 구성 ──
+        // 파일 업로드: 각 파일 개별 분석 / 썸네일: 단일 분석
+        const sources = files
+            ? files.map((f, i) => ({ file: f, label: files.length > 1 ? `캐릭터 ${i + 1}` : null }))
+            : [{ imagePath: thumbPath, label: null }];
+
+        const totalLabel = sources.length > 1 ? `${sources.length}개 캐릭터` : '캐릭터';
+        Utils.setLoading(btn, true, `${totalLabel} 분석 중... (Vision AI)`);
+
         try {
-            const result = await API.image.analyzeCharacter(formData);
+            const descriptions = [];
+            const imageUrls = [];
 
-            if (result.description) {
-                const textArea = document.getElementById('globalPrompt');
-                const currentVal = textArea.value;
+            for (let i = 0; i < sources.length; i++) {
+                const src = sources[i];
+                const fd = new FormData();
+                fd.append('project_id', pid);
+                if (src.file) fd.append('file', src.file);
+                else fd.append('image_path', src.imagePath);
 
-                // Formatted prompt
-                const newText = `[Character Visual Reference]: ${result.description}`;
+                if (sources.length > 1) {
+                    Utils.setLoading(btn, true, `캐릭터 ${i + 1}/${sources.length} 분석 중...`);
+                }
 
-                if (currentVal.includes('[Character Visual Reference]:')) {
-                    // Alert user it's appended
-                    textArea.value = currentVal + "\n\n" + newText;
+                const result = await API.image.analyzeCharacter(fd);
+                if (result.description) {
+                    const label = src.label || '캐릭터';
+                    descriptions.push(`[${label} Visual Reference]: ${result.description}`);
+                    if (result.image_url) imageUrls.push(result.image_url);
                 } else {
-                    textArea.value = (currentVal ? currentVal + "\n\n" : "") + newText;
+                    Utils.showToast(`캐릭터 ${i + 1} 분석 실패: ${result.error || '응답 없음'}`, 'warning');
                 }
-
-                // [NEW] Save to DB
-                if (pid) {
-                    API.project.updateSetting(pid, 'character_ref_text', textArea.value).then(() => {
-                        console.log("Character ref text saved");
-                    });
-
-                    if (result.image_url) {
-                        API.project.updateSetting(pid, 'character_ref_image_path', result.image_url).then(() => {
-                            console.log("Character ref image saved:", result.image_url);
-                            // Also update preview if needed (though user just uploaded it)
-                            // But maybe cleaner to use server URL? 
-                            // We already showed preview via FileReader. No need to reload.
-                            const preview = document.getElementById('charPreviewImg');
-                            const placeholder = document.getElementById('charPlaceholder');
-                            const area = document.getElementById('charPreviewArea');
-                            if (preview && placeholder && area) {
-                                preview.src = result.image_url;
-                                preview.classList.remove('hidden');
-                                placeholder.classList.add('hidden');
-                                area.classList.remove('hidden');
-                                area.classList.add('flex');
-                            }
-                        });
-                    }
-                }
-
-                Utils.showToast('✅ 캐릭터 외형 분석이 완료되어 설정에 적용되었습니다. (자동 저장됨)', 'success');
-            } else {
-                const errMsg = result.error || '분석 결과 없음';
-                Utils.showToast('분석 실패: ' + errMsg, 'error');
             }
+
+            if (descriptions.length === 0) {
+                return Utils.showToast('모든 이미지 분석에 실패했습니다.', 'error');
+            }
+
+            // ── globalPrompt에 적용 ──
+            const textArea = document.getElementById('globalPrompt');
+            // 기존 [캐릭터 X Visual Reference] 블록 모두 제거 후 새 내용 추가
+            let baseVal = textArea.value
+                .replace(/\[캐릭터\s*\d+\s*Visual Reference\]:[\s\S]*?(?=\[|$)/g, '')
+                .replace(/\[Character Visual Reference\]:[\s\S]*?(?=\[|$)/g, '')
+                .trim();
+            textArea.value = (baseVal ? baseVal + '\n\n' : '') + descriptions.join('\n\n');
+
+            // ── DB 저장 ──
+            await API.project.updateSetting(pid, 'character_ref_text', textArea.value);
+            // 여러 이미지 경로를 쉼표로 구분하여 저장 (기존 단일 경로와 호환)
+            if (imageUrls.length > 0) {
+                await API.project.updateSetting(pid, 'character_ref_image_path', imageUrls.join(','));
+            }
+
+            const msg = sources.length > 1
+                ? `✅ ${sources.length}개 캐릭터 분석 완료 (자동 저장됨)`
+                : '✅ 캐릭터 외형 분석 완료 (자동 저장됨)';
+            Utils.showToast(msg, 'success');
+
         } catch (e) {
             Utils.showToast('분석 중 통신 오류: ' + e.message, 'error');
             console.error(e);
@@ -2734,7 +2746,7 @@
         if (!grid) return;
 
         try {
-            const res = await fetch('/api/settings/style-presets');
+            const res = await fetch('/api/settings/style-presets?mode=image');
             const presets = await res.json();
 
             // Default mappings for display names

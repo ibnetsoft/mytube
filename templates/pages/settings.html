@@ -590,10 +590,20 @@
                         <!-- Left: Info & Base Prompt (7/12) -->
                         <div class="md:col-span-12 space-y-3">
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
-                                <div class="md:col-span-1">
-                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">스타일 코드/이름</label>
-                                    <input type="text" id="customStyleName" class="input-field w-full text-xs"
-                                        placeholder="예: ghibli_studio, cyberpunk_2049">
+                                <div class="md:col-span-1 space-y-2">
+                                    <div>
+                                        <label class="text-[10px] font-bold text-gray-500 mb-1 block">스타일 코드/이름</label>
+                                        <input type="text" id="customStyleName" class="input-field w-full text-xs"
+                                            placeholder="예: ghibli_studio, cyberpunk_2049">
+                                    </div>
+                                    <div>
+                                        <label class="text-[10px] font-bold text-gray-500 mb-1 block">사용 위치</label>
+                                        <select id="customStyleMode" class="input-field w-full text-xs">
+                                            <option value="image">🎨 이미지생성 전용</option>
+                                            <option value="blog">📝 블로그 전용</option>
+                                            <option value="all">🌐 전체 공통</option>
+                                        </select>
+                                    </div>
                                 </div>
                                 <div class="md:col-span-2">
                                     <label class="text-[10px] font-bold text-gray-500 mb-1 block">베이스 이미지 (샘플)</label>
@@ -1824,6 +1834,7 @@
                 const prompt = typeof data === 'string' ? data : (data.prompt_value || '');
                 const imageUrl = typeof data === 'object' ? data.image_url : null;
                 const geminiInstruction = typeof data === 'object' ? (data.gemini_instruction || '') : '';
+                const mode = typeof data === 'object' ? (data.mode || 'image') : 'image';
 
                 const displayName = {
                     'realistic': '리얼리스틱', 'anime': '애니메이션', 'cinematic': '시네마틱',
@@ -1834,6 +1845,9 @@
 
                 const isDefault = DEFAULT_STYLE_KEYS.includes(key);
                 const hasInstruction = geminiInstruction.trim().length > 0;
+                const modeBadge = mode === 'blog' ? '<span class="inline-flex items-center gap-0.5 text-[9px] font-bold bg-green-600 text-white px-1.5 py-0.5 rounded-full shadow-sm">📝 블로그</span>'
+                    : mode === 'all' ? '<span class="inline-flex items-center gap-0.5 text-[9px] font-bold bg-blue-500 text-white px-1.5 py-0.5 rounded-full shadow-sm">🌐 전체</span>'
+                    : '';
 
                 return `
                     <div class="bg-gray-50 dark:bg-gray-800/15 p-4 rounded-xl border border-gray-100 dark:border-gray-700/50 relative group transition-all hover:shadow-md ${hasInstruction ? 'ring-1 ring-purple-100 dark:ring-purple-900/30' : ''}">
@@ -1847,9 +1861,10 @@
                                      <input type="file" id="file_${key}" class="hidden" accept="image/*" onchange="previewStyleImage(this, '${key}')">
                                  </div>
                                  <div class="space-y-0.5">
-                                     <div class="flex items-center gap-1.5">
+                                     <div class="flex items-center gap-1.5 flex-wrap">
                                          <label class="text-sm font-bold text-gray-800 dark:text-gray-100 block leading-tight">${displayName}</label>
                                          ${hasInstruction ? '<span class="inline-flex items-center gap-0.5 text-[9px] font-bold bg-purple-600 text-white px-1.5 py-0.5 rounded-full shadow-sm">🧠 Grounded</span>' : ''}
+                                         ${modeBadge}
                                      </div>
                                      <div class="flex items-center gap-2">
                                          <span class="text-[10px] text-gray-400 font-mono bg-gray-100 dark:bg-gray-900 px-1 rounded">${key}</span>
@@ -1881,35 +1896,6 @@
         } catch (e) {
             console.error(e);
             list.innerHTML = '<p class="text-red-500 text-xs">스타일을 불러오지 못했습니다.</p>';
-        }
-    }
-
-    async function saveOneStylePreset(key) {
-        const textarea = document.getElementById(`preset_${key}`);
-        if (!textarea) return;
-        const val = textarea.value;
-
-        try {
-            const res = await fetch('/api/settings/style-presets', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ style_key: key, prompt_value: val })
-            });
-
-            if (res.ok) {
-                Utils.showToast(`[${key}] 스타일이 저장되었습니다`, 'success');
-                // 저장 후 다시 읽기 전용으로
-                textarea.readOnly = true;
-                textarea.classList.remove('bg-white', 'dark:bg-gray-800');
-                textarea.classList.add('bg-gray-100', 'dark:bg-gray-900');
-                document.getElementById(`save_btn_${key}`).classList.add('hidden');
-                document.getElementById(`edit_btn_${key}`).innerText = '✏️ 수정';
-            } else {
-                Utils.showToast('저장 실패', 'error');
-            }
-        } catch (e) {
-            console.error(e);
-            Utils.showToast('오류 발생', 'error');
         }
     }
 
@@ -1982,7 +1968,7 @@
         try {
             let res;
             if (file) {
-                // multipart: image_url + prompt_value only (gemini_instruction via separate call)
+                // multipart: 이미지 업로드 + prompt_value 저장
                 const formData = new FormData();
                 formData.append('style_key', key);
                 formData.append('prompt_value', val);
@@ -1993,16 +1979,18 @@
                     method: 'POST',
                     body: formData
                 });
-                // Also save gemini_instruction via JSON
-                if (geminiInstruction !== null) {
+                // gemini_instruction도 저장 (업로드된 image_url 유지)
+                if (res.ok && geminiInstruction !== null) {
+                    const uploadResult = await res.json();
+                    const savedImageUrl = uploadResult.image_url || null;
                     await fetch('/api/settings/style-presets', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ style_key: key, prompt_value: val, gemini_instruction: geminiInstruction, image_url: null })
+                        body: JSON.stringify({ style_key: key, prompt_value: val, gemini_instruction: geminiInstruction, image_url: savedImageUrl })
                     });
                 }
             } else {
-                // Normal JSON update
+                // 파일 없음: image_url=null 전달 → DB가 기존 image_url 유지
                 res = await fetch('/api/settings/style-presets', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -2051,11 +2039,13 @@
         const promptInput = document.getElementById('customStylePrompt');
         const instructionInput = document.getElementById('customStyleInstruction');
         const fileInput = document.getElementById('customStyleImage');
-        
+        const modeSelect = document.getElementById('customStyleMode');
+
         const name = nameInput.value.trim();
         const prompt = promptInput.value.trim();
         const instruction = instructionInput.value.trim();
         const file = fileInput.files[0];
+        const mode = modeSelect ? modeSelect.value : 'image';
 
         if (!name || !prompt) {
             Utils.showToast('이름과 프롬프트를 모두 입력해주세요.', 'warning');
@@ -2081,7 +2071,7 @@
                 imageUrl = uploadData.image_url;
             }
 
-            // 2. Save JSON fields (Prompt + Instruction)
+            // 2. Save JSON fields (Prompt + Instruction + Mode)
             const saveRes = await fetch('/api/settings/style-presets', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -2089,7 +2079,8 @@
                     style_key: name,
                     prompt_value: prompt,
                     gemini_instruction: instruction,
-                    image_url: imageUrl // Keep null if not uploaded, backend might preserve existing
+                    image_url: imageUrl, // Keep null if not uploaded, backend might preserve existing
+                    mode: mode
                 })
             });
 

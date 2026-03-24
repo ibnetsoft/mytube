@@ -600,21 +600,25 @@ async def generate_image_prompts_api(req: PromptsGenerateRequest):
         style_key = req.style
         characters = []
 
+        character_ref_image_url = None
         if req.project_id:
             # Get latest script info
             p_data = db.get_script(req.project_id)
             if p_data:
                 duration = p_data.get('estimated_duration', 60)
-            
+
             # Get project settings (to resolve style key if generic)
             settings = db.get_project_settings(req.project_id)
             if settings:
                 if not style_key or style_key == 'realistic' or style_key == 'default':
                     style_key = settings.get('image_style', style_key)
-            
+                # 캐릭터 레퍼런스 이미지 경로 읽기 (여러 개면 첫 번째 사용)
+                _ref_paths = settings.get('character_ref_image_path') or ''
+                character_ref_image_url = _ref_paths.split(',')[0].strip() or None
+
             # Get existing characters for the project
             characters = db.get_project_characters(req.project_id)
-        
+
         if not duration:
             duration = len(req.script) // 5 # very rough char count est
 
@@ -625,13 +629,16 @@ async def generate_image_prompts_api(req: PromptsGenerateRequest):
         if style_data and isinstance(style_data, dict):
             style_prompt = style_data.get('prompt_value', style_key)
             gemini_instruction = style_data.get('gemini_instruction') or None
+            # 캐릭터 시트 업로드 우선, 없으면 스타일 레퍼런스 이미지 사용
+            reference_image_url = character_ref_image_url or style_data.get('image_url') or None
         else:
             style_prompt = STYLE_PROMPTS.get(style_key.lower(), style_key)
             gemini_instruction = None
+            reference_image_url = character_ref_image_url
 
         # 3. Call Gemini via Unified Service
         target_count = req.count if req.count and req.count > 0 else None
-        print(f"[Prompts] Generating for Project {req.project_id}, Style: {style_key}, Target scenes: {target_count or 'auto'}, has_gemini_instruction: {bool(gemini_instruction)}")
+        print(f"[Prompts] Generating for Project {req.project_id}, Style: {style_key}, Target scenes: {target_count or 'auto'}, has_gemini_instruction: {bool(gemini_instruction)}, has_ref_image: {bool(reference_image_url)}")
 
         # [SAFETY] Truncate script to prevent Token Limit Exceeded / Timeout
         # 30000자로 늘림 (긴 대본도 전체 대사 포함)
@@ -646,7 +653,8 @@ async def generate_image_prompts_api(req: PromptsGenerateRequest):
             characters=characters,
             target_scene_count=target_count,
             style_key=style_key,
-            gemini_instruction=gemini_instruction
+            gemini_instruction=gemini_instruction,
+            reference_image_url=reference_image_url
         )
 
         if not prompts_list:
@@ -659,7 +667,8 @@ async def generate_image_prompts_api(req: PromptsGenerateRequest):
                 characters=characters,
                 target_scene_count=target_count,
                 style_key=style_key,
-                gemini_instruction=gemini_instruction
+                gemini_instruction=gemini_instruction,
+                reference_image_url=reference_image_url
             )
 
         if not prompts_list:
