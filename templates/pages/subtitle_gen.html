@@ -175,9 +175,10 @@
         <div class="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 shrink-0 flex-wrap">
 
         <!-- Font Settings -->
-        <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-2">
-            <span class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('label_font') }}</span>
-            <select id="fontFamilySelect" class="input-compact w-24">
+        <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3">
+            <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_font') }}</span>
+            <select id="fontFamilySelect"
+                class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-28 focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer">
                 <option value="GmarketSansBold" selected>{{ t('font_gmarket_sans') }}</option>
                 <option value="TmonMonsori">{{ t('font_tmon_monsori') }}</option>
                 <option value="Jalnan">{{ t('font_jalnan') }}</option>
@@ -197,114 +198,114 @@
                 <option value="Malgun Gothic">{{ t('font_malgun_gothic') }}</option>
             </select>
             <!-- 폰트 크기 -->
-            <div class="flex flex-col items-center gap-0">
-                <span class="text-[10px] font-bold text-gray-400">{{ t('label_font_size') }}</span>
-                <div class="flex items-center gap-1">
-                    <input type="number" id="fontSizeSlider" value="5.4" min="1" max="20" step="0.1"
-                        class="input-compact w-14 text-center text-xs text-white bg-gray-700" title="{{ t('label_font_size') }} (%)">
-                    <span class="text-[10px] text-gray-400">%</span>
-                </div>
+            <div class="flex items-center gap-1">
+                <span class="text-[11px] text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_font_size') }}</span>
+                <input type="number" id="fontSizeSlider" value="5.4" min="1" max="20" step="0.1"
+                    class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-14 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                    title="{{ t('label_font_size') }} (%)">
+                <span class="text-[11px] text-gray-400">%</span>
                 <span id="fontSizeValue" class="hidden">5.4%</span>
             </div>
 
             <!-- 줄간격 -->
-            <div class="flex flex-col items-center gap-0">
-                <span class="text-[10px] font-bold text-gray-400">{{ t('label_line_spacing') }}</span>
+            <div class="flex items-center gap-1">
+                <span class="text-[11px] text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_line_spacing') }}</span>
                 <input type="number" id="lineSpacingInput" value="0.1" min="-0.5" max="1.5" step="0.05"
-                    class="input-compact w-14 text-center text-xs text-white bg-gray-700" title="{{ t('label_line_spacing_ratio') }}">
+                    class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-14 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                    title="{{ t('label_line_spacing_ratio') }}">
             </div>
         </div>
 
         <!-- Color Settings -->
-        <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-2">
-            <span class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('label_color') }}</span>
-            <div class="flex flex-col items-center">
+        <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3">
+            <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400">{{ t('label_color') }}</span>
+            <div class="flex flex-col items-center gap-0.5">
                 <input type="color" id="textColorInput" value="#ffffff"
-                    class="w-6 h-4 p-0 border-0 rounded cursor-pointer" title="{{ t('label_text_color') }}">
-                <span class="text-[10px] text-gray-400">{{ t('label_text_color') }}</span>
+                    class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer" title="{{ t('label_text_color') }}">
+                <span class="text-[9px] text-gray-400">{{ t('label_text_color') }}</span>
             </div>
-            <div class="flex flex-col items-center">
+            <div class="flex flex-col items-center gap-0.5">
                 <input type="color" id="strokeColorInput" value="#000000"
-                    class="w-6 h-4 p-0 border-0 rounded cursor-pointer" title="{{ t('label_outline_color') }}">
-                <span class="text-[10px] text-gray-400">{{ t('label_outline_color') }}</span>
+                    class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer" title="{{ t('label_outline_color') }}">
+                <span class="text-[9px] text-gray-400">{{ t('label_outline_color') }}</span>
             </div>
         </div>
 
-        <!-- Stroke Width (Reverted to numeric) -->
-        <div class="flex flex-col items-center gap-1 border-r border-gray-200 dark:border-gray-600 px-2">
-            <span class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('label_outline_width') }}</span>
-            <div class="flex items-center gap-1">
-                <input type="number" id="strokeWidthInput" value="0" min="0" max="15" step="0.5"
-                    class="input-compact w-12 text-center text-xs text-white bg-gray-700" title="{{ t('label_outline_width') }} (px)">
-                <span class="text-[10px] text-gray-400">px</span>
-            </div>
+        <!-- Stroke Width -->
+        <div class="flex items-center gap-1.5 border-r border-gray-200 dark:border-gray-600 pr-3">
+            <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_outline_width') }}</span>
+            <input type="number" id="strokeWidthInput" value="0" min="0" max="15" step="0.5"
+                class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-12 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                title="{{ t('label_outline_width') }} (px)">
+            <span class="text-[11px] text-gray-400">px</span>
         </div>
 
         <!-- Background Strip Settings -->
-        <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 px-2">
-            <div class="flex flex-col items-center gap-1">
-                <span class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('label_bg_strip') }}</span>
-                <label class="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" id="bgStripToggle" class="sr-only peer" onchange="updateBgStrip(this)">
-                    <div
-                        class="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600">
-                    </div>
-                </label>
-            </div>
-            <div class="flex flex-col items-center">
+        <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3">
+            <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_bg_strip') }}</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="bgStripToggle" class="sr-only peer" onchange="updateBgStrip(this)">
+                <div class="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+            </label>
+            <div class="flex flex-col items-center gap-0.5">
                 <input type="color" id="bgColorInput" value="#000000"
-                    class="w-6 h-4 p-0 border-0 rounded cursor-pointer" title="{{ t('label_bg_color') }}">
-                <span class="text-[10px] text-gray-400">{{ t('label_bg_color') }}</span>
+                    class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer" title="{{ t('label_bg_color') }}">
+                <span class="text-[9px] text-gray-400">{{ t('label_bg_color') }}</span>
             </div>
-            <div class="flex flex-col items-center gap-0">
-                <span class="text-[10px] font-bold text-gray-400">{{ t('label_opacity') }}</span>
+            <div class="flex items-center gap-1">
+                <span class="text-[11px] text-gray-500 dark:text-gray-400">{{ t('label_opacity') }}</span>
                 <input type="number" id="bgOpacityInput" value="0.5" min="0" max="1" step="0.1"
-                    class="input-compact w-12 text-center text-xs text-white bg-gray-700" title="{{ t('label_bg_opacity') }} (0~1)">
+                    class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-12 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                    title="{{ t('label_bg_opacity') }} (0~1)">
             </div>
         </div>
 
         <!-- Presets -->
-        <div class="flex items-center gap-1 border-r border-gray-200 dark:border-gray-600 pr-2">
+        <div class="flex items-center gap-1 border-r border-gray-200 dark:border-gray-600 pr-3">
             <button onclick="applyPreset('basic_white')"
-                class="w-5 h-5 bg-white border border-gray-300 rounded text-[10px] flex items-center justify-center shadow-sm dark:bg-gray-800 dark:border-gray-700"
+                class="w-6 h-6 bg-white border-2 border-gray-300 rounded-md text-[11px] font-bold text-gray-800 flex items-center justify-center shadow-sm hover:border-gray-400 transition-colors"
                 title="{{ t('label_white') }}">A</button>
             <button onclick="applyPreset('basic_black')"
-                class="w-5 h-5 bg-black border border-gray-600 rounded text-[10px] text-white flex items-center justify-center shadow-sm"
+                class="w-6 h-6 bg-gray-900 border-2 border-gray-600 rounded-md text-[11px] font-bold text-white flex items-center justify-center shadow-sm hover:border-gray-400 transition-colors"
                 title="{{ t('label_black') }}">A</button>
             <button onclick="applyPreset('yellow_shadow')"
-                class="w-5 h-5 bg-yellow-400 border border-yellow-600 rounded text-[10px] font-bold text-black flex items-center justify-center shadow-sm dark:text-gray-100"
+                class="w-6 h-6 bg-yellow-400 border-2 border-yellow-500 rounded-md text-[11px] font-bold text-gray-900 flex items-center justify-center shadow-sm hover:border-yellow-600 transition-colors"
                 title="{{ t('label_yellow') }}">A</button>
         </div>
 
-
         <div class="flex-1"></div>
 
-        <!-- Actions -->
-        <div class="flex items-center gap-2">
-            <!-- [NEW] Reset Button -->
+        <!-- Actions — 모두 동일한 베이스 스타일 -->
+        <div class="flex items-center gap-1.5">
             <button onclick="resetAndReload(this)"
-                class="px-3 py-1 text-xs bg-gray-500 hover:bg-gray-600 text-white rounded shadow transition flex items-center gap-1 border border-gray-600 dark:bg-gray-900">
-                <span>{{ t('btn_reset_reload') }}</span>
+                class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-gray-500 hover:bg-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 text-white disabled:opacity-50">
+                🔄 {{ t('btn_reset_reload') }}
             </button>
-
             <button onclick="distributeImages(this)"
-                class="btn-primary flex items-center gap-1 py-1 shadow-sm hover:translate-y-[-1px] transition-all">
-                {{ t('btn_ai_sync') }}</button>
+                class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-blue-500 hover:bg-blue-600 text-white shadow-sm shadow-blue-500/30 disabled:opacity-50">
+                🎯 {{ t('btn_ai_sync') }}
+            </button>
             <button onclick="splitAllSubtitles(this)"
-                class="btn-secondary flex items-center gap-1 py-1 shadow-sm hover:translate-y-[-1px] transition-all">
-                {{ t('btn_split_2lines') }}</button>
-            <button onclick="regenerateSubtitles(this)" class="btn-secondary flex items-center gap-1 py-1">
-                {{ t('btn_regen_all') }}</button>
+                class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-slate-500 hover:bg-slate-600 text-white disabled:opacity-50">
+                ✂️ {{ t('btn_split_2lines') }}
+            </button>
+            <button onclick="regenerateSubtitles(this)"
+                class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-indigo-500 hover:bg-indigo-600 text-white disabled:opacity-50">
+                ✨ {{ t('btn_regen_all') }}
+            </button>
             <button onclick="saveStyleSettings(this)"
-                class="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold px-3 py-1.5 rounded shadow shadow-blue-500/20 transition-all flex items-center gap-1">
-                {{ t('btn_save_setting') }}</button>
+                class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-600/30 disabled:opacity-50">
+                ⚙️ {{ t('btn_save_setting') }}
+            </button>
             <button onclick="saveSubtitles(this)"
-                class="bg-green-600 hover:bg-green-700 text-white text-[10px] font-bold px-3 py-1.5 rounded shadow shadow-green-500/20 transition-all flex items-center gap-1"
+                class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white shadow-sm shadow-green-600/30 disabled:opacity-50"
                 title="{{ t('tooltip_save_sync') }}">
-                {{ t('btn_save') }}</button>
+                💾 {{ t('btn_save') }}
+            </button>
             <button onclick="renderVideo(this)"
-                class="bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-bold px-3 py-1.5 rounded shadow shadow-purple-500/20 transition-all flex items-center gap-1 animate-pulse-slow">
-                {{ t('btn_render_video') }}</button>
+                class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-purple-600 hover:bg-purple-700 text-white shadow-sm shadow-purple-600/30 animate-pulse-slow disabled:opacity-50">
+                🎬 {{ t('btn_render_video') }}
+            </button>
         </div>
     </div>
 

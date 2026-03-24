@@ -170,7 +170,7 @@ class VideoService:
             if MOVIEPY_V2:
                 return clip.with_effects([Resize(new_size=new_size)])
             # 1.x has .resize() method (from moviepy.editor or VideoClip)
-            return clip.resize(new_size=new_size)
+            return clip.resize(newsize=new_size)
 
         def apply_fadein(clip, duration):
             if MOVIEPY_V2:
@@ -815,7 +815,6 @@ class VideoService:
             
             # 스타일 설정 추출
             s_settings = subtitle_settings or {}
-            print(f"DEBUG_RENDER: video_service received s_settings: {s_settings}")
             
             # [CHANGED] 비율 기반 폰트 크기 (영상 높이의 %)
             font_size_percent = s_settings.get("font_size", 5.0)  # 기본 5%
@@ -1861,7 +1860,6 @@ class VideoService:
         import re
 
         # [FIX] Safety cleaning just in case (Include Unicode Brackets)
-        print(f"DEBUG_RENDER: Raw Text Input: '{text}'")
         if text:
             # 1. Normalize Unicode (Full-width -> ASCII, etc.)
             text = unicodedata.normalize('NFKC', text)
@@ -1869,7 +1867,6 @@ class VideoService:
             text = re.sub(r'[()\[\]\{\}（）「」『』【】]', '', text)
             # 3. Newline Safety
             text = text.replace('\r', '').strip()
-            print(f"DEBUG_RENDER: Cleaned Text: '{text}'")
             
             # 4. [NEW] Auto-Fallback for Japanese Fonts
             if re.search(r'[\u3040-\u30ff]', text):
@@ -1887,7 +1884,6 @@ class VideoService:
         bg_color = self._parse_color(bg_color) if bg_color else None
 
         final_font_color = style.get("font_color", font_color)
-        print(f"DEBUG_RENDER: _create_subtitle_image style='{style_name}' font_color='{font_color}' final='{final_font_color}'")
         stroke_color = stroke_color if stroke_color is not None else style.get("stroke_color", "black")
         
         # [FIX] Stroke Width Priority: Explicit(px) > Explicit(Ratio) > Style(Ratio)
@@ -1983,28 +1979,9 @@ class VideoService:
                 if "batang.ttc" in font_path.lower() and ("gungsuh" in font_name.lower() or "궁서" in font_name):
                     idx = 2
                 
-                log_msg = f"DEBUG_FONT: Loading '{font_name}' from '{font_path}' with index {idx}"
-                print(log_msg)
-                try:
-                    with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
-                        df.write(f"[{datetime.datetime.now()}] {log_msg}\n")
-                except: pass
-
                 font = ImageFont.truetype(font_path, font_size, index=idx)
-                
-                success_msg = f"DEBUG_FONT: Successfully loaded {font.getname()}"
-                print(success_msg)
-                try:
-                    with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
-                        df.write(f"[{datetime.datetime.now()}] {success_msg}\n")
-                except: pass
             else:
-                fail_msg = f"DEBUG_FONT: Font path not found for '{font_name}'. Falling back."
-                print(fail_msg)
-                try:
-                    with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
-                        df.write(f"[{datetime.datetime.now()}] {fail_msg}\n")
-                except: pass
+                print(f"⚠️ [Font] Path not found for '{font_name}'. Falling back to arial.")
                 font = ImageFont.truetype("arial.ttf", font_size)
         except Exception as e:
              print(f"DEBUG_FONT: Font loading FAILED for '{font_name}': {e}")
@@ -2122,8 +2099,6 @@ class VideoService:
         # [FIX] Multi-line Background Support
         # Instead of one big box, draw per-line rounded strips
         
-        # [DEBUG] Log wrapped lines for troubleshooting
-        print(f"DEBUG_SUBTITLE: wrapped_lines count = {len(wrapped_lines)}, lines = {wrapped_lines}")
         
         # Calculate Starting Y (Top of Text Block)
         current_y = center_y - (text_h // 2)

@@ -4,8 +4,8 @@
 <style>
     .style-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-        gap: 10px;
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 8px;
     }
 
     .style-card-thumb {
@@ -60,26 +60,44 @@
 <!-- 1단계: 아이디어 생성 -->
 <div class="card mb-6">
     <input type="hidden" id="thumbnailStyle" value="japanese_viral">
-    <!-- 단일 행 레이아웃: 썸네일이미지 | 영상주제 | 아이디어버튼 | 세팅저장 -->
-    <div class="flex items-center gap-3">
-        <!-- 선택된 썸네일 스타일 이미지 -->
-        <div id="thumbnailStyleGrid" class="style-grid flex-shrink-0" style="width:110px;">
-            <!-- Loaded via JS -->
-        </div>
+    <input type="hidden" id="imageStyleKey" value="realistic">
+    <!-- 상단 행: 영상주제 | 버튼들 -->
+    <div class="flex items-center gap-3 mb-4">
         <!-- 영상 주제 입력 -->
         <input type="text" id="videoTitle" class="input-field flex-1" placeholder="{{ t('placeholder_video_topic') }}">
-        <!-- 아이디어 및 후킹 문구 생성 버튼 (소형) -->
+        <!-- 아이디어 및 후킹 문구 생성 버튼 -->
         <button onclick="generateUnifiedIdea()" id="unifiedIdeaBtn"
-            class="px-3 py-1 text-xs btn-primary rounded shadow transition flex items-center gap-1 whitespace-nowrap">
+            class="px-3 py-1.5 text-xs btn-primary rounded shadow transition flex items-center gap-1 whitespace-nowrap">
             <span>✨</span>
             <span>{{ t('btn_gen_ideas_unified') }}</span>
         </button>
         <!-- 세팅저장 버튼 -->
         <button onclick="saveThumbnailStyle()" id="saveStyleBtn"
-            class="px-3 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded shadow transition flex items-center gap-1 whitespace-nowrap">
+            class="px-3 py-1.5 text-xs bg-green-600 hover:bg-green-700 text-white rounded shadow transition flex items-center gap-1 whitespace-nowrap">
             <span>💾</span>
             <span>{{ t('btn_save_settings_only') }}</span>
         </button>
+    </div>
+
+    <!-- 이미지 스타일 (배경 화풍) -->
+    <div class="mb-4">
+        <div class="flex items-center gap-2 mb-2">
+            <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">🎨 이미지 생성 (배경)</span>
+            <span id="imageStyleBadge" class="text-[10px] bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full font-semibold">realistic</span>
+        </div>
+        <div id="imageStyleGrid" class="style-grid">
+            <!-- Loaded via JS -->
+        </div>
+    </div>
+
+    <!-- 썸네일 레이아웃 스타일 -->
+    <div>
+        <div class="flex items-center gap-2 mb-2">
+            <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">📐 썸네일 레이아웃</span>
+        </div>
+        <div id="thumbnailStyleGrid" class="style-grid">
+            <!-- Loaded via JS -->
+        </div>
     </div>
 </div>
 
@@ -275,7 +293,8 @@
     document.addEventListener('DOMContentLoaded', async () => {
         const projectId = getCurrentProject();
         initCanvasEvents(); // 캔버스 이벤트 초기화
-        await loadThumbnailStyles(); // [NEW]
+        await loadThumbnailStyles();
+        await loadImageStyles(); // 이미지 스타일 그리드 로드 (화풍)
         renderLayers(); // 기본 레이어 렌더링
         drawPreview(); // 초기 캔버스 그리기
 
@@ -335,16 +354,16 @@
                     }
                     updateHistory();
                 }
-                // [NEW] Sync Thumbnail Style with Image Style
-                // [NEW] Prioritize Saved Thumbnail Style, else fallback to Sync with Image Style
+                // 썸네일 레이아웃 스타일 복원
                 if (settings?.thumbnail_style) {
-                    // Load saved style (no need to save again)
                     selectThumbnailStyle(settings.thumbnail_style, false);
-                    console.log(`Loaded saved thumbnail style: '${settings.thumbnail_style}'`);
                 } else {
-                    // 기본값: japanese_viral (바이럴)
                     selectThumbnailStyle('japanese_viral', true);
                 }
+
+                // 이미지 스타일(화풍) 자동 선택 — image_gen.html에서 저장된 값 사용
+                const savedImageStyle = settings?.image_style || 'realistic';
+                await loadImageStyles(savedImageStyle);
 
                 // [NEW] Auto Aspect Ratio based on Project Settings
                 if (settings?.aspect_ratio) {
@@ -495,6 +514,76 @@
         }
     }
 
+    // [NEW] Image style presets (화풍) — synced from image_gen.html selection
+    let imageStylesPresets = {};
+
+    async function loadImageStyles(selectedKey = null) {
+        const grid = document.getElementById('imageStyleGrid');
+        if (!grid) return;
+
+        try {
+            const res = await fetch('/api/settings/style-presets?mode=image');
+            imageStylesPresets = await res.json();
+
+            const currentKey = selectedKey || document.getElementById('imageStyleKey').value || 'realistic';
+            const noImgSvg = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='90'%3E%3Crect fill='%23374151' width='160' height='90'/%3E%3Ctext fill='%239CA3AF' x='50%25' y='50%25' text-anchor='middle' dy='.3em' font-size='11'%3ENo Img%3C/text%3E%3C/svg%3E`;
+
+            const displayNames = {
+                'realistic':'리얼리스틱','anime':'애니메이션','cinematic':'시네마틱',
+                'cartoon':'카툰','oil_painting':'유화','watercolor':'수채화',
+                'sketch':'스케치','pixel_art':'픽셀아트','3d':'3D',
+                'k_webtoon':'K웹툰','k_manhwa':'K만화',
+            };
+
+            grid.innerHTML = Object.entries(imageStylesPresets).map(([key, data]) => {
+                const imageUrl = (typeof data === 'object' && data.image_url) ? data.image_url : noImgSvg;
+                const label = displayNames[key] || key;
+                const isActive = key === currentKey ? 'active' : '';
+                return `<div class="style-card-thumb ${isActive}" onclick="selectImageStyle('${key}')" data-imgstyle="${key}" title="${label}">
+                    <img src="${imageUrl}" alt="${label}" loading="lazy" onerror="this.onerror=null;this.src='${noImgSvg}';">
+                    <div class="style-label">${label}</div>
+                </div>`;
+            }).join('');
+
+            // 배지 업데이트
+            selectImageStyle(currentKey, false);
+        } catch (e) {
+            console.error('Failed to load image styles:', e);
+        }
+    }
+
+    function selectImageStyle(key, saveToServer = true) {
+        document.getElementById('imageStyleKey').value = key;
+
+        // 배지 텍스트 업데이트
+        const badge = document.getElementById('imageStyleBadge');
+        if (badge) {
+            const displayNames = {
+                'realistic':'리얼리스틱','anime':'애니메이션','cinematic':'시네마틱',
+                'cartoon':'카툰','oil_painting':'유화','watercolor':'수채화',
+                'sketch':'스케치','pixel_art':'픽셀아트','3d':'3D',
+                'k_webtoon':'K웹툰','k_manhwa':'K만화',
+            };
+            badge.textContent = displayNames[key] || key;
+        }
+
+        // 그리드 active 클래스
+        document.querySelectorAll('[data-imgstyle]').forEach(el => {
+            el.classList.toggle('active', el.dataset.imgstyle === key);
+        });
+
+        // 프로젝트 설정에 저장
+        if (saveToServer) {
+            const projectId = getCurrentProject();
+            if (projectId) {
+                const styleData = imageStylesPresets[key];
+                const promptValue = (typeof styleData === 'object' ? styleData.prompt_value : styleData) || '';
+                API.project.saveSettings(projectId, { image_style: key, image_style_prompt: promptValue })
+                    .catch(e => console.warn('image_style 저장 실패:', e));
+            }
+        }
+    }
+
     // [NEW] Dynamically load styles
     let thumbnailStylesPresets = {}; // [NEW] Global storage for presets
     async function loadThumbnailStyles() {
@@ -507,27 +596,37 @@
             thumbnailStylesPresets = presets; // [NEW] Store globally
 
             const displayNames = {
-                'japanese_viral': '바이럴'
+                'japanese_viral': '바이럴',
+                'face': '얼굴 클로즈업',
+                'text': '텍스트 중심',
+                'contrast': '고대비',
+                'mystery': '미스터리',
+                'minimal': '미니멀',
+                'dramatic': '드라마틱',
+                'ghibli': '지브리풍',
+                'wimpy': '윔피키드풍',
             };
-            // UI에 표시할 스타일만 필터링
-            const visibleStyles = ['japanese_viral'];
 
             const currentStyle = document.getElementById('thumbnailStyle').value;
+            const noImgSvg = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='90'%3E%3Crect fill='%23374151' width='160' height='90'/%3E%3Ctext fill='%239CA3AF' x='50%25' y='50%25' text-anchor='middle' dy='.3em' font-size='12'%3ENo Image%3C/text%3E%3C/svg%3E`;
 
-            grid.innerHTML = Object.entries(presets)
-                .filter(([key]) => visibleStyles.includes(key))
-                .map(([key, data]) => {
-                    const imageUrl = (typeof data === 'object' && data.image_url) ? data.image_url : `/static/img/thumbs/${key}.png`;
+            const entries = Object.entries(presets);
+            if (entries.length === 0) {
+                grid.innerHTML = '<p class="text-xs text-gray-400 col-span-full">스타일 없음</p>';
+                return;
+            }
+
+            grid.innerHTML = entries.map(([key, data]) => {
+                    const imageUrl = (typeof data === 'object' && data.image_url) ? data.image_url : `/static/thumbnail_samples/${key}.png`;
                     const displayName = displayNames[key] || key;
                     const isActive = key === currentStyle ? 'active' : '';
 
                     return `
-                    <div class="style-card-thumb ${isActive}" onclick="selectThumbnailStyle('${key}')" data-style="${key}">
-                        <img src="${imageUrl}" alt="${displayName}" loading="lazy" 
-                             onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22160%22 height=%2290%22%3E%3Crect fill=%22%23374151%22 width=%22160%22 height=%2290%22/%3E%3Ctext fill=%22%239CA3AF%22 x=%22%2550%22 y=%22%2550%22 text-anchor=%22middle%22 dy=%22.3em%22%3ENo Image%3C/text%3E%3C/svg%3E';">
+                    <div class="style-card-thumb ${isActive}" onclick="selectThumbnailStyle('${key}')" data-style="${key}" title="${displayName}">
+                        <img src="${imageUrl}" alt="${displayName}" loading="lazy"
+                             onerror="this.onerror=null; this.src='${noImgSvg}';">
                         <div class="style-label">${displayName}</div>
-                    </div>
-                    `;
+                    </div>`;
                 }).join('');
         } catch (e) {
             console.error("Failed to load thumbnail styles:", e);
@@ -661,22 +760,20 @@
         const stylePreset = thumbnailStylesPresets[style];
         const styleInstruction = (typeof stylePreset === 'object') ? stylePreset.prompt_value : (stylePreset || "");
 
-        // [NEW] Get Project Art Style (image_style_prompt from settings)
+        // 이미지 스타일 프롬프트 — 현재 선택된 imageStyleKey 기준으로 프리셋에서 직접 조회
         let artStylePrompt = '';
         try {
-            const projectId = getCurrentProject();
-            if (projectId) {
-                const settings = await API.project.getSettings(projectId);
-                artStylePrompt = settings?.image_style_prompt || '';
-                if (!artStylePrompt && settings?.image_style) {
-                    // image_style key로부터 스타일 설명 가져오기
-                    const styleKeys = {
-                        'k_manhwa': 'Korean webtoon/manhwa illustration style, bold outlines, cel-shading, vibrant flat colors, anime-inspired',
-                        'wimpy': 'Diary of a Wimpy Kid sketch style, simple black and white line drawing',
-                        'realistic': 'Photorealistic, cinematic photography style',
-                        'anime': 'Japanese anime illustration style, vibrant colors',
-                    };
-                    artStylePrompt = styleKeys[settings.image_style] || '';
+            const currentImgKey = document.getElementById('imageStyleKey')?.value || 'realistic';
+            const styleData = imageStylesPresets[currentImgKey];
+            if (styleData) {
+                artStylePrompt = (typeof styleData === 'object' ? styleData.prompt_value : styleData) || '';
+            }
+            // 프리셋에 없으면 project settings에서 폴백
+            if (!artStylePrompt) {
+                const projectId = getCurrentProject();
+                if (projectId) {
+                    const settings = await API.project.getSettings(projectId);
+                    artStylePrompt = settings?.image_style_prompt || '';
                 }
             }
         } catch (e) { console.log('Art style fetch failed:', e); }
