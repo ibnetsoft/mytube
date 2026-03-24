@@ -1726,26 +1726,27 @@
 
     // 채널 인증 (OAuth)
     async function authenticateChannel(id, name) {
-        if (!confirm(`'${name}' 채널의 유튜브 계정으로 로그인하시겠습니까?\n\n(참고: 새 창이 뜨면 해당 채널의 구글 계정으로 로그인해주세요.)`)) return;
+        if (!confirm(`'${name}' 채널의 유튜브 계정으로 로그인하시겠습니까?\n\n(참고: 서버에서 새 브라우저 창이 열립니다. 해당 구글 계정으로 로그인하고 승인해주시면 인증 토큰이 저장되어 이후 자동 업로드가 가능해집니다.)`)) return;
 
         try {
-            // 이 요청은 서버에서 Python 로컬 서버를 통해 브라우저를 띄우므로 시간이 걸릴 수 있음
             Utils.showToast('인증 창이 열립니다. 브라우저를 확인해주세요...', 'info');
 
-            const res = await fetch(`/api/auth/youtube/${id}`);
+            const res = await fetch(`/api/channels/${id}/login`, { method: 'POST' });
             const data = await res.json();
 
-            if (res.ok) {
+            if (res.ok && data.status === 'ok') {
                 Utils.showToast(data.message || '인증 완료!', 'success');
-                loadChannels();
+                // 목록 갱신을 위해 약간의 지연 (토큰 저장 완료 대기)
+                setTimeout(loadChannels, 1000);
             } else {
-                Utils.showToast(data.detail || '인증 실패', 'error');
+                Utils.showToast(data.error || '인증 실패', 'error');
             }
         } catch (e) {
             console.error(e);
             Utils.showToast('인증 과정 중 오류가 발생했습니다.', 'error');
         }
     }
+
 
     // 채널 추가
     async function addChannel() {
@@ -1858,7 +1859,7 @@
                             <div class="flex gap-1.5">
                                 <button onclick="toggleEditStylePreset('${key}')" id="edit_btn_${key}" class="text-[10px] bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 px-2 py-1.5 rounded-lg hover:bg-gray-50 transition-colors">✏️ 수정</button>
                                 <button onclick="saveOneStylePreset('${key}')" id="save_btn_${key}" class="hidden text-[10px] bg-blue-600 text-white px-3 py-1.5 rounded-lg shadow-sm">💾 저장</button>
-                                ${!isDefault ? `<button onclick="deleteStylePreset('${key}')" class="text-[10px] bg-red-50 text-red-500 border border-red-100 px-2 py-1.5 rounded-lg hover:bg-red-100 transition-colors">🗑️</button>` : ''}
+                                <button onclick="deleteStylePreset('${key}')" class="text-[10px] bg-red-50 text-red-500 border border-red-100 px-2 py-1.5 rounded-lg hover:bg-red-100 transition-colors">🗑️</button>
                             </div>
                         </div>
                         <div class="space-y-2">
