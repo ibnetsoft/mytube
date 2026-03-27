@@ -67,7 +67,7 @@ class AudioService:
             # Ensure cleanup if possible
             try:
                 if 'clip' in locals(): clip.close()
-            except: pass
+            except Exception: pass
             raise e
 
 audio_service = AudioService()

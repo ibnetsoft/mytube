@@ -262,7 +262,7 @@ class TTSService:
                         try:
                             import imageio_ffmpeg
                             ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
-                        except:
+                        except Exception:
                             pass
                             
                         temp_speed_path = output_path.replace(".mp3", "_speed.mp3")
@@ -886,13 +886,13 @@ class TTSService:
         finally:
             for clip in clips:
                 try: clip.close()
-                except: pass
+                except Exception: pass
             
             # 임시 파일 삭제
             for f in audio_files:
                 if os.path.exists(f) and f != output_path:
                     try: os.remove(f)
-                    except: pass
+                    except Exception: pass
 
 
 # 싱글톤 인스턴스

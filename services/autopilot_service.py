@@ -98,7 +98,7 @@ def log_debug(msg: str):
         from datetime import datetime
         with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
             f.write(f"[{datetime.now()}] {msg}\n")
-    except:
+    except Exception:
         pass
 
 class AutoPilotService:
@@ -248,7 +248,7 @@ class AutoPilotService:
             try:
                 with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
                     df.write(f"[{datetime.now()}] ❌ [Auto-Pilot] CRITICAL ERROR in run_workflow:\n{err_details}\n")
-            except: pass
+            except Exception: pass
             
             db.update_project(project_id, status="error")
 
@@ -401,7 +401,7 @@ class AutoPilotService:
             import re
             json_match = re.search(r'\{[\s\S]*\}', result_text)
             return json.loads(json_match.group()) if json_match else {"summary": result_text}
-        except: return {"summary": result_text}
+        except Exception: return {"summary": result_text}
 
     async def _generate_script(self, project_id: int, analysis: dict, config_dict: dict):
         style_key = config_dict.get("script_style", "default")
@@ -708,7 +708,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             if vs_json:
                 try:
                     voice_settings = json.loads(vs_json)
-                except:
+                except Exception:
                     pass
 
             if not text:
@@ -780,7 +780,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                 sfx_mapping = {}
                 if sfx_map_json:
                     try: sfx_mapping = json.loads(sfx_map_json)
-                    except: pass
+                    except Exception: pass
                 
                 # Check 1: Image Prompt Column 'sound_effects'
                 s_desc = p.get('sound_effects')
@@ -798,7 +798,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                                     s_desc = ad.get('sfx_prompt')
                                 else:
                                     s_desc = w_scenes[i].get('sound_effects')
-                        except: pass
+                        except Exception: pass
 
                 # Check if already generated in mapping
                 # s_desc가 있고, 매핑에 없거나 파일이 없을 때 생성
@@ -1198,7 +1198,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
         # Cleanup temps
         for f in temp_audios:
             try: os.remove(f)
-            except: pass
+            except Exception: pass
 
     async def _generate_thumbnail(self, project_id: int, script: str, config_dict: dict):
         """대본 기반 썸네일 자동 기획 및 생성"""
@@ -1330,7 +1330,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                     generic_prompt = f"Minimal aesthetic abstract background, Style: {style_prefix}, 8k, high quality"
                     try:
                         images = await gemini_service.generate_image(generic_prompt, aspect_ratio=aspect_ratio)
-                    except: pass
+                    except Exception: pass
 
             # 3. Akool Fallback
             if not images:
@@ -1414,7 +1414,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             try:
                 with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
                     df.write(f"[{datetime.now()}] {msg}\n")
-            except: pass
+            except Exception: pass
 
     async def _render_video(self, project_id: int):
         db.update_project(project_id, status="rendering")
@@ -1440,7 +1440,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                 try:
                     with open(subtitle_path, "r", encoding="utf-8") as f:
                         subs = json.load(f)
-                except: pass
+                except Exception: pass
                 
             if not subs:
                 print("🔍 [Auto-Pilot] No saved subtitles found. Generating via Whisper...")
@@ -1754,7 +1754,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                         publish_time = dt.isoformat()
                     else:
                         publish_time = schedule_at
-                except:
+                except Exception:
                     print(f"⚠️ [Upload] Invalid schedule format: {schedule_at}. Falling back to default.")
             
             if not publish_time:

@@ -311,7 +311,7 @@ class GeminiService:
             if json_match:
                 try:
                     return json.loads(json_match.group())
-                except:
+                except Exception:
                     pass
             return { "overall_strategy": "Plan parsing failed", "raw": text, "scene_specifications": [] }
         except Exception as e:
@@ -680,7 +680,7 @@ class GeminiService:
         if isinstance(analysis_data.get('duration_category'), str):
             try:
                 duration_seconds = int(re.search(r'\d+', analysis_data['duration_category']).group())
-            except: pass
+            except Exception: pass
 
         # [NEW] 스타일별 특화 지침 (기존 코드 유지)
         specialized_instruction = ""
@@ -756,7 +756,7 @@ class GeminiService:
         if json_match:
             try:
                 return json.loads(json_match.group())
-            except:
+            except Exception:
                 pass
         return {"error": "구조 생성 실패", "raw": text}
     async def generate_nursery_rhyme_ideas(self) -> List[dict]:
@@ -1701,7 +1701,7 @@ Motion prompt for this image:"""
         try:
             query = await self.generate_text(prompt, temperature=0.3)
             return query.strip().replace('"', '').replace("Search Query:", "").strip()
-        except:
+        except Exception:
             return "nature calm loop" # Fallback
 
     async def generate_video(self, prompt: str, model: str = "veo-3.1-generate-preview") -> dict:
@@ -1768,7 +1768,7 @@ Motion prompt for this image:"""
                              try:
                                  operation = client.operations.get(op_name)
                                  break
-                             except:
+                             except Exception:
                                  pass
                  
                  if attempts >= max_attempts:
@@ -1804,7 +1804,7 @@ Motion prompt for this image:"""
                                  try:
                                      fresh_op = client.operations.get(operation.name)
                                      operation = fresh_op
-                                 except:
+                                 except Exception:
                                      pass
                              
                              # Check if done
@@ -2260,7 +2260,7 @@ Motion prompt for this image:"""
             try:
                 result = json.loads(json_match.group())
                 return result
-            except:
+            except Exception:
                 pass
         
         return {"error": "대본 생성 실패", "raw": text}

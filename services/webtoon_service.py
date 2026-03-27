@@ -636,7 +636,7 @@ async def analyze_directory_service(project_id: int, files: List[str], psd_exclu
                 trait_str = ", ".join(traits) if traits else "General"
                 v_list.append(f"- Name: {v['name']} (ID: {v['voice_id']}) - {trait_str}")
             voice_options_str = "\n".join(v_list)
-    except: pass
+    except Exception: pass
 
     voice_consistency_map = {}
     try:
@@ -648,7 +648,7 @@ async def analyze_directory_service(project_id: int, files: List[str], psd_exclu
                     voice_consistency_map[k] = v
                 elif isinstance(v, str):
                     voice_consistency_map[k] = {"id": v, "name": "Unknown Voice"}
-    except: pass
+    except Exception: pass
 
     for i, file_path in enumerate(files):
         if not os.path.exists(file_path): continue
@@ -694,7 +694,7 @@ async def analyze_directory_service(project_id: int, files: List[str], psd_exclu
                     if found_any:
                         clean_png_path = os.path.join(sliced_base_dir, f"cln_{uuid.uuid4().hex}.png")
                         try: comp_cln = psd_cln.composite()
-                        except: comp_cln = None
+                        except Exception: comp_cln = None
 
                         method = "composite"
                         if not comp_cln:
@@ -705,7 +705,7 @@ async def analyze_directory_service(project_id: int, files: List[str], psd_exclu
                                     try:
                                         l_img = l.composite()
                                         if l_img: canvas.alpha_composite(l_img.convert("RGBA"))
-                                    except: pass
+                                    except Exception: pass
                             comp_cln = canvas.convert("RGB")
                         if comp_cln.mode != 'RGB': comp_cln = comp_cln.convert('RGB')
                         comp_cln.save(clean_png_path)
@@ -770,7 +770,7 @@ async def analyze_directory_service(project_id: int, files: List[str], psd_exclu
 
     try:
         eleven_voices = await tts_service.get_elevenlabs_voices()
-    except:
+    except Exception:
         eleven_voices = []
     
     for sc in all_scenes:
@@ -781,7 +781,7 @@ async def analyze_directory_service(project_id: int, files: List[str], psd_exclu
             db.update_project_setting(project_id, "voice_mapping_json", json.dumps(voice_consistency_map, ensure_ascii=False))
 
     try: shutil.rmtree(temp_dir)
-    except: pass
+    except Exception: pass
         
     db.update_project(project_id, status="completed")
     
@@ -797,7 +797,7 @@ async def analyze_directory_service(project_id: int, files: List[str], psd_exclu
     try:
         story_summary = await gemini_service.summarize_story(all_scenes)
         db.update_project_setting(project_id, "webtoon_story_summary", story_summary)
-    except: pass
+    except Exception: pass
 
     return {
         "status": "ok",
@@ -845,7 +845,7 @@ async def automate_webtoon_service(project_id: int, scenes: List[Any], use_lipsy
             db.update_project_setting(project_id, f"scene_{i+1}_voice", s.voice_id)
         if s.voice_settings:
             try: db.update_project_setting(project_id, f"scene_{i+1}_voice_settings", json.dumps(s.voice_settings))
-            except: pass
+            except Exception: pass
 
         if s.sound_effects and s.sound_effects not in ['None', 'Unknown'] and len(s.sound_effects) > 2:
             try:
@@ -855,7 +855,7 @@ async def automate_webtoon_service(project_id: int, scenes: List[Any], use_lipsy
                     sfx_filename = f"sfx_scene_{i+1:03d}.mp3"
                     with open(os.path.join(sfx_dir, sfx_filename), "wb") as f: f.write(sfx_data)
                     db.update_project_setting(project_id, f"scene_{i+1}_sfx", sfx_filename)
-            except: pass
+            except Exception: pass
 
         image_prompts.append({
             "scene_number": i + 1, "scene_text": s.dialogue, "prompt_en": f"{s.visual_desc}", 
@@ -989,7 +989,7 @@ async def generate_single_scene_video_service(project_id: int, scene_index: int,
             if is_wide:
                 print(f"📐 [Single Gen] Scene {scene_num} is WIDE physically. Forcing Pan Right strategy.")
                 motion = "pan_right"
-    except: pass
+    except Exception: pass
 
     # 2. Choice of Engine — AKOOL Seedance is PRIMARY, Wan 2.1 is FALLBACK
     engine = s.engine_override or "akool"

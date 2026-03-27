@@ -1,24 +1,49 @@
 # database.py - SQLite 로컬 데이터베이스
 import sqlite3
 import json
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 DB_PATH = Path(__file__).parent / "data" / "wingsai.db"
 
-def get_db():
-    """데이터베이스 연결"""
-    DB_PATH.parent.mkdir(exist_ok=True)
-    conn = sqlite3.connect(str(DB_PATH), timeout=60.0)
-    # [PER_CONN_WAL] Some say setting WAL every time is redundant, but in Python sqlite3 it might be safer to ensure.
-    # However, if it causes lock, we can wrap it.
-    try:
-        conn.execute("PRAGMA journal_mode=WAL;") 
-    except:
-        pass # Ignore if busy, mode is persistent anyway
-    conn.row_factory = sqlite3.Row
-    return conn
+# 스레드별 연결 캐시 (매 호출마다 새 연결 생성하는 오버헤드 제거)
+_local = threading.local()
+
+class _ReuseConn:
+    """conn.close() 호출 시 실제로 닫지 않고 연결을 유지하는 래퍼"""
+    def __init__(self, conn: sqlite3.Connection):
+        self._conn = conn
+
+    def close(self):
+        # 기존 코드가 conn.close()를 호출해도 연결을 유지
+        # 단, uncommitted 트랜잭션은 rollback해서 다음 호출이 깨끗하게 시작
+        try:
+            self._conn.rollback()
+        except Exception:
+            pass
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+def get_db() -> _ReuseConn:
+    """스레드별 DB 연결 반환 (재사용)"""
+    wrapper = getattr(_local, "conn", None)
+    if wrapper is None:
+        DB_PATH.parent.mkdir(exist_ok=True)
+        raw = sqlite3.connect(str(DB_PATH), timeout=60.0, check_same_thread=False)
+        raw.row_factory = sqlite3.Row
+        # WAL 모드는 연결 생성 시 한 번만 설정
+        try:
+            raw.execute("PRAGMA journal_mode=WAL;")
+            raw.execute("PRAGMA synchronous=NORMAL;")
+            raw.execute("PRAGMA cache_size=-8000;")  # 8MB 캐시
+        except Exception:
+            pass
+        wrapper = _ReuseConn(raw)
+        _local.conn = wrapper
+    return wrapper
 
 def reset_rendering_status():
     """서버 시작 시 렌더링 중이던 상태를 초기화"""
@@ -762,31 +787,31 @@ scene_type별 구조:
     if 'script_start' not in image_prompts_columns:
         print("[Migration] Adding script_start to image_prompts...")
         try: cursor.execute("ALTER TABLE image_prompts ADD COLUMN script_start TEXT")
-        except: pass
+        except Exception: pass
         
     if 'script_end' not in image_prompts_columns:
         print("[Migration] Adding script_end to image_prompts...")
         try: cursor.execute("ALTER TABLE image_prompts ADD COLUMN script_end TEXT")
-        except: pass
+        except Exception: pass
         
     if 'scene_title' not in image_prompts_columns:
         print("[Migration] Adding scene_title to image_prompts...")
         try: cursor.execute("ALTER TABLE image_prompts ADD COLUMN scene_title TEXT")
-        except: pass
+        except Exception: pass
 
     # [NEW] Audio & Effects Columns migration
     for col in ['video_url', 'sfx_prompt', 'bgm_prompt', 'sfx_url', 'bgm_url', 'fade_in', 'motion_desc', 'engine']:
         if col not in image_prompts_columns:
             print(f"[Migration] Adding {col} to image_prompts...")
             try: cursor.execute(f"ALTER TABLE image_prompts ADD COLUMN {col} TEXT")
-            except: pass
+            except Exception: pass
 
     # [NEW] Two-prompt compositing columns (prompt_char: character-only, prompt_bg: background-only)
     for col in ['prompt_char', 'prompt_bg']:
         if col not in image_prompts_columns:
             print(f"[Migration] Adding {col} to image_prompts...")
             try: cursor.execute(f"ALTER TABLE image_prompts ADD COLUMN {col} TEXT DEFAULT ''")
-            except: pass
+            except Exception: pass
 
     # [FIX] Missing subtitle columns migration
     try:
@@ -1385,7 +1410,7 @@ def get_script_structure(project_id: int) -> Optional[Dict]:
         data = dict(row)
         try:
             sections = json.loads(data['sections']) if data['sections'] else []
-        except:
+        except Exception:
             sections = []
             
         structure_dict = {
@@ -2014,7 +2039,7 @@ def get_global_setting(key: str, default: Any = None, value_type: str = None) ->
         val = row['value']
         try:
             parsed = json.loads(val)
-        except:
+        except Exception:
             parsed = val
         
         # Handle bool type conversion
@@ -2526,7 +2551,7 @@ def get_commerce_video(video_id):
     if video.get('product_images'):
         try:
             video['product_images'] = json.loads(video['product_images'])
-        except:
+        except Exception:
             video['product_images'] = []
     
     return video
@@ -2553,7 +2578,7 @@ def get_all_commerce_videos(limit=50):
         if video.get('product_images'):
             try:
                 video['product_images'] = json.loads(video['product_images'])
-            except:
+            except Exception:
                 video['product_images'] = []
         
         videos.append(video)

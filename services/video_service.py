@@ -193,7 +193,7 @@ class VideoService:
         if not hasattr(PIL.Image, 'ANTIALIAS'):
             try:
                 PIL.Image.ANTIALIAS = PIL.Image.LANCZOS
-            except: pass
+            except Exception: pass
 
         import numpy as np
         import requests 
@@ -205,7 +205,7 @@ class VideoService:
         try:
             with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
                  df.write(f"[{datetime.datetime.now()}] create_slideshow(PROJ={project_id}) Effects: {image_effects}\n")
-        except: pass
+        except Exception: pass
         temp_files = [] # 나중에 삭제할 임시 파일들
 
         current_duration = 0.0
@@ -479,7 +479,7 @@ class VideoService:
                 try:
                     with open("debug_effects_trace.txt", "a", encoding="utf-8") as df:
                         df.write(f"Img[{i}] EffectRaw: {image_effects[i] if image_effects and i < len(image_effects) else 'N/A'} -> Safe: {safe_effect} (Dur:{dur}, FPS:{fps})\n")
-                except: pass
+                except Exception: pass
                 
                 # Force disable effect ONLY for NORMAL Video clips. 
                 # [FIX] Allow effects for images in Vertical (Shorts) mode, and also for TALL videos that need panning!
@@ -532,7 +532,7 @@ class VideoService:
                     try:
                         with open("debug_effects_trace.txt", "a", encoding="utf-8") as df:
                             df.write(f"  -> Random Selection for Img[{i}]: {safe_effect}\n")
-                    except: pass
+                    except Exception: pass
                 
                 # [NEW] Normalize/Alias effects for unified motor control
                 if safe_effect in ['scroll_down', 'tilt_down', 'pan_down_move']: 
@@ -654,7 +654,7 @@ class VideoService:
                         try:
                             with open("debug_effects_trace.txt", "a", encoding="utf-8") as df:
                                 df.write(f"Img[{i}] ERROR applying effect '{effect}': {str(e)}\n")
-                        except: pass
+                        except Exception: pass
                         pass
 
                 clips.append(clip)
@@ -728,7 +728,7 @@ class VideoService:
             try:
                 import pydub
                 check_duration = pydub.AudioSegment.from_file(audio_path).duration_seconds
-            except:
+            except Exception:
                 pass
             
             # Adjust video duration to match audio duration
@@ -848,7 +848,7 @@ class VideoService:
             try:
                 with open("debug_font_size.txt", "a", encoding="utf-8") as df:
                     df.write(f"Timestamp: {datetime.datetime.now()}, Pct: {font_size_percent}, CalcSize: {f_size}, VideoH: {video.h}, Settings: {s_settings}\n")
-            except:
+            except Exception:
                 pass
             
             print(f"DEBUG_RENDER: Font size: {font_size_percent}% → {f_size}px (video height: {video.h}px)")
@@ -884,7 +884,7 @@ class VideoService:
             try:
                 with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
                     df.write(f"[{datetime.datetime.now()}] RENDER_SETTINGS: font='{f_name}', color='{f_color}', style='{s_style}', stroke_color='{s_stroke_color}', stroke_enabled={s_stroke_enabled}, stroke_width={s_stroke_width}, bg_enabled={s_settings.get('bg_enabled')}\n")
-            except: pass
+            except Exception: pass
 
             for sub in subtitles:
                 if not isinstance(sub, dict):
@@ -937,7 +937,7 @@ class VideoService:
                                     y_pos = int(video.h * (pct / 100))
                                 else:
                                     y_pos = int(float(custom_y))
-                            except:
+                            except Exception:
                                 y_pos = None
 
                         # 2. If no custom pos, use Default (bottom 10% margin)
@@ -1087,14 +1087,14 @@ class VideoService:
         for temp_path in temp_files:
             try:
                 os.remove(temp_path)
-            except:
+            except Exception:
                 pass
         
         # [CLEANUP] 임시 오디오 파일 수동 삭제 시도 (실패 시 무시)
         try:
             if os.path.exists(temp_audio_path):
                 os.remove(temp_audio_path)
-        except:
+        except Exception:
             pass # 파일이 잠겨있으면 넘어감 (OS가 나중에 처리하거나 다음 재부팅 시 정리)
 
         return output_path
@@ -1180,7 +1180,7 @@ class VideoService:
                      tmpl = Image.open(template_path).convert("RGBA")
                      tmpl = tmpl.resize((target_w, target_h), Image.LANCZOS)
                      bg.paste(tmpl, (0, 0), tmpl)
-                 except: pass
+                 except Exception: pass
 
             # Save to temp
             temp_name = f"cinematic_{uuid.uuid4()}.jpg"
@@ -1319,7 +1319,7 @@ class VideoService:
             try:
                 with open("debug_whisper_error.log", "a", encoding="utf-8") as f:
                     f.write(msg + "\n")
-            except: pass
+            except Exception: pass
             return []
 
         try:
@@ -1331,7 +1331,7 @@ class VideoService:
             try:
                 with open("debug_whisper_error.log", "a", encoding="utf-8") as f:
                     f.write(msg + "\n")
-            except: pass
+            except Exception: pass
             return []
 
         print(f"Aligning subtitles for: {audio_path}")
@@ -1484,7 +1484,7 @@ class VideoService:
             try:
                 with open("debug_alignment_REAL.txt", "a", encoding="utf-8") as f:
                     f.write(f"Final Subtitles (First 5): {subtitles[:5]}\n")
-            except: pass
+            except Exception: pass
 
             print(f"Generated {len(subtitles)} subtitle segments (Cleaned & VAD & Aligned).")
             return subtitles
@@ -1496,7 +1496,7 @@ class VideoService:
             try:
                 with open("debug_whisper_error.log", "w", encoding="utf-8") as f:
                     f.write(f"Error during generate_aligned_subtitles:\n{error_msg}")
-            except:
+            except Exception:
                 pass
             return []
 
@@ -1518,7 +1518,7 @@ class VideoService:
             with open("debug_alignment_REAL.txt", "w", encoding="utf-8") as f:
                 f.write(f"Script Tokens (First 20): {script_tokens[:20]}\n")
                 f.write(f"AI Words (First 20): {[w.word for w in ai_words[:20]]}\n")
-        except:
+        except Exception:
             pass
         
         # 2. AI Words 전처리
@@ -1539,7 +1539,7 @@ class VideoService:
             with open("debug_alignment_REAL.txt", "a", encoding="utf-8") as f:
                 f.write(f"Script Norm (6): {script_norm[6] if len(script_norm)>6 else 'N/A'}\n")
                 f.write(f"AI Norm (6): {ai_norm[6] if len(ai_norm)>6 else 'N/A'}\n")
-        except: pass
+        except Exception: pass
         
         matcher = difflib.SequenceMatcher(None, script_norm, ai_norm)
         
@@ -1761,7 +1761,7 @@ class VideoService:
         for clip in subtitle_clips:
             # ImageClip은 close 명시적으로 필요
             try: clip.close() 
-            except: pass
+            except Exception: pass
 
         return output_path
 
@@ -1840,7 +1840,7 @@ class VideoService:
                         try:
                             a_val = float(nums[3])
                             alpha = int(a_val * 255) if a_val <= 1.0 else int(a_val)
-                        except: pass
+                        except Exception: pass
                     
                     return (int(r), int(g), int(b), min(255, max(0, alpha)))
         except Exception as e:
@@ -1960,7 +1960,7 @@ class VideoService:
         try:
              with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
                  df.write(f"[{datetime.datetime.now()}] FONT_DEBUG: target='{target_font_file}', found_path='{font_path}', search_paths={search_paths}\n")
-        except: pass
+        except Exception: pass
         
         # G마켓 산스 없으면 malgunbd.ttf (굵은 고딕) 시도
         if not font_path and "Gmarket" in font_name:
@@ -1985,7 +1985,7 @@ class VideoService:
              print(f"DEBUG_FONT: Font loading FAILED for '{font_name}': {e}")
              try:
                  font = ImageFont.load_default()
-             except:
+             except Exception:
                  pass
 
         # Balanced Wrapping Logic with Manual Newline Support
@@ -1996,7 +1996,7 @@ class VideoService:
             try:
                 mask = fnt.getmask(' ')
                 return any(p != 0 for p in mask)
-            except:
+            except Exception:
                 return False
         _broken_space_early = _check_broken_space(font)
 
@@ -2122,7 +2122,7 @@ class VideoService:
             try:
                 mask = fnt.getmask(' ')
                 return any(p != 0 for p in mask)
-            except:
+            except Exception:
                 return False
 
         broken_space = _has_broken_space_glyph(font)
@@ -2236,7 +2236,7 @@ class VideoService:
                  left = (new_w - target_w) // 2
                  top = (new_h - target_h) // 2
                  bg = bg.crop((left, top, left + target_w, top + target_h))
-             except:
+             except Exception:
                  bg = Image.new('RGBA', target_size, (0, 0, 0, 255))
         else:
             bg = Image.new('RGBA', target_size, (0, 0, 0, 255))
@@ -2280,7 +2280,7 @@ class VideoService:
                 # Clean up temp sub image
                 try:
                     os.remove(sub_img_path)
-                except:
+                except Exception:
                     pass
         except Exception as e:
             print(f"Preview Subtitle Error: {e}")
@@ -2327,7 +2327,7 @@ class VideoService:
                         s = float(parts[1])
                         return m * 60 + s
                     return 0.0
-                except:
+                except Exception:
                     return 0.0
 
             try:
@@ -2709,11 +2709,11 @@ class VideoService:
             orig_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             cap.release()
             if orig_w <= 0 or orig_h <= 0: raise ValueError("Invalid dims")
-        except:
+        except Exception:
             try:
                 img = Image.open(input_path)
                 orig_w, orig_h = img.size
-            except:
+            except Exception:
                 return self._preprocess_video_with_ffmpeg(input_path, width, height, fps, duration=duration)
 
         # height 기준으로 확대 시 새 너비 계산
@@ -2781,7 +2781,7 @@ class VideoService:
             try:
                 img = Image.open(input_path)
                 orig_w, orig_h = img.size
-            except:
+            except Exception:
                 print(f"[TallPan] Final Fallback: {e}")
                 # 최후 수단: 일반 preprocess로 fallback
                 return self._preprocess_video_with_ffmpeg(input_path, width, height, fps, duration=duration)
@@ -3045,7 +3045,7 @@ class VideoService:
                 # Clean up splits
                 for sp in split_files:
                     try: os.remove(sp)
-                    except: pass
+                    except Exception: pass
                     
                 return v_bytes
 
@@ -3173,7 +3173,7 @@ class VideoService:
             video.write_videofile(temp_filename, fps=30, codec='libx264', audio=False, preset='ultrafast', logger=None)
             with open(temp_filename, "rb") as f: video_bytes = f.read()
             try: os.remove(temp_filename); video.close()
-            except: pass
+            except Exception: pass
             return video_bytes
 
         except Exception as e:
@@ -3348,7 +3348,7 @@ class VideoService:
                 img = cv2.imdecode(numpyarray, cv2.IMREAD_UNCHANGED)
                 stream.close()
                 return img
-            except:
+            except Exception:
                 return None
 
         def save_image(img, path):
@@ -3418,7 +3418,7 @@ class VideoService:
                 print(f"🔗 [Video Service] Continuous Drawing Merged!: {current_path} + {next_path} (Diff: {diff:.2f})")
                 
                 try: os.remove(next_path)
-                except: pass
+                except Exception: pass
             else:
                 merged_paths.append(next_path)
                 current_img = next_img

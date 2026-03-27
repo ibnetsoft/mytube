@@ -79,7 +79,7 @@ class AutoPublishService:
                         cand_path = channels[0].get('credentials_path')
                         if cand_path and os.path.exists(cand_path):
                             token_path = cand_path
-                except:
+                except Exception:
                     pass
 
                 try:

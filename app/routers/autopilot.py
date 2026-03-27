@@ -13,7 +13,7 @@ async def get_autopilot_presets_api():
     for p in presets:
         try:
             p['settings'] = json.loads(p['settings_json'])
-        except:
+        except Exception:
             p['settings'] = {}
     return {"status": "ok", "presets": presets}
 

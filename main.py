@@ -26,6 +26,7 @@ import asyncio
 import json
 import re
 import datetime
+import aiofiles
 from pathlib import Path
 
 # ==========================================
@@ -754,7 +755,7 @@ async def auto_generate_images(project_id: int):
                  
                  script = "\n".join(parts)
                  duration = 50 # Default shorts duration
-             except:
+             except Exception:
                  script = str(shorts_data) # Fallback
     
     if not script:
@@ -781,7 +782,7 @@ async def auto_generate_images(project_id: int):
                 filename = f"p{project_id}_s{p['scene_number']}_{int(time.time())}.png"
                 output_path = os.path.join(output_dir, filename)
                 
-                with open(output_path, "wb") as f:
+                async with aiofiles.open(output_path, "wb") as f:
                     f.write(images[0])
                 
                 p["image_url"] = f"{web_dir}/{filename}"
@@ -819,8 +820,8 @@ async def save_external_tts(project_id: int, file: UploadFile = File(...)):
         content = await file.read()
         if len(content) > _MAX_AUDIO_SIZE:
             raise HTTPException(400, f"파일 크기가 너무 큽니다 (최대 {_MAX_AUDIO_SIZE//1024//1024}MB)")
-        with open(file_path, "wb") as f:
-            f.write(content)
+        async with aiofiles.open(file_path, "wb") as f:
+            await f.write(content)
             
         # 4. DB 업데이트 (TTS 결과로 등록)
         # save_tts(project_id, voice_id, voice_name, audio_path, duration)
@@ -946,8 +947,8 @@ async def animate_scene(project_id: int, req: AnimateRequest):
         output_dir, web_dir = get_project_output_dir(project_id)
         filename = f"motion_p{project_id}_s{req.scene_number}_{int(time.time())}.mp4"
         output_path = os.path.join(output_dir, filename)
-        with open(output_path, "wb") as f:
-            f.write(video_bytes)
+        async with aiofiles.open(output_path, "wb") as f:
+            await f.write(video_bytes)
 
         video_web_url = f"{web_dir}/{filename}"
         db.update_image_prompt_video_url(project_id, req.scene_number, video_web_url)
@@ -976,8 +977,8 @@ async def upload_scene_video(project_id: int, scene_number: int, file: UploadFil
         content = await file.read()
         if len(content) > max_size:
             raise HTTPException(400, f"파일 크기가 너무 큽니다 (최대 {max_size//1024//1024}MB)")
-        with open(file_path, "wb") as f:
-            f.write(content)
+        async with aiofiles.open(file_path, "wb") as f:
+            await f.write(content)
             
         # DB 업데이트 (이미지/비디오 구분)
         if is_image:
@@ -1044,8 +1045,8 @@ async def save_intro_video(project_id: int, file: UploadFile = File(...)):
         content = await file.read()
         if len(content) > _MAX_VIDEO_SIZE:
             raise HTTPException(400, f"파일 크기가 너무 큽니다 (최대 {_MAX_VIDEO_SIZE//1024//1024}MB)")
-        with open(file_path, "wb") as f:
-            f.write(content)
+        async with aiofiles.open(file_path, "wb") as f:
+            await f.write(content)
             
         # 4. DB 업데이트 (background_video_url 설정을 사용하여 인트로/배경으로 지정)
         # intro_video_path에도 저장하여 렌더링 시 앞쪽에 자동 삽입되도록 함
@@ -1711,8 +1712,8 @@ async def upload_scene_image_api(
         content = await file.read()
         if len(content) > max_size:
             raise HTTPException(400, f"파일 크기가 너무 큽니다 (최대 {max_size//1024//1024}MB)")
-        with open(filepath, "wb") as f:
-            f.write(content)
+        async with aiofiles.open(filepath, "wb") as f:
+            await f.write(content)
             
         # 3. DB 업데이트 (영구 저장 보장)
         web_url = f"{web_dir}/{filename}"
@@ -2015,7 +2016,7 @@ async def tts_generate(req: TTSRequest):
                     # 임시 파일 삭제
                     for af in audio_files:
                          try: os.remove(af)
-                         except: pass
+                         except Exception: pass
                 else:
                     return {"status": "error", "error": "오디오 병합 실패 (Pydub 및 MoviePy 모두 실패)"}
             else:
@@ -2076,7 +2077,7 @@ async def tts_generate(req: TTSRequest):
                                  from moviepy import AudioFileClip
                                  with AudioFileClip(output_path) as ac:
                                      duration = ac.duration
-                             except: pass
+                             except Exception: pass
                          except Exception as e:
                              print(f"pydub check failed: {e}")
                              # Fallback to MoviePy
@@ -2084,7 +2085,7 @@ async def tts_generate(req: TTSRequest):
                                  from moviepy import AudioFileClip
                                  with AudioFileClip(output_path) as ac:
                                      duration = ac.duration
-                             except: pass
+                             except Exception: pass
                  except Exception as e:
                      print(f"Failed to calculate audio duration: {e}")
 
@@ -2142,8 +2143,8 @@ async def upload_template_api(file: UploadFile = File(...)):
         content = await file.read()
         if len(content) > _MAX_IMAGE_SIZE:
             raise HTTPException(400, f"파일 크기가 너무 큽니다 (최대 {_MAX_IMAGE_SIZE//1024//1024}MB)")
-        with open(filepath, "wb") as f:
-            f.write(content)
+        async with aiofiles.open(filepath, "wb") as f:
+            await f.write(content)
             
         # DB 업데이트 (Global Setting assumes project_id=1 for defaults or handle strictly)
         # For now, we save it as a 'default' setting with project_id=0 or just update recent project?
@@ -2238,7 +2239,7 @@ async def tts_voices():
                 "name": f"Gemini - {v}",
                 "provider": "gemini"
             })
-    except:
+    except Exception:
         pass
 
     # ElevenLabs
@@ -2259,7 +2260,7 @@ async def tts_voices():
                             "preview_url": v.get("preview_url"),
                             "labels": v.get("labels", {})
                         })
-        except:
+        except Exception:
             pass
 
     return {"voices": voices}
@@ -2373,8 +2374,8 @@ async def upload_thumbnail_style_sample(style_key: str, file: UploadFile = File(
         content = await file.read()
         if len(content) > _MAX_IMAGE_SIZE:
             raise HTTPException(400, f"파일 크기가 너무 큽니다 (최대 {_MAX_IMAGE_SIZE//1024//1024}MB)")
-        with open(filepath, "wb") as f:
-            f.write(content)
+        async with aiofiles.open(filepath, "wb") as f:
+            await f.write(content)
             
         return {"status": "ok", "url": f"/{save_dir}/{filename}"}
     except Exception as e:
@@ -2434,7 +2435,7 @@ async def generate_thumbnail_text(req: ThumbnailTextRequest):
                         with open(os.path.join(sample_img_dir, f), "rb") as img_f:
                             sample_img_bytes = img_f.read()
                         break
-                    except: pass
+                    except Exception: pass
         
         if sample_img_bytes:
              print(f"[{req.thumbnail_style}] Using sample image for text generation")
@@ -2600,7 +2601,7 @@ async def generate_thumbnail_background(req: ThumbnailBackgroundRequest):
         filename = f"bg_{uuid.uuid4().hex}.png"
         filepath = os.path.join(save_dir, filename)
 
-        with open(filepath, 'wb') as f:
+        async with aiofiles.open(filepath, "wb") as f:
             f.write(images_bytes[0])
         
         # URL 및 절대 경로 반환
@@ -2631,8 +2632,8 @@ async def save_project_thumbnail(project_id: int, file: UploadFile = File(...)):
         if len(content) > _MAX_IMAGE_SIZE:
             raise HTTPException(400, f"파일 크기가 너무 큽니다 (최대 {_MAX_IMAGE_SIZE//1024//1024}MB)")
 
-        with open(filepath, "wb") as f:
-            f.write(content)
+        async with aiofiles.open(filepath, "wb") as f:
+            await f.write(content)
             
         print(f"[Thumbnail] Saved successfully. Size: {len(content)} bytes")
 
@@ -2861,7 +2862,7 @@ async def generate_thumbnail(req: ThumbnailGenerateRequest):
                         try:
                             font = ImageFont.truetype(win_path, layer.font_size)
                             break
-                        except: continue
+                        except Exception: continue
 
             if not font:
                 font = ImageFont.load_default()
@@ -2976,8 +2977,8 @@ async def analyze_character(
                     ext = file.filename.split('.')[-1] if '.' in file.filename else 'png'
                     filename = f"char_ref_{int(datetime.datetime.now().timestamp())}.{ext}"
                     filepath = os.path.join(save_dir, filename)
-                    with open(filepath, "wb") as f:
-                        f.write(image_bytes)
+                    async with aiofiles.open(filepath, "wb") as f:
+                        await f.write(image_bytes)
                     saved_image_url = f"/{save_dir.replace(os.sep, '/')}/{filename}"
                     print(f"Saved character ref to {saved_image_url}")
                 except Exception as e:
@@ -3138,7 +3139,7 @@ async def generate_character_image(
         file_path = os.path.join(output_dir, filename)
         web_url = f"{web_dir}/{filename}"
 
-        with open(file_path, "wb") as f:
+        async with aiofiles.open(file_path, "wb") as f:
             f.write(images_bytes[0])
             
         print(f"✅ [Char Generation] Saved to {web_url}")
@@ -3427,7 +3428,7 @@ async def generate_image(
         output_path = os.path.join(output_dir, filename)
         
         # 파일 저장
-        with open(output_path, "wb") as f:
+        async with aiofiles.open(output_path, "wb") as f:
             f.write(images_bytes[0])
         
         print(f"💾 [Image Generation] Saved to: {output_path}")
@@ -3467,8 +3468,8 @@ async def save_project_thumbnail(
         content = await file.read()
         if len(content) > _MAX_IMAGE_SIZE:
             raise HTTPException(400, f"파일 크기가 너무 큽니다 (최대 {_MAX_IMAGE_SIZE//1024//1024}MB)")
-        with open(file_path, "wb") as buffer:
-            buffer.write(content)
+        async with aiofiles.open(file_path, "wb") as buffer:
+            await buffer.write(content)
             
         # 웹 접근 URL 생성
         # /static/thumbnails/{project_id}/{filename}
@@ -3808,7 +3809,7 @@ async def regenerate_subtitles(project_id: int):
             with open("debug_script_log.txt", "w", encoding="utf-8") as f:
                 f.write(f"ProjectID: {project_id}\n")
                 f.write(f"ScriptText (Len={len(script_text)}):\n{script_text}\n")
-        except:
+        except Exception:
             pass
         
         # 3. 기존 자막/VTT 무시하고 강제 생성
@@ -3888,7 +3889,7 @@ async def get_autopilot_presets_api():
     for p in presets:
         try:
             p['settings'] = json.loads(p['settings_json'])
-        except:
+        except Exception:
             p['settings'] = {}
     return {"status": "ok", "presets": presets}
 
@@ -3928,7 +3929,7 @@ async def start_autopilot_api(
                  # But if they send preset_id, we might want to load subtitle_settings from it if missing.
                  if not req.subtitle_settings:
                      req.subtitle_settings = p_settings.get("subtitle_settings")
-             except: pass
+             except Exception: pass
 
     # 2. Topic Resolve
     topic = req.topic or req.keyword
@@ -4297,7 +4298,7 @@ async def upload_external_to_youtube(
         requested_privacy = data.get("privacy", "private")
         requested_publish_at = data.get("publish_at")
         requested_channel_id = data.get("channel_id")
-    except:
+    except Exception:
         requested_privacy = "private"
         requested_publish_at = None
         requested_channel_id = None

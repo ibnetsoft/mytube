@@ -28,7 +28,7 @@ class SettingsService:
         try:
             with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except:
+        except Exception:
             return {}
 
     def save_settings(self, settings: dict):

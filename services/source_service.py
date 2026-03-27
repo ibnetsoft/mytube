@@ -88,7 +88,7 @@ class SourceService:
                 )
                 if res.status_code == 200:
                     title = res.json().get('title', title)
-        except:
+        except Exception:
             pass
 
         # 자막 추출 (동기 라이브러리 → thread pool 실행)

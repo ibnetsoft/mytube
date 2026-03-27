@@ -144,7 +144,7 @@ async def generate_subtitle_preview(request: SubtitlePreviewRequest):
         # 임시 파일 삭제
         try:
             os.remove(img_path)
-        except:
+        except Exception:
             pass
         
         return {
@@ -185,12 +185,12 @@ async def get_subtitles(project_id: int):
             import pydub
             audio_seg = pydub.AudioSegment.from_file(audio_path)
             audio_duration = audio_seg.duration_seconds
-        except:
+        except Exception:
             try:
                 from moviepy.editor import AudioFileClip
                 with AudioFileClip(audio_path) as clip:
                     audio_duration = clip.duration
-            except:
+            except Exception:
                 pass
 
         # 3. Load Subtitles (JSON) if exists
@@ -200,7 +200,7 @@ async def get_subtitles(project_id: int):
             try:
                 with open(subtitle_path, "r", encoding="utf-8") as f:
                     subtitles = json.load(f)
-            except:
+            except Exception:
                 pass
         
         # 4. Images for preview
@@ -231,7 +231,7 @@ async def get_subtitles(project_id: int):
                             decoded = urllib.parse.unquote(p['image_url'])
                             img_to_vid_map[decoded] = p['video_url']
                             img_to_vid_map[os.path.basename(decoded)] = p['video_url']
-                        except:
+                        except Exception:
                             pass
 
                 # Patch Timeline
@@ -251,7 +251,7 @@ async def get_subtitles(project_id: int):
                     try:
                         with open(timeline_images_path, "w", encoding="utf-8") as f:
                             json.dump(timeline_images, f, indent=2)
-                    except:
+                    except Exception:
                         pass
             except Exception as e:
                 print(f"[Timeline Patch Error] {e}")
@@ -267,7 +267,7 @@ async def get_subtitles(project_id: int):
              try:
                  with open(saved_timings_path, "r") as f:
                      image_timings = json.load(f)
-             except:
+             except Exception:
                  pass
         
         # Calculate Only if NO saved timings
@@ -668,13 +668,13 @@ async def get_project_subtitles(project_id: int, force_refresh: bool = False):
                         import pydub
                         audio_seg = pydub.AudioSegment.from_file(audio_path)
                         audio_duration = audio_seg.duration_seconds
-                    except:
+                    except Exception:
                         # Fallback to MoviePy
                         try:
                             from moviepy.editor import AudioFileClip
                             with AudioFileClip(audio_path) as clip:
                                 audio_duration = clip.duration
-                        except:
+                        except Exception:
                             pass
         except Exception as e:
             print(f"Error loading audio in get_project_subtitles: {e}")
@@ -723,7 +723,7 @@ async def get_project_subtitles(project_id: int, force_refresh: bool = False):
                         dec = urllib.parse.unquote(p['image_url'])
                         img_to_vid_map[dec] = p['video_url']
                         img_to_vid_map[os.path.basename(dec)] = p['video_url']
-                    except:
+                    except Exception:
                         pass
             
             patched = False
@@ -742,7 +742,7 @@ async def get_project_subtitles(project_id: int, force_refresh: bool = False):
                 try:
                     with open(timeline_images_path, "w", encoding="utf-8") as f:
                         json.dump(timeline_images, f, indent=2)
-                except:
+                except Exception:
                     pass
         except Exception as e:
             print(f"Timeline Patch Error: {e}")
@@ -1102,7 +1102,7 @@ async def render_project_video(
                              meta = reader.get_meta_data()
                              w, h = meta['size']
                              reader.close()
-                         except: pass
+                         except Exception: pass
 
                 if w > 0 and h > 0:
                     is_vertical_asset = h > w
@@ -1232,7 +1232,7 @@ async def render_project_video(
                         with open(tm_path, "r", encoding="utf-8") as f_tm:
                             forced_timings = json.load(f_tm)
                         print(f"DEBUG_RENDER: Loaded {len(forced_timings)} image timings from {tm_path}")
-                    except: pass
+                    except Exception: pass
 
                 # [AUDIO RELATIVIZE & TRIM] - (Support both front and back trim)
                 effective_audio_path = audio_path
@@ -1453,7 +1453,7 @@ async def render_project_video(
                                         import urllib.parse
                                         dec = urllib.parse.unquote(basename)
                                         prompt_map[dec] = p_text
-                                    except: pass
+                                    except Exception: pass
                         
                         # 2. Map Effects to Actual Images in Timeline
                         auto_effects = []
@@ -1519,7 +1519,7 @@ async def render_project_video(
                 try:
                     with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as rf:
                          rf.write(f"[{datetime.datetime.now()}] Render Error: {e}\n{traceback.format_exc()}\n")
-                except:
+                except Exception:
                     pass
                 
                 db.update_project(project_id, status="failed")

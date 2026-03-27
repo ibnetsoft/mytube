@@ -27,7 +27,7 @@ async def bulk_delete_projects(req: BulkDeleteRequest):
             try:
                 db.delete_project(pid)
                 count += 1
-            except: pass
+            except Exception: pass
         return {"status": "success", "deleted_count": count}
     except Exception as e:
         raise HTTPException(500, str(e))
@@ -456,7 +456,7 @@ async def generate_tts_scenes(project_id: int, req: SceneTTSRequest):
                     if vs_json:
                         import json as _json
                         try: voice_settings = _json.loads(vs_json)
-                        except: pass
+                        except Exception: pass
                     result = await tts_service.generate_elevenlabs(text, current_voice, scene_filename, voice_settings=voice_settings)
                     if result and result.get("audio_path"):
                         audio_path = result["audio_path"]
@@ -487,7 +487,7 @@ async def generate_tts_scenes(project_id: int, req: SceneTTSRequest):
                             try: from moviepy import AudioFileClip
                             except ImportError: from moviepy.audio.io.AudioFileClip import AudioFileClip
                             ac = AudioFileClip(s_out); dur = ac.duration; ac.close()
-                        except: dur = 3.0
+                        except Exception: dur = 3.0
                         cumulative_time += dur
                         audio_url = f"/output/{os.path.basename(s_out)}"
                         db.update_project_setting(project_id, f"scene_{scene_num}_audio_path", s_out)

@@ -95,7 +95,7 @@ async def get_thumbnails(project_id: int):
         if full_state_json:
             try:
                 full_settings = json.loads(full_state_json)
-            except:
+            except Exception:
                 pass
         
         return {

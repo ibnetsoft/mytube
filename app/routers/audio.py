@@ -125,7 +125,7 @@ async def analyze_audio_prompts(req: AudioAnalyzeRequest):
             cleaned = response.replace("```json", "").replace("```", "").strip()
             data = json.loads(cleaned)
             analysis = data.get("scenes", [])
-        except:
+        except Exception:
             print(f"JSON Parse Error: {response}")
             raise HTTPException(500, "Failed to parse AI response")
             
