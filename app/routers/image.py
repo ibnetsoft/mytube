@@ -5,7 +5,7 @@
 import os
 import datetime
 import aiofiles
-from fastapi import APIRouter, File, Form, UploadFile, HTTPException
+from fastapi import APIRouter, Body, File, Form, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
@@ -13,6 +13,7 @@ import time
 
 import database as db
 import config
+from app.models.media import PromptsGenerateRequest
 from app.utils import (
     validate_upload as _validate_upload,
     get_project_output_dir,

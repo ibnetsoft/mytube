@@ -104,7 +104,6 @@ except Exception as e:
 
 # 템플릿 및 정적 파일
 templates = Jinja2Templates(directory=config.TEMPLATES_DIR)
-pages_router.init_pages(templates)
 
 # Static Files
 app.mount("/static", StaticFiles(directory=config.STATIC_DIR), name="static")
@@ -201,6 +200,7 @@ app.include_router(sources_router.router)
 app.include_router(pages_router.router)
 app.include_router(gemini_router.router)
 app.include_router(image_router.router)
+pages_router.init_pages(templates)
 
 
 # output 폴더
