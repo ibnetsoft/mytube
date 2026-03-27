@@ -1137,7 +1137,7 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
                         <div>
                              <label class="block text-[9px] text-gray-500 mb-1 dark:text-gray-400">배경</label>
                              <div class="h-8 w-8 relative overflow-hidden rounded border border-gray-300 dark:border-gray-600 ${!layer.bg_color ? 'opacity-30' : ''}">
-                                <input type="color" value="${layer.bg_color || '#000000'}" onchange="updateLayer(${i}, 'bg_color', this.value)" 
+                                <input type="color" value="${layer.bg_color || '#000000'}" onchange="updateLayer(${i}, 'bg_color', this.value)"
                                    class="absolute -top-2 -left-2 w-12 h-12 p-0 border-none cursor-pointer">
                              </div>
                         </div>
@@ -1145,6 +1145,26 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
                             ${layer.bg_color ? 'ON' : 'OFF'}
                         </button>
                     </div>
+                </div>
+
+                <!-- Position Row -->
+                <div class="flex gap-2 items-center mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                    <span class="text-[9px] text-gray-400 dark:text-gray-500 font-bold whitespace-nowrap">📍 위치</span>
+                    <div class="flex gap-1 items-center">
+                        <label class="text-[9px] text-gray-500 dark:text-gray-400">X</label>
+                        <input type="number" value="${layer.x_offset || 0}"
+                            oninput="updateLayer(${i}, 'x_offset', parseInt(this.value) || 0); drawPreview();"
+                            class="input-field py-0.5 text-xs w-16 h-7 px-1 text-center">
+                    </div>
+                    <div class="flex gap-1 items-center">
+                        <label class="text-[9px] text-gray-500 dark:text-gray-400">Y</label>
+                        <input type="number" value="${layer.y_offset || 0}"
+                            oninput="updateLayer(${i}, 'y_offset', parseInt(this.value) || 0); drawPreview();"
+                            class="input-field py-0.5 text-xs w-16 h-7 px-1 text-center">
+                    </div>
+                    <button onclick="updateLayer(${i}, 'x_offset', 0); updateLayer(${i}, 'y_offset', 0); drawPreview(); renderLayers();"
+                        class="h-7 btn-secondary text-[9px] px-2 whitespace-nowrap">초기화</button>
+                    <span class="text-[9px] text-gray-400 dark:text-gray-500 ml-auto">드래그로도 조절 가능</span>
                 </div>
             </div>
         `).join('');

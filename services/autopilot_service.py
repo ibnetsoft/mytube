@@ -205,8 +205,8 @@ class AutoPilotService:
                     print(f"📝 [Auto-Pilot] Metadata missing for pid {project_id}. Generating...")
                     await self._generate_metadata(project_id, full_script)
 
-                # 5-2. [NEW] 썸네일 자동 생성
-                if self.config.get('auto_thumbnail', True):
+                # 5-2. 썸네일 자동 생성 (shorts 모드 제외)
+                if self.config.get('auto_thumbnail', True) and self.config.get('mode') != 'shorts':
                     # Check if already exists to avoid duplicate gen
                     if not settings.get('thumbnail_url'):
                         db.update_project(project_id, status="generating_thumbnail")

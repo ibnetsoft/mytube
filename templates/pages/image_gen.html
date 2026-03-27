@@ -1037,7 +1037,7 @@
                     </div>
                 </div>
                 <div class="p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
-                    <div class="lg:col-span-3 flex flex-col gap-2">
+                    <div class="${getImageColClass()} flex flex-col gap-2">
                         <div class="image-container relative w-full bg-gray-100 dark:bg-gray-900 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 group" style="${getContainerStyle()}">
                             ${p.video_url ? `
                                 <video src="${p.video_url}" class="absolute inset-0 w-full h-full object-cover" controls autoplay loop muted></video>
@@ -1086,7 +1086,7 @@
                     </div>
 
                     <!-- Right Column: Prompt Editors -->
-                    <div class="lg:col-span-9 flex flex-col gap-3">
+                    <div class="${getContentColClass()} flex flex-col gap-3">
 
 
                         <!-- 🎨 Visual Description (Image) -->
@@ -2251,7 +2251,20 @@
     function getContainerStyle() {
         const ratio = document.querySelector('input[name="aspectRatio"]:checked')?.value || '16:9';
         const map = { '16:9': '16/9', '1:1': '1/1', '9:16': '9/16', '3:4': '3/4' };
-        return `aspect-ratio: ${map[ratio] || '16/9'};`;
+        const aspectStyle = `aspect-ratio: ${map[ratio] || '16/9'};`;
+        // 쇼츠 모드(9:16)에서는 이미지 컨테이너 크기 50% 축소
+        if (window._appMode === 'shorts' || ratio === '9:16') {
+            return aspectStyle + ' max-width: 50%;';
+        }
+        return aspectStyle;
+    }
+
+    // 이미지 컬럼 클래스 반환 (모드에 따라 크기 조정)
+    function getImageColClass() {
+        return window._appMode === 'shorts' ? 'lg:col-span-2' : 'lg:col-span-3';
+    }
+    function getContentColClass() {
+        return window._appMode === 'shorts' ? 'lg:col-span-10' : 'lg:col-span-9';
     }
 
     // 초기 로드 시 DB 및 로컬 스토리지 확인
@@ -2603,47 +2616,53 @@
             // Reset all to visible first (or hidden then toggle)
             // But Tailwind 'hidden' class is what we toggle
 
+            // 비율 버튼 컨테이너 (16:9 / 9:16 버튼 묶음)
+            const ratioContainer = r169?.closest('.flex.bg-gray-100, .flex.bg-gray-700') || r169?.parentElement;
+
+            // 모드 전역 저장 (getContainerStyle, getImageColClass 에서 참조)
+            window._appMode = mode;
+
             if (mode === 'shorts') {
-                // Show 9:16, 3:4. Hide 16:9, 1:1
+                // 9:16 자동 선택, 비율 버튼 숨김
+                const radio916 = document.querySelector('input[value="9:16"]');
+                if (radio916) radio916.checked = true;
                 if (r169) r169.classList.add('hidden');
-                if (r11) r11.classList.add('hidden');
-                if (r916) r916.classList.remove('hidden');
-                if (r34) r34.classList.remove('hidden');
+                if (r916) r916.classList.add('hidden');
+                if (ratioContainer) ratioContainer.classList.add('hidden');
 
-                // Default to 3:4
-                const radio34 = document.querySelector('input[value="3:4"]');
-                if (radio34) radio34.checked = true;
-
-                // [NEW] Adjust Thumbnail Reference for Vertical
+                // Thumbnail Reference → 세로형
                 const thumbRef = document.getElementById('thumbnailReferenceContainer');
                 if (thumbRef) {
                     thumbRef.classList.remove('aspect-video');
                     thumbRef.classList.add('aspect-[9/16]');
                 }
 
+                // 이미 렌더된 씬 카드 이미지 컨테이너 → 9:16 + 50% 크기
+                document.querySelectorAll('.image-container').forEach(el => {
+                    el.style.aspectRatio = '9/16';
+                    el.style.maxWidth = '50%';
+                });
+
             } else {
-                // Longform
-                // Hide 9:16. Show 16:9, 1:1, 3:4(optional? User said 'remove 9:16').
-                // Let's hide 9:16 only as requested.
-                if (r916) r916.classList.add('hidden');
-
-                if (r169) r169.classList.remove('hidden');
-                if (r11) r11.classList.remove('hidden');
-                if (r34) r34.classList.remove('hidden');
-
-                // Default to 16:9 if 9:16 was somehow checked or just ensure 16:9 is default
+                // 16:9 자동 선택, 비율 버튼 숨김
                 const radio169 = document.querySelector('input[value="16:9"]');
-                if (radio169 && !document.querySelector('input[name="aspectRatio"]:checked')) {
-                    radio169.checked = true;
-                }
                 if (radio169) radio169.checked = true;
+                if (r169) r169.classList.add('hidden');
+                if (r916) r916.classList.add('hidden');
+                if (ratioContainer) ratioContainer.classList.add('hidden');
 
-                // [NEW] Restor Thumbnail Reference to 16:9
+                // Thumbnail Reference → 가로형
                 const thumbRef = document.getElementById('thumbnailReferenceContainer');
                 if (thumbRef) {
                     thumbRef.classList.remove('aspect-[9/16]');
                     thumbRef.classList.add('aspect-video');
                 }
+
+                // 이미 렌더된 씬 카드 이미지 컨테이너 → 16:9
+                document.querySelectorAll('.image-container').forEach(el => {
+                    el.style.aspectRatio = '16/9';
+                    el.style.maxWidth = '';
+                });
             }
 
             console.log("App Mode Applied:", mode);
