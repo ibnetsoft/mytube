@@ -329,16 +329,25 @@
                         <p class="text-xs text-gray-500 mb-6 leading-relaxed dark:text-gray-400">{{ t('helper_autopilot_desc') }}
                         </p>
 
-                        <button onclick="startAutopilot()" id="btnStartProduction"
-                            class="group w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-6 rounded-xl transition-all transform hover:scale-105 mb-4">
-                            <span>{{ t('btn_start_production') }}</span>
-                            <span class="group-hover:translate-x-1 transition-transform">⚡</span>
-                        </button>
+                        <div class="w-full flex flex-col gap-2 mb-4">
+                            <button onclick="startAutopilot()" id="btnStartProduction"
+                                class="group w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-6 rounded-xl transition-all transform hover:scale-105">
+                                <span>{{ t('btn_start_production') }}</span>
+                                <span class="group-hover:translate-x-1 transition-transform">⚡</span>
+                            </button>
+
+                            <button onclick="addToQueue()" id="btnAddToQueue"
+                                class="group w-full flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold py-3 px-6 rounded-xl border border-gray-700 transition-all hover:border-purple-500/50">
+                                <span>{{ t('btn_add_queue') }}</span>
+                                <span class="group-hover:translate-y-0.5 transition-transform text-xs">📥</span>
+                            </button>
+                        </div>
 
                         <div class="flex items-center gap-2 text-xs text-green-400">
                             <span class="flex h-2 w-2 rounded-full bg-green-500/50"></span>
                             {{ t('status_ai_server_waiting') }}
                         </div>
+
                     </div>
 
                     <!-- [NEW] YouTube Upload Options -->

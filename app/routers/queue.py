@@ -36,7 +36,42 @@ async def get_autopilot_queue():
         # 최근 프로젝트만 (ID 기준 상위 20개)
         active.sort(key=lambda x: x.get("id", 0), reverse=True)
         active = active[:20]
+
+        # 채널 목록 미리 로드 (이름 매핑용)
+        channels = db.get_all_channels()
+        channel_map = {c["id"]: c["name"] for c in channels}
+
+        # 각 프로젝트에 채널 정보 포함
+        for p in active:
+            settings = db.get_project_settings(p["id"]) or {}
+            ch_id = settings.get("youtube_channel_id")
+            ch_id_int = int(ch_id) if ch_id else None
+            p["youtube_channel_id"] = ch_id_int
+            p["channel_name"] = channel_map.get(ch_id_int) if ch_id_int else None
+
         return {"projects": active, "count": len(active)}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+class UpdateChannelRequest(BaseModel):
+    youtube_channel_id: Optional[int] = None
+
+
+@router.patch("/api/queue/{project_id}/channel")
+async def update_queue_item_channel(project_id: int, req: UpdateChannelRequest):
+    """대기열 항목의 업로드 채널 변경"""
+    try:
+        project = db.get_project(project_id)
+        if not project:
+            raise HTTPException(404, "프로젝트를 찾을 수 없습니다.")
+        if project.get("status") != "queued":
+            raise HTTPException(400, "대기열 상태의 프로젝트만 변경 가능합니다.")
+
+        db.update_project_setting(project_id, "youtube_channel_id", req.youtube_channel_id)
+        return {"status": "ok", "message": "채널이 변경되었습니다."}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -84,8 +119,25 @@ async def start_processing(background_tasks: BackgroundTasks):
     except Exception as e:
         raise HTTPException(500, str(e))
 
+@router.get("/api/queue/logs")
+async def get_queue_logs():
+    """최신 시스템 로그 (debug.log) 조회"""
+    from config import config
+    import os
+    log_path = config.DEBUG_LOG_PATH
+    if not os.path.exists(log_path):
+        return {"logs": ["No logs yet."]}
+    
+    try:
+        with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+            lines = f.readlines()
+            return {"logs": lines[-50:]}
+    except Exception as e:
+        return {"logs": [f"Error reading logs: {str(e)}"]}
+
 @router.post("/api/queue/clear")
 async def clear_queue():
+
     """대기열 비우기"""
     try:
         autopilot_service.clear_queue()

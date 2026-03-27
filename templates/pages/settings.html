@@ -42,9 +42,7 @@
             <button onclick="switchTab('data')" id="tab-data" class="tab-button">
                 🗂️ 데이터 관리
             </button>
-            <button onclick="switchTab('webtoon')" id="tab-webtoon" class="tab-button">
-                🎨 웹툰 설정
-            </button>
+
             <button onclick="switchTab('video-engine')" id="tab-video-engine" class="tab-button">
                 🎬 영상AI엔진
             </button>
@@ -161,101 +159,7 @@
                                 </div>
                             </div>
 
-                            <!-- [NEW] Google Blog API -->
-                            <div
-                                class="bg-gray-50 dark:bg-gray-800/50 rounded-md p-2 border border-gray-100 dark:border-gray-700">
-                                <div class="flex items-center justify-between mb-1">
-                                    <label
-                                        class="text-xs font-bold text-gray-700 dark:text-white flex items-center gap-1">
-                                        <span>✍️ Google Blog (Blogger) API</span>
-                                        <span id="blogStatus" class="text-[10px] font-normal text-gray-400"></span>
-                                    </label>
-                                    <span id="blogConnectionStatus"
-                                        class="text-[10px] bg-gray-200 dark:bg-gray-700 px-1.5 rounded text-gray-500 dark:text-gray-400">미설정</span>
-                                </div>
-                                <div class="space-y-2">
-                                    <div>
-                                        <label class="text-[9px] text-gray-400">클라이언트 ID <span id="blog_client_idStatus"></span></label>
-                                        <div class="flex gap-1">
-                                            <input type="password" id="blogClientId"
-                                                class="flex-1 input-field text-[10px] py-1 px-2 h-7" placeholder="Client ID 입력">
-                                            <button onclick="toggleKeyVisibility('blogClientId')"
-                                                class="btn-secondary px-2 h-7 text-[10px]">👁️</button>
-                                        </div>
-                                        <p id="blog_client_idKeyMasked" class="text-[9px] text-gray-400 mt-0.5"></p>
-                                    </div>
-                                    <div>
-                                        <label class="text-[9px] text-gray-400">클라이언트 보안 비밀번호 <span id="blog_client_secretStatus"></span></label>
-                                        <div class="flex gap-1">
-                                            <input type="password" id="blogClientSecret"
-                                                class="flex-1 input-field text-[10px] py-1 px-2 h-7" placeholder="Client Secret 입력">
-                                            <button onclick="toggleKeyVisibility('blogClientSecret')"
-                                                class="btn-secondary px-2 h-7 text-[10px]">👁️</button>
-                                        </div>
-                                        <p id="blog_client_secretKeyMasked" class="text-[9px] text-gray-400 mt-0.5"></p>
-                                    </div>
-                                    <div>
-                                        <label class="text-[9px] text-gray-400">블로그 ID (Blog ID) <span id="blog_idStatus"></span></label>
-                                        <div class="flex gap-1">
-                                            <input type="text" id="blogId"
-                                                class="flex-1 input-field text-[10px] py-1 px-2 h-7" placeholder="Blog ID 입력">
-                                        </div>
-                                        <p id="blog_idKeyMasked" class="text-[9px] text-gray-400 mt-0.5"></p>
-                                    </div>
-                                    <div class="pt-1 flex items-center gap-2">
-                                        <a href="/api/blog/oauth/start" target="_blank"
-                                            class="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-md transition-colors">
-                                            🔐 Google 계정 연동하기
-                                        </a>
-                                        <span id="blogOAuthStatus" class="text-[10px] text-gray-400">OAuth 상태 확인 중...</span>
-                                    </div>
-                                </div>
-                            </div>
 
-                            <!-- [NEW] WordPress API -->
-                            <div
-                                class="bg-gray-50 dark:bg-gray-800/50 rounded-md p-2 border border-gray-100 dark:border-gray-700">
-                                <div class="flex items-center justify-between mb-1">
-                                    <label
-                                        class="text-xs font-bold text-gray-700 dark:text-white flex items-center gap-1">
-                                        <span>🌐 WordPress API (REST)</span>
-                                        <span id="wpStatus" class="text-[10px] font-normal text-gray-400"></span>
-                                    </label>
-                                    <span id="wpConnectionStatus"
-                                        class="text-[10px] bg-gray-200 dark:bg-gray-700 px-1.5 rounded text-gray-500 dark:text-gray-400">미설정</span>
-                                </div>
-                                <div class="space-y-2">
-                                    <div>
-                                        <label class="text-[9px] text-gray-400">워드프레스 URL <span id="wp_urlStatus"></span></label>
-                                        <div class="flex gap-1">
-                                            <input type="text" id="wpUrl"
-                                                class="flex-1 input-field text-[10px] py-1 px-2 h-7" placeholder="https://your-site.com">
-                                        </div>
-                                        <p id="wp_urlKeyMasked" class="text-[9px] text-gray-400 mt-0.5"></p>
-                                    </div>
-                                    <div class="grid grid-cols-2 gap-2">
-                                        <div>
-                                            <label class="text-[9px] text-gray-400">사용자명 (Username) <span id="wp_usernameStatus"></span></label>
-                                            <input type="text" id="wpUsername"
-                                                class="input-field w-full text-[10px] py-1 px-2 h-7" placeholder="Admin 또는 ID">
-                                            <p id="wp_usernameKeyMasked" class="text-[9px] text-gray-400 mt-0.5"></p>
-                                        </div>
-                                        <div>
-                                            <label class="text-[9px] text-gray-400">앱 비밀번호 <span id="wp_passwordStatus"></span></label>
-                                            <div class="flex gap-1">
-                                                <input type="password" id="wpPassword"
-                                                    class="flex-1 input-field text-[10px] py-1 px-2 h-7" placeholder="xxxx xxxx xxxx xxxx">
-                                                <button onclick="toggleKeyVisibility('wpPassword')"
-                                                    class="btn-secondary px-2 h-7 text-[10px]">👁️</button>
-                                            </div>
-                                            <p id="wp_passwordKeyMasked" class="text-[9px] text-gray-400 mt-0.5"></p>
-                                        </div>
-                                    </div>
-                                    <p class="text-[8px] text-gray-400 leading-tight">
-                                        * 워드프레스 관리자 > 사용자 > 프로필 하단에서 '애플리케이션 비밀번호'를 생성해 입력하세요.
-                                    </p>
-                                </div>
-                            </div>
 
                             <!-- Replicate -->
                             <div
@@ -441,17 +345,10 @@
                                 class="px-4 py-1.5 rounded-md text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
                                 {{ t('btnModeShort') }}
                             </button>
-                            <button id="btnModeWebtoon" onclick="setAppMode('webtoon')"
-                                class="px-4 py-1.5 rounded-md text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
-                                {{ t('btnModeWebtoon') }}
-                            </button>
+
                             <button id="btnModeCommerce" onclick="setAppMode('commerce')"
                                 class="px-4 py-1.5 rounded-md text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
                                 {{ t('btnModeCommerce') }}
-                            </button>
-                            <button id="btnModeBlog" onclick="setAppMode('blog')"
-                                class="px-4 py-1.5 rounded-md text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
-                                {{ t('btnModeBlog') }}
                             </button>
                         </div>
                         <div class="mt-2 space-y-1">
@@ -600,7 +497,6 @@
                                         <label class="text-[10px] font-bold text-gray-500 mb-1 block">사용 위치</label>
                                         <select id="customStyleMode" class="input-field w-full text-xs">
                                             <option value="image">🎨 이미지생성 전용</option>
-                                            <option value="blog">📝 블로그 전용</option>
                                             <option value="all">🌐 전체 공통</option>
                                         </select>
                                     </div>
@@ -748,180 +644,7 @@
         </div>
         <!-- End Data Tab -->
 
-        <!-- Webtoon Settings Tab -->
-        <div id="tab-content-webtoon" class="tab-content">
-            <div class="card p-4 shadow-sm border border-gray-200 dark:border-gray-700">
-                <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-4">🎨 웹툰 영상화 설정</h3>
 
-                <!-- [NEW] Workflow Description Block -->
-                <div
-                    class="bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg mb-4 text-xs text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800">
-                    <strong>📢 작업 방식 안내 (PSD 자동 추출)</strong>
-                    <p class="mt-1 leading-relaxed">
-                        이 시스템은 사용자가 컷별로 이미지를 하나씩 업로드하는 방식이 아닙니다.<br>
-                        <strong>PSD 원본 파일이 저장된 디렉토리 경로</strong>와 <strong>추출할 레이어명</strong>을 지정해주시면,<br>
-                        시스템이 해당 폴더 내의 PSD 파일들에서 <strong>자동으로 이미지를 추출</strong>하여 영상화 작업을 시작합니다.<br>
-                        (AI는 추출된 이미지를 받아 [최적화 &rarr; 영상 변환 &rarr; 최종 합성]을 순차적으로 진행합니다.)
-                    </p>
-                </div>
-
-
-
-                <!-- [NEW] Webtoon Plan Prompt -->
-                <div class="card p-4 shadow-sm border border-gray-200 dark:border-gray-700 mt-4">
-                    <div class="flex justify-between items-center mb-3">
-                        <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 flex items-center gap-2">
-                            <span>📝 웹툰 기획 프롬프트 설정 (Webtoon Plan Prompt)</span>
-                        </h3>
-                        <button onclick="resetWebtoonPrompt()"
-                            class="text-[10px] text-gray-400 hover:text-gray-600 underline dark:text-gray-300">
-                            기본값으로 초기화
-                        </button>
-                    </div>
-                    <p class="text-xs text-gray-500 mb-2 dark:text-gray-400">
-                        웹툰 기획서 생성 시 AI에게 전달되는 프롬프트입니다. `[[SCENES_JSON]]` 부분에 장면 데이터가 들어갑니다.
-                    </p>
-                    <textarea id="ws_plan_prompt"
-                        class="w-full h-96 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-600 rounded-md p-3 text-xs font-mono leading-relaxed text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 outline-none resize-none custom-scrollbar"
-                        placeholder="프롬프트를 입력하세요..."></textarea>
-                </div>
-
-                <!-- Webtoon Image Optimization Prompts -->
-                <div class="card p-4 shadow-sm border border-gray-200 dark:border-gray-700 mt-4">
-                    <div class="flex justify-between items-center mb-3">
-                        <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 flex items-center gap-2">
-                            <span>✨ 이미지 최적화 (Step 1) 프롬프트 설정</span>
-                        </h3>
-                        <button onclick="resetWebtoonOptPrompts()"
-                            class="text-[10px] text-gray-400 hover:text-gray-600 underline dark:text-gray-300">
-                            기본값으로 초기화
-                        </button>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="text-xs font-bold text-gray-700 dark:text-gray-300 block mb-1">
-                                🟦 세로형 (Vertical/Standard) 최적화
-                            </label>
-                            <textarea id="ws_vertical_prompt" rows="6"
-                                class="input-field w-full text-xs font-mono text-gray-900 dark:text-gray-100"></textarea>
-                            <p class="text-[10px] text-gray-400 mt-1">
-                                * 세로형 이미지의 여백 확장 및 화질 개선 시 사용됩니다.
-                            </p>
-                        </div>
-                        <div>
-                            <label class="text-xs font-bold text-gray-700 dark:text-gray-300 block mb-1">
-                                🟧 가로형 (Horizontal/Wide) 확장
-                            </label>
-                            <textarea id="ws_horizontal_prompt" rows="6"
-                                class="input-field w-full text-xs font-mono text-gray-900 dark:text-gray-100"></textarea>
-                            <p class="text-[10px] text-gray-400 mt-1">
-                                * 가로형 이미지를 9:16으로 확장(Outpainting)할 때 사용됩니다.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- [NEW] Webtoon Video Motion Prompts -->
-                <div class="card p-4 shadow-sm border border-gray-200 dark:border-gray-700 mt-4">
-                    <div class="flex justify-between items-center mb-3">
-                        <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 flex items-center gap-2">
-                            <span>🎥 영상 변환 (Step 2) 모션 프롬프트 설정</span>
-                        </h3>
-                        <button onclick="resetWebtoonMotionPrompts()"
-                            class="text-[10px] text-gray-400 hover:text-gray-600 underline dark:text-gray-300">
-                            기본값으로 초기화
-                        </button>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <!-- Pan -->
-                        <div>
-                            <label class="text-xs font-bold text-gray-700 dark:text-gray-300 block mb-1">
-                                ⬆️ 패닝 (Pan: 세로 긴 컷)
-                            </label>
-                            <textarea id="ws_motion_pan" rows="8"
-                                class="input-field w-full text-xs font-mono leading-tight text-gray-900 dark:text-gray-100"></textarea>
-                            <p class="text-[10px] text-gray-400 mt-1">
-                                * 세로로 긴 컷을 천천히 훑어보는 영상 변환 시 사용
-                            </p>
-                        </div>
-                        <!-- Zoom -->
-                        <div>
-                            <label class="text-xs font-bold text-gray-700 dark:text-gray-300 block mb-1">
-                                🔍 줌인 (Zoom: 감정/클로즈업)
-                            </label>
-                            <textarea id="ws_motion_zoom" rows="8"
-                                class="input-field w-full text-xs font-mono leading-tight text-gray-900 dark:text-gray-100"></textarea>
-                            <p class="text-[10px] text-gray-400 mt-1">
-                                * 캐릭터 얼굴이나 감정을 강조하는 줌인 효과 시 사용
-                            </p>
-                        </div>
-                        <!-- Action -->
-                        <div>
-                            <label class="text-xs font-bold text-gray-700 dark:text-gray-300 block mb-1">
-                                💥 액션/다이나믹 (Action: 전투/강조)
-                            </label>
-                            <textarea id="ws_motion_action" rows="8"
-                                class="input-field w-full text-xs font-mono leading-tight text-gray-900 dark:text-gray-100"></textarea>
-                            <p class="text-[10px] text-gray-400 mt-1">
-                                * 전투씬 등 역동적인 움직임과 입자 효과가 필요할 때 사용
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- [NEW] Webtoon Learning Rules -->
-                <div class="card p-4 shadow-sm border border-gray-200 dark:border-gray-700 mt-4">
-                    <div class="flex justify-between items-center mb-3">
-                        <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 flex items-center gap-2">
-                            <span>🧠 웹툰 수동 처리 자동 학습 (Learning System)</span>
-                        </h3>
-                    </div>
-                    <p class="text-xs text-gray-500 mb-4 dark:text-gray-400">
-                        사용자가 웹툰 스튜디오에서 이미지를 자르거나, 합치고, 스크롤 모션으로 넘기는 반복적인 행동들을 학습하여 설정된 룰입니다. 향후 AI가 이를 참고하여 자동으로 재료를
-                        가공합니다.
-                    </p>
-
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left text-xs text-gray-500 dark:text-gray-400">
-                            <thead
-                                class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
-                                <tr>
-                                    <th scope="col" class="px-4 py-2">상황 (조건)</th>
-                                    <th scope="col" class="px-4 py-2">처리 방식 (액션)</th>
-                                    <th scope="col" class="px-4 py-2 w-1/3">설명</th>
-                                    <th scope="col" class="px-4 py-2 text-right">관리</th>
-                                </tr>
-                            </thead>
-                            <tbody id="webtoonRulesTableBody">
-                                <!-- Rules will be loaded here -->
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div class="mt-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded flex gap-2 items-center flex-wrap">
-                        <select id="newConditionType" class="input-field text-xs py-1" style="width: auto;">
-                            <option value="image_ratio">이미지 비율이</option>
-                            <option value="continuous_scene">이어지는 씬이</option>
-                        </select>
-                        <input type="text" id="newConditionValue" class="input-field text-xs py-1 flex-1 min-w-[100px]"
-                            placeholder="예: '1:2 이상 세로로 길 때' 또는 '상하체 구분될 때'">
-                        <select id="newActionType" class="input-field text-xs py-1" style="width: auto;">
-                            <option value="apply_pan_up">아래에서 위로 스크롤 (Pan-Up)</option>
-                            <option value="apply_pan_down">위에서 아래로 스크롤 (Pan-Down)</option>
-                            <option value="merge_vertical">세로로 하나로 합치기</option>
-                            <option value="auto_crop_margin">양옆 여백 자동 자르기</option>
-                        </select>
-                        <input type="text" id="newRuleDescription" class="input-field text-xs py-1 flex-1 min-w-[100px]"
-                            placeholder="설명: 웹툰 특유의 긴 컷 처리">
-                        <button onclick="addWebtoonRule()"
-                            class="btn btn-primary py-1 px-3 text-xs w-full sm:w-auto mt-2 sm:mt-0">룰 추가</button>
-                    </div>
-                </div>
-
-            </div>
-        </div>
         <!-- End Webtoon Tab -->
 
         <!-- Video AI Engine Tab -->
@@ -1156,8 +879,7 @@
             loadScriptStylePresets();
         } else if (tabName === 'thumbnail-styles') {
             loadThumbnailStylePresets();
-        } else if (tabName === 'webtoon') {
-            loadWebtoonSettings();
+
         }
     }
 
@@ -1220,6 +942,7 @@
 
         const btnLong = document.getElementById('btnModeLong');
         const btnShort = document.getElementById('btnModeShort');
+        const btnCommerce = document.getElementById('btnModeCommerce');
 
         const activeClass = "bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-white font-bold";
         const inactiveClass = "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 font-medium";
@@ -1227,9 +950,15 @@
         if (mode === 'longform') {
             btnLong.className = `px-4 py-1.5 rounded-md text-xs transition-all ${activeClass}`;
             btnShort.className = `px-4 py-1.5 rounded-md text-xs transition-all ${inactiveClass}`;
-        } else {
+            btnCommerce.className = `px-4 py-1.5 rounded-md text-xs transition-all ${inactiveClass}`;
+        } else if (mode === 'shorts') {
             btnShort.className = `px-4 py-1.5 rounded-md text-xs transition-all ${activeClass}`;
             btnLong.className = `px-4 py-1.5 rounded-md text-xs transition-all ${inactiveClass}`;
+            btnCommerce.className = `px-4 py-1.5 rounded-md text-xs transition-all ${inactiveClass}`;
+        } else if (mode === 'commerce') {
+            btnCommerce.className = `px-4 py-1.5 rounded-md text-xs transition-all ${activeClass}`;
+            btnLong.className = `px-4 py-1.5 rounded-md text-xs transition-all ${inactiveClass}`;
+            btnShort.className = `px-4 py-1.5 rounded-md text-xs transition-all ${inactiveClass}`;
         }
 
         // 저장 버튼 강조 (사용자에게 저장 필요성 알림)
@@ -1387,13 +1116,7 @@
                 'elevenlabs': 'elevenlabsApiKey',
                 'replicate': 'replicateApiKey',
                 'topview': 'topviewApiKey',
-                'topview_uid': 'topviewUid',
-                'blog_client_id': 'blogClientId',
-                'blog_client_secret': 'blogClientSecret',
-                'blog_id': 'blogId',
-                'wp_url': 'wpUrl',
-                'wp_username': 'wpUsername',
-                'wp_password': 'wpPassword'
+                'topview_uid': 'topviewUid'
             };
 
             for (const [key, inputId] of Object.entries(standardKeys)) {
@@ -1450,54 +1173,6 @@
                 }
             }
 
-            // Blog Connection Status
-            const blogConn = document.getElementById('blogConnectionStatus');
-            const blogClientIdSet = !!(data.blog_client_id && data.blog_client_id.set);
-            const blogClientSecretSet = !!(data.blog_client_secret && data.blog_client_secret.set);
-            const blogIdSet = !!(data.blog_id && data.blog_id.set);
-
-            if (blogConn) {
-                if (blogClientIdSet && blogClientSecretSet && blogIdSet) {
-                    blogConn.innerHTML = '설정됨';
-                    blogConn.className = 'text-[10px] bg-green-100 dark:bg-green-900/30 px-1.5 rounded text-green-600 dark:text-green-400';
-                } else {
-                    blogConn.innerHTML = '미설정';
-                    blogConn.className = 'text-[10px] bg-gray-200 dark:bg-gray-700 px-1.5 rounded text-gray-500 dark:text-gray-400';
-                }
-            }
-
-            // Blogger OAuth 상태 확인
-            try {
-                const oauthRes = await fetch('/api/blog/oauth/status');
-                const oauthData = await oauthRes.json();
-                const oauthEl = document.getElementById('blogOAuthStatus');
-                if (oauthEl) {
-                    if (oauthData.connected) {
-                        oauthEl.innerHTML = '<span style="color:#10b981;">✅ 연동됨</span>';
-                    } else {
-                        oauthEl.innerHTML = '<span style="color:#f59e0b;">⚠️ ' + oauthData.message + '</span>';
-                    }
-                }
-            } catch(e) {
-                const oauthEl = document.getElementById('blogOAuthStatus');
-                if (oauthEl) oauthEl.innerHTML = '<span style="color:#94a3b8;">상태 확인 불가</span>';
-            }
-
-            // WordPress Connection Status
-            const wpConn = document.getElementById('wpConnectionStatus');
-            const wpUrlSet = !!(data.wp_url && data.wp_url.set);
-            const wpUserSet = !!(data.wp_username && data.wp_username.set);
-            const wpPassSet = !!(data.wp_password && data.wp_password.set);
-
-            if (wpConn) {
-                if (wpUrlSet && wpUserSet && wpPassSet) {
-                    wpConn.innerHTML = '설정됨';
-                    wpConn.className = 'text-[10px] bg-green-100 dark:bg-green-900/30 px-1.5 rounded text-green-600 dark:text-green-400';
-                } else {
-                    wpConn.innerHTML = '미설정';
-                    wpConn.className = 'text-[10px] bg-gray-200 dark:bg-gray-700 px-1.5 rounded text-gray-500 dark:text-gray-400';
-                }
-            }
         } catch (e) {
             console.error('API 키 로드 오류:', e);
         }
@@ -1533,13 +1208,7 @@
             'topviewUid': 'topview_uid',
             'akoolClientId': 'akool_id',
             'akoolClientSecret': 'akool_secret',
-            'akoolApiKey': 'akool_api_key',
-            'blogClientId': 'blog_client_id',
-            'blogClientSecret': 'blog_client_secret',
-            'blogId': 'blog_id',
-            'wpUrl': 'wp_url',
-            'wpUsername': 'wp_username',
-            'wpPassword': 'wp_password'
+            'akoolApiKey': 'akool_api_key'
         };
 
         for (const [id, apiKey] of Object.entries(fields)) {
@@ -1845,8 +1514,7 @@
 
                 const isDefault = DEFAULT_STYLE_KEYS.includes(key);
                 const hasInstruction = geminiInstruction.trim().length > 0;
-                const modeBadge = mode === 'blog' ? '<span class="inline-flex items-center gap-0.5 text-[9px] font-bold bg-green-600 text-white px-1.5 py-0.5 rounded-full shadow-sm">📝 블로그</span>'
-                    : mode === 'all' ? '<span class="inline-flex items-center gap-0.5 text-[9px] font-bold bg-blue-500 text-white px-1.5 py-0.5 rounded-full shadow-sm">🌐 전체</span>'
+                const modeBadge = mode === 'all' ? '<span class="inline-flex items-center gap-0.5 text-[9px] font-bold bg-blue-500 text-white px-1.5 py-0.5 rounded-full shadow-sm">🌐 전체</span>'
                     : '';
 
                 return `

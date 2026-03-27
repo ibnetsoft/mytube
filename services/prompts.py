@@ -494,4 +494,95 @@ JSON만 반환하세요."""
 JSON만 반환하세요."""
 
 
+    # --- Nursery Rhyme (동요) 관련 프롬프트 ---
+    GEMINI_NURSERY_RHYME_IDEAS = """당신은 전 세계 아이들에게 사랑받는 최고의 동요 작곡가이자 아동 교육 전문가입니다.
+2~6세 아이들이 즐겁게 부를 수 있고, 교육적인 가치가 있는 '동요 아이디어' 10가지를 제안해주세요.
+
+[주제 가이드]
+아이들의 일상 루틴(양치질, 손 씻기, 잠자기, 나누기 등), 색상, 알파벳, 동물, 감정 등을 주제로 하세요.
+가사는 단순하고 캐치하며 반복적이어야 합니다.
+
+[작성 형식]
+- 각 아이디어는 '제목'과 '한 줄 요약'으로 구성합니다.
+- 총 10개를 작성하세요.
+
+다음 JSON 형식으로만 답변하세요:
+{
+    "ideas": [
+        {
+            "id": 1,
+            "title": "제목 1",
+            "summary": "한 줄 요약 1"
+        },
+        ...
+    ]
+}
+JSON만 반환하세요."""
+
+    GEMINI_NURSERY_RHYME_DEVELOP = """당신은 전 세계 아이들에게 사랑받는 최고의 동요 작곡가입니다. 
+제시된 아이디어를 바탕으로 2~6세 아이들을 위한 완성된 동요 가사를 작성해주세요.
+
+[아이디어]
+제목: {title}
+요약: {summary}
+
+[작성 지침]
+- 대상: 2~6세 유아
+- 구성: 짧은 절(Verse) 2개, 반복되는 후렴구(Chorus), 짧고 행복한 마무리(Ending)
+- 스타일: 매우 단순한 단어와 짧은 문장 사용
+- 재미 요소: 가사에 '칙칙폭폭', '반짝반짝' 같은 의성어/의태어를 섞어 아이들이 즐겁게 따라 부를 수 있게 하세요.
+- 톤: 긍정적이고, 재미있고, 교육적이어야 합니다.
+
+[작성 규칙 - TTS 및 영상 제작용]
+- 독백(나레이션) 형식이 아닌 '노래 가사' 형식으로 작성하세요.
+- 괄호, 지문, 타임스탬프를 절대 포함하지 마세요.
+- 오직 노래로 불릴 '가사 텍스트'만 포함하세요.
+
+다음 JSON 형식으로만 응답하세요:
+{
+    "title": "{title}",
+    "lyrics": "전체 가사 텍스트",
+    "structure": {
+        "verse1": "1절 내용",
+        "chorus": "후렴구 내용",
+        "verse2": "2절 내용",
+        "ending": "마무리 내용"
+    }
+}
+JSON만 반환하세요."""
+
+    GEMINI_NURSERY_RHYME_IMAGE_PROMPTS = """당신은 디즈니나 픽사 스타일의 3D 애니메이션을 제작하는 세계 최고의 아트 디렉터입니다.
+제시된 동요 가사([TITLE]: {title})를 바탕으로, 각 섹션별로 최적화된 이미지 생성 프롬프트를 작성해주세요.
+
+[가사 정보]
+{lyrics}
+
+[비주얼 스타일 지정 (STRICT)]
+- **Style**: High-quality 3D animation style, Pixar/Disney inspired.
+- **Atmosphere**: Bright, vibrant colors, soft volumetric lighting, magical and kid-friendly environment.
+- **Characters**: Cute, expressive characters with big eyes and friendly smiles.
+- **Constraint**: NO TEXT in images. Anatomically correct limbs (strictly 2 arms, 2 hands).
+
+[프롬프트 구성 지침]
+- 각 섹션(Verse 1, Chorus, Verse 2, Ending)에 대해 하나씩, 총 4개 이상의 이미지 프롬프트를 작성하세요.
+- 가사의 내용을 시각적으로 풍부하게 묘사하세요.
+- 일관된 캐릭터 디자인(주인공이 있다면 동일한 특징 유지)을 유지하세요.
+
+다음 JSON 형식으로 응답하세요:
+{
+    "scenes": [
+        {
+            "scene_number": 1,
+            "section": "Verse 1",
+            "scene_text": "해당 구간 가사",
+            "prompt_ko": "장면 묘사 (한글)",
+            "prompt_en": "3D Pixar style, [Visual details], vibrant colors, soft lighting, no text, no words, strictly two arms and two hands",
+            "flow_prompt": "A cinematic Pixar-style 3D animation of [Subject] [Action] in a [Environment]... smooth camera motion, magical atmosphere."
+        },
+        ...
+    ]
+}
+JSON만 반환하세요."""
+
+
 prompts = Prompts()

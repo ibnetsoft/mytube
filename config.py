@@ -25,13 +25,6 @@ class Config:
     AKOOL_TOKEN: str = os.getenv("AKOOL_TOKEN", "") # Legacy or direct access token
     TOPVIEW_API_KEY: str = os.getenv("TOPVIEW_API_KEY", "") # TopView AI
     TOPVIEW_UID: str = os.getenv("TOPVIEW_UID", "") # TopView AI UID
-    BLOG_CLIENT_ID: str = os.getenv("BLOG_CLIENT_ID", "") 
-    BLOG_CLIENT_SECRET: str = os.getenv("BLOG_CLIENT_SECRET", "")
-    BLOG_ID: str = os.getenv("BLOG_ID", "")
-    BLOG_ID: str = os.getenv("BLOG_ID", "")
-    WP_URL: str = os.getenv("WP_URL", "") # WordPress Base URL
-    WP_USERNAME: str = os.getenv("WP_USERNAME", "") # WordPress Username
-    WP_PASSWORD: str = os.getenv("WP_PASSWORD", "") # WordPress Application Password
 
     # 서버 설정
     HOST = os.getenv("HOST", "127.0.0.1")
@@ -105,7 +98,7 @@ class Config:
     @classmethod
     def update_api_key(cls, key_name: str, value: str):
         """API 키 런타임 업데이트 및 .env 파일 저장"""
-        valid_keys = ['YOUTUBE_API_KEY', 'GEMINI_API_KEY', 'ELEVENLABS_API_KEY', 'TYPECAST_API_KEY', 'GOOGLE_APPLICATION_CREDENTIALS', 'OPENAI_API_KEY', 'PEXELS_API_KEY', 'REPLICATE_API_TOKEN', 'TOPVIEW_API_KEY', 'TOPVIEW_UID', 'AKOOL_TOKEN', 'AKOOL_CLIENT_ID', 'AKOOL_CLIENT_SECRET', 'AKOOL_API_KEY', 'BLOG_CLIENT_ID', 'BLOG_CLIENT_SECRET', 'BLOG_ID', 'WP_URL', 'WP_USERNAME', 'WP_PASSWORD']
+        valid_keys = ['YOUTUBE_API_KEY', 'GEMINI_API_KEY', 'ELEVENLABS_API_KEY', 'TYPECAST_API_KEY', 'GOOGLE_APPLICATION_CREDENTIALS', 'OPENAI_API_KEY', 'PEXELS_API_KEY', 'REPLICATE_API_TOKEN', 'TOPVIEW_API_KEY', 'TOPVIEW_UID', 'AKOOL_TOKEN', 'AKOOL_CLIENT_ID', 'AKOOL_CLIENT_SECRET', 'AKOOL_API_KEY']
 
         if key_name not in valid_keys:
             return False
@@ -167,13 +160,7 @@ class Config:
             "topview_uid": {"set": bool(cls.TOPVIEW_UID), "masked": cls.mask_key(cls.TOPVIEW_UID), "value": cls.TOPVIEW_UID},
             "akool_id": {"set": bool(cls.AKOOL_CLIENT_ID), "masked": cls.mask_key(cls.AKOOL_CLIENT_ID), "value": cls.AKOOL_CLIENT_ID},
             "akool_secret": {"set": bool(cls.AKOOL_CLIENT_SECRET), "masked": cls.mask_key(cls.AKOOL_CLIENT_SECRET), "value": cls.AKOOL_CLIENT_SECRET},
-            "akool_api_key": {"set": bool(cls.AKOOL_API_KEY), "masked": cls.mask_key(cls.AKOOL_API_KEY), "value": cls.AKOOL_API_KEY},
-            "blog_client_id": {"set": bool(cls.BLOG_CLIENT_ID), "masked": cls.mask_key(cls.BLOG_CLIENT_ID), "value": cls.BLOG_CLIENT_ID},
-            "blog_client_secret": {"set": bool(cls.BLOG_CLIENT_SECRET), "masked": cls.mask_key(cls.BLOG_CLIENT_SECRET), "value": cls.BLOG_CLIENT_SECRET},
-            "blog_id": {"set": bool(cls.BLOG_ID), "masked": cls.BLOG_ID, "value": cls.BLOG_ID},
-            "wp_url": {"set": bool(cls.WP_URL), "masked": cls.WP_URL, "value": cls.WP_URL},
-            "wp_username": {"set": bool(cls.WP_USERNAME), "masked": cls.WP_USERNAME, "value": cls.WP_USERNAME},
-            "wp_password": {"set": bool(cls.WP_PASSWORD), "masked": cls.mask_key(cls.WP_PASSWORD), "value": cls.WP_PASSWORD}
+            "akool_api_key": {"set": bool(cls.AKOOL_API_KEY), "masked": cls.mask_key(cls.AKOOL_API_KEY), "value": cls.AKOOL_API_KEY}
         }
 
 

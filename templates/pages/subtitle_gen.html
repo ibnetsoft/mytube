@@ -306,6 +306,11 @@
                 class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-purple-600 hover:bg-purple-700 text-white shadow-sm shadow-purple-600/30 animate-pulse-slow disabled:opacity-50">
                 🎬 {{ t('btn_render_video') }}
             </button>
+            <button id="renderQueueBtn" onclick="addToRenderQueue()"
+                class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-gray-600 hover:bg-gray-700 text-white shadow-sm disabled:opacity-50"
+                title="저장 후 렌더링 대기열에 추가합니다. 렌더 페이지에서 일괄 처리됩니다.">
+                ⏳ 렌더링 대기
+            </button>
         </div>
     </div>
 
@@ -2704,6 +2709,29 @@
         } catch (e) {
             console.error(e);
             Utils.showToast(i18n.err_render_failed + ": " + e.message, 'error');
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+
+    async function addToRenderQueue() {
+        const btn = document.getElementById('renderQueueBtn');
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '⏳ 저장 중...';
+        try {
+            await saveSubtitles(true);
+            const res = await fetch(`/api/project/${projectId}/render-queue`, { method: 'POST' });
+            const data = await res.json();
+            if (data.status === 'ok') {
+                Utils.showToast('렌더링 대기열에 추가되었습니다. 렌더 페이지에서 확인하세요.', 'success');
+                btn.innerHTML = '✅ 대기 완료';
+                setTimeout(() => { btn.innerHTML = originalText; btn.disabled = false; }, 3000);
+            } else {
+                throw new Error(data.error || '추가 실패');
+            }
+        } catch (e) {
+            Utils.showToast('렌더링 대기 추가 실패: ' + e.message, 'error');
             btn.disabled = false;
             btn.innerHTML = originalText;
         }

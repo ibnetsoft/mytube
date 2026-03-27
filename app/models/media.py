@@ -46,3 +46,4 @@ class PromptsGenerateRequest(BaseModel):
     count: int = 0
     character_reference: Optional[str] = None
     project_id: Optional[int] = None
+    duration_seconds: Optional[int] = None  # 영상 길이 (씬 수 계산용)

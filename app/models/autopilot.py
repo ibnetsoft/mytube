@@ -23,6 +23,8 @@ class AutoPilotStartRequest(BaseModel):
     creation_mode: str = "default"
     product_url: Optional[str] = None
     use_character_analysis: bool = False
+    is_queued: bool = False
+
 
 class AutopilotPresetSave(BaseModel):
     name: str

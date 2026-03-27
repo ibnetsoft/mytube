@@ -1,8 +1,35 @@
 // --- Initialization ---
 
+// 전역 채널 목록 캐시
+window.channelList = [];
+
+async function loadChannels() {
+    try {
+        const res = await fetch('/api/channels');
+        const data = await res.json();
+        window.channelList = data.channels || data || [];
+        // 싱글모드 폼의 채널 드롭다운도 채움
+        const sel = document.getElementById('youtubeChannelId');
+        if (sel) {
+            const currentVal = sel.value;
+            // 기본 옵션 이후 기존 옵션 제거 후 재추가
+            while (sel.options.length > 1) sel.remove(1);
+            window.channelList.forEach(ch => {
+                const opt = document.createElement('option');
+                opt.value = ch.id;
+                opt.textContent = ch.name;
+                sel.appendChild(opt);
+            });
+            if (currentVal) sel.value = currentVal;
+        }
+    } catch (e) {
+        console.error('Failed to load channels:', e);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     // 1. Load Presets (Styles & Voices)
-    await Promise.all([loadStyles(), loadVoices(), fetchPresets()]);
+    await Promise.all([loadStyles(), loadVoices(), fetchPresets(), loadChannels()]);
 
     // 2. Load Saved Settings (Global / Default Project)
     // 2. Load Saved Settings (Global / Default Project)
@@ -64,7 +91,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         pollStatus(pid);
     }
+
+    // [NEW] Start Logs Polling for Batch Mode
+    setInterval(pollBatchLogs, 3000);
 });
+
 
 // Styles will be loaded dynamically from API
 async function loadStyles() {
@@ -736,9 +767,7 @@ function getProgressValue(status) {
 
 let isProcessing = false;
 
-async function startAutopilot() {
-    if (isProcessing) return;
-
+function getAutopilotConfig() {
     const topicInput = document.getElementById('topicInput');
     const topic = topicInput ? topicInput.value.trim() : '';
 
@@ -748,21 +777,18 @@ async function startAutopilot() {
     if (creationMode === 'default' && !topic) {
         alert("Please enter a topic keyword.");
         topicInput.focus();
-        return;
+        return null;
     }
 
     if (creationMode === 'commerce' && !productUrl) {
         alert(i18n.alert_enter_product_url);
         document.getElementById('productUrlInput').focus();
-        return;
+        return null;
     }
 
-    const startBtn = document.getElementById('startAutopilotBtn');
-
-    // UI Loading State
-    // Build Config
     const config = {
         keyword: creationMode === 'commerce' ? `[Commerce] ${productUrl}` : topic,
+        topic: topic,
         mode: document.getElementById('appMode')?.value || 'longform',
         image_style: document.getElementById('imageStyle').value,
         thumbnail_style: document.getElementById('thumbnailStyle').value,
@@ -789,6 +815,17 @@ async function startAutopilot() {
         product_url: productUrl,
         use_character_analysis: document.getElementById('useCharacterAnalysis')?.checked || false
     };
+    return config;
+}
+
+async function startAutopilot() {
+    if (isProcessing) return;
+
+    const config = getAutopilotConfig();
+    if (!config) return;
+
+    const topic = config.keyword;
+    const startBtn = document.getElementById('btnStartProduction');
 
     // UI Loading State (Popup Trigger)
     isProcessing = true;
@@ -826,6 +863,69 @@ async function startAutopilot() {
         }
     }
 }
+
+async function addToQueue() {
+    if (isProcessing) return;
+
+    const config = getAutopilotConfig();
+    if (!config) return;
+
+    config.is_queued = true; // Mark as queued
+
+    const btn = document.getElementById('btnAddToQueue');
+    const oldHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<span>⏳</span> ${i18n.status_processing}`;
+
+    try {
+        const res = await fetch('/api/autopilot/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(config)
+        });
+        const data = await res.json();
+
+        if (data.status === 'ok') {
+            Utils.showToast(data.message || i18n.status_added_to_queue, "success");
+            refreshQueue(); // Update badge and list
+        } else {
+
+            throw new Error(data.error || "Failed to add to queue");
+        }
+    } catch (e) {
+        console.error(e);
+        alert(e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = oldHtml;
+    }
+}
+
+async function updateQueueItemChannel(projectId, channelId, selectEl) {
+    const prevValue = selectEl.dataset.prevValue ?? selectEl.value;
+    selectEl.dataset.prevValue = channelId;
+    try {
+        const res = await fetch(`/api/queue/${projectId}/channel`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ youtube_channel_id: channelId ? parseInt(channelId) : null })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+            const chName = channelId
+                ? (window.channelList.find(c => c.id == channelId)?.name || '채널')
+                : '기본 채널';
+            Utils.showToast(`채널 변경: ${chName}`, "success");
+        } else {
+            throw new Error(data.detail || data.error || '변경 실패');
+        }
+    } catch (e) {
+        console.error(e);
+        selectEl.value = prevValue;
+        Utils.showToast(`채널 변경 실패: ${e.message}`, "error");
+    }
+}
+
 
 function pollStatus(projectId) {
     const interval = setInterval(async () => {
@@ -951,7 +1051,18 @@ async function refreshQueue() {
 
         if (btnStart) btnStart.disabled = false;
 
-        list.innerHTML = projects.map((p, idx) => `
+        // 채널 드롭다운 옵션 HTML 생성
+        const channelOptions = [
+            `<option value="">기본 채널</option>`,
+            ...window.channelList.map(ch =>
+                `<option value="${ch.id}">${ch.name}</option>`
+            )
+        ].join('');
+
+        list.innerHTML = projects.map((p, idx) => {
+            const chId = p.youtube_channel_id || '';
+            const chName = p.channel_name || '기본 채널';
+            return `
             <div class="flex items-center justify-between p-4 bg-gray-800/50 rounded-xl border border-gray-700/50 hover:bg-gray-800 transition-all">
                 <div class="flex items-center gap-4">
                     <div class="flex flex-col items-center">
@@ -969,10 +1080,19 @@ async function refreshQueue() {
                     </div>
                 </div>
                 <div class="flex items-center gap-3">
+                    <div class="flex flex-col items-end gap-1">
+                        <span class="text-[9px] text-gray-500">업로드 채널</span>
+                        <select
+                            onchange="updateQueueItemChannel(${p.id}, this.value, this)"
+                            class="bg-gray-700 border border-gray-600 text-white text-[11px] rounded-lg px-2 py-1 focus:ring-1 focus:ring-purple-500/50 outline-none min-w-[120px]"
+                        >
+                            ${channelOptions.replace(`value="${chId}"`, `value="${chId}" selected`)}
+                        </select>
+                    </div>
                     <button onclick="deleteFromQueue(${p.id})" class="text-xs text-red-500 bg-red-500/10 px-3 py-1.5 rounded hover:bg-red-500 hover:text-white transition-all ml-2">${i18n.btn_delete}</button>
                 </div>
             </div>
-        `).join('');
+        `}).join('');
 
     } catch (e) {
         console.error(e);
@@ -1031,6 +1151,30 @@ async function deleteFromQueue(pid) {
         Utils.showToast(i18n.status_removed_from_queue, "info");
     } catch (e) { console.error(e); }
 }
+
+async function pollBatchLogs() {
+    const logArea = document.getElementById('batchConsoleLogs');
+    const batchMode = document.getElementById('batchMode');
+    if (!logArea || !batchMode || batchMode.classList.contains('hidden')) return;
+
+    try {
+        const res = await fetch('/api/queue/logs');
+        const data = await res.json();
+        const logs = data.logs || [];
+        
+        if (logs.length > 0) {
+            // Only update if changed
+            const newContent = logs.map(line => `<div>${line.trim()}</div>`).join('');
+            if (logArea.innerHTML !== newContent) {
+                logArea.innerHTML = newContent;
+                logArea.scrollTop = logArea.scrollHeight;
+            }
+        }
+    } catch (e) {
+        console.error("Log fetch failed:", e);
+    }
+}
+
 
 async function loadSubtitleDefaults() {
     const panel = document.getElementById('subtitlePreviewPanel');

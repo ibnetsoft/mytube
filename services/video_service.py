@@ -2092,48 +2092,30 @@ class VideoService:
         # 배경 박스 세로 패딩 = 폰트 크기의 3% (위아래 동일)
         strip_pad_y = font_size * 0.03
 
-        # [FIX] 높이 계산 - 줄 수에 비례하여 충분한 공간 확보 + Stroke 공간 추가
+        # 줄간격 계산 - CSS line-height: 1+ratio 와 일치하도록 font_size 기준
         line_count = len(wrapped_lines)
         ascent, descent = font.getmetrics()
+        line_spacing = int(font_size * line_spacing_ratio)
+        full_line_height = font_size + line_spacing  # CSS: line-height = 1 + ratio
 
-        # More robust height calculation
-        total_text_h = (ascent + descent) * line_count + (int((ascent + descent) * line_spacing_ratio) * (line_count - 1))
+        # 높이 계산
+        total_text_h = font_size * line_count + line_spacing * (line_count - 1)
 
         img_w = width
-        # Use max of measured height and calculated height for safety
         actual_h = max(text_h, total_text_h)
-        # 이미지 높이 = 텍스트 높이 + 배경 패딩 + 스트로크 + descent 여유분
-        # descent를 추가 확보해야 두 번째 줄 하단이 잘리지 않음
         img_h = int(actual_h + strip_pad_y * 2 + final_stroke_width * 2 + descent + 8)
-        
+
         img = Image.new('RGBA', (img_w, img_h), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
-        
+
         center_x = img_w // 2
-        center_y = img_h // 2
-        
+
         # [FIX] Multi-line Background Support
         # Instead of one big box, draw per-line rounded strips
-        
-        
-        # Calculate Starting Y (Top of Text Block)
-        current_y = center_y - (text_h // 2)
-        
-        # Font Metrics for consistent spacing
-        try:
-            ascent, descent = font.getmetrics()
-            line_height_font = ascent + descent
-        except:
-             # Fallback
-             line_height_font = font.getbbox('A')[3]
-        
-        line_spacing = int(line_height_font * line_spacing_ratio) # [FIX] Use user-controlled ratio (Default 0.1)
-        
-        # [FIX] Precision Vertical Alignment
-        # Calculate background per line using actual text boundaries
-        
-        # Consistent total height calculation regardless of background
-        full_line_height = line_height_font + line_spacing
+
+        # 텍스트 시작 위치: 이미지 상단 정렬 (stroke + bg패딩만큼 내려서 시작)
+        # → 이미지 top == video y_pos == CSS top:80% 와 일치
+        current_y = final_stroke_width + int(strip_pad_y)
         
         # [FIX] 공백 글리프 깨짐 감지 (GmarketSans 등 일부 폰트의 space 문자가 □로 렌더링됨)
         def _has_broken_space_glyph(fnt):

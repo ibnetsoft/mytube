@@ -57,10 +57,10 @@
                             <option value="crime_drama">{{ t('style_crime_drama') }}</option>
                             <option value="cyberpunk_neon">{{ t('style_cyberpunk_neon') }}</option>
                         </optgroup>
-                        <optgroup label="📺 {{ t('style_character_webtoon') }}">
+                        <optgroup label="{{ t('style_character_webtoon') }}">
                             <option value="k_manhwa">{{ t('style_k_manhwa') }}</option>
                         </optgroup>
-                        <optgroup label="🎨 {{ t('style_illustration_anime') }}">
+                        <optgroup label="{{ t('style_illustration_anime') }}">
                             <option value="watercolor_analog">{{ t('style_watercolor_analog') }}</option>
                             <option value="k_webtoon">{{ t('style_k_webtoon') }}</option>
                             <option value="graphite_sketch">{{ t('style_graphite_sketch') }}</option>
@@ -71,7 +71,23 @@
                             <option value="renaissance_sacred">{{ t('style_renaissance_sacred') }}</option>
                             <option value="cute_animal_char">{{ t('style_cute_animal_char') }}</option>
                         </optgroup>
+                        <optgroup label="{{ t('style_nursery_rhyme') }}">
+                            <option value="nursery_rhyme">{{ t('style_nursery_rhyme_desc') }}</option>
+                        </optgroup>
                     </select>
+                </div>
+            </div>
+
+            <!-- [NEW] Nursery Rhyme Ideas Panel (Shown only when nursery_rhyme style is selected) -->
+            <div id="nurseryIdeasPanel" class="hidden mb-4 p-4 bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-100 dark:border-yellow-800 rounded-lg">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="text-xs font-bold text-yellow-700 dark:text-yellow-400">💡 {{ t('nursery_ideas_title') }}</h4>
+                    <button onclick="getNurseryIdeas()" class="text-[10px] px-2 py-1 bg-yellow-400 text-white rounded hover:bg-yellow-500 transition-colors">
+                        {{ t('btn_refresh_ideas') }}
+                    </button>
+                </div>
+                <div id="nurseryIdeasContent" class="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-1">
+                    <p class="text-[10px] text-gray-500 text-center py-2">{{ t('nursery_ideas_placeholder') }}</p>
                 </div>
             </div>
             <div>
@@ -242,6 +258,24 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+    /* 대본 기획 페이지 전체 폰트 30% 축소 */
+    .section-spacing { font-size: 0.7rem; }
+    .section-spacing .text-xs   { font-size: 0.525rem; }
+    .section-spacing .text-sm   { font-size: 0.6125rem; }
+    .section-spacing .text-base { font-size: 0.7rem; }
+    .section-spacing .text-lg   { font-size: 0.7875rem; }
+    .section-spacing .text-xl   { font-size: 0.875rem; }
+    .section-spacing .text-2xl  { font-size: 1.05rem; }
+    .section-spacing .text-3xl  { font-size: 1.225rem; }
+    .section-spacing .text-\[10px\] { font-size: 7px; }
+    .section-spacing .text-\[11px\] { font-size: 7.7px; }
+    .section-spacing .text-\[12px\] { font-size: 8.4px; }
+    .section-spacing input,
+    .section-spacing textarea,
+    .section-spacing select,
+    .section-spacing button { font-size: 0.6125rem; }
+</style>
 <script>
     let currentStructure = '';
 
@@ -1405,6 +1439,127 @@
         } catch (e) {
             console.error(e);
             Utils.showToast('자료 가져오기 실패: ' + e.message, 'error');
+        }
+    }
+
+    // ========== NURSERY RHYME LOGIC ==========
+
+    const styleSelect = document.getElementById('scriptStyleSelect');
+    if (styleSelect) {
+        styleSelect.addEventListener('change', (e) => {
+            const panel = document.getElementById('nurseryIdeasPanel');
+            if (e.target.value === 'nursery_rhyme') {
+                panel.classList.remove('hidden');
+                // 주제가 비어있지 않으면 자동으로 아이디어 가져오기 시도
+                const topic = document.getElementById('topicInput').value.trim();
+                if (topic && document.getElementById('nurseryIdeasContent').children.length <= 1) {
+                    getNurseryIdeas();
+                }
+            } else {
+                panel.classList.add('hidden');
+            }
+        });
+    }
+
+    async function getNurseryIdeas() {
+        const content = document.getElementById('nurseryIdeasContent');
+        content.innerHTML = `
+            <div class="flex flex-col items-center justify-center py-4 space-y-2">
+                <div class="loader-sm border-yellow-400"></div>
+                <p class="text-[10px] text-yellow-600 animate-pulse">${i18n.status_loading || 'Loading ideas...'}</p>
+            </div>
+        `;
+
+        try {
+            const res = await fetch('/api/nursery/ideas');
+            const data = await res.json();
+            if (data.status === 'ok' && data.ideas) {
+                renderNurseryIdeas(data.ideas);
+            } else {
+                throw new Error(data.error || 'Failed to generate ideas');
+            }
+        } catch (e) {
+            console.error(e);
+            content.innerHTML = `<p class="text-[10px] text-red-500 text-center py-2">Error: ${e.message}</p>`;
+        }
+    }
+
+    function renderNurseryIdeas(ideas) {
+        const content = document.getElementById('nurseryIdeasContent');
+        if (!ideas || ideas.length === 0) {
+            content.innerHTML = `<p class="text-[10px] text-gray-500 text-center py-2">${i18n.nursery_ideas_placeholder}</p>`;
+            return;
+        }
+
+        content.innerHTML = ideas.map((idea, idx) => `
+            <div class="p-3 bg-white dark:bg-gray-800 border border-yellow-100 dark:border-yellow-900 shadow-sm rounded-lg hover:border-yellow-400 transition-all group">
+                <div class="flex items-start justify-between gap-2">
+                    <div class="flex-1">
+                        <h5 class="text-[11px] font-bold text-gray-800 dark:text-gray-100 mb-1">#${idx + 1} ${idea.title}</h5>
+                        <p class="text-[10px] text-gray-500 dark:text-gray-400 leading-relaxed">${idea.summary}</p>
+                    </div>
+                    <button onclick="selectNurseryIdea('${idea.title.replace(/'/g, "\\'")}', '${idea.summary.replace(/'/g, "\\'")}', this)" 
+                        class="text-[9px] px-2 py-1 bg-yellow-100 text-yellow-700 hover:bg-yellow-400 hover:text-white rounded transition-colors whitespace-nowrap">
+                        ${i18n.nursery_idea_select || 'Apply'}
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function selectNurseryIdea(title, summary, btn) {
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '...';
+
+        try {
+            // 1. 영상 주제(topicInput) 업데이트
+            document.getElementById('topicInput').value = title;
+            // 2. 추가 요청사항 업데이트
+            document.getElementById('additionalNotes').value = summary;
+
+            // 3. 바로 구조 생성(노래 개발) 시도
+            Utils.showToast(`${i18n.nursery_developing || 'Developing song...'}`, 'info');
+            
+            const projectId = getCurrentProject();
+            const res = await fetch('/api/nursery/develop', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, summary, project_id: projectId })
+            });
+            const data = await res.json();
+
+            if (data.status === 'ok' && data.result) {
+                // 구조 렌더링 (대본 구조와 유사하게 변환하여 표시)
+                const result = data.result;
+                const mockStructure = {
+                    title: result.title,
+                    hook: result.ending,
+                    cta: "Enjoy the music!",
+                    sections: [
+                        { title: "Verse 1", key_points: result.lyrics.verse1.split('\\n').filter(l => l.trim()) },
+                        { title: "Chorus", key_points: result.lyrics.chorus.split('\\n').filter(l => l.trim()) },
+                        { title: "Verse 2", key_points: result.lyrics.verse2.split('\\n').filter(l => l.trim()) },
+                        { title: "Repeating Chorus", key_points: result.lyrics.chorus.split('\\n').filter(l => l.trim()) },
+                        { title: "Ending", key_points: result.lyrics.ending.split('\\n').filter(l => l.trim()) }
+                    ],
+                    full_lyrics: `[Verse 1]\\n${result.lyrics.verse1}\\n\\n[Chorus]\\n${result.lyrics.chorus}\\n\\n[Verse 2]\\n${result.lyrics.verse2}\\n\\n[Ending]\\n${result.lyrics.ending}`
+                };
+
+                currentStructure = mockStructure;
+                renderStructure(mockStructure);
+                Utils.showToast('Nursery rhyme developed! 🎶', 'success');
+                
+                // [NEW] 보관을 위해 전체 가사 데이터를 internal reference로 저장
+                Utils.storage.set('nursery_data', result);
+            }
+
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('Failed to develop song: ' + e.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
         }
     }
 

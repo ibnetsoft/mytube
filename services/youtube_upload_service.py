@@ -16,7 +16,7 @@ class YouTubeUploadService:
         self.api_service_name = "youtube"
         self.api_version = "v3"
 
-    def get_authenticated_service(self, token_path: str = None):
+    def get_authenticated_service(self, token_path: str = None, interactive: bool = False):
         """인증된 YouTube API 서비스 객체 반환 (채널별 토큰 지원)"""
         credentials = None
         
@@ -26,39 +26,51 @@ class YouTubeUploadService:
         
         # 2. 토큰 로드
         if os.path.exists(target_token_file):
-            with open(target_token_file, "rb") as token:
-                credentials = pickle.load(token)
+            try:
+                with open(target_token_file, "rb") as token:
+                    credentials = pickle.load(token)
+            except Exception as e:
+                print(f"Failed to load existing token from {target_token_file}: {e}")
+                credentials = None
 
         # 3. 토큰 유효성 검사 및 갱신/신규 발급
-        if not credentials or not credentials.valid:
-            needs_login = True
-            if credentials and credentials.expired and credentials.refresh_token:
-                try:
-                    from google.auth.exceptions import RefreshError
-                    credentials.refresh(Request())
-                    needs_login = False
-                except RefreshError:
-                    print("Refresh token is invalid (invalid_grant). Re-authenticating...")
-                    needs_login = True
+        is_authenticated = False
+        if credentials and credentials.valid:
+            is_authenticated = True
+        elif credentials and credentials.expired and credentials.refresh_token:
+            try:
+                print(f"Refreshing expired token for {target_token_file}...")
+                credentials.refresh(Request())
+                # 갱신된 토큰 즉시 저장
+                with open(target_token_file, "wb") as token:
+                    pickle.dump(credentials, token)
+                is_authenticated = True
+            except Exception as e:
+                print(f"Refresh token is invalid (expired or revoked): {e}")
+                is_authenticated = False
+        
+        if not is_authenticated:
+            if not interactive:
+                # 비대화형 모드(백그라운드 작업 등)에서는 브라우저를 띄우지 않고 예러 발생
+                chan_name = os.path.basename(target_token_file).replace("token_", "").replace(".pickle", "")
+                raise Exception(f"YouTube 인증이 만료되었거나 연동되지 않았습니다. [설정 > 채널관리]에서 '{chan_name}' 로그인을 먼저 진행해주세요.")
+
+            if not os.path.exists(self.client_secret_file):
+                raise FileNotFoundError("client_secret.json 파일이 없습니다. OAuth 설정을 먼저 해주세요.")
             
-            if needs_login:
-                if not os.path.exists(self.client_secret_file):
-                    raise FileNotFoundError("client_secret.json 파일이 없습니다. OAuth 설정을 먼저 해주세요.")
-                
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    self.client_secret_file, self.scopes
-                )
-                # 로컬 서버를 통해 인증 프로세스 진행
-                credentials = flow.run_local_server(port=0)
+            flow = InstalledAppFlow.from_client_secrets_file(
+                self.client_secret_file, self.scopes
+            )
+            # 로컬 서버를 통해 인증 프로세스 진행
+            credentials = flow.run_local_server(port=0)
 
             # 4. 갱신/발급된 토큰 저장
-            # 폴더가 없으면 생성 (tokens/ 등)
             os.makedirs(os.path.dirname(target_token_file) if os.path.dirname(target_token_file) else ".", exist_ok=True)
-            
             with open(target_token_file, "wb") as token:
                 pickle.dump(credentials, token)
 
         return build(self.api_service_name, self.api_version, credentials=credentials)
+
 
     def upload_video(
         self,

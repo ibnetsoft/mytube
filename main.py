@@ -4079,6 +4079,52 @@ async def get_render_status(project_id: int):
     from services.progress import get_render_progress
     return get_render_progress(project_id)
 
+@app.post("/api/project/{project_id}/render-queue")
+async def add_to_render_queue(project_id: int):
+    """렌더링 대기열에 추가 — 상태를 tts_done으로 설정"""
+    try:
+        db.update_project(project_id, status="tts_done")
+        return {"status": "ok", "message": "렌더링 대기열에 추가되었습니다"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.get("/api/render-queue")
+async def get_render_queue():
+    """렌더링 대기 중인 프로젝트 목록 (status=tts_done)"""
+    try:
+        all_projects = db.get_all_projects()
+        queue = []
+        for p in all_projects:
+            if p.get("status") == "tts_done":
+                pid = p["id"]
+                settings = db.get_project_settings(pid) or {}
+                p["app_mode"] = settings.get("app_mode", "longform")
+                # 프로젝트 표시명: script title > settings title > project name > topic
+                script = db.get_script(pid)
+                if script and script.get("title"):
+                    p["display_name"] = script["title"]
+                elif settings.get("title"):
+                    p["display_name"] = settings["title"]
+                else:
+                    p["display_name"] = p.get("name") or p.get("topic") or f"프로젝트 {pid}"
+                # 씬 수로 예상 렌더링 시간 추정
+                try:
+                    prompts = db.get_image_prompts(pid) or []
+                    scene_count = len(prompts)
+                except Exception:
+                    scene_count = 0
+                p["scene_count"] = scene_count
+                est_sec = max(60, scene_count * 3 + 30)
+                if est_sec < 3600:
+                    p["est_time"] = f"약 {est_sec // 60}분"
+                else:
+                    p["est_time"] = f"약 {est_sec // 3600}시간 {(est_sec % 3600) // 60}분"
+                queue.append(p)
+        queue.sort(key=lambda x: x.get("id", 0))
+        return {"status": "ok", "queue": queue}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
 # ===========================================
 
 
