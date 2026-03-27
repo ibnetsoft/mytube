@@ -1,0 +1,5 @@
+"""
+Backend API endpoint for Scene Analysis
+"""
+from fastapi import HTTPException
+import main_py_content_here

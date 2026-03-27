@@ -1,0 +1,2670 @@
+
+    // Global State
+    var i18n = Object.assign(window.i18n || {}, {
+        alert_project_id_not_found_prefix: "프로젝트 ID를 찾을 수 없습니다.",
+        status_auto_generating_subtitles: "자막 생성 요청...",
+        status_no_subtitles: "대본 없음",
+        btn_ai_subtitle_gen_auto: "AI 전체 생성",
+        items_selected: "{count}개 선택됨",
+        btn_select_all: "전체 선택",
+        btn_delete_selected: "🗑 삭제",
+        status_rendered: "렌더링 완료",
+        toast_save_success: "자막 및 이미지 저장 완료",
+        err_save_fail: "저장 실패",
+        confirm_auto_sync: `AI를 사용하여 이미지를 자막에 자동으로 배치하시겠습니까?
+이전의 수동 배치는 덮어씌워집니다.`,
+        toast_auto_sync_success: "{count}개의 이미지가 자동으로 배치되었습니다.",
+        err_auto_sync_fail: "이미지 자동 배치 실패",
+        toast_no_subtitle_to_split: "분할할 자막이 없습니다.",
+        confirm_split_all: `모든 자막을 2줄씩 분할하시겠습니까?
+긴 자막은 여러 개의 짧은 자막으로 나뉘고, 시간은 균등하게 재배분됩니다.`,
+        toast_split_success: "자막이 {count}개로 분할되었습니다. (저장 버튼을 눌러 저장하세요)",
+        err_split_fail: "자막 분할 중 오류",
+        confirm_reset_reload: "모든 데이터를 다시 불러오시겠습니까? 저장하지 않은 내용은 사라질 수 있습니다.",
+        toast_reset_reload_success: "데이터가 초기화되고 최신 상태로 로드되었습니다.",
+        toast_render_complete_redirect: "렌더링 완료! 렌더링 페이지로 이동합니다.",
+        toast_apply_image_success: "이미지 #{idx} 적용 완료",
+        toast_rendering_started: "렌더링이 시작되었습니다. 잠시만 기다려주세요...",
+        err_render_failed: "렌더링 요청 실패",
+        err_status_poll_fail: "상태 확인 중 오류 발생",
+        bgm_loading: "로딩 중...",
+        bgm_no_generated: "생성된 BGM 없음 (audio_gen 페이지에서 생성하세요)",
+        toast_bgm_uploading: "BGM 파일 업로드 중...",
+        toast_bgm_upload_success: "BGM 업로드 완료!",
+        toast_bgm_local_only: "서버 저장은 불가하지만 로컬에서 미리들을 수 있습니다.",
+        toast_bgm_removed: "BGM이 제거되었습니다.",
+        toast_sfx_setup_success: "SFX 설정 완료!",
+        err_sfx_upload_fail: "SFX 업로드 실패",
+        status_saving: "저장중...",
+        status_no_subtitle_generated: "생성된 자막이 없습니다. 자막 생성을 진행해주세요.",
+        confirm_render_now: "현재 설정으로 영상을 렌더링하시겠습니까?",
+        status_rendering_and_saving: "저장 및 렌더링 중...",
+        label_bgm_no_file: "설정된 BGM 없음",
+        label_bgm_file: "🎶 {filename}",
+        bgm_section_open: "▼ 펼치기",
+        bgm_section_close: "▲ 접기",
+        err_reset_reload_fail: "데이터 로드 실패",
+        status_loading: "로딩 중...",
+        btn_ai_sync: "🤖 AI 이미지 싱크",
+        status_processing: "저장중...",
+        btn_split_2lines: "✂️ 자막 2줄 분할",
+        status_splitting: "저장중...",
+        label_curr_image: "현재 이미지: {img}"
+    });
+
+    let projectId = null;
+    let subtitles = [];
+    let images = []; // Timeline Images (Used in video)
+    let sourceImages = []; // Palette Images (Source)
+    let loadedScript = "";
+    let styleSettings = {};
+    let audioDuration = 0;
+    let selectedIndex = -1;
+    let imageTimings = []; // [NEW] Image Start Times based on backend Pacing
+    let imageEffects = []; // [NEW] Zoom/Pan Effects (1:1 with images)
+
+    // BGM / SFX State
+    let bgmState = {
+        url: null,       // 최종 URL (서버 or 외부)
+        volume: 0.3,     // 0.0 ~ 1.0
+        enabled: false,  // BGM 사용 여부
+        filename: null   // 표시용 파일명
+    };
+    let sfxState = {
+        url: null,
+        enabled: false,
+        filename: null
+    };
+
+
+    // View Mode Tab Switching
+    window.switchEditTab = function(tabName) {
+        document.getElementById('tabContent-subtitle').classList.toggle('hidden', tabName !== 'subtitle');
+        document.getElementById('tabContent-bgm').classList.toggle('hidden', tabName !== 'bgm');
+        
+        const subBtn = document.getElementById('tabBtn-subtitle');
+        const bgmBtn = document.getElementById('tabBtn-bgm');
+        
+        if (tabName === 'subtitle') {
+            subBtn.classList.add('text-blue-600', 'dark:text-blue-400', 'border-blue-600', 'dark:border-blue-400');
+            subBtn.classList.remove('text-gray-500', 'dark:text-gray-400', 'border-transparent');
+            bgmBtn.classList.add('text-gray-500', 'dark:text-gray-400', 'border-transparent');
+            bgmBtn.classList.remove('text-blue-600', 'dark:text-blue-400', 'border-blue-600', 'dark:border-blue-400');
+        } else {
+            bgmBtn.classList.add('text-blue-600', 'dark:text-blue-400', 'border-blue-600', 'dark:border-blue-400');
+            bgmBtn.classList.remove('text-gray-500', 'dark:text-gray-400', 'border-transparent');
+            subBtn.classList.add('text-gray-500', 'dark:text-gray-400', 'border-transparent');
+            subBtn.classList.remove('text-blue-600', 'dark:text-blue-400', 'border-blue-600', 'dark:border-blue-400');
+        }
+    };
+
+    // --- Initialization ---
+    // [NEW] Helper for Path Conversion (Local -> Web)
+    Utils.convertToWebPath = function (path) {
+        if (!path) return "";
+        if (path.startsWith('http://') || path.startsWith('https://')) return path;
+
+        // Normalize slashes
+        let normalized = path.replace(/\\/g, '/');
+
+        // Case-insensitive checks
+        // We split by the case-insensitive regex of the folder name surrounded by slashes
+
+        // Output
+        if (/\/output\//i.test(normalized)) {
+            const parts = normalized.split(/\/output\//i);
+            // Rejoin the rest in case there are multiple (though unlikely for base mount)
+            // Always assume the *mount* point corresponds to the *folder* name.
+            return '/output/' + parts.slice(1).join('/output/');
+        }
+
+        // Static
+        if (/\/static\//i.test(normalized)) {
+            const parts = normalized.split(/\/static\//i);
+            return '/static/' + parts.slice(1).join('/static/');
+        }
+
+        // Uploads
+        if (/\/uploads\//i.test(normalized)) {
+            const parts = normalized.split(/\/uploads\//i);
+            return '/uploads/' + parts.slice(1).join('/uploads/');
+        }
+
+        return path;
+    };
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        // [FIX] Wait for Utils to be ready
+        const waitForUtils = () => new Promise(resolve => {
+            if (typeof Utils !== 'undefined') return resolve();
+            const interval = setInterval(() => {
+                if (typeof Utils !== 'undefined') {
+                    clearInterval(interval);
+                    resolve();
+                }
+            }, 100);
+        });
+
+        await waitForUtils();
+
+        // Initialize Utils-dependent variables
+        if (!projectId) {
+            // Priority 1: URL Param (Most Reliable for direct links)
+            const urlParams = new URLSearchParams(window.location.search);
+            const pid = urlParams.get('project_id');
+            if (pid) projectId = parseInt(pid);
+
+            // Priority 2: storage (Fallback)
+            if (!projectId) {
+                const storedId = Utils.storage.get('currentProjectId');
+                if (storedId) projectId = parseInt(storedId);
+            }
+        }
+
+        if (!projectId) {
+            Utils.showToast(i18n.alert_project_id_not_found_prefix + i18n.alert_select_project_first, 'error');
+            // Optional: Redirect to home?
+            // window.location.href = '/';
+            return;
+        }
+
+        setupStyleListeners();
+
+        // Load Data
+        await loadProjectAndSubtitles();
+        loadBgmSettings(); // BGM/SFX 설정 복원
+
+        // [New] Auto Generate if empty
+        if (!subtitles || subtitles.length === 0) {
+            console.log("[Auto] No subtitles found. Triggering Auto-Generation...");
+            Utils.showToast(i18n.status_auto_generating_subtitles, "info");
+            await generateSubtitles();
+        }
+
+        // Draggable Preview
+        const previewEl = document.getElementById('previewTextMain');
+        if (previewEl) makeDraggable(previewEl);
+    });
+
+    // renderSubtitles 구현은 아래에 있음
+
+
+    function renderSubtitles() {
+        const list = document.getElementById('subtitleList');
+        if (!list) return;
+
+        if (subtitles.length === 0) {
+            list.innerHTML = `
+                <div class='flex flex-col items-center justify-center h-40 text-gray-400 gap-3'>
+                    <p class="text-xs">${i18n.status_no_subtitles}</p>
+                    <button onclick="generateSubtitles()" class="btn-primary py-1.5 px-4 text-xs">
+                        ✨ ${i18n.btn_ai_subtitle_gen_auto}
+                    </button>
+                </div>`;
+            return;
+        }
+
+        // 1. Calculate Image Assignments
+        const assignments = new Array(subtitles.length).fill(-1);
+        if (imageTimings && imageTimings.length > 0) {
+            for (let i = 0; i < subtitles.length; i++) {
+                const start = subtitles[i].start;
+                let bestImgIdx = -1;
+                for (let k = 0; k < imageTimings.length; k++) {
+                    if (start >= imageTimings[k] - 0.05) bestImgIdx = k;
+                    else break;
+                }
+                // [Fix] Fallback to first image if subtitle starts before any timing (e.g. 0.0s vs 0.1s)
+                if (bestImgIdx === -1 && imageTimings.length > 0) bestImgIdx = 0;
+                assignments[i] = bestImgIdx;
+            }
+        }
+
+        // [NEW] Dynamic sizing for Left Column (Thumbnail)
+        // User Request: Allow height to grow, keep natural ratio, no fixed squash.
+        const isShorts = (window.currentAppMode === 'shorts');
+        const colWidthClass = isShorts ? 'w-10' : 'w-28'; // Container width
+        // [MODIFIED] Use h-auto to maintain aspect ratio, remove fixed height constraints
+        const imgClass = isShorts ? 'w-8 h-auto' : 'w-24 h-auto shadow-sm';
+
+        const html = subtitles.map((sub, index) => {
+            const isChecked = selectedRows.has(index);
+            const isActive = isSelectMode
+                ? (isChecked ? 'ring-2 ring-red-400 bg-red-50 dark:bg-red-900/20' : 'hover:bg-red-50/50 dark:hover:bg-gray-800')
+                : (index === selectedIndex ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-gray-800' : 'hover:bg-gray-50 dark:hover:bg-gray-800');
+            const imgIdx = assignments[index];
+            const prevImgIdx = index > 0 ? assignments[index - 1] : -1;
+            const isTransition = (imgIdx !== -1 && imgIdx !== prevImgIdx); // Image actually changes here
+
+            // Render Image Column
+            let leftCol = "";
+            if (isTransition) {
+                // New Image Starts Here
+                const actualIndex = Math.min(imgIdx, images.length - 1);
+                const rawUrl = images[actualIndex];
+                const imgUrl = Utils.convertToWebPath(rawUrl); // [FIX] Convert path
+                const isVideo = imgUrl.toLowerCase().endsWith('.mp4') || (imgUrl.includes('upload') && !imgUrl.endsWith('.png') && !imgUrl.endsWith('.jpg'));
+
+                // Asset Element (Video or Image)
+                let assetHtml = '';
+                if (isVideo) {
+                    // Video: Maintain mostly ratio but limit max height if needed? 
+                    // User wants natural ratio.
+                    assetHtml = `
+                        <video src="${imgUrl}" class="${imgClass} rounded-sm object-contain border-2 border-purple-500 z-0 bg-black min-h-[2rem]" muted loop onmouseover="this.play()" onmouseout="this.pause();this.currentTime=0;" playsinline></video>
+                        <div class="absolute top-1 right-1 bg-purple-600 text-white text-[8px] px-1 rounded shadow-md z-10 flex items-center gap-0.5">
+                            <span>🎬</span>
+                        </div>
+                    `;
+                } else {
+                    assetHtml = `
+                        <img src="${imgUrl}" class="${imgClass} rounded-sm object-contain border-2 border-blue-400 z-0 bg-gray-100 min-h-[2rem]" alt="Scene">
+                    `;
+                }
+
+                leftCol = `
+                <div class="flex flex-col items-center mr-2 ${colWidthClass} shrink-0 relative group/thumb self-start pt-1">
+                    <!-- Move Up (Merge with prev) -->
+                    ${index > 0 ? `<button onclick="event.stopPropagation(); moveImageStart(${imgIdx}, -1)" class="absolute -top-2 z-10 w-full h-3 bg-gray-200 hover:bg-blue-100 text-[8px] flex items-center justify-center rounded-t border border-b-0 border-gray-300 opacity-0 group-hover/thumb:opacity-100 transition-opacity dark:border-gray-700" title="이전 자막부터 시작">▲</button>` : ''}
+                    
+                    ${assetHtml}
+
+                    <!-- [NEW] Delete Button -->
+                    <button onclick="event.stopPropagation(); deleteImageStart(${imgIdx})" class="absolute top-1 right-1 z-10 w-5 h-5 bg-red-500/80 hover:bg-red-600 text-white text-[10px] flex items-center justify-center rounded shadow-sm opacity-0 group-hover/thumb:opacity-100 transition-opacity" title="이 자막구간에서 이미지 삭제">✕</button>
+                    
+                    <!-- [NEW] Upload/Replace Media Button -->
+                    <button onclick="event.stopPropagation(); document.getElementById('upload-media-${actualIndex}').click()" 
+                            class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 w-8 h-8 bg-black/60 hover:bg-blue-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-all shadow-md backdrop-blur-sm" 
+                            title="소스 미디어 변경/업로드 (이미지 or 영상)">
+                        📂
+                    </button>
+                    <input type="file" id="upload-media-${actualIndex}" class="hidden" accept="image/*,video/*,video/mp4,video/x-m4v" onchange="uploadSourceMedia(${actualIndex}, this)">
+                    
+                    <div class="absolute bottom-0 right-0 bg-blue-500 text-white text-[9px] px-1 rounded-tl font-bold shadow-sm opacity-80">${actualIndex + 1}</div>
+
+                    <!-- [NEW] Effect Selector (Hidden for Shorts/Vertical) -->
+                    ${!isShorts ? `
+                    <select onchange="event.stopPropagation(); updateImageEffect(${actualIndex}, this.value)" 
+                            class="mt-1 w-full text-[9px] p-0 border-gray-300 rounded bg-white dark:bg-gray-700 dark:text-white dark:border-gray-600 focus:ring-0 focus:border-blue-500 h-4 leading-none text-center"
+                            title="이미지 효과 선택">
+                        <option value="random" ${imageEffects[actualIndex] === 'random' ? 'selected' : ''}>Random</option>
+                        <option value="zoom_in" ${imageEffects[actualIndex] === 'zoom_in' ? 'selected' : ''}>Zoom In</option>
+                        <option value="zoom_out" ${imageEffects[actualIndex] === 'zoom_out' ? 'selected' : ''}>Zoom Out</option>
+                        <option value="pan_left" ${imageEffects[actualIndex] === 'pan_left' ? 'selected' : ''}>Pan Left</option>
+                        <option value="pan_right" ${imageEffects[actualIndex] === 'pan_right' ? 'selected' : ''}>Pan Right</option>
+                        <option value="none" ${imageEffects[actualIndex] === 'none' ? 'selected' : ''}>None</option>
+                    </select>
+                    ` : ''}
+
+                    <!-- Move Down (Start later) -->
+                    ${index < subtitles.length - 1 ? `<button onclick="event.stopPropagation(); moveImageStart(${imgIdx}, 1)" class="absolute -bottom-2 z-10 w-full h-3 bg-gray-200 hover:bg-blue-100 text-[8px] flex items-center justify-center rounded-b border border-t-0 border-gray-300 opacity-0 group-hover/thumb:opacity-100 transition-opacity dark:border-gray-700" title="다음 자막부터 시작">▼</button>` : ''}
+                </div>`;
+            } else {
+                // Continuation
+                leftCol = `
+                <div class="flex flex-col items-center mr-2 ${colWidthClass} shrink-0 self-stretch">
+                    <div class="w-0.5 h-full bg-gray-200 dark:bg-gray-700 min-h-[2rem]"></div>
+                </div>`;
+            }
+
+            return `
+            <div id="sub-row-${index}"
+                 onclick="isSelectMode ? toggleRowSelect(${index}) : selectSubtitle(${index})"
+                 draggable="${isSelectMode ? 'false' : 'true'}"
+                 ondragstart="if(!isSelectMode) handleSubtitleDragStart(event, ${index})"
+                 ondragover="if(!isSelectMode) allowDrop(event)"
+                 ondrop="if(!isSelectMode) handleCombinedDrop(event, ${index})"
+                 class="flex items-stretch p-2 mb-1 bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-700 cursor-pointer transition-all ${isActive} group relative overflow-visible">
+
+                ${leftCol}
+
+                <div class="flex items-center flex-1 min-w-0">
+                    ${isSelectMode ? `<input type="checkbox" class="select-cb mr-2 shrink-0 w-4 h-4 accent-red-500" ${isChecked ? 'checked' : ''} onclick="event.stopPropagation(); toggleRowSelect(${index})">` : ''}
+                    <div class="flex flex-col gap-1 mr-2 shrink-0">
+                        <!-- Subtitle Time -->
+                        <div class="w-12 text-[10px] text-gray-500 font-mono text-center leading-tight dark:text-gray-400" id="sub-time-${index}">
+                            <div class="font-bold text-gray-600 dark:text-gray-400">${sub.start.toFixed(1)}s</div>
+                            <div class="text-[9px]">~${sub.end.toFixed(1)}s</div>
+                        </div>
+                    </div>
+
+                    <div class="flex-1 text-sm text-gray-700 dark:text-gray-300 sub-text break-words leading-snug">
+                        ${sub.text}
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+        list.innerHTML = html;
+        renderImageStrip(); // [NEW] Sync strip with render
+    }
+
+    // [NEW] Update Image Effect
+    function updateImageEffect(imgIndex, effect) {
+        if (!imageEffects) imageEffects = [];
+
+        // Ensure array size
+        if (imgIndex >= imageEffects.length) {
+            // Fill gaps with 'random' or 'none'
+            for (let k = imageEffects.length; k <= imgIndex; k++) {
+                imageEffects[k] = 'random';
+            }
+        }
+
+        imageEffects[imgIndex] = effect;
+        console.log(`Image #${imgIndex + 1} effect set to: ${effect}`);
+        updateDebug(`[UI] Updated Img #${imgIndex + 1} -> ${effect}. Effects: ${JSON.stringify(imageEffects)}`);
+
+        // Optional: Auto-save or visual feedback?
+        // Just log for now. The Save button sends this array.
+        Utils.showToast(`이미지 #${imgIndex + 1} 효과: ${effect}`, 'info');
+    }
+
+    function selectSubtitle(index) {
+        if (selectedIndex >= 0) {
+            const prev = document.getElementById(`sub-row-${selectedIndex}`);
+            if (prev) prev.classList.remove('active');
+        }
+
+        selectedIndex = index;
+        const row = document.getElementById(`sub-row-${index}`);
+        if (row) {
+            row.classList.add('active');
+            row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        const sub = subtitles[index];
+        if (!sub) return;
+
+        // Update Editor
+        const textField = document.getElementById('currentSubtitleText');
+        if (textField) textField.value = sub.text;
+
+        document.getElementById('currentStartTime').textContent = sub.start.toFixed(2);
+        document.getElementById('currentEndTime').textContent = sub.end.toFixed(2);
+
+        updateImageMatchIndicator(sub.start); // [NEW] Check Image Match
+        renderImageStrip(); // [NEW] Update strip to highlight current image
+
+        // [FIX] Update List View Timestamp
+        const listTimeEl = document.getElementById(`sub-time-${index}`);
+        if (listTimeEl) {
+            listTimeEl.innerHTML = `${sub.start.toFixed(1)}s<br>~${sub.end.toFixed(1)}s`;
+        }
+
+        // Update Preview (textContent 직접 설정 대신 updateSubtitlePreview로 배경띠 포함 갱신)
+        const previewText = document.getElementById('previewTextMain');
+        if (previewText) previewText.textContent = sub.text;
+        updateSubtitlePreview();
+
+        // Update Background Image
+        // Update Background Image & Selector
+        const container = document.getElementById('previewContainer');
+
+        // Find rough image match
+        if (sub.preview_url) {
+            if (container) container.innerHTML = `<img src="${sub.preview_url}" style="width: 100%; height: 100%; object-fit: cover; object-position: center;" class="w-full h-full">`;
+        } else if (images.length > 0) {
+            const durationPerImg = audioDuration / images.length;
+            // Find active image index based on time
+            let imgIdx = -1;
+            if (imageTimings && imageTimings.length > 0) {
+                for (let i = 0; i < imageTimings.length; i++) {
+                    if (sub.start >= imageTimings[i] - 0.05) imgIdx = i;
+                    else break;
+                }
+            } else {
+                // Fallback if no timings
+                const mid = (sub.start + sub.end) / 2;
+                imgIdx = Math.min(Math.floor(mid / durationPerImg), images.length - 1);
+            }
+
+            if (imgIdx >= 0 && imgIdx < images.length) {
+                const rawUrl = images[imgIdx];
+                const imgUrl = Utils.convertToWebPath(rawUrl);
+                const isVideo = imgUrl.toLowerCase().endsWith('.mp4');
+                const isShorts = (window.currentAppMode === 'shorts');
+
+                if (container) {
+                    if (isVideo) {
+                        container.innerHTML = `
+                            <video src="${imgUrl}" 
+                                   style="width: 100%; height: 100%; object-fit: cover; background: black;" 
+                                   class="w-full h-full" 
+                                   autoplay muted loop playsinline>
+                            </video>`;
+                    } else if (isShorts) {
+                        container.innerHTML = `
+                            <div class="relative w-full h-full overflow-hidden bg-black">
+                                <img src="${imgUrl}" class="absolute inset-0 w-full h-full object-cover blur-md opacity-50 scale-110">
+                                <img src="${imgUrl}" class="relative z-10 w-full h-full object-contain">
+                            </div>`;
+                    } else {
+                        container.innerHTML = `<img src="${imgUrl}" style="width: 100%; height: 100%; object-fit: cover; object-position: center;" class="w-full h-full">`;
+                    }
+                }
+            }
+        }
+    }
+
+    function applySettings(s) {
+        if (s.subtitle_font) {
+            const el = document.getElementById('fontFamilySelect');
+            if (el) el.value = s.subtitle_font;
+        }
+        if (s.subtitle_font_size) {
+            const el = document.getElementById('fontSizeSlider');
+            const valueEl = document.getElementById('fontSizeValue');
+            if (el) {
+                const percent = parseFloat(s.subtitle_font_size);
+                // Legacy support: >15 means pixels, convert to %
+                const finalPercent = percent > 15 ? 5.0 : percent;
+                el.value = finalPercent;
+                if (valueEl) valueEl.textContent = finalPercent.toFixed(1) + '%';
+                styleSettings.font_size = finalPercent;
+            }
+        }
+        if (s.subtitle_base_color) {
+            const el = document.getElementById('textColorInput');
+            if (el) el.value = s.subtitle_base_color;
+        }
+        if (s.subtitle_stroke_color) {
+            const el = document.getElementById('strokeColorInput');
+            if (el) el.value = s.subtitle_stroke_color;
+        }
+        if (s.subtitle_stroke_width !== undefined) {
+            const el = document.getElementById('strokeWidthSlider');
+            if (el) {
+                el.value = s.subtitle_stroke_width;
+                document.getElementById('strokeWidthValue').textContent = s.subtitle_stroke_width;
+            }
+        }
+        // [NEW] Aspect Ratio
+        if (s.aspect_ratio) {
+            setAspectRatio(s.aspect_ratio);
+        }
+
+        const preview = document.getElementById('previewTextMain');
+        if (preview) {
+            if (s.subtitle_pos_x) preview.style.left = s.subtitle_pos_x;
+            if (s.subtitle_pos_y) preview.style.top = s.subtitle_pos_y;
+        }
+
+        updateSubtitlePreview();
+    }
+
+    // [NEW] Update Image Match Indicator
+    function updateImageMatchIndicator(startTime) {
+        const el = document.getElementById('currentImageIndicator');
+        const timeEl = document.getElementById('currentImageTime'); // [NEW]
+
+        if (!el || !imageTimings || imageTimings.length === 0) {
+            if (el) el.textContent = "?뼹截영상대?吏: 留ㅼ묶 정보 없음";
+            if (timeEl) timeEl.textContent = "-";
+            return;
+        }
+
+        // Find which image is active at startTime
+        let imgIndex = -1;
+        for (let i = 0; i < imageTimings.length; i++) {
+            if (startTime >= imageTimings[i] - 0.05) { // tolerance
+                imgIndex = i;
+            } else {
+                break;
+            }
+        }
+
+        // Ensure index is within images array bounds
+        if (imgIndex !== -1 && images.length > 0) {
+            const actualIndex = Math.min(imgIndex, images.length - 1);
+            el.textContent = i18n.label_curr_image.replace('{img}', `#${actualIndex + 1}`);
+
+            // [NEW] Update Time Display
+            if (timeEl) timeEl.textContent = `${imageTimings[imgIndex].toFixed(1)}s`;
+
+            // [NEW] Update End Time Display & Buttons
+            const endTimeEl = document.getElementById('currentImageEndTime');
+            const btnMinus = document.getElementById('btnImgEndMinus');
+            const btnPlus = document.getElementById('btnImgEndPlus');
+
+            let endTime = audioDuration;
+            let isLast = false;
+            // Check if there is a next image timing
+            if (actualIndex < imageTimings.length - 1) {
+                endTime = imageTimings[actualIndex + 1];
+            } else {
+                isLast = true;
+            }
+
+            if (endTimeEl) endTimeEl.textContent = `${endTime.toFixed(1)}s`;
+
+            if (btnMinus) btnMinus.disabled = isLast;
+            if (btnPlus) btnPlus.disabled = isLast;
+            if (isLast) {
+                if (btnMinus) btnMinus.classList.add('opacity-50', 'cursor-not-allowed');
+                if (btnPlus) btnPlus.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                if (btnMinus) btnMinus.classList.remove('opacity-50', 'cursor-not-allowed');
+                if (btnPlus) btnPlus.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+
+            // Optional: Update Preview Image
+            // We show the CURRENT image in preview usually.
+            // ... (existing preview update logic if any)
+            const previewBg = document.getElementById('previewContainer');
+            if (actualIndex >= 0 && actualIndex < images.length) {
+                const rawUrl = images[actualIndex];
+                const imgUrl = Utils.convertToWebPath(rawUrl);
+                const isVideo = imgUrl.toLowerCase().includes('.mp4'); // [FIX] Robust check
+                const isShorts = (window.currentAppMode === 'shorts');
+
+                if (isVideo) {
+                    // Video Preview
+                    previewBg.innerHTML = `
+                        <video src="${imgUrl}" 
+                               style="width: 100%; height: 100%; object-fit: cover; background: black;" 
+                               class="w-full h-full" 
+                               autoplay muted loop playsinline>
+                        </video>`;
+                } else if (isShorts) {
+                    // Simulate "Cinematic Frame" for Images: Blurred Background + Centered Image (Fit)
+                    previewBg.innerHTML = `
+                        <div class="relative w-full h-full overflow-hidden bg-black">
+                            <!-- Blurry Background -->
+                            <img src="${imgUrl}" 
+                                 class="absolute inset-0 w-full h-full object-cover blur-md opacity-50 scale-110">
+                            <!-- Main Image (Fit) -->
+                            <img src="${imgUrl}" 
+                                 class="relative z-10 w-full h-full object-contain">
+                        </div>
+                    `;
+                } else {
+                    // Normal Longform Image (Fill)
+                    previewBg.innerHTML = `<img src="${imgUrl}" style="width: 100%; height: 100%; object-fit: cover; object-position: center;" class="w-full h-full">`;
+                }
+            }
+
+        } else {
+            if (el) el.textContent = "현재영상이미지: 매칭 정보 없음";
+            if (timeEl) timeEl.textContent = "-";
+            const endTimeEl = document.getElementById('currentImageEndTime');
+            if (endTimeEl) endTimeEl.textContent = "-";
+        }
+    }
+
+    // [NEW] Adjust Image End Time (Next Image Start)
+    function adjustImageEndTime(seconds) {
+        if (!imageTimings || imageTimings.length === 0) return;
+
+        // Find current image index from subtitle start time
+        // Note: 'currentStartTime' logic might be slightly off if user clicked a subtitle mid-image, 
+        // but generally correct for "active subtitle".
+        const startTime = parseFloat(document.getElementById('currentStartTime').textContent);
+
+        let imgIndex = -1;
+        for (let i = 0; i < imageTimings.length; i++) {
+            if (startTime >= imageTimings[i] - 0.05) imgIndex = i;
+            else break;
+        }
+
+        if (imgIndex === -1) return;
+
+        // Target is the NEXT image's start time
+        // If imgIndex is last, we cannot adjust end time (it's fixed to audio end).
+        const targetIndex = imgIndex + 1;
+
+        if (targetIndex >= imageTimings.length) {
+            Utils.showToast("마지막 이미지는 종료 시간을 오디오 길이로 고정합니다.", "warning");
+            return;
+        }
+
+        // Use existing logic to change timing
+        const currentEnd = imageTimings[targetIndex]; // Current "End Time" (Next Start)
+        const newTime = Math.max(0, Math.min(audioDuration, currentEnd + seconds));
+
+        // Simple clamp against previous start (current image start) and next-next start
+        const prevStart = imageTimings[imgIndex];
+        const nextStart = (targetIndex + 1 < imageTimings.length) ? imageTimings[targetIndex + 1] : audioDuration;
+
+        if (newTime <= prevStart) {
+            Utils.showToast("시작 시간보다 앞설 수 없습니다.", "warning");
+            return;
+        }
+        if (newTime >= nextStart) {
+            Utils.showToast("다음 이미지 시간과 겹칠 수 없습니다.", "warning");
+            return;
+        }
+
+        imageTimings[targetIndex] = newTime;
+
+        saveSubtitles();
+        renderSubtitles();
+
+        // Refresh Indicator
+        updateImageMatchIndicator(startTime);
+    }
+
+
+
+    // [NEW] Aspect Ratio Logic
+    function setAspectRatio(ratio) {
+        const box = document.getElementById('mainPreviewBox');
+        if (box) {
+            // Apply Aspect Ratio
+            box.style.aspectRatio = ratio.replace(':', '/');
+
+            // Adjust Width for Mobile vs Desktop feel
+            if (ratio === '9:16') {
+                box.classList.remove('max-w-2xl');
+                box.classList.add('max-w-[300px]'); // Phone width (reduced)
+            } else {
+                box.classList.remove('max-w-[300px]');
+                box.classList.add('max-w-2xl'); // Desktop width (reduced)
+            }
+        }
+
+        // Update toggle button state if exists
+        const btn = document.getElementById('ratioToggleBtn');
+        if (btn) {
+            btn.textContent = ratio === '9:16' ? '세로 9:16' : '가로 16:9';
+        }
+    }
+
+    async function toggleAspectRatio() {
+        const box = document.getElementById('mainPreviewBox');
+        let current = box.style.aspectRatio;
+        // normalize
+        if (current.includes('16 / 9') || current.includes('1.77')) current = '16:9';
+        else current = '9:16';
+
+        const newRatio = current === '16:9' ? '9:16' : '16:9';
+        setAspectRatio(newRatio);
+        await API.project.updateSetting(projectId, 'aspect_ratio', newRatio);
+    }
+
+    function updateSubtitlePreview() {
+        const text = document.getElementById('previewTextMain');
+        if (!text) return;
+
+        const fontEl = document.getElementById('fontFamilySelect');
+        const sizeEl = document.getElementById('fontSizeSlider');
+        const colorEl = document.getElementById('textColorInput');
+        const strokeColorEl = document.getElementById('strokeColorInput');
+        const strokeWidthEl = document.getElementById('strokeWidthInput');
+
+        if (!fontEl || !sizeEl || !colorEl || !strokeColorEl || !strokeWidthEl) {
+            console.warn('One or more preview controls missing from DOM');
+            return;
+        }
+
+        const font = fontEl.value;
+        const fontSizePercent = parseFloat(sizeEl.value || 5.4);
+        const color = colorEl.value;
+        const strokeColor = strokeColorEl.value;
+        const strokeWidth = parseFloat(strokeWidthEl.value || 0);
+
+        const previewBox = document.getElementById('mainPreviewBox');
+        const previewContainer = document.getElementById('previewContainer');
+        if (!previewBox || !previewContainer) return;
+
+        const aspectRatio = styleSettings.aspect_ratio || '9:16';
+        const [w, h] = aspectRatio.split(':').map(Number);
+        const imageWidth = previewContainer.clientWidth;
+        const videoHeight = (imageWidth * h) / w;
+
+        const previewHeight = previewBox.clientHeight;
+        const scaleFactor = previewHeight / videoHeight;
+
+        const actualSize = Math.round(videoHeight * (fontSizePercent / 100) * scaleFactor * 1.0);
+        const containerWidth = Math.round(imageWidth * 0.98);
+
+        text.style.color = color;
+        text.style.fontSize = `${actualSize}px`;
+        text.style.fontFamily = font;
+
+        // [FIX] Gungsuh font breaks stroke when 'bold' is applied (Synthetic Bold issue)
+        if (font.includes('Gungsuh') || font.includes('궁서')) {
+            text.style.fontWeight = 'normal';
+        } else {
+            text.style.fontWeight = 'bold';
+        }
+
+        // Stroke (Robust Text-Shadow Method)
+        // [FIX] 'Gungsuh' font with 'Bold' often breaks SVG/Webkit strokes due to faux-bold rendering.
+        // We use multi-layered text-shadow to simulate stroke perfectly.
+
+        if (strokeWidth > 0) {
+            const shadows = [];
+            const steps = 24; // 15 degree steps
+            const layers = Math.min(Math.ceil(strokeWidth * scaleFactor), 10); // Cap layers for perf
+
+            for (let r = 1; r <= layers; r++) {
+                for (let i = 0; i < steps; i++) {
+                    const angle = (i * (360 / steps)) * (Math.PI / 180);
+                    const x = (r * Math.cos(angle)).toFixed(1);
+                    const y = (r * Math.sin(angle)).toFixed(1);
+                    shadows.push(`${x}px ${y}px 0 ${strokeColor}`);
+                }
+            }
+
+            text.style.textShadow = shadows.join(',');
+            text.style.webkitTextStroke = '0';
+            text.style.filter = 'none';
+        } else {
+            text.style.textShadow = 'none';
+            text.style.webkitTextStroke = '0';
+            text.style.filter = 'none';
+        }
+        text.style.webkitTextFillColor = color;
+
+        text.style.width = containerWidth + 'px';
+        text.style.maxWidth = containerWidth + 'px';
+        text.style.wordWrap = 'break-word';
+        text.style.whiteSpace = 'pre-wrap';
+        text.style.textAlign = 'center';
+        text.style.boxSizing = 'border-box';
+
+        // [Cleaned up] No extra textShadow clearing here
+
+        // Background Strip
+        const bgToggle = document.getElementById('bgStripToggle');
+        const bgColorEl = document.getElementById('bgColorInput');
+        const bgOpacityEl = document.getElementById('bgOpacityInput');
+
+        if (!text) return;
+
+        // Get current subtitle text
+        const currentTextEl = document.getElementById('currentSubtitleText');
+        const subtitleText = currentTextEl ? currentTextEl.value : '자막 미리보기';
+        const lines = subtitleText.split('\n').filter(l => l.trim());
+
+        if (bgToggle && bgColorEl && bgOpacityEl && lines.length > 0) {
+            const bgColor = bgColorEl.value; // HEX (#rrggbb)
+            const bgOpacity = parseFloat(bgOpacityEl.value || 0.5);
+
+            // HEX to RGB Conversion
+            let r = 0, g = 0, b = 0;
+            if (bgColor.startsWith('#')) {
+                const hex = bgColor.substring(1);
+                r = parseInt(hex.substring(0, 2), 16);
+                g = parseInt(hex.substring(2, 4), 16);
+                b = parseInt(hex.substring(4, 6), 16);
+            }
+
+            const bgRgba = `rgba(${r},${g},${b},${bgOpacity})`;
+            console.log(`[Preview] BG CSS: ${bgRgba}, Enabled: ${bgToggle.checked}`);
+
+            if (bgToggle.checked) {
+                // Create separate span for each line with its own background
+                text.innerHTML = lines.map(line =>
+                    `<span style="background:${bgRgba}; padding: 0.2em 0.6em; border-radius: 0.3em; display: inline-block; margin: 0.1em 0;">${line}</span>`
+                ).join('<br>');
+                text.style.backgroundColor = 'transparent';
+            } else {
+                // No background - plain text
+                text.innerHTML = lines.join('<br>');
+                text.style.backgroundColor = 'transparent';
+            }
+        } else {
+            // Fallback
+            text.textContent = subtitleText;
+            text.style.backgroundColor = 'transparent';
+        }
+
+        // Line Spacing
+        const spacingEl = document.getElementById('lineSpacingInput');
+        if (spacingEl) {
+            const lineSpacing = parseFloat(spacingEl.value || 0.1);
+            text.style.lineHeight = (1 + lineSpacing).toString();
+        }
+
+        // CSS 미리보기를 항상 표시 (백엔드 이미지 미리보기는 폰트 불일치 문제로 비활성화)
+        const imgEl = document.getElementById('previewSubtitleImage');
+        if (imgEl) imgEl.style.display = 'none';
+        const cssPreviewEl = document.getElementById('previewTextMain');
+        if (cssPreviewEl) cssPreviewEl.style.display = 'inline-block';
+    }
+
+    // ==================================
+    // [NEW] 백엔드 렌더링 미리보기 (렌더링 결과와 100% 일치)
+    // ==================================
+    let previewDebounceTimer = null;
+    let lastPreviewRequest = null;
+
+    async function requestRenderedPreview() {
+        // 현재 선택된 자막 텍스트 가져오기
+        const textEl = document.getElementById('currentSubtitleText');
+        const previewText = textEl ? textEl.value : '자막 미리보기';
+
+        if (!previewText || !previewText.trim()) {
+            hideRenderedPreview();
+            return;
+        }
+
+        // 스타일 설정 수집
+        const fontEl = document.getElementById('fontFamilySelect');
+        const sizeEl = document.getElementById('fontSizeSlider');
+        const colorEl = document.getElementById('textColorInput');
+        const strokeColorEl = document.getElementById('strokeColorInput');
+        const strokeWidthEl = document.getElementById('strokeWidthInput');
+        const bgToggle = document.getElementById('bgStripToggle');
+        const bgColorEl = document.getElementById('bgColorInput');
+        const bgOpacityEl = document.getElementById('bgOpacityInput');
+
+        const fontName = fontEl ? fontEl.value : 'GmarketSansBold';
+        const fontSizePercent = sizeEl ? parseFloat(sizeEl.value || 5.4) : 5.4;
+        const fontColor = colorEl ? colorEl.value : '#FFFFFF';
+        const strokeColor = strokeColorEl ? strokeColorEl.value : '#000000';
+        const strokeWidth = strokeWidthEl ? parseFloat(strokeWidthEl.value || 3) : 3;
+        const bgEnabled = bgToggle ? bgToggle.checked : true;
+
+        let bgColor = 'rgba(0,0,0,0.6)';
+        if (bgColorEl && bgOpacityEl) {
+            const hex = bgColorEl.value;
+            const opacity = parseFloat(bgOpacityEl.value || 0.5);
+            const r = parseInt(hex.slice(1, 3), 16);
+            const g = parseInt(hex.slice(3, 5), 16);
+            const b = parseInt(hex.slice(5, 7), 16);
+            bgColor = `rgba(${r},${g},${b},${opacity})`;
+        }
+
+        // 해상도 결정 (16:9 = 1920x1080, 9:16 = 1080x1920)
+        const aspectRatio = styleSettings.aspect_ratio || '16:9';
+        let width = 1920, height = 1080;
+        if (aspectRatio === '9:16') {
+            width = 1080;
+            height = 1920;
+        }
+
+        // 폰트 크기 계산 (영상 높이의 퍼센트)
+        const fontSize = Math.round(height * (fontSizePercent / 100));
+
+        // [FIX] Rendering engine uses 360p as base for stroke scaling
+        const scaledStrokeWidth = strokeWidth * (height / 360.0);
+        const lineSpacing = parseFloat(document.getElementById('lineSpacingInput')?.value || 0.1);
+
+        // 요청 객체 생성
+        const requestData = {
+            text: previewText.trim(),
+            font_name: fontName,
+            font_size: fontSize,
+            font_color: fontColor,
+            stroke_color: strokeColor,
+            stroke_width: scaledStrokeWidth,
+            bg_enabled: bgEnabled,
+            bg_color: bgColor,
+            style_name: 'Custom',
+            width: width,
+            height: height,
+            line_spacing_ratio: lineSpacing
+        };
+
+        // 동일한 요청 중복 방지
+        const requestKey = JSON.stringify(requestData);
+        if (requestKey === lastPreviewRequest) return;
+
+        // 디바운스 (300ms)
+        if (previewDebounceTimer) {
+            clearTimeout(previewDebounceTimer);
+        }
+
+        previewDebounceTimer = setTimeout(async () => {
+            try {
+                showPreviewLoading();
+
+                const response = await fetch('/api/subtitle/preview-image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestData)
+                });
+
+                const result = await response.json();
+
+                if (result.status === 'ok' && result.image) {
+                    showRenderedPreview(result.image);
+                    lastPreviewRequest = requestKey;
+                } else {
+                    console.warn('Preview render failed:', result.error);
+                    hideRenderedPreview();
+                }
+            } catch (err) {
+                console.error('Preview request error:', err);
+                hideRenderedPreview();
+            }
+        }, 300);
+    }
+
+    function showPreviewLoading() {
+        const loadingEl = document.getElementById('previewSubtitleLoading');
+        if (loadingEl) loadingEl.classList.remove('hidden');
+    }
+
+    function showRenderedPreview(imageSrc) {
+        const imgEl = document.getElementById('previewSubtitleImage');
+        const loadingEl = document.getElementById('previewSubtitleLoading');
+        const cssEl = document.getElementById('previewTextMain');
+
+        if (loadingEl) loadingEl.classList.add('hidden');
+        // inline style이 class보다 우선순위 높으므로 style.display로 직접 숨김
+        if (cssEl) cssEl.style.display = 'none';
+
+        if (imgEl) {
+            imgEl.src = imageSrc;
+            imgEl.style.display = 'block';
+        }
+    }
+
+    function hideRenderedPreview() {
+        const imgEl = document.getElementById('previewSubtitleImage');
+        const loadingEl = document.getElementById('previewSubtitleLoading');
+        const cssEl = document.getElementById('previewTextMain');
+
+        if (loadingEl) loadingEl.classList.add('hidden');
+        if (imgEl) imgEl.style.display = 'none';
+        // CSS 폴백 표시 복원
+        if (cssEl) cssEl.style.display = 'inline-block';
+    }
+
+    function setupStyleListeners() {
+        // Debounced or direct auto-save logic
+        const update = async (key, val) => {
+            styleSettings[key] = val;
+            updateSubtitlePreview();
+            await API.project.updateSetting(projectId, key, val);
+        };
+
+        const fontEl = document.getElementById('fontFamilySelect');
+        if (fontEl) fontEl.addEventListener('change', e => update('subtitle_font', e.target.value));
+
+        const sizeSlider = document.getElementById('fontSizeSlider');
+        if (sizeSlider) {
+            sizeSlider.addEventListener('input', e => {
+                const percent = parseFloat(e.target.value);
+                document.getElementById('fontSizeValue').textContent = percent.toFixed(1) + '%';
+                updateSubtitlePreview();
+            });
+            sizeSlider.addEventListener('change', e => {
+                update('subtitle_font_size', parseFloat(e.target.value));
+            });
+        }
+
+        const colorEl = document.getElementById('textColorInput');
+        if (colorEl) colorEl.addEventListener('change', e => update('subtitle_base_color', e.target.value));
+
+        const strokeWidthInput = document.getElementById('strokeWidthInput');
+        if (strokeWidthInput) {
+            strokeWidthInput.addEventListener('input', e => updateSubtitlePreview());
+            strokeWidthInput.addEventListener('change', e => update('subtitle_stroke_width', parseFloat(e.target.value || 0)));
+        }
+
+        const lineSpacingInput = document.getElementById('lineSpacingInput');
+        if (lineSpacingInput) {
+            lineSpacingInput.addEventListener('input', e => updateSubtitlePreview());
+            lineSpacingInput.addEventListener('change', e => update('subtitle_line_spacing', parseFloat(e.target.value || 0.1)));
+        }
+
+        const bgColorInput = document.getElementById('bgColorInput');
+        if (bgColorInput) bgColorInput.addEventListener('change', e => update('subtitle_bg_color', e.target.value));
+
+        const bgOpacityInput = document.getElementById('bgOpacityInput');
+        if (bgOpacityInput) {
+            bgOpacityInput.addEventListener('input', e => updateSubtitlePreview());
+            bgOpacityInput.addEventListener('change', e => update('subtitle_bg_opacity', parseFloat(e.target.value || 0.5)));
+        }
+
+        // Text Input Listener
+        const textInput = document.getElementById('currentSubtitleText');
+        if (textInput) {
+            textInput.addEventListener('input', (e) => {
+                if (selectedIndex >= 0 && subtitles[selectedIndex]) {
+                    subtitles[selectedIndex].text = e.target.value;
+                    const preview = document.getElementById('previewTextMain');
+                    if (preview) preview.textContent = e.target.value;
+                    // Update List Item text too
+                    const row = document.getElementById(`sub-row-${selectedIndex}`);
+                    if (row) row.querySelector('.sub-text').textContent = e.target.value;
+                }
+            });
+        }
+    }
+
+    // [NEW] Save Style Settings Bulk
+    async function saveStyleSettings(btn) {
+        if (!projectId) {
+            alert("❌ 프로젝트 ID가 확인되지 않아 설정을 저장할 수 없습니다.\n페이지를 새로고침하거나 메인 화면에서 프로젝트를 다시 선택해주세요.");
+            console.error("saveStyleSettings failed: projectId is null/undefined");
+            return;
+        }
+
+        const originalText = btn ? btn.innerHTML : "세팅저장";
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = `<span>🔄</span> 저장중...`;
+        }
+
+        try {
+            const font = document.getElementById('fontFamilySelect').value;
+            const fontSize = parseFloat(document.getElementById('fontSizeSlider').value);
+            const color = document.getElementById('textColorInput').value;
+            const strokeColor = document.getElementById('strokeColorInput').value;
+            const strokeWidth = parseFloat(document.getElementById('strokeWidthInput').value || 0);
+            const lineSpacing = parseFloat(document.getElementById('lineSpacingInput').value || 0.1);
+            const bgEnabled = document.getElementById('bgStripToggle').checked ? 1 : 0;
+            const bgColor = document.getElementById('bgColorInput').value;
+            const bgOpacity = parseFloat(document.getElementById('bgOpacityInput').value || 0.5);
+
+            // Get current positions
+            const preview = document.getElementById('previewTextMain');
+            const posX = preview ? preview.style.left : '50%';
+            const posY = preview ? preview.style.top : '75%';
+            const ratio = (document.getElementById('ratioToggleBtn').textContent.includes('9:16')) ? '9:16' : '16:9';
+
+            const settings = {
+                subtitle_font: font,
+                subtitle_font_size: fontSize,
+                subtitle_base_color: color,
+                subtitle_stroke_color: strokeColor,
+                subtitle_stroke_width: strokeWidth,
+                subtitle_line_spacing: lineSpacing,
+                subtitle_bg_enabled: bgEnabled,
+                subtitle_bg_color: bgColor,
+                subtitle_bg_opacity: bgOpacity,
+                subtitle_pos_x: posX,
+                subtitle_pos_y: posY,
+                aspect_ratio: ratio
+            };
+
+            const result = await API.project.saveSettings(projectId, settings);
+            if (result.status === 'ok') {
+                Utils.showToast("스타일 설정이 영구 저장되었습니다.", "success");
+            } else {
+                throw new Error(result.error || "Unknown Error");
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast("설정 저장 실패: " + e.message, "error");
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+    }
+
+    // --- Action Functions ---
+    async function saveSubtitles(isAutoSave = false) {
+        const btn = document.getElementById('saveBtn');
+        if (!isAutoSave) Utils.setLoading(btn, true, '저장..');
+        try {
+            // Update Position before save
+            const preview = document.getElementById('previewTextMain');
+            if (preview) {
+                await API.project.updateSetting(projectId, 'subtitle_pos_x', preview.style.left);
+                await API.project.updateSetting(projectId, 'subtitle_pos_y', preview.style.top);
+            }
+
+            // [Fix] Force save font size to ensure consistency and update timestamp
+            const sizeSlider = document.getElementById('fontSizeSlider');
+            if (sizeSlider) {
+                await API.project.updateSetting(projectId, 'subtitle_font_size', parseFloat(sizeSlider.value));
+            }
+
+            const res = await fetch('/api/subtitle/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    project_id: projectId,
+                    subtitles: subtitles,
+                    image_timings: imageTimings,
+                    images: images,
+                    image_effects: imageEffects
+                })
+            });
+            console.log("[Save] Sending Image Effects:", imageEffects);
+            // alert(`[DEBUG] Saving Effects: ${JSON.stringify(imageEffects)}`); // Explicit User Feedback
+            updateDebug(`[Save] Effects Sent: ${JSON.stringify(imageEffects)}`);
+            const data = await res.json();
+            if (data.status === 'ok') {
+                if (!isAutoSave) Utils.showToast("자막 및 이미지 저장 완료", "success");
+                if (window.updateStepStatus) window.updateStepStatus('subtitle', true);
+
+                if (data.subtitles) {
+                    subtitles = data.subtitles;
+                    renderSubtitles();
+                    if (selectedIndex >= 0) selectSubtitle(selectedIndex);
+                }
+            } else throw new Error(data.error);
+        } catch (e) {
+            if (!isAutoSave) Utils.showToast('저장 실패: ' + e.message, 'error');
+            else console.error("AutoSave Failed:", e);
+        } finally {
+            if (!isAutoSave) Utils.setLoading(btn, false);
+        }
+    }
+
+    async function generateSubtitles() {
+        Utils.showToast('자막 생성 요청...', 'info');
+        try {
+            const res = await fetch('/api/subtitle/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ project_id: projectId })
+            });
+            const data = await res.json();
+            if (data.status === 'ok') {
+                subtitles = data.subtitles;
+                images = data.images || images; // Update images if provided
+                imageTimings = data.image_timings || []; // Update timings
+                renderSubtitles();
+                selectSubtitle(0);
+                Utils.showToast('생성 완료', 'success');
+            } else throw new Error(data.error);
+        } catch (e) {
+            Utils.showToast('오류: ' + e.message, 'error');
+        }
+    }
+
+    async function regenerateSubtitles() {
+        if (!confirm('모든 자막을 다시 분석합니다. 수동 편집이 사라집니다.')) return;
+        Utils.showToast('재분석 중..', 'info');
+        try {
+            const res = await fetch(`/api/project/${projectId}/subtitle/regenerate`, { method: 'POST' });
+            const data = await res.json();
+            if (data.status === 'ok') {
+                subtitles = data.subtitles;
+                images = data.images || images;
+                imageTimings = data.image_timings || [];
+                renderSubtitles();
+                selectSubtitle(0);
+                Utils.showToast('재분석 완료', 'success');
+            } else throw new Error(data.error);
+        } catch (e) { Utils.showToast('실패: ' + e.message, 'error'); }
+    }
+
+
+
+
+
+
+
+    Utils.showToast('자막-이미지 싱크가 로드되었습니다.', 'success');
+
+    // [NEW] Adjust Time -> Sync Images -> Save
+    async function saveAndSync() {
+        if (!subtitles || subtitles.length === 0) return;
+
+        // 1. Save to backend (No auto-distribute)
+        await saveSubtitles();
+
+        // 3. Feedback handled by saveSubtitles
+    }
+
+    function applyPreset(name) {
+        if (name === 'basic_white') {
+            document.getElementById('textColorInput').value = '#ffffff';
+            document.getElementById('strokeColorInput').value = '#000000';
+            updateSubtitlePreview();
+        } else if (name === 'basic_black') {
+            document.getElementById('textColorInput').value = '#000000';
+            document.getElementById('strokeColorInput').value = '#ffffff';
+            updateSubtitlePreview();
+        } else if (name === 'yellow_shadow') {
+            document.getElementById('textColorInput').value = '#fbbf24'; // Yellow
+            document.getElementById('strokeColorInput').value = '#000000';
+            updateSubtitlePreview();
+        }
+        document.getElementById('textColorInput').dispatchEvent(new Event('change'));
+        document.getElementById('strokeColorInput').dispatchEvent(new Event('change'));
+    }
+
+    // ====== 선택삭제 기능 ======
+    let selectedRows = new Set();
+    let isSelectMode = false;
+
+    function toggleSelectMode() {
+        isSelectMode = !isSelectMode;
+        selectedRows.clear();
+        const btn = document.getElementById('btnSelectMode');
+        const bar = document.getElementById('deleteActionBar');
+        if (isSelectMode) {
+            btn.textContent = '✕ 취소';
+            btn.className = 'text-[10px] bg-orange-100 text-orange-600 px-2 py-1 rounded hover:bg-orange-200 border border-orange-300';
+            bar.classList.remove('hidden');
+            bar.classList.add('flex');
+        } else {
+            btn.textContent = '☑ 선택삭제';
+            btn.className = 'text-[10px] bg-red-50 text-red-500 px-2 py-1 rounded hover:bg-red-100 border border-red-200';
+            bar.classList.add('hidden');
+            bar.classList.remove('flex');
+        }
+        renderSubtitles();
+    }
+
+    function toggleRowSelect(index) {
+        if (selectedRows.has(index)) {
+            selectedRows.delete(index);
+        } else {
+            selectedRows.add(index);
+        }
+        const countEl = document.getElementById('deleteActionCount');
+        if (countEl) countEl.textContent = `${selectedRows.size}개 선택됨`;
+        // 체크박스 UI만 업데이트 (전체 재렌더 없이)
+        const row = document.getElementById(`sub-row-${index}`);
+        if (row) {
+            const cb = row.querySelector('.select-cb');
+            if (cb) cb.checked = selectedRows.has(index);
+            if (selectedRows.has(index)) {
+                row.classList.add('ring-2', 'ring-red-400', 'bg-red-50', 'dark:bg-red-900/20');
+            } else {
+                row.classList.remove('ring-2', 'ring-red-400', 'bg-red-50', 'dark:bg-red-900/20');
+            }
+        }
+    }
+
+    function selectAllRows() {
+        if (selectedRows.size === subtitles.length) {
+            // 전체 해제
+            selectedRows.clear();
+        } else {
+            // 전체 선택
+            for (let i = 0; i < subtitles.length; i++) selectedRows.add(i);
+        }
+        const countEl = document.getElementById('deleteActionCount');
+        if (countEl) countEl.textContent = `${selectedRows.size}개 선택됨`;
+        renderSubtitles();
+    }
+
+    function _computeAssignments() {
+        const assignments = new Array(subtitles.length).fill(-1);
+        if (imageTimings && imageTimings.length > 0) {
+            for (let i = 0; i < subtitles.length; i++) {
+                const start = subtitles[i].start;
+                let bestImgIdx = -1;
+                for (let k = 0; k < imageTimings.length; k++) {
+                    if (start >= imageTimings[k] - 0.05) bestImgIdx = k;
+                    else break;
+                }
+                if (bestImgIdx === -1 && imageTimings.length > 0) bestImgIdx = 0;
+                assignments[i] = bestImgIdx;
+            }
+        }
+        return assignments;
+    }
+
+    function deleteSelectedRows() {
+        if (selectedRows.size === 0) {
+            Utils.showToast('삭제할 섹션을 선택하세요', 'warning');
+            return;
+        }
+        const count = selectedRows.size;
+        if (!confirm(`선택한 ${count}개 섹션을 삭제할까요?\n썸네일(이미지/영상)이 있는 섹션은 함께 삭제됩니다.`)) return;
+
+        const assignments = _computeAssignments();
+
+        // ── 핵심 로직 ──────────────────────────────────────────────────
+        // 각 이미지의 "전환점 자막"을 찾는다 (썸네일이 표시되는 최초 자막)
+        // 그 자막이 삭제 대상이면 해당 이미지도 삭제한다.
+        // ──────────────────────────────────────────────────────────────
+        const imageOwnerSub = {}; // imgIdx → 전환점 자막 index
+        for (let i = 0; i < subtitles.length; i++) {
+            const imgIdx = assignments[i];
+            if (imgIdx < 0) continue;
+            const prevImgIdx = i > 0 ? assignments[i - 1] : -1;
+            if (imgIdx !== prevImgIdx) {
+                // 이 자막이 imgIdx 이미지의 전환점(썸네일 표시 자막)
+                imageOwnerSub[imgIdx] = i;
+            }
+        }
+
+        // 전환점 자막이 삭제 대상이면 이미지도 삭제
+        const imagesToDelete = new Set();
+        for (const [imgIdxStr, ownerSubIdx] of Object.entries(imageOwnerSub)) {
+            if (selectedRows.has(ownerSubIdx)) {
+                imagesToDelete.add(parseInt(imgIdxStr));
+            }
+        }
+
+        // 자막 삭제 (내림차순 splice)
+        const toDelete = Array.from(selectedRows).sort((a, b) => b - a);
+        for (const idx of toDelete) {
+            subtitles.splice(idx, 1);
+        }
+
+        // 이미지/타이밍/효과 삭제 (내림차순)
+        const imgIndicesToDelete = Array.from(imagesToDelete).sort((a, b) => b - a);
+        for (const imgIdx of imgIndicesToDelete) {
+            if (images && imgIdx < images.length) images.splice(imgIdx, 1);
+            if (imageTimings && imgIdx < imageTimings.length) imageTimings.splice(imgIdx, 1);
+            if (imageEffects && imgIdx < imageEffects.length) imageEffects.splice(imgIdx, 1);
+        }
+
+        // 선택 모드 종료
+        isSelectMode = false;
+        selectedRows.clear();
+        const btn = document.getElementById('btnSelectMode');
+        const bar = document.getElementById('deleteActionBar');
+        if (btn) { btn.textContent = '☑ 선택삭제'; btn.className = 'text-[10px] bg-red-50 text-red-500 px-2 py-1 rounded hover:bg-red-100 border border-red-200'; }
+        if (bar) { bar.classList.add('hidden'); bar.classList.remove('flex'); }
+
+        renderSubtitles();
+        saveSubtitles();
+        Utils.showToast(`${count}개 섹션 삭제 완료 (이미지 ${imagesToDelete.size}개 제거)`, 'success');
+    }
+    // ====== 선택삭제 기능 끝 ======
+
+    function addSubtitleRow() {
+        const last = subtitles[subtitles.length - 1];
+        const start = last ? last.end : 0;
+        subtitles.push({ start: start, end: start + 2, text: "영상자막" });
+        renderSubtitles();
+        selectSubtitle(subtitles.length - 1);
+    }
+
+    function adjustTime(delta) {
+        if (selectedIndex < 0 || !subtitles[selectedIndex]) return;
+
+        console.log('Adjusting time', delta, subtitles[selectedIndex]);
+
+        let newStart = subtitles[selectedIndex].start + delta;
+        let newEnd = subtitles[selectedIndex].end + delta;
+
+        if (newStart < 0) {
+            newEnd = newEnd - newStart; // Shift end if start hits 0? Or just clamp?
+            newStart = 0;
+            // Actually just clamp start, let duration change? Or keep duration?
+            // User probably wants shift.
+            // If start < 0, shift back.
+        }
+
+        subtitles[selectedIndex].start = parseFloat(newStart.toFixed(2));
+        subtitles[selectedIndex].end = parseFloat(newEnd.toFixed(2));
+
+        // Force full re-render to ensure list is updated (inefficient but safe)
+        // Actually, just updating the DOM element for time is better UX (no flicker).
+        // I verified the ID exists. Let's stick to updateElement but make sure it works.
+        // Maybe the ID search is failing?
+
+        // Update List UI to reflect new time (thumbnails/time text)
+        renderSubtitles();
+
+        // Re-call selectSubtitle to update specific UI parts
+        selectSubtitle(selectedIndex);
+    }
+
+    // [NEW] Upload Source Media (Directly from Subtitle Page)
+    async function uploadSourceMedia(imageIndex, input) {
+        if (!input.files || input.files.length === 0) return;
+
+        const file = input.files[0];
+        if (!projectId) {
+            Utils.showToast('프로젝트 정보를 찾을 수 없습니다.', 'error');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('project_id', projectId);
+        formData.append('scene_index', imageIndex + 1); // 1-based index for backend
+
+        try {
+            Utils.showToast('미디어 업로드 중...', 'info');
+
+            const response = await fetch('/api/image/upload-scene', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'ok') {
+                // Update local image state
+                if (result.video_url) {
+                    images[imageIndex] = result.video_url;
+                    Utils.showToast('영상 업로드 완료!', 'success');
+                } else {
+                    images[imageIndex] = result.image_url || result.url || result.path; // Fallback
+                    Utils.showToast('이미지 업로드 완료!', 'success');
+                }
+
+                // Force Re-render to show new media
+                renderSubtitles();
+
+                // If currently selected row uses this image, refresh preview
+                if (selectedIndex >= 0) {
+                    const sub = subtitles[selectedIndex];
+                    // Check assignment
+                    // (Simple way: just re-select current)
+                    selectSubtitle(selectedIndex);
+                }
+
+                // IMPORTANT: Trigger Save to persist this change in Project JSON if needed?
+                // Actually `upload-scene` API updates DB `image_prompts`.
+                // But `images` array in `main.py` -> `project_data` might need refresh or it is loaded from DB?
+                // When we `saveSubtitles`, we send `subtitles`. We don't send `images`.
+                // Typically we reload `images` from DB on load. 
+                // To be safe, we might want to reload project data or ensure `images` is accurate.
+                // Since we updated `images[imageIndex]`, and usually `images` are derived from DB rows.
+                // Let's assume frontend update is enough for now, as DB is already updated by the upload API.
+
+            } else {
+                throw new Error(result.error || 'Server Error');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('업로드 실패: ' + e.message, 'error');
+        } finally {
+            // Reset input so same file can be selected again
+            input.value = '';
+        }
+    }
+
+    // [NEW] Adjust Image Time separately
+    function adjustImageTime(delta) {
+        if (selectedIndex < 0) return;
+        const sub = subtitles[selectedIndex];
+
+        // Find which image segment corresponds to this subtitle
+        // We look for image index 'i' where imageTimings[i] <= sub.start
+        let imgIdx = -1;
+        if (!imageTimings || imageTimings.length === 0) imageTimings = [0.0];
+
+        for (let i = 0; i < imageTimings.length; i++) {
+            if (sub.start >= imageTimings[i] - 0.05) { // tolerance
+                imgIdx = i;
+            } else {
+                break;
+            }
+        }
+
+        if (imgIdx !== -1) {
+            let newT = imageTimings[imgIdx] + delta;
+            if (newT < 0) newT = 0;
+            // Ensure it doesn't cross previous image? Maybe not strictly required but safer.
+            if (imgIdx > 0 && newT <= imageTimings[imgIdx - 1]) newT = imageTimings[imgIdx - 1] + 0.1;
+
+            imageTimings[imgIdx] = parseFloat(newT.toFixed(2));
+
+            // Update UI
+            renderSubtitles();
+            selectSubtitle(selectedIndex); // Refresh right panel display
+        }
+    }
+
+    // [NEW] Update Image Effect
+    function updateImageEffect(index, value) {
+        if (!imageEffects) imageEffects = [];
+        // Ensure array size
+        if (index >= imageEffects.length) {
+            // Fill gaps
+            while (imageEffects.length <= index) imageEffects.push('random');
+        }
+        imageEffects[index] = value;
+        // Auto-save logic? Or just wait for manual save. 
+        // User might expect auto-save or explicit save.
+        // Let's rely on global Save button or enable auto save if consistent with other UI.
+        // Current UI has explicit Save button for subtitles.
+    }
+
+    // [NEW] Delete Image Timing
+    function deleteImageStart(imgIdx) {
+        if (imgIdx < 0 || imgIdx >= imageTimings.length) return;
+
+        // Optionally prevent deleting the very first image at 0.0
+        // if (imgIdx === 0 && imageTimings[imgIdx] === 0) return Utils.showToast("첫 번째 이미지는 삭제할 수 없습니다.", "warning");
+
+        if (!confirm("이 자막구간에서 썸네일을 삭제하시겠습니까? (이전 이미지가 계속 표시됩니다)")) return;
+
+        // Remove from parallel arrays
+        imageTimings.splice(imgIdx, 1);
+        images.splice(imgIdx, 1);
+        if (imageEffects && imageEffects.length > imgIdx) {
+            imageEffects.splice(imgIdx, 1);
+        }
+
+        renderImageStrip();
+        saveSubtitles();
+        Utils.showToast("이미지가 삭제되었습니다.", "success");
+    }
+
+    // [NEW] Separate Image Strip Renderer (Global)
+    // [NEW] Separate Image Strip Renderer (Global) -> Renders SOURCE PALETTE (Fixed)
+    function renderImageStrip() {
+        const stripFn = document.getElementById('imageThumbnailStrip');
+        if (!stripFn) return;
+
+        // Use sourceImages (Palette) instead of images (Timeline)
+        if (!sourceImages || sourceImages.length === 0) {
+            stripFn.innerHTML = '<div class="text-[9px] text-gray-400 text-center p-2">이미지 없음</div>';
+            return;
+        }
+
+        const html = sourceImages.map((imgUrl, idx) => {
+            const webPath = Utils.convertToWebPath(imgUrl);
+            const isVideo = webPath.toLowerCase().includes('.mp4');
+
+            // Check if this Source Image is currently active in the timeline
+            // We need to check if the current playing time falls into a timeline segment that uses THIS source image.
+            // 1. Find which timeline-image is active
+            let activeTimelineImgIdx = -1;
+            if (subtitleList && subtitles.length > 0) {
+                // But easier: We know 'selectedIndex' is the active subtitle.
+                // Which image does selectedIndex use?
+                const sub = subtitles[selectedIndex];
+                if (sub && imageTimings) {
+                    // Find active timeline segment
+                    for (let k = 0; k < imageTimings.length; k++) {
+                        if (sub.start >= imageTimings[k] - 0.05) activeTimelineImgIdx = k;
+                        else break;
+                    }
+                }
+            }
+
+            // 2. Does the active timeline segment use this source image?
+            let isActive = false;
+            // imageTimings aligns with 'images' array.
+            if (activeTimelineImgIdx >= 0 && activeTimelineImgIdx < images.length) {
+                // Compare URLs (robustly)
+                // We compare the raw URL or basename?
+                // images[activeTimelineImgIdx] vs imgUrl
+                const tImg = images[activeTimelineImgIdx];
+                // Simple string check or basename check
+                if (tImg === imgUrl || Utils.convertToWebPath(tImg) === webPath) {
+                    isActive = true;
+                }
+            }
+
+            const activeClass = isActive ? 'ring-2 ring-blue-500 opacity-100 scale-[1.02]' : 'opacity-70 hover:opacity-100';
+
+            return `
+            <div 
+                 draggable="true"
+                 ondragstart="handleDragStart(event, ${idx})"
+                 class="relative w-full cursor-pointer transition-all duration-200 group mb-2 shrink-0 ${activeClass}"
+                 style="flex-shrink: 0;"
+                 title="소스 이미지 #${idx + 1} (드래그하여 자막에 적용 가능)">
+                ${isVideo ?
+                    `<video src="${webPath}" class="w-full h-auto min-h-[40px] rounded bg-black border border-gray-600 object-contain" muted loop onmouseover="this.play()" onmouseout="this.pause()"></video>` :
+                    `<img src="${webPath}" class="w-full h-auto min-h-[40px] rounded bg-black border border-gray-600 object-contain" loading="lazy">`
+                }
+                <div class="absolute top-0.5 left-0.5 bg-black/60 text-white text-[8px] px-1 rounded backdrop-blur-sm z-10">
+                    ${idx + 1}
+                </div>
+            </div>`;
+        }).join('');
+
+        stripFn.innerHTML = html;
+    }
+
+    // [NEW] Move Image Boundary (Start Time)
+    function moveImageStart(imgIdx, direction) {
+        // imgIdx: Index in imageTimings array
+        // direction: -1 (move earlier, Up), 1 (move later, Down)
+
+        if (imgIdx < 0 || imgIdx >= imageTimings.length) return;
+
+        // Find current start time
+        const currentT = imageTimings[imgIdx];
+
+        // Find which subtitle corresponds to this time
+        let subIdx = -1;
+        for (let i = 0; i < subtitles.length; i++) {
+            // Basic tolerance matching
+            if (Math.abs(subtitles[i].start - currentT) < 0.1) {
+                subIdx = i;
+                break;
+            }
+        }
+
+        // Fallback or explicit check if failed
+        if (subIdx === -1) {
+            let minDiff = 999;
+            for (let i = 0; i < subtitles.length; i++) {
+                const diff = Math.abs(subtitles[i].start - currentT);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    subIdx = i;
+                }
+            }
+        }
+
+        const targetSubIdx = subIdx + direction;
+
+        if (targetSubIdx >= 0 && targetSubIdx < subtitles.length) {
+
+            const newStart = subtitles[targetSubIdx].start;
+
+            // Validate: Must be > previous image start, < next image start
+            if (imgIdx > 0 && newStart <= imageTimings[imgIdx - 1]) {
+                return Utils.showToast("다음 이미지보다 늦을 수 없습니다.", 'warning');
+            }
+            if (imgIdx < imageTimings.length - 1 && newStart >= imageTimings[imgIdx + 1]) {
+                return Utils.showToast("다음 이미지보다 앞설 수 없습니다.", 'warning');
+            }
+
+            // Update time
+            imageTimings[imgIdx] = newStart;
+
+            // Update UI
+            renderSubtitles();
+
+            // [NEW] Persist Change
+            saveSubtitles();
+        }
+    }
+
+
+    function playSegment(idx) {
+        const sub = subtitles[idx];
+        const audio = document.getElementById('audioPlayer');
+        audio.currentTime = sub.start;
+        audio.play();
+        setTimeout(() => audio.pause(), (sub.end - sub.start) * 1000);
+    }
+
+    // Draggable Functionality
+    function makeDraggable(elmnt) {
+        let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+        elmnt.onmousedown = dragMouseDown;
+
+        function dragMouseDown(e) {
+            e = e || window.event;
+            e.preventDefault();
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            document.onmouseup = closeDragElement;
+            document.onmousemove = elementDrag;
+        }
+
+        function elementDrag(e) {
+            e = e || window.event;
+            e.preventDefault();
+            pos1 = pos3 - e.clientX;
+            pos2 = pos4 - e.clientY;
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
+            elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+        }
+
+        function closeDragElement() {
+            document.onmouseup = null;
+            document.onmousemove = null;
+            if (projectId) {
+                API.project.updateSetting(projectId, 'subtitle_pos_x', elmnt.style.left);
+                API.project.updateSetting(projectId, 'subtitle_pos_y', elmnt.style.top);
+            }
+        }
+    }
+
+
+
+    function previewImage(idx) {
+        if (idx < 0 || idx >= sourceImages.length) return;
+        const rawUrl = sourceImages[idx];
+        const url = Utils.convertToWebPath(rawUrl);
+        const container = document.getElementById('previewContainer');
+
+        if (container) {
+            const isVideo = url.toLowerCase().includes('.mp4');
+            if (isVideo) {
+                container.innerHTML = `
+                    <video src="${url}" 
+                           style="width: 100%; height: 100%; object-fit: cover; background: black;" 
+                           class="w-full h-full" 
+                           autoplay muted loop playsinline>
+                    </video>`;
+            } else {
+                container.innerHTML = `<img src="${url}" style="width: 100%; height: 100%; object-fit: cover; object-position: center;" class="w-full h-full">`;
+            }
+        }
+        Utils.showToast(`이미지 #${idx + 1} 미리보기`, 'info');
+    }
+
+    // [NEW] Drag & Drop Logic
+    function handleDragStart(ev, idx) {
+        // Dragging from Palette (Source Images)
+        ev.dataTransfer.setData("text/plain", idx);
+        ev.dataTransfer.setData("type", "palette_image"); // Explicit Type
+        ev.dataTransfer.effectAllowed = "copy"; // Palette items are COPIED, not MOVED
+    }
+
+
+
+    function handleSubtitleDragStart(ev, index) {
+        ev.dataTransfer.effectAllowed = "move";
+        ev.dataTransfer.setData("type", "subtitle");
+        ev.dataTransfer.setData("index", index);
+        // Optional: Set drag image
+    }
+
+    function handleCombinedDrop(ev, targetIndex) {
+        ev.preventDefault();
+
+        const type = ev.dataTransfer.getData("type");
+
+        // CASE 1: Subtitle Reordering (Move)
+        if (type === "subtitle") {
+            const sourceIndexStr = ev.dataTransfer.getData("index");
+            if (sourceIndexStr === "" || isNaN(sourceIndexStr)) return;
+            const sourceIndex = parseInt(sourceIndexStr);
+
+            if (sourceIndex === targetIndex) return;
+
+            // Reorder Array
+            const [movedItem] = subtitles.splice(sourceIndex, 1);
+            subtitles.splice(targetIndex, 0, movedItem);
+
+            saveSubtitles();
+            renderSubtitles();
+            Utils.showToast("자막 순서가 변경되었습니다.", "success");
+            return;
+        }
+
+        // CASE 2: Image Assignment from Palette (Copy)
+        if (type === "palette_image") {
+            const srcIdx = ev.dataTransfer.getData("text/plain");
+            if (srcIdx === "" || isNaN(srcIdx)) return;
+
+            const imageIndex = parseInt(srcIdx);
+            // Validate against sourceImages (Palette)
+            if (imageIndex < 0 || imageIndex >= sourceImages.length) return;
+
+            // Logic: Apply Image #imageIndex to start at Subtitle #subIdx
+            if (targetIndex < 0 || targetIndex >= subtitles.length) return;
+
+            const targetTime = subtitles[targetIndex].start;
+            const targetUrl = sourceImages[imageIndex]; // Get from Palette (Copy Source)
+
+            if (!imageTimings) imageTimings = [];
+
+            // Insert/Overwrite Logic for Timeline (Thumbnail 2)
+            let insertPos = 0;
+            while (insertPos < imageTimings.length && imageTimings[insertPos] < targetTime) {
+                insertPos++;
+            }
+
+            // Prevent duplicate time exact match (overwrite instead)
+            // This modifies 'images' (Timeline), NOT 'sourceImages' (Palette)
+            if (insertPos < imageTimings.length && Math.abs(imageTimings[insertPos] - targetTime) < 0.1) {
+                images[insertPos] = targetUrl;
+                imageTimings[insertPos] = targetTime;
+            } else {
+                imageTimings.splice(insertPos, 0, targetTime);
+                images.splice(insertPos, 0, targetUrl);
+            }
+
+            renderSubtitles();
+            renderImageStrip();
+            Utils.showToast(i18n.toast_apply_image_success.replace('{idx}', imageIndex + 1), 'success');
+            saveSubtitles();
+            return;
+        }
+
+        // Handle legacy/other types if necessary
+        // ...
+    }
+
+    // [NEW] In-Place Rendering Logic
+    async function renderVideoInPlace() {
+        const btn = document.getElementById('renderBtn');
+        const originalText = btn.innerHTML;
+
+        if (!confirm(i18n.confirm_render_now)) return;
+
+        // UI Loading State
+        btn.disabled = true;
+        btn.innerHTML = `<svg class="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> ${i18n.status_rendering_and_saving}`;
+
+        try {
+            // [FIX] Ensure current state is saved before rendering
+            await saveSubtitles(true);
+
+            // 1. Request Render
+            // Note: API expects resolution, use_subtitles, etc. Defaulting for now.
+            const renderPayload = {
+                project_id: projectId,
+                use_subtitles: true,
+                resolution: "1080p" // or load from settings
+            };
+            // BGM 설정 포함
+            if (bgmState.enabled && bgmState.url) {
+                renderPayload.bgm_url = bgmState.url;
+                renderPayload.bgm_volume = bgmState.volume;
+            }
+            // SFX 설정 포함
+            if (sfxState.enabled && sfxState.url) {
+                renderPayload.sfx_url = sfxState.url;
+            }
+
+            const res = await fetch(`/api/projects/${projectId}/render`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(renderPayload)
+            });
+            const data = await res.json();
+
+            if (data.status === 'processing') {
+                Utils.showToast(i18n.toast_rendering_started, "info");
+                // Start Polling
+                pollRenderStatus(btn, originalText);
+            } else {
+                throw new Error(data.error || "Unknown Error");
+            }
+
+        } catch (e) {
+            console.error(e);
+            Utils.showToast(i18n.err_render_failed + ": " + e.message, 'error');
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+
+    async function pollRenderStatus(btn, originalText) {
+        const pollInterval = 2000; // 2 seconds
+
+        const timer = setInterval(async () => {
+            try {
+                const res = await fetch(`/api/projects/${projectId}/status`);
+                const data = await res.json();
+
+                if (data.status === 'ok') {
+                    if (data.project_status === 'rendered' && data.video_path) {
+                        clearInterval(timer);
+                        onRenderComplete(data.video_path, btn, originalText);
+                    } else if (data.project_status === 'failed') {
+                        clearInterval(timer);
+                        throw new Error("Render Failed on Server");
+                    }
+                    // Else: keep polling
+                }
+            } catch (e) {
+                console.error("Polling Error", e);
+                clearInterval(timer);
+                Utils.showToast(i18n.err_status_poll_fail + ": " + e.message, 'error');
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }, pollInterval);
+    } // Close pollRenderStatus
+
+    // [NEW] Call Auto Sync API
+    async function distributeImages(btn) {
+        if (!confirm(i18n.confirm_auto_sync)) {
+            return;
+        }
+
+        // Fallback if btn not passed
+        if (!btn) btn = document.querySelector('button[onclick*="distributeImages"]');
+
+        const originalText = btn ? btn.innerHTML : i18n.btn_ai_sync;
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = `<span class="animate-spin">🔄</span> ${i18n.status_processing}`;
+        }
+
+        try {
+            // [FIX] Current backend expects POST to /api/subtitle/auto_sync_images
+            const response = await fetch(`/api/subtitle/auto_sync_images`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ project_id: projectId })
+            });
+
+            const data = await response.json();
+
+            if (data.status === 'ok') {
+                const count = data.timeline_images ? data.timeline_images.length : (data.matched_count || 0);
+                Utils.showToast(i18n.toast_auto_sync_success.replace('{count}', count), 'success');
+                // Reload data to reflect changes
+                await loadProjectAndSubtitles();
+            } else {
+                throw new Error(data.error || "Unknown Error");
+            }
+
+        } catch (e) {
+            console.error(e);
+            Utils.showToast(i18n.err_auto_sync_fail + `: ${e.message}`, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+
+    function splitAllSubtitles(btn) {
+        if (subtitles.length === 0) {
+            Utils.showToast(i18n.toast_no_subtitle_to_split, "warning");
+            return;
+        }
+
+        if (!confirm(i18n.confirm_split_all)) {
+            return;
+        }
+
+        const originalText = btn ? btn.innerHTML : i18n.btn_split_2lines;
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = `<span class="animate-spin">⏳</span> ${i18n.status_splitting}`;
+        }
+
+        try {
+            const maxCharsPerLine = 20;
+            const maxLines = 2;
+            const newSubtitles = [];
+
+            for (const sub of subtitles) {
+                const text = (sub.text || "").trim();
+                if (!text) continue;
+
+                // 텍스트를 2줄 청크로 분할
+                const chunks = splitTextToChunks(text, maxCharsPerLine, maxLines);
+
+                if (chunks.length <= 1) {
+                    // 이미 짧은 자막은 그대로
+                    newSubtitles.push({ ...sub });
+                } else {
+                    // 여러 청크로 분할하고 시간 균등 배분
+                    const subDuration = sub.end - sub.start;
+                    const chunkDuration = subDuration / chunks.length;
+
+                    for (let i = 0; i < chunks.length; i++) {
+                        newSubtitles.push({
+                            text: chunks[i],
+                            start: parseFloat((sub.start + (i * chunkDuration)).toFixed(2)),
+                            end: parseFloat((sub.start + ((i + 1) * chunkDuration)).toFixed(2))
+                        });
+                    }
+                }
+            }
+
+            // Update global subtitles
+            subtitles.length = 0;
+            subtitles.push(...newSubtitles);
+
+            renderSubtitles();
+            Utils.showToast(i18n.toast_split_success.replace('{count}', newSubtitles.length), "success");
+
+        } catch (e) {
+            console.error("Split error:", e);
+            Utils.showToast("자막 분할 중 오류: " + e.message, "error");
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+    }
+
+    // Helper: Split text into subtitle chunks (max 2 lines, ~20 chars per line)
+    function splitTextToChunks(text, maxCharsPerLine = 20, maxLines = 2) {
+        if (!text || !text.trim()) return [];
+        text = text.trim();
+
+        // 문장 단위로 분리 (마침표, 느낌표, 물음표)
+        const sentences = text.split(/(?<=[.!?])\s+/);
+        const chunks = [];
+        let currentChunkLines = [];
+
+        for (const sentence of sentences) {
+            const trimmedSentence = sentence.trim();
+            if (!trimmedSentence) continue;
+
+            // 문장을 줄 단위로 분할
+            const words = trimmedSentence.split(/\s+/);
+            let currentLine = "";
+            const linesFromSentence = [];
+
+            for (const word of words) {
+                const testLine = currentLine ? `${currentLine} ${word}` : word;
+                if (testLine.length <= maxCharsPerLine) {
+                    currentLine = testLine;
+                } else {
+                    if (currentLine) linesFromSentence.push(currentLine);
+                    currentLine = word;
+                }
+            }
+            if (currentLine) linesFromSentence.push(currentLine);
+
+            // 현재 청크에 줄 추가
+            for (const line of linesFromSentence) {
+                currentChunkLines.push(line);
+                if (currentChunkLines.length >= maxLines) {
+                    chunks.push(currentChunkLines.join("\n"));
+                    currentChunkLines = [];
+                }
+            }
+        }
+
+        // 남은 줄 처리
+        if (currentChunkLines.length > 0) {
+            chunks.push(currentChunkLines.join("\n"));
+        }
+
+        return chunks;
+    }
+
+    // [NEW] Auto-split subtitles if any are too long (called on load)
+    function autoSplitSubtitlesIfNeeded() {
+        if (subtitles.length === 0) return;
+
+        const maxCharsPerLine = 20;
+        const maxLines = 2;
+        const maxTotalChars = maxCharsPerLine * maxLines; // ~40 chars
+
+        // Check if any subtitle needs splitting
+        let needsSplit = false;
+        for (const sub of subtitles) {
+            const text = (sub.text || "").trim();
+            const lineCount = (text.match(/\n/g) || []).length + 1;
+            if (lineCount > maxLines || text.length > maxTotalChars) {
+                needsSplit = true;
+                break;
+            }
+        }
+
+        if (!needsSplit) {
+            console.log("[AutoSplit] No long subtitles found, skipping auto-split.");
+            return;
+        }
+
+        console.log("[AutoSplit] Long subtitles detected, applying auto-split...");
+
+        const newSubtitles = [];
+        for (const sub of subtitles) {
+            const text = (sub.text || "").trim();
+            if (!text) continue;
+
+            const chunks = splitTextToChunks(text, maxCharsPerLine, maxLines);
+
+            if (chunks.length <= 1) {
+                newSubtitles.push({ ...sub });
+            } else {
+                const subDuration = sub.end - sub.start;
+                const chunkDuration = subDuration / chunks.length;
+
+                for (let i = 0; i < chunks.length; i++) {
+                    newSubtitles.push({
+                        text: chunks[i],
+                        start: parseFloat((sub.start + (i * chunkDuration)).toFixed(2)),
+                        end: parseFloat((sub.start + ((i + 1) * chunkDuration)).toFixed(2))
+                    });
+                }
+            }
+        }
+
+        // Update global subtitles
+        subtitles.length = 0;
+        subtitles.push(...newSubtitles);
+        console.log(`[AutoSplit] Split into ${newSubtitles.length} subtitle segments.`);
+    }
+
+    // [NEW] Reset and Reload Function
+    async function resetAndReload(btn) {
+        if (!confirm(i18n.confirm_reset_reload)) return;
+
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="animate-spin">🔄</span> ${i18n.status_loading}`;
+
+        try {
+            // [FIX] Force Refetch with refresh flag
+            await loadProjectAndSubtitles(true);
+            Utils.showToast(i18n.toast_reset_reload_success, "success");
+        } catch (e) {
+            Utils.showToast(i18n.err_reset_reload_fail + ": " + e.message, "error");
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+
+    function onRenderComplete(videoPath, btn, originalText) {
+        Utils.showToast(i18n.toast_render_complete_redirect, "success");
+
+        // Reset Button
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+
+        // [CHANGED] Redirect to render page instead of showing video here
+        setTimeout(() => {
+            window.location.href = `/render?project_id=${currentProjectId}`;
+        }, 1000); // 1초 후 이동 (토스트 메시지를 볼 수 있도록)
+    }
+
+    function closeRenderedVideo() {
+        const renderedSection = document.getElementById('renderedVideoSection');
+        const videoPlayer = document.getElementById('renderedVideoPlayer');
+
+        if (renderedSection) {
+            renderedSection.classList.add('hidden');
+        }
+
+        if (videoPlayer) {
+            videoPlayer.innerHTML = ''; // Clear video to stop playback
+        }
+    }
+
+    function allowDrop(ev) {
+        ev.preventDefault();
+        ev.target.closest('.group').classList.add('bg-blue-50', 'dark:bg-blue-900/20');
+    }
+
+    // Reset visual on drag leave (optional but good)
+    // We didn't add ondragleave, so might skip visual reset for simplicity or add it.
+    // Let's keep it simple. The hover (dragover) effect might stick if not careful, 
+    // but the `renderSubtitles()` call will clear everything instantly on drop.
+
+    function handleCombinedDrop(ev, subIdx) {
+        ev.preventDefault();
+        const srcIdx = ev.dataTransfer.getData("text/plain");
+        if (srcIdx === "" || isNaN(srcIdx)) return;
+
+        const imageIndex = parseInt(srcIdx);
+        // Validate against sourceImages (Palette)
+        if (imageIndex < 0 || imageIndex >= sourceImages.length) return;
+
+        // Logic: Apply Image #imageIndex to start at Subtitle #subIdx
+        if (subIdx < 0 || subIdx >= subtitles.length) return;
+
+        const targetTime = subtitles[subIdx].start;
+        const targetUrl = sourceImages[imageIndex]; // Get from Palette
+
+        // 1. Check if an image timing already exists nearby (tolerance)
+        // If so, update it. If not, insert it.
+        // Actually, for reuse/insert, we should insert into the lists.
+        // But `imageTimings` and `images` must be parallel.
+        // But `imageTimings` is float[], `images` is string[].
+
+        // Current structure assumption:
+        // images uses separate index? No.
+        // `imageTimings` maps 1:1 to `images`?
+        // Let's check `get_subtitles`.
+        // `images = [url, url, ...]`
+        // `image_timings = [0.0, 5.0, ...]`
+        // They MUST be parallel arrays index-wise.
+
+        // So validation:
+        // We need to insert `targetTime` into `imageTimings`.
+        // And insert `targetUrl` into `images` at the SAME index.
+
+        if (!imageTimings) imageTimings = [];
+
+        // Find insert position
+        let insertPos = 0;
+        while (insertPos < imageTimings.length && imageTimings[insertPos] < targetTime) {
+            insertPos++;
+        }
+
+        // Prevent duplicate time exact match (overwrite instead)
+        if (insertPos < imageTimings.length && Math.abs(imageTimings[insertPos] - targetTime) < 0.1) {
+            // Overwrite existing at this time
+            images[insertPos] = targetUrl;
+            imageTimings[insertPos] = targetTime;
+        } else {
+            // Insert new
+            imageTimings.splice(insertPos, 0, targetTime);
+            images.splice(insertPos, 0, targetUrl);
+        }
+
+        // Update UI
+        renderSubtitles();
+        renderImageStrip();
+        Utils.showToast(`?대?吏 #${imageIndex + 1} 적용 완료`, 'success');
+
+        // Auto Save to persist custom order
+        // We use a debounced save or immediate? Immediate is fine for interaction.
+        saveSubtitles();
+    }
+
+    async function loadProjectAndSubtitles(forceRefresh = false) {
+        updateDebug(`[Func] loadProjectAndSubtitles START. Pid: ${projectId}, Force: ${forceRefresh}`);
+        if (!projectId) {
+            Utils.showToast(i18n.alert_project_id_not_found_prefix, 'error');
+            updateDebug('[Func] No Project ID');
+            return;
+        }
+
+        if (typeof Utils === 'undefined') {
+            updateDebug('CRITICAL: Utils is undefined!');
+            return;
+        }
+
+        try {
+            updateDebug('[Func] Fetching data...');
+
+            let url = `/api/projects/${projectId}/subtitles?t=${new Date().getTime()}`;
+            if (forceRefresh) {
+                url += '&force_refresh=true';
+            }
+
+            const res = await fetch(url);
+            updateDebug(`[Func] Fetch Res: ${res.status}`);
+            const data = await res.json();
+            updateDebug(`[Func] Data JSON parsed. Status: ${data.status}`);
+
+            if (data.status === 'ok') {
+                // 1. Set Data
+                subtitles = data.subtitles || [];
+                imageTimings = (data.image_timings || [0.0]).map(Number);
+                images = data.timeline_images || [];
+                sourceImages = data.source_images || [];
+                // [NEW] Load Effects
+                imageEffects = data.image_effects || [];
+                console.log("[Load] Received Image Effects:", imageEffects);
+                updateDebug(`[Load] Effects Raw: ${JSON.stringify(imageEffects)}`);
+
+                // [FIX] Store App Mode for UI Logic early
+                window.currentAppMode = (data.settings && data.settings.app_mode) || 'longform';
+                const defaultEffect = window.currentAppMode === 'shorts' ? 'none' : 'random';
+
+                // Ensure imageEffects matches images length
+                while (imageEffects.length < images.length) {
+                    imageEffects.push(defaultEffect);
+                }
+
+                // Also validate that each item is valid string
+                for (let i = 0; i < imageEffects.length; i++) {
+                    if (!imageEffects[i]) imageEffects[i] = defaultEffect;
+                }
+
+                updateDebug(`[Data] Effects Loaded: ${imageEffects.length} items (Default: ${defaultEffect}).`);
+
+
+                updateDebug(`[Data] Subtitles: ${subtitles.length}, Images: ${images.length}, Timings: ${imageTimings.length}, Source: ${sourceImages.length}`);
+                console.log("[Data Detail]", { imageTimings, images, sourceImages });
+
+                // [FIX] Load Audio
+                if (data.audio_url) {
+                    const audioPlayer = document.getElementById('audioPlayer');
+                    if (audioPlayer) {
+                        // Use convertToWebPath just in case
+                        const finalAudioUrl = Utils.convertToWebPath(data.audio_url);
+                        audioPlayer.src = finalAudioUrl;
+                        audioPlayer.load();
+                        updateDebug(`[Audio] Loaded: ${finalAudioUrl}`);
+                    }
+                }
+                if (data.audio_duration) {
+                    audioDuration = parseFloat(data.audio_duration);
+                    updateDebug(`[Audio] Duration: ${audioDuration.toFixed(2)}s`);
+                }
+
+
+
+                // Style Settings
+                if (data.settings) {
+                    styleSettings = {
+                        font: data.settings.subtitle_font || 'GmarketSansBold',
+                        fontSize: parseFloat(data.settings.subtitle_font_size || 5.4),
+                        color: data.settings.subtitle_base_color || '#ffffff',
+                        strokeColor: data.settings.subtitle_stroke_color || '#000000',
+                        strokeWidth: parseFloat(data.settings.subtitle_stroke_width || 0),
+                        bgEnabled: parseInt(data.settings.subtitle_bg_enabled || 0) === 1,
+                        lineSpacing: parseFloat(data.settings.subtitle_line_spacing || 0.1),
+                        bgColor: data.settings.subtitle_bg_color || '#000000',
+                        bgOpacity: parseFloat(data.settings.subtitle_bg_opacity || 0.5),
+                        aspect_ratio: data.settings.aspect_ratio || '9:16'
+                    };
+
+                    // [NEW] Store App Mode for UI Logic
+                    window.currentAppMode = data.settings.app_mode || 'longform';
+                    console.log("App Mode:", window.currentAppMode);
+
+                    // Apply UI
+                    const fontEl = document.getElementById('fontFamilySelect');
+                    if (fontEl) fontEl.value = styleSettings.font;
+
+                    const sizeEl = document.getElementById('fontSizeSlider');
+                    if (sizeEl) {
+                        sizeEl.value = styleSettings.fontSize;
+                        const valueEl = document.getElementById('fontSizeValue');
+                        if (valueEl) valueEl.textContent = styleSettings.fontSize + '%';
+                    }
+
+                    const colorEl = document.getElementById('textColorInput');
+                    if (colorEl) colorEl.value = styleSettings.color;
+
+                    const strokeWidthInput = document.getElementById('strokeWidthInput');
+                    if (strokeWidthInput) strokeWidthInput.value = styleSettings.strokeWidth;
+
+                    const bgToggle = document.getElementById('bgStripToggle');
+                    if (bgToggle) bgToggle.checked = styleSettings.bgEnabled;
+
+                    const spacingEl = document.getElementById('lineSpacingInput');
+                    if (spacingEl) spacingEl.value = styleSettings.lineSpacing;
+
+                    const bgColorEl = document.getElementById('bgColorInput');
+                    if (bgColorEl) bgColorEl.value = styleSettings.bgColor;
+
+                    const bgOpacityEl = document.getElementById('bgOpacityInput');
+                    if (bgOpacityEl) bgOpacityEl.value = styleSettings.bgOpacity;
+
+                    // Position
+                    if (data.settings.subtitle_pos_x && data.settings.subtitle_pos_y) {
+                        const preview = document.getElementById('previewTextMain');
+                        if (preview) {
+                            preview.style.left = data.settings.subtitle_pos_x;
+                            preview.style.top = data.settings.subtitle_pos_y;
+                        }
+                    } else if (window.currentAppMode === 'shorts') {
+                        // [NEW] Default Position for Shorts (11/16ths down)
+                        const preview = document.getElementById('previewTextMain');
+                        if (preview) {
+                            // 11/16 = 68.75%
+                            preview.style.top = '68.75%';
+                            // Ensure centered horizontally if not set
+                            if (!data.settings.subtitle_pos_x) preview.style.left = '50%';
+
+                            // Save this default so it persists? 
+                            // Or just visual default. Let's apply visually.
+                        }
+                    }
+
+                    // Aspect Ratio
+                    if (data.settings.aspect_ratio) {
+                        setAspectRatio(data.settings.aspect_ratio);
+                    }
+                    else if (data.settings.app_mode === 'shorts') {
+                        setAspectRatio('9:16');
+                    }
+                    else {
+                        // Default for Longform
+                        setAspectRatio('16:9');
+                    }
+                }
+
+                // [NEW] Auto-split long subtitles into 2-line chunks
+                autoSplitSubtitlesIfNeeded();
+
+                // 2. Render
+                // 2. Render
+                renderSubtitles();
+                const listEl = document.getElementById('subtitleList');
+                updateDebug(`Render Called. List Element: ${!!listEl}, InnerHTML Length: ${listEl ? listEl.innerHTML.length : 0}`);
+                renderImageStrip();
+                updateSubtitlePreview();
+
+                if (subtitles.length > 0) {
+                    selectSubtitle(0);
+                    updateDebug(`Loaded and Selected. Subtitles: ${subtitles.length}`);
+                } else {
+                    Utils.showToast(i18n.status_no_subtitle_generated, 'info');
+                    updateDebug('Loaded but empty subtitles.');
+                }
+
+            } else {
+                throw new Error(data.error);
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast(i18n.err_reset_reload_fail + ": " + e.message, 'error');
+        } finally {
+
+        }
+    }
+
+
+
+
+    // [DEBUG] Helper
+    function updateDebug(msg) {
+        const el = document.getElementById('debug-overlay');
+        if (el) {
+            const time = new Date().toLocaleTimeString();
+            el.innerHTML = `[${time}] ${msg}<br>` + el.innerHTML;
+        }
+        console.log('[DEBUG]', msg);
+    }
+
+    // Global Error Handler
+    window.onerror = function (msg, url, lineNo, columnNo, error) {
+        updateDebug(`SCRIPT ERROR: ${msg} (Line: ${lineNo})`);
+        return false;
+    };
+
+    // Global Setting Handlers for HTML onchange
+    function updateBgStrip(el) {
+        if (!projectId) return;
+        const val = el.checked ? 1 : 0;
+        styleSettings.bgEnabled = !!el.checked;
+        API.project.updateSetting(projectId, 'subtitle_bg_enabled', val);
+        updateSubtitlePreview();
+    }
+
+    function updateStrokeToggle(el) {
+        // Redundant with numeric input, but keeping for compatibility if referenced
+        if (!projectId) return;
+        const val = el.checked ? 1 : 0;
+        API.project.updateSetting(projectId, 'subtitle_stroke_enabled', val);
+        updateSubtitlePreview();
+    }
+
+    // ============================================================
+    // BGM / SFX 관리 함수들
+    // ============================================================
+
+    function toggleBgmSection() {
+        const body = document.getElementById('bgmSectionBody');
+        const btn = document.getElementById('bgmSectionToggle');
+        if (!body || !btn) return;
+        const isHidden = body.classList.toggle('hidden');
+        btn.textContent = isHidden ? i18n.bgm_section_open : i18n.bgm_section_close;
+    }
+
+    function setBgmInputMode(mode) {
+        // 모든 패널 숨기기
+        document.querySelectorAll('.bgm-input-panel').forEach(el => el.classList.add('hidden'));
+        // 모든 탭 스타일 초기화
+        ['bgmTabUpload', 'bgmTabUrl', 'bgmTabGenerated'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.className = 'flex-1 text-[9px] py-0.5 rounded border border-gray-300 dark:border-gray-600 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700';
+            }
+        });
+
+        // 선택 모드 활성화
+        const panelMap = { upload: 'bgmInputUpload', url: 'bgmInputUrl', generated: 'bgmInputGenerated' };
+        const tabMap = { upload: 'bgmTabUpload', url: 'bgmTabUrl', generated: 'bgmTabGenerated' };
+
+        const panel = document.getElementById(panelMap[mode]);
+        const tab = document.getElementById(tabMap[mode]);
+        if (panel) panel.classList.remove('hidden');
+        if (tab) tab.className = 'flex-1 text-[9px] py-0.5 rounded border bg-purple-100 dark:bg-purple-900 border-purple-300 text-purple-700 dark:text-purple-300 font-bold';
+    }
+
+    function updateBgmVolume(val) {
+        bgmState.volume = parseInt(val) / 100;
+        const label = document.getElementById('bgmVolumeLabel');
+        if (label) label.textContent = val + '%';
+
+        // 미리듣기 플레이어 볼륨도 업데이트
+        const player = document.getElementById('bgmPreviewPlayer');
+        if (player) player.volume = bgmState.volume;
+
+        // DB 저장
+        if (projectId) {
+            API.project.updateSetting(projectId, 'bgm_volume', bgmState.volume);
+        }
+    }
+
+    async function handleBgmUpload(input) {
+        if (!input.files || input.files.length === 0) return;
+        const file = input.files[0];
+
+        Utils.showToast('BGM 파일 업로드 중...', 'info');
+
+        // FormData로 서버에 업로드
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('project_id', projectId);
+        formData.append('type', 'bgm');
+
+        try {
+            const res = await fetch('/api/audio/upload-audio', { method: 'POST', body: formData });
+
+            const data = await res.json();
+
+            if (res.ok && data.url) {
+                setBgmSource(data.url, file.name);
+                Utils.showToast(i18n.toast_bgm_upload_success, 'success');
+            } else {
+                // 서버 업로드 실패 시 로컬 Object URL로 미리듣기만
+                const objectUrl = URL.createObjectURL(file);
+                setBgmSource(objectUrl, file.name, true);
+                Utils.showToast(i18n.toast_bgm_local_only, 'warning');
+            }
+        } catch (e) {
+            // 네트워크 에러 시 로컬 Object URL 사용
+            const objectUrl = URL.createObjectURL(file);
+            setBgmSource(objectUrl, file.name, true);
+        }
+    }
+
+    function applyBgmUrl() {
+        const urlInput = document.getElementById('bgmUrlInput');
+        if (!urlInput || !urlInput.value.trim()) return;
+        const url = urlInput.value.trim();
+        setBgmSource(url, url.split('/').pop() || 'BGM URL');
+    }
+
+    function setBgmSource(url, filename, isLocal = false) {
+        bgmState.url = url;
+        bgmState.enabled = true;
+        bgmState.filename = filename;
+
+        // 상태바 업데이트
+        const label = document.getElementById('bgmFileLabel');
+        const clearBtn = document.getElementById('bgmClearBtn');
+        const player = document.getElementById('bgmPreviewPlayer');
+
+        if (label) {
+            label.textContent = i18n.label_bgm_file.replace('{filename}', filename) + (isLocal ? ' (local only)' : '');
+            label.classList.remove('text-gray-400', 'italic');
+            label.classList.add('text-purple-600', 'font-bold');
+        }
+        if (clearBtn) clearBtn.classList.remove('hidden');
+        if (player) {
+            player.src = url;
+            player.volume = bgmState.volume;
+            player.classList.remove('hidden');
+        }
+
+        // DB 저장 (로컬 Object URL은 임시이므로 저장 안함)
+        if (!isLocal && projectId) {
+            API.project.updateSetting(projectId, 'bgm_url', url);
+        }
+    }
+
+    function clearBgm() {
+        bgmState.url = null;
+        bgmState.enabled = false;
+        bgmState.filename = null;
+
+        const label = document.getElementById('bgmFileLabel');
+        const clearBtn = document.getElementById('bgmClearBtn');
+        const player = document.getElementById('bgmPreviewPlayer');
+
+        if (label) {
+            label.textContent = i18n.label_bgm_no_file;
+            label.className = 'text-[10px] text-gray-400 flex-1 truncate italic';
+        }
+        if (clearBtn) clearBtn.classList.add('hidden');
+        if (player) {
+            player.src = '';
+            player.classList.add('hidden');
+        }
+
+        if (projectId) {
+            API.project.updateSetting(projectId, 'bgm_url', '');
+        }
+        Utils.showToast(i18n.toast_bgm_removed, 'info');
+    }
+
+    async function loadGeneratedBgmList() {
+        const listEl = document.getElementById('generatedBgmList');
+        if (!listEl || !projectId) return;
+
+        listEl.innerHTML = `<div class="text-[9px] text-gray-400 text-center py-1">${i18n.bgm_loading}</div>`;
+
+        try {
+            const res = await fetch(`/api/audio/projects/${projectId}/audio-assets`);
+            if (!res.ok) throw new Error('로드 실패');
+            const data = await res.json();
+            const bgmList = (data.bgm_files || []);
+
+            if (bgmList.length === 0) {
+                listEl.innerHTML = `<div class="text-[9px] text-gray-400 text-center py-1">${i18n.bgm_no_generated}</div>`;
+                return;
+            }
+
+            listEl.innerHTML = bgmList.map((item, i) => `
+                <div class="flex items-center gap-1 p-1 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                     onclick="setBgmSource('${item.url}', '${item.name}')">
+                    <span class="text-[9px] text-gray-500 w-4 dark:text-gray-400">${i + 1}</span>
+                    <span class="text-[9px] text-gray-700 dark:text-gray-300 flex-1 truncate">🎶 ${item.name}</span>
+                    <span class="text-[8px] text-gray-400">${item.duration || '?'}s</span>
+                </div>
+            `).join('');
+        } catch (e) {
+            listEl.innerHTML = `<div class="text-[9px] text-red-400">${e.message}</div>`;
+        }
+    }
+
+    function toggleSfx(el) {
+        sfxState.enabled = el.checked;
+        const panel = document.getElementById('sfxPanel');
+        if (panel) {
+            panel.classList.toggle('hidden', !sfxState.enabled);
+        }
+    }
+
+    async function handleSfxUpload(input) {
+        if (!input.files || input.files.length === 0) return;
+        const file = input.files[0];
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('project_id', projectId);
+        formData.append('type', 'sfx');
+
+        try {
+            const res = await fetch('/api/audio/upload-audio', { method: 'POST', body: formData });
+
+            const data = await res.json();
+
+            sfxState.url = (res.ok && data.url) ? data.url : URL.createObjectURL(file);
+            sfxState.filename = file.name;
+
+            const statusEl = document.getElementById('sfxStatusBar');
+            if (statusEl) statusEl.textContent = `🔊 ${file.name}`;
+
+            if (res.ok && data.url && projectId) {
+                API.project.updateSetting(projectId, 'sfx_url', data.url);
+            }
+            Utils.showToast('SFX 설정 완료!', 'success');
+        } catch (e) {
+            Utils.showToast('SFX 업로드 실패: ' + e.message, 'error');
+        }
+    }
+
+    // BGM 설정값 로드 (페이지 로드 시 기존 설정 복원)
+    async function loadBgmSettings() {
+        if (!projectId) return;
+        try {
+            const res = await fetch(`/api/projects/${projectId}/settings`);
+            if (!res.ok) return;
+            const data = await res.json();
+            const s = data.settings || {};
+
+            if (s.bgm_url) {
+                setBgmSource(s.bgm_url, s.bgm_url.split('/').pop() || 'BGM');
+            }
+            if (s.bgm_volume !== undefined) {
+                bgmState.volume = parseFloat(s.bgm_volume) || 0.3;
+                const slider = document.getElementById('bgmVolumeSlider');
+                const label = document.getElementById('bgmVolumeLabel');
+                if (slider) slider.value = Math.round(bgmState.volume * 100);
+                if (label) label.textContent = Math.round(bgmState.volume * 100) + '%';
+            }
+        } catch (e) {
+            console.log('[BGM] Settings load failed:', e.message);
+        }
+    }

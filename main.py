@@ -92,17 +92,45 @@ app = FastAPI(
     version="2.0.0"
 )
 
-# CORS 설정
+# CORS 설정 (로컬 앱 전용)
+_cors_origins = [
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
+if config.DEBUG:
+    _cors_origins += ["http://localhost:3000", "http://127.0.0.1:3000"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
 )
 
 # [EXE] Ensure necessary directories exist
 os.makedirs("uploads", exist_ok=True)
+
+# ============ 파일 업로드 검증 헬퍼 ============
+_ALLOWED_AUDIO_EXT  = {".mp3", ".wav", ".ogg", ".aac", ".m4a", ".flac"}
+_ALLOWED_VIDEO_EXT  = {".mp4", ".mov", ".avi", ".webm", ".mkv"}
+_ALLOWED_IMAGE_EXT  = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+_MAX_AUDIO_SIZE  = 100 * 1024 * 1024   # 100 MB
+_MAX_VIDEO_SIZE  = 500 * 1024 * 1024   # 500 MB
+_MAX_IMAGE_SIZE  =  20 * 1024 * 1024   # 20 MB
+
+def _validate_upload(file: UploadFile, allowed_exts: set, max_bytes: int):
+    """파일 확장자·크기 검증. 문제 시 HTTPException 발생."""
+    filename = file.filename or ""
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in allowed_exts:
+        raise HTTPException(400, f"허용되지 않는 파일 형식입니다: {ext or '(없음)'}. 허용: {', '.join(sorted(allowed_exts))}")
+    # 경로 순회 방지: 파일명에 디렉토리 구분자 금지
+    safe_name = os.path.basename(filename)
+    if safe_name != filename.replace("\\", "/").split("/")[-1]:
+        raise HTTPException(400, "잘못된 파일 이름입니다.")
+    # 크기 검증은 읽은 후 수행 (UploadFile은 사전에 크기를 모름)
+    return ext, safe_name
 
 # [EXE] Ensure DB is initialized BEFORE accessing globals
 try:
@@ -778,19 +806,19 @@ async def auto_generate_images(project_id: int):
 async def save_external_tts(project_id: int, file: UploadFile = File(...)):
     """외부 TTS 오디오 파일 업로드 및 저장"""
     try:
+        ext, _ = _validate_upload(file, _ALLOWED_AUDIO_EXT, _MAX_AUDIO_SIZE)
         # 1. 출력 경로 확보
         output_dir, web_dir = get_project_output_dir(project_id)
-        
-        # 2. 파일명 생성 (tts_ext_timestamp.mp3)
-        import time
-        ext = os.path.splitext(file.filename)[1]
-        if not ext: ext = ".mp3"
+
+        # 2. 파일명 생성
         filename = f"tts_ext_{project_id}_{int(time.time())}{ext}"
         file_path = os.path.join(output_dir, filename)
         web_url = f"{web_dir}/{filename}"
-        
-        # 3. 저장
+
+        # 3. 저장 + 크기 검증
         content = await file.read()
+        if len(content) > _MAX_AUDIO_SIZE:
+            raise HTTPException(400, f"파일 크기가 너무 큽니다 (최대 {_MAX_AUDIO_SIZE//1024//1024}MB)")
         with open(file_path, "wb") as f:
             f.write(content)
             
@@ -933,21 +961,21 @@ async def animate_scene(project_id: int, req: AnimateRequest):
 async def upload_scene_video(project_id: int, scene_number: int, file: UploadFile = File(...)):
     """확장프로그램 혹은 수동 업로드를 통한 장면 미디어(비디오/이미지) 저장"""
     try:
-        print(f"DEBUG: upload_scene_media called with project_id={project_id}, scene_number={scene_number}")
+        allowed = _ALLOWED_VIDEO_EXT | _ALLOWED_IMAGE_EXT
+        ext, _ = _validate_upload(file, allowed, _MAX_VIDEO_SIZE)
         output_dir, web_dir = get_project_output_dir(project_id)
-        
-        ext = os.path.splitext(file.filename)[1]
-        if not ext: ext = ".mp4"
-        
-        # Determine prefix and DB update function based on extension
-        is_image = ext.lower() in [".png", ".jpg", ".jpeg", ".webp"]
+
+        is_image = ext.lower() in _ALLOWED_IMAGE_EXT
         prefix = "flow_img" if is_image else "flow_vid"
-        
+        max_size = _MAX_IMAGE_SIZE if is_image else _MAX_VIDEO_SIZE
+
         filename = f"{prefix}_p{project_id}_s{scene_number}_{int(time.time())}{ext}"
         file_path = os.path.join(output_dir, filename)
         web_url = f"{web_dir}/{filename}"
-        
+
         content = await file.read()
+        if len(content) > max_size:
+            raise HTTPException(400, f"파일 크기가 너무 큽니다 (최대 {max_size//1024//1024}MB)")
         with open(file_path, "wb") as f:
             f.write(content)
             
@@ -1003,19 +1031,19 @@ async def get_thumbnails(project_id: int):
 async def save_intro_video(project_id: int, file: UploadFile = File(...)):
     """인트로(배경) 동영상 업로드 및 저장"""
     try:
+        ext, _ = _validate_upload(file, _ALLOWED_VIDEO_EXT, _MAX_VIDEO_SIZE)
         # 1. 출력 경로 확보
         output_dir, web_dir = get_project_output_dir(project_id)
-        
-        # 2. 파일명 생성 (intro_timestamp.mp4)
-        import time
-        ext = os.path.splitext(file.filename)[1]
-        if not ext: ext = ".mp4"
+
+        # 2. 파일명 생성
         filename = f"intro_{project_id}_{int(time.time())}{ext}"
         file_path = os.path.join(output_dir, filename)
         web_url = f"{web_dir}/{filename}"
-        
-        # 3. 저장
+
+        # 3. 저장 + 크기 검증
         content = await file.read()
+        if len(content) > _MAX_VIDEO_SIZE:
+            raise HTTPException(400, f"파일 크기가 너무 큽니다 (최대 {_MAX_VIDEO_SIZE//1024//1024}MB)")
         with open(file_path, "wb") as f:
             f.write(content)
             
@@ -1670,19 +1698,20 @@ async def upload_scene_image_api(
 ):
     """특정 Scene을 위한 이미지 직접 업로드"""
     try:
+        allowed = _ALLOWED_IMAGE_EXT | {".mp4", ".mov", ".webm"}
+        ext, _ = _validate_upload(file, allowed, _MAX_VIDEO_SIZE)
         # 1. 경로 설정
         output_dir, web_dir = get_project_output_dir(project_id)
-        
+
         # 2. 파일 저장
-        ext = os.path.splitext(file.filename)[1].lower()
-        if not ext in ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.mp4', '.mov', '.webm']:
-            if not ext: ext = ".png"
-            
+        max_size = _MAX_IMAGE_SIZE if ext in _ALLOWED_IMAGE_EXT else _MAX_VIDEO_SIZE
         filename = f"scene_{scene_index}_upload_{int(time.time())}{ext}"
         filepath = os.path.join(output_dir, filename)
-        
+
+        content = await file.read()
+        if len(content) > max_size:
+            raise HTTPException(400, f"파일 크기가 너무 큽니다 (최대 {max_size//1024//1024}MB)")
         with open(filepath, "wb") as f:
-            content = await file.read()
             f.write(content)
             
         # 3. DB 업데이트 (영구 저장 보장)
@@ -2102,17 +2131,18 @@ async def tts_generate(req: TTSRequest):
 async def upload_template_api(file: UploadFile = File(...)):
     """템플릿 이미지 업로드 (9:16 오버레이)"""
     try:
+        ext, _ = _validate_upload(file, _ALLOWED_IMAGE_EXT, _MAX_IMAGE_SIZE)
         # public/templates 폴더
         template_dir = os.path.join(config.STATIC_DIR, "templates")
         os.makedirs(template_dir, exist_ok=True)
-        
-        # 안전한 파일명
-        filename = f"template_{int(time.time())}.png"
+
+        filename = f"template_{int(time.time())}{ext}"
         filepath = os.path.join(template_dir, filename)
-        
-        # 저장
+
+        content = await file.read()
+        if len(content) > _MAX_IMAGE_SIZE:
+            raise HTTPException(400, f"파일 크기가 너무 큽니다 (최대 {_MAX_IMAGE_SIZE//1024//1024}MB)")
         with open(filepath, "wb") as f:
-            content = await file.read()
             f.write(content)
             
         # DB 업데이트 (Global Setting assumes project_id=1 for defaults or handle strictly)
@@ -2325,29 +2355,25 @@ class ThumbnailGenerateRequest(BaseModel):
 async def upload_thumbnail_style_sample(style_key: str, file: UploadFile = File(...)):
     """썸네일 스타일 샘플 이미지 업로드"""
     try:
-        # 디렉토리 생성
+        ext, _ = _validate_upload(file, _ALLOWED_IMAGE_EXT, _MAX_IMAGE_SIZE)
         save_dir = "static/thumbnail_samples"
         os.makedirs(save_dir, exist_ok=True)
-        
-        # 파일 저장 (확장자 유지 또는 png로 통일)
-        # 여러 확장자 지원을 위해 파일명에 확장자 포함해서 저장 추천하지만,
-        # 읽을 때 편의를 위해 png로 변환하거나 style_key.* 로 검색해야 함.
-        # 편의상 저장된 파일명을 {style_key}.png 로 고정 (프론트에서 변환해주거나 여기서 변환)
-        # 여기서는 원본 확장자를 사용하되, 읽을때 glob으로 찾는 방식 사용
-        
-        ext = file.filename.split('.')[-1] if '.' in file.filename else 'png'
-        filename = f"{style_key}.{ext}" # 덮어쓰기
-        filepath = os.path.join(save_dir, filename)
-        
-        # 기존 다른 확장자 파일 삭제 (중복 방지)
-        for f in os.listdir(save_dir):
-            if f.startswith(f"{style_key}."):
-                try:
-                    os.remove(os.path.join(save_dir, f))
-                except: pass
 
+        filename = f"{style_key}{ext}"
+        filepath = os.path.join(save_dir, filename)
+
+        # 기존 다른 확장자 파일 삭제 (중복 방지)
+        for old_f in os.listdir(save_dir):
+            if old_f.startswith(f"{style_key}."):
+                try:
+                    os.remove(os.path.join(save_dir, old_f))
+                except Exception:
+                    pass
+
+        content = await file.read()
+        if len(content) > _MAX_IMAGE_SIZE:
+            raise HTTPException(400, f"파일 크기가 너무 큽니다 (최대 {_MAX_IMAGE_SIZE//1024//1024}MB)")
         with open(filepath, "wb") as f:
-            content = await file.read()
             f.write(content)
             
         return {"status": "ok", "url": f"/{save_dir}/{filename}"}
@@ -2592,23 +2618,18 @@ async def generate_thumbnail_background(req: ThumbnailBackgroundRequest):
 async def save_project_thumbnail(project_id: int, file: UploadFile = File(...)):
     """최종 썸네일(합성본) 저장"""
     try:
-        # 1. 저장 디렉토리 (output/thumbnails)
-        # static 폴더 대신 output 폴더 사용 (확실한 서빙 보장)
+        ext, _ = _validate_upload(file, _ALLOWED_IMAGE_EXT, _MAX_IMAGE_SIZE)
         save_dir = os.path.join(config.OUTPUT_DIR, "thumbnails")
         os.makedirs(save_dir, exist_ok=True)
-        
-        # 2. 파일명 (project_{id}_{timestamp}.png)
-        import time
-        filename = f"thumbnail_{project_id}_{int(time.time())}.png"
+
+        filename = f"thumbnail_{project_id}_{int(time.time())}{ext}"
         filepath = os.path.join(save_dir, filename)
-        
-        print(f"[Thumbnail] Saving to: {filepath}") # [DEBUG]
-        
-        # 3. 저장
+
         content = await file.read()
         if len(content) == 0:
-            print("[Thumbnail] Error: Received empty file content")
-            raise HTTPException(400, "Empty file received")
+            raise HTTPException(400, "빈 파일입니다.")
+        if len(content) > _MAX_IMAGE_SIZE:
+            raise HTTPException(400, f"파일 크기가 너무 큽니다 (최대 {_MAX_IMAGE_SIZE//1024//1024}MB)")
 
         with open(filepath, "wb") as f:
             f.write(content)
@@ -3436,22 +3457,18 @@ async def save_project_thumbnail(
 ):
     """썸네일 이미지 저장 (Canvas에서 Blob으로 전송됨)"""
     try:
-        # 파일 저장 경로 설정
-        # thumbnails 폴더 별도 관리 또는 output 폴더 사용
-        # 여기서는 관리 편의상 /static/thumbnails/{project_id} 사용
+        ext, _ = _validate_upload(file, _ALLOWED_IMAGE_EXT, _MAX_IMAGE_SIZE)
         upload_dir = os.path.join(config.STATIC_DIR, "thumbnails", str(project_id))
         os.makedirs(upload_dir, exist_ok=True)
-        
-        # 파일명 생성 (Timestamp)
-        import time
-        timestamp = int(time.time())
-        filename = f"thumbnail_{timestamp}.png"
+
+        filename = f"thumbnail_{int(time.time())}{ext}"
         file_path = os.path.join(upload_dir, filename)
-        
-        # 파일 저장
+
+        content = await file.read()
+        if len(content) > _MAX_IMAGE_SIZE:
+            raise HTTPException(400, f"파일 크기가 너무 큽니다 (최대 {_MAX_IMAGE_SIZE//1024//1024}MB)")
         with open(file_path, "wb") as buffer:
-            import shutil
-            shutil.copyfileobj(file.file, buffer)
+            buffer.write(content)
             
         # 웹 접근 URL 생성
         # /static/thumbnails/{project_id}/{filename}
