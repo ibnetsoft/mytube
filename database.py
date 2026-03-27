@@ -981,28 +981,6 @@ def create_project(name: str, topic: str = None, app_mode: str = 'longform', lan
     conn.close()
     return project_id
 
-def get_recent_projects(limit: int = 5) -> List[Dict]:
-    """최근 프로젝트 목록 조회 (중복 방지용)"""
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT name, topic FROM projects 
-        WHERE status != 'draft' 
-        ORDER BY created_at DESC 
-        LIMIT ?
-    """, (limit,))
-    rows = cursor.fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
-
-def get_project(project_id: int) -> Optional[Dict]:
-    """프로젝트 조회"""
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM projects WHERE id = ?", (project_id,))
-    row = cursor.fetchone()
-    conn.close()
-    return dict(row) if row else None
 
 def get_all_projects() -> List[Dict]:
     """모든 프로젝트 목록"""
@@ -1261,43 +1239,6 @@ def get_analysis(project_id: int) -> Optional[Dict]:
 
 # ============ 대본 구조 ============
 
-def save_script_structure(project_id: int, structure: Dict):
-    """대본 구조 저장"""
-    conn = get_db()
-    cursor = conn.cursor()
-
-    cursor.execute("DELETE FROM script_structure WHERE project_id = ?", (project_id,))
-
-    cursor.execute("""
-        INSERT INTO script_structure
-        (project_id, hook, sections, cta, style, duration)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (
-        project_id,
-        structure.get('hook'),
-        json.dumps(structure.get('sections', []), ensure_ascii=False),
-        structure.get('cta'),
-        structure.get('style'),
-        structure.get('duration')
-    ))
-
-    conn.commit()
-    conn.close()
-
-def get_script_structure(project_id: int) -> Optional[Dict]:
-    """대본 구조 조회"""
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM script_structure WHERE project_id = ?", (project_id,))
-    row = cursor.fetchone()
-    conn.close()
-
-    if row:
-        data = dict(row)
-        data['sections'] = json.loads(data['sections']) if data['sections'] else []
-        return data
-    return None
-
 # ============ 대본 ============
 
 def save_script(project_id: int, script: str, word_count: int, duration: int):
@@ -1330,14 +1271,6 @@ def update_project_render_status(project_id: int, status: str):
     conn.commit()
     conn.close()
 
-# --- Channels ---
-def get_all_channels() -> List[Dict]:
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM channels ORDER BY created_at DESC")
-    rows = cursor.fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
 
 def create_channel(name: str, handle: str, description: str = None) -> int:
     conn = get_db()
@@ -1470,11 +1403,8 @@ def get_script_structure(project_id: int) -> Optional[Dict]:
             **structure_dict             # For Frontend (mix-in)
         }
     return None
-    return None
 
 # ============ 이미지 프롬프트 ============
-
-# Redundant versions removed (kept final ones at end of file)
 
 def update_image_prompt_url(project_id: int, scene_number: int, image_url: str):
     """특정 장면의 이미지 URL 업데이트"""
@@ -2031,15 +1961,6 @@ def get_project(project_id: int) -> Optional[Dict]:
         return dict(row)
     return None
 
-def get_recent_projects(limit: int = 5) -> List[Dict]:
-    """최근 프로젝트 조회"""
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM projects ORDER BY updated_at DESC LIMIT ?", (limit,))
-    rows = cursor.fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
-
 def get_project_full_data_v2(project_id: int) -> Optional[Dict]:
     """프로젝트의 모든 데이터 조회"""
     project = get_project(project_id)
@@ -2219,55 +2140,6 @@ def get_all_knowledge_by_style(script_style: str) -> List[Dict]:
 # ===========================================
 
 
-def save_style_preset(style_key: str, prompt_value: str, image_url: str = None):
-    """스타일 프리셋 저장 또는 업데이트"""
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    # Existing check to see if we need to preserve existing image_url if not provided
-    if image_url is None:
-        cursor.execute("SELECT image_url FROM style_presets WHERE style_key = ?", (style_key,))
-        row = cursor.fetchone()
-        if row:
-            image_url = row['image_url']
-
-    cursor.execute("""
-        INSERT INTO style_presets (style_key, prompt_value, image_url, updated_at)
-        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(style_key) DO UPDATE SET
-            prompt_value = excluded.prompt_value,
-            image_url = excluded.image_url,
-            updated_at = CURRENT_TIMESTAMP
-    """, (style_key, prompt_value, image_url))
-    conn.commit()
-    conn.close()
-# ===========================================
-# ?B??}1????%???a1u?
-# ===========================================
-
-def get_script_style_presets() -> Dict[str, str]:
-    """d$z ?B??}1????%??pv"""
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT style_key, prompt_value FROM script_style_presets")
-    rows = cursor.fetchall()
-    conn.close()
-    
-    return {row['style_key']: row['prompt_value'] for row in rows}
-
-def save_script_style_preset(style_key: str, prompt_value: str):
-    """?B??}1????%??????. ?2?ô"""
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO script_style_presets (style_key, prompt_value, updated_at)
-        VALUES (?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(style_key) DO UPDATE SET
-            prompt_value = excluded.prompt_value,
-            updated_at = CURRENT_TIMESTAMP
-    """, (style_key, prompt_value))
-    conn.commit()
-    conn.close()
 
 # ===========================================
 # 썸네일 스타일 프리셋 관리
@@ -2291,34 +2163,7 @@ def get_thumbnail_style_presets() -> Dict[str, Dict[str, Any]]:
         }
     return result
 
-def save_thumbnail_style_preset(style_key: str, prompt_value: str, image_url: str = None):
-    """썸네일 스타일 프리셋 저장"""
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    # Existing check to see if we need to preserve existing image_url if not provided
-    if image_url is None:
-        try:
-            cursor.execute("SELECT image_url FROM thumbnail_style_presets WHERE style_key = ?", (style_key,))
-            row = cursor.fetchone()
-            if row:
-                image_url = row['image_url']
-        except:
-             pass
 
-    cursor.execute("""
-        INSERT INTO thumbnail_style_presets (style_key, prompt_value, image_url, updated_at)
-        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(style_key) DO UPDATE SET
-            prompt_value = excluded.prompt_value,
-            image_url = excluded.image_url,
-            updated_at = CURRENT_TIMESTAMP
-    """, (style_key, prompt_value, image_url))
-    conn.commit()
-    conn.close()
-
-# Redundant overrides removed. Use final version below.
-# [OVERRIDE] Final version of save_image_prompts
 def save_image_prompts(project_id: int, prompts: list):
     import json
     print(f"[DB] save_image_prompts called for {project_id} with {len(prompts)} items")
