@@ -2,6 +2,7 @@
 import sqlite3
 import json
 import threading
+import time as _time
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Any
@@ -1987,23 +1988,103 @@ def get_project(project_id: int) -> Optional[Dict]:
     return None
 
 def get_project_full_data_v2(project_id: int) -> Optional[Dict]:
-    """프로젝트의 모든 데이터 조회"""
-    project = get_project(project_id)
-    if not project:
+    """프로젝트의 모든 데이터 조회 (단일 연결로 배치 처리)"""
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM projects WHERE id = ?", (project_id,))
+    project_row = cursor.fetchone()
+    if not project_row:
+        conn.close()
         return None
+    project = dict(project_row)
+
+    # 단일 커서로 모든 테이블 순차 조회 (연결 재생성 없이)
+    def _one(sql, params=()):
+        cursor.execute(sql, params)
+        r = cursor.fetchone()
+        return dict(r) if r else None
+
+    def _many(sql, params=()):
+        cursor.execute(sql, params)
+        return [dict(r) for r in cursor.fetchall()]
+
+    pid = (project_id,)
+
+    settings_row = _one("SELECT * FROM project_settings WHERE project_id = ?", pid)
+    analysis_row = _one("SELECT * FROM analysis WHERE project_id = ?", pid)
+    structure_row = _one("SELECT * FROM script_structure WHERE project_id = ?", pid)
+    script_row    = _one("SELECT * FROM scripts WHERE project_id = ?", pid)
+    tts_row       = _one("SELECT * FROM tts_audio WHERE project_id = ?", pid)
+    meta_row      = _one("SELECT * FROM metadata WHERE project_id = ?", pid)
+    image_rows    = _many("SELECT * FROM image_prompts WHERE project_id = ? ORDER BY scene_number", pid)
+    thumb_rows    = _many("SELECT * FROM thumbnails WHERE project_id = ? ORDER BY id DESC", pid)
+    shorts_rows   = _many("SELECT * FROM shorts WHERE project_id = ? ORDER BY id DESC", pid)
+    char_rows     = _many("SELECT * FROM project_characters WHERE project_id = ?", pid)
+
+    conn.close()
+
+    # analysis JSON 파싱
+    if analysis_row and analysis_row.get('analysis_result'):
+        try:
+            analysis_row['analysis_result'] = json.loads(analysis_row['analysis_result'])
+        except Exception:
+            pass
+
+    # script_structure sections JSON 파싱 + wrapper 포맷
+    script_structure = None
+    if structure_row:
+        try:
+            sections = json.loads(structure_row['sections']) if structure_row.get('sections') else []
+        except Exception:
+            sections = []
+        sd = {
+            "hook": structure_row.get("hook"),
+            "sections": sections,
+            "cta": structure_row.get("cta"),
+            "style": structure_row.get("style"),
+            "duration": structure_row.get("duration"),
+        }
+        script_structure = {"project_id": project_id, "structure": sd, **sd}
+
+    # script: scripts 테이블 우선, fallback settings
+    script = None
+    if script_row:
+        script = {
+            'full_script': script_row.get('full_script', ''),
+            'word_count': script_row.get('word_count', 0),
+            'estimated_duration': script_row.get('estimated_duration', 0),
+            'title': settings_row.get('title') if settings_row else None,
+        }
+    elif settings_row and settings_row.get('script'):
+        script = {
+            'full_script': settings_row['script'],
+            'word_count': 0,
+            'estimated_duration': 0,
+            'title': settings_row.get('title'),
+        }
+
+    # image_prompts: JSON 필드 파싱
+    for ip in image_rows:
+        for field in ('character_positions', 'color_palette', 'composition_notes'):
+            if ip.get(field):
+                try:
+                    ip[field] = json.loads(ip[field])
+                except Exception:
+                    pass
 
     return {
         'project': project,
-        'settings': get_project_settings(project_id),
-        'analysis': get_analysis(project_id),
-        'script_structure': get_script_structure(project_id),
-        'script': get_script(project_id),
-        'image_prompts': get_image_prompts(project_id),
-        'tts': get_tts(project_id),
-        'metadata': get_metadata(project_id),
-        'thumbnails': get_thumbnails(project_id),
-        'shorts': get_shorts(project_id),
-        'characters': get_project_characters(project_id) # [NEW] Added characters
+        'settings': settings_row,
+        'analysis': analysis_row,
+        'script_structure': script_structure,
+        'script': script,
+        'image_prompts': image_rows,
+        'tts': tts_row,
+        'metadata': meta_row,
+        'thumbnails': thumb_rows,
+        'shorts': shorts_rows,
+        'characters': char_rows,
     }
 
 # ============ 글로벌 설정 (기본값) ============
@@ -2012,8 +2093,7 @@ def save_global_setting(key: str, value: Any):
     """글로벌 설정 저장"""
     conn = get_db()
     cursor = conn.cursor()
-    
-    # JSON 직렬화 (Dict/List 대비)
+
     json_val = json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else str(value)
 
     cursor.execute("""
@@ -2023,34 +2103,60 @@ def save_global_setting(key: str, value: Any):
             value = excluded.value,
             updated_at = CURRENT_TIMESTAMP
     """, (key, json_val))
-    
+
     conn.commit()
     conn.close()
+    invalidate_global_setting_cache(key)
+
+_global_setting_cache: Dict[str, Any] = {}
+_global_setting_cache_ts: Dict[str, float] = {}
+_GLOBAL_SETTING_TTL = 30.0  # 30초 캐시
+
+def invalidate_global_setting_cache(key: str = None):
+    """글로벌 설정 캐시 무효화 (저장 후 호출)"""
+    if key:
+        _global_setting_cache.pop(key, None)
+        _global_setting_cache_ts.pop(key, None)
+    else:
+        _global_setting_cache.clear()
+        _global_setting_cache_ts.clear()
 
 def get_global_setting(key: str, default: Any = None, value_type: str = None) -> Any:
-    """글로벌 설정 조회"""
+    """글로벌 설정 조회 (TTL 캐시 적용)"""
+    now = _time.monotonic()
+    if key in _global_setting_cache:
+        if now - _global_setting_cache_ts[key] < _GLOBAL_SETTING_TTL:
+            val = _global_setting_cache[key]
+            # bool 변환은 캐시 후에도 적용
+            if value_type == "bool":
+                if isinstance(val, bool): return val
+                if isinstance(val, str): return val.lower() in ('true', '1', 'yes')
+                return bool(val)
+            return val if val is not None else default
+
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("SELECT value FROM global_settings WHERE key = ?", (key,))
     row = cursor.fetchone()
     conn.close()
-    
+
     if row:
         val = row['value']
         try:
             parsed = json.loads(val)
         except Exception:
             parsed = val
-        
-        # Handle bool type conversion
+        _global_setting_cache[key] = parsed
+        _global_setting_cache_ts[key] = now
+
         if value_type == "bool":
-            if isinstance(parsed, bool):
-                return parsed
-            if isinstance(parsed, str):
-                return parsed.lower() in ('true', '1', 'yes')
+            if isinstance(parsed, bool): return parsed
+            if isinstance(parsed, str): return parsed.lower() in ('true', '1', 'yes')
             return bool(parsed)
-        
         return parsed
+
+    _global_setting_cache[key] = None
+    _global_setting_cache_ts[key] = now
     return default
 
 def get_subtitle_defaults() -> Dict:
