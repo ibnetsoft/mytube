@@ -55,35 +55,17 @@ from services.auth_service import auth_service
 from services.storage_service import storage_service
 from services.thumbnail_service import thumbnail_service
 
-# Helper: 프로젝트별 출력 폴더 생성
-def get_project_output_dir(project_id: int):
-    """
-    프로젝트 ID를 기반으로 '프로젝트명_날짜' 형식의 폴더를 생성하고 경로를 반환합니다.
-    """
-    project = db.get_project(project_id)
-    if not project:
-        return config.OUTPUT_DIR, "/output" # Fallback
-
-    # 폴더명 생성 (프로젝트명 + 생성일자 YYYYMMDD)
-    # 안전한 파일명을 위해 공백/특수문자 처리 (모든 공백을 언더바로 변환)
-    safe_name = re.sub(r'[\\/*?:"<>|]', "", project['name']).strip()
-    safe_name = re.sub(r'\s+', '_', safe_name) # 모든 연속된 공백을 _로 변환
-    
-    # 날짜는 오늘 날짜 기준 (또는 프로젝트 생성일? 사용자 요청은 '날짜' 형식)
-    # 보통 작업을 수행하는 '오늘' 날짜가 적절함.
-    today = datetime.datetime.now().strftime("%Y%m%d")
-    folder_name = f"{safe_name}_{today}"
-    
-    # 전체 경로 (파일 시스템용)
-    abs_path = os.path.join(config.OUTPUT_DIR, folder_name)
-    os.makedirs(abs_path, exist_ok=True)
-    
-    # 웹 접근 경로 (URL용)
-    # 기존: 브라우저 호환성을 위해 quote를 썼으나, DB 저장 시 중복 인코딩 이슈가 있어 원본 문자열 반환
-    # 브라우저가 src 속성 렌더링 시 자동으로 필요한 인코딩을 수행함.
-    web_path = f"/output/{folder_name}"
-    
-    return abs_path, web_path
+# 공유 헬퍼/상수 — app/utils.py 에서 임포트
+from app.utils import (
+    validate_upload as _validate_upload,
+    get_project_output_dir,
+    ALLOWED_AUDIO_EXT as _ALLOWED_AUDIO_EXT,
+    ALLOWED_VIDEO_EXT as _ALLOWED_VIDEO_EXT,
+    ALLOWED_IMAGE_EXT as _ALLOWED_IMAGE_EXT,
+    MAX_AUDIO_SIZE as _MAX_AUDIO_SIZE,
+    MAX_VIDEO_SIZE as _MAX_VIDEO_SIZE,
+    MAX_IMAGE_SIZE as _MAX_IMAGE_SIZE,
+)
 
 
 # FastAPI 앱 생성
@@ -112,26 +94,6 @@ app.add_middleware(
 # [EXE] Ensure necessary directories exist
 os.makedirs("uploads", exist_ok=True)
 
-# ============ 파일 업로드 검증 헬퍼 ============
-_ALLOWED_AUDIO_EXT  = {".mp3", ".wav", ".ogg", ".aac", ".m4a", ".flac"}
-_ALLOWED_VIDEO_EXT  = {".mp4", ".mov", ".avi", ".webm", ".mkv"}
-_ALLOWED_IMAGE_EXT  = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
-_MAX_AUDIO_SIZE  = 100 * 1024 * 1024   # 100 MB
-_MAX_VIDEO_SIZE  = 500 * 1024 * 1024   # 500 MB
-_MAX_IMAGE_SIZE  =  20 * 1024 * 1024   # 20 MB
-
-def _validate_upload(file: UploadFile, allowed_exts: set, max_bytes: int):
-    """파일 확장자·크기 검증. 문제 시 HTTPException 발생."""
-    filename = file.filename or ""
-    ext = os.path.splitext(filename)[1].lower()
-    if ext not in allowed_exts:
-        raise HTTPException(400, f"허용되지 않는 파일 형식입니다: {ext or '(없음)'}. 허용: {', '.join(sorted(allowed_exts))}")
-    # 경로 순회 방지: 파일명에 디렉토리 구분자 금지
-    safe_name = os.path.basename(filename)
-    if safe_name != filename.replace("\\", "/").split("/")[-1]:
-        raise HTTPException(400, "잘못된 파일 이름입니다.")
-    # 크기 검증은 읽은 후 수행 (UploadFile은 사전에 크기를 모름)
-    return ext, safe_name
 
 # [EXE] Ensure DB is initialized BEFORE accessing globals
 try:
