@@ -1,5 +1,0 @@
-Script Tokens (First 20): ['아기가', '검은색', '말을', '타고', '사진을', '찍고', '있었다.']
-AI Words (First 20): [' 아기가', ' 검은색', ' 말을', ' 타고', ' 사진을', ' 찍고', ' 있었다.']
-Script Norm (6): 있었다
-AI Norm (6): 있었다
-Final Subtitles (First 5): [{'start': np.float64(0.0), 'end': np.float64(3.14), 'text': '아기가 검은색 말을 타고 사진을 찍고 있었다.'}]

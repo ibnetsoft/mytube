@@ -12,7 +12,11 @@
       "Bash(Get-Content \"c:\\\\Users\\\\kimse\\\\Downloads\\\\유튜브소재발굴기\\\\롱폼생성기\\\\logs\\\\debug.log\" -Tail 80 -Encoding UTF8)",
       "Bash(Select-String -Pattern \"Image Gen|Replicate|Imagen|AKOOL|failed|succeeded|error\")",
       "Bash(Select-Object -Last 50)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(grep -E \"\\\\.py$\")",
+      "Bash(find /c/Users/kimse/Downloads/유튜브소재발굴기/롱폼생성기 -type f \\\\\\(-name *wordpress* -o -name *wp* -o -name *publish* \\\\\\) ! -path */venv/* ! -path */.git/*)",
+      "Bash(ls -la /c/Users/kimse/Downloads/유튜브소재발굴기/롱폼생성기/*.py)",
+      "Bash(xargs grep:*)"
     ]
   }
 }

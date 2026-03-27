@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \":*)",
+      "Bash(grep -n \"prompt_char\\\\|prompt_bg\" /c/Users/kimse/Downloads/유튜브소재발굴기/롱폼생성기/services/*.py)",
+      "Bash(tasklist)",
+      "Bash(wmic process:*)",
+      "Bash(taskkill //F //PID 3052)",
+      "Bash(taskkill //F //PID 20456)",
+      "Bash(python main.py)",
+      "Bash(netstat -ano)",
+      "Bash(python -c \"from config import config; print\\(f''HOST={config.HOST}, PORT={config.PORT}''\\)\")",
+      "Read(//c/Users/kimse/Downloads/유튜브소재발굴기/롱폼생성기/**)",
+      "Bash(while read:*)",
+      "Bash(do taskkill:*)",
+      "Bash(taskkill //F //PID 87332)",
+      "Bash(taskkill //F //PID 84060)",
+      "Bash(python:*)",
+      "Bash(taskkill //F //PID 70808)",
+      "Bash(taskkill //F //PID 91224)",
+      "Bash(taskkill //F //PID 78700)",
+      "Bash(taskkill //F //PID 78112)"
+    ]
+  }
+}

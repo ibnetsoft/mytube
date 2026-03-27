@@ -142,6 +142,7 @@ except Exception as e:
 
 # 템플릿 및 정적 파일
 templates = Jinja2Templates(directory=config.TEMPLATES_DIR)
+pages_router.init_pages(templates)
 
 # Static Files
 app.mount("/static", StaticFiles(directory=config.STATIC_DIR), name="static")
@@ -218,21 +219,22 @@ from app.routers import settings as settings_router # [NEW]
 from app.routers import repository as repository_router # [NEW]
 from app.routers import queue as queue_router # [NEW]
 
-from app.routers import audio as audio_router # [NEW]
-from app.routers import sources as sources_router # [NEW]
+from app.routers import audio as audio_router
+from app.routers import sources as sources_router
+from app.routers import pages as pages_router
 
 app.include_router(autopilot_router.router)
 app.include_router(video_router.router)
-app.include_router(commerce_router.router)  # [NEW]
-app.include_router(projects_router.router) # [NEW]
-app.include_router(channels_router.router) # [NEW]
-app.include_router(media_router.router) # [NEW]
-app.include_router(settings_router.router) # [NEW]
-app.include_router(repository_router.router) # [NEW]
-
-app.include_router(queue_router.router) # [NEW]
-app.include_router(audio_router.router) # [NEW]
-app.include_router(sources_router.router) # [NEW]
+app.include_router(commerce_router.router)
+app.include_router(projects_router.router)
+app.include_router(channels_router.router)
+app.include_router(media_router.router)
+app.include_router(settings_router.router)
+app.include_router(repository_router.router)
+app.include_router(queue_router.router)
+app.include_router(audio_router.router)
+app.include_router(sources_router.router)
+app.include_router(pages_router.router)
 
 
 # output 폴더
@@ -315,171 +317,7 @@ async def background_learn_strategy(video_id: str, analysis_result: dict, script
         traceback.print_exc()
 
 # ===========================================
-# 페이지 라우트
-# ===========================================
-
-@app.get("/", response_class=HTMLResponse)
-async def page_home(request: Request):
-    """메인 페이지 - 검색"""
-    return templates.TemplateResponse("pages/topic.html", {
-        "request": request,
-        "page": "topic",
-        "title": "주제 찾기"
-    })
-
-@app.get("/projects", response_class=HTMLResponse)
-async def page_projects(request: Request):
-    """내 프로젝트 페이지"""
-    return templates.TemplateResponse("pages/projects.html", {
-        "request": request,
-        "page": "projects",
-        "title": "내 프로젝트"
-    })
-
-@app.get("/script-plan", response_class=HTMLResponse)
-async def page_script_plan(request: Request):
-    """대본 기획 페이지"""
-    return templates.TemplateResponse("pages/script_plan.html", {
-        "request": request,
-        "page": "script-plan",
-        "title": "대본 기획"
-    })
-
-
-
-@app.get("/script-gen", response_class=HTMLResponse)
-async def page_script_gen(request: Request):
-    """대본 생성 페이지"""
-    return templates.TemplateResponse("pages/script_gen.html", {
-        "request": request,
-        "page": "script-gen",
-        "title": "대본 생성"
-    })
-
-@app.get("/image-gen", response_class=HTMLResponse)
-async def page_image_gen(request: Request):
-    """이미지 생성 페이지"""
-    return templates.TemplateResponse("pages/image_gen.html", {
-        "request": request,
-        "page": "image-gen",
-        "title": "이미지 생성"
-    })
-
-@app.get("/audio-gen", response_class=HTMLResponse)
-async def page_audio_gen(request: Request):
-    """오디오 생성 페이지"""
-    return templates.TemplateResponse("pages/audio_gen.html", {
-        "request": request,
-        "page": "audio-gen",
-        "title": "오디오 생성"
-    })
-
-@app.get("/video-gen", response_class=HTMLResponse)
-async def page_video_gen(request: Request):
-    """동영상 생성 페이지"""
-    return templates.TemplateResponse("pages/video_gen.html", {
-        "request": request,
-        "page": "video-gen",
-        "title": "동영상 생성"
-    })
-
-@app.get("/tts", response_class=HTMLResponse)
-async def page_tts(request: Request):
-    """TTS 생성 페이지"""
-    return templates.TemplateResponse("pages/tts.html", {
-        "request": request,
-        "page": "tts",
-        "title": "TTS 생성"
-    })
-
-@app.get("/render", response_class=HTMLResponse)
-async def page_render(request: Request):
-    """영상 렌더링 페이지"""
-    return templates.TemplateResponse("pages/render.html", {
-        "request": request,
-        "page": "render",
-        "title": "영상 렌더링"
-    })
-
-@app.get("/video-upload", response_class=HTMLResponse)
-async def page_video_upload(request: Request):
-    """영상 업로드 페이지"""
-    return templates.TemplateResponse("pages/video_upload.html", {
-        "request": request,
-        "page": "video-upload",
-        "title": "영상 업로드",
-        "is_independent": auth_service.is_independent()
-    })
-
-@app.get("/subtitle_gen", response_class=HTMLResponse)
-async def page_subtitle_gen(request: Request, project_id: int = Query(None)):
-    """자막 생성/편집 페이지"""
-    project = None
-    if project_id:
-        project = db.get_project(project_id)
-    else:
-        # Fallback: Load most recent project
-        recent = db.get_recent_projects(limit=1)
-        if recent:
-            project = recent[0]
-        
-    return templates.TemplateResponse("pages/subtitle_gen.html", {
-        "request": request,
-        "page": "subtitle-gen",
-        "title": "자막 편집",
-        "project": project
-    })
-
-
-@app.get("/title-desc", response_class=HTMLResponse)
-async def page_title_desc(request: Request):
-    """제목/설명 생성 페이지"""
-    return templates.TemplateResponse("pages/title_desc.html", {
-        "request": request,
-        "page": "title-desc",
-        "title": "제목/설명 생성"
-    })
-
-@app.get("/thumbnail", response_class=HTMLResponse)
-async def page_thumbnail(request: Request):
-    """썸네일 생성 페이지"""
-    return templates.TemplateResponse("pages/thumbnail.html", {
-        "request": request,
-        "page": "thumbnail",
-        "title": "썸네일 생성"
-    })
-
-@app.get("/shorts", response_class=HTMLResponse)
-async def page_shorts(request: Request):
-    """쇼츠 생성 페이지"""
-    return templates.TemplateResponse("pages/shorts.html", {
-        "request": request,
-        "page": "shorts",
-        "title": "쇼츠 생성"
-    })
-
-@app.get("/commerce-shorts", response_class=HTMLResponse)
-async def page_commerce_shorts(request: Request):
-    """커머스 쇼츠 페이지"""
-    return templates.TemplateResponse("pages/commerce_shorts.html", {
-        "request": request,
-        "page": "commerce-shorts",
-        "title": "커머스 쇼츠"
-    })
-
-@app.get("/settings", response_class=HTMLResponse)
-async def page_settings(request: Request):
-    """설정 페이지"""
-    return templates.TemplateResponse("pages/settings.html", {
-        "request": request,
-        "page": "settings",
-        "title": "설정"
-    })
-
-
-
-# ===========================================
-# API: 프로젝트 관리 (모듈화 완료 - 상단에서 include됨)
+# API: 프로젝트 관리
 # ===========================================
 
 @app.post("/api/script/recommend-titles")
@@ -3451,8 +3289,6 @@ async def update_project_setting_api(project_id: int, req: ProjectSettingUpdate)
 # ===========================================
 # API: 미디어 관리 (모듈화 완료)
 # ===========================================
-from app.routers import media as media_router
-app.include_router(media_router.router)
 
 @app.post("/api/video/search")
 async def search_stock_video(
@@ -3642,22 +3478,6 @@ class SubtitleGenerationRequest(BaseModel):
 # Subtitle Routes
 # ===========================================
 
-@app.get("/subtitle-gen", response_class=HTMLResponse)
-async def subtitle_gen_page(request: Request, project_id: Optional[int] = None):
-    print(f"DEBUG LOG: Serving subtitle_gen.html. PID={project_id}")
-    
-    project = None
-    if project_id:
-        project = db.get_project(project_id)
-        
-    return templates.TemplateResponse("pages/subtitle_gen.html", {
-        "request": request,
-        "project": project,
-        "title": "자막 생성 및 편집",
-        "page": "subtitle-gen"
-    })
-
-
 
 
 @app.post("/api/project/{project_id}/subtitle/delete")
@@ -3780,10 +3600,6 @@ async def regenerate_subtitles(project_id: int):
         return {"status": "error", "error": str(e)}
 
 
-@app.get("/autopilot", response_class=HTMLResponse)
-async def page_autopilot(request: Request):
-    """오토파일럿 (디렉터 모드) 페이지"""
-    return templates.TemplateResponse("pages/autopilot.html", {"request": request})
 
 class AutoPilotStartRequest(BaseModel):
     keyword: Optional[str] = None
@@ -4355,14 +4171,6 @@ async def create_plan_from_repository(req: RepositoryPlanRequest):
 
 
 
-
-# ===========================================
-# API: 스타일 프리셋 관리 (모듈화 완료)
-# ===========================================
-from app.routers import settings as settings_router
-from app.routers import thumbnails as thumbnails_router
-app.include_router(settings_router.router)
-app.include_router(thumbnails_router.router)
 
 
 
