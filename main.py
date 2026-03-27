@@ -1142,7 +1142,7 @@ async def save_subtitle_defaults(req: SubtitleDefaultSave):
 
 @app.get("/api/health")
 async def health_check():
-    """서버 상태 확인"""
+    """서버 상태 및 API 연결 확인"""
     return {
         "status": "ok",
         "version": "2.0.0",
@@ -1150,6 +1150,7 @@ async def health_check():
             "youtube": bool(config.YOUTUBE_API_KEY),
             "gemini": bool(config.GEMINI_API_KEY),
             "elevenlabs": bool(config.ELEVENLABS_API_KEY),
+            "replicate": bool(config.REPLICATE_API_TOKEN),
             "typecast": bool(config.TYPECAST_API_KEY)
         }
     }
@@ -2188,22 +2189,6 @@ async def delete_template_api():
 
 # [REMOVED] Duplicate API key routes (Consolidated at line 960)
 
-
-@app.get("/api/health")
-async def health_check():
-    """서버 상태 및 API 연결 확인"""
-    # Simple check based on key existence
-    # In a real app, you might want to make a lightweight request to each service
-    status = {
-        "status": "ok",
-        "apis": {
-            "youtube": bool(config.YOUTUBE_API_KEY),
-            "gemini": bool(config.GEMINI_API_KEY),
-            "elevenlabs": bool(config.ELEVENLABS_API_KEY),
-            "replicate": bool(config.REPLICATE_API_TOKEN)
-        }
-    }
-    return status
 
 @app.patch("/api/projects/{project_id}/settings/{key}")
 async def update_project_setting_api(project_id: int, key: str, value: Any = Query(...)):
@@ -3451,52 +3436,6 @@ async def generate_image(
         traceback.print_exc()
         return {"status": "error", "error": error_details}
 
-@app.post("/api/projects/{project_id}/thumbnail/save")
-async def save_project_thumbnail(
-    project_id: int,
-    file: UploadFile = File(...)
-):
-    """썸네일 이미지 저장 (Canvas에서 Blob으로 전송됨)"""
-    try:
-        ext, _ = _validate_upload(file, _ALLOWED_IMAGE_EXT, _MAX_IMAGE_SIZE)
-        upload_dir = os.path.join(config.STATIC_DIR, "thumbnails", str(project_id))
-        os.makedirs(upload_dir, exist_ok=True)
-
-        filename = f"thumbnail_{int(time.time())}{ext}"
-        file_path = os.path.join(upload_dir, filename)
-
-        content = await file.read()
-        if len(content) > _MAX_IMAGE_SIZE:
-            raise HTTPException(400, f"파일 크기가 너무 큽니다 (최대 {_MAX_IMAGE_SIZE//1024//1024}MB)")
-        async with aiofiles.open(file_path, "wb") as buffer:
-            await buffer.write(content)
-            
-        # 웹 접근 URL 생성
-        # /static/thumbnails/{project_id}/{filename}
-        web_url = f"/static/thumbnails/{project_id}/{filename}".replace(os.path.sep, '/')
-        
-        # DB 업데이트
-        # 1. project_settings의 thumbnail_url 업데이트
-        db.update_project_setting(project_id, "thumbnail_url", web_url)
-        db.update_project_setting(project_id, "thumbnail_path", file_path) # 로컬 경로도 저장
-        
-        # 2. 프로젝트 메타정보 업데이트 (선택)
-        # db.update_project(project_id, thumbnail_url=web_url) # 만약 projects 테이블에 컬럼이 있다면
-        
-        print(f"Thumbnail saved for project {project_id}: {web_url}")
-        
-        return {
-            "status": "ok",
-            "url": web_url,
-            "path": file_path
-        }
-        
-    except Exception as e:
-        print(f"Thumbnail save error: {e}")
-        import traceback
-        traceback.print_exc()
-        return JSONResponse(status_code=500, content={"error": str(e)})
-
 @app.post("/api/projects/{project_id}/setting")
 async def update_project_setting_api(project_id: int, req: ProjectSettingUpdate):
     """프로젝트 설정 단일 업데이트"""
@@ -4149,56 +4088,6 @@ async def get_render_queue():
 # ===========================================
 # 서버 실행 (Direct Run)
 # ===========================================
-
-# ===========================================
-# API: Repository to Script Plan
-# ===========================================
-
-class RepositoryPlanRequest(BaseModel):
-    title: str
-    synopsis: str
-    success_factor: str
-
-@app.post("/api/repository/create-plan")
-async def create_plan_from_repository(req: RepositoryPlanRequest):
-    """
-    저장소(Repository)의 분석 결과를 바탕으로
-    1. 새 프로젝트 생성
-    2. 대본 기획(Structure) 자동 생성
-    """
-    # 1. Create Project
-    try:
-        project_id = db.create_project(req.title, req.synopsis)
-        print(f"Created Project for Plan: {req.title} ({project_id})")
-    except Exception as e:
-        raise HTTPException(500, f"프로젝트 생성 실패: {str(e)}")
-
-    # 2. Prepare Mock Analysis Data for Gemini
-    # Repository data provides minimal context, so we adapt it.
-    analysis_simulation = {
-        "topic": req.synopsis, # Use synopsis as the core topic
-        "user_notes": f"Original Motivation (Success Factor): {req.success_factor}\nTarget Title: {req.title}",
-        "duration": 600, # Default ~10 min
-        "script_style": "story" # Default style
-    }
-
-    # 3. Generate Structure
-    from services.gemini_service import gemini_service
-    try:
-        structure = await gemini_service.generate_script_structure(analysis_simulation)
-        
-        if "error" in structure:
-            print(f"Structure Gen Warning: {structure['error']}")
-        else:
-            db.save_script_structure(project_id, structure)
-            db.update_project(project_id, status="planned")
-            
-    except Exception as e:
-        print(f"Structure Gen Error: {e}")
-    
-    return {"status": "ok", "project_id": project_id}
-
-
 
 @app.post("/api/project/{project_id}/scan-assets")
 async def scan_project_assets(project_id: int):
