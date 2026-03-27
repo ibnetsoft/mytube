@@ -401,7 +401,6 @@ class GeminiService:
                     # 순수 졸라맨 (흰배경)
                     final_prompt = (
                         "EXACTLY TWO ARMS ONLY. NO EXTRA ARMS. NO EXTRA HANDS. "
-                        "ARM COLOR MUST BE TEAL-BLUE. DO NOT DRAW BLACK ARMS. "
                         "THE CHARACTER MUST HAVE A PAIR OF BLACK DOT EYES AND A SMALL ARC SMILE ON THE FACE. "
                         + final_prompt
                         + ", the character has exactly one left arm and one right arm total,"
@@ -409,25 +408,16 @@ class GeminiService:
                         " flat 2D vector no gradients no 3D, perfectly bald smooth round white circular head, no hair, no hairstyle,"
                         " a pair of distinct black dot eyes and a simple black arc smile (MUST HAVE EYES AND MOUTH),"
                         " Face must NEVER be blank or empty. "
-                        " vibrant teal-blue hoodie with front pocket and THICK CYLINDRICAL FULL-LENGTH TEAL-BLUE SLEEVES covering the entire arm completely down to the white gloves,"
-                        " THE TEAL-BLUE FABRIC MUST REACH THE WHITE GLOVES. NO BLACK LINES VISIBLE FOR ARMS. "
-                        " NO ROLLED-UP SLEEVES, NO BLACK SKIN VISIBLE ON ARMS, NO BLACK ARMS, NO SHORT SLEEVES, sleeves must be teal-blue (same color as the hoodie),"
-                        " solid black trousers, white sneakers with black trim,"
-                        " small rounded white-gloved fist-shaped hands with black outlines (NOT white balls NOT white circles),"
                         " pure white background, single scene"
                     )
                 elif is_jollaman:
                     # 배경이 있는 졸라맨 (웹툰 등)
                     final_prompt = (
                         "EXACTLY TWO ARMS ONLY. NO EXTRA ARMS. NO EXTRA HANDS. "
-                        "ARM COLOR MUST BE TEAL-BLUE. DO NOT DRAW BLACK ARMS. "
                         + final_prompt
                         + ", the character has a perfectly bald smooth round white circular head, no hair, no hairstyle,"
                         " a pair of distinct black dot eyes and a simple black arc smile (MUST HAVE EYES AND MOUTH),"
                         " Face must NEVER be blank or empty. "
-                        " THICK CYLINDRICAL FULL-LENGTH TEAL-BLUE SLEEVES covering the entire arm completely down to the white gloves,"
-                        " THE TEAL-BLUE FABRIC MUST REACH THE WHITE GLOVES. NO BLACK LINES VISIBLE FOR ARMS. "
-                        " NO ROLLED-UP SLEEVES, no black skin visible on arms, NO BLACK ARMS, NO SHORT SLEEVES,"
                         " strictly two arms total, no extra limbs"
                     )
                 # 모든 스타일 공통: 초강력 해부학 제약 (여러 팔/손 생성 방지)
@@ -769,6 +759,53 @@ class GeminiService:
             except:
                 pass
         return {"error": "구조 생성 실패", "raw": text}
+    async def generate_nursery_rhyme_ideas(self) -> List[dict]:
+        """동요 아이디어 10개 생성"""
+        prompt = prompts.GEMINI_NURSERY_RHYME_IDEAS
+        
+        try:
+            text = await self.generate_text(prompt, temperature=0.8)
+            json_match = re.search(r'\{[\s\S]*\}', text)
+            if json_match:
+                data = json.loads(json_match.group())
+                return data.get("ideas", [])
+        except Exception as e:
+            print(f"Nursery Ideas Gen Error: {e}")
+        return []
+
+    async def develop_nursery_song(self, title: str, summary: str) -> dict:
+        """아이디어를 바탕으로 완성된 동요 가사 생성"""
+        prompt = prompts.GEMINI_NURSERY_RHYME_DEVELOP.format(
+            title=title,
+            summary=summary
+        )
+        
+        try:
+            text = await self.generate_text(prompt, temperature=0.7)
+            json_match = re.search(r'\{[\s\S]*\}', text)
+            if json_match:
+                return json.loads(json_match.group())
+        except Exception as e:
+            print(f"Nursery Song Develop Error: {e}")
+        return {}
+
+    async def generate_nursery_image_prompts(self, title: str, lyrics: str) -> List[dict]:
+        """가사 기반 3D 애니메이션 스타일 이미지 프롬프트 생성"""
+        prompt = prompts.GEMINI_NURSERY_RHYME_IMAGE_PROMPTS.format(
+            title=title,
+            lyrics=lyrics
+        )
+        
+        try:
+            text = await self.generate_text(prompt, temperature=0.7)
+            json_match = re.search(r'\{[\s\S]*\}', text)
+            if json_match:
+                data = json.loads(json_match.group())
+                return data.get("scenes", [])
+        except Exception as e:
+            print(f"Nursery Image Prompts Gen Error: {e}")
+        return []
+
     async def generate_title_recommendations(self, keyword: str, topic: str = "", language: str = "ko") -> List[str]:
         """추천 제목 5개 생성"""
         prompt = f"""
@@ -1071,12 +1108,10 @@ class GeminiService:
         # 핵심: EXACTLY TWO ARMS 를 문장 맨 뒤에도 붙여서 강조
         anatomy_safeguard = (
             " strictly correct anatomy, ONLY TWO ARMS TOTAL (one left arm, one right arm), "
-            "ONLY TWO WHITE GLOVED HANDS TOTAL, no third arm, no fourth arm, no extra limbs, "
+            "ONLY TWO HANDS TOTAL, no third arm, no fourth arm, no extra limbs, "
             "strictly humanoid structure with only two arms attached to torso. "
             "THE CHARACTER FACE MUST HAVE: a pair of distinct black dot eyes and a simple black arc smile (smile expression). "
             "Face must NEVER be blank or empty. Head is a perfectly bare smooth bald white sphere with NO details and NO hair. "
-            "DRESS CODE: Teal-blue long-sleeved hoodie. The sleeves MUST be THICK CYLINDRICAL TEAL-BLUE FABRIC and cover the arms completely down to the white gloves. "
-            "STRICTLY NO BLACK ARMS, NO THIN BLACK LINES FOR ARMS, NO ROLLED-UP SLEEVES, NO BLACK SKIN VISIBLE ON ARMS. "
             "STRICTLY EXACTLY TWO ARMS ONLY, NO EXTRA APPENDAGES, NO MUTATED LIMBS."
         )
 
@@ -1244,53 +1279,12 @@ Motion prompt for this image:"""
             num_scenes = max(3, int(num_scenes))
             print(f"[Gemini] Calculated scene count (6-Step Pacing) from {duration_seconds}s: {num_scenes}")
         
-        # 스타일 분류 — wimpy/졸라맨 전용 (k_manhwa는 별도 스타일이므로 제외)
-        _wimpy_kws = ["wimpy", "stick figure", "stickman", "졸라맨", "jollaman"]
-        _sp_lower = (style_prompt or "").lower()
+        # 스타일 분류 — wimpy/졸라맨 키워드 기반
         _sk_lower = (style_key or "").lower()
-
-        # 명시적 비졸라맨 스타일 (최우선 — force_wimpy보다 우선)
-        _explicit_non_wimpy = (
-            (_sk_lower and any(kw in _sk_lower for kw in ["webtoon", "k_manhwa", "manhwa", "realistic", "anime", "3d"])) or
-            (_sp_lower and any(kw in _sp_lower for kw in ["webtoon", "manhwa"]))
-        )
-
-        if _explicit_non_wimpy:
-            is_wimpy_style = False
-        else:
-            is_wimpy_style = (
-                any(kw in _sp_lower for kw in _wimpy_kws) or
-                any(kw in _sk_lower for kw in _wimpy_kws)
-            )
-            force_wimpy = any(kw in _sp_lower for kw in ["bald", "white head", "stick figure", "minimalist cartoon", "teal-blue hoodie", "teal blue hoodie"])
-            if force_wimpy:
-                is_wimpy_style = True
-        print(f"[Gemini] style_key={style_key!r}, is_wimpy_style={is_wimpy_style}, explicit_non_wimpy={_explicit_non_wimpy}")
-        _CHAR_BASE = (
-            "STRICTLY TWO ARMS AND TWO HANDS ONLY. NO EXTRA LIMBS. NO EXTRA ARMS. NO EXTRA HANDS. "
-            "A full-body cartoon illustration of a cute cheerful character, "
-            "perfectly bald and smooth round white head (NO hair, NO hairstyle, NO wig, strictly bald). "
-            "THE FACE MUST HAVE a pair of distinct black circular eyes and a simple black mouth (expression matching the mood). "
-            "vibrant solid teal-blue long-sleeved hooded sweatshirt (hoodie) with a front kangaroo pocket, "
-            "black trousers, simple sneakers. "
-            "The character has exactly two teal-blue arms (hoodie sleeves) and two black legs. "
-            "STRICTLY NO BLACK ARMS, NO ROLLED-UP SLEEVES. The teal-blue sleeves must reach the white gloves. "
-            "Thick clean black outlines, flat 2D cartoon illustration style. "
-            "The character has exactly one left arm and one right arm, total two arms and two hands only. "
-            "Humanoid anatomy with strictly two arms connected to the body. No third arm. No fourth arm. No duplicate limbs. "
-            "Isolated on a pure white background. No background elements. no text, no words, no letters"
-        )
-        # [CRITICAL] 실사 키워드 방지 로직 보강
-        _sp = style_prompt or ""
-        is_realistic = any(kw in _sp.lower() for kw in ["realistic", "photo", "cinematic", "8k"])
-        style_conflict_prevention = ""
-        if not is_realistic:
-            style_conflict_prevention = f"""
-[스타일 충돌 방지 - 엄격 준수]
-현재 지정된 스타일은 실사(Photorealistic)가 아닙니다.
-프롬프트 생성 시 'realistic', 'photorealistic', 'hyper-detailed', '8k', 'raw photo', 'masterpiece', 'cinematic lighting', 'depth of field', '3d render', 'octane render', 'unreal engine' 등의 실사 지향적 키워드를 **절대** 사용하지 마세요.
-인물과 배경 모두가 "{style_prompt}"의 매체 특성(그림체, 질감)을 완벽하게 따라야 하며, 조금이라도 실사 느낌이 섞이지 않도록 하세요.
-"""
+        _sp_lower = (style_prompt or "").lower()
+        _wimpy_kws = ["wimpy", "stick", "졸라맨", "jollaman"]
+        is_wimpy_style = any(kw in _sk_lower for kw in _wimpy_kws) or any(kw in _sp_lower for kw in _wimpy_kws)
+        print(f"[Gemini] style_key={style_key!r}, is_wimpy_style={is_wimpy_style}")
 
         # 모든 스타일에 공통 적용: 텍스트 금지 + 해부학적 정확성
         universal_prevention = """
@@ -1308,136 +1302,32 @@ Motion prompt for this image:"""
    - 모든 prompt_en에 반드시 포함: "(exactly two arms:1.5), (exactly two hands:1.5), (five fingers per hand:1.4), (anatomically correct hands:1.4), (correct body proportions:1.3), correct anatomy, no extra limbs, no extra hands, no extra arms, no floating arms, no disconnected arms, no deformed arms, no mutated hands"
 """
 
-        # 졸라맨(두꺼운 팔다리) 스타일 전용 지침
-        wimpy_instruction = ""
-        if is_wimpy_style:
-            # DB에 저장된 지침이 있으면 우선 사용, 없으면 하드코딩 폴백
-            if gemini_instruction and gemini_instruction.strip():
-                wimpy_instruction = "\n" + gemini_instruction.strip() + "\n"
-            else:
-                wimpy_instruction = """
-[졸라맨 스타일 전용 - 필수 준수]
-모든 씬에 캐릭터가 나올 필요는 없습니다. scene_type을 먼저 결정하고 그에 맞게 작성하세요.
+        custom_instruction = ""
+        if gemini_instruction and gemini_instruction.strip():
+            custom_instruction = "\n[커스텀 지침 - 필수 준수]\n" + gemini_instruction.strip() + "\n"
 
-【STEP 1: scene_type】 character_main | character_support | infographic 중 선택
-  character_main: (기본값) 내레이터가 직접 설명하거나 감정을 표현 → 캐릭터 중앙 크게
-  character_support: 특정 인물/자료를 소개할 때 → 메인 이미지(배경)와 함께 내레이터(졸라맨)가 구석에서 반드시 등장하여 손으로 가리킴
-  infographic: 피사체가 없는 거시적 데이터(지도, 그래프)만 있는 경우 → 캐릭터 없음. 사람이 언급되는 씬은 절대 이 타입을 고르지 말 것.
-
-【STEP 2: prompt_char】
-  character_main: full-body stickman, white head WITH DISTINCT BLACK EYES and mouth, teal-blue long-sleeved hoodie, exactly two arms/legs, white background, no text no words.
-  character_support: "A small full-body stickman (narrator) positioned in the lower-right corner, clearly pointing towards the center. Visible black eyes and mouth. Teal-blue long-sleeved hoodie. Exactly two arms/legs. Pure white background. no text, no words"
-  infographic: "" (빈 문자열)
-
-【STEP 3: prompt_bg】 Korean webtoon manhwa illustration style, vibrant colors.
-  character_support: 대본에서 설명하는 인물이나 대상을 반드시 포함하여 배경으로 그리세요.
-  마지막: "Korean webtoon manhwa style, clean linework, vibrant colors, no main protagonist, no text, no words"
-
-【STEP 4: prompt_en】
-  character_main: minimalist narrator stickman(teal-blue hooded, bald white head with expressive face) in center + layered webtoon background + no text
-  character_support: Detailed webtoon illustration of [Subject mentioned in script] across the scene + small narrator stickman(teal-blue hooded) in lower-right corner pointing + no text
-  infographic: Pure data visualization/infographic, no character, no human + no text
-
-【STEP 5: flow_prompt】
-  - "{style_prefix}" 스타일을 기반으로, 캐릭터의 외형(흰 대머리, 청록색 후드티, 단 두 개의 팔)과 배경, 그리고 구체적인 영상 움직임(Motion)을 하나의 자연스러운 문단으로 서술하세요.
-  - 모든 씬(infographic 제외)에는 'a stickman character with a bald white head and a teal-blue hoodie'가 반드시 포함되어야 합니다.
-"""
-
-        # 비 wimpy 스타일에 대한 커스텀 지침 (DB에서 저장된 gemini_instruction 사용)
-        custom_style_instruction = ""
-        if not is_wimpy_style and gemini_instruction and gemini_instruction.strip():
-            custom_style_instruction = "\n[커스텀 스타일 지침 - 필수 준수]\n" + gemini_instruction.strip() + "\n"
-
-        if is_wimpy_style:
-            # [WIMPY] 캐릭터 스타일과 배경 스타일을 분리 적용
-            # prompt_char → 졸라맨 stick-figure 스타일
-            # prompt_bg / prompt_en → Korean webtoon manhwa 스타일
-            style_instruction = f"""
-[스타일 지침 - 졸라맨+K웹툰 혼합 모드]
-이 씬들은 두 가지 스타일을 혼합합니다:
-
-▶ prompt_char (캐릭터): 졸라맨/K만화 스타일 — flat 2D stick-figure, simple black outlines, white background
-  캐릭터 프롬프트에만 "{style_prompt}" 키워드를 반영하세요.
-
-▶ prompt_bg / prompt_en (배경/장면): Korean webtoon manhwa illustration style
-  배경과 장면 프롬프트에는 반드시 "Korean webtoon manhwa illustration" 스타일을 사용하세요.
-  "{style_prompt}" 키워드를 배경/장면에 사용하지 마세요 — K웹툰(Korean webtoon style)이 배경을 지배합니다.
-
-{universal_prevention}
-{wimpy_instruction}
-"""
-        else:
-            style_instruction = f"""
-[스타일 지침 - 매우 중요]
+        style_instruction = f"""
+[스타일 지침]
 모든 이미지 프롬프트에 다음 스타일을 반드시 반영하세요:
 "{style_prompt}"
 
 모든 prompt_en의 시작 부분에 이 스타일 키워드를 포함시켜야 합니다.
 예: "{style_prompt}, ..."
 
-[★ 졸라맨/스틱맨 스타일 금지 — 비졸라맨 스타일이므로 절대 금지 ★]
-- "bald", "white sphere head", "stick figure", "stickman", "teal-blue hoodie", "white gloves", "black trousers with sneakers" 등 졸라맨/스틱맨 캐릭터 묘사를 절대 사용하지 마세요.
-- 캐릭터는 반드시 "{style_prompt}" 스타일에 맞는 일반적인 인물로 그리세요 (머리카락, 자연스러운 의상, 자연스러운 표정).
-- prompt_char, prompt_bg 필드는 비워두세요 (빈 문자열 "").
-- scene_type 필드도 비워두세요 (빈 문자열 "").
-{style_conflict_prevention}
 {universal_prevention}
-{custom_style_instruction}
+{custom_instruction}
 """
 
         character_instruction = ""
         if characters:
-            if is_wimpy_style:
-                # 졸라맨 스타일: 캐릭터 prompt_en에서 머리 색/스타일 표현 강제 제거
-                import re as _re
-                head_color_patterns = [
-                    r'teal\s+hair', r'cyan\s+hair', r'blue\s+hair', r'colored?\s+hair', r'brown\s+hair', r'swept-back\s+hair',
-                    r'hair\s+color', r'teal\s+head', r'cyan\s+head', r'colored?\s+head', r'black\s+hair', r'blonde\s+hair',
-                    r'with\s+\w+\s+hair', r'has\s+\w+\s+hair', r'\w+\s+colored?\s+hair', r'hairstyle', r'hair\s+style',
-                    r'undercut', r'fade\s+cut', r'short\s+hair', r'long\s+hair', r'spike\s+hair',
-                    r'horn[s]?', r'ear[s]?', r'cap[s]?', r'hat[s]?', r'headpiece', r'ribbon', r'wig',
-                    r'beard', r'mustache', r'sideburns', r'ponytail', r'mohawk', r'black\s+shape\s+on\s+head',
-                ]
-                sanitized_chars = []
-                for c in characters:
-                    p = c.get('prompt_en', '')
-                    for pat in head_color_patterns:
-                        p = _re.sub(pat, '', p, flags=_re.IGNORECASE)
-                    sanitized_chars.append({**c, 'prompt_en': p.strip()})
-                char_descriptions = "\n".join([f"- {c['name']} ({c['role']}): {c['prompt_en']}" for c in sanitized_chars])
-                char_color_rule = """
-[★ 졸라맨 스타일 캐릭터 규칙 — 위 캐릭터 묘사보다 이 규칙이 최우선 ★]
-- 모든 캐릭터의 머리: 반드시 perfectly bare smooth bald white sphere, 어떤 머리카락이나 장식도 없는 순수 흰색 구체여야 함 (strictly NO hair, NO horns, NO hats).
-- ★ 나레이터 등장 여부: 모든 씬(infographic 제외)에는 나레이터(졸라맨)가 반드시 노출되어야 함.
-- ★ 얼굴 표정 (필수): 반드시 한 쌍의 뚜렷한 검은색 눈과 입 모양이 있어야 함 (MUST HAVE a pair of distinct black eyes and a mouth). 얼굴이 비어있으면 절대 안 됨 (Face must never be blank).
-- 모든 캐릭터의 의상: teal-blue long-sleeved hooded sweatshirt (고정, 팔 전체를 덮는 청록색 긴 소매)
-- ★ 팔 색상 (주의): 팔은 후드티 소매에 가려져 있으므로 반드시 '청록색(teal-blue)'이어야 함. 절대 검은색 팔을 그리지 마세요 (STRICTLY NO BLACK ARMS).
-- 모든 캐릭터의 다리: solid black, 일정한 굵기 (고정)
-- 캐릭터 간 차이는 표정/포즈/배경으로만 구분. 색상으로 구분 금지.
-"""
-            elif not is_realistic:
-                char_descriptions = "\n".join([f"- {c['name']} ({c['role']}): {c['prompt_en']}" for c in characters])
-                char_color_rule = """
-[캐릭터 외형 일관성 - 비실사/만화 스타일 전용 — 최우선 규칙]
-- ★ 모든 씬에서 내레이터/주인공 캐릭터의 외형을 100% 동일하게 유지하세요.
-- ★ 매 prompt_en마다 캐릭터의 핵심 외형 키워드를 반복 포함하세요 (머리카락 색+스타일, 의상 색+종류, 체형).
-  예: "young male narrator with short black hair, wearing teal-blue hoodie" — 이 묘사를 매번 동일하게 넣어야 합니다.
-- 캐릭터의 머리카락 색, 헤어스타일, 의상 색상, 의상 종류를 씬마다 절대 변경하지 마세요.
-- 얼굴·몸통 일부만 다른 색이 되는 현상을 방지하세요: 캐릭터 전신이 동일한 색상으로 일관되게 표현되어야 합니다.
-- 조명/명암 처리로 인해 캐릭터 색상이 달라 보이지 않도록 하세요 (플랫 컬러 유지).
-- ★ 금지: 씬마다 캐릭터의 헤어스타일이 바뀌거나, 대머리↔머리카락이 왔다갔다 하거나, 의상이 달라지는 것.
-"""
-            else:
-                char_descriptions = "\n".join([f"- {c['name']} ({c['role']}): {c['prompt_en']}" for c in characters])
-                char_color_rule = """
-[캐릭터 외형 일관성]
-- 위 캐릭터 묘사의 외형(머리카락 색, 의상 등)을 장면마다 유지하세요.
-"""
+            char_descriptions = "\n".join([f"- {c['name']} ({c['role']}): {c['prompt_en']}" for c in characters])
             character_instruction = f"""
 [등장인물 일관성 지침 - 필수]
 이 영상에는 다음 캐릭터들이 등장합니다. 장면별 prompt_en 생성 시 해당 인물이 등장한다면 아래 묘사를 참고하세요:
 {char_descriptions}
-{char_color_rule}
+
+[캐릭터 외형 일관성]
+- 모든 씬에서 캐릭터의 외형(헤어스타일, 의상 등)을 동일하게 유지하세요.
 """
 
         # 장면 수 지침 생성
@@ -1473,11 +1363,11 @@ Motion prompt for this image:"""
         # 긴 스크립트를 단일 Gemini 호출로 처리하면 출력 토큰 한계(8192)로 인해
         # 중간 내용이 누락되거나 씬이 압축됩니다.
         # 스크립트가 길거나 씬 수가 많으면 청크로 나눠 각각 생성 후 합산합니다.
-        CHUNK_CHARS = 8000    # 청크당 최대 글자 수 (약 25-30분 분량)
-        SCENES_PER_CHUNK = 8  # 청크당 최대 씬 수
+        CHUNK_CHARS = 8000    # 청크당 최대 글자 수
+        # 졸라맨/커스텀 스타일은 prompt_char+prompt_bg+flow_prompt 때문에 씬당 토큰이 많으므로 더 작게
+        SCENES_PER_CHUNK = 4 if (gemini_instruction and len(gemini_instruction) > 300) else 6
 
         # 씬 수가 많으면 스크립트 길이와 무관하게 청크 모드 사용
-        # (단일 호출로 15+ wimpy 씬 출력 시 8192 토큰 한계 초과 → JSON 잘림)
         use_chunked = num_scenes > SCENES_PER_CHUNK
 
         import json
@@ -1485,23 +1375,47 @@ Motion prompt for this image:"""
         import math
 
         def _parse_text_to_scenes(raw_text: str) -> list:
-            """Gemini 응답 텍스트에서 scenes 리스트를 추출"""
+            """Gemini 응답 텍스트에서 scenes 리스트를 추출 (잘린 JSON도 복구 시도)"""
+            cleaned = re.sub(r'```json\s*|\s*```', '', raw_text).strip()
+
+            # 1차: 정상 파싱
             try:
-                cleaned = re.sub(r'```json\s*|\s*```', '', raw_text).strip()
-                try:
-                    data = json.loads(cleaned)
-                except json.JSONDecodeError:
-                    m = re.search(r'(\{[\s\S]*\}|\[[\s\S]*\])', cleaned)
-                    if m:
-                        data = json.loads(m.group(0))
-                    else:
-                        return []
+                data = json.loads(cleaned)
                 if isinstance(data, dict):
                     return data.get("scenes", [])
                 elif isinstance(data, list):
                     return data
-            except Exception as e:
+            except json.JSONDecodeError as e:
                 print(f"[SceneParse] Error: {e}")
+
+            # 2차: 배열/객체 블록 추출 후 파싱
+            try:
+                m = re.search(r'(\{[\s\S]*\}|\[[\s\S]*\])', cleaned)
+                if m:
+                    data = json.loads(m.group(0))
+                    if isinstance(data, dict):
+                        return data.get("scenes", [])
+                    elif isinstance(data, list):
+                        return data
+            except Exception:
+                pass
+
+            # 3차: JSON이 잘린 경우 완성된 개별 scene 객체만 추출
+            try:
+                scenes = []
+                for obj_match in re.finditer(r'\{[^{}]*"scene_number"[^{}]*\}', cleaned, re.DOTALL):
+                    try:
+                        obj = json.loads(obj_match.group(0))
+                        if isinstance(obj, dict) and obj.get("scene_number"):
+                            scenes.append(obj)
+                    except Exception:
+                        pass
+                if scenes:
+                    print(f"[SceneParse] Fallback: extracted {len(scenes)} partial scenes")
+                    return scenes
+            except Exception:
+                pass
+
             return []
 
         def _split_script_into_chunks(text: str, chunk_size: int) -> list:
@@ -1526,7 +1440,7 @@ Motion prompt for this image:"""
                 start = end
             return [c for c in chunks if c]
 
-        style_prefix_val = style_prompt or 'High quality, photorealistic'
+        style_prefix_val = style_prompt or 'High quality illustration'
 
         # ── 레퍼런스 이미지 로딩 (스타일 프리셋 썸네일) ──────────────────
         _ref_image_bytes: bytes | None = None
@@ -1642,7 +1556,7 @@ Motion prompt for this image:"""
 
         try:
             # [STYLE ENFORCEMENT] Gemini가 생성한 prompt_en에 스타일 접두사가 빠진 경우 자동 주입
-            if style_prompt and not is_wimpy_style:
+            if style_prompt:
                 # 스타일 키워드 중 핵심 단어 추출 (첫 3단어 정도)
                 style_check_words = style_prompt.lower().split(",")[0].strip().split()[:3]
                 style_check_key = " ".join(style_check_words) if style_check_words else ""
@@ -1656,137 +1570,6 @@ Motion prompt for this image:"""
                 if enforced_count > 0:
                     print(f"[StyleEnforce] Injected style prefix into {enforced_count}/{len(scenes)} scenes")
 
-            # [NON-WIMPY CLEANUP] 비졸라맨 스타일에서 Gemini가 졸라맨 캐릭터를 생성한 경우 제거
-            if not is_wimpy_style:
-                import re as _re
-                # 졸라맨 캐릭터 묘사 문장 블록을 통째로 제거
-                wimpy_sentence_patterns = [
-                    # "A minimalist cartoon character with ... head" 블록
-                    r'A\s+minimalist\s+cartoon\s+character\s+with[^.]+\.',
-                    # "perfectly plain/bare/bald white circular/round head" 포함 문장
-                    r'[^.]*perfectly\s+(plain\s+)?white\s+circular\s+head[^.]*\.',
-                    r'[^.]*perfectly\s+bald[^.]*head[^.]*\.',
-                    r'[^.]*perfectly\s+bare\s+smooth\s+bald[^.]*\.',
-                    r'[^.]*bald\s+white\s+sphere[^.]*\.',
-                    # "Wing/Wearing a teal-cyan/teal-blue hoodie" 블록
-                    r'[^.]*(?:Wing|Wearing)\s+a\s+teal[^.]+\.',
-                    # "Limbs are all-black" 문장
-                    r'[^.]*Limbs\s+are\s+all-black[^.]*\.',
-                    # "hands are plain round white gloved hands" 문장
-                    r'[^.]*hands\s+are\s+plain\s+round\s+white\s+gloved[^.]*\.',
-                    # STRICTLY / DRESS CODE 전체 문장
-                    r'[^.]*STRICTLY\s+(?:NO\s+BLACK|EXACTLY\s+TWO|TWO\s+ARMS)[^.]*\.',
-                    r'[^.]*DRESS\s+CODE[^.]*\.',
-                    r'[^.]*THE\s+CHARACTER\s+FACE\s+MUST[^.]*\.',
-                    r'[^.]*Face\s+must\s+NEVER\s+be\s+blank[^.]*\.',
-                    r'[^.]*Head\s+is\s+a\s+perfectly[^.]*\.',
-                    r'[^.]*The\s+sleeves\s+MUST\s+be[^.]*\.',
-                    r'[^.]*NO\s+EXTRA\s+APPENDAGES[^.]*\.',
-                    r'[^.]*NO\s+MUTATED\s+LIMBS[^.]*\.',
-                    r'[^.]*strictly\s+correct\s+anatomy[^.]*\.',
-                    r'[^.]*strictly\s+two\s+arms\s+and\s+two\s+hands[^.]*\.',
-                    # teal-blue/teal-cyan hoodie 관련
-                    r'[^.]*teal-(?:blue|cyan)\s+(?:long-sleeved\s+)?hoodie[^.]*\.',
-                    r'[^.]*teal-(?:blue|cyan)\s+(?:long-sleeved\s+)?hooded\s+sweatshirt[^.]*\.',
-                    # 기타 졸라맨 키워드 문장
-                    r'[^.]*white\s+gloved?\s+hands[^.]*\.',
-                    r'[^.]*black\s+trousers,?\s*(?:simple\s+)?sneakers[^.]*\.',
-                ]
-                cleaned_count = 0
-                for scene in scenes:
-                    pen = scene.get("prompt_en", "")
-                    original = pen
-                    for pat in wimpy_sentence_patterns:
-                        pen = _re.sub(pat, '', pen, flags=_re.IGNORECASE)
-                    # Clean up whitespace
-                    pen = _re.sub(r'\s{2,}', ' ', pen).strip()
-                    pen = _re.sub(r',\s*,', ',', pen)
-                    pen = _re.sub(r'\.\s*\.', '.', pen)
-                    if pen != original:
-                        scene["prompt_en"] = pen
-                        cleaned_count += 1
-                    
-                    # Clean flow_prompt as well
-                    flow = scene.get("flow_prompt", "")
-                    if flow:
-                        original_flow = flow
-                        for pat in wimpy_sentence_patterns:
-                            flow = _re.sub(pat, '', flow, flags=_re.IGNORECASE)
-                        flow = _re.sub(r'\s{2,}', ' ', flow).strip()
-                        flow = _re.sub(r',\s*,', ',', flow)
-                        flow = _re.sub(r'\.\s*\.', '.', flow)
-                        if flow != original_flow:
-                            scene["flow_prompt"] = flow
-                            cleaned_count += 1
-                    # Clear wimpy-only fields
-                    scene["prompt_char"] = ""
-                    scene["prompt_bg"] = ""
-                    scene["scene_type"] = ""
-                if cleaned_count > 0:
-                    print(f"[WimpyCleanup] Removed stickman descriptions from {cleaned_count}/{len(scenes)} scenes")
-
-            # [WIMPY] 졸라맨 스타일이면 prompt_en/prompt_char에서 물건 들기 표현을 강제 교체
-            if is_wimpy_style:
-                for scene in scenes:
-                    if "prompt_en" in scene:
-                        scene["prompt_en"] = self._sanitize_wimpy_prompt(scene["prompt_en"])
-                    if "prompt_char" in scene and scene.get("prompt_char"):
-                        scene["prompt_char"] = self._sanitize_wimpy_prompt(scene["prompt_char"])
-                    if "flow_prompt" in scene and scene.get("flow_prompt"):
-                        scene["flow_prompt"] = self._sanitize_wimpy_prompt(scene["flow_prompt"])
-
-            # [WIMPY FALLBACK] prompt_char / prompt_bg 가 비어있거나 placeholder일 때 자동 보완
-            # scene_type을 존중: infographic은 캐릭터 없음, character_support는 작은 코너 캐릭터
-            _CHAR_SUPPORT_BASE = (
-                "STRICTLY TWO ARMS AND TWO HANDS ONLY. "
-                "A small full-body stick-figure in the lower-right corner, pointing center-left with right hand. "
-                "Perfectly bald and smooth round white circular head (strictly NO hair). "
-                "Vibrant teal-blue hoodie with front pocket and FULL-LENGTH TEAL-BLUE SLEEVES. "
-                "STRICTLY NO BLACK ARMS. "
-                "Solid black trousers, white sneakers with black trim. "
-                "Exactly two arms, two hands, no extra limbs. "
-                "Pure white background. no text, no words"
-            )
-            if is_wimpy_style:
-                for scene in scenes:
-                    scene_type = scene.get("scene_type", "character_main").strip().lower()
-                    pc = scene.get("prompt_char", "").strip()
-                    is_placeholder = not pc or "졸라맨 스타일 전용" in pc or pc.startswith("(")
-
-                    if scene_type == "infographic":
-                        # 인포그래픽 씬: 캐릭터 없음
-                        if is_placeholder:
-                            scene["prompt_char"] = ""
-                            print(f"[Wimpy Fallback] scene {scene.get('scene_number')} infographic → prompt_char cleared")
-                    elif scene_type == "character_support":
-                        # 서포트 씬: 우하단 작은 캐릭터
-                        if is_placeholder:
-                            scene["prompt_char"] = _CHAR_SUPPORT_BASE
-                            print(f"[Wimpy Fallback] scene {scene.get('scene_number')} character_support → support char filled")
-                    else:
-                        # character_main (기본): 중앙 큰 캐릭터
-                        if is_placeholder:
-                            scene["prompt_char"] = _CHAR_BASE
-                            print(f"[Wimpy Fallback] scene {scene.get('scene_number')} character_main → prompt_char auto-filled")
-
-                    pb = scene.get("prompt_bg", "").strip()
-                    if not pb or "졸라맨 스타일 전용" in pb or pb.startswith("("):
-                        scene_text_short = (scene.get("scene_text") or "")[:80]
-                        if scene_type == "infographic":
-                            scene["prompt_bg"] = (
-                                f"Korean webtoon manhwa style infographic illustration about: {scene_text_short}. "
-                                "Bold data visualization with charts, graphs, world map or statistics icons. "
-                                "Clean detailed linework, vibrant color grading, dynamic lighting. "
-                                "No person, no character, no human. no text, no words, no letters"
-                            )
-                        else:
-                            scene["prompt_bg"] = (
-                                f"Korean webtoon manhwa style background scene representing: {scene_text_short}. "
-                                "Detailed environment with 5+ specific props and elements. "
-                                "Clean linework, vibrant colors, cinematic depth, dynamic lighting. "
-                                "No person, no character, no human. no text, no words, no letters"
-                            )
-                        print(f"[Wimpy Fallback] scene {scene.get('scene_number')} prompt_bg auto-filled ({scene_type})")
 
             # [FIX] target_scene_count가 지정된 경우 씬 분리 없이 그대로 반환
             # (씬 분리 로직이 사용자 지정 씬 수를 초과하게 만들 수 있으므로)
@@ -1858,28 +1641,6 @@ Motion prompt for this image:"""
                 scene["scene_number"] = idx + 1
 
             print(f"[Hybrid] Original: {len(scenes)} scenes → Corrected: {len(corrected_scenes)} scenes")
-            if is_wimpy_style:
-                for scene in corrected_scenes:
-                    if "prompt_en" in scene:
-                        scene["prompt_en"] = self._sanitize_wimpy_prompt(scene["prompt_en"])
-                    if "prompt_char" in scene and scene.get("prompt_char"):
-                        scene["prompt_char"] = self._sanitize_wimpy_prompt(scene["prompt_char"])
-                # [WIMPY FALLBACK] corrected_scenes 에도 동일 적용
-                for scene in corrected_scenes:
-                    pc = scene.get("prompt_char", "").strip()
-                    # Catch lazy prompts like "전신 캐릭터", "Full body", or short descriptions
-                    if not pc or len(pc.replace(" ", "")) < 15 or "졸라맨 스타일 전용" in pc or pc.startswith("("):
-                        scene["prompt_char"] = _CHAR_BASE
-                        print(f"[Wimpy Fallback] Lazy/missing prompt_char detected ('{pc}') → replaced with detailed _CHAR_BASE")
-                    pb = scene.get("prompt_bg", "").strip()
-                    if not pb or "졸라맨 스타일 전용" in pb or pb.startswith("("):
-                        scene_text_short = (scene.get("scene_text") or "")[:80]
-                        scene["prompt_bg"] = (
-                            f"A flat 2D vector illustration representing: {scene_text_short}. "
-                            "Simple shapes, clean black outlines. "
-                            "No person, no character, no human. "
-                            "flat 2D vector style, no text, no words"
-                        )
             return corrected_scenes
             
         except Exception as e:

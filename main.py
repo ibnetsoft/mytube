@@ -101,10 +101,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# [EXE] Ensure necessary directories exist
+os.makedirs("uploads", exist_ok=True)
+
+# [EXE] Ensure DB is initialized BEFORE accessing globals
+try:
+    db.migrate_db()
+    print("[Main] Database migration checked.")
+except Exception as e:
+    print(f"[Main] Database initialization warning: {e}")
+
 # 템플릿 및 정적 파일
 templates = Jinja2Templates(directory=config.TEMPLATES_DIR)
 
-# 업로드 파일 서빙
+# Static Files
+app.mount("/static", StaticFiles(directory=config.STATIC_DIR), name="static")
+app.mount("/output", StaticFiles(directory=config.OUTPUT_DIR), name="output")
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # i18n
@@ -126,6 +138,7 @@ def get_license_key():
 
 templates.env.globals['get_license_key'] = get_license_key
 templates.env.globals['AUTH_SERVER_URL'] = "http://localhost:3000" if config.DEBUG else "https://mytube-ashy-seven.vercel.app"
+
 
 # [NEW] Language Persistence - DB 우선, 파일 fallback
 LANG_FILE = "language.pref"
@@ -175,11 +188,9 @@ from app.routers import media as media_router # [NEW]
 from app.routers import settings as settings_router # [NEW]
 from app.routers import repository as repository_router # [NEW]
 from app.routers import queue as queue_router # [NEW]
-from app.routers import webtoon as webtoon_router # [NEW]
+
 from app.routers import audio as audio_router # [NEW]
 from app.routers import sources as sources_router # [NEW]
-from app.routers import blog as blog_router # [NEW]
-from app.routers import publish as publish_router # [NEW] 퍼블리시 허브
 
 app.include_router(autopilot_router.router)
 app.include_router(video_router.router)
@@ -189,12 +200,10 @@ app.include_router(channels_router.router) # [NEW]
 app.include_router(media_router.router) # [NEW]
 app.include_router(settings_router.router) # [NEW]
 app.include_router(repository_router.router) # [NEW]
-app.include_router(webtoon_router.router) # [NEW]
+
 app.include_router(queue_router.router) # [NEW]
 app.include_router(audio_router.router) # [NEW]
 app.include_router(sources_router.router) # [NEW]
-app.include_router(blog_router.router) # [NEW]
-app.include_router(publish_router.router) # [NEW] 퍼블리시 허브
 
 
 # output 폴더
@@ -282,7 +291,7 @@ async def background_learn_strategy(video_id: str, analysis_result: dict, script
 
 @app.get("/", response_class=HTMLResponse)
 async def page_home(request: Request):
-    """메인 페이지 - 주제 찾기"""
+    """메인 페이지 - 검색"""
     return templates.TemplateResponse("pages/topic.html", {
         "request": request,
         "page": "topic",
@@ -307,14 +316,6 @@ async def page_script_plan(request: Request):
         "title": "대본 기획"
     })
 
-@app.get("/blog-image-gen", response_class=HTMLResponse)
-async def page_blog_image_gen(request: Request):
-    """블로그 이미지 생성 페이지"""
-    return templates.TemplateResponse("pages/blog_image_gen.html", {
-        "request": request,
-        "page": "blog-image-gen",
-        "title": "블로그 이미지 생성"
-    })
 
 
 @app.get("/script-gen", response_class=HTMLResponse)
@@ -446,23 +447,6 @@ async def page_settings(request: Request):
         "title": "설정"
     })
 
-@app.get("/blog-automation", response_class=HTMLResponse)
-async def page_blog_automation(request: Request):
-    """블로그 자동화 페이지"""
-    return templates.TemplateResponse("pages/blog_automation.html", {
-        "request": request,
-        "page": "blog-automation",
-        "title": "블로그 자동화"
-    })
-
-@app.get("/publish-hub", response_class=HTMLResponse)
-async def page_publish_hub(request: Request):
-    """퍼블리시 허브 페이지 (원소스 멀티유즈)"""
-    return templates.TemplateResponse("pages/publish_hub.html", {
-        "request": request,
-        "page": "publish-hub",
-        "title": "퍼블리시 허브"
-    })
 
 
 # ===========================================
@@ -610,7 +594,7 @@ async def generate_image_prompts_api(req: PromptsGenerateRequest):
             # Get project settings (to resolve style key if generic)
             settings = db.get_project_settings(req.project_id)
             if settings:
-                if not style_key or style_key == 'realistic' or style_key == 'default':
+                if not style_key:
                     style_key = settings.get('image_style', style_key)
                 # 캐릭터 레퍼런스 이미지 경로 읽기 (여러 개면 첫 번째 사용)
                 _ref_paths = settings.get('character_ref_image_path') or ''
@@ -624,7 +608,8 @@ async def generate_image_prompts_api(req: PromptsGenerateRequest):
 
         # 2. Style Prompt Resolution (Key -> Description)
         db_presets = db.get_style_presets()
-        style_data = db_presets.get(style_key.lower())
+        style_key_lower = (style_key or '').lower()
+        style_data = db_presets.get(style_key_lower)
 
         if style_data and isinstance(style_data, dict):
             style_prompt = style_data.get('prompt_value', style_key)
@@ -632,7 +617,7 @@ async def generate_image_prompts_api(req: PromptsGenerateRequest):
             # 캐릭터 시트 업로드 우선, 없으면 스타일 레퍼런스 이미지 사용
             reference_image_url = character_ref_image_url or style_data.get('image_url') or None
         else:
-            style_prompt = STYLE_PROMPTS.get(style_key.lower(), style_key)
+            style_prompt = STYLE_PROMPTS.get(style_key_lower, style_key or '')
             gemini_instruction = None
             reference_image_url = character_ref_image_url
 
@@ -1591,6 +1576,52 @@ async def generate_deep_dive_script_api(req: StructureGenerateRequest):
         
     except Exception as e:
         print(f"[Deep Dive Error] {e}")
+        return {"status": "error", "error": str(e)}
+
+# --- Nursery Rhyme (동요) 전용 엔드포인트 ---
+
+@app.get("/api/nursery/ideas")
+async def get_nursery_ideas():
+    """동요 아이디어 10개 생성"""
+    try:
+        ideas = await gemini_service.generate_nursery_rhyme_ideas()
+        return {"status": "ok", "ideas": ideas}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+class NurseryDevelopRequest(BaseModel):
+    title: str
+    summary: str
+    project_id: Optional[int] = None
+
+@app.post("/api/nursery/develop")
+async def develop_nursery_song_api(req: NurseryDevelopRequest):
+    """아이디어를 기반으로 동요 가사 및 구성 개발"""
+    try:
+        result = await gemini_service.develop_nursery_song(req.title, req.summary)
+        if not result:
+            return {"status": "error", "error": "노래 생성 실패"}
+            
+        # project_id가 있으면 DB에 기획 단계로 저장할 수도 있음 (선택 사항)
+        return {"status": "ok", "result": result}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+class NurseryImagePromptsRequest(BaseModel):
+    title: str
+    lyrics: str
+    project_id: Optional[int] = None
+
+@app.post("/api/nursery/image-prompts")
+async def generate_nursery_image_prompts_api(req: NurseryImagePromptsRequest):
+    """가사 기반 3D 애니메이션 스타일 이미지 프롬프트 생성"""
+    try:
+        scenes = await gemini_service.generate_nursery_image_prompts(req.title, req.lyrics)
+        if not scenes:
+            return {"status": "error", "error": "이미지 프롬프트 생성 실패"}
+            
+        return {"status": "ok", "scenes": scenes}
+    except Exception as e:
         return {"status": "error", "error": str(e)}
 
 @app.post("/api/gemini/generate")
@@ -3268,95 +3299,76 @@ async def generate_image(
 
         # 이미지 생성 전략
         images_bytes = None
-        is_wimpy_style = any(kw in style.lower() for kw in ["wimpy", "stick", "졸라맨"]) or \
-                         any(kw in prompt.lower() for kw in ["teal-blue hoodie", "cyan tunic", "cyan sleeveless", "stick figure cartoon", "white glove hand"])
+
+        # DB에서 스타일 prefix 가져오기
+        _style_settings = db.get_style_presets().get(style.lower(), {}) if style else {}
+        _style_prefix = (_style_settings.get('prompt_value') or STYLE_PROMPTS.get(style.lower(), '')).strip()
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # [2-PROMPT COMPOSITE MODE] 졸라맨 스타일: 캐릭터+배경 분리 생성 후 합성
+        # [2-PROMPT COMPOSITE MODE] prompt_char + prompt_bg가 있으면 분리 생성 후 합성
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        if is_wimpy_style:
-            # DB에서 해당 씬의 prompt_char, prompt_bg 조회
-            scene_prompts = db.get_image_prompts(project_id)
-            scene_data = next((s for s in scene_prompts if s.get('scene_number') == scene_number), None)
-            prompt_char = scene_data.get('prompt_char', '') if scene_data else ''
-            prompt_bg = scene_data.get('prompt_bg', '') if scene_data else ''
+        # DB에서 해당 씬의 prompt_char, prompt_bg 조회
+        scene_prompts = db.get_image_prompts(project_id)
+        scene_data = next((s for s in scene_prompts if s.get('scene_number') == scene_number), None)
+        prompt_char = scene_data.get('prompt_char', '') if scene_data else ''
+        prompt_bg = scene_data.get('prompt_bg', '') if scene_data else ''
 
-            if prompt_char and prompt_bg:
-                print(f"🎨 [Image Gen] Wimpy COMPOSITE mode — generating character + background separately...")
+        if prompt_char and prompt_bg:
+            print(f"🎨 [Image Gen] COMPOSITE mode — generating character + background separately...")
 
-                async def _generate_single(p: str) -> bytes | None:
-                    """단일 프롬프트로 이미지 생성 (Replicate → Gemini → AKOOL 폴백)"""
-                    result = None
+            async def _generate_single(p: str) -> bytes | None:
+                """단일 프롬프트로 이미지 생성 (Replicate → Gemini → AKOOL 폴백)"""
+                result = None
+                try:
+                    result = await replicate_service.generate_image(prompt=p, aspect_ratio="1:1")
+                except Exception as e:
+                    print(f"⚠️ [Composite] Replicate failed: {e}")
+                if not result:
                     try:
-                        result = await replicate_service.generate_image(prompt=p, aspect_ratio="1:1")
+                        result = await gemini_service.generate_image(prompt=p, num_images=1, aspect_ratio="1:1")
                     except Exception as e:
-                        print(f"⚠️ [Composite] Replicate failed: {e}")
-                    if not result:
-                        try:
-                            result = await gemini_service.generate_image(prompt=p, num_images=1, aspect_ratio="1:1")
-                        except Exception as e:
-                            print(f"⚠️ [Composite] Gemini failed: {e}")
-                    if not result:
-                        try:
-                            result = await akool_service.generate_image(prompt=p, aspect_ratio="1:1")
-                        except Exception as e:
-                            print(f"⚠️ [Composite] AKOOL failed: {e}")
-                    return result[0] if result else None
-
-                # 캐릭터 이미지 생성
-                char_bytes = await _generate_single(prompt_char)
-                # 배경 이미지 생성
-                bg_bytes = await _generate_single(prompt_bg)
-
-                if char_bytes and bg_bytes:
-                    print(f"✅ [Composite] Both images generated — compositing...")
+                        print(f"⚠️ [Composite] Gemini failed: {e}")
+                if not result:
                     try:
-                        composite_bytes = video_service.composite_character_on_background(
-                            char_bytes=char_bytes,
-                            bg_bytes=bg_bytes,
-                            aspect_ratio=aspect_ratio,
-                        )
-                        images_bytes = [composite_bytes]
-                        print(f"✅ [Composite] Compositing complete, size: {len(composite_bytes)} bytes")
+                        result = await akool_service.generate_image(prompt=p, aspect_ratio="1:1")
                     except Exception as e:
-                        print(f"⚠️ [Composite] Compositing failed: {e} — falling back to single-prompt mode")
-                        images_bytes = None
-                else:
-                    print(f"⚠️ [Composite] Image generation partially failed (char={bool(char_bytes)}, bg={bool(bg_bytes)}) — falling back to single-prompt mode")
+                        print(f"⚠️ [Composite] AKOOL failed: {e}")
+                return result[0] if result else None
+
+            # 캐릭터 이미지 생성
+            char_bytes = await _generate_single(prompt_char)
+            # 배경 이미지 생성
+            bg_bytes = await _generate_single(prompt_bg)
+
+            if char_bytes and bg_bytes:
+                print(f"✅ [Composite] Both images generated — compositing...")
+                try:
+                    composite_bytes = video_service.composite_character_on_background(
+                        char_bytes=char_bytes,
+                        bg_bytes=bg_bytes,
+                        aspect_ratio=aspect_ratio,
+                    )
+                    images_bytes = [composite_bytes]
+                    print(f"✅ [Composite] Compositing complete, size: {len(composite_bytes)} bytes")
+                except Exception as e:
+                    print(f"⚠️ [Composite] Compositing failed: {e} — falling back to single-prompt mode")
+                    images_bytes = None
+            else:
+                print(f"⚠️ [Composite] Image generation partially failed (char={bool(char_bytes)}, bg={bool(bg_bytes)}) — falling back to single-prompt mode")
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         # [SINGLE-PROMPT MODE] 기본 단일 프롬프트 생성 (또는 합성 실패 시 폴백)
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-        # 윔피 스타일: 폴백 시에도 반드시 캐릭터 제약 prefix 추가
-        # (Replicate is_wimpy 감지 보장 + Gemini/AKOOL 스타일 오염 방지)
-        # [FIX] 비-윔피 스타일: 초강력 해부학 제약 적용 (여러 팔/손 생성 방지)
-        _anatomy_prefix = (
-            "CRITICAL ANATOMY RULES: EXACTLY TWO ARMS ONLY. EXACTLY TWO HANDS ONLY. "
-            "EXACTLY FIVE FINGERS PER HAND. PERFECT ANATOMICALLY CORRECT HUMAN BODY. "
-            "ABSOLUTELY DO NOT GENERATE: extra arms, extra hands, multiple arms, too many arms, "
-            "too many hands, extra fingers, too many fingers, additional limbs, additional arms, "
-            "floating arms, disconnected arms, deformed arms, deformed hands, "
-            "mutated arms, mutated hands, mutated fingers, fused arms, fused hands, "
-            "wrong anatomy, bad anatomy, anatomical error, more than 2 arms, more than 10 fingers. "
-        )
-        effective_prompt = _anatomy_prefix + prompt
-        if is_wimpy_style:
-            wimpy_char_prefix = (
-                "YouTube educational cartoon illustration, stick-figure style character, "
-                "teal-blue hoodie, black pants, white sneakers, round white head, dot eyes, "
-                "NO necktie, NO suit, NO blue hair, NO business attire, bold black outlines, flat colors, "
-            )
-            # 이미 wimpy 키워드가 있으면 중복 추가 안 함
-            if "teal-blue hoodie" not in prompt.lower() and "stick-figure" not in prompt.lower():
-                effective_prompt = wimpy_char_prefix + prompt
-                print(f"🎨 [Image Gen] Wimpy prefix injected into fallback prompt")
+        # 스타일 prefix가 프롬프트에 없으면 앞에 추가
+        if _style_prefix and _style_prefix[:40].lower() not in prompt.lower():
+            effective_prompt = _style_prefix + ', ' + prompt
+        else:
+            effective_prompt = prompt
+
 
         if not images_bytes:
-            if is_wimpy_style:
-                print(f"🎨 [Image Gen] Wimpy style (single-prompt fallback) — Attempting Replicate Flux Dev...")
-            else:
-                print(f"🎨 [Image Gen] Attempting Replicate (Primary)...")
+            print(f"🎨 [Image Gen] Attempting Replicate (Primary)...")
             try:
                 images_bytes = await replicate_service.generate_image(prompt=effective_prompt, aspect_ratio=aspect_ratio)
             except Exception as e:

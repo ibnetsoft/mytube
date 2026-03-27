@@ -24,23 +24,11 @@
                             class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-white transition-all">
                             16:9</div>
                     </label>
-                    <label class="cursor-pointer" id="ratio-1-1">
-                        <input type="radio" name="aspectRatio" value="1:1" class="peer sr-only">
-                        <div
-                            class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-white transition-all">
-                            1:1</div>
-                    </label>
                     <label class="cursor-pointer" id="ratio-9-16">
                         <input type="radio" name="aspectRatio" value="9:16" class="peer sr-only">
                         <div
                             class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-white transition-all">
                             9:16</div>
-                    </label>
-                    <label class="cursor-pointer" id="ratio-3-4">
-                        <input type="radio" name="aspectRatio" value="3:4" class="peer sr-only">
-                        <div
-                            class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-white transition-all">
-                            3:4</div>
                     </label>
                 </div>
 
@@ -294,22 +282,7 @@
 
         <div id="promptsList" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
 
-        <!-- 다음 단계 버튼 (숨김 상태로 시작) -->
-        <div id="nextStepSection" class="hidden mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-            <h4 class="font-bold text-lg mb-2 text-blue-800 dark:text-blue-300 text-center">{{ t('gen_complete_title') }}</h4>
-            <p class="mb-4 text-sm text-gray-600 dark:text-gray-400 text-center">{{ t('gen_complete_desc') }}</p>
-            <div class="flex flex-wrap justify-center gap-3">
-                <a href="/video-gen" class="btn-primary inline-flex items-center gap-2">
-                    {{ t('btn_go_video_check') }}
-                </a>
-                <a href="/tts" class="btn-secondary inline-flex items-center gap-2">
-                    {{ t('btn_go_tts_direct') }}
-                </a>
-                <button onclick="openBlogPostPanel()" class="inline-flex items-center gap-2 py-2 px-4 rounded-lg text-sm font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0 shadow-md hover:shadow-lg transition-all">
-                    <span>📝</span> {{ t('btn_blog_post') }}
-                </button>
-            </div>
-        </div>
+        <div id="nextStepSection" class="hidden"></div>
 
         <!-- 블로그 게시 패널 -->
         <div id="blogPostPanel" class="hidden mt-6 bg-white dark:bg-gray-800 rounded-xl border-2 border-amber-300 dark:border-amber-700 shadow-lg overflow-hidden">
@@ -1115,37 +1088,6 @@
                     <!-- Right Column: Prompt Editors -->
                     <div class="lg:col-span-9 flex flex-col gap-3">
 
-                        <!-- [TWO-PROMPT] 졸라맨 전용: 캐릭터 + 배경 분리 프롬프트 -->
-                        <div class="wimpy-prompts-section" id="wimpy-prompts-${i}" style="display:none;">
-                            <!-- ① 캐릭터 프롬프트 -->
-                            <div class="grid grid-cols-12 gap-2 items-center mb-2">
-                                <label class="col-span-3 text-[10px] font-bold whitespace-nowrap">
-                                    <span class="flex items-center gap-1 text-teal-600 dark:text-teal-400">
-                                        <span>🧍 캐릭터 프롬프트</span>
-                                    </span>
-                                </label>
-                                <div class="col-span-9">
-                                    <textarea id="prompt-char-${i}"
-                                        class="w-full h-8 text-[11px] p-1.5 rounded border border-teal-200 dark:border-teal-900 bg-teal-50 dark:bg-gray-900/50 text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-teal-500 scrollbar-thin overflow-y-auto resize-none"
-                                        placeholder="캐릭터 단독 프롬프트 (흰 배경)..."
-                                        onchange="updatePromptChar(${i}, this.value)">${rawPromptChar}</textarea>
-                                </div>
-                            </div>
-                            <!-- ② 장면/배경 프롬프트 -->
-                            <div class="grid grid-cols-12 gap-2 items-center mb-2">
-                                <label class="col-span-3 text-[10px] font-bold whitespace-nowrap">
-                                    <span class="flex items-center gap-1 text-orange-600 dark:text-orange-400">
-                                        <span>🏞 장면 프롬프트</span>
-                                    </span>
-                                </label>
-                                <div class="col-span-9">
-                                    <textarea id="prompt-bg-${i}"
-                                        class="w-full h-8 text-[11px] p-1.5 rounded border border-orange-200 dark:border-orange-900 bg-orange-50 dark:bg-gray-900/50 text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-orange-500 scrollbar-thin overflow-y-auto resize-none"
-                                        placeholder="배경/장면 프롬프트..."
-                                        onchange="updatePromptBg(${i}, this.value)">${rawPromptBg}</textarea>
-                                </div>
-                            </div>
-                        </div>
 
                         <!-- 🎨 Visual Description (Image) -->
                         <div class="grid grid-cols-12 gap-2 items-start">
@@ -1261,29 +1203,6 @@
         }, 1000);
     }
 
-    // [TWO-PROMPT] 캐릭터 프롬프트 업데이트
-    async function updatePromptChar(index, value) {
-        if (!prompts[index]) return;
-        prompts[index].prompt_char = value;
-        Utils.storage.set('imagePrompts', prompts);
-        clearTimeout(promptSaveTimeout);
-        promptSaveTimeout = setTimeout(() => {
-            const projectId = getCurrentProject();
-            if (projectId) API.project.saveImagePrompts(projectId, prompts);
-        }, 1000);
-    }
-
-    // [TWO-PROMPT] 배경 프롬프트 업데이트
-    async function updatePromptBg(index, value) {
-        if (!prompts[index]) return;
-        prompts[index].prompt_bg = value;
-        Utils.storage.set('imagePrompts', prompts);
-        clearTimeout(promptSaveTimeout);
-        promptSaveTimeout = setTimeout(() => {
-            const projectId = getCurrentProject();
-            if (projectId) API.project.saveImagePrompts(projectId, prompts);
-        }, 1000);
-    }
 
     // Helper function to escape HTML
     function escapeHtml(text) {
@@ -2060,8 +1979,12 @@
 
     // ========== Scene Analysis ==========
 
-    // sessionStorage에서 복원 (페이지 새로고침 후에도 유지)
-    let analyzedSceneCount = parseInt(sessionStorage.getItem('analyzedSceneCount') || '0') || null;
+    // localStorage에서 프로젝트별로 복원
+    function _sceneCountKey() {
+        const pid = getCurrentProject();
+        return pid ? `analyzedSceneCount_${pid}` : 'analyzedSceneCount_default';
+    }
+    let analyzedSceneCount = parseInt(localStorage.getItem(_sceneCountKey()) || '0') || null;
     if (analyzedSceneCount) {
         const badge = document.getElementById('sceneCountBadge');
         if (badge) { badge.textContent = `${analyzedSceneCount} Scenes`; badge.classList.remove('hidden'); }
@@ -2090,7 +2013,7 @@
 
             if (result.scene_count) {
                 analyzedSceneCount = result.scene_count;
-                sessionStorage.setItem('analyzedSceneCount', analyzedSceneCount); // 새로고침 후에도 유지
+                localStorage.setItem(_sceneCountKey(), analyzedSceneCount);
 
                 // Display result next to button
                 const resultBadge = document.getElementById('sceneCountBadge');
@@ -2150,13 +2073,6 @@
         return style && /wimpy|stick|졸라맨/i.test(style);
     }
 
-    function toggleWimpyPrompts(style) {
-        const show = isWimpyStyle(style);
-        document.querySelectorAll('.wimpy-prompts-section').forEach(el => {
-            el.style.display = show ? '' : 'none';
-        });
-    }
-
     function selectStyle(style, element) {
         // 1. Update Hidden Input
         document.getElementById('imageStyle').value = style;
@@ -2179,9 +2095,6 @@
             const checkIcon = element.querySelector('.check-icon');
             if (checkIcon) checkIcon.classList.remove('opacity-0');
         }
-
-        // 3. 졸라맨 스타일일 때만 캐릭터/장면 프롬프트 표시
-        toggleWimpyPrompts(style);
     }
 
     // 프로젝트 상태 복구 이벤트 수신
@@ -2763,7 +2676,8 @@
                 'k_webtoon': 'K웹툰\n(Webtoon)',
                 'ghibli': '지브리\n(Ghibli)',
                 'k_manhwa': 'K만화\n(K-Manhwa)',
-                'minimal': '미니멀\n(Minimal)'
+                'minimal': '미니멀\n(Minimal)',
+                'nursery_rhyme': '동요\n(Nursery Rhyme)'
             };
 
             grid.innerHTML = Object.entries(presets).map(([key, data]) => {

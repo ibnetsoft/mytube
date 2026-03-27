@@ -337,45 +337,6 @@ def init_db():
         )
     """)
 
-    # [NEW] 퍼블리시 세션 (원소스 멀티유즈 파이프라인)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS publish_sessions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            project_id INTEGER,
-            title TEXT,
-            content TEXT,
-            content_html TEXT,
-            status TEXT DEFAULT 'draft',
-            step TEXT DEFAULT 'script',
-            blog_wp_url TEXT,
-            blog_wp_post_id TEXT,
-            blog_blogger_url TEXT,
-            blog_blogger_post_id TEXT,
-            youtube_video_id TEXT,
-            youtube_url TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (project_id) REFERENCES projects(id)
-        )
-    """)
-
-    # [NEW] 퍼블리시 이미지 (블로그+영상 공용 이미지)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS publish_images (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_id INTEGER,
-            position INTEGER DEFAULT 0,
-            prompt_ko TEXT,
-            prompt_en TEXT,
-            image_url TEXT,
-            video_url TEXT,
-            caption TEXT,
-            aspect_ratio TEXT DEFAULT '16:9',
-            status TEXT DEFAULT 'pending',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (session_id) REFERENCES publish_sessions(id)
-        )
-    """)
 
     conn.commit()
     conn.close()
@@ -394,14 +355,6 @@ def migrate_db():
         )
     """)
 
-    # [NEW] Default Blog Settings
-    blog_defaults = {
-        "blog_client_id": "REDACTED_GOOGLE_CLIENT_ID",
-        "blog_client_secret": "REDACTED_GOOGLE_CLIENT_SECRET",
-        "blog_id": "6291421620742373598"
-    }
-    for key, val in blog_defaults.items():
-        cursor.execute("INSERT OR IGNORE INTO global_settings (key, value) VALUES (?, ?)", (key, val))
 
     # project_settings에 thumbnail_url 컬럼 추가 (없으면)
     try:
@@ -599,6 +552,35 @@ def migrate_db():
             conn.commit()
         except sqlite3.OperationalError:
             pass
+
+    # [NURSERY] Nursery Rhyme Style Preset
+    try:
+        cursor.execute("SELECT id FROM style_presets WHERE style_key = 'nursery_rhyme'")
+        if not cursor.fetchone():
+            print("[Migration] Adding nursery_rhyme style preset...")
+            cursor.execute("""
+                INSERT INTO style_presets (style_key, prompt_value, image_url, mode, gemini_instruction) 
+                VALUES (?, ?, ?, ?, ?)
+            """, (
+                'nursery_rhyme', 
+                'Cute 3D animation style, Pixar/Disney inspired, vibrant colors, child-friendly environment, no text.',
+                '/static/img/styles/style_nursery.png',
+                'all',
+                'Focus on creating a magical, educational, and safe environment for children. Use soft lighting and rounded shapes.'
+            ))
+            conn.commit()
+    except Exception as e:
+        print(f"[Migration Warning] Failed to add nursery_rhyme style: {e}")
+
+    # [NURSERY] Script Style Preset
+    try:
+        cursor.execute("SELECT id FROM script_style_presets WHERE style_key = 'nursery_rhyme'")
+        if not cursor.fetchone():
+            cursor.execute("INSERT INTO script_style_presets (style_key, prompt_value) VALUES (?, ?)", 
+                           ('nursery_rhyme', 'Educational and fun nursery rhyme for children aged 2-6.'))
+            conn.commit()
+    except Exception as e:
+        print(f"[Migration Warning] Failed to add nursery_rhyme script style: {e}")
 
     # wimpy 프리셋의 gemini_instruction 초기값/업데이트 설정
     _wimpy_default_instruction = """[졸라맨 스타일 전용 - 필수 준수]
@@ -2470,7 +2452,7 @@ def get_style_presets(mode: str = None):
     result = {}
     for row in rows:
         row_dict = dict(row)
-        result[row_dict['style_key']] = {
+        result[row_dict['style_key'].lower()] = {
             'prompt_value': row_dict['prompt_value'],
             'image_url': row_dict.get('image_url'),
             'gemini_instruction': row_dict.get('gemini_instruction') or '',

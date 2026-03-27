@@ -257,83 +257,17 @@ class ReplicateService:
 
         print(f"🎨 [Image Gen] Replicate: {prompt[:100]}... (Aspect Ratio: {aspect_ratio})")
 
-        # 스타일 감지 (Wimpy Kid 키워드)
-        wimpy_keywords = ["wimpy", "stick figure", "stickman", "졸라맨", "cyan tunic", "cyan long-sleeved", "teal tunic", "cyan sleeveless", "teal-blue hoodie", "teal blue hoodie"]
-        is_wimpy = any(kw in prompt.lower() for kw in wimpy_keywords)
+        enforced_prompt = prompt + ", no text, no words, no letters"
 
-        # prompt_char(흰 배경 단일 캐릭터) vs prompt_en(통합 씬) 구분
-        # "pure white background" + "isolated" 가 있으면 단일 캐릭터 이미지 → 팔 제한 적용
-        # "youtube educational" 또는 씬 프롬프트면 → 팔 제한 없이 씬 품질만 강화
-        is_char_only = (
-            "pure white background" in prompt.lower() and
-            "isolated" in prompt.lower()
-        )
-        is_scene_prompt = "youtube educational" in prompt.lower() or not is_char_only
-
-        # 공통 suffix
-        suffix = ", no text, no words, no letters"
-
-        # 공통 wimpy 외형 규칙 (이목구비 필수, 소매 걷기 금지)
-        wimpy_char_rules = (
-            ", the character has a perfectly bald smooth white circular head, no hair, no hairstyle, no wig,"
-            " a pair of distinct black dot eyes and a simple black arc smile (Face must NEVER be blank),"
-            " vibrant teal-blue long-sleeved hoodie with front pocket and THICK CYLINDRICAL FULL-LENGTH TEAL-BLUE SLEEVES that cover the entire arm completely down to the white gloves,"
-            " THE TEAL-BLUE FABRIC MUST REACH THE WHITE GLOVES. NO THIN BLACK LINES FOR ARMS. NO ROLLED-UP SLEEVES, NO BLACK SKIN VISIBLE ON ARMS, NO SHORT SLEEVES, sleeves must be teal-blue,"
-            " solid black trousers, white sneakers with black trim,"
-            " strictly two arms and two hands only, bold black outlines, flat 2D vector style"
-        )
-
-        if is_wimpy and is_char_only:
-            # 단일 캐릭터 이미지: 팔 제한 초강력 적용
-            arm_prefix = (
-                "EXACTLY TWO ARMS ONLY. NO EXTRA ARMS. NO EXTRA HANDS. NO THIRD ARM. "
-                "BOTH ARMS VISIBLE AND ATTACHED TO SHOULDERS. "
-                "ARM COLOR MUST BE TEAL-BLUE. DO NOT DRAW BLACK ARMS. "
-            )
-            enforced_prompt = arm_prefix + prompt + suffix + wimpy_char_rules + ", isolated on pure white background"
-        elif is_wimpy and is_scene_prompt:
-            # 통합 씬 이미지: 캐릭터 외형 규칙 + 씬 품질 강화
-            # [버그 수정] 캐릭터 외형 규칙(wimpy_char_rules)을 씬 프롬프트에도 누락 없이 적용
-            scene_suffix = (
-                ", YouTube educational cartoon style, clean thick black outlines,"
-                " flat bold vibrant colors, layered scene depth, warm vibrant lighting"
-            )
-            # 팔 색상 강조 추가
-            wimpy_scene_rules = wimpy_char_rules + ", ARM COLOR MUST BE TEAL-BLUE, NO BLACK ARMS"
-            enforced_prompt = prompt + suffix + wimpy_scene_rules + scene_suffix
-        else:
-            # [FIX] 비-윔피 스타일: 초강력 해부학 제약 적용 (여러 팔/손 생성 방지)
-            anatomy_enforcement = (
-                "CRITICAL ANATOMY RULES: EXACTLY TWO ARMS ONLY. EXACTLY TWO HANDS ONLY. "
-                "EXACTLY FIVE FINGERS PER HAND. PERFECT ANATOMICALLY CORRECT HUMAN BODY. "
-                "SINGLE CHARACTER WITH ONE PAIR OF ARMS ATTACHED TO SHOULDERS. "
-                "ABSOLUTELY DO NOT GENERATE: extra arms, extra hands, multiple arms, too many arms, "
-                "too many hands, extra fingers, too many fingers, additional limbs, additional arms, "
-                "floating arms, disconnected arms, deformed arms, deformed hands, "
-                "mutated arms, mutated hands, mutated fingers, fused arms, fused hands, "
-                "wrong anatomy, bad anatomy, anatomical error, more than 2 arms, more than 10 fingers. "
-            )
-            enforced_prompt = anatomy_enforcement + prompt + suffix
-
-        # 윔피 스타일은 Flux Dev (품질 우선), 그 외는 Flux Schnell
-        if is_wimpy:
-            model = "black-forest-labs/flux-dev"
-            input_data = {
-                "prompt": enforced_prompt,
-                "aspect_ratio": aspect_ratio,
-                "output_format": "png",
-                "num_outputs": num_outputs,
-                "num_inference_steps": 40,
-                "guidance": 5.0
-            }
-        else:
-            model = "black-forest-labs/flux-schnell"
-            input_data = {
-                "prompt": enforced_prompt,
-                "aspect_ratio": aspect_ratio,
-                "output_format": "png",
-                "num_outputs": num_outputs
-            }
+        model = "black-forest-labs/flux-dev"
+        input_data = {
+            "prompt": enforced_prompt,
+            "aspect_ratio": aspect_ratio,
+            "output_format": "png",
+            "num_outputs": num_outputs,
+            "num_inference_steps": 28,
+            "guidance": 3.5
+        }
 
         try:
             loop = asyncio.get_event_loop()
