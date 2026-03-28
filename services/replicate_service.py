@@ -156,19 +156,35 @@ class ReplicateService:
         return path
 
     def _run_replicate(self, input_data):
+        """Wan 영상 생성. 씬당 최대 5분 timeout."""
+        TIMEOUT_SECONDS = 300  # 5분
         max_retries = 3
+
         for attempt in range(max_retries):
             try:
-                return replicate.run(
-                    "wavespeedai/wan-2.1-i2v-480p",
-                    input=input_data
-                )
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(
+                        replicate.run,
+                        "wavespeedai/wan-2.1-i2v-480p",
+                        input=input_data
+                    )
+                    try:
+                        return future.result(timeout=TIMEOUT_SECONDS)
+                    except concurrent.futures.TimeoutError:
+                        print(f"⏰ [Replicate] Timeout after {TIMEOUT_SECONDS}s (attempt {attempt+1}/{max_retries})")
+                        if attempt < max_retries - 1:
+                            time.sleep(5)
+                            continue
+                        raise TimeoutError(f"Replicate Wan 영상 생성 {TIMEOUT_SECONDS}초 초과")
+            except TimeoutError:
+                raise
             except Exception as e:
                 error_str = str(e).lower()
                 if "429" in error_str or "throttled" in error_str or "rate limit" in error_str:
                     if attempt < max_retries - 1:
-                        wait_time = (attempt + 1) * 5 + float(input_data.get("duration", 5)) # Initial wait: ~10s
-                        print(f"⚠️ [Replicate] Rate Limit Hit (429). Waiting {wait_time}s before retry {attempt+1}/{max_retries}...")
+                        wait_time = (attempt + 1) * 5 + float(input_data.get("duration", 5))
+                        print(f"⚠️ [Replicate] Rate Limit (429). Waiting {wait_time}s before retry {attempt+1}/{max_retries}...")
                         time.sleep(wait_time)
                         continue
                 print(f"❌ [Replicate] Error: {e}")
