@@ -420,20 +420,23 @@ class GeminiService:
                         " Face must NEVER be blank or empty. "
                         " strictly two arms total, no extra limbs"
                     )
-                # 모든 스타일 공통: 초강력 해부학 제약 (여러 팔/손 생성 방지)
+                # 모든 스타일 공통: 긍정형 해부학 제약 (메인 프롬프트)
                 final_prompt += (
-                    ", single person, solo, EXACTLY TWO ARMS AND TWO HANDS ONLY, EXACTLY FIVE FINGERS PER HAND, "
-                    "anatomically correct, perfect human anatomy, natural arm position, realistic limb count. "
-                    "DO NOT GENERATE: extra arms, extra hands, multiple arms, too many arms, too many hands, "
-                    "extra fingers, too many fingers, additional limbs, additional arms, "
-                    "floating arms, disconnected arms, deformed arms, deformed hands, "
-                    "mutated arms, mutated hands, mutated fingers, fused arms, fused hands, "
-                    "wrong anatomy, bad anatomy, anatomical error, more than 2 arms, more than 10 fingers, "
-                    "worst quality, low quality"
+                    ", single person, solo, exactly two arms, exactly two hands, exactly five fingers per hand, "
+                    "anatomically correct, perfect human anatomy, natural arm position"
+                )
+
+                # 부정형 제약은 negativePrompt 필드로 분리 (Imagen 3 지원)
+                negative_prompt = (
+                    "extra arms, extra hands, multiple arms, too many arms, too many hands, "
+                    "extra fingers, too many fingers, additional limbs, floating arms, "
+                    "disconnected arms, deformed arms, deformed hands, mutated arms, mutated hands, "
+                    "mutated fingers, fused arms, fused hands, wrong anatomy, bad anatomy, "
+                    "more than 2 arms, more than 10 fingers, worst quality, low quality"
                 )
 
                 payload = {
-                    "instances": [{"prompt": final_prompt}],
+                    "instances": [{"prompt": final_prompt, "negativePrompt": negative_prompt}],
                     "parameters": {
                         "sampleCount": num_images,
                         "aspectRatio": aspect_ratio,

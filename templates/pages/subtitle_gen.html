@@ -429,7 +429,7 @@
                     </div>
                     
                     <div class="flex items-center gap-3 pl-1 mb-0.5 mt-1">
-                        <button id="customPlayBtn" class="text-gray-400 hover:text-[#1daaaa] transition-colors focus:outline-none flex items-center justify-center p-1 rounded hover:bg-gray-700">
+                        <button id="customPlayBtn" onclick="handlePlayBtn()" class="text-gray-400 hover:text-[#1daaaa] transition-colors focus:outline-none flex items-center justify-center p-1 rounded hover:bg-gray-700">
                             <svg id="iconPlay" class="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4l12 6-12 6V4z"></path></svg>
                             <svg id="iconPause" class="w-4 h-4 hidden" fill="currentColor" viewBox="0 0 20 20"><path d="M5 4h3v12H5V4zm7 0h3v12h-3V4z"></path></svg>
                         </button>
@@ -702,6 +702,7 @@
     let styleSettings = {};
     let audioDuration = 0;
     let selectedIndex = -1;
+
     let imageTimings = []; // [NEW] Image Start Times based on backend Pacing
     let imageEffects = []; // [NEW] Zoom/Pan Effects (1:1 with images)
 
@@ -848,13 +849,7 @@
             return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
         }
 
-        if(playBtn) {
-            playBtn.addEventListener('click', () => {
-                if(!audio.src) return;
-                if (audio.paused) audio.play();
-                else audio.pause();
-            });
-        }
+        // 재생 버튼은 onclick="handlePlayBtn()"으로 직접 처리
 
         if(audio) {
             audio.addEventListener('play', () => {
@@ -875,38 +870,21 @@
                 if (!audio.duration) return;
                 const cur = audio.currentTime;
                 const dur = audio.duration;
-                const pct = (cur / dur) * 100;
-                
-                if (progressFill) progressFill.style.width = `${pct}%`;
-                if (playhead) playhead.style.left = `${pct}%`;
-                if (timeDisplay) timeDisplay.textContent = `${formatTime(cur)} / ${formatTime(dur)}`;
 
-                // SYNC PREVIEW TO TIME
-                if (!subtitles || subtitles.length === 0) return;
-                
-                // Ignore sync if manually seeking or dragging, but we'll keep it simple
-                let activeSubIndex = -1;
-                for (let i = 0; i < subtitles.length; i++) {
-                    const s = subtitles[i];
-                    if (cur >= s.start && cur <= s.end) {
-                        activeSubIndex = i;
-                        break;
-                    }
-                }
-                
-                // fallback to finding the closest subtitle if there's a small gap
-                if (activeSubIndex === -1 && cur < dur) {
-                    for (let i = 0; i < subtitles.length; i++) {
-                        if (cur < subtitles[i].start) {
-                            activeSubIndex = i > 0 ? i - 1 : 0;
-                            break;
-                        }
-                    }
-                }
-
-                if (activeSubIndex !== -1 && activeSubIndex !== selectedIndex) {
-                    // Update UI automatically by reusing selectSubtitle
-                    selectSubtitle(activeSubIndex);
+                // 구간 재생 중: 구간 기준 프로그레스바 표시
+                if (_segmentInterval !== null && selectedIndex >= 0 && subtitles[selectedIndex]) {
+                    const sub = subtitles[selectedIndex];
+                    const segDur = sub.end - sub.start;
+                    const segCur = Math.max(0, Math.min(cur - sub.start, segDur));
+                    const pct = segDur > 0 ? (segCur / segDur) * 100 : 0;
+                    if (progressFill) progressFill.style.width = `${pct}%`;
+                    if (playhead) playhead.style.left = `${pct}%`;
+                    if (timeDisplay) timeDisplay.textContent = `${formatTime(segCur)} / ${formatTime(segDur)}`;
+                } else {
+                    const pct = (cur / dur) * 100;
+                    if (progressFill) progressFill.style.width = `${pct}%`;
+                    if (playhead) playhead.style.left = `${pct}%`;
+                    if (timeDisplay) timeDisplay.textContent = `${formatTime(cur)} / ${formatTime(dur)}`;
                 }
             });
         }
@@ -1111,7 +1089,7 @@
         Utils.showToast(`이미지 #${imgIndex + 1} 효과: ${effect}`, 'info');
     }
 
-    function selectSubtitle(index) {
+    function selectSubtitle(index, shouldPlay = true) {
         if (selectedIndex >= 0) {
             const prev = document.getElementById(`sub-row-${selectedIndex}`);
             if (prev) prev.classList.remove('active');
@@ -1150,6 +1128,11 @@
         const previewText = document.getElementById('previewTextMain');
         if (previewText) previewText.textContent = sub.text;
         updateSubtitlePreview();
+
+        // 자막 클릭 시 해당 구간 즉시 재생 (shouldPlay=false이면 재생 안 함)
+        if (shouldPlay && document.getElementById('audioPlayer')?.src) {
+            playSegment(index);
+        }
 
         // Update Background Image
         // Update Background Image & Selector
@@ -1992,7 +1975,7 @@
                 images = data.images || images; // Update images if provided
                 imageTimings = data.image_timings || []; // Update timings
                 renderSubtitles();
-                selectSubtitle(0);
+                selectSubtitle(0, false);
                 Utils.showToast('생성 완료', 'success');
             } else throw new Error(data.error);
         } catch (e) {
@@ -2492,12 +2475,48 @@
     }
 
 
+    let _segmentInterval = null;
+
+    function handlePlayBtn() {
+        const audio = document.getElementById('audioPlayer');
+        if (!audio) return;
+        if (!audio.paused) {
+            audio.pause();
+            if (_segmentInterval) { clearInterval(_segmentInterval); _segmentInterval = null; }
+            return;
+        }
+        if (selectedIndex >= 0 && subtitles[selectedIndex]) {
+            playSegment(selectedIndex);
+        } else if (audio.src) {
+            audio.play();
+        }
+    }
+
     function playSegment(idx) {
         const sub = subtitles[idx];
+        if (!sub) return;
         const audio = document.getElementById('audioPlayer');
+        if (!audio || !audio.src) return;
+
+        if (_segmentInterval) { clearInterval(_segmentInterval); _segmentInterval = null; }
+
         audio.currentTime = sub.start;
+        const endTime = sub.end;
         audio.play();
-        setTimeout(() => audio.pause(), (sub.end - sub.start) * 1000);
+
+        _segmentInterval = setInterval(function() {
+            if (!audio || audio.paused) {
+                clearInterval(_segmentInterval);
+                _segmentInterval = null;
+                return;
+            }
+            if (audio.currentTime >= endTime) {
+                audio.pause();
+                audio.currentTime = endTime; // 정확한 끝 지점으로 snap
+                clearInterval(_segmentInterval);
+                _segmentInterval = null;
+            }
+        }, 16); // ~60fps 체크로 오버슈팅 최소화
     }
 
     // Draggable Functionality
@@ -3294,7 +3313,7 @@
                 updateSubtitlePreview();
 
                 if (subtitles.length > 0) {
-                    selectSubtitle(0);
+                    selectSubtitle(0, false);
                     updateDebug(`Loaded and Selected. Subtitles: ${subtitles.length}`);
                 } else {
                     Utils.showToast(i18n.status_no_subtitle_generated, 'info');

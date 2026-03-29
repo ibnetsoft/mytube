@@ -16,8 +16,8 @@
         <div class="flex flex-wrap items-center gap-4">
             <!-- Image Options -->
             <div id="imageOptions" class="flex flex-wrap items-center gap-4">
-                <!-- Aspect Ratio -->
-                <div class="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg shadow-inner">
+                <!-- Aspect Ratio (롱폼: 16:9 / 9:16) -->
+                <div id="longformRatioContainer" class="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg shadow-inner">
                     <label class="cursor-pointer" id="ratio-16-9">
                         <input type="radio" name="aspectRatio" value="16:9" checked class="peer sr-only">
                         <div
@@ -29,6 +29,22 @@
                         <div
                             class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-white transition-all">
                             9:16</div>
+                    </label>
+                </div>
+
+                <!-- Aspect Ratio (숏폼 전용: 3:4 / 1:1 / 9:16) -->
+                <div id="shortsRatioContainer" class="hidden flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg shadow-inner">
+                    <label class="cursor-pointer">
+                        <input type="radio" name="aspectRatio" value="3:4" class="peer sr-only">
+                        <div class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-white transition-all">3:4</div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="aspectRatio" value="1:1" class="peer sr-only">
+                        <div class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-white transition-all">1:1</div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="aspectRatio" value="9:16" class="peer sr-only" id="shorts-ratio-916">
+                        <div class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-white transition-all">9:16</div>
                     </label>
                 </div>
 
@@ -2608,27 +2624,22 @@
             const settings = await res.json();
             const mode = settings.app_mode || 'longform';
 
-            const r169 = document.getElementById('ratio-16-9');
-            const r11 = document.getElementById('ratio-1-1');
-            const r916 = document.getElementById('ratio-9-16');
-            const r34 = document.getElementById('ratio-3-4');
 
             // Reset all to visible first (or hidden then toggle)
             // But Tailwind 'hidden' class is what we toggle
 
-            // 비율 버튼 컨테이너 (16:9 / 9:16 버튼 묶음)
-            const ratioContainer = r169?.closest('.flex.bg-gray-100, .flex.bg-gray-700') || r169?.parentElement;
+            const longformRatioContainer = document.getElementById('longformRatioContainer');
+            const shortsRatioContainer = document.getElementById('shortsRatioContainer');
 
             // 모드 전역 저장 (getContainerStyle, getImageColClass 에서 참조)
             window._appMode = mode;
 
             if (mode === 'shorts') {
-                // 9:16 자동 선택, 비율 버튼 숨김
-                const radio916 = document.querySelector('input[value="9:16"]');
-                if (radio916) radio916.checked = true;
-                if (r169) r169.classList.add('hidden');
-                if (r916) r916.classList.add('hidden');
-                if (ratioContainer) ratioContainer.classList.add('hidden');
+                // 숏폼: 롱폼 비율 숨기고, 숏폼 비율 표시 (기본 3:4 선택)
+                if (longformRatioContainer) longformRatioContainer.classList.add('hidden');
+                if (shortsRatioContainer) shortsRatioContainer.classList.remove('hidden');
+                const radio34 = document.querySelector('#shortsRatioContainer input[value="3:4"]');
+                if (radio34) radio34.checked = true;
 
                 // Thumbnail Reference → 세로형
                 const thumbRef = document.getElementById('thumbnailReferenceContainer');
@@ -2644,12 +2655,11 @@
                 });
 
             } else {
-                // 16:9 자동 선택, 비율 버튼 숨김
-                const radio169 = document.querySelector('input[value="16:9"]');
+                // 롱폼: 숏폼 비율 숨기고, 롱폼 비율 숨김 (기존처럼 16:9 자동 선택)
+                if (shortsRatioContainer) shortsRatioContainer.classList.add('hidden');
+                if (longformRatioContainer) longformRatioContainer.classList.add('hidden');
+                const radio169 = document.querySelector('#longformRatioContainer input[value="16:9"]');
                 if (radio169) radio169.checked = true;
-                if (r169) r169.classList.add('hidden');
-                if (r916) r916.classList.add('hidden');
-                if (ratioContainer) ratioContainer.classList.add('hidden');
 
                 // Thumbnail Reference → 가로형
                 const thumbRef = document.getElementById('thumbnailReferenceContainer');

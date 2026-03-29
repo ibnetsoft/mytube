@@ -201,6 +201,11 @@
     let isPolling = false;
 
     document.addEventListener('DOMContentLoaded', async () => {
+        // URL 쿼리 파라미터로 넘어온 project_id 처리 (오토파일럿 등)
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlProjectId = urlParams.get('project_id');
+        if (urlProjectId) setCurrentProject(urlProjectId);
+
         const projectId = getCurrentProject();
         if (!projectId) return Utils.showToast("{{ t('toast_select_project_first') }}", 'warning');
 

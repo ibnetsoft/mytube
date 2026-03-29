@@ -144,7 +144,8 @@
 
                     <li class="{% if app_mode in ['commerce'] %}hidden{% endif %}">
                         <a href="/subtitle-gen" id="nav-subtitle"
-                            class="sidebar-item {% if page == 'subtitle-gen' %}active{% endif %}">
+                            class="sidebar-item {% if page == 'subtitle-gen' %}active{% endif %}"
+                            onclick="(function(e){ const pid = window.currentProjectId || localStorage.getItem('currentProjectId'); if(pid){ e.preventDefault(); window.location.href='/subtitle-gen?project_id='+pid; } })(event)">
                             <span class="sidebar-icon">📝</span>
                             <span>{{ t('nav_subtitle') }}</span>
                         </a>
@@ -379,7 +380,8 @@
                                 <!-- Step 10: Subtitles -->
                                 <a href="/subtitle-gen"
                                     class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
-                                    data-step="subtitle">
+                                    data-step="subtitle"
+                                    onclick="(function(e){ const pid = window.currentProjectId || localStorage.getItem('currentProjectId'); if(pid){ e.preventDefault(); window.location.href='/subtitle-gen?project_id='+pid; } })(event)">
                                     <div
                                         class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
                                         <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>

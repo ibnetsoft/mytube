@@ -251,6 +251,8 @@ function setMode(mode) {
 
         const commerceToggle = document.getElementById('commerceModeToggle');
         if (commerceToggle) commerceToggle.classList.add('hidden');
+        const thumbSection = document.getElementById('thumbnailStyleSection');
+        if (thumbSection) thumbSection.classList.remove('hidden');
         setCreationMode('default');
     } else {
         btnShort.classList.add('bg-purple-600', 'text-white', 'font-bold');
@@ -265,6 +267,8 @@ function setMode(mode) {
 
         const commerceToggle = document.getElementById('commerceModeToggle');
         if (commerceToggle) commerceToggle.classList.remove('hidden');
+        const thumbSection = document.getElementById('thumbnailStyleSection');
+        if (thumbSection) thumbSection.classList.add('hidden');
 
         // Ensure creation mode is synced
         setCreationMode(document.getElementById('creationMode')?.value || 'default');
@@ -970,7 +974,7 @@ function pollStatus(projectId) {
 
                 // Auto redirect after 3s
                 setTimeout(() => {
-                    window.location.href = '/video-gen';
+                    window.location.href = `/render?project_id=${projectId}`;
                 }, 3000);
 
             } else if (status === 'error') {

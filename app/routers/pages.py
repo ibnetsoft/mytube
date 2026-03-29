@@ -77,10 +77,7 @@ async def page_subtitle_gen(request: Request, project_id: Optional[int] = Query(
     project = None
     if project_id:
         project = db.get_project(project_id)
-    else:
-        recent = db.get_recent_projects(limit=1)
-        if recent:
-            project = recent[0]
+    # project_id 없으면 JS의 getCurrentProject() / localStorage 우선순위에 맡김
     return _templates.TemplateResponse("pages/subtitle_gen.html", {
         "request": request,
         "page": "subtitle-gen",

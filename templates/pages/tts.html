@@ -136,7 +136,8 @@
                 <div class="flex gap-2">
                     <a id="downloadLink" href="#" download class="flex-1 btn-secondary py-1 text-xs text-center">💾
                         {{ t('btn_download') }}</a>
-                    <a href="/subtitle_gen"
+                    <a href="/subtitle-gen"
+                        onclick="(function(e){ const pid = window.currentProjectId || localStorage.getItem('currentProjectId'); if(pid){ e.preventDefault(); window.location.href='/subtitle-gen?project_id='+pid; } })(event)"
                         class="flex-1 btn-primary py-1 text-xs text-center bg-blue-600 hover:bg-blue-700">{{
                         t('btn_go_subtitle') }}</a>
                 </div>

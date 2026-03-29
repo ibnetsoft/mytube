@@ -768,6 +768,26 @@ async def generate_character_prompts(req: CharacterPromptRequest):
         return {"status": "error", "error": f"{str(e)}", "trace": error_trace}
 
 
+@router.post("/api/projects/{project_id}/characters")
+async def save_characters(project_id: int, characters: List[Dict] = Body(...)):
+    """캐릭터 목록 저장 (삭제 포함)"""
+    try:
+        db.save_project_characters(project_id, characters)
+        return {"status": "ok", "count": len(characters)}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
+@router.get("/api/projects/{project_id}/characters")
+async def get_characters(project_id: int):
+    """캐릭터 목록 조회"""
+    try:
+        characters = db.get_project_characters(project_id)
+        return {"status": "ok", "characters": characters}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
 # duplicate endpoint removed
 @router.post("/api/image/generate-character")
 
