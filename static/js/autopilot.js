@@ -191,9 +191,6 @@ function createStyleCard(style, inputId) {
     div.innerHTML = `
         <img src="${style.img}" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" alt="${style.name}" 
             onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=\\'flex flex-col items-center justify-center h-full p-2 text-center\\'><div class=\\'text-2xl mb-1\\'>🎨</div><div class=\\'text-[10px] text-white font-bold leading-tight truncate w-full\\'>${displayName}</div></div>';">
-        <div class="absolute bottom-0 inset-x-0 bg-black/60 p-1.5 text-center transition-transform translate-y-0">
-            <span class="text-[10px] text-white font-medium block truncate">${displayName}</span>
-        </div>
         ${style.hasInstruction ? `
         <div class="absolute top-1.5 left-1.5 bg-purple-600/90 text-white rounded-md px-1 py-0.5 text-[8px] font-bold flex items-center gap-0.5 shadow-lg">
             <span>🧠</span><span>GROUNDED</span>
