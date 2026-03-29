@@ -262,6 +262,13 @@
     color: white;
 }
 
+/* ===== Select & Option Dark Theme ===== */
+select.bg-gray-900 option,
+select.bg-gray-800 option {
+    background-color: #111827;
+    color: #ffffff;
+}
+
 .input-field:focus {
     outline: none;
     border-color: var(--color-primary);
