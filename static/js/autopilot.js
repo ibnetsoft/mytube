@@ -1342,14 +1342,14 @@ function applyPresetSettings(s) {
     if (s.motion_method) {
         setMotionMethod(s.motion_method);
     }
-    if (s.duration_seconds) {
+    // [FIX] target_duration(분) 으로 저장되므로 해당 키 우선 처리
+    if (s.target_duration !== undefined) {
+        const durInput = document.getElementById('targetDuration');
+        if (durInput) durInput.value = s.target_duration;
+    } else if (s.duration_seconds) {
         const durInput = document.getElementById('targetDuration');
         if (durInput) {
-            if (s.mode === 'shorts') {
-                durInput.value = s.duration_seconds;
-            } else {
-                durInput.value = Math.round(s.duration_seconds / 60);
-            }
+            durInput.value = s.mode === 'shorts' ? s.duration_seconds : Math.round(s.duration_seconds / 60);
         }
     }
 
@@ -1358,12 +1358,24 @@ function applyPresetSettings(s) {
         document.getElementById('scriptStyleSelect').value = s.script_style;
     }
 
-    // 4. Voice
+    // 4. Voice — provider 먼저 설정 후 voices 로드, 그 다음 voice_id 적용
     if (s.voice_provider) {
-        document.getElementById('providerSelect').value = s.voice_provider;
-        // Trigger change? No, manually update voice
-        // We need to wait for voice fetch? 
-        // This is tricky. Simplified for now.
+        const pSelect = document.getElementById('providerSelect');
+        if (pSelect) pSelect.value = s.voice_provider;
+        if (s.voice_id) {
+            fetchVoices(s.voice_provider).then(() => {
+                const vSelect = document.getElementById('voiceSelect');
+                if (!vSelect) return;
+                vSelect.value = s.voice_id;
+                // 정확한 매칭 실패 시 부분 매칭 시도
+                if (!vSelect.value) {
+                    const match = Array.from(vSelect.options).find(o =>
+                        o.value === s.voice_id || o.textContent.toLowerCase().includes((s.voice_id || '').toLowerCase())
+                    );
+                    if (match) vSelect.value = match.value;
+                }
+            });
+        }
     }
 
     // 5. Subtitles (Most Important)
