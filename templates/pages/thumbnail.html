@@ -535,7 +535,6 @@
                 const isActive = key === currentKey ? 'active' : '';
                 return `<div class="style-card-thumb ${isActive}" onclick="selectImageStyle('${key}')" data-imgstyle="${key}" title="${label}">
                     <img src="${imageUrl}" alt="${label}" loading="lazy" onerror="this.onerror=null;this.src='${noImgSvg}';">
-                    <div class="style-label">${label}</div>
                 </div>`;
             }).join('');
 
@@ -619,7 +618,6 @@
                     <div class="style-card-thumb ${isActive}" onclick="selectThumbnailStyle('${key}')" data-style="${key}" title="${displayName}">
                         <img src="${imageUrl}" alt="${displayName}" loading="lazy"
                              onerror="this.onerror=null; this.src='${noImgSvg}';">
-                        <div class="style-label">${displayName}</div>
                     </div>`;
                 }).join('');
         } catch (e) {
