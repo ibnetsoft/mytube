@@ -1486,6 +1486,9 @@ async def render_project_video(
                         print(f"DEBUG_RENDER: Auto-parsing effects failed: {e}")
 
                 # 3. 단일 패스 영상 생성
+                print(f"DEBUG_RENDER: Final images list ({len(images)} items) before create_slideshow:")
+                for _ii, _ip in enumerate(images):
+                    print(f"  [{_ii}] {_ip} | exists={os.path.exists(_ip)} | is_video={_ip.lower().endswith(('.mp4','.mov','.avi','.mkv'))}")
                 video_path = video_service.create_slideshow(
                     images=images,
                     audio_path=effective_audio_path,

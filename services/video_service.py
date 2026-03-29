@@ -379,13 +379,23 @@ class VideoService:
                         
                         # Load clean clip
                         clip = VideoFileClip(processed_path).without_audio()
-                        
-                        # Loop logic
-                        if clip.duration < dur:
+
+                        # [FIX] FFMPEG already produced the video at the correct duration
+                        # (-stream_loop -1 -t dur). Only use apply_loop if significantly shorter.
+                        # apply_loop uses fl_time() wrapping which can cause black frames on VideoFileClip.
+                        try:
+                            import datetime
+                            with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as _df:
+                                _df.write(f"[{datetime.datetime.now()}] VideoAsset loaded: dur={clip.duration:.3f}s, target={dur:.3f}s, path={os.path.basename(processed_path)}\n")
+                        except Exception:
+                            pass
+                        if clip.duration < dur - 0.5:
+                            # Significantly shorter: need to loop (rare, fallback)
                             clip = apply_loop(clip, duration=dur)
-                        else:
+                        elif clip.duration > dur + 0.1:
                             clip = clip.subclip(0, dur)
-                            
+                        # else: duration is close enough, just set metadata below
+
                         clip = clip.with_duration(dur)
                         
                     except Exception as e:
@@ -2645,16 +2655,17 @@ class VideoService:
         # force_original_aspect_ratio=increase ensures it covers the box
         # crop=w:h cuts the center
         # fps for consistency
-        vf_filter = f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},fps={fps}"
-        
+        # setpts=PTS-STARTPTS: 타임스탬프 0 기준 재설정 (Veo 등 비정상 PTS 영상 첫 프레임 검은화면 방지)
+        vf_filter = f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},fps={fps},setpts=PTS-STARTPTS"
+
         cmd = [ffmpeg_exe, "-y"]
-        
+
         is_video = input_path.lower().endswith(('.mp4', '.mov', '.avi', '.mkv', '.webm'))
-        
+
         if is_video:
-            if duration is not None:
-                cmd.extend(["-stream_loop", "-1", "-t", str(duration)])
-            cmd.extend(["-i", input_path])
+            # [FIX] -t를 출력 옵션으로 이동: 입력 PTS 기준이 아닌 실제 인코딩 시작점부터 카운트
+            # Veo 등 영상은 PTS가 0이 아닌 값에서 시작 → -t를 입력 옵션으로 쓰면 첫 프레임이 검게 됨
+            cmd.extend(["-stream_loop", "-1", "-i", input_path])
         else:
             cmd.extend(["-loop", "1", "-framerate", str(fps)])
             if duration is not None:
@@ -2662,16 +2673,19 @@ class VideoService:
             else:
                 cmd.extend(["-t", "5"]) # Defaults to 5 seconds if not specified
             cmd.extend(["-i", input_path])
-        
-        cmd.extend([
+
+        out_args = [
             "-vf", vf_filter,
             "-c:v", "libx264",
-            # [SAFE MODE] Use ultrafast preset for pre-processing stability
             "-preset", "ultrafast",
             "-crf", "23",
-            "-an", # No Audio
-            output_path
-        ])
+            "-pix_fmt", "yuv420p",
+            "-an",
+        ]
+        if is_video and duration is not None:
+            out_args.extend(["-t", str(duration)])
+        out_args.append(output_path)
+        cmd.extend(out_args)
         
         # Hide console window on Windows
         startupinfo = None
@@ -2728,15 +2742,15 @@ class VideoService:
         
         cmd = [ffmpeg_exe, "-y"]
         if is_video:
-            cmd.extend(["-stream_loop", "-1", "-t", str(duration), "-i", input_path])
+            cmd.extend(["-stream_loop", "-1", "-i", input_path])
         else:
             cmd.extend(["-loop", "1", "-framerate", str(fps), "-t", str(duration), "-i", input_path])
 
-        cmd.extend([
-            "-vf", vf_filter,
-            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "22", "-an",
-            output_path
-        ])
+        out_args = ["-vf", vf_filter, "-c:v", "libx264", "-preset", "ultrafast", "-crf", "22", "-pix_fmt", "yuv420p", "-an"]
+        if is_video:
+            out_args.extend(["-t", str(duration)])
+        out_args.append(output_path)
+        cmd.extend(out_args)
         subprocess.run(cmd, check=True, startupinfo=startupinfo)
         return output_path
 
@@ -2810,19 +2824,17 @@ class VideoService:
 
         if is_video:
             # 비디오면 짧을 수 있으므로 스트림 루프(무한 반복)
-            cmd.extend(["-stream_loop", "-1", "-t", str(duration), "-i", input_path])
+            # [FIX] -t 출력 옵션으로 이동 (입력 PTS 비정상 영상 첫 프레임 검은화면 방지)
+            cmd.extend(["-stream_loop", "-1", "-i", input_path])
         else:
             # 이미지면 루프와 프레임레이트 옵션
             cmd.extend(["-loop", "1", "-framerate", str(fps), "-t", str(duration), "-i", input_path])
 
-        cmd.extend([
-            "-vf", vf_filter,
-            "-c:v", "libx264",
-            "-preset", "ultrafast",
-            "-crf", "22",
-            "-an",
-            output_path
-        ])
+        out_args = ["-vf", vf_filter, "-c:v", "libx264", "-preset", "ultrafast", "-crf", "22", "-pix_fmt", "yuv420p", "-an"]
+        if is_video:
+            out_args.extend(["-t", str(duration)])
+        out_args.append(output_path)
+        cmd.extend(out_args)
 
         print(f"[TallPan] FFmpeg cmd: {' '.join(cmd[:8])} ...")
         subprocess.run(cmd, check=True, startupinfo=startupinfo)
