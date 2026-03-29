@@ -1253,7 +1253,9 @@ async function fetchPresets() {
         const res = await fetch('/api/autopilot/presets');
         const data = await res.json();
 
-        select.innerHTML = `-- ${i18n.preset_custom} --`;
+        // [FIX] option 태그 없이 innerHTML 설정하면 select가 비어버려 onchange가 잘못 발동됨
+        const prevVal = select.value;
+        select.innerHTML = `<option value="">-- ${i18n.preset_custom || 'Custom'} --</option>`;
         if (data.presets) {
             data.presets.forEach(p => {
                 const opt = document.createElement('option');
@@ -1262,6 +1264,8 @@ async function fetchPresets() {
                 select.appendChild(opt);
             });
         }
+        // 이전 선택값 복원 (없으면 '' = Custom 유지)
+        select.value = prevVal || '';
 
     } catch (e) { console.error("Fetch presets error:", e); }
 }
@@ -1419,13 +1423,17 @@ async function saveCurrentPreset() {
         });
         const data = await res.json();
         if (data.status === 'ok') {
-            Utils.showToast(i18n.status_preset_saved, "success");
-            fetchPresets(); // refresh list
+            Utils.showToast(i18n.status_preset_saved || "프리셋 저장됨", "success");
+            nameInput.value = ''; // 저장 후 입력란 초기화
+            document.getElementById('btnDeletePreset').classList.add('hidden');
+            await fetchPresets();
+            document.getElementById('presetSelect').value = ''; // Custom으로 복귀
         } else {
-            alert("Error: " + data.error);
+            alert("저장 실패: " + (data.error || '알 수 없는 오류'));
         }
     } catch (e) {
-        console.error(e);
+        console.error("saveCurrentPreset error:", e);
+        alert("저장 중 오류: " + e.message);
     }
 }
 
