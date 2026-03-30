@@ -260,6 +260,12 @@
                     <span>🎬</span> {{ t('motion_gen_title') }}
                 </button>
 
+                <!-- 사람 제외 체크박스 -->
+                <label class="flex items-center gap-1.5 cursor-pointer select-none px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors text-sm" title="체크 시 생성된 이미지에 사람이 전혀 나오지 않도록 강력한 프롬프트가 적용됩니다">
+                    <input type="checkbox" id="noHumanToggle" class="w-3.5 h-3.5 accent-red-500">
+                    <span class="text-red-600 dark:text-red-400 font-medium">🚫 사람 제외</span>
+                </label>
+
                 <button onclick="generateSelectedImages()" id="autoGenBtn"
                     class="btn-primary text-sm px-4 flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled>
@@ -396,6 +402,14 @@
 <script>
     let prompts = [];
     window.defaultVideoEngine = 'wan'; // Global default, overridden by settings
+
+    // 사람 제외 프롬프트 적용 헬퍼
+    function applyNoHumanPrompt(prompt) {
+        const toggle = document.getElementById('noHumanToggle');
+        if (!toggle || !toggle.checked) return prompt;
+        const prefix = "(no humans:2.0), (no people:2.0), (no person:2.0), (no face:2.0), (no hands:2.0), (no arms:2.0), (no body parts:2.0), (no human figures:2.0), completely human-free scene, pure environment only, ";
+        return prefix + prompt;
+    }
 
     // [FIX] settings를 DOMContentLoaded보다 빨리 로드 시작 (projectStateRestored 타이밍 문제 방지)
     window._globalSettingsPromise = fetch('/api/settings').then(r => r.json()).then(s => {
@@ -1259,7 +1273,7 @@
 
         try {
             // [Fix] 키 값 호환성 처리
-            const fullPrompt = p.prompt_en || p.prompt_content || p.prompt || '';
+            const fullPrompt = applyNoHumanPrompt(p.prompt_en || p.prompt_content || p.prompt || '');
             const aspectRatio = document.querySelector('input[name="aspectRatio"]:checked')?.value || '16:9';
 
             const result = await API.image.generate(fullPrompt, projectId, index + 1, document.getElementById('imageStyle').value, aspectRatio);
@@ -1453,7 +1467,7 @@
 
                 // API 호출
                 // [Fix] 키 값 호환성 처리
-                const fullPrompt = p.prompt_en || p.prompt_content || p.prompt || '';
+                const fullPrompt = applyNoHumanPrompt(p.prompt_en || p.prompt_content || p.prompt || '');
                 const aspectRatio = document.querySelector('input[name="aspectRatio"]:checked')?.value || '16:9';
 
                 const result = await API.image.generate(fullPrompt, projectId, i + 1, document.getElementById('imageStyle').value, aspectRatio);
