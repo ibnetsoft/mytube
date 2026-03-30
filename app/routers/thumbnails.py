@@ -50,7 +50,7 @@ async def save_thumbnails(project_id: int, req: ThumbnailsSave):
     """썸네일 설정 저장"""
     try:
         # Save ideas/texts (Legacy/Backwards compatible)
-        db.save_thumbnails(project_id, req.ideas, req.texts)
+        db.save_thumbnails(project_id, req.ideas, req.texts, req.full_settings)
         
         # Save full settings (New)
         if req.full_settings:
@@ -85,16 +85,21 @@ async def save_thumbnails(project_id: int, req: ThumbnailsSave):
 async def get_thumbnails(project_id: int):
     """썸네일 설정 조회"""
     try:
-        # Load legacy
+        # 1. Load from legacy thumbnails table (includes older full_settings)
         data = db.get_thumbnails(project_id) or {}
+        full_settings = data.get('full_settings') or {}
         
-        # Load full settings
+        # 2. Try newer project_settings table as fallback/expansion
         settings = db.get_project_settings(project_id)
         full_state_json = settings.get('thumbnail_full_state')
-        full_settings = {}
         if full_state_json:
             try:
-                full_settings = json.loads(full_state_json)
+                server_settings = json.loads(full_state_json)
+                if server_settings and not full_settings:
+                    full_settings = server_settings
+                elif server_settings:
+                    # Merge or use more recent? Let's prefer server_settings if it exists
+                    full_settings = server_settings
             except Exception:
                 pass
         

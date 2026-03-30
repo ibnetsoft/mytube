@@ -533,11 +533,44 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             script = re.sub(r'\n\s*\n', '\n', script)
 
         # Save script
-        # Calculate approximate duration (char count / 15 chars per sec is rough, usually 5 chars/sec for speech)
-        # Using a safer estimate provided by user input usually, but here auto-calc
-        target_duration_sec = config_dict.get("duration_seconds", 300) 
+        target_duration_sec = config_dict.get("duration_seconds", 300)
         db.save_script(project_id, script, len(script), target_duration_sec)
-        
+
+        # [AUTO] script_structure가 없으면 대본 내용으로 기획 구조 자동 생성 후 저장
+        # → 대본기획 페이지에서 내용을 볼 수 있게 함
+        existing_struct = db.get_script_structure(project_id)
+        if not (existing_struct and existing_struct.get("structure")):
+            try:
+                print(f"📝 [Auto-Pilot] script_structure 없음 → 대본에서 구조 자동 생성...")
+                topic = db.get_project(project_id).get("topic", "")
+                style_key_for_struct = config_dict.get("script_style", "default")
+                target_min = target_duration_sec // 60
+
+                struct_prompt = f"""다음 대본을 분석하여 구조화된 기획안을 JSON으로 만들어 주세요.
+
+[대본]
+{script[:3000]}
+
+[요구사항]
+- hook: 대본의 첫 훅(도입부) 핵심 문장 1~2줄
+- sections: 대본의 주요 섹션 목록 (title + key_points 2~3개)
+- cta: 마무리/행동촉구 내용
+- style: "{style_key_for_struct}"
+- duration: {target_min}
+
+JSON만 출력하세요:
+{{"hook": "...", "sections": [{{"title": "...", "key_points": ["...", "..."]}}], "cta": "...", "style": "{style_key_for_struct}", "duration": {target_min}}}"""
+
+                struct_text = await gemini_service.generate_text(struct_prompt, temperature=0.3)
+                match = re.search(r'\{[\s\S]*\}', struct_text)
+                if match:
+                    new_struct = json.loads(match.group())
+                    if "sections" in new_struct:
+                        db.save_script_structure(project_id, new_struct)
+                        print(f"✅ [Auto-Pilot] script_structure 자동 생성 완료")
+            except Exception as struct_err:
+                print(f"⚠️ [Auto-Pilot] script_structure 자동 생성 실패 (무시): {struct_err}")
+
         return script
 
     async def _generate_assets(self, project_id: int, script: str, config_dict: dict):

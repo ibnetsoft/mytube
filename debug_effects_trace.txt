@@ -1,0 +1,146 @@
+Img[0] EffectRaw: none -> Safe: none (Dur:7.477, FPS:24)
+Img[1] EffectRaw: none -> Safe: none (Dur:18.623, FPS:24)
+Img[2] EffectRaw: none -> Safe: none (Dur:14.303000000000004, FPS:24)
+Img[3] EffectRaw: none -> Safe: none (Dur:5.944000000000003, FPS:24)
+Img[4] EffectRaw: none -> Safe: none (Dur:8.777000000000001, FPS:24)
+Img[5] EffectRaw: auto_classify -> Safe: auto_classify (Dur:6.454999999999998, FPS:24)
+Img[6] EffectRaw: auto_classify -> Safe: auto_classify (Dur:3.870999999999981, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:1.393, FPS:24)
+Img[1] EffectRaw: none -> Safe: none (Dur:9.52, FPS:24)
+Img[2] EffectRaw: auto_classify -> Safe: auto_classify (Dur:5.016, FPS:24)
+Img[3] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.458, FPS:24)
+Img[4] EffectRaw: auto_classify -> Safe: auto_classify (Dur:2.693999999999999, FPS:24)
+Img[5] EffectRaw: auto_classify -> Safe: auto_classify (Dur:5.2940000000000005, FPS:24)
+Img[6] EffectRaw: auto_classify -> Safe: auto_classify (Dur:6.408999999999999, FPS:24)
+Img[7] EffectRaw: auto_classify -> Safe: auto_classify (Dur:11.192, FPS:24)
+Img[8] EffectRaw: auto_classify -> Safe: auto_classify (Dur:3.5289999999999964, FPS:24)
+Img[9] EffectRaw: auto_classify -> Safe: auto_classify (Dur:11.61, FPS:24)
+Img[10] EffectRaw: auto_classify -> Safe: auto_classify (Dur:5.619, FPS:24)
+Img[11] EffectRaw: auto_classify -> Safe: auto_classify (Dur:18.528999999999996, FPS:24)
+Img[12] EffectRaw: auto_classify -> Safe: auto_classify (Dur:2.1359999999999957, FPS:24)
+Img[13] EffectRaw: auto_classify -> Safe: auto_classify (Dur:1.5789999999999935, FPS:24)
+Img[14] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.132999999999996, FPS:24)
+Img[15] EffectRaw: auto_classify -> Safe: auto_classify (Dur:5.525999999999996, FPS:24)
+Img[16] EffectRaw: auto_classify -> Safe: auto_classify (Dur:6.686999999999998, FPS:24)
+Img[17] EffectRaw: auto_classify -> Safe: auto_classify (Dur:6.222999999999999, FPS:24)
+Img[18] EffectRaw: auto_classify -> Safe: auto_classify (Dur:7.9410000000000025, FPS:24)
+Img[19] EffectRaw: auto_classify -> Safe: auto_classify (Dur:6.780000000000001, FPS:24)
+Img[20] EffectRaw: auto_classify -> Safe: auto_classify (Dur:2.2760000000000105, FPS:24)
+Img[21] EffectRaw: auto_classify -> Safe: auto_classify (Dur:11.052999999999997, FPS:24)
+Img[22] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.736999999999995, FPS:24)
+Img[23] EffectRaw: auto_classify -> Safe: auto_classify (Dur:5.341000000000008, FPS:24)
+Img[24] EffectRaw: auto_classify -> Safe: auto_classify (Dur:5.108000000000004, FPS:24)
+Img[25] EffectRaw: auto_classify -> Safe: auto_classify (Dur:6.223000000000013, FPS:24)
+Img[26] EffectRaw: auto_classify -> Safe: auto_classify (Dur:4.689999999999998, FPS:24)
+Img[27] EffectRaw: auto_classify -> Safe: auto_classify (Dur:7.0120000000000005, FPS:24)
+Img[28] EffectRaw: auto_classify -> Safe: auto_classify (Dur:11.563999999999993, FPS:24)
+Img[29] EffectRaw: auto_classify -> Safe: auto_classify (Dur:6.826999999999998, FPS:24)
+Img[30] EffectRaw: auto_classify -> Safe: auto_classify (Dur:5.294000000000011, FPS:24)
+Img[31] EffectRaw: auto_classify -> Safe: auto_classify (Dur:7.9879999999999995, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:9.938, FPS:24)
+Img[1] EffectRaw: auto_classify -> Safe: auto_classify (Dur:13.699999999999998, FPS:24)
+Img[2] EffectRaw: auto_classify -> Safe: auto_classify (Dur:15.649999999999999, FPS:24)
+Img[3] EffectRaw: auto_classify -> Safe: auto_classify (Dur:20.805, FPS:24)
+Img[4] EffectRaw: auto_classify -> Safe: auto_classify (Dur:13.142000000000003, FPS:24)
+Img[5] EffectRaw: auto_classify -> Safe: auto_classify (Dur:10.565000000000012, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:9.938, FPS:24)
+Img[1] EffectRaw: random -> Safe: random (Dur:13.699999999999998, FPS:24)
+  -> Random Selection for Img[1]: pan_up
+Img[2] EffectRaw: random -> Safe: random (Dur:15.649999999999999, FPS:24)
+  -> Random Selection for Img[2]: zoom_out
+Img[3] EffectRaw: random -> Safe: random (Dur:20.805, FPS:24)
+  -> Random Selection for Img[3]: pan_left
+Img[4] EffectRaw: random -> Safe: random (Dur:13.142000000000003, FPS:24)
+  -> Random Selection for Img[4]: pan_right
+Img[5] EffectRaw: random -> Safe: random (Dur:10.594999999999999, FPS:24)
+  -> Random Selection for Img[5]: pan_down
+Img[0] EffectRaw: none -> Safe: none (Dur:9.938, FPS:24)
+Img[1] EffectRaw: random -> Safe: random (Dur:13.699999999999998, FPS:24)
+  -> Random Selection for Img[1]: zoom_out
+Img[2] EffectRaw: random -> Safe: random (Dur:15.649999999999999, FPS:24)
+  -> Random Selection for Img[2]: pan_down
+Img[3] EffectRaw: random -> Safe: random (Dur:20.805, FPS:24)
+  -> Random Selection for Img[3]: pan_left
+Img[4] EffectRaw: random -> Safe: random (Dur:13.142000000000003, FPS:24)
+  -> Random Selection for Img[4]: pan_left
+Img[5] EffectRaw: random -> Safe: random (Dur:10.594999999999999, FPS:24)
+  -> Random Selection for Img[5]: pan_down
+Img[0] EffectRaw: none -> Safe: none (Dur:9.938, FPS:24)
+Img[1] EffectRaw: random -> Safe: random (Dur:13.699999999999998, FPS:24)
+  -> Random Selection for Img[1]: zoom_in
+Img[2] EffectRaw: random -> Safe: random (Dur:15.649999999999999, FPS:24)
+  -> Random Selection for Img[2]: pan_left
+Img[3] EffectRaw: random -> Safe: random (Dur:20.805, FPS:24)
+  -> Random Selection for Img[3]: pan_up
+Img[4] EffectRaw: random -> Safe: random (Dur:13.142000000000003, FPS:24)
+  -> Random Selection for Img[4]: zoom_in
+Img[5] EffectRaw: random -> Safe: random (Dur:10.594999999999999, FPS:24)
+  -> Random Selection for Img[5]: pan_left
+Img[0] EffectRaw: none -> Safe: none (Dur:9.938, FPS:24)
+Img[1] EffectRaw: random -> Safe: random (Dur:13.699999999999998, FPS:24)
+  -> Random Selection for Img[1]: zoom_in
+Img[2] EffectRaw: random -> Safe: random (Dur:15.649999999999999, FPS:24)
+  -> Random Selection for Img[2]: pan_down
+Img[3] EffectRaw: random -> Safe: random (Dur:20.805, FPS:24)
+  -> Random Selection for Img[3]: zoom_in
+Img[4] EffectRaw: random -> Safe: random (Dur:13.142000000000003, FPS:24)
+  -> Random Selection for Img[4]: pan_left
+Img[5] EffectRaw: random -> Safe: random (Dur:10.594999999999999, FPS:24)
+  -> Random Selection for Img[5]: zoom_in
+Img[0] EffectRaw: none -> Safe: none (Dur:9.938, FPS:24)
+Img[1] EffectRaw: random -> Safe: random (Dur:13.699999999999998, FPS:24)
+  -> Random Selection for Img[1]: pan_up
+Img[2] EffectRaw: random -> Safe: random (Dur:15.649999999999999, FPS:24)
+  -> Random Selection for Img[2]: pan_left
+Img[3] EffectRaw: random -> Safe: random (Dur:20.805, FPS:24)
+  -> Random Selection for Img[3]: pan_right
+Img[4] EffectRaw: random -> Safe: random (Dur:13.142000000000003, FPS:24)
+  -> Random Selection for Img[4]: zoom_in
+Img[5] EffectRaw: random -> Safe: random (Dur:10.594999999999999, FPS:24)
+  -> Random Selection for Img[5]: zoom_in
+Img[0] EffectRaw: none -> Safe: none (Dur:9.938, FPS:24)
+Img[1] EffectRaw: random -> Safe: random (Dur:13.699999999999998, FPS:24)
+  -> Random Selection for Img[1]: pan_down
+Img[2] EffectRaw: random -> Safe: random (Dur:15.649999999999999, FPS:24)
+  -> Random Selection for Img[2]: zoom_out
+Img[3] EffectRaw: random -> Safe: random (Dur:20.805, FPS:24)
+  -> Random Selection for Img[3]: pan_down
+Img[4] EffectRaw: random -> Safe: random (Dur:13.142000000000003, FPS:24)
+  -> Random Selection for Img[4]: pan_left
+Img[5] EffectRaw: random -> Safe: random (Dur:10.594999999999999, FPS:24)
+  -> Random Selection for Img[5]: pan_right
+Img[0] EffectRaw: none -> Safe: none (Dur:9.938, FPS:24)
+Img[1] EffectRaw: random -> Safe: random (Dur:13.699999999999998, FPS:24)
+  -> Random Selection for Img[1]: zoom_out
+Img[2] EffectRaw: random -> Safe: random (Dur:15.649999999999999, FPS:24)
+  -> Random Selection for Img[2]: pan_up
+Img[3] EffectRaw: random -> Safe: random (Dur:20.805, FPS:24)
+  -> Random Selection for Img[3]: pan_up
+Img[4] EffectRaw: random -> Safe: random (Dur:13.142000000000003, FPS:24)
+  -> Random Selection for Img[4]: zoom_out
+Img[5] EffectRaw: random -> Safe: random (Dur:10.594999999999999, FPS:24)
+  -> Random Selection for Img[5]: pan_up
+Img[0] EffectRaw: auto_classify -> Safe: auto_classify (Dur:21.315, FPS:24)
+Img[1] EffectRaw: auto_classify -> Safe: auto_classify (Dur:20.584999999999997, FPS:24)
+Img[0] EffectRaw: auto_classify -> Safe: auto_classify (Dur:28.328, FPS:24)
+Img[1] EffectRaw: auto_classify -> Safe: auto_classify (Dur:26.922, FPS:24)
+Img[0] EffectRaw: auto_classify -> Safe: auto_classify (Dur:22.756, FPS:24)
+Img[1] EffectRaw: auto_classify -> Safe: auto_classify (Dur:24.284, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:22.756, FPS:24)
+Img[1] EffectRaw: none -> Safe: none (Dur:24.314, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:22.756, FPS:24)
+Img[1] EffectRaw: none -> Safe: none (Dur:24.314, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:5.41, FPS:24)
+Img[1] EffectRaw: none -> Safe: none (Dur:8.12, FPS:24)
+Img[0] EffectRaw: auto_classify -> Safe: auto_classify (Dur:21.919, FPS:24)
+Img[1] EffectRaw: auto_classify -> Safe: auto_classify (Dur:17.971, FPS:24)
+Img[0] EffectRaw: none -> Safe: none (Dur:21.919, FPS:24)
+Img[1] EffectRaw: none -> Safe: none (Dur:18.020999999999997, FPS:24)
+Img[0] EffectRaw: auto_classify -> Safe: auto_classify (Dur:9.613, FPS:24)
+Img[1] EffectRaw: auto_classify -> Safe: auto_classify (Dur:7.847999999999999, FPS:24)
+Img[2] EffectRaw: auto_classify -> Safe: auto_classify (Dur:9.938000000000002, FPS:24)
+Img[3] EffectRaw: auto_classify -> Safe: auto_classify (Dur:6.222999999999999, FPS:24)
+Img[4] EffectRaw: auto_classify -> Safe: auto_classify (Dur:5.107999999999997, FPS:24)
+Img[5] EffectRaw: auto_classify -> Safe: auto_classify (Dur:11.981000000000002, FPS:24)
+Img[6] EffectRaw: auto_classify -> Safe: auto_classify (Dur:6.222999999999999, FPS:24)
+Img[7] EffectRaw: auto_classify -> Safe: auto_classify (Dur:9.555999999999997, FPS:24)

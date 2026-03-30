@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Body, BackgroundTasks
 from typing import List, Optional, Dict
 import os
 import database as db
-import config
+from config import config
 from app.models.media import SearchRequest, GeminiRequest, TTSRequest, PromptsGenerateRequest
 from services import gemini_service, tts_service, replicate_service
 

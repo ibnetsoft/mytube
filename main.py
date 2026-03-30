@@ -786,9 +786,22 @@ async def save_project_settings(project_id: int, req: ProjectSettingsSave):
         return {"status": "error", "error": str(e)}
 
 @app.get("/api/projects/{project_id}/settings")
-async def get_project_settings(project_id: int):
+async def get_project_settings_route(project_id: int):
     """프로젝트 핵심 설정 조회"""
-    return db.get_project_settings(project_id) or {}
+    try:
+        settings = db.get_project_settings(project_id)
+        return settings or {}
+    except Exception as e:
+        print(f"❌ [API] get_project_settings Error: {e}")
+        # 만약 테이블이 없는 에러라면 (OperationalError), DB 초기화 시도
+        if "no such table" in str(e).lower():
+            print("🔄 [API] Table missing. Attempting lazy DB initialization...")
+            try:
+                db.init_db()
+                return db.get_project_settings(project_id) or {}
+            except Exception as e2:
+                print(f"❌ [API] Lazy initialization failed: {e2}")
+        return {"status": "error", "error": str(e)}
 
 @app.patch("/api/projects/{project_id}/settings/{key}")
 async def update_project_setting(project_id: int, key: str, value: str):
@@ -1578,25 +1591,9 @@ async def delete_template_api():
 # [REMOVED] Duplicate API key routes (Consolidated at line 960)
 
 
-@app.patch("/api/projects/{project_id}/settings/{key}")
-async def update_project_setting_api(project_id: int, key: str, value: Any = Query(...)):
-    """단일 설정 업데이트 (Patch)"""
-    try:
-        db.update_project_setting(project_id, key, value)
-        return {"status": "ok", "key": key, "value": value}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
+# [REMOVED] Duplicate API key routes (Consolidated at line 960)
 
-@app.post("/api/projects/{project_id}/settings")
-async def save_project_settings_api_bulk(project_id: int, settings: dict):
-    """프로젝트 설정 일괄 저장 (자막 스타일 등)"""
-    try:
-        db.save_project_settings(project_id, settings)
-        return {"status": "ok"}
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return {"status": "error", "error": str(e)}
+# [REMOVED] Duplicate project settings routes (Consolidated at lines 769, 793)
 
 @app.get("/api/tts/voices")
 async def tts_voices():

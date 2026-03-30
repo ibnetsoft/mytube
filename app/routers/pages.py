@@ -90,8 +90,8 @@ async def page_title_desc(request: Request):
     return _render(request, "pages/title_desc.html", "title-desc", "제목/설명 생성")
 
 @router.get("/thumbnail", response_class=HTMLResponse)
-async def page_thumbnail(request: Request):
-    return _render(request, "pages/thumbnail.html", "thumbnail", "썸네일 생성")
+async def page_thumbnail(request: Request, project_id: Optional[int] = Query(None)):
+    return _render(request, "pages/thumbnail.html", "thumbnail", "썸네일 생성", project_id=project_id)
 
 @router.get("/shorts", response_class=HTMLResponse)
 async def page_shorts(request: Request):

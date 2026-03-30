@@ -8,7 +8,7 @@ from typing import Optional, List
 import httpx
 
 import database as db
-import config
+from config import config
 from app.models.media import GeminiRequest
 from services.gemini_service import gemini_service
 
@@ -134,6 +134,7 @@ async def generate_deep_dive_script_api(req: StructureGenerateRequest):
 @router.post("/api/gemini/generate")
 async def gemini_generate(req: GeminiRequest):
     """Gemini 텍스트 생성"""
+    print(f"🔍 [Gemini API] Request received for prompt: {req.prompt[:100]}...")
     url = f"{config.GEMINI_URL}?key={config.GEMINI_API_KEY}"
 
     payload = {
@@ -144,15 +145,25 @@ async def gemini_generate(req: GeminiRequest):
         }
     }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=120.0) as client:
         response = await client.post(url, json=payload)
-        result = response.json()
+        try:
+            result = response.json()
+        except Exception:
+            return {"status": "error", "error": f"API 응답 파싱 실패 (HTTP {response.status_code}): {response.text[:200]}"}
 
         if "candidates" in result:
-            text = result["candidates"][0]["content"]["parts"][0]["text"]
-            return {"status": "ok", "text": text}
+            try:
+                text = result["candidates"][0]["content"]["parts"][0]["text"]
+                return {"status": "ok", "text": text}
+            except (KeyError, IndexError) as e:
+                return {"status": "error", "error": f"응답 구조 오류: {str(e)}. Raw: {str(result)[:200]}"}
         else:
-            return {"status": "error", "error": result}
+            # 에러 상세 메시지 추출
+            err_msg = result.get("error", {})
+            if isinstance(err_msg, dict):
+                err_msg = err_msg.get("message", str(err_msg))
+            return {"status": "error", "error": str(err_msg)[:300]}
 
 
 @router.post("/api/gemini/analyze-comments")

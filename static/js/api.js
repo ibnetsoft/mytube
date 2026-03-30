@@ -48,7 +48,12 @@ const API = {
                     max_tokens: options.maxTokens || 8192
                 })
             });
-            return response.json();
+            try {
+                return await response.json();
+            } catch (e) {
+                const text = await response.text().catch(() => '');
+                return { status: 'error', error: `서버 응답 오류 (HTTP ${response.status}): ${text.slice(0, 200)}` };
+            }
         },
 
         async analyzeComments(video) {

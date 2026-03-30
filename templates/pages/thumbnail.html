@@ -833,7 +833,9 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
 
                 if (jsonMatch) {
                     try {
-                        thumbnailData = JSON.parse(jsonMatch[0]);
+                        // JSON 내 제어문자 제거 후 파싱
+                        const cleanJson = jsonMatch[0].replace(/[\x00-\x1F\x7F]/g, (c) => c === '\n' || c === '\r' || c === '\t' ? c : '');
+                        thumbnailData = JSON.parse(cleanJson);
                         console.log('Parsed thumbnail data:', JSON.stringify(thumbnailData, null, 2));
                         renderIdeas();
                         if (thumbnailData.ideas && thumbnailData.ideas.length > 0) {
@@ -844,11 +846,12 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
                         saveStateToLocal(); // 저장
                     } catch (parseError) {
                         console.error('JSON parse error:', parseError);
-                        Utils.showToast('JSON 파싱 실패: ' + parseError.message, 'error');
+                        console.error('Raw text was:', result.text);
+                        Utils.showToast('JSON 파싱 실패: ' + parseError.message + ' (콘솔 확인)', 'error');
                     }
                 } else {
                     console.error('No JSON found in response. Full text:', result.text);
-                    Utils.showToast('응답에서 JSON을 찾을 수 없습니다', 'error');
+                    Utils.showToast('AI가 JSON 형식으로 응답하지 않았습니다. 다시 시도해주세요.', 'error');
                 }
             } else {
                 console.error('API returned error status:', JSON.stringify(result, null, 2));
@@ -994,20 +997,65 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
             };
             const config = styleConfigs[currentStyle] || styleConfigs['face'];
 
-            const bottomPositions = ['row3', 'row4', 'row5'];
-            const bottomColors = ['#FFFFFF', '#FFFF00', '#00D4FF'];
-            textLayers = textsToApply.map((text, i) => ({
-                text: text,
-                position: bottomPositions[i] || 'row5',
-                x_offset: 0,
-                y_offset: 0,
-                font_family: 'Recipekorea',
-                font_size: 89,
-                color: bottomColors[i] || '#FFFFFF',
-                stroke_color: '#000000',
-                stroke_width: 8,
-                bg_color: null
-            }));
+            // [USER-REQUESTED LAYOUT]
+            // Layer 1: Main Title (Bottom-Center, White)
+            // Layer 2: Sub Title (Bottom-Center, Mint)
+            // Layer 3: Tag (Top-Left, Gungsuh)
+            textLayers = [
+                {
+                    text: textsToApply[0] || '',
+                    position: 'center',
+                    x_offset: -5,
+                    y_offset: 150,
+                    font_family: 'Recipekorea',
+                    font_size: 89,
+                    color: '#FFFFFF',
+                    stroke_color: '#000000',
+                    stroke_width: 8,
+                    bg_color: null
+                },
+                {
+                    text: textsToApply[1] || '',
+                    position: 'center',
+                    x_offset: 3,
+                    y_offset: 100,
+                    font_family: 'Recipekorea',
+                    font_size: 99,
+                    color: '#00FFAA',
+                    stroke_color: '#000000',
+                    stroke_width: 8,
+                    bg_color: null
+                },
+                {
+                    text: textsToApply[2] || '',
+                    position: 'center',
+                    x_offset: -495,
+                    y_offset: -260,
+                    font_family: 'gungsuh',
+                    font_size: 39,
+                    color: '#FFFFFF',
+                    stroke_color: '#000000',
+                    stroke_width: 2,
+                    bg_color: null
+                }
+            ];
+
+            // [NEW] Add Shape Layer (Bottom Gradient)
+            shapeLayers = [
+                {
+                    type: 'rect',
+                    x: -4,
+                    y: 485,
+                    width: 1287,
+                    height: 235,
+                    color_start: '#000000',
+                    color_end: '#000001', // Slightly different to trigger gradient
+                    opacity: 0.2, // Start opacity
+                    opacity_end: 0.8, // End opacity
+                    gradient_direction: 'vertical'
+                }
+            ];
+            if (typeof renderShapeLayers === 'function') renderShapeLayers();
 
             // 상단 'AI 추천 후킹 문구' 섹션 연동
             const hookSection = document.getElementById('hookTextsSection');

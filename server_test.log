@@ -1,0 +1,21 @@
+[Main] FFmpeg configured: C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\imageio_ffmpeg\binaries\ffmpeg-win-x86_64-v7.1.exe
+[DB] Migration completed
+[Main] Database migration checked.
+[I18N] Loaded language from DB: ko
+==================================================
+PICADIRI STUDIO v2.0
+--------------------------------------------------
+[DB] Migration completed
+브라우저 자동 실행 대기 중...
+[Auto Publish] Service started.
+[*] 서버 시간(KST): 2026-03-28 07:13:46
+[*] 서버 주소: http://127.0.0.1:8000
+==================================================
+[Main] FFmpeg configured: C:\Users\kimse\AppData\Roaming\Python\Python313\site-packages\imageio_ffmpeg\binaries\ffmpeg-win-x86_64-v7.1.exe
+[DB] Migration completed
+[Main] Database migration checked.
+[I18N] Loaded language from DB: ko
+[DB] Migration completed
+[Startup] DB Initialized. Membership: standard
+[Scheduler] 스케줄러가 시작되었습니다.
+[Auto-Pilot] Batch worker started.
