@@ -1039,7 +1039,7 @@
 
             return `
             <div id="sub-row-${index}"
-                 onclick="isSelectMode ? toggleRowSelect(${index}) : selectSubtitle(${index})"
+                 onclick="isSelectMode ? toggleRowSelect(${index}) : selectSubtitle(${index}, false)"
                  draggable="${isSelectMode ? 'false' : 'true'}"
                  ondragstart="if(!isSelectMode) handleSubtitleDragStart(event, ${index})"
                  ondragover="if(!isSelectMode) allowDrop(event)"
@@ -2179,7 +2179,7 @@
         const start = last ? last.end : 0;
         subtitles.push({ start: start, end: start + 2, text: "영상자막" });
         renderSubtitles();
-        selectSubtitle(subtitles.length - 1);
+        selectSubtitle(subtitles.length - 1, false);
     }
 
     function adjustTime(delta) {
@@ -2210,7 +2210,7 @@
         renderSubtitles();
 
         // Re-call selectSubtitle to update specific UI parts
-        selectSubtitle(selectedIndex);
+        selectSubtitle(selectedIndex, false);
     }
 
     // [NEW] Upload Source Media (Directly from Subtitle Page)
@@ -2256,7 +2256,7 @@
                     const sub = subtitles[selectedIndex];
                     // Check assignment
                     // (Simple way: just re-select current)
-                    selectSubtitle(selectedIndex);
+                    selectSubtitle(selectedIndex, false);
                 }
 
                 // IMPORTANT: Trigger Save to persist this change in Project JSON if needed?
@@ -2308,7 +2308,7 @@
 
             // Update UI
             renderSubtitles();
-            selectSubtitle(selectedIndex); // Refresh right panel display
+            selectSubtitle(selectedIndex, false); // Refresh right panel display
         }
     }
 

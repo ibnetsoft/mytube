@@ -18,7 +18,7 @@ import datetime
 from fastapi import HTTPException, UploadFile
 
 import database as db
-import config
+from config import config
 
 # ============ 파일 업로드 검증 헬퍼 ============
 ALLOWED_AUDIO_EXT = {".mp3", ".wav", ".ogg", ".aac", ".m4a", ".flac"}

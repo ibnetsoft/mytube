@@ -262,7 +262,7 @@ class ReplicateService:
             return str(output[0])
         return None
 
-    async def generate_image(self, prompt: str, aspect_ratio: str = "1:1", num_outputs: int = 1):
+    async def generate_image(self, prompt: str, aspect_ratio: str = "1:1", num_outputs: int = 1, negative_prompt: str = None):
         """
         Replicate를 사용하여 이미지 생성
         - 졸라맨/윔피 스타일: flux-dev (50스텝, anatomy 지시 준수율 높음)
@@ -284,6 +284,8 @@ class ReplicateService:
             "num_inference_steps": 28,
             "guidance": 3.5
         }
+        if negative_prompt:
+            input_data["negative_prompt"] = negative_prompt
 
         try:
             loop = asyncio.get_event_loop()

@@ -826,42 +826,26 @@ class VideoService:
             # 스타일 설정 추출
             s_settings = subtitle_settings or {}
             
-            # [CHANGED] 비율 기반 폰트 크기 (영상 높이의 %)
-            font_size_percent = s_settings.get("font_size", 5.0)  # 기본 5%
+            # [FIX] 폰트 크기 = target resolution 기준으로 계산
+            # video.h는 클립 원본 해상도(1920 등)일 수 있어 preview(target resolution 기준)와 불일치 발생
             font_size_percent = s_settings.get("font_size", 5.0)
-            v_h = video.h if hasattr(video, 'h') else (resolution[1] if isinstance(resolution, (list, tuple)) else 1080)
-            f_size = int(v_h * (float(font_size_percent) / 100.0))
-            # UI Slider is 1.0 ~ 15.0 (Percent)
-            # DB might have 30 (Legacy Pixel? or Error?) -> Treat > 20 as Pixel
-            if 0.1 <= font_size_percent <= 20:
-                # Percentage mode (normal usage, 0.1% ~ 20%)
-                # [FIX] Apply 1.0x scaling (Reduced from 1.3) specifically for clean look
-                # UI Slider is 1.0 ~ 15.0 (Percent)
-                f_size = int(video.h * (font_size_percent / 100) * 1.0)
-                
-                # [SAFETY] Limit font size based on width (especially for Shorts)
-                # Ensure roughly 10 chars fit in width? No, just cap max pixel size.
-                max_width_limit = int(video.w * 0.15) # Max 15% of width per character approx
-                if f_size > max_width_limit:
-                    f_size = max_width_limit
+            # target resolution의 height 사용 (preview와 동일한 기준)
+            target_h = resolution[1] if isinstance(resolution, (list, tuple)) and len(resolution) >= 2 else video.h
+            target_w = resolution[0] if isinstance(resolution, (list, tuple)) and len(resolution) >= 2 else video.w
+
+            if 0.1 <= float(font_size_percent) <= 20:
+                # 퍼센트 모드: preview와 동일하게 target height 기준
+                f_size = int(target_h * (float(font_size_percent) / 100.0))
             else:
-                # Pixel mode (Legacy or explicit large pixel values)
-                # e.g. 30 -> 30px (Tiny, but safe)
-                f_size = int(font_size_percent)
-            
+                # 레거시 픽셀 모드
+                f_size = int(float(font_size_percent))
+
             # [FIX] Handle 0 font size (Disable Subtitles)
             if f_size <= 0:
-                 print("DEBUG_RENDER: Subtitle font size 0 detected. Disabling subtitles.")
-                 subtitles = []
-            
-            # [DEBUG] Force Log to file to confirm actual value
-            try:
-                with open("debug_font_size.txt", "a", encoding="utf-8") as df:
-                    df.write(f"Timestamp: {datetime.datetime.now()}, Pct: {font_size_percent}, CalcSize: {f_size}, VideoH: {video.h}, Settings: {s_settings}\n")
-            except Exception:
-                pass
-            
-            print(f"DEBUG_RENDER: Font size: {font_size_percent}% → {f_size}px (video height: {video.h}px)")
+                print("DEBUG_RENDER: Subtitle font size 0 detected. Disabling subtitles.")
+                subtitles = []
+
+            print(f"DEBUG_RENDER: Font size: {font_size_percent}% → {f_size}px (target_h: {target_h}px, video.h: {video.h}px)")
             
             # [FIX] Enhanced Settings Retrieval (Support both 'subtitle_' prefix and shorthand)
             f_color = s_settings.get("subtitle_base_color") or s_settings.get("font_color", "white")
@@ -883,12 +867,10 @@ class VideoService:
             if not s_stroke_enabled:
                 s_stroke_width = 0.0
             else:
-                # [FIX] Scale stroke width based on resolution to match HTML Preview
-                # Preview box is approx 360-400px high. Render is 1080px+.
-                # Scale Factor = Video Height / 360
-                scale_factor = v_h / 360.0
+                # [FIX] Scale stroke width: preview 기준 360px → target_h 기준으로 비례 확대
+                scale_factor = target_h / 360.0
                 s_stroke_width = s_stroke_width * scale_factor
-                print(f"DEBUG_RENDER: Scaled Stroke Width: {raw_stroke_width} -> {s_stroke_width:.2f} (Factor: {scale_factor:.2f})")
+                print(f"DEBUG_RENDER: Scaled Stroke Width: {raw_stroke_width} -> {s_stroke_width:.2f} (target_h={target_h}, factor={scale_factor:.2f})")
             
             # [LOG] Log the settings being used for the render
             try:
@@ -914,7 +896,7 @@ class VideoService:
 
                     txt_img_path = self._create_subtitle_image(
                         text=sub["text"],
-                        width=video.w,
+                        width=target_w,
                         font_size=f_size,
                         font_color=f_color,
                         font_name=f_name,
@@ -941,24 +923,25 @@ class VideoService:
                         if custom_y:
                             try:
                                 if "px" in str(custom_y):
-                                    y_pos = int(float(str(custom_y).replace("px", "")))
+                                    # px 값은 preview box 픽셀 → target_h 기준 % 변환 불가 → % 방식 사용
+                                    # 안전하게 무시하고 기본값 사용
+                                    y_pos = None
                                 elif "%" in str(custom_y):
                                     pct = float(str(custom_y).replace("%", ""))
-                                    y_pos = int(video.h * (pct / 100))
+                                    y_pos = int(target_h * (pct / 100))
                                 else:
                                     y_pos = int(float(custom_y))
                             except Exception:
                                 y_pos = None
 
-                        # 2. If no custom pos, use Default (bottom 10% margin)
+                        # 2. If no custom pos, use Default (top of subtitle at 80% from top)
                         if y_pos is None:
-                            # Default: top of subtitle box at 80% from top
-                            # = bottom edge at ~88%, leaving ~12% margin
-                            y_pos = int(video.h * 0.80)
+                            y_pos = int(target_h * 0.80)
 
                         # Ensure it stays on screen (bottom padding)
-                        if y_pos + txt_clip.h > video.h - 30:
-                             y_pos = video.h - txt_clip.h - 30
+                        if y_pos + txt_clip.h > target_h - 30:
+                            y_pos = target_h - txt_clip.h - 30
+                        print(f"DEBUG_RENDER: Subtitle y_pos={y_pos} ({y_pos/target_h*100:.1f}% of target_h={target_h})")
 
                         txt_clip = txt_clip.with_position(("center", y_pos))
 

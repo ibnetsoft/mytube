@@ -543,7 +543,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
     async def _generate_assets(self, project_id: int, script: str, config_dict: dict):
         all_video = config_dict.get("all_video", False)
         motion_method = config_dict.get("motion_method", "standard")
-        video_engine = config_dict.get("video_engine", "wan")
+        video_engine = config_dict.get("video_engine", "veo")
         image_style_key = config_dict.get("image_style", config_dict.get("visual_style", "realistic"))
 
         

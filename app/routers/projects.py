@@ -178,7 +178,7 @@ async def update_motion_desc(project_id: int, data: MotionDescUpdate):
 
 class SingleVideoGenRequest(BaseModel):
     scene_number: int
-    engine: str = "wan"  # wan | akool | seedance | image
+    engine: str = "veo"  # veo | wan | akool | seedance | image
     motion_desc: Optional[str] = None  # Optional motion description override
     resolution: Optional[str] = "720p"  # For Seedance: 480p / 720p / 1080p
     duration: Optional[int] = 5         # For Seedance: 5 or 10 seconds
@@ -352,6 +352,40 @@ async def generate_single_video(project_id: int, req: SingleVideoGenRequest):
                 out = os.path.join(config.OUTPUT_DIR, filename)
                 with open(out, 'wb') as f: f.write(video_bytes)
                 video_url = f"/output/{filename}"
+
+        elif actual_engine == "veo":
+            # [Veo] Gemini Veo 영상 생성
+            from services.gemini_service import gemini_service
+            import aiohttp
+            motion_part = effective_motion_desc
+            prompt_en   = target_p.get('prompt_en') or target_p.get('visual_desc') or ""
+            final_prompt = _build_video_prompt(prompt_en, motion_part, max_chars=700)
+
+            veo_model = db.get_global_setting("veo_model_version", "veo-3.1-generate-preview")
+            print(f"🎬 [Veo] Generating for Scene {req.scene_number}, model={veo_model}, prompt: {final_prompt[:80]}...")
+
+            veo_result = await gemini_service.generate_video(
+                prompt=final_prompt,
+                model=veo_model
+            )
+
+            if veo_result and veo_result.get("status") == "ok":
+                veo_uri = veo_result.get("video_url")
+                print(f"✅ [Veo] Got video URI: {veo_uri}")
+                # URI에서 바이트 다운로드
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(veo_uri) as resp:
+                        if resp.status == 200:
+                            video_bytes = await resp.read()
+                            filename = f"vid_veo_{project_id}_{req.scene_number}_{now.strftime('%H%M%S')}.mp4"
+                            out = os.path.join(config.OUTPUT_DIR, filename)
+                            with open(out, 'wb') as f: f.write(video_bytes)
+                            video_url = f"/output/{filename}"
+                        else:
+                            raise Exception(f"Veo 영상 다운로드 실패 (HTTP {resp.status})")
+            else:
+                err = veo_result.get("error", "Unknown error") if veo_result else "No result"
+                raise Exception(f"Veo 영상 생성 실패: {err}")
 
         elif actual_engine == "image":
             # [2D Motion] Simple Pan/Zoom

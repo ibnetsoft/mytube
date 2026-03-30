@@ -73,6 +73,12 @@
                     <span>{{ t('btn_save_settings') }}</span>
                 </button>
 
+                <!-- 사람 제외 체크박스 -->
+                <label class="flex items-center gap-1.5 cursor-pointer select-none px-3 py-2 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors text-xs" title="체크 시 생성된 이미지에 사람이 전혀 나오지 않도록 강력한 프롬프트가 적용됩니다">
+                    <input type="checkbox" id="noHumanToggle" class="w-3.5 h-3.5 accent-red-500">
+                    <span class="text-red-600 dark:text-red-400 font-bold">🚫 사람 제외</span>
+                </label>
+
                 <!-- Generate Prompt Button -->
                 <button onclick="generatePrompts()" id="generateBtn"
                     class="btn-primary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-md hover:scale-105 transition-transform bg-gradient-to-r from-blue-600 to-indigo-600">
@@ -260,12 +266,6 @@
                     <span>🎬</span> {{ t('motion_gen_title') }}
                 </button>
 
-                <!-- 사람 제외 체크박스 -->
-                <label class="flex items-center gap-1.5 cursor-pointer select-none px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors text-sm" title="체크 시 생성된 이미지에 사람이 전혀 나오지 않도록 강력한 프롬프트가 적용됩니다">
-                    <input type="checkbox" id="noHumanToggle" class="w-3.5 h-3.5 accent-red-500">
-                    <span class="text-red-600 dark:text-red-400 font-medium">🚫 사람 제외</span>
-                </label>
-
                 <button onclick="generateSelectedImages()" id="autoGenBtn"
                     class="btn-primary text-sm px-4 flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled>
@@ -401,14 +401,12 @@
 </script>
 <script>
     let prompts = [];
-    window.defaultVideoEngine = 'wan'; // Global default, overridden by settings
+    window.defaultVideoEngine = 'veo'; // Global default, overridden by settings
 
-    // 사람 제외 프롬프트 적용 헬퍼
-    function applyNoHumanPrompt(prompt) {
+    // 사람 제외 토글 상태 반환
+    function isNoHumanEnabled() {
         const toggle = document.getElementById('noHumanToggle');
-        if (!toggle || !toggle.checked) return prompt;
-        const prefix = "(no humans:2.0), (no people:2.0), (no person:2.0), (no face:2.0), (no hands:2.0), (no arms:2.0), (no body parts:2.0), (no human figures:2.0), completely human-free scene, pure environment only, ";
-        return prefix + prompt;
+        return toggle ? toggle.checked : false;
     }
 
     // [FIX] settings를 DOMContentLoaded보다 빨리 로드 시작 (projectStateRestored 타이밍 문제 방지)
@@ -977,6 +975,9 @@
         if (ethnicityVal) {
             globalPrompt = `[Ethnicity Requirement: ${ethnicityVal}]\n` + globalPrompt;
         }
+        if (isNoHumanEnabled()) {
+            globalPrompt = `[CRITICAL RULE: Every scene description MUST contain NO humans, NO people, NO person, NO characters, NO figures. Describe ONLY environments, objects, landscapes, and backgrounds. If the script mentions a person doing something, replace them with objects, nature, or abstract visuals. Do NOT include any human body parts, faces, or silhouettes.]\n` + globalPrompt;
+        }
 
         // Use analyzed scene count if available, otherwise let AI decide (0)
         const count = analyzedSceneCount || 0;
@@ -1029,7 +1030,7 @@
         container.innerHTML = data.map((p, i) => {
             // [FIX] 엔진 결정: 사용자가 직접 바꾼 씬(_engine_overridden)은 p.engine 유지,
             //       그 외에는 항상 글로벌 설정(window.defaultVideoEngine) 사용
-            const effectiveEngine = p._engine_overridden ? (p.engine || window.defaultVideoEngine || 'wan') : (window.defaultVideoEngine || 'wan');
+            const effectiveEngine = p._engine_overridden ? (p.engine || window.defaultVideoEngine || 'wan') : (window.defaultVideoEngine || 'veo');
 
             // [Fix] 키 값 호환성 처리 (scene vs scene_text, prompt vs prompt_en)
             // 대본 텍스트를 최대한 찾아내기 위해 prompt_ko와 scene_title까지 확인
@@ -1273,10 +1274,10 @@
 
         try {
             // [Fix] 키 값 호환성 처리
-            const fullPrompt = applyNoHumanPrompt(p.prompt_en || p.prompt_content || p.prompt || '');
+            const fullPrompt = p.prompt_en || p.prompt_content || p.prompt || '';
             const aspectRatio = document.querySelector('input[name="aspectRatio"]:checked')?.value || '16:9';
 
-            const result = await API.image.generate(fullPrompt, projectId, index + 1, document.getElementById('imageStyle').value, aspectRatio);
+            const result = await API.image.generate(fullPrompt, projectId, index + 1, document.getElementById('imageStyle').value, aspectRatio, isNoHumanEnabled());
 
             if (result.status === 'ok') {
                 prompts[index].image_url = result.image_url;
@@ -1467,10 +1468,10 @@
 
                 // API 호출
                 // [Fix] 키 값 호환성 처리
-                const fullPrompt = applyNoHumanPrompt(p.prompt_en || p.prompt_content || p.prompt || '');
+                const fullPrompt = p.prompt_en || p.prompt_content || p.prompt || '';
                 const aspectRatio = document.querySelector('input[name="aspectRatio"]:checked')?.value || '16:9';
 
-                const result = await API.image.generate(fullPrompt, projectId, i + 1, document.getElementById('imageStyle').value, aspectRatio);
+                const result = await API.image.generate(fullPrompt, projectId, i + 1, document.getElementById('imageStyle').value, aspectRatio, isNoHumanEnabled());
 
                 if (result.status === 'ok') {
                     // 성공 시 UI 업데이트: DOM 조작을 통해 이미지 컨테이너 교체
@@ -1937,7 +1938,7 @@
         if (!projectId) return Utils.showToast('프로젝트를 찾을 수 없습니다', 'error');
 
         const p = prompts[index];
-        const engine = p.engine || window.defaultVideoEngine || 'wan';
+        const engine = p.engine || window.defaultVideoEngine || 'veo';
 
         if (!p.image_url) return Utils.showToast('먼저 이미지를 생성해주세요', 'warning');
 
@@ -1947,9 +1948,11 @@
 
         // 엔진별 안내 메시지
         const engineLabel = engine === 'seedance' ? '🌱 Seedance 1.5 Pro (Akool)' :
-            engine === 'akool' ? 'Akool LipSync' : 'Wan 2.1 (Replicate)';
+            engine === 'akool' ? 'Akool LipSync' :
+            engine === 'veo' ? '🎬 Google Veo' : 'Wan 2.1 (Replicate)';
         const engineTime = engine === 'seedance' ? '약 2~3분 소요' :
-            engine === 'akool' ? '약 3~5분 소요' : '약 1~2분 소요';
+            engine === 'akool' ? '약 3~5분 소요' :
+            engine === 'veo' ? '약 3~5분 소요' : '약 1~2분 소요';
 
         // UI Loading State
         if (btn) {
@@ -2315,7 +2318,7 @@
             if (_settings.video_engine) {
                 window.defaultVideoEngine = _settings.video_engine;
                 // [FIX] projectStateRestored가 먼저 실행되어 'wan'으로 렌더링됐을 수 있으므로 재렌더링
-                if (_settings.video_engine !== 'wan' && prompts && prompts.length > 0) {
+                if (_settings.video_engine !== 'veo' && prompts && prompts.length > 0) {
                     drawPromptsUI(prompts);
                 }
             }

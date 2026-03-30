@@ -807,7 +807,7 @@ function getAutopilotConfig() {
         thumbnail_style: document.getElementById('thumbnailStyle').value,
         video_scene_count: parseInt(document.getElementById('videoSceneCount').value || 0),
         all_video: document.getElementById('allVideoCheck')?.checked || false,
-        video_engine: document.getElementById('videoEngine')?.value || 'wan',
+        video_engine: document.getElementById('videoEngine')?.value || 'veo',
         motion_method: document.getElementById('motionMethod').value || 'standard',
         char_ethnicity: document.getElementById('charEthnicity')?.value || 'East Asian heritage, Polished porcelain skin',
         script_style: document.getElementById('scriptStyleSelect').value,

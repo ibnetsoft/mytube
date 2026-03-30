@@ -60,6 +60,7 @@ async def start_autopilot_api(
                     "voice_provider":    "voice_provider",
                     "voice_id":          "voice_id",
                     "motion_method":     "motion_method",
+                    "video_engine":      "video_engine",
                     "video_scene_count": "video_scene_count",
                     "all_video":         "all_video",
                     "duration_seconds":  "duration_seconds",

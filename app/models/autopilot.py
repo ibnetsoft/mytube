@@ -11,7 +11,7 @@ class AutoPilotStartRequest(BaseModel):
     video_scene_count: int = 10
     all_video: bool = False
     motion_method: str = "standard"
-    video_engine: Optional[str] = "wan"
+    video_engine: Optional[str] = "veo"
     script_style: str = "story"
     voice_provider: str = "elevenlabs"
     voice_id: str = "default"

@@ -115,7 +115,7 @@ const API = {
             return response.json();
         },
 
-        async generate(prompt, projectId, sceneNumber, style = 'realistic', aspectRatio = '16:9') {
+        async generate(prompt, projectId, sceneNumber, style = 'realistic', aspectRatio = '16:9', noHuman = false) {
             const response = await fetch('/api/image/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -124,7 +124,8 @@ const API = {
                     project_id: projectId,
                     scene_number: sceneNumber,
                     style,
-                    aspect_ratio: aspectRatio
+                    aspect_ratio: aspectRatio,
+                    no_human: noHuman
                 })
             });
             return response.json();

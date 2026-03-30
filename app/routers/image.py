@@ -12,7 +12,7 @@ from typing import Optional, List, Dict, Any
 import time
 
 import database as db
-import config
+from config import config
 from app.models.media import PromptsGenerateRequest
 from app.utils import (
     validate_upload as _validate_upload,
@@ -147,6 +147,13 @@ async def generate_image_prompts_api(req: PromptsGenerateRequest):
 
         # 3. Call Gemini via Unified Service
         target_count = req.count if req.count and req.count > 0 else None
+
+        # [사람 제외 등 추가 지시문] character_reference를 gemini_instruction에 합산
+        if req.character_reference and req.character_reference.strip():
+            extra = req.character_reference.strip()
+            gemini_instruction = (gemini_instruction + "\n" + extra) if gemini_instruction else extra
+            print(f"[Prompts] character_reference injected into gemini_instruction: {extra[:80]}...")
+
         print(f"[Prompts] Generating for Project {req.project_id}, Style: {style_key}, Target scenes: {target_count or 'auto'}, has_gemini_instruction: {bool(gemini_instruction)}, has_ref_image: {bool(reference_image_url)}")
 
         # [SAFETY] Truncate script to prevent Token Limit Exceeded / Timeout
@@ -624,7 +631,7 @@ async def generate_thumbnail(req: ThumbnailGenerateRequest):
         
         output_dir = os.path.join(config.OUTPUT_DIR)
         os.makedirs(output_dir, exist_ok=True)
-        
+
         output_path = os.path.join(output_dir, filename)
         img.save(output_path)
 
@@ -1023,7 +1030,8 @@ async def generate_image(
     project_id: int = Body(...),
     scene_number: int = Body(1),
     style: str = Body("realistic"),
-    aspect_ratio: str = Body("16:9")
+    aspect_ratio: str = Body("16:9"),
+    no_human: bool = Body(False)
 ):
     """이미지를 생성하고 저장"""
     try:
@@ -1035,6 +1043,27 @@ async def generate_image(
         if len(prompt) > 5000:
             print(f"⚠️ [Image Generation] Prompt too long ({len(prompt)} chars), truncating...")
             prompt = prompt[:5000]
+
+        # [사람 제외] 프롬프트에서 인물 묘사 제거 + 배경/환경 중심으로 변환
+        no_human_negative = None
+        if no_human:
+            import re as _re
+            # 인물 관련 단어 제거
+            human_pattern = _re.compile(
+                r'\b(man|woman|person|people|human|figure|character|face|hands?|arms?|body|'
+                r'boy|girl|male|female|he|she|him|her|his|their|wearing|dressed|smiling|'
+                r'waving|standing|sitting|holding|looking|pointing|showing|남성|여성|남자|여자|'
+                r'사람|인물|인간|얼굴|손|팔|몸|그가|그녀|모델)\b',
+                _re.IGNORECASE
+            )
+            prompt = human_pattern.sub('', prompt)
+            prompt = _re.sub(r'\s{2,}', ' ', prompt).strip()
+            # 환경/배경 중심 지시어 추가
+            prompt = ("A scene with absolutely no humans or people. Environment and objects only. "
+                      + prompt +
+                      " No person, no human figure, no face, no body parts visible. Pure background scene.")
+            no_human_negative = "human, person, people, man, woman, face, hands, body, figure, character"
+            print(f"🚫 [No Human Mode] Modified prompt: {prompt[:100]}...")
 
         print(f"🎨 [Image Generation] Starting for project {project_id}, scene {scene_number}")
         print(f"   Prompt: {prompt[:100]}...")
@@ -1113,7 +1142,11 @@ async def generate_image(
         if not images_bytes:
             print(f"🎨 [Image Gen] Attempting Replicate (Primary)...")
             try:
-                images_bytes = await replicate_service.generate_image(prompt=effective_prompt, aspect_ratio=aspect_ratio)
+                images_bytes = await replicate_service.generate_image(
+                    prompt=effective_prompt,
+                    aspect_ratio=aspect_ratio,
+                    negative_prompt=no_human_negative
+                )
             except Exception as e:
                 print(f"⚠️ [Image Gen] Replicate failed: {e}")
 
@@ -1150,8 +1183,33 @@ async def generate_image(
         
         # 파일 저장
         async with aiofiles.open(output_path, "wb") as f:
-            f.write(images_bytes[0])
-        
+            await f.write(images_bytes[0])
+
+        # [숏츠 Letterbox] 3:4 또는 1:1 비율이면 9:16 캔버스에 합성 (위아래 검정 패딩)
+        print(f"📐 [Letterbox] aspect_ratio={aspect_ratio!r}, will_apply={aspect_ratio in ('3:4','1:1')}")
+        if aspect_ratio in ("3:4", "1:1"):
+            try:
+                from PIL import Image as PILImage
+                TARGET_W, TARGET_H = 1080, 1920  # 9:16 최종 해상도
+                # with 블록 밖에서 저장해야 Windows에서 파일 잠금 문제 없음
+                src = PILImage.open(output_path)
+                orig_w, orig_h = src.size
+                print(f"📐 [Letterbox] Source image: {orig_w}x{orig_h}")
+                src = src.convert("RGBA")
+                scale = TARGET_W / orig_w
+                new_w = TARGET_W
+                new_h = int(orig_h * scale)
+                src_resized = src.resize((new_w, new_h), PILImage.Resampling.LANCZOS)
+                src.close()
+                canvas = PILImage.new("RGBA", (TARGET_W, TARGET_H), (0, 0, 0, 255))
+                paste_y = (TARGET_H - new_h) // 2
+                canvas.paste(src_resized, (0, paste_y))
+                canvas.convert("RGB").save(output_path, "PNG")
+                print(f"📐 [Letterbox] Done: image_w={new_w}, image_h={new_h}, top_pad={paste_y}px")
+            except Exception as lb_err:
+                print(f"⚠️ [Letterbox] Failed: {lb_err}")
+                import traceback; traceback.print_exc()
+
         print(f"💾 [Image Generation] Saved to: {output_path}")
             
         image_url = f"{web_dir}/{filename}"
