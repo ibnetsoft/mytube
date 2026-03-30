@@ -1950,7 +1950,7 @@
                 if (data.subtitles) {
                     subtitles = data.subtitles;
                     renderSubtitles();
-                    if (selectedIndex >= 0) selectSubtitle(selectedIndex);
+                    if (selectedIndex >= 0) selectSubtitle(selectedIndex, false);
                 }
             } else throw new Error(data.error);
         } catch (e) {

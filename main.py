@@ -2193,20 +2193,31 @@ async def regenerate_subtitles(project_id: int):
 class AutoPilotStartRequest(BaseModel):
     keyword: Optional[str] = None
     topic: Optional[str] = None
+    mode: str = "longform"
+    image_style: str = "realistic"
     visual_style: str = "realistic"
     thumbnail_style: Optional[str] = "face"
     video_scene_count: Optional[int] = 0
     all_video: Optional[bool] = False
-    video_engine: Optional[str] = "wan" # "wan" or "akool"
+    video_engine: Optional[str] = "wan"
     motion_method: Optional[str] = "standard"
+    char_ethnicity: Optional[str] = None
     narrative_style: str = "informative"
     script_style: Optional[str] = None
     voice_id: str = "ko-KR-Neural2-A"
     voice_provider: Optional[str] = None
     subtitle_style: str = "Basic_White"
     duration_seconds: Optional[int] = 0
+    duration_minutes: Optional[int] = None
     subtitle_settings: Optional[Dict[str, Any]] = None
     preset_id: Optional[int] = None
+    upload_privacy: Optional[str] = "private"
+    upload_schedule_at: Optional[str] = None
+    youtube_channel_id: Optional[int] = None
+    creation_mode: str = "default"
+    product_url: Optional[str] = None
+    use_character_analysis: bool = False
+    is_queued: bool = False
 
 @app.get("/api/settings/subtitle/defaults")
 async def get_subtitle_defaults_api():
@@ -2282,6 +2293,8 @@ async def start_autopilot_api(
 
     # 3. Start Workflow in Background
     config_dict = {
+        "mode": req.mode,
+        "image_style": req.image_style or req.visual_style,
         "visual_style": req.visual_style,
         "thumbnail_style": req.thumbnail_style,
         "video_scene_count": req.video_scene_count,
@@ -2289,17 +2302,19 @@ async def start_autopilot_api(
         "video_engine": req.video_engine,
         "motion_method": req.motion_method,
         "narrative_style": req.script_style or req.narrative_style,
-        "script_style": req.script_style or req.narrative_style, 
+        "script_style": req.script_style or req.narrative_style,
         "voice_id": req.voice_id,
         "voice_provider": req.voice_provider,
         "subtitle_style": req.subtitle_style,
         "duration_seconds": req.duration_seconds,
-        "subtitle_settings": req.subtitle_settings 
+        "subtitle_settings": req.subtitle_settings,
+        "use_character_analysis": req.use_character_analysis,
+        "upload_privacy": req.upload_privacy,
     }
     
     # Create Project First
     project_name = f"[Auto] {topic}"
-    project_id = db.create_project(name=project_name, topic=topic)
+    project_id = db.create_project(name=project_name, topic=topic, app_mode=req.mode)
     
     # Save Initial Settings
     db.update_project_setting(project_id, "autopilot_config", config_dict)
@@ -2319,6 +2334,10 @@ async def start_autopilot_api(
     if req.visual_style:
          db.update_project_setting(project_id, "image_style", req.visual_style) # Sync
          db.update_project_setting(project_id, "visual_style", req.visual_style)
+    if req.video_engine:
+         db.update_project_setting(project_id, "video_engine", req.video_engine)
+    if req.mode:
+         db.update_project_setting(project_id, "app_mode", req.mode)
     
     from services.autopilot_service import autopilot_service
     # Start Task

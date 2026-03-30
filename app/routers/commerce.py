@@ -163,7 +163,7 @@ async def create_commerce_video(request: CommerceVideoRequest, background_tasks:
     """
     try:
         # 영상 생성 요청
-        result = await commerce_service.create_video(request.dict())
+        result = await commerce_service.create_video(request.model_dump())
         
         if result['status'] == 'success':
             # 백그라운드에서 상태 폴링 시작

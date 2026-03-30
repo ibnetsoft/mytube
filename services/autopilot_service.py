@@ -106,10 +106,21 @@ class AutoPilotService:
         self.search_url = f"{config.YOUTUBE_BASE_URL}/search"
         self.config = {}  # Director Mode Configuration
         self.is_batch_running = False # [NEW] Batch Concurrency Lock
+        self._progress: Dict[int, Dict] = {}  # {project_id: {message, updated_at}}
+
+    def set_step(self, project_id: int, message: str):
+        self._progress[project_id] = {
+            "message": message,
+            "updated_at": datetime.now().isoformat()
+        }
+
+    def get_progress(self, project_id: int) -> Dict:
+        return self._progress.get(project_id, {"message": "", "updated_at": ""})
 
     async def run_workflow(self, keyword: str, project_id: int = None, config_dict: dict = None):
         """오토파일럿 전체 워크플로우 실행"""
         print(f"🚀 [Auto-Pilot] '{keyword}' 작업 시작")
+        self.set_step(project_id, f"'{keyword}' 작업 시작 중...")
         start_dt = datetime.now()
         db.update_project_setting(project_id, "stats_start_time", start_dt.strftime("%Y-%m-%d %H:%M:%S"))
         
@@ -155,7 +166,9 @@ class AutoPilotService:
             # 3. AI 분석
             if current_status in ["created", "draft"]:
                 db.update_project(project_id, status="analyzing") # [NEW] status for UI
+                self.set_step(project_id, "유튜브 소재 검색 중...")
                 video = await self._find_best_material(keyword)
+                self.set_step(project_id, "유튜브 영상 AI 분석 중...")
                 analysis_result = await self._analyze_video(video)
                 db.save_analysis(project_id, video, analysis_result)
                 db.update_project(project_id, status="analyzed")
@@ -164,14 +177,16 @@ class AutoPilotService:
             # 4. 기획 및 대본 작성
             if current_status == "analyzed":
                 db.update_project(project_id, status="planning") # [NEW] status for UI
+                self.set_step(project_id, "대본 구조 기획 중...")
                 analysis = db.get_analysis(project_id)
                 script = await self._generate_script(project_id, analysis.get("analysis_result", {}), self.config)
                 db.update_project_setting(project_id, "script", script)
-                
+
                 db.update_project(project_id, status="scripting") # [NEW] status for UI
+                self.set_step(project_id, "제목·설명 메타데이터 생성 중...")
                 # [NEW] AI 제목 및 설명 생성
                 await self._generate_metadata(project_id, script)
-                
+
                 db.update_project(project_id, status="scripted")
                 current_status = "scripted"
 
@@ -194,11 +209,12 @@ class AutoPilotService:
             if current_status == "characters_ready":
                 script_data = db.get_script(project_id)
                 full_script = script_data["full_script"]
-                
+
                 # 5-1. 영상 소스 생성
                 db.update_project(project_id, status="generating_assets")
+                self.set_step(project_id, "AI 이미지 프롬프트 생성 중...")
                 await self._generate_assets(project_id, full_script, self.config)
-                
+
                 # [NEW] Ensure Metadata exists (Title, Description) - Re-run if skipped earlier
                 settings = db.get_project_settings(project_id) or {}
                 if not settings.get('title') or not settings.get('description'):
@@ -210,13 +226,16 @@ class AutoPilotService:
                     # Check if already exists to avoid duplicate gen
                     if not settings.get('thumbnail_url'):
                         db.update_project(project_id, status="generating_thumbnail")
+                        self.set_step(project_id, "썸네일 이미지 생성 중...")
                         await self._generate_thumbnail(project_id, full_script, self.config)
 
+                self.set_step(project_id, "TTS 음성 생성 완료, 렌더링 준비 중...")
                 db.update_project(project_id, status="tts_done")
                 current_status = "tts_done"
 
             # 6. 영상 렌더링
             if current_status == "tts_done":
+                self.set_step(project_id, "최종 영상 합성 및 렌더링 중...")
                 await self._render_video(project_id)
                 current_status = "rendered"
 
@@ -266,6 +285,7 @@ class AutoPilotService:
             print(f"👥 [Auto-Pilot] 이미 {len(existing)}명의 캐릭터가 설정되어 있습니다. 추출을 건너뜁니다.")
             return
 
+        self.set_step(project_id, "대본에서 캐릭터 추출 중...")
         print(f"👥 [Auto-Pilot] 캐릭터 추출 시작...")
         
         # [NEW] 비주얼 스타일 결정
@@ -546,6 +566,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
 
         image_prompts = db.get_image_prompts(project_id)
         if not image_prompts:
+            self.set_step(project_id, f"AI 이미지 프롬프트 생성 중... ({target_duration}초 분량)")
             print(f"🖼️ [Auto-Pilot] Generating image prompts for {target_duration}s video (style_key={image_style_key}, ref_img={'yes' if reference_image_url else 'no'})...")
             # [NEW] 캐릭터 정보 조회 및 전달
             characters = db.get_project_characters(project_id)
@@ -604,6 +625,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                         # Fallback to duration threshold
                         aspect_ratio = "16:9" if (duration_sec and duration_sec >= 60) else "9:16"
                     
+                    self.set_step(project_id, f"씬 {scene_num} 이미지 생성 중... ({aspect_ratio})")
                     print(f"🎨 [Auto-Pilot] Generating image for Scene {scene_num} (Mode: {mode}, Duration: {duration_sec}s, Aspect Ratio: {aspect_ratio})")
                     images = None
                     used_backend = "none"
@@ -982,9 +1004,13 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                 # 2. Logic (Dialogue + Lipsync -> Akool, else -> Wan)
                 
                 manual_engine = p_settings.get(f"scene_{scene_num}_engine")
-                if manual_engine in ["wan", "akool", "image"]:
+                if manual_engine in ["wan", "akool", "veo", "image"]:
                     local_engine = manual_engine
                     print(f"🎯 [Manual Override] Scene {scene_num} -> {local_engine}")
+                elif video_engine == "veo":
+                    local_engine = "veo"
+                elif video_engine in ["akool", "akool_premium"]:
+                    local_engine = "akool" if (has_dialogue and use_lipsync) else "akool"
                 else:
                     local_engine = "akool" if (has_dialogue and use_lipsync) else "wan"
                 
@@ -1069,6 +1095,31 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                     final_prompt = base_visual
                 print(f"🤖 [Auto-Switch] Scene {scene_num}: Dialogue={has_dialogue} -> Engine={local_engine}")
 
+                if local_engine == "veo":
+                    try:
+                        print(f"🎬 [Veo] Generating video for Scene {scene_num}...")
+                        self.set_step(project_id, f"씬 {scene_num} Veo 영상 생성 중...")
+                        veo_aspect = "9:16" if self.config.get("mode") == "shorts" else "16:9"
+                        video_bytes = await gemini_service.generate_video(
+                            prompt=final_prompt,
+                            image_path=image_abs_path,
+                            duration_seconds=int(video_duration),
+                            aspect_ratio=veo_aspect
+                        )
+                        if video_bytes:
+                            filename = f"vid_veo_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.mp4"
+                            out = os.path.join(config.OUTPUT_DIR, filename)
+                            with open(out, 'wb') as f: f.write(video_bytes)
+                            db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
+                            print(f"✅ [Veo] Success for Scene {scene_num}")
+                            continue
+                        else:
+                            print(f"⚠️ [Veo] Empty result for Scene {scene_num}. Falling back to Wan...")
+                            local_engine = "wan"
+                    except Exception as veo_e:
+                        print(f"⚠️ [Veo] Error for Scene {scene_num}: {veo_e}. Falling back to Wan...")
+                        local_engine = "wan"
+
                 if local_engine == "akool":
                     audio_abs_path = scene_audio_map.get(scene_num)
                     if not audio_abs_path:
@@ -1090,8 +1141,12 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                 
                     # Wan / Replicate (Enhanced for Camera Moves)
                     # [NEW] Dual Engine Support: Check User Preference
-                    preferred_engine = p_settings.get("video_engine", "wan") # 'wan' or 'akool'
-                    
+                    preferred_engine = p_settings.get("video_engine", "wan")
+
+                    if preferred_engine == "veo":
+                        # veo가 이미 위에서 처리됐어야 하지만 혹시 여기 도달 시 wan으로
+                        preferred_engine = "wan"
+
                     if preferred_engine in ["akool", "akool_premium"]:
                         try:
                             # [MODIFIED] Use Akool Premium (v4 API) instead of old v1 I2V

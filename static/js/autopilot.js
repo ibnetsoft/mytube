@@ -165,13 +165,18 @@ async function loadStyles() {
                 tGrid.appendChild(div);
             });
 
-            // Set default
+            // Set default (shorts 모드면 섹션 숨김 상태 유지, selectStyle만)
             const currentThumbStyle = document.getElementById('thumbnailStyle').value;
             if (currentThumbStyle && data[currentThumbStyle]) {
                 selectStyle('thumbnailStyle', currentThumbStyle);
             } else {
                 const firstKey = Object.keys(data)[0];
                 if (firstKey) selectStyle('thumbnailStyle', firstKey);
+            }
+            // shorts 모드면 섹션 강제 숨김
+            if (document.getElementById('appMode')?.value === 'shorts') {
+                const ts = document.getElementById('thumbnailStyleSection');
+                if (ts) ts.classList.add('hidden');
             }
         } catch (e) {
             console.error("Failed to load thumbnail styles:", e);
@@ -251,8 +256,9 @@ function setMode(mode) {
 
         const commerceToggle = document.getElementById('commerceModeToggle');
         if (commerceToggle) commerceToggle.classList.add('hidden');
+        // 썸네일 섹션: longform일 때만 표시 (전역 고정 모드가 shorts면 항상 숨김)
         const thumbSection = document.getElementById('thumbnailStyleSection');
-        if (thumbSection) thumbSection.classList.remove('hidden');
+        if (thumbSection && _fixedAppMode !== 'shorts') thumbSection.classList.remove('hidden');
         setCreationMode('default');
     } else {
         btnShort.classList.add('bg-purple-600', 'text-white', 'font-bold');
@@ -486,6 +492,7 @@ async function loadSavedSettings() {
             log("⚙️ Loaded Saved Settings");
 
             if (data.app_mode) {
+                _fixedAppMode = data.app_mode; // 전역 고정 모드 저장
                 setMode(data.app_mode);
                 // 설정된 모드가 고정이면 반대쪽 버튼 숨김
                 const btnLong = document.getElementById('modeLongform');
@@ -545,19 +552,17 @@ async function loadSavedSettings() {
                 selectStyle('imageStyle', 'realistic'); // Default
             }
 
-            // 3. Thumbnail Style
-            console.log("[Autopilot] Loaded thumbnail_style from settings:", data.thumbnail_style);
-            if (data.thumbnail_style) {
-                selectStyle('thumbnailStyle', data.thumbnail_style);
-                console.log("[Autopilot] Applied thumbnail style:", data.thumbnail_style);
-            } else if (data.image_style) {
-                // Intelligent fallback: Sync with Image Style
-                const mapped = mapImageToThumb(data.image_style);
-                selectStyle('thumbnailStyle', mapped);
-                console.log("[Autopilot] Fallback thumbnail style from image_style:", mapped);
-            } else {
-                selectStyle('thumbnailStyle', 'face'); // Default
-                console.log("[Autopilot] Using default thumbnail style: face");
+            // 3. Thumbnail Style (shorts 모드면 무시)
+            const _thumbSec = document.getElementById('thumbnailStyleSection');
+            const _isShorts = document.getElementById('appMode')?.value === 'shorts';
+            if (!_isShorts && _thumbSec) {
+                if (data.thumbnail_style) {
+                    selectStyle('thumbnailStyle', data.thumbnail_style);
+                } else if (data.image_style) {
+                    selectStyle('thumbnailStyle', mapImageToThumb(data.image_style));
+                } else {
+                    selectStyle('thumbnailStyle', 'face');
+                }
             }
 
             // 4. Script Style
@@ -684,7 +689,7 @@ function log(msg) {
 
     const div = document.createElement('div');
     const time = new Date().toLocaleTimeString('ko-KR', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    div.className = `log-item text-gray-400 text-[10px] border-b border-gray-800/20 py-1.5 flex gap-2 items-start`;
+    div.className = `log-item text-gray-300 text-[13px] border-b border-gray-800/20 py-1.5 flex gap-2 items-start`;
     div.innerHTML = `
         <span class="opacity-30 shrink-0 font-mono">[${time}]</span> 
         <span class="shrink-0 scale-75 origin-top">${icon}</span>
@@ -713,8 +718,14 @@ function openAutopilotModal(topic = "") {
         document.getElementById('modalTopicTitle').innerText = topic ? `(${topic})` : "";
         document.getElementById('modalProgressPercent').innerText = "0%";
         document.getElementById('modalProgressBar').style.width = "0%";
-        document.getElementById('modalStatusText').innerText = i18n.status_preparing;
+        document.getElementById('modalStatusText').innerText = "오토파일럿 시작 중...";
         document.getElementById('modalDoneBtn').classList.add('hidden');
+        const detailEl = document.getElementById('modalStepDetail');
+        if (detailEl) detailEl.textContent = '서버에 작업 요청 전송 중...';
+        const elapsedEl = document.getElementById('modalElapsed');
+        if (elapsedEl) elapsedEl.textContent = '';
+        const logArea = document.getElementById('modalConsoleLogs');
+        if (logArea) logArea.innerHTML = '';
     }
 }
 
@@ -767,6 +778,7 @@ function getProgressValue(status) {
 // --- Autopilot Logic ---
 
 let isProcessing = false;
+let _fixedAppMode = null; // 전역 설정에서 고정된 모드 (shorts/longform)
 
 function getAutopilotConfig() {
     const topicInput = document.getElementById('topicInput');
@@ -929,38 +941,85 @@ async function updateQueueItemChannel(projectId, channelId, selectEl) {
 
 
 function pollStatus(projectId) {
+    let lastStatus = null;
+    let statusStartTime = Date.now();
+    let _detailInterval = null;
+    const pollStartTime = Date.now();
+
+    // 세부 메시지 2초마다 폴링
+    _detailInterval = setInterval(async () => {
+        try {
+            const res = await fetch(`/api/autopilot/${projectId}/progress`);
+            if (!res.ok) return;
+            const data = await res.json();
+            const msg = data.message || '';
+            if (!msg) return;
+            const detailEl = document.getElementById('modalStepDetail');
+            if (detailEl) detailEl.textContent = msg;
+        } catch (e) {}
+    }, 2000);
+
     const interval = setInterval(async () => {
         try {
             const res = await fetch(`/api/projects/${projectId}/full`);
             if (!res.ok) throw new Error("Status check failed");
             const data = await res.json();
 
+            // 프로젝트가 DB에 없으면 초기화 에러
+            if (!data.project) {
+                const totalElapsed = Math.floor((Date.now() - pollStartTime) / 1000);
+                if (totalElapsed > 15) {
+                    clearInterval(interval);
+                    if (_detailInterval) clearInterval(_detailInterval);
+                    isProcessing = false;
+                    const detailEl = document.getElementById('modalStepDetail');
+                    if (detailEl) detailEl.textContent = '프로젝트 생성 실패 — 서버 로그를 확인하세요';
+                    const statusText = document.getElementById('modalStatusText');
+                    if (statusText) statusText.innerText = '오류 발생';
+                    log(`❌ 프로젝트를 찾을 수 없습니다 (ID: ${projectId}). 서버 에러가 발생했습니다.`);
+                    const startBtn = document.getElementById('startAutopilotBtn') || document.getElementById('btnStartProduction');
+                    if (startBtn) { startBtn.disabled = false; startBtn.innerHTML = '<span>제작 시작하기</span> ⚡'; }
+                }
+                return;
+            }
+
             const status = data.project?.status || "processing";
+
+            // 상태 변경 시 타이머 리셋
+            if (status !== lastStatus) {
+                lastStatus = status;
+                statusStartTime = Date.now();
+            }
+
+            // 총 경과시간 / 현재 단계 경과시간
+            const totalElapsedSec = Math.floor((Date.now() - pollStartTime) / 1000);
+            const stageElapsedSec = Math.floor((Date.now() - statusStartTime) / 1000);
+            const fmt = s => s < 60 ? `${s}초` : `${Math.floor(s/60)}분 ${s%60}초`;
+            const elapsedStr = `총 ${fmt(totalElapsedSec)} / 단계 ${fmt(stageElapsedSec)}`;
 
             // Update UI Progress
             const progress = getProgressValue(status);
             const pBar = document.getElementById('modalProgressBar');
             const pPercent = document.getElementById('modalProgressPercent');
             const statusText = document.getElementById('modalStatusText');
+            const elapsedEl = document.getElementById('modalElapsed');
 
             if (pBar) pBar.style.width = `${progress}%`;
             if (pPercent) pPercent.innerText = `${progress}%`;
             if (statusText) statusText.innerText = getFriendlyStatus(status);
+            if (elapsedEl) elapsedEl.textContent = elapsedStr;
 
-            // Log Update (Throttle logs to same status)
-            const logContainer = document.getElementById('modalConsoleLogs');
-            const lastLog = logContainer ? logContainer.lastElementChild : null;
-
-            if (lastLog && lastLog.textContent.includes("Status:")) {
-                const time = new Date().toLocaleTimeString('ko-KR', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                lastLog.innerHTML = `<span class="opacity-30 shrink-0">[${time}]</span> <span class="flex-1">... Background Check Status: <span class="text-purple-400 font-bold">${status}</span></span>`;
-            } else {
-                log(`... Status: ${status}`);
+            // 로그: 상태 변경 시에만 기록
+            if (status !== lastStatus) {
+                log(`⚡ 단계 전환: ${getFriendlyStatus(status)}`);
             }
 
             if (status === 'done') {
                 clearInterval(interval);
+                if (_detailInterval) clearInterval(_detailInterval);
                 isProcessing = false;
+                const detailEl = document.getElementById('modalStepDetail');
+                if (detailEl) detailEl.textContent = '모든 작업 완료!';
                 log(`🏁 ${i18n.status_done_redirecting}`);
 
                 const doneBtn = document.getElementById('modalDoneBtn');
@@ -979,6 +1038,7 @@ function pollStatus(projectId) {
 
             } else if (status === 'error') {
                 clearInterval(interval);
+                if (_detailInterval) clearInterval(_detailInterval);
                 isProcessing = false;
                 log(`❌ ${i18n.status_error_occurred_check_logs}`);
 
@@ -991,7 +1051,7 @@ function pollStatus(projectId) {
         } catch (e) {
             console.error("Poll error:", e);
         }
-    }, 5000);
+    }, 3000);
 }
 
 /* =========================================
@@ -1301,8 +1361,8 @@ async function loadPreset(presetId) {
 }
 
 function applyPresetSettings(s) {
-    // [NEW] Mode
-    if (s.mode) {
+    // [NEW] Mode — 전역 고정 모드가 있으면 프리셋 mode 무시
+    if (s.mode && !_fixedAppMode) {
         setMode(s.mode);
     }
 
@@ -1322,7 +1382,10 @@ function applyPresetSettings(s) {
     if (s.image_style) selectStyle('imageStyle', s.image_style);
     if (s.visual_style) selectStyle('imageStyle', s.visual_style); // Fallback for old presets
 
-    if (s.thumbnail_style) selectStyle('thumbnailStyle', s.thumbnail_style);
+    const _thumbSection = document.getElementById('thumbnailStyleSection');
+    if (s.thumbnail_style && _thumbSection && !_thumbSection.classList.contains('hidden')) {
+        selectStyle('thumbnailStyle', s.thumbnail_style);
+    }
 
     // 2. Video
     if (s.video_scene_count !== undefined) {

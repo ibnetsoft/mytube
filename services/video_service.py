@@ -2094,12 +2094,12 @@ class VideoService:
         text_h = bbox[3] - bbox[1]
         
         # Padding Logic Split (X, Y)
-        padding_default = style.get("bg_padding", 20)
-        pad_x = style.get("bg_padding_x", padding_default)
+        # [FIX] Match CSS preview: padding: 0.03em 0.5em → horizontal = font_size * 0.5
+        pad_x = int(font_size * 0.5)
         # pad_y는 이미지 캔버스 여백에만 사용 (배경 박스는 별도로 strip_pad_y 사용)
         pad_y = 0  # 세로 캔버스 패딩 제거 - strip_pad_y가 실제 배경 패딩 담당
 
-        # 배경 박스 세로 패딩 = 폰트 크기의 3% (위아래 동일)
+        # 배경 박스 세로 패딩 = 폰트 크기의 3% (위아래 동일) → CSS 0.03em과 일치
         strip_pad_y = font_size * 0.03
 
         # 줄간격 계산 - CSS line-height: 1+ratio 와 일치하도록 font_size 기준
@@ -2200,7 +2200,8 @@ class VideoService:
                 by1 = current_y + l_bbox[3] + strip_pad_y
 
                 try:
-                    draw.rounded_rectangle([bx0, by0, bx1, by1], radius=10, fill=_bg)
+                    # [FIX] Match CSS preview border-radius: 0.2em
+                    draw.rounded_rectangle([bx0, by0, bx1, by1], radius=int(font_size * 0.2), fill=_bg)
                 except (AttributeError, TypeError):
                     draw.rectangle([bx0, by0, bx1, by1], fill=_bg)
 

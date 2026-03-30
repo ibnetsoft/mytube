@@ -963,6 +963,11 @@ scene_type별 구조:
 
 def create_project(name: str, topic: str = None, app_mode: str = 'longform', language: str = 'ko') -> int:
     """새 프로젝트 생성 + 기본 설정 초기화"""
+    # DB 연결 전에 외부 설정값 미리 조회 (트랜잭션 중 별도 connection 방지)
+    from services.settings_service import settings_service
+    defaults = settings_service.get_gemini_tts_settings()
+    sub_defaults = get_subtitle_defaults()
+
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
@@ -970,15 +975,8 @@ def create_project(name: str, topic: str = None, app_mode: str = 'longform', lan
         (name, topic, language)
     )
     project_id = cursor.lastrowid
-
-    # 기본 설정 생성
-    from services.settings_service import settings_service
-    defaults = settings_service.get_gemini_tts_settings()
     
-    # [NEW] 자막 기본값 가져오기
-    sub_defaults = get_subtitle_defaults()
-    
-    # [NEW] 언어별 기본 폰트 자동 설정
+    # 언어별 기본 폰트 자동 설정
     # (video_service.py의 font_mapping과 일치해야 함)
     lang_fonts = {
         'ko': 'GmarketSansBold',
@@ -990,12 +988,12 @@ def create_project(name: str, topic: str = None, app_mode: str = 'longform', lan
     initial_font = lang_fonts.get(language, 'GmarketSansBold')
 
     cursor.execute(
-        """INSERT INTO project_settings 
+        """INSERT OR IGNORE INTO project_settings
            (project_id, title, voice_name, voice_language, voice_style_prompt,
             subtitle_font, subtitle_font_size, subtitle_color, subtitle_style_enum, subtitle_stroke_color, subtitle_stroke_width,
-            subtitle_bg_enabled, subtitle_stroke_enabled, voice_provider, voice_speed, voice_multi_enabled, app_mode) 
+            subtitle_bg_enabled, subtitle_stroke_enabled, voice_provider, voice_speed, voice_multi_enabled, app_mode)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (project_id, name, defaults.get("voice_name", "Puck"), 
+        (project_id, name, defaults.get("voice_name", "Puck"),
          defaults.get("language_code", "ko-KR"), defaults.get("style_prompt", ""),
          initial_font, sub_defaults.get("subtitle_font_size"),
          sub_defaults.get("subtitle_color"), sub_defaults.get("subtitle_style_enum"),

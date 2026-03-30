@@ -33,6 +33,11 @@ async def delete_autopilot_preset_api(preset_id: int):
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
+@router.get("/{project_id}/progress")
+async def get_autopilot_progress(project_id: int):
+    """현재 오토파일럿 세부 진행 메시지 조회"""
+    return autopilot_service.get_progress(project_id)
+
 @router.post("/start")
 async def start_autopilot_api(
     req: AutoPilotStartRequest,
@@ -104,6 +109,8 @@ async def start_autopilot_api(
     db.update_project_setting(pid, "voice_provider", req.voice_provider)
     db.update_project_setting(pid, "voice_name", req.voice_id)
     db.update_project_setting(pid, "use_character_analysis", "1" if req.use_character_analysis else "0")
+    db.update_project_setting(pid, "video_engine", req.video_engine or "wan")
+    db.update_project_setting(pid, "app_mode", req.mode)
     if req.duration_seconds:
         db.update_project_setting(pid, "duration_seconds", req.duration_seconds)
 
@@ -121,7 +128,7 @@ async def start_autopilot_api(
         autopilot_service.run_workflow,
         keyword=topic,
         project_id=pid,
-        config_dict=req.dict()
+        config_dict=req.model_dump()
     )
 
     return {

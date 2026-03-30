@@ -104,7 +104,7 @@ async def get_session(session_id: int):
 async def update_session(session_id: int, req: UpdateSessionRequest):
     """세션 업데이트"""
     try:
-        updates = {k: v for k, v in req.dict().items() if v is not None}
+        updates = {k: v for k, v in req.model_dump().items() if v is not None}
         if updates:
             db.update_publish_session(session_id, **updates)
         session = db.get_publish_session(session_id)
@@ -187,7 +187,7 @@ async def get_images(session_id: int):
 async def update_image(image_id: int, req: UpdateImageRequest):
     """이미지 정보 업데이트 (URL, 캡션 등)"""
     try:
-        updates = {k: v for k, v in req.dict().items() if v is not None}
+        updates = {k: v for k, v in req.model_dump().items() if v is not None}
         if updates:
             db.update_publish_image(image_id, **updates)
         return {"status": "ok"}
