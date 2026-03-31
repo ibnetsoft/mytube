@@ -112,3 +112,35 @@ async def get_thumbnails(project_id: int):
     except Exception as e:
         print(f"Get thumbnails error: {e}")
         return {"status": "error", "error": str(e)}
+
+
+class DefaultStyleSave(BaseModel):
+    textLayers: List[dict]
+    shapeLayers: List[dict]
+
+@router.post("/thumbnail/default-style")
+async def save_default_style(req: DefaultStyleSave):
+    """전역 기본 썸네일 스타일 저장 (텍스트 내용 제외, 스타일만)"""
+    try:
+        style_data = {
+            "textLayers": [
+                {k: v for k, v in layer.items() if k != 'text'}
+                for layer in req.textLayers
+            ],
+            "shapeLayers": req.shapeLayers
+        }
+        db.save_global_setting("thumbnail_default_style", json.dumps(style_data, ensure_ascii=False))
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+@router.get("/thumbnail/default-style")
+async def get_default_style():
+    """전역 기본 썸네일 스타일 조회"""
+    try:
+        raw = db.get_global_setting("thumbnail_default_style", None)
+        if not raw:
+            return {"status": "ok", "style": None}
+        return {"status": "ok", "style": json.loads(raw)}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}

@@ -163,15 +163,27 @@
                         <span class="hidden md:inline">{{ t('btn_save_settings') }}</span>
                     </button>
                 </div>
-                <div class="flex gap-2 mt-2">
-                    <button onclick="saveStylePreset()" class="flex-1 btn-secondary py-2 text-xs flex items-center justify-center gap-1" title="{{ t('tooltip_save_style') }}">
-                        🎨 {{ t('btn_save_style') }}
-                    </button>
-                    <button onclick="loadStylePreset()" class="flex-1 btn-secondary py-2 text-xs flex items-center justify-center gap-1" title="{{ t('tooltip_load_style') }}">
-                        📂 {{ t('btn_load_style') }}
-                    </button>
-                    <button onclick="clearStylePreset()" class="btn-secondary py-2 text-xs px-3 flex items-center justify-center" title="저장된 기본 스타일 삭제">
-                        🗑️
+                <!-- 스타일 프리셋 멀티 저장/불러오기 -->
+                <div class="mt-2 bg-gray-800/50 border border-gray-700 rounded-lg p-2 space-y-2">
+                    <div class="flex items-center gap-2">
+                        <select id="stylePresetSelect" onchange="loadStylePreset(this.value)"
+                            class="flex-1 bg-gray-800 border border-gray-700 text-white text-xs rounded px-2 py-1.5 focus:ring-purple-500 focus:border-purple-500">
+                            <option value="">-- 스타일 선택 --</option>
+                        </select>
+                        <button onclick="deleteStylePreset()" id="btnDeleteStylePreset"
+                            class="text-red-400 hover:text-red-300 text-xs hidden px-2 py-1.5">🗑️ 삭제</button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="text" id="stylePresetName" placeholder="스타일 이름 입력..."
+                            class="flex-1 bg-gray-800 border border-gray-700 text-white text-xs rounded px-2 py-1.5">
+                        <button onclick="saveStylePreset()"
+                            class="bg-purple-600/80 hover:bg-purple-600 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors whitespace-nowrap">
+                            🎨 저장
+                        </button>
+                    </div>
+                    <button onclick="saveAsDefaultStyle()"
+                        class="w-full bg-yellow-600/80 hover:bg-yellow-600 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors">
+                        ⭐ 현재 스타일을 기본값으로 지정 (DB 저장)
                     </button>
                 </div>
             </div>
@@ -259,13 +271,17 @@
     let currentBackgroundUrl = null; // 생성된 배경 이미지 URL (프론트엔드용)
     let currentAspectRatio = '16:9'; // [NEW] Default AR
 
-    // 텍스트 레이어 상태 (동적 관리)
+    // 텍스트 레이어 상태 (동적 관리) — text는 빈 문자열로 초기화하여 캔버스 공백 유지
     let textLayers = [
-        { text: '텍스트 입력...', position: 'center', x_offset: 0, y_offset: 0, font_family: 'malgun', font_size: 72, color: '#FFFFFF', stroke_color: '#000000', stroke_width: 2, bg_color: null }
+        { text: '', position: 'center', x_offset: -5, y_offset: 150, font_family: 'Recipekorea', font_size: 89, color: '#FFFFFF', stroke_color: '#000000', stroke_width: 8, bg_color: null },
+        { text: '', position: 'center', x_offset: 3, y_offset: 100, font_family: 'Recipekorea', font_size: 99, color: '#00FFAA', stroke_color: '#000000', stroke_width: 8, bg_color: null },
+        { text: '', position: 'center', x_offset: -495, y_offset: -260, font_family: 'gungsuh', font_size: 39, color: '#FFFFFF', stroke_color: '#000000', stroke_width: 2, bg_color: null }
     ];
 
     // 도형 레이어 상태
-    let shapeLayers = [];
+    let shapeLayers = [
+        { x: -4, y: 485, width: 1287, height: 235, color_start: '#000000', color_end: '#000001', opacity: 0.2, opacity_end: 0.8, gradient_direction: 'vertical' }
+    ];
 
     // 드래그 상태 변수
     let isDragging = false;
@@ -289,7 +305,10 @@
         initCanvasEvents(); // 캔버스 이벤트 초기화
         await loadThumbnailStyles();
         await loadImageStyles(); // 이미지 스타일 그리드 로드 (화풍)
+        await loadDefaultStyleFromDB(); // ⭐ 전역 기본 스타일 항상 먼저 적용
+        _refreshStylePresetSelect(''); // 스타일 프리셋 드롭다운 초기화
         renderLayers(); // 기본 레이어 렌더링
+        if (typeof renderShapeLayers === 'function') renderShapeLayers();
         drawPreview(); // 초기 캔버스 그리기
 
         if (projectId) {
@@ -687,24 +706,15 @@
 
         // 스타일에 따른 기본 텍스트 설정 자동 최적화
         if (styleId === 'japanese_viral') {
-            // 레이어 3개 확보
             textLayers = [
-                { text: '', position: 'row3', x_offset: 0, y_offset: 0, font_family: 'Recipekorea', font_size: 89, color: '#FFFFFF', stroke_color: '#000000', stroke_width: 8, bg_color: null },
-                { text: '', position: 'row4', x_offset: 0, y_offset: 0, font_family: 'Recipekorea', font_size: 89, color: '#FFFF00', stroke_color: '#000000', stroke_width: 8, bg_color: null },
-                { text: '', position: 'row5', x_offset: 0, y_offset: 0, font_family: 'Recipekorea', font_size: 89, color: '#00D4FF', stroke_color: '#000000', stroke_width: 8, bg_color: null }
+                { text: '', position: 'center', x_offset: -5, y_offset: 150, font_family: 'Recipekorea', font_size: 89, color: '#FFFFFF', stroke_color: '#000000', stroke_width: 8, bg_color: null },
+                { text: '', position: 'center', x_offset: 3, y_offset: 100, font_family: 'Recipekorea', font_size: 99, color: '#00FFAA', stroke_color: '#000000', stroke_width: 8, bg_color: null },
+                { text: '', position: 'center', x_offset: -495, y_offset: -260, font_family: 'gungsuh', font_size: 39, color: '#FFFFFF', stroke_color: '#000000', stroke_width: 2, bg_color: null }
             ];
-
-            // 도형 레이어: 하단 그라데이션 추가
             shapeLayers = [
-                {
-                    x: 0, y: 360, width: 1280, height: 360,
-                    color_start: '#000000', color_end: '#000000',
-                    opacity: 0.0, opacity_end: 0.8,
-                    gradient_direction: 'vertical'
-                }
+                { x: -4, y: 485, width: 1287, height: 235, color_start: '#000000', color_end: '#000001', opacity: 0.2, opacity_end: 0.8, gradient_direction: 'vertical' }
             ];
-
-            Utils.showToast('바이럴 스타일 (커스텀 폰트 및 3줄 레이아웃)이 적용되었습니다.', 'info');
+            Utils.showToast('바이럴 스타일이 적용되었습니다.', 'info');
         } else if (styleId === 'text') {
             textLayers.forEach(l => { l.bg_color = '#000000'; l.color = '#FFFFFF'; });
             Utils.showToast('텍스트 중심 블랙&화이트 레이아웃이 적용되었습니다.', 'info');
@@ -2071,107 +2081,160 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
         if (save) saveStateToLocal();
     }
 
-    // ========== 스타일 프리셋 저장/불러오기 ==========
-    const STYLE_PRESET_KEY = 'thumbnail_style_preset';
+    // ========== 스타일 프리셋 저장/불러오기 (멀티 프리셋) ==========
+    const STYLE_PRESETS_KEY = 'thumbnail_style_presets_v2';
 
-    function saveStylePreset() {
-        // 텍스트 레이어에서 텍스트 내용 제외, 스타일만 추출
-        const layerStyles = textLayers.map(l => ({
-            font_family: l.font_family,
-            font_size: l.font_size,
-            color: l.color,
-            stroke_color: l.stroke_color,
-            stroke_width: l.stroke_width,
-            position: l.position,
-            x_offset: l.x_offset || 0,
-            y_offset: l.y_offset || 0,
-            bg_color: l.bg_color || null
-        }));
-
-        // 도형 레이어 (좌표는 캔버스 비율로 저장)
-        const canvas = document.getElementById('thumbnailCanvas');
-        const cw = canvas.width, ch = canvas.height;
-        const shapeStyles = shapeLayers.map(s => ({
-            x_ratio: s.x / cw,
-            y_ratio: s.y / ch,
-            w_ratio: s.width / cw,
-            h_ratio: s.height / ch,
-            color_start: s.color_start,
-            color_end: s.color_end,
-            opacity: s.opacity,
-            opacity_end: s.opacity_end,
-            gradient_direction: s.gradient_direction
-        }));
-
-        const preset = {
-            layerCount: textLayers.length,
-            layerStyles,
-            shapeStyles,
-            savedAt: new Date().toISOString()
-        };
-
-        localStorage.setItem(STYLE_PRESET_KEY, JSON.stringify(preset));
-        Utils.showToast(`스타일 저장 완료 (레이어 ${layerStyles.length}개, 도형 ${shapeStyles.length}개)`, 'success');
+    function _getStylePresets() {
+        try { return JSON.parse(localStorage.getItem(STYLE_PRESETS_KEY) || '{}'); } catch { return {}; }
     }
 
-    function loadStylePreset() {
-        const raw = localStorage.getItem(STYLE_PRESET_KEY);
-        if (!raw) {
-            Utils.showToast('저장된 스타일이 없습니다.', 'error');
+    function _saveStylePresets(presets) {
+        localStorage.setItem(STYLE_PRESETS_KEY, JSON.stringify(presets));
+    }
+
+    function _extractCurrentStyle() {
+        const canvas = document.getElementById('thumbnailCanvas');
+        const cw = canvas.width, ch = canvas.height;
+        return {
+            layerStyles: textLayers.map(l => ({
+                font_family: l.font_family, font_size: l.font_size,
+                color: l.color, stroke_color: l.stroke_color, stroke_width: l.stroke_width,
+                position: l.position, x_offset: l.x_offset || 0, y_offset: l.y_offset || 0,
+                bg_color: l.bg_color || null
+            })),
+            shapeStyles: shapeLayers.map(s => ({
+                x_ratio: s.x / cw, y_ratio: s.y / ch,
+                w_ratio: s.width / cw, h_ratio: s.height / ch,
+                color_start: s.color_start, color_end: s.color_end,
+                opacity: s.opacity, opacity_end: s.opacity_end,
+                gradient_direction: s.gradient_direction
+            })),
+            savedAt: new Date().toISOString()
+        };
+    }
+
+    function _applyStylePreset(preset) {
+        const canvas = document.getElementById('thumbnailCanvas');
+        const cw = canvas.width, ch = canvas.height;
+
+        // 레이어 수 맞추기
+        while (textLayers.length < preset.layerStyles.length) {
+            textLayers.push({ text: `텍스트 ${textLayers.length + 1}`, position: 'center', x_offset: 0, y_offset: 0, font_family: 'malgun', font_size: 72, color: '#FFFFFF', stroke_color: '#000000', stroke_width: 2, bg_color: null });
+        }
+        textLayers.length = preset.layerStyles.length;
+
+        preset.layerStyles.forEach((style, i) => {
+            const cur = textLayers[i];
+            Object.assign(cur, style);
+        });
+
+        if (preset.shapeStyles && preset.shapeStyles.length > 0) {
+            shapeLayers.length = 0;
+            preset.shapeStyles.forEach(s => {
+                shapeLayers.push({
+                    x: Math.round(s.x_ratio * cw), y: Math.round(s.y_ratio * ch),
+                    width: Math.round(s.w_ratio * cw), height: Math.round(s.h_ratio * ch),
+                    color_start: s.color_start, color_end: s.color_end,
+                    opacity: s.opacity, opacity_end: s.opacity_end,
+                    gradient_direction: s.gradient_direction
+                });
+            });
+        }
+        renderLayers();
+        renderShapeLayers();
+        drawPreview();
+        saveStateToLocal();
+    }
+
+    function _refreshStylePresetSelect(selectValue) {
+        const sel = document.getElementById('stylePresetSelect');
+        if (!sel) return;
+        const presets = _getStylePresets();
+        const names = Object.keys(presets);
+        sel.innerHTML = '<option value="">-- 스타일 선택 --</option>' +
+            names.map(n => `<option value="${n}"${n === selectValue ? ' selected' : ''}>${n}</option>`).join('');
+        const delBtn = document.getElementById('btnDeleteStylePreset');
+        if (delBtn) delBtn.classList.toggle('hidden', !selectValue);
+    }
+
+    function saveStylePreset() {
+        const nameInput = document.getElementById('stylePresetName');
+        const name = (nameInput?.value || '').trim();
+        if (!name) { Utils.showToast('스타일 이름을 입력하세요.', 'error'); return; }
+
+        const presets = _getStylePresets();
+        presets[name] = _extractCurrentStyle();
+        _saveStylePresets(presets);
+        _refreshStylePresetSelect(name);
+        if (nameInput) nameInput.value = '';
+        Utils.showToast(`스타일 "${name}" 저장 완료`, 'success');
+    }
+
+    function loadStylePreset(name) {
+        if (!name) {
+            document.getElementById('btnDeleteStylePreset')?.classList.add('hidden');
             return;
         }
-
+        const presets = _getStylePresets();
+        const preset = presets[name];
+        if (!preset) { Utils.showToast('스타일을 찾을 수 없습니다.', 'error'); return; }
         try {
-            const preset = JSON.parse(raw);
-            const canvas = document.getElementById('thumbnailCanvas');
-            const cw = canvas.width, ch = canvas.height;
-
-            // 텍스트 레이어 스타일 적용 (텍스트 내용은 유지)
-            preset.layerStyles.forEach((style, i) => {
-                if (i < textLayers.length) {
-                    // 기존 텍스트 내용 유지, 스타일만 덮어쓰기
-                    Object.assign(textLayers[i], style);
-                } else {
-                    // 레이어 부족하면 추가
-                    textLayers.push({
-                        text: `텍스트 ${i + 1}`,
-                        ...style
-                    });
-                }
-            });
-
-            // 도형 레이어 복원 (비율 → 픽셀)
-            if (preset.shapeStyles && preset.shapeStyles.length > 0) {
-                shapeLayers.length = 0;
-                preset.shapeStyles.forEach(s => {
-                    shapeLayers.push({
-                        x: Math.round(s.x_ratio * cw),
-                        y: Math.round(s.y_ratio * ch),
-                        width: Math.round(s.w_ratio * cw),
-                        height: Math.round(s.h_ratio * ch),
-                        color_start: s.color_start,
-                        color_end: s.color_end,
-                        opacity: s.opacity,
-                        opacity_end: s.opacity_end,
-                        gradient_direction: s.gradient_direction
-                    });
-                });
-            }
-
-            renderLayers();
-            renderShapeLayers();
-            drawPreview();
-            saveStateToLocal();
-            Utils.showToast('저장된 스타일을 불러왔습니다.', 'success');
+            _applyStylePreset(preset);
+            document.getElementById('btnDeleteStylePreset')?.classList.remove('hidden');
+            Utils.showToast(`스타일 "${name}" 불러오기 완료`, 'success');
         } catch (e) {
             console.error('Style preset load error:', e);
             Utils.showToast('스타일 불러오기 실패', 'error');
         }
     }
 
-    function clearStylePreset() {
-        localStorage.removeItem(STYLE_PRESET_KEY);
-        Utils.showToast('저장된 기본 스타일이 삭제되었습니다.', 'success');
+    function deleteStylePreset() {
+        const sel = document.getElementById('stylePresetSelect');
+        const name = sel?.value;
+        if (!name) return;
+        if (!confirm(`"${name}" 스타일을 삭제할까요?`)) return;
+        const presets = _getStylePresets();
+        delete presets[name];
+        _saveStylePresets(presets);
+        _refreshStylePresetSelect('');
+        Utils.showToast(`스타일 "${name}" 삭제됨`, 'success');
+    }
+
+    async function saveAsDefaultStyle() {
+        try {
+            const res = await fetch('/api/thumbnail/default-style', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ textLayers, shapeLayers })
+            });
+            const result = await res.json();
+            if (result.status === 'ok') {
+                Utils.showToast('⭐ 현재 스타일이 전역 기본값으로 저장되었습니다.', 'success');
+            } else {
+                Utils.showToast('저장 실패: ' + (result.error || ''), 'error');
+            }
+        } catch (e) {
+            Utils.showToast('저장 실패: ' + e.message, 'error');
+        }
+    }
+
+    async function loadDefaultStyleFromDB() {
+        try {
+            const res = await fetch('/api/thumbnail/default-style');
+            const result = await res.json();
+            if (result.status === 'ok' && result.style) {
+                const { textLayers: savedLayers, shapeLayers: savedShapes } = result.style;
+                if (savedLayers && savedLayers.length > 0) {
+                    textLayers = savedLayers.map(l => ({ ...l, text: '' }));
+                }
+                if (savedShapes && savedShapes.length > 0) {
+                    shapeLayers = [...savedShapes];
+                }
+                console.log('[DefaultStyle] 전역 기본 스타일 적용됨');
+            }
+        } catch (e) {
+            console.warn('[DefaultStyle] 불러오기 실패:', e);
+        }
     }
 
     async function savePermanentSettings() {
@@ -2325,7 +2388,12 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
             }
 
             if (state.textLayers) {
+                // 저장된 텍스트 레이어 전체 복원 (스타일 + 내용)
                 textLayers = state.textLayers;
+                // 배경 이미지가 없으면 텍스트 내용만 비움 (스타일은 유지)
+                if (!state.currentBackgroundUrl) {
+                    textLayers.forEach(l => { l.text = ''; });
+                }
                 document.getElementById('textSection').classList.remove('hidden');
                 // 텍스트 후보 표시 복구
                 if (thumbnailData && thumbnailData.texts) {

@@ -145,25 +145,30 @@ async def gemini_generate(req: GeminiRequest):
         }
     }
 
-    async with httpx.AsyncClient(timeout=120.0) as client:
-        response = await client.post(url, json=payload)
-        try:
-            result = response.json()
-        except Exception:
-            return {"status": "error", "error": f"API 응답 파싱 실패 (HTTP {response.status_code}): {response.text[:200]}"}
-
-        if "candidates" in result:
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(url, json=payload)
             try:
-                text = result["candidates"][0]["content"]["parts"][0]["text"]
-                return {"status": "ok", "text": text}
-            except (KeyError, IndexError) as e:
-                return {"status": "error", "error": f"응답 구조 오류: {str(e)}. Raw: {str(result)[:200]}"}
-        else:
-            # 에러 상세 메시지 추출
-            err_msg = result.get("error", {})
-            if isinstance(err_msg, dict):
-                err_msg = err_msg.get("message", str(err_msg))
-            return {"status": "error", "error": str(err_msg)[:300]}
+                result = response.json()
+            except Exception:
+                return {"status": "error", "error": f"API 응답 파싱 실패 (HTTP {response.status_code}): {response.text[:200]}"}
+
+            if "candidates" in result:
+                try:
+                    text = result["candidates"][0]["content"]["parts"][0]["text"]
+                    return {"status": "ok", "text": text}
+                except (KeyError, IndexError) as e:
+                    return {"status": "error", "error": f"응답 구조 오류: {str(e)}. Raw: {str(result)[:200]}"}
+            else:
+                # 에러 상세 메시지 추출
+                err_msg = result.get("error", {})
+                if isinstance(err_msg, dict):
+                    err_msg = err_msg.get("message", str(err_msg))
+                return {"status": "error", "error": str(err_msg)[:300]}
+    except httpx.TimeoutException:
+        return {"status": "error", "error": "Gemini API 요청 시간 초과 (120초). 다시 시도해주세요."}
+    except Exception as e:
+        return {"status": "error", "error": f"Gemini API 호출 실패: {str(e)}"}
 
 
 @router.post("/api/gemini/analyze-comments")
