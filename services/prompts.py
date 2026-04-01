@@ -585,4 +585,28 @@ JSON만 반환하세요."""
 JSON만 반환하세요."""
 
 
+    GEMINI_RANDOM_COOKING_PLAN = """당신은 세계적인 미식가이자 영상 연출가입니다.
+    오늘의 '랜덤 요리'를 선정하고, 해당 요리의 조리 과정을 {count}단계의 짧은 영상(각 5초)으로 기획해주세요.
+
+    [기획 지침]
+    1. **랜덤성**: 매번 다른 요리를 선정하세요. 대중적인 요리부터 이국적인 요리까지 다양하게 선택하세요.
+    2. **조리 과정**: 요리의 시작부터 완성까지 {count}단계로 자연스럽게 이어지도록 구성하세요.
+    3. **비주얼 중심**: Veo와 같은 비디오 생성 AI가 사용하기 좋은 상세한 영어 묘사를 작성하세요.
+    4. **Cinematic**: 전문 영상미가 느껴지도록 조명, 구도, 카메라 무빙을 포함하세요.
+
+    [출력 형식 (JSON)]
+    {{
+        "dish_name": "선정된 요리 이름",
+        "description": "요리에 대한 짧은 설명",
+        "steps": [
+            {{
+                "step_number": 1,
+                "action": "조리 동작 (한글)",
+                "video_prompt": "Detailed English prompt for Veo video generation. Include the action, ingredients, lighting, and camera movement. Example: 'Extreme close up of fresh garlic being crushed by a chef's knife on a wooden board, cinematic lighting, 4k, slow motion'."
+            }}
+        ]
+    }}
+    JSON만 반환하세요."""
+
+
 prompts = Prompts()

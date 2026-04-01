@@ -11,29 +11,25 @@
 
         <!-- 1. Script Settings -->
         <div class="card w-full">
-            <h3 class="card-title">⚙️ {{ t('plan_settings_title') }}</h3>
+            <h3 class="card-title">⚙️ 대본 설정</h3>
             <!-- Changed grid to single column for narrower width -->
             <div class="grid grid-cols-1 gap-4 mb-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{
-                        t('plan_topic_label') }}</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">영상 주제</label>
                     <input type="text" id="topicInput" class="input-field"
                         placeholder="{{ t('plan_topic_placeholder') }}">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{
-                        t('plan_duration_label') }}</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">영상 길이</label>
                     <div class="flex items-center gap-2">
                         <input type="number" id="durationInput" class="input-field w-32" value="60" min="1" step="1">
-                        <span id="durationUnit" class="text-gray-700 dark:text-gray-300">{{ t('plan_duration_unit_min')
-                            }}</span>
+                        <span id="durationUnit" class="text-gray-700 dark:text-gray-300">분</span>
                     </div>
                     <p id="durationHelper" class="text-xs text-gray-500 mt-1 dark:text-gray-400">{{
                         t('plan_duration_helper_min') }}</p>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{
-                        t('plan_style_label') }}</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">대본 스타일</label>
                     <select id="scriptStyleSelect" class="input-field">
                         <optgroup label="📹 {{ t('style_basic') }}">
                             <option value="default" selected>{{ t('style_default') }}</option>
@@ -91,8 +87,7 @@
                 </div>
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('plan_notes_label')
-                    }}</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">추가 요청사항</label>
                 <textarea id="additionalNotes" class="input-field" rows="2"
                     placeholder="{{ t('plan_notes_placeholder') }}"></textarea>
             </div>
@@ -102,13 +97,13 @@
                 <button onclick="saveScriptSettings(this)"
                     class="btn-secondary w-full py-2 text-xs flex items-center justify-center gap-2">
                     <span>💾</span>
-                    <span>{{ t('btn_save_settings') }}</span>
+                    <span>세팅저장</span>
                 </button>
                 <div class="grid grid-cols-2 gap-2">
                     <button onclick="generateStructure()" id="generateBtn"
                         class="btn-primary w-full py-3 text-sm font-semibold shadow-sm hover:shadow-md transition-all rounded-lg flex items-center justify-center gap-2">
                         <span>🤖</span>
-                        <span>{{ t('btn_gen_structure') }}</span>
+                        <span>대본 구조 생성</span>
                     </button>
                     <div class="flex flex-col gap-2">
                         <select id="deepDiveMode"
@@ -119,7 +114,7 @@
                         <button onclick="generateDeepDive()" id="deepDiveBtn"
                             class="w-full py-3 text-sm font-bold shadow-md hover:shadow-xl transition-all rounded-lg flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-0">
                             <span>🚀</span>
-                            <span>{{ t('btn_deep_dive') }}</span>
+                            <span>딥-다이브 구성</span>
                         </button>
                     </div>
                 </div>
@@ -128,7 +123,7 @@
                 <button onclick="continueWithAutopilot(true)"
                     class="w-full py-3 text-sm font-bold shadow-md hover:shadow-xl transition-all rounded-lg flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white border-0 mt-1">
                     <span>⚡</span>
-                    <span>{{ t('plan_autopilot_direct') }}</span>
+                    <span>오토파일럿으로 완성하기</span>
                 </button>
             </div>
         </div>
@@ -153,7 +148,7 @@
             <div id="manualTitleGenBtn" class="text-center py-4">
                 <button onclick="generateRecommendedTitles()"
                     class="btn-secondary text-sm px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300">
-                    {{ t('btn_auto_gen_title') }}
+                    추천제목 생성
                 </button>
             </div>
 
@@ -171,7 +166,7 @@
                 <input type="text" id="sourceUrlInput" class="input-field text-xs py-1.5"
                     placeholder="{{ t('plan_sources_placeholder') }}">
                 <button onclick="addUrlSource()"
-                    class="btn-secondary text-[10px] px-2 py-1 whitespace-nowrap bg-blue-50 text-blue-600 border-blue-200">{{ t('btn_add') }}</button>
+                    class="btn-secondary text-[10px] px-2 py-1 whitespace-nowrap bg-blue-50 text-blue-600 border-blue-200">추가</button>
             </div>
 
             <!-- File Upload -->
@@ -180,7 +175,7 @@
                     onchange="uploadFileSource(this)">
                 <button onclick="document.getElementById('sourceFileInput').click()"
                     class="btn-secondary w-full text-[10px] py-1.5 flex items-center justify-center gap-1 border-dashed">
-                    <span>📁</span> {{ t('btn_upload_text_file') }}
+                    <span>📁</span> 텍스트 파일 업로드
                 </button>
             </div>
 
@@ -188,7 +183,7 @@
             <div class="mb-3">
                 <button onclick="openSourceLibrary()"
                     class="btn-secondary w-full text-[10px] py-1.5 flex items-center justify-center gap-1 bg-purple-50 text-purple-600 border-purple-200 hover:bg-purple-100 transition-colors">
-                    <span>📚</span> {{ t('btn_get_existing_sources') }}
+                    <span>📚</span> 기존 자료 가져오기
                 </button>
             </div>
 
@@ -211,32 +206,32 @@
         <div id="resultSection" class="hidden">
             <div class="card h-full">
                 <div class="flex items-center justify-between mb-4 border-b border-gray-100 dark:border-gray-700 pb-3">
-                    <h3 class="card-title mb-0">📝 {{ t('plan_result_title') }}</h3>
+                    <h3 class="card-title mb-0">📝 생성된 대본 구조</h3>
                     <!-- Buttons Group (Moved 'Generate Script' here) -->
                     <div class="btn-group flex gap-2">
                         <button onclick="saveStructureChanges(this)"
                             class="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1 bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100">
-                            <span>💾</span> {{ t('btn_save') }}
+                            <span>💾</span> 저장
                         </button>
                         <button onclick="copyStructure()"
                             class="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1">
-                            <span>📋</span> {{ t('btn_copy') }}
+                            <span>📋</span> 복사
                         </button>
                         <button onclick="regenerate()"
                             class="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1">
-                            <span>🔄</span> {{ t('btn_regenerate') }}
+                            <span>🔄</span> 다시 생성
                         </button>
                         <!-- Moved Main Action Button Here -->
                         <!-- [NEW] Auto-Pilot Handover Button -->
                         <button onclick="continueWithAutopilot()"
                             class="text-xs px-4 py-1.5 font-bold shadow-sm hover:shadow-md transition-all rounded flex items-center gap-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white mr-2 border-0">
                             <span>🚀</span>
-                            <span>{{ t('btn_continue_autopilot') }}</span>
+                            <span>오토파일럿 완성하기</span>
                         </button>
                         <button onclick="goToScriptGen()"
                             class="btn-primary text-xs px-4 py-1.5 font-bold shadow-sm hover:shadow-md transition-all rounded flex items-center gap-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
                             <span>✍️</span>
-                            <span>{{ t('btn_gen_full_script') }}</span>
+                            <span>전체 대본 생성하기</span>
                             <span>→</span>
                         </button>
                     </div>

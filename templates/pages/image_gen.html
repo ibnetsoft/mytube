@@ -6,10 +6,10 @@
 <div class="card mb-6">
     <div class="flex flex-wrap items-center gap-6 mb-6">
         <h3 class="font-bold text-gray-800 dark:text-white shrink-0 flex items-center gap-2">
-            <span>{{ t('image_settings_title') }}</span>
+            <span>이미지 생성 설정</span>
             <span id="scriptStatusBadge"
                 class="text-[10px] items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 font-normal hidden md:flex">
-                <span>🔄</span> {{ t('status_checking_script') }}
+                <span>🔄</span> 대본 상태 확인 중...
             </span>
         </h3>
 
@@ -52,14 +52,14 @@
                 <button onclick="analyzeCharacters()" id="analyzeCharacterBtn"
                     class="btn-secondary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-sm hover:scale-105 transition-transform bg-white border border-gray-300 dark:bg-gray-700 dark:border-gray-600">
                     <span>🧙‍♂️</span>
-                    <span class="hidden sm:inline">{{ t('btn_char_analysis') }}</span>
+                    <span class="hidden sm:inline">캐릭터 분석</span>
                 </button>
 
                 <!-- Scene Analysis Button -->
                 <button onclick="analyzeScenes()" id="analyzeSceneBtn"
                     class="btn-secondary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-sm hover:scale-105 transition-transform bg-white border border-gray-300 dark:bg-gray-700 dark:border-gray-600">
                     <span>🔍</span>
-                    <span class="hidden sm:inline">{{ t('btn_scene_analysis') }}</span>
+                    <span class="hidden sm:inline">씬 구성 분석</span>
                 </button>
                 <span id="sceneCountBadge"
                     class="hidden text-xs font-bold bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-3 py-2 rounded-lg">
@@ -70,7 +70,7 @@
                 <button onclick="saveImageSettings(this)" id="saveSettingsBtn"
                     class="btn-secondary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-sm hover:scale-105 transition-transform bg-white border border-gray-300 dark:bg-gray-700 dark:border-gray-600">
                     <span>💾</span>
-                    <span>{{ t('btn_save_settings') }}</span>
+                    <span>설정 저장</span>
                 </button>
 
                 <!-- 사람 제외 체크박스 -->
@@ -83,7 +83,14 @@
                 <button onclick="generatePrompts()" id="generateBtn"
                     class="btn-primary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-md hover:scale-105 transition-transform bg-gradient-to-r from-blue-600 to-indigo-600">
                     <span>🪄</span>
-                    <span>{{ t('btn_gen_prompt') }}</span>
+                    <span>프롬프트 자동 생성</span>
+                </button>
+
+                <!-- [NEW] Random Cooking Video (Shorts) -->
+                <button onclick="generateRandomCooking()" id="cookingBtn"
+                    class="btn-primary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-md hover:scale-105 transition-transform bg-gradient-to-r from-orange-500 to-red-600 border-none">
+                    <span>🍳</span>
+                    <span>랜덤 요리 영상 (Shorts)</span>
                 </button>
             </div>
         </div>
@@ -93,7 +100,7 @@
             <div class="flex flex-col md:flex-row gap-6">
                 <!-- Left: Controls -->
                 <div class="flex-1">
-                    <label class="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-3">{{ t('char_consistency_title') }}</label>
+                    <label class="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-3">👤 주인공/캐릭터 일관성 유지 (Reference Image)</label>
 
                     <div class="flex flex-col gap-3">
                         <div class="flex items-center flex-wrap gap-4">
@@ -101,7 +108,7 @@
                             <div class="flex items-center gap-2">
                                 <button onclick="document.getElementById('charUploadInput').click()"
                                     class="btn-secondary text-xs py-2 px-3 flex items-center gap-1">
-                                    <span>📂</span> {{ t('btn_upload_image') }}
+                                    <span>📂</span> 이미지 업로드
                                 </button>
                                 <input type="file" id="charUploadInput" class="hidden" accept="image/*" multiple
                                     onchange="previewCharImage(this)">
@@ -115,14 +122,13 @@
                                 <input type="checkbox" id="useThumbnailCheck"
                                     class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700"
                                     onchange="localStorage.setItem('useThumbnailCheck', this.checked)">
-                                <span class="text-xs font-medium text-gray-700 dark:text-white">{{
-                                    t('curr_thumb_as_char') }}</span>
+                                <span class="text-xs font-medium text-gray-700 dark:text-white">현재 썸네일을 주인공으로 사용</span>
                             </label>
 
                             <!-- Analyze Button (moved to top row) -->
                             <button onclick="analyzeAndSetConsistency()" id="analyzeBtn"
                                 class="btn-primary text-xs py-2 px-4 bg-indigo-600 hover:bg-indigo-700 flex items-center gap-1">
-                                {{ t('btn_ai_vision_apply') }}
+                                AI Vision 적용 (추천)
                             </button>
                         </div>
 
@@ -145,7 +151,7 @@
                             class="w-full h-full object-contain opacity-50 transition-opacity duration-300"
                             alt="Thumbnail" onerror="this.style.opacity=0">
                         <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <span class="text-xs text-gray-400" id="thumbPlaceholder">{{ t('status_no_thumb') }}</span>
+                            <span class="text-xs text-gray-400" id="thumbPlaceholder">썸네일 없음</span>
                         </div>
                     </div>
                 </div>
@@ -156,23 +162,23 @@
         <div class="w-full mt-3">
             <div class="flex gap-4 items-stretch">
                 <div class="flex-[6] min-w-0 flex flex-col">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-white mb-1">{{ t('global_consistency_label') }}</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-white mb-1">전역 일관성 프롬프트</label>
                     <textarea id="globalPrompt"
                         class="input-field w-full flex-1 text-sm p-3 min-h-[80px] bg-yellow-50 dark:bg-yellow-900/10 border-yellow-200 dark:border-yellow-800 focus:border-yellow-400 focus:ring-yellow-400"
-                        placeholder="{{ t('global_consistency_placeholder') }}"></textarea>
+                        placeholder="모든 이미지에 공통으로 적용될 시각적 스타일이나 특징을 입력하세요."></textarea>
                 </div>
                 <div class="flex-[4] bg-indigo-50 dark:bg-gray-800 p-4 rounded-lg border border-indigo-100 dark:border-gray-700">
-                    <label class="block text-sm font-bold text-gray-800 dark:text-white mb-1">🌍 {{ t('ethnicity_title') }}</label>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">{{ t('ethnicity_desc') }}</p>
+                    <label class="block text-sm font-bold text-gray-800 dark:text-white mb-1">🌍 등장인물 주요 인종 (Ethnicity)</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">글로벌 배포를 위한 8대 주요 그룹 중 하나를 선택하세요.</p>
                     <select id="charEthnicity" class="input-field w-full p-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-gray-800 dark:text-gray-200">
-                        <option value="East Asian heritage, Polished porcelain skin">{{ t('ethnicity_1') }}</option>
-                        <option value="Southeast Asian features, Golden tan complexion">{{ t('ethnicity_2') }}</option>
-                        <option value="South Asian descent, Desi features, Deep almond eyes">{{ t('ethnicity_3') }}</option>
-                        <option value="European ancestry, Fair complexion, High bridge nose">{{ t('ethnicity_4') }}</option>
-                        <option value="Middle Eastern features, Olive undertone, Prominent facial structure">{{ t('ethnicity_5') }}</option>
-                        <option value="Sub-Saharan African descent, Rich melanin, Natural textured hair">{{ t('ethnicity_6') }}</option>
-                        <option value="Latino heritage, Sun-kissed skin, Diverse ethnic blend">{{ t('ethnicity_7') }}</option>
-                        <option value="Indigenous features, Weathered complexion, Distinctive tribal look">{{ t('ethnicity_8') }}</option>
+                        <option value="East Asian heritage, Polished porcelain skin">1. 동북아시아 계열 (East Asian)</option>
+                        <option value="Southeast Asian features, Golden tan complexion">2. 동남아시아 계열 (Southeast Asian)</option>
+                        <option value="South Asian descent, Desi features, Deep almond eyes">3. 남부 아시아 계열 (South Asian)</option>
+                        <option value="European ancestry, Fair complexion, High bridge nose">4. 유럽 및 코카서스 계열 (European)</option>
+                        <option value="Middle Eastern features, Olive undertone, Prominent facial structure">5. 중동 및 북아프리카 계열 (Middle Eastern)</option>
+                        <option value="Sub-Saharan African descent, Rich melanin, Natural textured hair">6. 아프리카 사하라 이남 계열 (Sub-Saharan African)</option>
+                        <option value="Latino heritage, Sun-kissed skin, Diverse ethnic blend">7. 라틴 아메리카 혼혈 계열 (Hispanic / Latino)</option>
+                        <option value="Indigenous features, Weathered complexion, Distinctive tribal look">8. 원주민 및 오세아니아 계열 (Indigenous)</option>
                     </select>
                 </div>
             </div>
@@ -181,7 +187,7 @@
 
     <!-- 스타일 선택 (위로 올라옴) -->
     <div class="mt-3">
-        <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">{{ t('select_style_label') }}</label>
+        <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">이미지 스타일 선택</label>
         <input type="hidden" id="imageStyle" value="realistic">
 
         <!-- [Modified] Styles loaded dynamically -->
@@ -197,20 +203,20 @@
         <div
             class="flex flex-col sm:flex-row items-center justify-between mb-4 pb-2 border-b border-gray-100 dark:border-gray-700 gap-3">
             <h4 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                <span>👥</span> {{ t('char_analysis_result_title') }}
+                <span>👥</span> 캐릭터 분석 결과 및 관리
             </h4>
             <div class="flex items-center gap-2 w-full sm:w-auto">
                 <button onclick="addCharacterManually()"
                     class="flex-1 sm:flex-none btn-secondary text-[10px] py-1.5 px-3 flex items-center justify-center gap-1 border-dashed">
-                    <span>➕</span> {{ t('btn_add_char_manual') }}
+                    <span>➕</span> 직접 추가
                 </button>
                 <button onclick="resetAllCharacters()"
                     class="flex-1 sm:flex-none btn-secondary text-[10px] py-1.5 px-3 flex items-center justify-center gap-1 text-red-500 border-red-200 hover:bg-red-50">
-                    <span>🗑️</span> {{ t('btn_reset_all') }}
+                    <span>🗑️</span> 전체 초기화
                 </button>
                 <button onclick="saveCharactersToProject()" id="saveCharsBtn"
                     class="flex-1 sm:flex-none btn-primary text-[10px] py-1.5 px-3 flex items-center justify-center gap-1 bg-green-600 hover:bg-green-700 border-none shadow-sm">
-                    <span>💾</span> {{ t('btn_save_to_server') }}
+                    <span>💾</span> 서버에 영구 저장
                 </button>
             </div>
         </div>
@@ -218,7 +224,7 @@
         <div id="characterList" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3"></div>
 
         <p class="mt-3 text-[10px] text-gray-400 italic">
-            {{ t('char_edit_helper') }}
+            * 수정 후 [서버에 영구 저장]을 눌러야 오토파일럿에 반영됩니다.
         </p>
     </div>
 
@@ -227,7 +233,7 @@
         <div
             class="inline-block animate-spin rounded-full h-6 w-6 border-4 border-indigo-500 border-t-transparent">
         </div>
-        <p class="mt-2 text-xs text-indigo-600 font-medium">{{ t('status_analyzing') }}</p>
+        <p class="mt-2 text-xs text-indigo-600 font-medium">분석 중...</p>
     </div>
 </div>
 
@@ -236,28 +242,28 @@
     <div class="card">
         <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-100 dark:border-gray-700">
             <h3 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                <span>🎨</span> {{ t('gen_prompts_title') }}
+                <span>🎨</span> 생성된 씬 프롬프트
             </h3>
             <div class="flex gap-2">
                 <button onclick="toggleSelectAll()" id="selectAllBtn"
                     class="btn-secondary text-sm px-4 flex items-center gap-2">
-                    <span id="selectAllIcon">☐</span> {{ t('btn_select_all') }}
+                    <span id="selectAllIcon">☐</span> 전체 선택
                 </button>
                 <button onclick="downloadAllImages()" class="btn-secondary text-sm px-4 flex items-center gap-2">
-                    {{ t('btn_download_images') }}
+                    이미지 일괄 다운로드
                 </button>
-                <button onclick="copyAllPrompts()" class="btn-secondary text-sm px-4">{{ t('btn_copy_all') }}</button>
+                <button onclick="copyAllPrompts()" class="btn-secondary text-sm px-4">전체 복사</button>
 
                 <!-- [NEW] Manual Save Button -->
                 <button onclick="manualSavePrompts()" id="manualSaveBtn"
                     class="btn-secondary text-sm px-4 flex items-center gap-2 bg-blue-50 text-blue-600 border-blue-200">
-                    <span>💾</span> {{ t('btn_save_all') }}
+                    <span>💾</span> 전체 저장
                 </button>
 
                 <!-- [NEW] 선택씬 이미지 분석 → 모션 생성 버튼 -->
                 <button onclick="generateMotionFromSelectedImages()" id="imageMotionBtn"
                     class="btn-secondary text-sm px-4 flex items-center gap-2 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-300 border-teal-200 dark:border-teal-700 hover:bg-teal-100">
-                    <span>🔍</span> {{ t('btn_scene_analysis') }} (Motion)
+                    <span>🔍</span> 씬 모션 분석 (Motion)
                 </button>
 
                 <!-- [NEW] Motion 일괄 자동생성 버튼 -->
@@ -269,7 +275,7 @@
                 <button onclick="generateSelectedImages()" id="autoGenBtn"
                     class="btn-primary text-sm px-4 flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled>
-                    <span>🚀</span> {{ t('btn_gen_images') }}
+                    <span>🚀</span> 이미지 일괄 생성
                 </button>
             </div>
         </div>
@@ -1018,6 +1024,68 @@
         }
     }
 
+    async function generateRandomCooking() {
+        // [SHORTS MODE CHECK] - Only allow in 9:16 or equivalent when appropriate
+        const projectId = getCurrentProject();
+        if (!projectId) {
+            Utils.showToast('프로젝트를 먼저 선택해주세요.', 'warning');
+            return;
+        }
+
+        if (!confirm('AI가 랜덤으로 요리를 정하고 5초 단위의 영상들을 생성합니다. 기존 장면 데이터가 모두 교체됩니다. 계속하시겠습니까?\n(Veo 엔진을 사용하며 약 1~3분 정도 소요될 수 있습니다)')) {
+            return;
+        }
+
+        const btn = document.getElementById('cookingBtn');
+        const originalText = btn.innerHTML;
+        Utils.setLoading(btn, true, '🍳 요리 선정/영상 생성 중...');
+        
+        try {
+            const response = await fetch(`/api/projects/${projectId}/random-cooking`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.error || `HTTP ${response.status}`);
+            }
+
+            const result = await response.json();
+
+            if (result.status === 'ok') {
+                prompts = result.scenes;
+                Utils.storage.set('imagePrompts', prompts);
+                
+                // [FIX] Save to DB to ensure persistence
+                await API.project.saveImagePrompts(projectId, prompts);
+                
+                // UI 업데이트
+                drawPromptsUI(prompts);
+                document.getElementById('resultSection').classList.remove('hidden');
+                
+                // 결과 요리 이름 표시
+                alert(`'${result.dish_name}' 영상 생성이 완료되었습니다!\n${result.description}`);
+                Utils.showToast(`'${result.dish_name}' 영상 생성 완료!`, 'success');
+                
+                // 활성화
+                const autoBtn = document.getElementById('autoGenBtn');
+                if (autoBtn) {
+                  autoBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                  autoBtn.disabled = false;
+                }
+            } else {
+                throw new Error(result.error || '생성 실패');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('랜덤 요리 생성 실패: ' + e.message, 'error');
+        } finally {
+            Utils.setLoading(btn, false);
+            btn.innerHTML = originalText;
+        }
+    }
+
     function drawPromptsUI(data) {
         if (!data) data = prompts;
         console.log("Drawing UI with items:", data.length);
@@ -1089,10 +1157,14 @@
                             `}
                             <input type="file" id="scene-upload-${i}" class="hidden" accept="image/*,video/*" onchange="uploadSceneImage(${i}, this)">
                             ${(p.image_url || p.video_url) ? `
-                                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <div class="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-4">
+                                    <button onclick="openAssetLibrary(${i})" 
+                                            class="w-3/4 bg-white/95 dark:bg-gray-800/95 text-[10px] font-bold py-1.5 px-3 rounded-full shadow-lg border border-gray-200 dark:border-gray-700 hover:scale-105 transition-all text-gray-700 dark:text-gray-200 flex items-center justify-center gap-1.5">
+                                        📂 ${i18n.btn_library || 'Open Folder / Library'}
+                                    </button>
                                     <button onclick="document.getElementById('scene-upload-${i}').click()" 
-                                            class="bg-white/90 dark:bg-gray-800/90 text-[10px] font-bold py-1.5 px-3 rounded-full shadow-lg hover:scale-105 transition-all text-gray-700 dark:text-gray-200">
-                                        📂 Replace Media
+                                            class="w-3/4 bg-indigo-600/90 text-white text-[10px] font-bold py-1.5 px-3 rounded-full shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-1.5">
+                                        📁 ${i18n.btn_upload_new || 'Upload New File'}
                                     </button>
                                 </div>
                             ` : ''}
@@ -1327,7 +1399,7 @@
         const formData = new FormData();
         formData.append('file', file);
         formData.append('project_id', projectId);
-        formData.append('scene_index', index + 1);
+        formData.append('scene_number', index + 1);
 
         try {
             const response = await fetch('/api/image/upload-scene', {
@@ -1373,6 +1445,164 @@
         }
     }
 
+
+    /**
+     * Asset Library & Folder Integration
+     */
+    async function openAssetLibrary(index) {
+        // [EXE/Local] Try to open physical folder in background for user convenience
+        fetch('/api/system/open-output-folder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ project_id: parseInt(projectId) })
+        }).catch(() => {});
+
+        // Initialize Modal if not exists
+        if (!document.getElementById('asset-library-modal')) {
+            const modalHtml = `
+                <div id="asset-library-modal" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm hidden animate-in fade-in duration-200">
+                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden border dark:border-gray-700">
+                        <div class="p-4 border-b dark:border-gray-700 flex items-center justify-between bg-gray-50 dark:bg-gray-900">
+                            <div class="flex items-center gap-3">
+                                <span class="text-2xl">📂</span>
+                                <div>
+                                    <h3 class="font-bold text-gray-800 dark:text-white">Project Output Explorer</h3>
+                                    <p class="text-[10px] text-gray-500 dark:text-gray-400">Select an existing asset from this project's output folder to replace current scene media.</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button onclick="openOutputFolderFromServer()" class="text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-full transition-all flex items-center gap-2 shadow-lg hover:scale-105">
+                                    <span>📁</span> Open output Folder on PC
+                                </button>
+                                <button onclick="closeAssetLibrary()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-2 transition-colors">
+                                    <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="asset-library-list" class="flex-1 overflow-y-auto p-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 bg-gray-100/50 dark:bg-gray-900/50 scrollbar-thin">
+                            <div class="col-span-full py-20 text-center text-gray-400">Loading assets...</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+
+        const modal = document.getElementById('asset-library-modal');
+        modal.classList.remove('hidden');
+        modal.dataset.currentScene = index;
+
+        try {
+            const res = await fetch(`/api/projects/${projectId}/output-assets`);
+            const data = await res.json();
+            if (data.status === 'ok') {
+                renderAssetLibraryList(data.files, index);
+            } else {
+                throw new Error(data.message || 'Error fetching assets');
+            }
+        } catch (e) {
+            document.getElementById('asset-library-list').innerHTML = `<div class="col-span-full py-20 text-center text-red-500">Failed to load assets: ${e.message}</div>`;
+        }
+    }
+
+    function renderAssetLibraryList(files, sceneIndex) {
+        const list = document.getElementById('asset-library-list');
+        if (!files || files.length === 0) {
+            list.innerHTML = `<div class="col-span-full py-20 text-center text-gray-400 flex flex-col items-center gap-3">
+                                <span class="text-4xl opacity-20">📭</span>
+                                <p>No assets found in the output directory yet.<br>Generate some media or upload manually first.</p>
+                              </div>`;
+            return;
+        }
+
+        list.innerHTML = files.map(f => `
+            <div onclick="selectLibraryAsset(${sceneIndex}, '${f.url}', ${f.is_video})" 
+                 class="relative aspect-[16/9] bg-white dark:bg-gray-800 rounded-xl overflow-hidden cursor-pointer group hover:ring-4 hover:ring-blue-500/50 transition-all shadow-md transform hover:-translate-y-1">
+                ${f.is_video ? 
+                    `<video src="${f.url}" class="w-full h-full object-cover"></video>
+                     <div class="absolute inset-0 flex items-center justify-center bg-black/10 group-hover:bg-black/0 transition-colors">
+                        <span class="bg-purple-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold">🎬 VIDEO</span>
+                     </div>` : 
+                    `<img src="${f.url}" class="w-full h-full object-cover">
+                     <div class="absolute inset-0 flex items-center justify-center bg-black/10 group-hover:bg-black/0 transition-colors">
+                        <span class="bg-blue-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold">🖼️ IMAGE</span>
+                     </div>`
+                }
+                <div class="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                    <span class="opacity-0 group-hover:opacity-100 bg-white text-blue-600 text-xs px-3 py-1.5 rounded-full shadow-lg font-bold">Select & Apply</span>
+                </div>
+                <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
+                    <p class="text-[9px] text-white truncate font-medium">${f.name}</p>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function selectLibraryAsset(index, url, isVideo) {
+        // Confirmation before replacing
+        if (!confirm('Replace current scene media with this selection?')) return;
+
+        Utils.showToast('Replacing asset...', 'info');
+
+        try {
+            const res = await fetch(`/api/projects/${projectId}/replace-asset`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    scene_number: index + 1,
+                    asset_url: url,
+                    is_video: isVideo
+                })
+            });
+            
+            const data = await res.json();
+            if (data.status === 'ok') {
+                // Update local model
+                if (isVideo) {
+                    prompts[index].video_url = url;
+                    prompts[index].image_url = null;
+                } else {
+                    prompts[index].image_url = url;
+                    prompts[index].video_url = null;
+                }
+
+                // Sync with Storage & Save
+                Utils.storage.set('imagePrompts', prompts);
+                
+                // Redraw UI
+                const scrollY = window.scrollY;
+                drawPromptsUI(prompts);
+                window.scrollTo(0, scrollY);
+                
+                closeAssetLibrary();
+                Utils.showToast('Successfully replaced with existing asset.', 'success');
+            } else {
+                throw new Error(data.message || 'Server error during replacement');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('Failed to replace: ' + e.message, 'error');
+        }
+    }
+
+    function closeAssetLibrary() {
+        const modal = document.getElementById('asset-library-modal');
+        if (modal) modal.classList.add('hidden');
+    }
+
+    function openOutputFolderFromServer() {
+        fetch('/api/system/open-output-folder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ project_id: parseInt(projectId) })
+        }).then(res => res.json()).then(data => {
+            if (data.status === 'error') {
+                Utils.showToast('Failed to open local folder: ' + data.message, 'error');
+            } else {
+                Utils.showToast('Opened project folder on your PC.', 'success');
+            }
+        });
+    }
 
     function copyPrompt(index) {
         const p = prompts[index];
@@ -1938,7 +2168,8 @@
         if (!projectId) return Utils.showToast('프로젝트를 찾을 수 없습니다', 'error');
 
         const p = prompts[index];
-        const engine = p.engine || window.defaultVideoEngine || 'veo';
+        // [FIX] drawPromptsUI와 동일한 엔진 결정 로직 사용 (ui상 보이는 파란 버튼과 실 요청 엔진 일치시키기)
+        const engine = p._engine_overridden ? (p.engine || window.defaultVideoEngine || 'wan') : (window.defaultVideoEngine || 'veo');
 
         if (!p.image_url) return Utils.showToast('먼저 이미지를 생성해주세요', 'warning');
 
@@ -2723,7 +2954,13 @@
                 'ghibli': '지브리\n(Ghibli)',
                 'k_manhwa': 'K만화\n(K-Manhwa)',
                 'minimal': '미니멀\n(Minimal)',
-                'nursery_rhyme': '동요\n(Nursery Rhyme)'
+                'nursery_rhyme': '동요\n(Nursery Rhyme)',
+                // [NEW] Added more presets from DB
+                '2D웹': '2D 웹툰\n(2D Webtoon)',
+                '블랙카툰': '블랙 카툰\n(Black Cartoon)',
+                '사물캐릭터': '사물 캐릭터\n(Object Char)',
+                '역사/동양철/다큐': '동양/철학\n(Philosophical)',
+                '후드티민머리': '후드티 민머리\n(Bald Hoodie)'
             };
 
             grid.innerHTML = Object.entries(presets).map(([key, data]) => {

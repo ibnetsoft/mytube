@@ -894,6 +894,7 @@ class VideoService:
                          rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
                          final_bg = (*rgb, int(opacity * 255))
 
+                    bg_v_offset = int(s_settings.get("bg_v_offset", 0))
                     txt_img_path = self._create_subtitle_image(
                         text=sub["text"],
                         width=target_w,
@@ -904,7 +905,8 @@ class VideoService:
                         stroke_color=s_stroke_color,
                         stroke_width=s_stroke_width,
                         bg_color=final_bg,
-                        line_spacing_ratio=float(s_settings.get("subtitle_line_spacing") or s_settings.get("line_spacing", 0.1))
+                        line_spacing_ratio=float(s_settings.get("subtitle_line_spacing") or s_settings.get("line_spacing", 0.1)),
+                        bg_v_offset=bg_v_offset
                     )
                     
                     if txt_img_path:
@@ -1661,7 +1663,8 @@ class VideoService:
         style_name: str = "Basic_White",
         stroke_color: Optional[str] = None,
         stroke_width: Optional[float] = None,
-        project_id: Optional[int] = None
+        project_id: Optional[int] = None,
+        bg_v_offset: int = 0
     ) -> str:
         """
         영상에 자막 추가 (PIL 사용 - ImageMagick 불필요)
@@ -1695,7 +1698,8 @@ class VideoService:
                     font_name=font,
                     style_name=style_name,
                     stroke_color=stroke_color,
-                    stroke_width=current_stroke_width  # [FIX] Use scaled width
+                    stroke_width=current_stroke_width,  # [FIX] Use scaled width
+                    bg_v_offset=bg_v_offset
                 )
                 
                 if txt_img_path:
@@ -1843,7 +1847,7 @@ class VideoService:
         
         return s_color
 
-    def _create_subtitle_image(self, text, width, font_size, font_color, font_name, style_name="Basic_White", stroke_color=None, stroke_width_ratio=None, stroke_width=None, bg_color=None, line_spacing_ratio=0.1):
+    def _create_subtitle_image(self, text, width, font_size, font_color, font_name, style_name="Basic_White", stroke_color=None, stroke_width_ratio=None, stroke_width=None, bg_color=None, line_spacing_ratio=0.1, bg_v_offset=0):
         from PIL import Image, ImageDraw, ImageFont
         import textwrap
         import platform
@@ -1982,7 +1986,7 @@ class VideoService:
                  pass
 
         # Balanced Wrapping Logic with Manual Newline Support
-        safe_width = int(width * 0.8)
+        safe_width = int(width * 0.9)
 
         # broken_space 조기 감지 - 줄바꿈 계산에도 동일한 공백 폭 적용
         def _check_broken_space(fnt):
@@ -2010,8 +2014,8 @@ class VideoService:
         manual_lines = text.split('\n')
         wrapped_lines = []
         
-        # [MODIFIED] Max lines increased to 3 for better accessibility
-        MAX_LINES = 3
+        # [MODIFIED] Max lines strictly limited to 2 to prevent 3-line subtitles
+        MAX_LINES = 2
         
         for m_line in manual_lines:
             m_line = m_line.strip()
@@ -2027,8 +2031,48 @@ class VideoService:
             if line_width <= safe_width:
                 wrapped_lines.append(m_line)
             else:
-                # [CJK FIX] Character-level wrapping - 일본어/한국어/중국어는 띄어쓰기 없음
-                # 라틴 문자는 마지막 공백 위치에서 줄바꿈, CJK는 글자 단위로 줄바꿈
+                line_width = get_text_width(m_line, font)
+                
+                # [NEW] Strict 2-line wrap logic — prioritize filling the first line to avoid 3rd line
+                if line_width <= safe_width * 2.0:
+                    target_w = line_width * 0.55 # Favor slightly longer top line to keep 2nd line short
+                    best_split_idx = -1
+                    best_score = -9999
+                    
+                    particles = ('은', '는', '이', '가', '을', '를', '도', '에', '서', '의', '와', '과', '면', '고', '며', '니')
+                    punctuations = ('.', ',', '!', '?', '…', ' ')
+
+                    current_w = 0
+                    for i in range(len(m_line)):
+                        char = m_line[i]
+                        char_w = get_text_width(char, font)
+                        current_w += char_w
+                        
+                        # Check candidates for splitting AFTER this char
+                        score = 0
+                        if char in punctuations:
+                            score = 100
+                            if char == ' ': score = 50
+                        elif char in particles:
+                            score = 30
+                        
+                        if score > 0:
+                            # Distance penalty (closer to target_w is better)
+                            dist_penalty = abs(current_w - target_w) / font_size * 5.0
+                            total_score = score - dist_penalty
+                            
+                            # Ensure both lines fit in safe_width
+                            if current_w <= safe_width and (line_width - current_w) <= safe_width:
+                                if total_score > best_score:
+                                    best_score = total_score
+                                    best_split_idx = i + 1
+                    
+                    if best_split_idx != -1:
+                        wrapped_lines.append(m_line[:best_split_idx].strip())
+                        wrapped_lines.append(m_line[best_split_idx:].strip())
+                        continue
+
+                # [Greedy Fallback] For 3+ lines or cases where balanced split failed
                 cur = ""
                 cur_w = 0
                 force_break = False
@@ -2082,8 +2126,8 @@ class VideoService:
         # pad_y는 이미지 캔버스 여백에만 사용 (배경 박스는 별도로 strip_pad_y 사용)
         pad_y = 0  # 세로 캔버스 패딩 제거 - strip_pad_y가 실제 배경 패딩 담당
 
-        # 배경 박스 세로 패딩 = 폰트 크기의 3% (위아래 동일) → CSS 0.03em과 일치
-        strip_pad_y = font_size * 0.03
+        # 배경 박스 세로 패딩 = 폰트 크기의 8% (위아래 동일) → CSS 0.08em과 일치 (5% 더 두껍게)
+        strip_pad_y = font_size * 0.08
 
         # 줄간격 계산 - CSS line-height: 1+ratio 와 일치하도록 font_size 기준
         line_count = len(wrapped_lines)
@@ -2097,6 +2141,20 @@ class VideoService:
         img_w = width
         actual_h = max(text_h, total_text_h)
         img_h = int(actual_h + strip_pad_y * 2 + final_stroke_width * 2 + descent + 8)
+
+        # [NEW] Vertical Centering Correction (Visual Midpoint Sync)
+        # Some fonts (NanumMyeongjo, GmarketSans) have asymmetric internal offsets in textbbox.
+        # We use a reference string 'H가' to find the actual visual center of the font.
+        ref_text = "H가"
+        ref_bbox = dummy_draw.textbbox((0, 0), ref_text, font=font)
+        ref_mask = font.getmask(ref_text)
+        ref_ink = ref_mask.getbbox()
+        v_offset = 0
+        if ref_ink:
+            text_center = (ref_bbox[1] + ref_bbox[3]) / 2
+            ink_center = (ref_ink[1] + ref_ink[3]) / 2
+            v_offset = ink_center - text_center
+            # print(f"DEBUG_RENDER: Vertical Offset applied: {v_offset:.2f}px (Font={font_name})")
 
         img = Image.new('RGBA', (img_w, img_h), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
@@ -2175,12 +2233,12 @@ class VideoService:
                     else:
                         _bg = (0, 0, 0, 178)
 
-                # 배경 박스: l_bbox 기준으로 실제 텍스트 위치에 맞춤 (위아래 3% 패딩)
-                # l_bbox[1]: 텍스트 상단 오프셋, l_bbox[3]: 텍스트 하단 오프셋
+                # 배경 박스: l_bbox 기준으로 실제 텍스트 위치에 맞춤 (위아래 8% 패딩)
+                # [FIX] Apply v_offset (dynamic) + bg_v_offset (manual micro-adj)
                 bx0 = line_x - pad_x
                 bx1 = line_x + lw + pad_x
-                by0 = current_y + l_bbox[1] - strip_pad_y
-                by1 = current_y + l_bbox[3] + strip_pad_y
+                by0 = current_y + l_bbox[1] + v_offset + bg_v_offset - strip_pad_y
+                by1 = current_y + l_bbox[3] + v_offset + bg_v_offset + strip_pad_y
 
                 try:
                     # [FIX] Match CSS preview border-radius: 0.2em
@@ -2201,7 +2259,7 @@ class VideoService:
         
         return output_path
 
-    def create_preview_image(self, background_path, text, font_size, font_color, font_name, style_name="Basic_White", stroke_color=None, stroke_width=None, position_y=None, target_size=(1280, 720)):
+    def create_preview_image(self, background_path, text, font_size, font_color, font_name, style_name="Basic_White", stroke_color=None, stroke_width=None, position_y=None, target_size=(1280, 720), bg_v_offset=0):
         """
         자막 확인용 미리보기 이미지 생성 (배경 + 자막 합성)
         """
@@ -2246,7 +2304,8 @@ class VideoService:
                 style_name=style_name,
                 stroke_color=stroke_color,
                 stroke_width=stroke_width,
-                bg_color=False # [FIX] Explicitly disable bg strip for preview by default
+                bg_color=False, # [FIX] Explicitly disable bg strip for preview by default
+                bg_v_offset=bg_v_offset
             )
             
             if sub_img_path and os.path.exists(sub_img_path):

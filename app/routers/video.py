@@ -50,6 +50,7 @@ class SubtitlePreviewRequest(BaseModel):
     width: int = 1920
     height: int = 1080
     line_spacing_ratio: float = 0.1
+    bg_v_offset: int = 0
 
 
 # ===========================================
@@ -126,7 +127,8 @@ async def generate_subtitle_preview(request: SubtitlePreviewRequest):
             stroke_color=request.stroke_color,
             stroke_width=request.stroke_width,
             bg_color=bg_color_arg,
-            line_spacing_ratio=request.line_spacing_ratio
+            line_spacing_ratio=request.line_spacing_ratio,
+            bg_v_offset=request.bg_v_offset
         )
         
         if not img_path or not os.path.exists(img_path):
@@ -160,6 +162,44 @@ async def generate_subtitle_preview(request: SubtitlePreviewRequest):
             status_code=500,
             content={"status": "error", "error": str(e), "v": "v4_fix"}
         )
+
+# ===========================================
+# API: 자막 프리셋 (Subtitle Presets)
+# ===========================================
+
+class SubtitlePresetSave(BaseModel):
+    name: str
+    settings: dict
+
+@router.get("/subtitle/presets")
+async def get_subtitle_presets():
+    """저장된 자막 프리셋 목록 조회"""
+    try:
+        presets = db.get_subtitle_style_presets()
+        return {"status": "ok", "presets": presets}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+@router.post("/subtitle/presets")
+async def save_subtitle_preset(req: SubtitlePresetSave):
+    """자막 프리셋 저장"""
+    try:
+        if not req.name:
+            return {"status": "error", "error": "프리셋 이름을 입력하세요."}
+        
+        db.save_subtitle_style_preset(req.name, json.dumps(req.settings, ensure_ascii=False))
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+@router.delete("/subtitle/presets/{name}")
+async def delete_subtitle_preset(name: str):
+    """자막 프리셋 삭제"""
+    try:
+        db.delete_subtitle_style_preset(name)
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
 
 @router.get("/subtitle/{project_id}")
 async def get_subtitles(project_id: int):

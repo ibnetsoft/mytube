@@ -527,59 +527,14 @@ class GeminiService:
         prompt: str,
         image_path: Optional[str] = None,
         duration_seconds: int = 6, 
-        aspect_ratio: str = "16:9"
-    ) -> Optional[bytes]:
-        """영상 생성 (Veo) - Text-to-Video or Image-to-Video"""
-        model_name = "veo-3.0-fast-generate-001"
-        url = f"{self.base_url}/models/{model_name}:predict?key={self.api_key}"
-        
-        # 기본 프롬프트 보강
-        enhanced_prompt = f"{prompt}, cinematic movement, 4k, fluid motion"
-
-        instance_data = {"prompt": enhanced_prompt}
-
-        # 이미지 입력이 있는 경우 (Image-to-Video)
-        if image_path and os.path.exists(image_path):
-            try:
-                with open(image_path, "rb") as f:
-                    img_bytes = f.read()
-                    encoded_img = base64.b64encode(img_bytes).decode("utf-8")
-                    instance_data["image"] = {"bytesBase64Encoded": encoded_img}
-            except Exception as e:
-                print(f"Image read error: {e}")
-
-        payload = {
-            "instances": [instance_data],
-            "parameters": {
-                "sampleCount": 1,
-                "aspectRatio": aspect_ratio  # [NEW] Pass Aspect Ratio
-            }
-        }
-
-        async with httpx.AsyncClient(timeout=300.0) as client:
-            try:
-                response = await client.post(url, json=payload)
-                
-                if response.status_code != 200:
-                    print(f"Video Gen Error ({response.status_code}): {response.text}")
-                    return None
-                    
-                result = response.json()
-
-                if "predictions" in result:
-                    pred = result["predictions"][0]
-                    # 응답 포맷 체크
-                    if "video" in pred and "bytesBase64Encoded" in pred["video"]:
-                         return base64.b64decode(pred["video"]["bytesBase64Encoded"])
-                    if "bytesBase64Encoded" in pred:
-                        return base64.b64decode(pred["bytesBase64Encoded"])
-                        
-                print(f"Video Gen Unexpected Response: {result}")
-                return None
-                
-            except Exception as e:
-                print(f"Video Gen Exception: {e}")
-                return None
+        aspect_ratio: str = "16:9",
+        model: str = "veo-3.1-generate-preview",
+        **kwargs
+    ) -> dict:
+        """영상 생성 (Veo) - 최신 SDK 방식 사용"""
+        # [NEW] generate_video_preview의 로직으로 대체하여 딕셔너리 반환
+        # (기존 httpx 방식은 권한/모델명 불일치 에러 잦음)
+        return await self.generate_video_preview(prompt=prompt, model=model)
 
     async def analyze_comments(self, comments: List[str], video_title: str, transcript: Optional[str] = None) -> dict:
         """댓글 및 대본 분석"""
@@ -808,6 +763,19 @@ class GeminiService:
         except Exception as e:
             print(f"Nursery Image Prompts Gen Error: {e}")
         return []
+
+    async def generate_random_cooking_plan(self, count: int) -> dict:
+        """랜덤 요리 조리 단계 및 영상 프롬프트 생성"""
+        prompt = prompts.GEMINI_RANDOM_COOKING_PLAN.format(count=count)
+        
+        try:
+            text = await self.generate_text(prompt, temperature=0.9) # Higher temperature for randomness
+            json_match = re.search(r'\{[\s\S]*\}', text)
+            if json_match:
+                return json.loads(json_match.group())
+        except Exception as e:
+            print(f"Cooking Plan Gen Error: {e}")
+        return {}
 
     async def generate_title_recommendations(self, keyword: str, topic: str = "", language: str = "ko") -> List[str]:
         """추천 제목 5개 생성"""
@@ -1707,191 +1675,130 @@ Motion prompt for this image:"""
         except Exception:
             return "nature calm loop" # Fallback
 
-    async def generate_video(self, prompt: str, model: str = "veo-3.1-generate-preview") -> dict:
-        """
-        Gemini Veo (veo-3.1-generate-preview)를 사용한 비디오 생성
-        """
+    async def generate_video_preview(self, prompt: str, model: str = "veo-3.1-generate-preview") -> dict:
+        """Gemini Veo를 사용한 비디오 생성 (동기 SDK를 스레드에서 실행)"""
         if not self.api_key:
-             return {"status": "error", "error": "API Key is missing"}
-        
-        try:
-             # 임시 동기 호출 (비동기 래퍼 필요 시 수정)
-             # google.genai.Client 사용
-             from google import genai
-             client = genai.Client(api_key=self.api_key)
-             
-             print(f"DEBUG: Starting Veo generation for prompt: {prompt}")
-             # 1. Generate Video
-             # https://ai.google.dev/gemini-api/docs/video
-             operation = client.models.generate_videos(
-                 model=model,
-                 prompt=prompt,
-                 config={
-                    'number_of_videos': 1,
-                    # 'fps': 24, 
-                    # 'duration_seconds': 5 # Preview is usually short
-                 }
-             )
-             
-             
-             # Handle operation - it might be a string (operation name) or an object
-             print(f"DEBUG: Operation type: {type(operation)}")
-             
-             # If operation is a string, we need to poll differently
-             if isinstance(operation, str):
-                 op_name = operation
-                 print(f"DEBUG: Operation is a string (name): {op_name}")
-                 
-                 # Manual polling using the operation name
-                 import time
-                 max_attempts = 60  # 5 minutes
-                 attempts = 0
-                 
-                 while attempts < max_attempts:
-                     print(f"Polling operation status... (attempt {attempts + 1}/{max_attempts})")
-                     time.sleep(5)
-                     attempts += 1
-                     
-                     try:
-                         # Try to get operation status
-                         # The SDK might have a different method to check status
-                         op_status = client.operations.get(op_name)
-                         
-                         # Check if it's done
-                         if hasattr(op_status, 'done') and op_status.done:
-                             operation = op_status
-                             break
-                         elif isinstance(op_status, dict) and op_status.get('done'):
-                             operation = op_status
-                             break
-                     except Exception as e:
-                         print(f"Polling error: {e}")
-                         # If we can't poll, just wait and hope for the best
-                         if attempts >= 30:  # After 2.5 minutes, try to get result anyway
-                             try:
-                                 operation = client.operations.get(op_name)
-                                 break
-                             except Exception:
-                                 pass
-                 
-                 if attempts >= max_attempts:
-                     return {"status": "error", "error": "Video generation timed out"}
-             
-             # If operation is an object, use wait() or poll
-             elif hasattr(operation, 'wait'):
-                 print("DEBUG: Using operation.wait() method")
-                 try:
-                     operation = operation.wait(timeout=300)
-                 except Exception as e:
-                     print(f"Wait error: {e}")
-                     return {"status": "error", "error": f"Wait failed: {str(e)}"}
-             
-             # Try using result() method (blocks until complete)
-             elif hasattr(operation, 'result'):
-                 print("DEBUG: Using operation.result property (checking if complete)")
-                 try:
-                     # First check if it's a method or property
-                     if callable(operation.result):
-                         print("DEBUG: result is callable (method)")
-                         result_obj = operation.result(timeout=300)
-                     else:
-                         print("DEBUG: result is a property")
-                         # For properties, we need to poll manually
-                         import time
-                         max_wait = 300  # 5 minutes
-                         start_time = time.time()
-                         
-                         while time.time() - start_time < max_wait:
-                             # Try to refresh operation status
-                             if hasattr(operation, 'name'):
-                                 try:
-                                     fresh_op = client.operations.get(operation.name)
-                                     operation = fresh_op
-                                 except Exception:
-                                     pass
-                             
-                             # Check if done
-                             if hasattr(operation, 'done'):
-                                 if callable(operation.done):
-                                     is_done = operation.done()
-                                 else:
-                                     is_done = operation.done
-                                 
-                                 if is_done:
-                                     print("DEBUG: Operation completed!")
-                                     break
-                             
-                             print(f"Waiting for completion... ({int(time.time() - start_time)}s elapsed)")
-                             time.sleep(5)
-                         
-                         if time.time() - start_time >= max_wait:
-                             return {"status": "error", "error": "Timeout waiting for video generation"}
-                         
-                         result_obj = operation.result
-                     
-                     print(f"DEBUG: Got result: {type(result_obj)}")
-                 except Exception as e:
-                     print(f"Result error: {e}")
-                     import traceback
-                     traceback.print_exc()
-                     return {"status": "error", "error": f"Result failed: {str(e)}"}
-             
-             
-             # Otherwise, try manual polling on the object
-             else:
-                 print("DEBUG: Manual polling on operation object")
-                 import time
-                 max_attempts = 60
-                 attempts = 0
-                 
-                 while attempts < max_attempts:
-                     if hasattr(operation, 'done') and operation.done:
-                         break
-                     
-                     print(f"Waiting... (attempt {attempts + 1}/{max_attempts})")
-                     time.sleep(5)
-                     attempts += 1
-                 
-                 if attempts >= max_attempts:
-                     return {"status": "error", "error": "Timeout"}
-                  
-             if operation.error:
-                 print(f"Veo Error: {operation.error}")
-                 return {"status": "error", "error": str(operation.error)}
-                 
-             # 3. Get Result
-             # operation.result is likely a property, not a method
-             result = operation.result 
-             
-             if not result:
-                  return {"status": "error", "error": "No result returned"}
-                  
-             # Inspect structure based on new SDK
-             if hasattr(result, 'generated_videos'):
-                 generated_video = result.generated_videos[0]
-                 video_url = generated_video.video.uri
-             else:
-                 # Fallback/Debug
-                 print(f"DEBUG: Result structure: {result}")
-                 video_url = getattr(result, 'uri', None)
-             
-             if not video_url:
-                 return {"status": "error", "error": "Video URI not found in result"}
-             
-             return {
-                 "status": "ok", 
-                 "video_url": video_url,
-                 "metadata": {
-                     "model": model,
-                     "prompt": prompt
-                 }
-             }
+            return {"status": "error", "error": "API Key is missing"}
 
-        except Exception as e:
-            print(f"Veo Generation Failed: {e}")
-            import traceback
-            traceback.print_exc()
-            return {"status": "error", "error": str(e)}
+        import asyncio
+        api_key = self.api_key
+
+        def _run_sync():
+            import time
+            try:
+                from google import genai
+                client = genai.Client(api_key=api_key)
+
+                print(f"🎬 [Veo] Starting generation, model={model}, prompt={prompt[:80]}...")
+                operation = client.models.generate_videos(
+                    model=model,
+                    prompt=prompt,
+                    config={'number_of_videos': 1}
+                )
+                print(f"🎬 [Veo] Operation started: {type(operation).__name__}")
+
+                # 폴링: client.operations.get(operation 객체) 로 갱신
+                max_wait = 300
+                start = time.time()
+                while not operation.done:
+                    elapsed = int(time.time() - start)
+                    if elapsed >= max_wait:
+                        return {"status": "error", "error": "Veo 영상 생성 시간 초과 (5분)"}
+                    print(f"⏳ [Veo] Waiting... {elapsed}s")
+                    time.sleep(20)
+                    operation = client.operations.get(operation)
+
+                print(f"🎬 [Veo] Operation done: {type(operation).__name__}")
+
+                # 에러 확인
+                op_error = getattr(operation, 'error', None)
+                if op_error:
+                    return {"status": "error", "error": str(op_error)}
+
+                # 결과 탐색: response → result → operation 자체 순서로 generated_videos 찾기
+                def _find_video_uri(obj):
+                    if obj is None:
+                        return None
+                    
+                    def _get_val(o, key, default=None):
+                        if isinstance(o, dict): return o.get(key, default)
+                        return getattr(o, key, default)
+
+                    # 1. generated_videos (Vertex/Gemini AI 표준)
+                    gv = _get_val(obj, 'generated_videos')
+                    if gv and len(gv) > 0:
+                        try:
+                            # gv[0].video.uri or gv[0].uri
+                            first = gv[0]
+                            v_obj = _get_val(first, 'video')
+                            if v_obj:
+                                u = _get_val(v_obj, 'uri')
+                                if u: return u
+                            u = _get_val(first, 'uri')
+                            if u: return u
+                        except Exception: pass
+
+                    # 2. videos (Legacy/Other)
+                    vs = _get_val(obj, 'videos')
+                    if vs and len(vs) > 0:
+                        try:
+                            first = vs[0]
+                            u = _get_val(first, 'uri')
+                            if u: return u
+                            v_obj = _get_val(first, 'video')
+                            if v_obj:
+                                u = _get_val(v_obj, 'uri')
+                                if u: return u
+                        except Exception: pass
+                    
+                    # 3. Direct uri attribute
+                    u = _get_val(obj, 'uri')
+                    if u: return u
+                    
+                    return None
+
+                # Try to find URI in various places
+                uri = None
+                candidates = [
+                    ("response", getattr(operation, 'response', None)),
+                    ("result", getattr(operation, 'result', None)),
+                    ("operation", operation)
+                ]
+                
+                for name, cand in candidates:
+                    uri = _find_video_uri(cand)
+                    if uri:
+                        print(f"✅ [Veo] Video URI found in {name}: {uri}")
+                        return {"status": "ok", "video_url": uri}
+
+                # 마지막 디버그 덤프 (실패 시 원인 파악을 위해 상세 출력)
+                print(f"🎬 [Veo] URI Not Found. op_type={type(operation).__name__}")
+                try:
+                    # 상세 객체 정보 로깅 (pydantic 모델이면 to_dict 사용 시도)
+                    if hasattr(operation, 'to_dict'):
+                        import json
+                        op_dump = json.dumps(operation.to_dict(), indent=2, default=str)
+                    else:
+                        op_dump = str(operation)
+                except: op_dump = "Could not dump operation"
+                
+                print(f"🎬 [Veo] Full Operation Info: {op_dump[:2000]}")
+                
+                # 안전 필터 확인 (힌트 제공)
+                safety_msg = ""
+                res = getattr(operation, 'response', getattr(operation, 'result', None))
+                if res:
+                    sr = _get_val(res, 'safety_ratings')
+                    if sr: safety_msg = f" (Safety Ratings: {sr})"
+                
+                return {"status": "error", "error": f"Video URI를 찾을 수 없음{safety_msg} (모든 결과 영역 탐색 실패)"}
+
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                return {"status": "error", "error": str(e)}
+
+        return await asyncio.to_thread(_run_sync)
 
     async def match_images_to_subtitles(self, subtitles: List[dict], image_data: List[dict]) -> dict:
         """

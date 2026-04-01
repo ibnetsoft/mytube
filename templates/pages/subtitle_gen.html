@@ -174,89 +174,117 @@
         <!-- 1. Top Control Bar (Style & Actions) -->
         <div class="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 shrink-0 flex-wrap">
 
+        <!-- Presets Section -->
+        <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3">
+            <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">프리셋</span>
+            <div class="flex items-center gap-1">
+                <select id="subtitlePresetSelect" onchange="applySubtitlePreset(this.value)"
+                    class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-28 focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer">
+                    <option value="">-- 선택 --</option>
+                </select>
+                <button onclick="deleteCurrentSubtitlePreset()"
+                    class="p-1 text-gray-400 hover:text-red-500 transition-colors" title="프리셋 삭제">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </button>
+            </div>
+            <div class="flex items-center gap-1 ml-1 border-l border-gray-200 dark:border-gray-600 pl-2">
+                <input type="text" id="newPresetName" placeholder="새 프리셋명"
+                    class="text-[11px] bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded px-1.5 py-1 w-20 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                <button onclick="saveCurrentAsPreset()"
+                    class="text-[11px] bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded transition-colors whitespace-nowrap font-bold">
+                    저장
+                </button>
+            </div>
+        </div>
+
         <!-- Font Settings -->
         <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3">
-            <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_font') }}</span>
+            <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">서체</span>
             <select id="fontFamilySelect"
                 class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-28 focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer">
-                <option value="GmarketSansBold" selected>{{ t('font_gmarket_sans') }}</option>
-                <option value="TmonMonsori">{{ t('font_tmon_monsori') }}</option>
-                <option value="Jalnan">{{ t('font_jalnan') }}</option>
-                <option value="Black Han Sans">{{ t('font_black_han_sans') }}</option>
-                <option value="Pretendard-Bold">{{ t('font_pretendard') }}</option>
-                <option value="NanumSquareExtraBold">{{ t('font_nanum_square') }}</option>
-                <option value="Jua">{{ t('font_baemin_jua') }}</option>
-                <option value="Do Hyeon">{{ t('font_baemin_dohyeon') }}</option>
-                <option value="CookieRun-Regular">{{ t('font_cookierun') }}</option>
-                <option value="BinggraeMelona-Bold">{{ t('font_binggrae') }}</option>
-                <option value="NetmarbleB">{{ t('font_netmarble') }}</option>
-                <option value="ChosunIlboMyungjo">{{ t('font_chosun_ilbo_myungjo') }}</option>
-                <option value="MapoFlowerIsland">{{ t('font_mapo_flower_island') }}</option>
-                <option value="S-CoreDream-6Bold">{{ t('font_score_dream') }}</option>
-                <option value="Gungsuh">{{ t('font_gungsuh') }}</option>
-                <option value="NanumMyeongjo">{{ t('font_nanum_myeongjo') }}</option>
-                <option value="Malgun Gothic">{{ t('font_malgun_gothic') }}</option>
+                <option value="GmarketSansBold" selected>G마켓 산스</option>
+                <option value="TmonMonsori">티몬 몬소리</option>
+                <option value="Jalnan">여기어때 잘난</option>
+                <option value="Black Han Sans">검은고딕</option>
+                <option value="Pretendard-Bold">프리텐다드</option>
+                <option value="NanumSquareExtraBold">나눔스퀘어</option>
+                <option value="Jua">배민 주아</option>
+                <option value="Do Hyeon">배민 도현</option>
+                <option value="CookieRun-Regular">쿠키런</option>
+                <option value="BinggraeMelona-Bold">빙그레</option>
+                <option value="NetmarbleB">넷마블</option>
+                <option value="ChosunIlboMyungjo">조선일보 명조</option>
+                <option value="MapoFlowerIsland">마포 꽃섬</option>
+                <option value="S-CoreDream-6Bold">에스코어 드림</option>
+                <option value="Gungsuh">궁서체</option>
+                <option value="NanumMyeongjo">나눔명조</option>
+                <option value="Malgun Gothic">맑은 고딕</option>
             </select>
             <!-- 폰트 크기 -->
             <div class="flex items-center gap-1">
-                <span class="text-[11px] text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_font_size') }}</span>
+                <span class="text-[11px] text-gray-500 dark:text-gray-400 whitespace-nowrap">크기</span>
                 <input type="number" id="fontSizeSlider" value="5.4" min="1" max="20" step="0.1"
                     class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-14 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                    title="{{ t('label_font_size') }} (%)">
+                    title="크기 (%)">
                 <span class="text-[11px] text-gray-400">%</span>
                 <span id="fontSizeValue" class="hidden">5.4%</span>
             </div>
 
             <!-- 줄간격 -->
             <div class="flex items-center gap-1">
-                <span class="text-[11px] text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_line_spacing') }}</span>
+                <span class="text-[11px] text-gray-500 dark:text-gray-400 whitespace-nowrap">줄간격</span>
                 <input type="number" id="lineSpacingInput" value="0.1" min="-0.5" max="1.5" step="0.05"
                     class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-14 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                    title="{{ t('label_line_spacing_ratio') }}">
+                    title="비율">
             </div>
         </div>
 
         <!-- Color Settings -->
         <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3">
-            <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400">{{ t('label_color') }}</span>
             <div class="flex flex-col items-center gap-0.5">
                 <input type="color" id="textColorInput" value="#ffffff"
-                    class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer" title="{{ t('label_text_color') }}">
-                <span class="text-[9px] text-gray-400">{{ t('label_text_color') }}</span>
+                    class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer" title="글자색">
+                <span class="text-[9px] text-gray-400">글자색</span>
             </div>
             <div class="flex flex-col items-center gap-0.5">
                 <input type="color" id="strokeColorInput" value="#000000"
-                    class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer" title="{{ t('label_outline_color') }}">
-                <span class="text-[9px] text-gray-400">{{ t('label_outline_color') }}</span>
+                    class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer" title="테두리색">
+                <span class="text-[9px] text-gray-400">테두리색</span>
             </div>
         </div>
 
         <!-- Stroke Width -->
         <div class="flex items-center gap-1.5 border-r border-gray-200 dark:border-gray-600 pr-3">
-            <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_outline_width') }}</span>
+            <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">테두리두께</span>
             <input type="number" id="strokeWidthInput" value="0" min="0" max="15" step="0.5"
                 class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-12 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                title="{{ t('label_outline_width') }} (px)">
+                title="테두리두께 (px)">
             <span class="text-[11px] text-gray-400">px</span>
         </div>
 
         <!-- Background Strip Settings -->
         <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3">
-            <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_bg_strip') }}</span>
+            <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">배경띠</span>
             <label class="relative inline-flex items-center cursor-pointer">
                 <input type="checkbox" id="bgStripToggle" class="sr-only peer" onchange="updateBgStrip(this)">
                 <div class="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
             </label>
             <div class="flex flex-col items-center gap-0.5">
                 <input type="color" id="bgColorInput" value="#000000"
-                    class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer" title="{{ t('label_bg_color') }}">
-                <span class="text-[9px] text-gray-400">{{ t('label_bg_color') }}</span>
+                    class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer" title="배경색">
+                <span class="text-[9px] text-gray-400">배경색</span>
             </div>
             <div class="flex items-center gap-1">
-                <span class="text-[11px] text-gray-500 dark:text-gray-400">{{ t('label_opacity') }}</span>
+                <span class="text-[11px] text-gray-500 dark:text-gray-400">투명도</span>
                 <input type="number" id="bgOpacityInput" value="0.5" min="0" max="1" step="0.1"
                     class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-12 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                    title="{{ t('label_bg_opacity') }} (0~1)">
+                    title="투명도 (0~1)">
+            </div>
+            <div class="flex items-center gap-1 bg-gray-50 dark:bg-gray-800 px-1 rounded-md border border-gray-200 dark:border-gray-700">
+                <span class="text-[10px] text-gray-400" title="배경띠 위아래 미세 위치 조정">↕</span>
+                <input type="number" id="bgVOffsetInput" value="0" step="1"
+                    class="text-[11px] text-gray-800 dark:text-gray-100 bg-transparent border-0 p-0 w-8 text-center focus:ring-0"
+                    title="배경띠 미세 위치 (px)">
             </div>
         </div>
 
@@ -264,52 +292,48 @@
         <div class="flex items-center gap-1 border-r border-gray-200 dark:border-gray-600 pr-3">
             <button onclick="applyPreset('basic_white')"
                 class="w-6 h-6 bg-white border-2 border-gray-300 rounded-md text-[11px] font-bold text-gray-800 flex items-center justify-center shadow-sm hover:border-gray-400 transition-colors"
-                title="{{ t('label_white') }}">A</button>
+                title="흰색">A</button>
             <button onclick="applyPreset('basic_black')"
                 class="w-6 h-6 bg-gray-900 border-2 border-gray-600 rounded-md text-[11px] font-bold text-white flex items-center justify-center shadow-sm hover:border-gray-400 transition-colors"
-                title="{{ t('label_black') }}">A</button>
+                title="검정">A</button>
             <button onclick="applyPreset('yellow_shadow')"
                 class="w-6 h-6 bg-yellow-400 border-2 border-yellow-500 rounded-md text-[11px] font-bold text-gray-900 flex items-center justify-center shadow-sm hover:border-yellow-600 transition-colors"
-                title="{{ t('label_yellow') }}">A</button>
+                title="노랑">A</button>
         </div>
 
         <div class="flex-1"></div>
 
         <!-- Actions — 모두 동일한 베이스 스타일 -->
-        <div class="flex items-center gap-1.5">
+        <div class="flex items-center gap-1.5 text-xs font-bold CustomScroll flex-nowrap overflow-x-auto overflow-y-hidden py-1">
             <button onclick="resetAndReload(this)"
-                class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-gray-500 hover:bg-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 text-white disabled:opacity-50">
-                🔄 {{ t('btn_reset_reload') }}
+                class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-gray-500 hover:bg-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 text-white disabled:opacity-50 flex-shrink-0" title="데이터가 꼬였을 때 현재 프로젝트 정보를 서버에서 다시 가져옵니다.">
+                초기화
             </button>
             <button onclick="distributeImages(this)"
-                class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-blue-500 hover:bg-blue-600 text-white shadow-sm shadow-blue-500/30 disabled:opacity-50">
-                🎯 {{ t('btn_ai_sync') }}
+                class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-blue-500 hover:bg-blue-600 text-white shadow-sm shadow-blue-500/30 disabled:opacity-50 flex-shrink-0">
+                AI 이미지 싱크
             </button>
             <button onclick="splitAllSubtitles(this)"
-                class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-slate-500 hover:bg-slate-600 text-white disabled:opacity-50">
-                ✂️ {{ t('btn_split_2lines') }}
+                class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-slate-500 hover:bg-slate-600 text-white disabled:opacity-50 flex-shrink-0">
+                자막 2줄 분할
             </button>
             <button onclick="regenerateSubtitles(this)"
-                class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-indigo-500 hover:bg-indigo-600 text-white disabled:opacity-50">
-                ✨ {{ t('btn_regen_all') }}
-            </button>
-            <button onclick="saveStyleSettings(this)"
-                class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-600/30 disabled:opacity-50">
-                ⚙️ {{ t('btn_save_setting') }}
+                class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-indigo-500 hover:bg-indigo-600 text-white disabled:opacity-50 flex-shrink-0">
+                전체 AI 재생성
             </button>
             <button id="saveBtn" onclick="saveSubtitles(this)"
-                class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white shadow-sm shadow-green-600/30 disabled:opacity-50"
+                class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white shadow-sm shadow-green-600/30 disabled:opacity-50 flex-shrink-0"
                 title="{{ t('tooltip_save_sync') }}">
-                💾 {{ t('btn_save') }}
+                저장
             </button>
             <button id="renderBtn" onclick="renderVideoInPlace()"
-                class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-purple-600 hover:bg-purple-700 text-white shadow-sm shadow-purple-600/30 animate-pulse-slow disabled:opacity-50">
-                🎬 {{ t('btn_render_video') }}
+                class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-purple-600 hover:bg-purple-700 text-white shadow-sm shadow-purple-600/30 animate-pulse-slow disabled:opacity-50 flex-shrink-0">
+                영상 렌더링
             </button>
             <button id="renderQueueBtn" onclick="addToRenderQueue()"
-                class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-gray-600 hover:bg-gray-700 text-white shadow-sm disabled:opacity-50"
+                class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-gray-600 hover:bg-gray-700 text-white shadow-sm disabled:opacity-50 flex-shrink-0"
                 title="저장 후 렌더링 대기열에 추가합니다. 렌더 페이지에서 일괄 처리됩니다.">
-                ⏳ 렌더링 대기
+                렌더링 대기
             </button>
         </div>
     </div>
@@ -320,16 +344,16 @@
             <div
                 class="p-2 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600 flex justify-between items-center shrink-0">
                     <h3 class="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                        {{ t('subtitle_list_title') }}
+                        자막 리스트
                         <span id="debug-info" class="text-[10px] text-red-500 font-mono hidden"></span>
                     </h3>
                     <div class="flex gap-1 items-center">
                         <button onclick="addSubtitleRow()"
-                            class="text-[10px] bg-gray-100 text-gray-600 px-2 py-1 rounded hover:bg-gray-200 border border-gray-300 dark:text-gray-300 dark:border-gray-700">
-                            {{ t('btn_add') }}</button>
+                            class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-gray-500 hover:bg-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 text-white disabled:opacity-50 flex-shrink-0">
+                            + 추가</button>
                         <button id="btnSelectMode" onclick="toggleSelectMode()"
-                            class="text-[10px] bg-red-50 text-red-500 px-2 py-1 rounded hover:bg-red-100 border border-red-200">
-                            {{ t('btn_select_delete') }}
+                            class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-gray-500 hover:bg-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 text-white disabled:opacity-50 flex-shrink-0">
+                            선택삭제
                         </button>
                     </div>
             </div>
@@ -337,12 +361,12 @@
             <!-- 선택삭제 액션바 (선택 모드에서만 표시) -->
             <div id="deleteActionBar"
                 class="hidden items-center justify-between px-3 py-1.5 bg-red-50 dark:bg-red-900/30 border-b border-red-200 dark:border-red-700 shrink-0">
-                <span id="deleteActionCount" class="text-[11px] text-red-600 dark:text-red-400 font-medium">0{{ t('items_selected') }}</span>
+                <span id="deleteActionCount" class="text-[11px] text-red-600 dark:text-red-400 font-medium">0개 선택됨</span>
                 <div class="flex gap-2">
                     <button onclick="selectAllRows()"
-                        class="text-[10px] bg-white text-gray-600 px-2 py-1 rounded border border-gray-300 hover:bg-gray-50">{{ t('btn_select_all') }}</button>
+                        class="text-[10px] bg-white text-gray-600 px-2 py-1 rounded border border-gray-300 hover:bg-gray-50">전체선택</button>
                     <button onclick="deleteSelectedRows()"
-                        class="text-[10px] bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 font-bold">{{ t('btn_delete_selected') }}</button>
+                        class="text-[10px] bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 font-bold">선택 삭제</button>
                 </div>
             </div>
 
@@ -375,7 +399,7 @@
                         
                         <!-- Background Image/Video -->
                         <div id="previewContainer" class="absolute inset-0 flex items-start justify-center bg-gray-900 overflow-hidden"> <!-- Added overflow-hidden here -->
-                            <p class="text-gray-600 text-xs dark:text-gray-300">{{ t('preview_helper') }}</p>
+                            <p class="text-gray-600 text-xs dark:text-gray-300">자막 편집 시 이곳에 미리보기가 표시됩니다.</p>
                         </div>
 
                         <!-- Overlay Text (CSS Fallback) -->
@@ -384,17 +408,17 @@
                             <div id="previewTextMain"
                                 class="absolute transform -translate-x-1/2 pointer-events-auto cursor-move select-none whitespace-pre-wrap text-center hover:border-blue-500 hover:bg-white/5 rounded-sm transition-colors dark:bg-gray-800 border-[1.5px] border-transparent group"
                                 style="left: 50%; top: 80%; bottom: auto; width: auto; max-width: 90%; font-weight: bold; color: white; display: inline-block; box-decoration-break: clone; -webkit-box-decoration-break: clone; line-height: 1.4;">
-                                {{ t('subtitle_preview_label') }}
+                                자막 미리보기
                             </div>
                             <!-- 백엔드 렌더링 이미지 기반 미리보기 (정확한 결과) -->
                             <img id="previewSubtitleImage"
                                 class="absolute left-1/2 transform -translate-x-1/2 pointer-events-none max-w-[95%]"
-                                style="bottom: 10%; display: none;" alt="{{ t('subtitle_preview_label') }}">
+                                style="bottom: 10%; display: none;" alt="자막 미리보기">
                             <!-- 로딩 표시 -->
                             <div id="previewSubtitleLoading"
                                 class="absolute left-1/2 transform -translate-x-1/2 text-white/50 text-sm hidden"
                                 style="bottom: 15%;">
-                                🔄 {{ t('status_rendering') }}
+                                🔄 렌더링중
                             </div>
                         </div>
 
@@ -442,8 +466,8 @@
             <!-- View Mode Switch Tabs -->
             <div class="w-full max-w-2xl flex-1 flex flex-col min-h-0">
                 <div class="flex gap-2 border-b border-gray-200 dark:border-gray-700 mx-1 mb-2 shrink-0">
-                    <button onclick="switchEditTab('subtitle')" id="tabBtn-subtitle" class="px-4 py-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 transition-colors">{{ t('tab_subtitle_edit') }}</button>
-                    <button onclick="switchEditTab('bgm')" id="tabBtn-bgm" class="px-4 py-1.5 text-xs font-bold text-gray-500 dark:text-gray-400 border-b-2 border-transparent hover:text-gray-700 dark:hover:text-gray-200 transition-colors">{{ t('tab_bgm_sfx') }}</button>
+                    <button onclick="switchEditTab('subtitle')" id="tabBtn-subtitle" class="px-4 py-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 transition-colors">자막 편집</button>
+                    <button onclick="switchEditTab('bgm')" id="tabBtn-bgm" class="px-4 py-1.5 text-xs font-bold text-gray-500 dark:text-gray-400 border-b-2 border-transparent hover:text-gray-700 dark:hover:text-gray-200 transition-colors">🎵 BGM/SFX 설정</button>
                 </div>
 
                 <!-- Edit Area (Tab 1: Subtitle) -->
@@ -451,7 +475,7 @@
                     class="w-full flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm flex flex-col min-h-0">
                     <div class="flex flex-col mb-2">
                         <div class="flex justify-between items-center mb-1">
-                            <h3 class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('edit_selected_subtitle_title') }}</h3>
+                            <h3 class="text-xs font-bold text-gray-700 dark:text-gray-300">현재 선택된 자막 편집</h3>
                             <div class="flex gap-1">
                                 <button onclick="adjustTime(-0.1)"
                                     class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded border border-gray-300 dark:border-gray-600 text-[10px] font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">-0.1s</button>
@@ -459,12 +483,12 @@
                                     class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded border border-gray-300 dark:border-gray-600 text-[10px] font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">+0.1s</button>
                                 <!-- [NEW] Contextual Save Button -->
                                 <button onclick="saveSubtitles(this)" class="px-2 py-0.5 bg-green-500 text-white rounded font-bold text-[10px] shadow-sm hover:bg-green-600 transition-colors"
-                                    title="{{ t('tooltip_save_sync') }}">{{ t('btn_save') }}</button>
+                                    title="{{ t('tooltip_save_sync') }}">저장</button>
                             </div>
                         </div>
 
                         <div class="flex justify-between items-center text-xs text-gray-500 mb-1 dark:text-gray-400">
-                            <span class="font-semibold text-blue-500" id="currentImageIndicator">{{ t('label_current_image') }}</span>
+                            <span class="font-semibold text-blue-500" id="currentImageIndicator">현재 이미지: {img}</span>
                             <div class="text-right">
                                 <span id="currentStartTime">0.00</span>s ~ <span id="currentEndTime">0.00</span>s
                             </div>
@@ -473,7 +497,7 @@
                         <!-- [NEW] Image Timing Control -->
                         <div
                             class="flex justify-between items-center bg-blue-50 dark:bg-gray-700/50 p-1 rounded mb-1 border border-blue-100 dark:border-gray-600">
-                            <span class="text-[10px] font-bold text-blue-600 dark:text-blue-400">{{ t('label_start_time') }}</span>
+                            <span class="text-[10px] font-bold text-blue-600 dark:text-blue-400">시작</span>
                             <div class="flex items-center gap-2">
                                 <span id="currentImageTime"
                                     class="text-xs font-mono text-gray-700 dark:text-gray-200">0.0s</span>
@@ -488,7 +512,7 @@
                         <!-- [NEW] Image End Time Control -->
                         <div
                             class="flex justify-between items-center bg-orange-50 dark:bg-orange-900/20 p-1 rounded mb-1 border border-orange-100 dark:border-orange-800">
-                            <span class="text-[10px] font-bold text-orange-600 dark:text-orange-400">{{ t('label_end_time') }}</span>
+                            <span class="text-[10px] font-bold text-orange-600 dark:text-orange-400">종료</span>
                             <div class="flex items-center gap-2">
                                 <span id="currentImageEndTime"
                                     class="text-xs font-mono text-gray-700 dark:text-gray-200">-</span>
@@ -503,7 +527,7 @@
                     </div>
 
                     <textarea id="currentSubtitleText" class="w-full flex-1 min-h-[100px] text-sm p-3 border border-blue-200 dark:border-blue-800 rounded bg-blue-50/50 dark:bg-gray-900 focus:ring-1 focus:ring-blue-400 outline-none resize-none disabled:opacity-50 CustomScroll text-gray-700 dark:text-gray-200 transition-colors"
-                        placeholder="{{ t('placeholder_select_subtitle') }}"></textarea>
+                        placeholder="리스트에서 자막을 선택하세요."></textarea>
 
                     <!-- DEBUG OVERLAY -->
                     <div id="debug-overlay" class="hidden">
@@ -519,12 +543,12 @@
                     <!-- BGM 설정 -->
                     <div class="bg-gray-50 dark:bg-gray-900 rounded p-2 border border-gray-200 dark:border-gray-700">
                         <div class="flex items-center justify-between mb-1.5">
-                            <span class="text-[10px] font-bold text-purple-600 dark:text-purple-400">{{ t('tab_bgm_sfx') }}</span>
+                            <span class="text-[10px] font-bold text-purple-600 dark:text-purple-400">🎵 BGM/SFX 설정</span>
                             <div class="flex items-center gap-1">
-                                <label class="text-[9px] text-gray-500 dark:text-gray-400">{{ t('label_bgm_volume') }}</label>
+                                <label class="text-[9px] text-gray-500 dark:text-gray-400">볼륨</label>
                                 <input type="range" id="bgmVolumeSlider" min="0" max="100" value="30"
                                     class="w-16 h-1 accent-purple-500" oninput="updateBgmVolume(this.value)"
-                                    title="{{ t('label_bgm_volume') }} (0~100%)">
+                                    title="볼륨 (0~100%)">
                                 <span id="bgmVolumeLabel"
                                     class="text-[9px] text-gray-500 w-6 text-right dark:text-gray-400">30%</span>
                             </div>
@@ -533,10 +557,10 @@
                         <!-- BGM 파일 상태 표시 -->
                         <div class="flex items-center justify-between mb-1.5 px-0.5">
                             <span id="bgmFileLabel" class="text-[10px] text-gray-400 flex-1 truncate italic">
-                                {{ t('label_bgm_no_file') }}</span>
+                                설정된 BGM 없음</span>
                             <button id="bgmClearBtn" onclick="clearBgm()"
                                 class="hidden text-[10px] text-red-500 font-bold hover:underline shrink-0">
-                                {{ t('btn_clear_bgm') }}</button>
+                                제거</button>
                         </div>
 
                         <!-- BGM 미리듣기 -->
@@ -546,15 +570,15 @@
                         <div class="flex gap-1 mb-2">
                             <button onclick="setBgmInputMode('upload')" id="bgmTabUpload"
                                 class="flex-1 text-[9px] py-0.5 rounded border bg-purple-100 dark:bg-purple-900 border-purple-300 text-purple-700 dark:text-purple-300 font-bold">
-                                {{ t('bgm_tab_upload') }}
+                                📂 파일 업로드
                             </button>
                             <button onclick="setBgmInputMode('url')" id="bgmTabUrl"
                                 class="flex-1 text-[9px] py-0.5 rounded border border-gray-300 dark:border-gray-600 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-400">
-                                {{ t('bgm_tab_url') }}
+                                🔗 URL 입력
                             </button>
                             <button onclick="setBgmInputMode('generated')" id="bgmTabGenerated"
                                 class="flex-1 text-[9px] py-0.5 rounded border border-gray-300 dark:border-gray-600 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-400">
-                                {{ t('bgm_tab_generated') }}
+                                ✨ 생성됨
                             </button>
                         </div>
 
@@ -562,7 +586,7 @@
                         <div id="bgmInputUpload" class="bgm-input-panel">
                             <label
                                 class="flex items-center justify-center gap-1 w-full py-1.5 border-2 border-dashed border-purple-300 dark:border-purple-700 rounded cursor-pointer hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition text-[9px] text-purple-600 dark:text-purple-400">
-                                <span>{{ t('bgm_upload_label') }}</span>
+                                <span>📂 BGM 파일 선택 (mp3, wav, m4a)</span>
                                 <input type="file" class="hidden" accept="audio/*" onchange="handleBgmUpload(this)">
                             </label>
                         </div>
@@ -572,9 +596,9 @@
                             <div class="flex gap-1">
                                 <input type="text" id="bgmUrlInput"
                                     class="flex-1 text-[9px] p-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded"
-                                    placeholder="{{ t('bgm_url_placeholder') }}">
+                                    placeholder="https://... (MP3 URL)">
                                 <button onclick="applyBgmUrl()"
-                                    class="px-2 text-[9px] bg-purple-600 text-white rounded hover:bg-purple-700">{{ t('btn_apply_url') }}</button>
+                                    class="px-2 text-[9px] bg-purple-600 text-white rounded hover:bg-purple-700">적용</button>
                             </div>
                         </div>
 
@@ -623,10 +647,10 @@
             <div id="renderedVideoSection"
                 class="hidden bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm shrink-0">
                 <div class="flex items-center justify-between mb-2">
-                    <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300">🎬 {{ t('rendered_video_title') }}</h3>
+                    <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300">{{ t('rendered_video_title') }}</h3>
                     <button onclick="closeRenderedVideo()"
                         class="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 dark:text-gray-200">
-                        ✕ {{ t('btn_close') }}
+                        {{ t('btn_close') }}
                     </button>
                 </div>
                 <div id="renderedVideoPlayer" class="bg-black rounded-lg overflow-hidden" style="aspect-ratio: 16/9;">
@@ -645,56 +669,56 @@
 <script>
     // Global State
     var i18n = Object.assign(window.i18n || {}, {
-        alert_project_id_not_found_prefix: "{{ t('err_project_id_not_found') }}",
-        status_auto_generating_subtitles: "{{ t('toast_request_subtitle') }}",
-        status_no_subtitles: "{{ t('no_script') }}",
-        btn_ai_subtitle_gen_auto: "{{ t('btn_regen_all') }}",
-        items_selected: "{{ t('delete_bar_selected') }}",
-        btn_select_all: "{{ t('btn_select_all_rows') }}",
-        btn_delete_selected: "{{ t('btn_delete_rows') }}",
-        status_rendered: "{{ t('status_rendered') }}",
-        toast_save_success: "{{ t('toast_save_success') }}",
-        err_save_fail: "{{ t('err_save_fail') }}",
-        confirm_auto_sync: `{{ t('confirm_auto_sync') }}`,
-        toast_auto_sync_success: "{{ t('toast_auto_sync_success') }}",
-        err_auto_sync_fail: "{{ t('err_auto_sync_fail') }}",
-        toast_no_subtitle_to_split: "{{ t('toast_no_subtitle_to_split') }}",
-        confirm_split_all: `{{ t('confirm_split_all') }}`,
-        toast_split_success: "{{ t('toast_split_success') }}",
-        err_split_fail: "{{ t('err_split_fail') }}",
-        confirm_reset_reload: "{{ t('confirm_reset_reload') }}",
-        toast_reset_reload_success: "{{ t('toast_reset_reload_success') }}",
-        toast_render_complete_redirect: "{{ t('toast_render_complete_redirect') }}",
-        toast_apply_image_success: "{{ t('toast_apply_image_success') }}",
-        toast_rendering_started: "{{ t('toast_rendering_started') }}",
-        err_render_failed: "{{ t('err_render_failed') }}",
-        err_status_poll_fail: "{{ t('err_status_poll_fail') }}",
-        bgm_loading: "{{ t('bgm_loading') }}",
-        bgm_no_generated: "{{ t('bgm_no_generated') }}",
-        toast_bgm_uploading: "{{ t('toast_bgm_uploading') }}",
-        toast_bgm_upload_success: "{{ t('toast_bgm_upload_success') }}",
-        toast_bgm_local_only: "{{ t('toast_bgm_local_only') }}",
-        toast_bgm_removed: "{{ t('toast_bgm_removed') }}",
-        toast_sfx_setup_success: "{{ t('toast_sfx_setup_success') }}",
-        err_sfx_upload_fail: "{{ t('err_sfx_upload_fail') }}",
-        status_saving: "{{ t('status_saving') }}",
-        status_no_subtitle_generated: "{{ t('toast_no_subtitle_generated') }}",
-        confirm_render_now: "{{ t('confirm_render_now') }}",
-        status_rendering_and_saving: "{{ t('status_rendering_and_saving') }}",
-        label_bgm_no_file: "{{ t('label_bgm_no_file') }}",
-        label_bgm_file: "{{ t('label_bgm_file') }}",
-        bgm_section_open: "{{ t('bgm_section_open') }}",
-        bgm_section_close: "{{ t('bgm_section_close') }}",
-        err_reset_reload_fail: "{{ t('err_reset_reload_fail') }}",
-        status_loading: "{{ t('bgm_loading') }}",
-        btn_ai_sync: "{{ t('btn_ai_sync') }}",
-        status_processing: "{{ t('status_saving') }}",
-        btn_split_2lines: "{{ t('btn_split_2lines') }}",
-        status_splitting: "{{ t('status_saving') }}",
-        label_curr_image: "{{ t('label_current_image') }}"
+        alert_project_id_not_found_prefix: "프로젝트 ID를 찾을 수 없습니다.",
+        status_auto_generating_subtitles: "자막을 자동 생성 중입니다...",
+        status_no_subtitles: "생성된 자막이 없습니다.",
+        btn_ai_subtitle_gen_auto: "전체 다시 생성",
+        items_selected: "개 선택됨",
+        btn_select_all: "전체 선택",
+        btn_delete_selected: "선택 삭제",
+        status_rendered: "렌더링 완료",
+        toast_save_success: "저장되었습니다.",
+        err_save_fail: "저장 실패",
+        confirm_auto_sync: `대본과 자막을 자동 싱크하시겠습니까? 기존 작업 내용이 덮어씌워질 수 있습니다.`,
+        toast_auto_sync_success: "자동 싱크 완료",
+        err_auto_sync_fail: "자동 싱크 실패",
+        toast_no_subtitle_to_split: "나눌 자막이 없습니다.",
+        confirm_split_all: `모든 긴 자막을 2줄로 나누시겠습니까?`,
+        toast_split_success: "자막 나누기 완료",
+        err_split_fail: "자막 나누기 실패",
+        confirm_reset_reload: "상태를 초기화하시겠습니까?",
+        toast_reset_reload_success: "초기화 및 새로고침 성공",
+        toast_render_complete_redirect: "렌더링이 완료되어 갤러리로 이동합니다.",
+        toast_apply_image_success: "이미지가 적용되었습니다.",
+        toast_rendering_started: "렌더링이 시작되었습니다.",
+        err_render_failed: "렌더링 실패",
+        err_status_poll_fail: "상태 확인 실패",
+        bgm_loading: "BGM 불러오는 중...",
+        bgm_no_generated: "생성된 BGM이 없습니다.",
+        toast_bgm_uploading: "BGM 업로드 중...",
+        toast_bgm_upload_success: "BGM 업로드 성공",
+        toast_bgm_local_only: "로컬 미리보기에서만 재생됩니다.",
+        toast_bgm_removed: "BGM이 제거되었습니다.",
+        toast_sfx_setup_success: "효과음 설정 완료",
+        err_sfx_upload_fail: "효과음 업로드 실패",
+        status_saving: "저장 중...",
+        status_no_subtitle_generated: "자막이 아직 생성되지 않았습니다.",
+        confirm_render_now: "지금 렌더링을 시작하시겠습니까?",
+        status_rendering_and_saving: "렌더링 및 저장 중...",
+        label_bgm_no_file: "선택된 파일 없음",
+        label_bgm_file: "파일 선택됨",
+        bgm_section_open: "배경음악 설정 열기",
+        bgm_section_close: "배경음악 설정 닫기",
+        err_reset_reload_fail: "초기화 후 새로고침 실패",
+        status_loading: "불러오는 중...",
+        btn_ai_sync: "AI 싱크",
+        status_processing: "처리 중...",
+        btn_split_2lines: "2줄로 나누기",
+        status_splitting: "나누는 중...",
+        label_curr_image: "현재 이미지"
     });
 
-    let projectId = {{ project.id if project else 'null' }};
+    let projectId = {{ project.id|tojson if project else 'null' }};
     let subtitles = [];
     let images = []; // Timeline Images (Used in video)
     let sourceImages = []; // Palette Images (Source)
@@ -789,6 +813,9 @@
         });
 
         await waitForUtils();
+
+        // [PRESETS] Load Subtitle Presets
+        await loadSubtitlePresets();
 
         // Initialize Utils-dependent variables
         if (!projectId) {
@@ -1230,20 +1257,15 @@
             setAspectRatio(s.aspect_ratio);
         }
 
-        const preview = document.getElementById('previewTextMain');
-        if (preview) {
-            if (s.subtitle_pos_x && String(s.subtitle_pos_x).includes('%')) preview.style.left = s.subtitle_pos_x;
-            const loadPosYStr = String(s.subtitle_pos_y || '');
-            const loadPosYPct = parseFloat(loadPosYStr);
-            if (loadPosYStr.includes('%') && !isNaN(loadPosYPct) && loadPosYPct >= 20) {
-                preview.style.top = loadPosYStr;
-            } else {
-                preview.style.top = '80%';
-            }
-            preview.style.bottom = 'auto';
+        if (s.bg_v_offset !== undefined) {
+            const el = document.getElementById('bgVOffsetInput');
+            if (el) el.value = s.bg_v_offset;
         }
 
-        updateSubtitlePreview();
+        // Delay preview to wait for layout/aspect-ratio changes
+        setTimeout(() => {
+            updateSubtitlePreview();
+        }, 50);
     }
 
     // [NEW] Update Image Match Indicator
@@ -1252,7 +1274,7 @@
         const timeEl = document.getElementById('currentImageTime'); // [NEW]
 
         if (!el || !imageTimings || imageTimings.length === 0) {
-            if (el) el.textContent = "?뼹截영상대?吏: 留ㅼ묶 정보 없음";
+            if (el) el.textContent = "?뼹截영상대?吏€: 留ㅼ묶 정보 없음";
             if (timeEl) timeEl.textContent = "-";
             return;
         }
@@ -1400,9 +1422,6 @@
         // Refresh Indicator
         updateImageMatchIndicator(startTime);
     }
-
-
-
     // [NEW] Aspect Ratio Logic
     function setAspectRatio(ratio) {
         const box = document.getElementById('mainPreviewBox');
@@ -1411,7 +1430,7 @@
                 // 숏츠: 정사각형 컨테이너 — 9:16 영상이 위아래 꽉차고 좌우는 검정 레터박스
                 box.style.aspectRatio = '1 / 1';
                 box.classList.remove('max-w-2xl', 'max-w-[300px]', 'max-w-[360px]');
-                // max-w 제거 → w-full로 패널 전체 너비 사용 → 더 큰 정사각형
+                box.classList.add('max-w-[180px]', 'mx-auto');
             } else {
                 box.style.aspectRatio = ratio.replace(':', '/');
                 box.classList.remove('max-w-[300px]', 'max-w-[360px]');
@@ -1496,12 +1515,14 @@
         const scaleFactor = previewHeight / videoHeight;
 
         const actualSize = Math.round(videoHeight * (fontSizePercent / 100) * scaleFactor * 1.0);
-        // 화면 가로길이의 80%로 제한 (사용자 요청 사항)
-        const containerWidth = Math.round(imageWidth * 0.80);
+        // 화면 가로길이의 90%로 고정 (사용자 요청 사항)
+        const containerWidth = Math.round(imageWidth * 0.90);
 
         text.style.color = color;
         text.style.fontSize = `${actualSize}px`;
         text.style.fontFamily = font;
+        text.style.width = '90%';
+        text.style.maxWidth = '90%';
 
         // [FIX] Gungsuh font breaks stroke when 'bold' is applied (Synthetic Bold issue)
         if (font.includes('Gungsuh') || font.includes('궁서')) {
@@ -1538,13 +1559,10 @@
         }
         text.style.webkitTextFillColor = color;
 
-        // 너비: 비디오 프레임 기준 80% (픽셀 고정 금지 → % 사용)
-        const previewBoxEl = document.getElementById('mainPreviewBox');
-        const frameW = previewBoxEl ? previewBoxEl.clientWidth : 0;
-        const frameH = previewBoxEl ? previewBoxEl.clientHeight : 0;
-        const widthPct = frameW > 0 ? Math.round(imageWidth * 0.80 / frameW * 100) : 80;
-        text.style.width = widthPct + '%';
-        text.style.maxWidth = widthPct + '%';
+        // 너비: 비디오 프레임 기준 90% 강제 (프리셋 데이터와 무관하게 고정)
+        text.style.setProperty('width', '90%', 'important');
+        text.style.setProperty('max-width', '90%', 'important');
+        text.style.textAlign = 'center';
         text.style.height = 'auto';
         text.style.minHeight = '0';
         text.style.wordWrap = 'break-word';
@@ -1559,12 +1577,11 @@
             text.style.bottom = 'auto';
         }
 
-        // [Cleaned up] No extra textShadow clearing here
-
         // Background Strip
         const bgToggle = document.getElementById('bgStripToggle');
         const bgColorEl = document.getElementById('bgColorInput');
         const bgOpacityEl = document.getElementById('bgOpacityInput');
+        const bgVOffsetEl = document.getElementById('bgVOffsetInput');
 
         if (!text) return;
 
@@ -1574,8 +1591,15 @@
         const lines = subtitleText.split('\n').filter(l => l.trim());
 
         if (bgToggle && bgColorEl && bgOpacityEl && lines.length > 0) {
+            const bgStripEnabled = bgToggle.checked;
             const bgColor = bgColorEl.value; // HEX (#rrggbb)
             const bgOpacity = parseFloat(bgOpacityEl.value || 0.5);
+            
+            const bgVOffsetEl = document.getElementById('bgVOffsetInput');
+            const bgVOffset = parseFloat(bgVOffsetEl?.value || 0);
+            
+            const lineSpacing = parseFloat(document.getElementById('lineSpacingInput')?.value || 0.1);
+            const lineSpacingPixels = lineSpacing * actualSize;
 
             // HEX to RGB Conversion
             let r = 0, g = 0, b = 0;
@@ -1587,7 +1611,28 @@
             }
 
             const bgRgba = `rgba(${r},${g},${b},${bgOpacity})`;
-            console.log(`[Preview] BG CSS: ${bgRgba}, Enabled: ${bgToggle.checked}`);
+            const vOffsetScaled = bgVOffset * scaleFactor;
+            
+            text.innerHTML = '';
+            text.style.backgroundColor = 'transparent';
+            
+            lines.forEach(line => {
+                if (!line.trim()) return;
+                
+                let lineHtml = '';
+                if (bgStripEnabled) {
+                    // 배경띠와 글자를 분리하여 배경띠만 독립적으로 이동 (백엔드 로직과 일치)
+                    lineHtml = `
+                        <div class="relative inline-flex items-center justify-center px-[0.5em] py-[0.08em]">
+                            <div class="absolute inset-0" style="background:${bgRgba}; border-radius: 0.22em; transform: translateY(${vOffsetScaled}px); z-index: 0;"></div>
+                            <span class="relative z-10" style="line-height: 1.1;">${line}</span>
+                        </div>
+                    `;
+                } else {
+                    lineHtml = `<span style="display: inline-block;">${line}</span>`;
+                }
+                text.innerHTML += `<div class="flex justify-center w-full" style="margin-bottom: ${lineSpacingPixels}px;">${lineHtml}</div>`;
+            });
 
             const handlesHtml = `
                 <span class="absolute -top-[4px] -left-[4px] w-[8px] h-[8px] bg-white border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
@@ -1603,8 +1648,10 @@
 
             if (bgToggle.checked) {
                 // Create separate span for each line with its own background
+                // Apply visual offset to the backgound spans specifically
+                const vOffsetScaled = bgVOffset * scaleFactor;
                 let contentHtml = lines.map(line =>
-                    `<span style="background:${bgRgba}; padding: 0.03em 0.5em; border-radius: 0.2em; display: inline-block;">${line}</span>`
+                    `<span style="background:${bgRgba}; padding: 0.08em 0.5em; border-radius: 0.2em; display: inline-flex; align-items: center; justify-content: center; line-height: 1; transform: translateY(${vOffsetScaled}px);">${line}</span>`
                 ).join('<br>');
                 text.innerHTML = contentHtml + handlesHtml;
                 text.style.backgroundColor = 'transparent';
@@ -1822,6 +1869,12 @@
         const bgColorInput = document.getElementById('bgColorInput');
         if (bgColorInput) bgColorInput.addEventListener('change', e => update('subtitle_bg_color', e.target.value));
 
+        const bgVOffsetInput = document.getElementById('bgVOffsetInput');
+        if (bgVOffsetInput) {
+            bgVOffsetInput.addEventListener('input', e => updateSubtitlePreview());
+            bgVOffsetInput.addEventListener('change', e => update('bg_v_offset', parseInt(e.target.value || 0)));
+        }
+
         const bgOpacityInput = document.getElementById('bgOpacityInput');
         if (bgOpacityInput) {
             bgOpacityInput.addEventListener('input', e => updateSubtitlePreview());
@@ -1855,7 +1908,7 @@
         const originalText = btn ? btn.innerHTML : "세팅저장";
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = `<span>🔄</span> 저장중...`;
+            btn.innerHTML = `저장중...`;
         }
 
         try {
@@ -1910,10 +1963,14 @@
 
     // --- Action Functions ---
     async function saveSubtitles(btnOrAutoSave = false) {
+        if (!projectId) {
+            Utils.showToast("프로젝트가 선택되지 않았습니다.", "warning");
+            return;
+        }
         const isAutoSave = (typeof btnOrAutoSave === 'boolean') ? btnOrAutoSave : false;
         const btn = (btnOrAutoSave instanceof Element) ? btnOrAutoSave : null;
         const btnOrigText = btn ? btn.innerHTML : null;
-        if (!isAutoSave && btn) { btn.disabled = true; btn.innerHTML = '⏳ 저장..'; }
+        if (!isAutoSave && btn) { btn.disabled = true; btn.innerHTML = '저장..'; }
         try {
             // Update Position before save
             const preview = document.getElementById('previewTextMain');
@@ -1957,7 +2014,7 @@
             if (!isAutoSave) Utils.showToast('저장 실패: ' + e.message, 'error');
             else console.error("AutoSave Failed:", e);
         } finally {
-            if (!isAutoSave && btn) { btn.disabled = false; btn.innerHTML = btnOrigText || '💾 저장'; }
+            if (!isAutoSave && btn) { btn.disabled = false; btn.innerHTML = btnOrigText || '저장'; }
         }
     }
 
@@ -2840,7 +2897,7 @@
         const originalText = btn ? btn.innerHTML : i18n.btn_split_2lines;
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = `<span class="animate-spin">⏳</span> ${i18n.status_splitting}`;
+            btn.innerHTML = i18n.status_splitting;
         }
 
         try {
@@ -2895,18 +2952,63 @@
     // 기존 \n이 있으면 유지, 너무 긴 경우만 처리
     function autoWrapSubtitleText(text, maxCharsPerLine) {
         if (!text || !text.trim()) return text;
-        // 이미 줄바꿈이 있으면 건드리지 않음
         if (text.includes('\n')) return text;
         if (text.length <= maxCharsPerLine) return text;
 
+        // Balanced splitting for typical 2-line subtitles
+        if (text.length <= maxCharsPerLine * 2) {
+            const len = text.length;
+            const targetBreak = Math.floor(len * 0.45); // Slightly shorter top line per user request
+            let bestBreak = -1;
+            let bestScore = -1000;
+
+            const particles = ["은", "는", "이", "가", "을", "를", "도", "에", "서", "의", "와", "과", "면", "고", "며", "니"];
+            const searchRange = Math.floor(maxCharsPerLine * 0.3);
+
+            for (let i = Math.max(0, targetBreak - searchRange); i <= Math.min(len - 1, targetBreak + searchRange); i++) {
+                let score = 0;
+                const ch = text[i];
+                const nextCh = text[i + 1] || "";
+
+                if (".!?…".includes(ch)) score = 100;
+                else if (ch === ",") score = 80;
+                else if (ch === " ") {
+                    score = 50;
+                    // Check if previous char is a Korean particle
+                    if (i > 0) {
+                        const prevChar = text[i - 1];
+                        if (particles.includes(prevChar)) score += 20;
+                    }
+                }
+
+                if (score > 0) {
+                    const dist = Math.abs(i - targetBreak);
+                    const finalScore = score - dist; // Penalize distance from target
+
+                    if (finalScore > bestScore) {
+                        const l1 = text.substring(0, i + 1).trim();
+                        const l2 = text.substring(i + 1).trim();
+                        if (l1.length <= maxCharsPerLine && l2.length <= maxCharsPerLine) {
+                            bestScore = finalScore;
+                            bestBreak = i + 1;
+                        }
+                    }
+                }
+            }
+
+            if (bestBreak !== -1) {
+                return text.substring(0, bestBreak).trim() + '\n' + text.substring(bestBreak).trim();
+            }
+        }
+
+        // Fallback to greedy if balanced fails or text is very long
         const result = [];
         let remaining = text;
         while (remaining.length > maxCharsPerLine) {
             let breakPos = maxCharsPerLine;
-            // maxCharsPerLine 근처에서 자연스러운 공백/구두점 찾기
-            for (let i = maxCharsPerLine - 1; i >= Math.max(0, maxCharsPerLine - 6); i--) {
+            for (let i = maxCharsPerLine - 1; i >= Math.max(0, maxCharsPerLine - 10); i--) {
                 const ch = remaining[i];
-                if (ch === ' ' || ch === ',' || ch === '.' || ch === '!' || ch === '?') {
+                if (" ,.!?…".includes(ch)) {
                     breakPos = i + 1;
                     break;
                 }
@@ -2933,17 +3035,55 @@
         if (!text || !text.trim()) return [];
         text = text.trim();
 
-        // 문장 단위로 분리 (마침표, 느낌표, 물음표)
         const sentences = text.split(/(?<=[.!?])\s+/);
         const chunks = [];
         let currentChunkLines = [];
+
+        const particles = ["은", "는", "이", "가", "을", "를", "도", "에", "서", "의", "와", "과", "면", "고", "며", "니"];
 
         for (const sentence of sentences) {
             const trimmedSentence = sentence.trim();
             if (!trimmedSentence) continue;
 
-            // 문장을 줄 단위로 분할
             const words = trimmedSentence.split(/\s+/);
+            
+            // 만약 문장 전체가 2줄 분량(maxCharsPerLine * 2) 이하라면 밸런스있게 나누기 시도
+            if (trimmedSentence.length > maxCharsPerLine && trimmedSentence.length <= maxCharsPerLine * 2 && maxLines >= 2) {
+                const targetPos = Math.floor(trimmedSentence.length * 0.45);
+                let bestIdx = -1;
+                let bestScore = -1000;
+
+                // 단어 경계(공백) 중 최적의 위치 찾기
+                let currentPos = 0;
+                for (let i = 0; i < words.length - 1; i++) {
+                    currentPos += words[i].length + 1; // +1 for space
+                    
+                    let score = 50; // 기본 공백 점수
+                    const lastChar = words[i].slice(-1);
+                    if (particles.includes(lastChar)) score += 20;
+                    if (",.!?…".includes(lastChar)) score += 30;
+
+                    const dist = Math.abs(currentPos - targetPos);
+                    const finalScore = score - dist;
+
+                    const l1 = words.slice(0, i + 1).join(" ");
+                    const l2 = words.slice(i + 1).join(" ");
+
+                    if (l1.length <= maxCharsPerLine && l2.length <= maxCharsPerLine) {
+                        if (finalScore > bestScore) {
+                            bestScore = finalScore;
+                            bestIdx = i;
+                        }
+                    }
+                }
+
+                if (bestIdx !== -1) {
+                    chunks.push(words.slice(0, bestIdx + 1).join(" ") + "\n" + words.slice(bestIdx + 1).join(" "));
+                    continue;
+                }
+            }
+
+            // [Greedy Fallback] 기존 로직
             let currentLine = "";
             const linesFromSentence = [];
 
@@ -2958,7 +3098,6 @@
             }
             if (currentLine) linesFromSentence.push(currentLine);
 
-            // 현재 청크에 줄 추가
             for (const line of linesFromSentence) {
                 currentChunkLines.push(line);
                 if (currentChunkLines.length >= maxLines) {
@@ -2968,7 +3107,6 @@
             }
         }
 
-        // 남은 줄 처리
         if (currentChunkLines.length > 0) {
             chunks.push(currentChunkLines.join("\n"));
         }
@@ -3598,5 +3736,151 @@
             console.log('[BGM] Settings load failed:', e.message);
         }
     }
+    // --- Preset Management ---
+    async function loadSubtitlePresets() {
+        try {
+            const res = await fetch('/api/subtitle/presets');
+            const data = await res.json();
+            if (data.status === 'ok') {
+                const select = document.getElementById('subtitlePresetSelect');
+                if (!select) return;
+                
+                // Keep the first option
+                const firstOption = select.options[0];
+                select.innerHTML = '';
+                select.appendChild(firstOption);
+                
+                data.presets.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.name;
+                    opt.textContent = p.name;
+                    opt.dataset.settings = p.settings_json;
+                    select.appendChild(opt);
+                });
+            }
+        } catch (e) {
+            console.error("Failed to load presets:", e);
+        }
+    }
+
+    window.applySubtitlePreset = function(presetName) {
+        if (!presetName) return;
+        const select = document.getElementById('subtitlePresetSelect');
+        const opt = Array.from(select.options).find(o => o.value === presetName);
+        if (!opt || !opt.dataset.settings) return;
+        
+        try {
+            const settings = JSON.parse(opt.dataset.settings);
+            
+            // Apply to UI
+            if (settings.fontFamily) document.getElementById('fontFamilySelect').value = settings.fontFamily;
+            if (settings.fontSize) document.getElementById('fontSizeSlider').value = settings.fontSize;
+            if (settings.textColor) document.getElementById('textColorInput').value = settings.textColor;
+            if (settings.strokeColor) document.getElementById('strokeColorInput').value = settings.strokeColor;
+            if (settings.strokeWidth !== undefined) document.getElementById('strokeWidthInput').value = settings.strokeWidth;
+            if (settings.lineSpacing !== undefined) document.getElementById('lineSpacingInput').value = settings.lineSpacing;
+            
+            if (settings.bgStripEnabled !== undefined) {
+                const toggle = document.getElementById('bgStripToggle');
+                toggle.checked = settings.bgStripEnabled;
+                if (typeof updateBgStrip === 'function') updateBgStrip(toggle);
+            }
+            if (settings.bgStripColor) document.getElementById('bgColorInput').value = settings.bgStripColor;
+            if (settings.bgStripOpacity !== undefined) document.getElementById('bgOpacityInput').value = settings.bgStripOpacity;
+            
+            // Update Preview
+            if (typeof updateStyleSettingsLocally === 'function') {
+                updateStyleSettingsLocally();
+            } else if (typeof updateSubtitlePreview === 'function' && selectedIndex >= 0) {
+                updateSubtitlePreview();
+            }
+            
+            Utils.showToast(`${presetName} 프리셋 적용 완료`, 'success');
+        } catch (e) {
+            console.error("Failed to apply preset:", e);
+            Utils.showToast("프리셋 적용 중 오류가 발생했습니다.", 'error');
+        }
+    };
+
+    window.saveCurrentAsPreset = async function() {
+        const nameInput = document.getElementById('newPresetName');
+        const name = nameInput.value.trim();
+        if (!name) {
+            Utils.showToast("프리셋 이름을 입력하세요.", 'warning');
+            return;
+        }
+        
+        const settings = {
+            fontFamily: document.getElementById('fontFamilySelect').value,
+            fontSize: parseFloat(document.getElementById('fontSizeSlider').value),
+            textColor: document.getElementById('textColorInput').value,
+            strokeColor: document.getElementById('strokeColorInput').value,
+            strokeWidth: parseFloat(document.getElementById('strokeWidthInput').value),
+            lineSpacing: parseFloat(document.getElementById('lineSpacingInput').value),
+            bgStripEnabled: document.getElementById('bgStripToggle').checked,
+            bgStripColor: document.getElementById('bgColorInput').value,
+            bgStripOpacity: parseFloat(document.getElementById('bgOpacityInput').value)
+        };
+        
+        try {
+            const res = await fetch('/api/subtitle/presets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, settings })
+            });
+            const data = await res.json();
+            if (data.status === 'ok') {
+                Utils.showToast("프리셋 저장 완료", 'success');
+                nameInput.value = '';
+                await loadSubtitlePresets();
+                document.getElementById('subtitlePresetSelect').value = name;
+            } else {
+                Utils.showToast("저장 실패: " + data.error, 'error');
+            }
+        } catch (e) {
+            Utils.showToast("서버 통신 오류", 'error');
+        }
+    };
+
+    window.deleteCurrentSubtitlePreset = async function() {
+        const select = document.getElementById('subtitlePresetSelect');
+        const name = select.value;
+        if (!name) return;
+        
+        if (!confirm(`'${name}' 프리셋을 삭제하시겠습니까?`)) return;
+        
+        try {
+            const res = await fetch(`/api/subtitle/presets/${encodeURIComponent(name)}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (data.status === 'ok') {
+                Utils.showToast("프리셋 삭제 완료", 'success');
+                await loadSubtitlePresets();
+            }
+        } catch (e) {
+            Utils.showToast("삭제 실패", 'error');
+        }
+    };
+
+    function updateStyleSettingsLocally() {
+        // Collect current settings
+        styleSettings = {
+            fontFamily: document.getElementById('fontFamilySelect').value,
+            fontSize: parseFloat(document.getElementById('fontSizeSlider').value),
+            textColor: document.getElementById('textColorInput').value,
+            strokeColor: document.getElementById('strokeColorInput').value,
+            strokeWidth: parseFloat(document.getElementById('strokeWidthInput').value),
+            lineSpacing: parseFloat(document.getElementById('lineSpacingInput').value),
+            bgStripEnabled: document.getElementById('bgStripToggle').checked,
+            bgStripColor: document.getElementById('bgColorInput').value,
+            bgStripOpacity: parseFloat(document.getElementById('bgOpacityInput').value),
+            bg_v_offset: parseInt(document.getElementById('bgVOffsetInput').value || 0)
+        };
+        
+        // Trigger preview update if a subtitle is selected
+        if (typeof updateSubtitlePreview === 'function' && selectedIndex >= 0) {
+            updateSubtitlePreview();
+        }
+    }
+
 </script>
 {% endblock %}

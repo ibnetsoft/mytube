@@ -10,17 +10,17 @@
         <!-- Explorer Header -->
         <div class="flex items-center justify-between px-3 py-2 bg-gray-800 border-b border-gray-700">
             <h3 class="text-sm font-bold text-white flex items-center gap-2">
-                {{ t('script_explorer_title') }}
+                대본 보관함
             </h3>
             <div class="flex gap-1">
                 <button onclick="createNewFolder()"
                     class="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-2 py-1 rounded transition-colors"
-                    title="{{ t('btn_new_folder') }}">
+                    title="새 폴더">
                     📁+
                 </button>
                 <button onclick="refreshExplorer()"
                     class="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-2 py-1 rounded transition-colors"
-                    title="{{ t('btn_refresh') }}">
+                    title="새로고침">
                     🔄
                 </button>
             </div>
@@ -29,7 +29,7 @@
         <!-- Explorer Tree -->
         <div id="explorerTree" class="flex-1 overflow-y-auto p-2 custom-scrollbar">
             <div class="text-center py-10 text-gray-500 text-sm dark:text-gray-400">
-                {{ t('status_loading_explorer') }}
+                불러오는 중...
             </div>
         </div>
     </div>
@@ -41,16 +41,14 @@
         <div class="flex gap-1 bg-gray-800 rounded-t-xl p-1.5 border-b border-gray-700">
             <button onclick="setScriptMode('ai')" id="tabAI"
                 class="px-4 py-2 rounded-lg text-xs font-bold transition-all bg-gray-700 text-white">
-                {{ t('tab_ai_gen') }}
+                AI 자동 생성
             </button>
             <button onclick="setScriptMode('manual')" id="tabManual"
                 class="px-4 py-2 rounded-lg text-xs font-medium text-gray-400 hover:text-gray-200">
-                {{ t('tab_manual_input') }}
+                직접 입력
             </button>
             <div class="flex-1"></div>
-            <span id="currentFileIndicator" class="text-xs text-gray-500 self-center px-2 dark:text-gray-400">{{
-                t('indicator_new_script')
-                }}</span>
+                새 대본</span>
         </div>
 
         <!-- Scrollable Content -->
@@ -61,14 +59,14 @@
                 <!-- Topic & Structure Info -->
                 <div id="analysisInfo" class="card mb-4 hidden">
                     <div class="flex justify-between items-center mb-2">
-                        <h3 class="text-sm font-bold text-white">{{ t('gen_based_structure') }}</h3>
+                        <h3 class="text-sm font-bold text-white">대본 구조 기반</h3>
                         <button onclick="window.location.href='/script-plan'"
                             class="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-gray-300 transition-colors">
-                            {{ t('btn_replan_structure') }}
+                            구조 다시 짜기
                         </button>
                     </div>
                     <input type="text" id="structureTopic" class="input-field text-sm"
-                        placeholder="{{ t('plan_topic_label') }}">
+                        placeholder="영상 주제">
                 </div>
 
 
@@ -78,21 +76,20 @@
                 <div class="flex items-center justify-between gap-2 mb-4">
                     <!-- Narration Mode Selection -->
                     <div class="flex items-center gap-3 bg-gray-800/80 px-3 py-1.5 rounded-lg border border-gray-700">
-                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{{
-                            t('label_voice_mode') }}</span>
+                            나레이션 모드</span>
                         <div class="flex gap-1">
                             <label class="cursor-pointer">
                                 <input type="radio" name="narrationMode" value="single" class="sr-only peer" checked>
                                 <div
                                     class="px-3 py-1 text-[10px] rounded bg-gray-700 text-gray-500 peer-checked:bg-blue-600 peer-checked:text-white transition-all dark:text-gray-400">
-                                    {{ t('mode_monologue') }}
+                                    단독 나레이션
                                 </div>
                             </label>
                             <label class="cursor-pointer">
                                 <input type="radio" name="narrationMode" value="multi" class="sr-only peer">
                                 <div
                                     class="px-3 py-1 text-[10px] rounded bg-gray-700 text-gray-500 peer-checked:bg-purple-600 peer-checked:text-white transition-all dark:text-gray-400">
-                                    {{ t('mode_multivoice') }}
+                                    멀티 보이스 (대화/상황극)
                                 </div>
                             </label>
                         </div>
@@ -101,34 +98,33 @@
                     <div class="flex gap-2">
                         <button onclick="stopAndSave()" id="stopBtn"
                             class="hidden btn-secondary bg-red-900/50 text-red-400 py-2 px-4 rounded-lg text-sm">
-                            {{ t('btn_stop_save') }}
+                            멈춤 & 저장
                         </button>
                         <button onclick="generateScript()" id="generateBtn"
                             class="btn-primary py-2.5 px-6 rounded-lg text-sm font-bold">
-                            {{ t('btn_start_gen') }}
+                            대본 생성 시작
                         </button>
                     </div>
                 </div>
 
                 <!-- AI Data Preview (Collapsed) -->
                 <details class="bg-gray-900 rounded-lg p-2 border border-gray-700 mb-4">
-                    <summary class="text-xs text-blue-400 cursor-pointer">{{ t('preview_ai_data') }}</summary>
-                    <pre id="previewContent"
-                        class="mt-2 text-[10px] text-gray-400 font-mono whitespace-pre-wrap max-h-40 overflow-auto">{{ t('preview_loading') }}</pre>
+                    <summary class="text-xs text-blue-400 cursor-pointer">AI 전달 데이터 확인</summary>
+                        class="mt-2 text-[10px] text-gray-400 font-mono whitespace-pre-wrap max-h-40 overflow-auto">(데이터 로딩 중...)</pre>
                 </details>
             </div>
 
             <!-- Manual Input Mode (Hidden by default) -->
             <div id="manualInputSection" class="hidden">
                 <div class="bg-yellow-900/20 border border-yellow-800 rounded-lg p-4 mb-4">
-                    <h3 class="text-sm font-bold text-white mb-2">{{ t('manual_paste_title') }}</h3>
-                    <p class="text-xs text-gray-400 mb-3">{{ t('manual_paste_desc') }}</p>
+                    <h3 class="text-sm font-bold text-white mb-2">외부 대본 붙여넣기</h3>
+                    <p class="text-xs text-gray-400 mb-3">AI 생성을 건너뛰고 준비된 대본을 바로 사용합니다.</p>
                     <textarea id="manualScriptInput" class="input-field font-mono text-sm" rows="10"
-                        placeholder="{{ t('manual_placeholder') }}"></textarea>
+                        placeholder="여기에 대본을 붙여넣으세요..."></textarea>
                 </div>
                 <div class="flex justify-end">
                     <button onclick="registerManualScript()" class="btn-primary py-2 px-6 rounded-lg text-sm font-bold">
-                        {{ t('btn_finish_editing') }}
+                        작성 완료
                     </button>
                 </div>
             </div>
@@ -137,28 +133,26 @@
             <div id="resultSection" class="hidden">
                 <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
                     <div class="flex items-center justify-between mb-3">
-                        <h3 class="text-sm font-bold text-white">{{ t('result_script_title') }}</h3>
+                        <h3 class="text-sm font-bold text-white">생성된 대본</h3>
                         <div class="flex gap-2">
                             <button onclick="translateScript()" id="translateBtn"
-                                class="btn-secondary text-xs hidden">{{ t('btn_translate') }}</button>
+                                class="btn-secondary text-xs hidden">번역</button>
                             <!-- [NEW] Clean Script Button -->
                             <button onclick="cleanCurrentScript()"
                                 class="btn-secondary text-xs flex items-center gap-1 border-yellow-600/50 text-yellow-500 hover:bg-yellow-500/10 px-3">
-                                <span>✨</span> {{ t('btn_refine') }}
+                                <span>✨</span> 대본 정제
                             </button>
                             <button onclick="copyScript()"
                                 class="btn-primary text-xs flex items-center gap-1 bg-blue-600 hover:bg-blue-500 text-white px-3">
-                                📋 <span class="font-bold">{{ t('btn_copy_all') }}</span>
+                                📋 <span class="font-bold">전체 복사</span>
                             </button>
-                            <button onclick="saveCurrentScript()" class="btn-primary text-xs">{{ t('btn_save')
-                                }}</button>
+                            <button onclick="saveCurrentScript()" class="btn-primary text-xs">저장</button>
                         </div>
                     </div>
 
                     <div class="flex gap-3 text-xs text-gray-400 mb-3">
-                        <span id="charCount" class="bg-gray-700 px-2 py-0.5 rounded">0 {{ t('stats_chars') }}</span>
-                        <span id="readTime" class="bg-gray-700 px-2 py-0.5 rounded">{{ t('stats_read_time') }}: 0 {{
-                            t('stats_unit_min') }}</span>
+                        <span id="charCount" class="bg-gray-700 px-2 py-0.5 rounded">0 자</span>
+                        <span id="readTime" class="bg-gray-700 px-2 py-0.5 rounded">읽기 시간: 0 분</span>
                     </div>
 
                     <textarea id="scriptContent" class="input-field font-mono text-sm" rows="15"></textarea>
@@ -168,20 +162,20 @@
                         <button onclick="continueWithAutopilot()" id="autopilotBtn"
                             class="py-2 px-6 font-bold shadow-md hover:shadow-xl transition-all rounded-lg flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white border-0">
                             <span>🚀</span>
-                            <span>{{ t('btn_continue_autopilot') }}</span>
+                            <span>오토파일럿으로 진행</span>
                         </button>
 
                         <button onclick="addToQueue()" id="queueBtn"
                             class="py-2 px-6 font-bold shadow-md hover:shadow-xl transition-all rounded-lg flex items-center gap-2 bg-gradient-to-r from-green-600 to-teal-600 text-white border-0">
                             <span>📥</span>
-                            <span>{{ t('btn_add_queue') }}</span>
+                            <span>큐에 추가</span>
                         </button>
 
                         <button onclick="goToImageGen()" class="btn-primary py-2 px-4 rounded-lg text-sm">
-                            {{ t('btn_go_image') }}
+                            이미지 생성
                         </button>
                         <button onclick="goToTTS()" class="btn-secondary py-2 px-4 rounded-lg text-sm">
-                            {{ t('btn_go_tts') }}
+                            음성/TTS 생성
                         </button>
                         {% if app_mode == 'blog' %}
                             <span>✨</span> {{ t('btn_blog_automation') }}
@@ -198,12 +192,12 @@
 <!-- Folder Creation Modal -->
 <div id="folderModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
     <div class="bg-gray-800 rounded-xl p-6 w-80 border border-gray-600">
-        <h3 class="text-lg font-bold text-white mb-4">{{ t('modal_new_folder') }}</h3>
+        <h3 class="text-lg font-bold text-white mb-4">새 폴더 만들기</h3>
         <input type="text" id="newFolderName" class="input-field w-full mb-4"
-            placeholder="{{ t('placeholder_folder_name') }}">
+            placeholder="폴더 이름">
         <div class="flex gap-2 justify-end">
-            <button onclick="closeFolderModal()" class="btn-secondary py-2 px-4 text-sm">{{ t('btn_cancel') }}</button>
-            <button onclick="confirmCreateFolder()" class="btn-primary py-2 px-4 text-sm">{{ t('btn_create') }}</button>
+            <button onclick="closeFolderModal()" class="btn-secondary py-2 px-4 text-sm">취소</button>
+            <button onclick="confirmCreateFolder()" class="btn-primary py-2 px-4 text-sm">생성</button>
         </div>
     </div>
 </div>

@@ -378,18 +378,37 @@ async function loadVoices() {
             const res = await fetch('/api/settings/script-style-presets');
             const data = await res.json();
 
-            // Keep current value if possible
-            const currentVal = scriptSelect.value;
-            scriptSelect.innerHTML = '';
+            const styleMap = {
+                'default': '기본 스타일',
+                'news': '뉴스 보도',
+                'story': '옛날 이야기',
+                'senior_story': '시니어 사연',
+                'script_master': '대본 마스터',
+                'bgm': '배경음악 중심',
+                'classic_50s': '50년대 클래식',
+                'joseon_sageuk': '조선 사극',
+                'north_korean_drama': '북한 드라마',
+                'silent_20s': '20년대 무성영화',
+                'camcorder_90s': '90년대 캠코더',
+                'modern_drama': '현대 멜로',
+                'mystery_thriller': '미스터리 스릴러',
+                'horror_suspense': '공포 서스펜스',
+                'melodrama': '감성 멜로',
+                'crime_drama': '범죄 드라마',
+                'cyberpunk_neon': '사이버펑크',
+                'watercolor_analog': '수채화 아날로그',
+                'digital_webtoon': '디지털 웹툰',
+                'graphite_sketch': '연필 스케치'
+            };
 
             Object.keys(data).forEach(key => {
                 const opt = document.createElement('option');
                 opt.value = key;
-                opt.innerText = key;
+                opt.innerText = styleMap[key] || key;
                 scriptSelect.appendChild(opt);
             });
 
-            if (data[currentVal]) scriptSelect.value = currentVal;
+            if (currentVal && data[currentVal]) scriptSelect.value = currentVal;
             else if (Object.keys(data).length > 0) scriptSelect.value = Object.keys(data)[0];
 
         } catch (e) {

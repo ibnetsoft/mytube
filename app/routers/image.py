@@ -226,6 +226,98 @@ async def generate_image_prompts_api(req: PromptsGenerateRequest):
         raise HTTPException(500, f"분석 실패: {str(e)}")
 
 
+@router.post("/api/projects/{project_id}/random-cooking")
+async def generate_random_cooking_video(project_id: int):
+    """랜덤 요리 선정 및 단계별 Veo 영상 자동 생성 (Shorts 전용)"""
+    try:
+        # 1. 대본 기반 길이 추정
+        script_data = db.get_script(project_id)
+        if not script_data or not script_data.get('full_script'):
+            duration = 30 # Default 30s
+        else:
+            duration = script_data.get('estimated_duration', 30)
+        
+        # 5초당 1클립 계산
+        num_clips = max(3, (duration + 4) // 5)
+        print(f"[Cooking] Requested Project: {project_id}, Duration: {duration}s -> Clips: {num_clips}")
+        
+        # 2. 요리 계획 생성 (Gemini)
+        plan = await gemini_service.generate_random_cooking_plan(count=num_clips)
+        
+        if not plan or not plan.get('steps'):
+            return {"status": "error", "error": "요리 계획을 생성하지 못했습니다."}
+        
+        dish_name = plan.get('dish_name', '오늘의 요리')
+        print(f"[Cooking] Selected Dish: {dish_name}")
+        
+        # 3. 단계별 영상 생성 (Veo)
+        scenes = []
+        output_abs, output_web = get_project_output_dir(project_id)
+        
+        # [주의] 여러 영상을 순차적으로 생성하므로 시간이 걸림 (타임아웃 주의)
+        for i, step in enumerate(plan['steps']):
+            print(f"[Cooking] Generating Clip {i+1}/{num_clips}: {step['action']}")
+            
+            # Veo API 호출 (dict 반환)
+            import aiohttp
+            veo_res = await gemini_service.generate_video(
+                prompt=step['video_prompt'],
+                aspect_ratio="9:16", # Shorts
+                duration_seconds=5
+            )
+            
+            video_bytes = None
+            if veo_res and veo_res.get("status") == "ok":
+                veo_uri = veo_res.get("video_url")
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(veo_uri) as resp:
+                        if resp.status == 200: video_bytes = await resp.read()
+            
+            video_url = ""
+            if video_bytes:
+                import time
+                # 파일 저장
+                filename = f"veo_cooking_{project_id}_{i+1}_{int(time.time())}.mp4"
+                filepath = os.path.join(output_abs, filename)
+                with open(filepath, "wb") as f:
+                    f.write(video_bytes)
+                video_url = f"{output_web}/{filename}"
+                print(f"   -> Saved: {video_url}")
+            else:
+                print(f"   -> ⚠️ Clip generation failed for step {i+1}")
+            
+            scenes.append({
+                "scene_number": i + 1,
+                "scene_text": step['action'],
+                "prompt_en": step['video_prompt'],
+                "video_url": video_url,
+                "image_url": "",
+                "engine": "veo",
+                "estimated_seconds": 5,
+                "script_start": "", 
+                "script_end": ""
+            })
+        
+        # 4. DB 저장 (기존 프롬프트 대체)
+        db.save_image_prompts(project_id, scenes)
+        
+        # 5. 프로젝트 설정 업데이트 (요리 이름 등 기록)
+        db.update_project_setting(project_id, 'cooking_dish', dish_name)
+        
+        return {
+            "status": "ok",
+            "dish_name": dish_name,
+            "description": plan.get('description', ''),
+            "scenes": scenes
+        }
+    except Exception as e:
+        import traceback, sys
+        module_path = sys.modules[gemini_service.__class__.__module__].__file__
+        err_msg = f"Random Cooking Error: {str(e)} (from: {module_path})\n{traceback.format_exc()}"
+        print(err_msg)
+        return {"status": "error", "error": str(e) + f" (gemini_service path: {module_path})"}
+
+
 @router.post("/api/projects/{project_id}/image-prompts/auto")
 
 
@@ -1229,4 +1321,133 @@ async def generate_image(
         import traceback
         traceback.print_exc()
         return {"status": "error", "error": error_details}
+
+
+@router.post("/api/image/upload-scene")
+async def upload_scene_media(
+    project_id: int = Form(...),
+    scene_number: int = Form(...),
+    file: UploadFile = File(...)
+):
+    """
+    장면의 이미지 또는 비디오를 직접 업로드하여 교체합니다. (Frontend 'uploadSceneImage' 대응)
+    """
+    try:
+        from app.utils import get_project_output_dir, ALLOWED_IMAGE_EXT, ALLOWED_VIDEO_EXT
+        
+        # 파일 타입 확인
+        ext = os.path.splitext(file.filename)[1].lower()
+        is_video = ext in ALLOWED_VIDEO_EXT
+        is_image = ext in ALLOWED_IMAGE_EXT
+        
+        if not (is_video or is_image):
+             raise HTTPException(400, f"지원하지 않는 형식입니다: {ext}")
+        
+        # 프로젝트 폴더 가져오기
+        abs_dir, web_dir = get_project_output_dir(project_id)
+        
+        # 저장 파일명 결정
+        prefix = "manual_vid" if is_video else "manual_img"
+        timestamp = int(datetime.datetime.now().timestamp())
+        filename = f"{prefix}_p{project_id}_s{scene_number}_{timestamp}{ext}"
+        abs_path = os.path.join(abs_dir, filename)
+        web_url = f"{web_dir}/{filename}"
+        
+        # 파일 저장
+        content = await file.read()
+        async with aiofiles.open(abs_path, "wb") as f:
+            await f.write(content)
+            
+        # DB 업데이트
+        if is_video:
+            db.update_image_prompt_video_url(project_id, scene_number, web_url)
+        else:
+            db.update_image_prompt_url(project_id, scene_number, web_url)
+            
+        return {
+            "status": "ok",
+            "url": web_url,
+            "is_video": is_video
+        }
+    except Exception as e:
+        print(f"Upload scene error: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@router.post("/api/system/open-output-folder")
+async def open_output_folder(project_id: int = Body(..., embed=True)):
+    """
+    [EXE/Local Only] 로컬 시스템에서 프로젝트의 출력 폴더를 직접 엽니다.
+    """
+    try:
+        from app.utils import get_project_output_dir
+        abs_dir, _ = get_project_output_dir(project_id)
+        
+        if os.path.exists(abs_dir):
+            import platform
+            if platform.system() == "Windows":
+                 os.startfile(abs_dir)
+            elif platform.system() == "Darwin": # macOS
+                 import subprocess
+                 subprocess.run(["open", abs_dir])
+            else: # Linux
+                 import subprocess
+                 subprocess.run(["xdg-open", abs_dir])
+            return {"status": "ok"}
+        else:
+            # 폴더가 없으면 기본 출력 폴더라도 열기 시도
+            os.startfile(config.OUTPUT_DIR) if os.path.exists(config.OUTPUT_DIR) else None
+            return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@router.get("/api/projects/{project_id}/output-assets")
+async def list_output_assets(project_id: int):
+    """
+    프로젝트 출력 폴더 내에 이미 생성된 이미지/영상의 목록을 탐색합니다.
+    """
+    try:
+        from app.utils import get_project_output_dir
+        abs_dir, web_dir = get_project_output_dir(project_id)
+        
+        files = []
+        if os.path.exists(abs_dir):
+            for f in os.listdir(abs_dir):
+                if f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp', '.mp4', '.mov', '.avi', '.webm')):
+                    f_path = os.path.join(abs_dir, f)
+                    stats = os.stat(f_path)
+                    files.append({
+                        "name": f,
+                        "url": f"{web_dir}/{f}",
+                        "is_video": f.lower().endswith(('.mp4', '.mov', '.avi', '.webm')),
+                        "mtime": stats.st_mtime,
+                        "size": stats.st_size
+                    })
+        
+        # 최신순 정렬
+        files.sort(key=lambda x: x['mtime'], reverse=True)
+        return {"status": "ok", "files": files}
+    except Exception as e:
+         return {"status": "error", "message": str(e)}
+
+
+@router.post("/api/projects/{project_id}/replace-asset")
+async def replace_asset_from_library(
+    project_id: int,
+    scene_number: int = Body(...),
+    asset_url: str = Body(...),
+    is_video: bool = Body(...)
+):
+    """
+    탐색 창에서 선택한 기존 에셋으로 장면 미디어를 교체합니다.
+    """
+    try:
+        if is_video:
+            db.update_image_prompt_video_url(project_id, scene_number, asset_url)
+        else:
+            db.update_image_prompt_url(project_id, scene_number, asset_url)
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 

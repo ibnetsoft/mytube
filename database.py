@@ -364,6 +364,17 @@ def init_db():
     """)
 
 
+
+    # [NEW] 자막 스타일 프리셋
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS subtitle_style_presets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE,
+            settings_json TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -371,6 +382,16 @@ def migrate_db():
     """기존 테이블에 새 컬럼 추가 (마이그레이션)"""
     conn = get_db()
     cursor = conn.cursor()
+
+    # [NEW] Subtitle Style Presets Table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS subtitle_style_presets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE,
+            settings_json TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
 
     # [NEW] Global Settings Table
     cursor.execute("""
@@ -2498,6 +2519,53 @@ def save_style_preset(style_key: str, prompt_value: str, image_url: str = None, 
 
     conn.commit()
     conn.close()
+
+
+# ===========================================
+# 자막 스타일 프리셋 관리
+# ===========================================
+
+
+def get_subtitle_style_presets():
+    """자막 스타일 프리셋 목록 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT name, settings_json FROM subtitle_style_presets ORDER BY name ASC")
+        rows = cursor.fetchall()
+        return [{"name": row['name'], "settings_json": row['settings_json']} for row in rows]
+    except Exception as e:
+        print(f"[DB Error] get_subtitle_style_presets: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def save_subtitle_style_preset(name: str, settings_json: str):
+    """자막 스타일 프리셋 저장 (Upsert)"""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        # SQLite doesn't support ON CONFLICT for all versions easily if name is not unique in schema, 
+        # but I added UNIQUE(name). 
+        # Actually I'll use a simpler replace for older sqlite if needed
+        cursor.execute("INSERT OR REPLACE INTO subtitle_style_presets (name, settings_json, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)", (name, settings_json))
+        conn.commit()
+    except Exception as e:
+        print(f"[DB Error] save_subtitle_style_preset: {e}")
+    finally:
+        if conn: conn.close()
+
+def delete_subtitle_style_preset(name: str):
+    """자막 스타일 프리셋 삭제"""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM subtitle_style_presets WHERE name = ?", (name,))
+        conn.commit()
+    except Exception as e:
+        print(f"[DB Error] delete_subtitle_style_preset: {e}")
+    finally:
+        if conn: conn.close()
 
 def get_script_style_presets():
     """대본 스타일 프리셋 조회"""

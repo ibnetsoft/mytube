@@ -557,7 +557,7 @@ async def bulk_update_prompts(project_id: int, req: BulkPromptUpdate):
                 "prompt_en": line, 
                 "image_url": base.get("image_url", ""),
                 "video_url": base.get("video_url", ""),
-                "engine": base.get("engine", "wan"),
+                "engine": base.get("engine", "veo"),
                 "scene_type": base.get("scene_type", ""),
                 "motion_desc": base.get("motion_desc", "")
             }
@@ -1320,7 +1320,7 @@ async def tts_generate(req: TTSRequest):
                     
                     try:
                         if provider == "elevenlabs":
-                             await tts_service.generate_elevenlabs(seg_text, target_voice, seg_path)
+                             await tts_service.generate_elevenlabs(seg_text, target_voice, seg_path, voice_settings={"speed": req.speed})
                         elif provider == "openai":
                              await tts_service.generate_openai(seg_text, target_voice, "tts-1", seg_path, req.speed)
                         else: # gemini / edge_tts
@@ -1431,7 +1431,7 @@ async def tts_generate(req: TTSRequest):
             # 1. ElevenLabs
             if req.provider == "elevenlabs":
                 result = await tts_service.generate_elevenlabs(
-                    req.text, req.voice_id, result_filename
+                    req.text, req.voice_id, result_filename, voice_settings={"speed": req.speed}
                 )
                 # ElevenLabs returns a dict containing metadata
                 if isinstance(result, dict):

@@ -6,20 +6,18 @@
     <div class="flex items-center justify-between mb-4 shrink-0">
         <div>
             <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-500">
-                {{ t('autopilot_title') }} <span
-                    class="text-xs font-normal text-purple-400 bg-purple-400/10 px-2 py-0.5 rounded-full ml-1">Director
-                    Mode</span>
+                디렉터 모드</span>
             </h1>
-            <p class="text-gray-500 text-xs mt-0.5 dark:text-gray-400">{{ t('autopilot_desc') }}</p>
+            <p class="text-gray-500 text-xs mt-0.5 dark:text-gray-400">AI가 영상의 주제부터 최종 결과물까지 한 번에 제작합니다.</p>
         </div>
 
         <!-- Tabs (Integrated) -->
         <div class="flex bg-gray-900/50 border border-gray-700 p-1 rounded-xl">
-                🚀 {{ t('tab_single_production') }}
+                🚀 단일 제작
             </button>
             <button onclick="switchTab('batch')" id="tabBatch"
                 class="px-4 py-1.5 text-xs font-medium rounded-lg transition-all text-gray-400 hover:text-white flex items-center gap-1.5">
-                <span>📥</span> {{ t('tab_queue_management') }}
+                <span>📥</span> 대기열 관리
                 <span id="queueBadge" class="bg-gray-700 text-[10px] px-1.5 py-0.5 rounded-full hidden">0</span>
             </button>
         </div>
@@ -28,20 +26,20 @@
     <!-- Presets Toolbar (More Compact) -->
     <div class="mb-4 bg-gray-900/40 border border-gray-800 rounded-xl p-3 flex items-center justify-between shrink-0">
         <div class="flex items-center gap-3">
-            <span class="text-gray-400 text-xs font-medium">✨ {{ t('label_preset') }}:</span>
+            <span class="text-gray-400 text-xs font-medium">✨ 프리셋:</span>
             <select id="presetSelect" onchange="loadPreset(this.value)"
                 class="bg-gray-800 border-gray-700 text-white text-xs rounded-lg pr-8 focus:ring-purple-500 focus:border-purple-500 block w-48 p-1.5">
-                <option value="">-- {{ t('preset_custom') }} --</option>
+                <option value="">-- 사용자 설정 --</option>
             </select>
             <button onclick="deleteCurrentPreset()" id="btnDeletePreset"
-                class="text-red-400 hover:text-red-300 text-[10px] hidden underline">{{ t('btn_delete') }}</button>
+                class="text-red-400 hover:text-red-300 text-[10px] hidden underline">삭제</button>
         </div>
         <div class="flex items-center gap-2">
-            <input type="text" id="newPresetName" placeholder="{{ t('placeholder_new_preset') }}"
+            <input type="text" id="newPresetName" placeholder="새 프리셋명"
                 class="bg-gray-800 border-gray-700 text-white text-xs rounded-lg px-2 py-1.5 w-32">
             <button onclick="saveCurrentPreset()"
                 class="bg-purple-600/80 hover:bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">
-                <span>💾</span> {{ t('btn_save') }}
+                <span>💾</span> 저장
             </button>
         </div>
     </div>
@@ -61,18 +59,18 @@
                                 <div
                                     class="w-7 h-7 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-400 font-bold text-xs">
                                     1</div>
-                                <h3 class="text-sm font-bold text-white">{{ t('autopilot_step_topic') }}</h3>
+                                <h3 class="text-sm font-bold text-white">제작 주제</h3>
                             </div>
                             <!-- [NEW] Mode Switch - Enhanced Visibility -->
                             <div
                                 class="flex bg-gray-800/90 rounded-xl p-1 border border-purple-500/30 shadow-lg shadow-purple-500/5">
                                 <button type="button" onclick="setMode('longform')" id="modeLongform"
                                     class="mode-btn px-3 py-1.5 text-[10px] rounded-lg bg-purple-600 text-white font-bold transition-all flex items-center gap-1">
-                                    📺 {{ t('mode_longform') }}
+                                    📺 롱폼
                                 </button>
                                 <button type="button" onclick="setMode('shorts')" id="modeShorts"
                                     class="mode-btn px-3 py-1.5 text-[10px] rounded-lg text-gray-400 hover:text-white transition-all flex items-center gap-1">
-                                    📱 {{ t('mode_shorts') }}
+                                    📱 쇼츠
                                 </button>
                                 <input type="hidden" id="appMode" value="longform">
                                 <input type="hidden" id="creationMode" value="default">
@@ -83,17 +81,17 @@
                         <div id="commerceModeToggle"
                             class="hidden mb-4 p-2 bg-gradient-to-r from-cyan-900/40 to-blue-900/40 rounded-xl border border-cyan-500/30">
                             <p class="text-[9px] text-cyan-400 font-bold mb-2 ml-1 flex items-center gap-1">
-                                🚀 {{ t('label_creation_mode') }}
+                                🚀 제작 모드
                             </p>
                             <div class="flex gap-2">
                                 <button type="button" onclick="setCreationMode('default')" id="modeDefault"
                                     class="creation-mode-btn flex-1 py-2 text-[10px] rounded-lg bg-cyan-600 text-white font-bold transition-all shadow-md">
-                                    🏠 {{ t('theme_default') }}
+                                    🏠 기본 테마
                                 </button>
                                 <button type="button" onclick="setCreationMode('commerce')" id="modeCommerce"
                                     class="creation-mode-btn flex-1 py-2 text-[10px] rounded-lg text-cyan-400 bg-cyan-900/20 border border-cyan-500/20 hover:bg-cyan-500/10 transition-all flex items-center justify-center gap-1">
-                                    🛒 {{ t('theme_commerce_review') }} <span
-                                        class="text-[8px] bg-red-500 text-white px-1 rounded-sm leading-tight">{{ t('badge_topview') }}</span>
+                                    🛒 커머스 리뷰 <span
+                                        class="text-[8px] bg-red-500 text-white px-1 rounded-sm leading-tight">탑뷰</span>
                                 </button>
                             </div>
                         </div>
@@ -101,16 +99,16 @@
                         <div id="topicInputContainer">
                             <input type="text" id="topicInput"
                                 class="w-full bg-gray-800/40 border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 transition-all"
-                                placeholder="{{ t('placeholder_topic') }}">
+                                placeholder="영상 주제 또는 아이디어를 입력하세요...">
                         </div>
 
                         <!-- [NEW] Product URL Input (Hidden by default) -->
                         <div id="productUrlContainer" class="hidden mt-2">
                             <input type="text" id="productUrlInput"
                                 class="w-full bg-cyan-900/20 border-cyan-500/30 text-white rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 transition-all placeholder-cyan-700"
-                                placeholder="{{ t('placeholder_product_url') }}">
+                                placeholder="쿠팡/네이버 상품 URL 또는 제목을 입력하세요.">
                             <p class="text-[9px] text-cyan-500/60 mt-1">
-                                * {{ t('helper_topview_ai') }}
+                                * AI가 상품 정보를 읽어와서 자동으로 쇼츠를 기획합니다.
                             </p>
                         </div>
                     </div>
@@ -122,7 +120,7 @@
                             <div
                                 class="w-7 h-7 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold text-xs">
                                 4</div>
-                            <h3 class="text-sm font-bold text-white">{{ t('autopilot_step_audio') }}</h3>
+                            <h3 class="text-sm font-bold text-white">나레이션 & 오디오</h3>
                         </div>
 
                         <div class="space-y-4">
@@ -130,24 +128,24 @@
                             <div class="grid grid-cols-2 gap-2">
                                 <div>
                                     <label
-                                        class="block text-[10px] font-medium text-gray-500 mb-1 dark:text-gray-400">{{ t('label_script_style') }}</label>
+                                        class="block text-[10px] font-medium text-gray-500 mb-1 dark:text-gray-400">대본 스타일</label>
                                     <select id="scriptStyleSelect"
                                         class="w-full bg-gray-900 border-gray-700 text-white rounded-lg px-2 py-1.5 text-xs">
-                                        <option value="default" selected>{{ t('style_default') }}</option>
-                                        <option value="news">{{ t('style_news') }}</option>
-                                        <option value="story">{{ t('style_story') }}</option>
-                                        <option value="senior_story">{{ t('style_senior') }}</option>
-                                        <option value="modern_drama">{{ t('style_modern_drama') }}</option>
+                                        <option value="default" selected>기본</option>
+                                        <option value="news">뉴스/정보</option>
+                                        <option value="story">스토리텔링</option>
+                                        <option value="senior_story">시니어 맞춤</option>
+                                        <option value="modern_drama">트렌디한 감성</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label
-                                        class="block text-[10px] font-medium text-gray-500 mb-1 dark:text-gray-400">{{ t('label_target_duration') }}</label>
+                                        class="block text-[10px] font-medium text-gray-500 mb-1 dark:text-gray-400">목표 길이</label>
                                     <div class="relative">
                                         <input type="number" id="targetDuration" min="1" max="180" value="10"
                                             class="w-full bg-gray-800/40 border-gray-700 text-white rounded-lg px-2 py-1.5 text-xs pr-6 font-mono">
                                         <span
-                                            class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500 pointer-events-none dark:text-gray-400">{{ t('unit_min_short') }}</span>
+                                            class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500 pointer-events-none dark:text-gray-400">분</span>
                                     </div>
                                 </div>
                             </div>
@@ -155,7 +153,7 @@
                             <div class="grid grid-cols-2 gap-2">
                                 <div>
                                     <label
-                                        class="block text-[10px] font-medium text-gray-500 mb-1 dark:text-gray-400">{{ t('label_engine') }}</label>
+                                        class="block text-[10px] font-medium text-gray-500 mb-1 dark:text-gray-400">TTS 엔진</label>
                                     <select id="providerSelect"
                                         class="w-full bg-gray-900 border-gray-700 text-white rounded-lg px-2 py-1.5 text-xs">
                                         <option value="gemini">Gemini</option>
@@ -166,10 +164,10 @@
                                 </div>
                                 <div>
                                     <label
-                                        class="block text-[10px] font-medium text-gray-500 mb-1 dark:text-gray-400">{{ t('label_voice_char') }}</label>
+                                        class="block text-[10px] font-medium text-gray-500 mb-1 dark:text-gray-400">목소리 선택</label>
                                     <select id="voiceSelect"
                                         class="w-full bg-gray-900 border-gray-700 text-white rounded-lg px-2 py-1.5 text-xs">
-                                        <option value="">{{ t('status_loading') }}</option>
+                                        <option value="">로딩 중...</option>
                                     </select>
                                 </div>
                             </div>
@@ -182,13 +180,13 @@
                             <div
                                 class="w-7 h-7 rounded-lg bg-teal-500/20 flex items-center justify-center text-teal-400 font-bold text-xs">
                                 5</div>
-                            <h3 class="text-sm font-bold text-white">{{ t('label_subtitle_preview') }}</h3>
+                            <h3 class="text-sm font-bold text-white">자막 디자인 (미리보기)</h3>
                         </div>
                         <div class="grid grid-cols-2 gap-2 text-[11px] text-gray-400 bg-black/20 p-2 rounded-lg"
                             id="subtitlePreviewPanel">
-                            <div class="col-span-2 text-center py-2 italic">{{ t('status_loading') }}</div>
+                            <div class="col-span-2 text-center py-2 italic">로딩 중...</div>
                         </div>
-                        <p class="text-[9px] text-gray-600 mt-2 text-center dark:text-gray-300">{{ t('helper_subtitle_autoreload') }}</p>
+                        <p class="text-[9px] text-gray-600 mt-2 text-center dark:text-gray-300">자막 수정 시 자동으로 새 디자인이 적용됩니다.</p>
                     </div>
                 </div>
 
@@ -201,7 +199,7 @@
                                 <div
                                     class="w-7 h-7 rounded-lg bg-pink-500/20 flex items-center justify-center text-pink-400 font-bold text-xs">
                                     2</div>
-                                <h3 class="text-sm font-bold text-white">{{ t('autopilot_step_visual') }}</h3>
+                                <h3 class="text-sm font-bold text-white">비주얼 스타일</h3>
                                 <span id="sceneCountVal"
                                     class="text-[10px] bg-pink-500/10 text-pink-400 px-2 py-0.5 rounded font-bold">0
                                     {{ t('unit_scenes') }}</span>
@@ -210,16 +208,16 @@
 
                         <!-- [NEW] Ethnicity Dropdown for Autopilot -->
                         <div class="mb-3 bg-black/20 p-2 rounded-lg border border-gray-800">
-                            <label class="block text-[10px] font-bold text-gray-300 mb-1">🌍 {{ t('ethnicity_title') }}</label>
+                            <label class="block text-[10px] font-bold text-gray-300 mb-1">🌍 인물 인종 설정</label>
                             <select id="charEthnicity" class="w-full bg-gray-800 border-gray-700 text-white rounded-lg px-2 py-1.5 text-[11px] focus:ring-1 focus:ring-pink-500 outline-none">
-                                <option value="East Asian heritage, Polished porcelain skin">1. {{ t('ethnicity_1') }} (East Asian)</option>
-                                <option value="Southeast Asian features, Golden tan complexion">2. {{ t('ethnicity_2') }} (Southeast Asian & Pacific Islander)</option>
-                                <option value="South Asian descent, Desi features, Deep almond eyes">3. {{ t('ethnicity_3') }} (South Asian)</option>
-                                <option value="European ancestry, Fair complexion, High bridge nose">4. {{ t('ethnicity_4') }} (European / Caucasian)</option>
-                                <option value="Middle Eastern features, Olive undertone, Prominent facial structure">5. {{ t('ethnicity_5') }} (Middle Eastern & North African)</option>
-                                <option value="Sub-Saharan African descent, Rich melanin, Natural textured hair">6. {{ t('ethnicity_6') }} (Sub-Saharan African)</option>
-                                <option value="Latino heritage, Sun-kissed skin, Diverse ethnic blend">7. {{ t('ethnicity_7') }} (Hispanic / Latino - Mestizo)</option>
-                                <option value="Indigenous features, Weathered complexion, Distinctive tribal look">8. {{ t('ethnicity_8') }} (Indigenous / Indigenous Australian)</option>
+                                <option value="East Asian heritage, Polished porcelain skin">1. 동양인 (동아시아)</option>
+                                <option value="Southeast Asian features, Golden tan complexion">2. 동남아시아 & 태평양 섬주민</option>
+                                <option value="South Asian descent, Desi features, Deep almond eyes">3. 남아시아 (인도 등)</option>
+                                <option value="European ancestry, Fair complexion, High bridge nose">4. 유럽인 / 백인</option>
+                                <option value="Middle Eastern features, Olive undertone, Prominent facial structure">5. 중동 & 북아프리카</option>
+                                <option value="Sub-Saharan African descent, Rich melanin, Natural textured hair">6. 아프리카계 (흑인)</option>
+                                <option value="Latino heritage, Sun-kissed skin, Diverse ethnic blend">7. 히스패닉 / 라틴</option>
+                                <option value="Indigenous features, Weathered complexion, Distinctive tribal look">8. 원주민 / 인디언</option>
                             </select>
                         </div>
 
@@ -233,7 +231,7 @@
                             <!-- Video Generation Engine Selection -->
                             <div
                                 class="flex items-center justify-between mb-2 bg-black/20 p-1.5 rounded-lg border border-gray-800">
-                                <span class="text-[10px] text-gray-400 ml-1 font-medium">{{ t('label_video_engine') }}</span>
+                                <span class="text-[10px] text-gray-400 ml-1 font-medium">비디오 엔진</span>
                                 <div class="flex gap-1" id="videoEngineGroup">
                                     <button type="button" data-value="wan" onclick="setVideoEngine('wan')"
                                         class="video-engine-btn px-2 py-1 text-[9px] rounded-md bg-gray-800 text-gray-400 hover:text-white transition-all">Wan
@@ -243,7 +241,7 @@
                                         (Avatar)</button>
                                     <button type="button" data-value="akool_premium"
                                         onclick="setVideoEngine('akool_premium')"
-                                        class="video-engine-btn px-2 py-1 text-[9px] rounded-md bg-gray-800 text-gray-400 hover:text-white transition-all">{{ t('engine_akool_premium') }}</button>
+                                        class="video-engine-btn px-2 py-1 text-[9px] rounded-md bg-gray-800 text-gray-400 hover:text-white transition-all">Akool (프리미엄)</button>
                                     <button type="button" data-value="veo" onclick="setVideoEngine('veo')"
                                         class="video-engine-btn px-2 py-1 text-[9px] rounded-md bg-purple-600 text-white font-bold transition-all shadow-sm">Veo</button>
                                 </div>
@@ -253,14 +251,14 @@
                             <!-- Video Generation Method Selection -->
                             <div
                                 class="flex items-center justify-between mb-3 bg-black/20 p-1.5 rounded-lg border border-gray-800">
-                                <span class="text-[10px] text-gray-400 ml-1 font-medium">{{ t('label_gen_method') }}</span>
+                                <span class="text-[10px] text-gray-400 ml-1 font-medium">생성 방식</span>
                                 <div class="flex gap-1" id="motionMethodGroup">
                                     <button type="button" data-value="standard" onclick="setMotionMethod('standard')"
-                                        class="motion-method-btn px-2 py-1 text-[9px] rounded-md bg-purple-600 text-white font-bold transition-all shadow-sm">{{ t('label_standard') }}</button>
+                                        class="motion-method-btn px-2 py-1 text-[9px] rounded-md bg-purple-600 text-white font-bold transition-all shadow-sm">표준 (고정)</button>
                                     <button type="button" data-value="extend" onclick="setMotionMethod('extend')"
-                                        class="motion-method-btn px-2 py-1 text-[9px] rounded-md bg-gray-800 text-gray-400 hover:text-white transition-all">{{ t('label_high_res_8s') }}</button>
+                                        class="motion-method-btn px-2 py-1 text-[9px] rounded-md bg-gray-800 text-gray-400 hover:text-white transition-all">고화질 (8초)</button>
                                     <button type="button" data-value="slowmo" onclick="setMotionMethod('slowmo')"
-                                        class="motion-method-btn px-2 py-1 text-[9px] rounded-md bg-gray-800 text-gray-400 hover:text-white transition-all">{{ t('label_slowmo_8s') }}</button>
+                                        class="motion-method-btn px-2 py-1 text-[9px] rounded-md bg-gray-800 text-gray-400 hover:text-white transition-all">슬로우모션 (8초)</button>
                                 </div>
                                 <input type="hidden" id="motionMethod" value="standard">
                             </div>
@@ -273,13 +271,13 @@
                                     class="flex items-center gap-1.5 cursor-pointer bg-pink-500/10 hover:bg-pink-500/20 px-2 py-1 rounded-md transition-all border border-pink-500/20">
                                     <input type="checkbox" id="allVideoCheck"
                                         class="w-3 h-3 rounded border-gray-700 text-pink-500 focus:ring-pink-500 bg-gray-800">
-                                    <span class="text-[10px] text-pink-400 font-black whitespace-nowrap">{{ t('label_all_caps') }}</span>
+                                    <span class="text-[10px] text-pink-400 font-black whitespace-nowrap">전체</span>
                                 </label>
                             </div>
                             <div class="flex justify-between text-[9px] text-gray-500 mt-1 dark:text-gray-400">
-                                <span>0 ({{ t('label_image_focused') }})</span>
-                                <span>{{ t('helper_scene_gen_prefix') }} <strong id="sceneCountInline">0</strong>{{ t('helper_scene_gen_mid') }}</span>
-                                <span id="maxSceneLabel">20 ({{ t('label_video_focused') }})</span>
+                                <span>0 (이미지 중심)</span>
+                                <span>최대 <strong id="sceneCountInline">0</strong>장 비디오 생성</span>
+                                <span id="maxSceneLabel">20 (비디오 중심)</span>
                             </div>
                         </div>
                     </div>
@@ -296,7 +294,7 @@
                         <div id="thumbnailStyleGrid"
                             class="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[220px] overflow-y-auto p-1 custom-scrollbar">
                             <div class="col-span-full py-4 text-center text-gray-600 text-[10px] dark:text-gray-300">
-                                {{ t('status_loading_thumbnail_styles') }}</div>
+                                썸네일 스타일을 불러오는 중...</div>
                         </div>
                     </div>
 
@@ -304,8 +302,8 @@
                     <div class="card bg-gray-900/40 border-indigo-500/10 p-4 rounded-xl">
                         <div class="flex items-center justify-between">
                             <div>
-                                <h3 class="text-[11px] font-bold text-gray-300">{{ t('label_char_analysis') }}</h3>
-                                <p class="text-[9px] text-gray-500">{{ t('helper_char_analysis') }}</p>
+                                <h3 class="text-[11px] font-bold text-gray-300">인물 매칭 (고도화)</h3>
+                                <p class="text-[9px] text-gray-500">나레이션에 맞는 인물을 AI가 자동으로 매칭합니다.</p>
                             </div>
                             <label class="relative inline-flex items-center cursor-pointer">
                                 <input type="checkbox" id="useCharacterAnalysis" class="sr-only peer">
@@ -325,27 +323,27 @@
                         <div
                             class="w-16 h-16 bg-purple-500/10 rounded-full flex items-center justify-center text-3xl mb-4 animate-bounce">
                             🚀</div>
-                        <h3 class="text-lg font-bold text-white mb-2">{{ t('label_autopilot_start') }}</h3>
-                        <p class="text-xs text-gray-500 mb-6 leading-relaxed dark:text-gray-400">{{ t('helper_autopilot_desc') }}
+                        <h3 class="text-lg font-bold text-white mb-2">제작 시작</h3>
+                        <p class="text-xs text-gray-500 mb-6 leading-relaxed dark:text-gray-400">AI가 대본, 음성, 배경음악, 이미지 구성을 한 번에 완료합니다.
                         </p>
 
                         <div class="w-full flex flex-col gap-2 mb-4">
                             <button onclick="startAutopilot()" id="btnStartProduction"
                                 class="group w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-6 rounded-xl transition-all transform hover:scale-105">
-                                <span>{{ t('btn_start_production') }}</span>
+                                <span>자동 제작 시작</span>
                                 <span class="group-hover:translate-x-1 transition-transform">⚡</span>
                             </button>
 
                             <button onclick="addToQueue()" id="btnAddToQueue"
                                 class="group w-full flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold py-3 px-6 rounded-xl border border-gray-700 transition-all hover:border-purple-500/50">
-                                <span>{{ t('btn_add_queue') }}</span>
+                                <span>대기열에 추가</span>
                                 <span class="group-hover:translate-y-0.5 transition-transform text-xs">📥</span>
                             </button>
                         </div>
 
                         <div class="flex items-center gap-2 text-xs text-green-400">
                             <span class="flex h-2 w-2 rounded-full bg-green-500/50"></span>
-                            {{ t('status_ai_server_waiting') }}
+                            AI 서버 대기 중
                         </div>
 
                     </div>
@@ -356,33 +354,33 @@
                             <div
                                 class="w-6 h-6 rounded-lg bg-red-500/20 flex items-center justify-center text-red-500 text-xs">
                                 📹</div>
-                            <h3 class="text-xs font-bold text-white">{{ t('label_yt_upload_settings') }}</h3>
+                            <h3 class="text-xs font-bold text-white">유튜브 업로드 설정</h3>
                         </div>
                         <div class="space-y-3">
                             <div>
-                                <label class="block text-[10px] text-gray-500 mb-1 dark:text-gray-400">{{ t('label_upload_channel') }}</label>
+                                <label class="block text-[10px] text-gray-500 mb-1 dark:text-gray-400">채널 선택</label>
                                 <select id="youtubeChannelId"
                                     class="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-[11px] text-white focus:ring-1 focus:ring-red-500/50 outline-none">
-                                    <option value="">{{ t('channel_default') }}</option>
+                                    <option value="">기본 채널</option>
                                     <!-- Dynamic Channels -->
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-[10px] text-gray-500 mb-1 dark:text-gray-400">{{ t('label_privacy_scope') }}</label>
+                                <label class="block text-[10px] text-gray-500 mb-1 dark:text-gray-400">공개 범위</label>
                                 <select id="uploadPrivacy" onchange="toggleScheduleInput()"
                                     class="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-[11px] text-white focus:ring-1 focus:ring-red-500/50 outline-none">
-                                    <option value="private" selected>{{ t('privacy_private') }}</option>
-                                    <option value="public">{{ t('privacy_public') }}</option>
-                                    <option value="unlisted">{{ t('privacy_unlisted') }}</option>
-                                    <option value="scheduled">{{ t('privacy_scheduled') }}</option>
+                                    <option value="private" selected>비공개</option>
+                                    <option value="public">공개</option>
+                                    <option value="unlisted">일부 공개</option>
+                                    <option value="scheduled">예약 공개</option>
                                 </select>
                             </div>
                             <div id="scheduleInputContainer"
                                 class="hidden animate-in fade-in slide-in-from-top-1 duration-200">
-                                <label class="block text-[10px] text-gray-500 mb-1 dark:text-gray-400">{{ t('label_scheduled_time') }}</label>
+                                <label class="block text-[10px] text-gray-500 mb-1 dark:text-gray-400">예약 시간</label>
                                 <input type="datetime-local" id="uploadScheduleAt"
                                     class="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-[11px] text-white outline-none focus:ring-1 focus:ring-red-500/50">
-                                <p class="text-[9px] text-gray-600 mt-1 dark:text-gray-300">* {{ t('helper_scheduled_warn') }}
+                                <p class="text-[9px] text-gray-600 mt-1 dark:text-gray-300">* 예약 공개는 채널의 인증 상태에 따라 다를 수 있습니다.
                                 </p>
                             </div>
                         </div>
@@ -391,7 +389,7 @@
                     <!-- App Tips or Stats -->
                     <div
                         class="card bg-purple-900/10 border border-purple-500/10 p-3 rounded-xl flex-1 opacity-60 flex flex-col items-center justify-center">
-                        <p class="text-[10px] text-purple-400 text-center italic">"{{ t('tip_save_presets') }}"</p>
+                        <p class="text-[10px] text-purple-400 text-center italic">"설정을 프리셋으로 저장하면 나중에 빠르게 다시 사용할 수 있습니다."</p>
                     </div>
                 </div>
             </div>
@@ -405,9 +403,9 @@
                         <div class="w-10 h-10 rounded-2xl bg-purple-500/20 flex items-center justify-center text-xl">📦
                         </div>
                         <div>
-                            <h3 class="text-lg font-bold text-white">{{ t('label_queue') }} <span id="queueCount"
+                            <h3 class="text-lg font-bold text-white">대기열 <span id="queueCount"
                                     class="text-purple-400 ml-1">0</span></h3>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('label_queue_management_desc') }}</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">제작 대기 중인 작업들을 일괄 처리합니다.</p>
                         </div>
                     </div>
                     <div class="flex items-center gap-2">
@@ -415,7 +413,7 @@
                             class="p-2.5 bg-gray-800 hover:bg-gray-700 rounded-xl text-white transition-all">🔄</button>
                         <button onclick="startBatch()" id="btnStartBatch"
                             class="px-6 py-2.5 bg-white text-black font-black rounded-xl hover:bg-purple-100 transition-all disabled:opacity-30 text-xs shadow-lg dark:text-gray-100 dark:bg-gray-800">
-                            {{ t('btn_start_batch') }} ▶️
+                            일괄 제작 시작 ▶️
                         </button>
                     </div>
                 </div>
@@ -425,15 +423,15 @@
                 <!-- List -->
                 <div class="card bg-gray-900/40 border-gray-800 rounded-2xl p-4 overflow-y-auto custom-scrollbar"
                     id="queueList">
-                    <div class="text-center py-20 text-gray-600 text-sm dark:text-gray-300">{{ t('status_no_queue_items') }}</div>
+                    <div class="text-center py-20 text-gray-600 text-sm dark:text-gray-300">대기열이 비어 있습니다.</div>
                 </div>
                 <!-- Mini Log for Batch -->
                 <div class="card bg-black border border-gray-800 rounded-2xl p-4 flex flex-col overflow-hidden">
                     <div class="text-xs font-bold text-gray-500 mb-3 uppercase tracking-widest dark:text-gray-400">
-                        {{ t('label_execution_logs') }}</div>
+                        제작 로그</div>
                     <div id="batchConsoleLogs"
                         class="flex-1 overflow-y-auto custom-scrollbar text-[10px] font-mono text-green-500/80 leading-relaxed bg-black/40 p-2 rounded-xl">
-                        <div class="text-gray-800 italic dark:text-gray-100">{{ t('status_no_batch_activity') }}</div>
+                        <div class="text-gray-800 italic dark:text-gray-100">현재 진행 중인 작업이 없습니다.</div>
                     </div>
                 </div>
             </div>
@@ -459,18 +457,18 @@
                     🎬</div>
                 <div>
                     <h3 class="font-bold text-white text-lg flex items-center gap-2">
-                        {{ t('status_autopilot_in_progress') }}
+                        자동 제작 진행 중
                         <span id="modalTopicTitle"
                             class="text-xs font-normal text-gray-500 truncate max-w-[150px] dark:text-gray-400"></span>
                     </h3>
-                    <p id="modalStatusText" class="text-xs text-purple-400 font-medium">{{ t('status_waiting_task') }}</p>
+                    <p id="modalStatusText" class="text-xs text-purple-400 font-medium">작업 대기 중</p>
                     <p id="modalStepDetail" class="text-[10px] text-gray-400 mt-0.5 truncate max-w-[260px]"></p>
                 </div>
             </div>
             <div class="flex items-center gap-2">
                 <button onclick="closeAutopilotModal()" id="modalCloseBtn"
                     class="p-2 hover:bg-white/5 rounded-full transition-colors text-gray-500 dark:text-gray-400 dark:bg-gray-800"
-                    title="{{ t('title_close_modal_keep_task') }}">
+                    title="창을 닫아도 백그라운드에서 제작이 계속됩니다.">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
                         </path>
@@ -484,7 +482,7 @@
             <div class="flex justify-between items-end mb-2.5">
                 <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
                     <span class="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse"></span>
-                    {{ t('label_overall_progress') }}
+                    전체 진행률
                 </span>
                 <span class="flex items-center gap-2">
                     <span id="modalElapsed" class="text-[10px] text-gray-500 font-mono"></span>
@@ -505,10 +503,10 @@
             <div class="flex items-center justify-between mb-3 shrink-0">
                 <div class="flex items-center gap-2">
                     <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                    <h4 class="text-[10px] font-bold text-gray-500 uppercase tracking-widest dark:text-gray-400">{{ t('label_system_logs') }}</h4>
+                    <h4 class="text-[10px] font-bold text-gray-500 uppercase tracking-widest dark:text-gray-400">시스템 로그</h4>
                 </div>
                 <button onclick="clearLogs()"
-                    class="text-[9px] text-gray-600 hover:text-white transition-colors uppercase tracking-wider dark:text-gray-300">{{ t('btn_clear_logs') }}</button>
+                    class="text-[9px] text-gray-600 hover:text-white transition-colors uppercase tracking-wider dark:text-gray-300">로그 삭제</button>
             </div>
             <div id="modalConsoleLogs"
                 class="flex-1 overflow-y-auto custom-scrollbar font-mono text-[13px] leading-relaxed space-y-1.5 pr-2 text-gray-300">
@@ -518,9 +516,9 @@
 
         <!-- Footer Action -->
         <div id="modalFooter" class="px-6 py-4 bg-gray-900 border-t border-gray-800 flex justify-between items-center">
-            <span class="text-[10px] text-gray-500 dark:text-gray-400">{{ t('helper_do_not_close_browser') }}</span>
+            <span class="text-[10px] text-gray-500 dark:text-gray-400">제작이 완료될 때까지 브라우저 창을 닫지 마세요.</span>
             <button id="modalDoneBtn" onclick="window.location.href='/video-gen'"
-                class="hidden px-6 py-2 bg-white text-black font-bold rounded-xl text-xs hover:bg-purple-100 transition-all shadow-lg dark:text-gray-100 dark:bg-gray-800">{{ t('btn_go_to_results') }} →</button>
+                class="hidden px-6 py-2 bg-white text-black font-bold rounded-xl text-xs hover:bg-purple-100 transition-all shadow-lg dark:text-gray-100 dark:bg-gray-800">결과 확인하러 가기 →</button>
         </div>
     </div>
 </div>

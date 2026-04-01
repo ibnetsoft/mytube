@@ -191,10 +191,50 @@ async def generate_single_video(project_id: int, req: SingleVideoGenRequest):
         from services.akool_service import akool_service
         from services.video_service import video_service
         from config import config
+        from app.utils import STYLE_PROMPTS
         import os
         from datetime import datetime
         
-        # 1. Get Image Path
+        # 1. Get Project Settings & Style
+        p_settings = db.get_project_settings(project_id) or {}
+        image_style = p_settings.get('image_style', 'realistic')
+        
+        # DB에서 스타일 prefix 가져오기
+        db_presets = db.get_style_presets()
+        style_settings = db_presets.get(image_style.lower(), {})
+        style_prefix = (style_settings.get('prompt_value') or STYLE_PROMPTS.get(image_style.lower(), '')).strip()
+
+        # [NEW] 비디오 생성 시 스타일 프롬프트 정제 (이미지용 지시어 제거)
+        if style_prefix:
+            import re as _re
+            # 이미지 전용 제약 조건(팔 개수, 추가 팔 등) 제거 - 비디오 AI 혼동 방지
+            _neg_patterns = [
+                r',?\s*each person has ONLY one left arm.*',
+                r',?\s*zero extra NO additional limbs.*',
+                r',?\s*NO THIRD ARM.*',
+                r',?\s*ABSOLUTELY NO TEXT.*',
+                r',?\s*No text, no words.*',
+                r'\(수묵 담채화\)', # 괄호 안의 한국어 등은 제거 (AI 성능 향상)
+                r'\(Realistic\)',
+                r'\(Anime\)',
+                r'\(Cinematic\)',
+                r'\(Cartoon\)',
+                r'\(Oil Painting\)',
+                r'\(Watercolor\)',
+                r'\(Sketch\)',
+                r'\(Pixel Art\)',
+                r'\(3D Render\)',
+                r'\(Webtoon\)',
+                r'\(Ghibli\)',
+                r'\(K-Manhwa\)',
+                r'\(Minimal\)',
+                r'\(Nursery Rhyme\)'
+            ]
+            for pat in _neg_patterns:
+                style_prefix = _re.sub(pat, '', style_prefix, flags=_re.IGNORECASE)
+            style_prefix = style_prefix.strip(', ')
+
+        # 2. Get Image Path
         prompts = db.get_image_prompts(project_id)
         target_p = next((p for p in prompts if p['scene_number'] == req.scene_number), None)
         if not target_p: raise HTTPException(404, "Scene not found")
@@ -209,23 +249,31 @@ async def generate_single_video(project_id: int, req: SingleVideoGenRequest):
         video_url = ""
         
         # ── 영상용 프롬프트 빌더 ──────────────────────────────────────────
-        # 영상 AI(Seedance/Wan)는 정적 이미지 묘사보다 모션/액션 설명을 우선함.
-        # motion_desc(짧고 액션 중심) → 앞에, prompt_en 요약(시각 컨텍스트) → 뒤에.
-        def _build_video_prompt(p_en: str, m_desc: str, max_chars: int = 700) -> str:
+        # 영상 AI(Seedance/Wan/Veo)는 정적 이미지 묘사보다 모션/액션 설명을 우선함.
+        # style_prefix (스타일) + motion_desc(모션) + prompt_en 요약(시각 컨텍스트)
+        def _build_video_prompt(p_en: str, m_desc: str, s_prefix: str = "", max_chars: int = 800) -> str:
             m = (m_desc or "").strip()
             v = (p_en or "").strip()
-            if m:
-                # motion_desc가 있으면 앞에 배치, 뒤에 시각 컨텍스트 요약(150자) 추가
-                v_short = v[:150].rstrip(', ') if v else ""
-                combined = f"{m}, {v_short}".strip(', ') if v_short else m
-            else:
-                # motion_desc 없으면 기본 모션 + prompt_en 요약
-                v_short = v[:300].rstrip(', ') if v else "smooth cinematic scene"
-                combined = f"smooth slow pan, {v_short}"
+            s = (s_prefix or "").strip()
+            
+            # 1. 시각 컨텍스트 요약 (스타일이 있을 경우 조금 더 길게 허용)
+            v_short = v[:300].rstrip(', ') if v else ""
+            
+            # 2. 조합
+            # [Style] + [Motion] + [Prompt Context]
+            parts = []
+            if s: parts.append(s)
+            if m: parts.append(m)
+            if v_short: parts.append(v_short)
+            
+            combined = ", ".join(parts)
+            # 불필요한 공백 및 콤마 정리
+            combined = _re.sub(r',\s*,', ',', combined)
+            combined = combined.strip(', ')
             return combined[:max_chars]
         # ─────────────────────────────────────────────────────────────────
 
-        # 2. Engine Routing
+        # 3. Engine Routing
         # [FIX] motion_desc 없으면 AI로 자동 생성
         effective_motion_desc = req.motion_desc or target_p.get('motion_desc') or ""
         if not effective_motion_desc:
@@ -263,10 +311,9 @@ async def generate_single_video(project_id: int, req: SingleVideoGenRequest):
             # Prioritize: Req(override) > DB(motion_desc) > prompt_en 요약 폴백
             motion_part = effective_motion_desc
             prompt_en   = target_p.get('prompt_en') or target_p.get('visual_desc') or ""
-            final_prompt = _build_video_prompt(prompt_en, motion_part, max_chars=1000)
+            final_prompt = _build_video_prompt(prompt_en, motion_part, style_prefix, max_chars=1000)
             
             # [FIX] Check if full original image exists (prevents character cropping in pan effects)
-            p_settings = db.get_project_settings(project_id) or {}
             wan_asset_filename = p_settings.get(f"scene_{req.scene_number}_wan_image", "")
             if wan_asset_filename:
                 wan_asset_dir = os.path.join(config.OUTPUT_DIR, str(project_id), "assets", "image")
@@ -298,7 +345,7 @@ async def generate_single_video(project_id: int, req: SingleVideoGenRequest):
             # Akool API 700자 제한 → motion_desc 우선 배치로 잘림 방지
             motion_part = effective_motion_desc
             prompt_en   = target_p.get('prompt_en') or target_p.get('visual_desc') or ""
-            final_prompt = _build_video_prompt(prompt_en, motion_part, max_chars=650)
+            final_prompt = _build_video_prompt(prompt_en, motion_part, style_prefix, max_chars=650)
 
             print(f"🌱 [Studio] Generating Akool v4 Video for Scene {req.scene_number}... Prompt: {final_prompt[:80]}...")
             video_data = await akool_service.generate_akool_video_v4(
@@ -316,23 +363,10 @@ async def generate_single_video(project_id: int, req: SingleVideoGenRequest):
 
         elif actual_engine == "akool":
             # [Akool] LipSync
-            # Need Audio!
-            # We assume TTS is already generated or we can try to find it.
-            # Ideally, user should ensure TTS exists. Or we can generate TTS on fly?
-            # For now, let's look for existing tts_audio
-            conn = db.get_db()
-            row = conn.execute("SELECT audio_path FROM tts_audio WHERE project_id=? AND voice_id IS NOT NULL ORDER BY id DESC LIMIT 1", (project_id,)).fetchone()
-            # Wait, tts_audio table structure? It stores by project... 
-            # Actually, autopilot uses file naming or checks a map.
-            # Let's check 'scene_{N}_audio' setting or generic path pattern
-            
             # Try specific scene audio from settings first
-            s_set = db.get_project_settings(project_id)
             audio_path = None
             
-            # Pattern check: output/PROJ/tts_scene_N.mp3 ??
-            # AutoPilot logic: temp_audios list... 
-            # Let's try to find matching TTS file in output dir
+            # Pattern check: output/PROJ/assets/audio/tts_scene_N.mp3
             from glob import glob
             candidates = glob(os.path.join(config.OUTPUT_DIR, str(project_id), "assets", "audio", f"*{req.scene_number:03d}*.mp3"))
             if not candidates:
@@ -359,22 +393,28 @@ async def generate_single_video(project_id: int, req: SingleVideoGenRequest):
             import aiohttp
             motion_part = effective_motion_desc
             prompt_en   = target_p.get('prompt_en') or target_p.get('visual_desc') or ""
-            final_prompt = _build_video_prompt(prompt_en, motion_part, max_chars=700)
+            # Style injection here
+            final_prompt = _build_video_prompt(prompt_en, motion_part, style_prefix, max_chars=1000)
 
             veo_model = db.get_global_setting("veo_model_version", "veo-3.1-generate-preview")
             print(f"🎬 [Veo] Generating for Scene {req.scene_number}, model={veo_model}, prompt: {final_prompt[:80]}...")
 
-            veo_result = await gemini_service.generate_video(
+            veo_result = await gemini_service.generate_video_preview(
                 prompt=final_prompt,
                 model=veo_model
             )
 
+            print(f"🎬 [Veo] Result: {veo_result}")
             if veo_result and veo_result.get("status") == "ok":
                 veo_uri = veo_result.get("video_url")
                 print(f"✅ [Veo] Got video URI: {veo_uri}")
-                # URI에서 바이트 다운로드
+                # Veo URI는 Google API 인증 필요: ?key=... 추가
+                gemini_api_key = config.GEMINI_API_KEY
+                sep = "&" if "?" in veo_uri else "?"
+                download_url = f"{veo_uri}{sep}key={gemini_api_key}" if gemini_api_key else veo_uri
+                print(f"🎬 [Veo] Downloading from: {veo_uri[:80]}...")
                 async with aiohttp.ClientSession() as session:
-                    async with session.get(veo_uri) as resp:
+                    async with session.get(download_url) as resp:
                         if resp.status == 200:
                             video_bytes = await resp.read()
                             filename = f"vid_veo_{project_id}_{req.scene_number}_{now.strftime('%H%M%S')}.mp4"
@@ -382,16 +422,15 @@ async def generate_single_video(project_id: int, req: SingleVideoGenRequest):
                             with open(out, 'wb') as f: f.write(video_bytes)
                             video_url = f"/output/{filename}"
                         else:
-                            raise Exception(f"Veo 영상 다운로드 실패 (HTTP {resp.status})")
+                            body = await resp.text()
+                            raise Exception(f"Veo 영상 다운로드 실패 (HTTP {resp.status}): {body[:200]}")
             else:
-                err = veo_result.get("error", "Unknown error") if veo_result else "No result"
+                err = veo_result.get("error", "Unknown error") if veo_result else "generate_video_preview returned None"
                 raise Exception(f"Veo 영상 생성 실패: {err}")
 
         elif actual_engine == "image":
             # [2D Motion] Simple Pan/Zoom
-            # Check Webtoon Settings
-            s_set = db.get_project_settings(project_id) or {}
-            # [NEW] Check Global Webtoon Settings
+            # Check Global Webtoon Settings
             w_auto = db.get_global_setting("webtoon_auto_split", True, value_type="bool")
             w_pan = db.get_global_setting("webtoon_smart_pan", True, value_type="bool")
             w_zoom = db.get_global_setting("webtoon_convert_zoom", True, value_type="bool")
