@@ -205,7 +205,7 @@
                         <a href="/settings" id="nav-settings"
                             class="sidebar-item flex items-center gap-3 {% if page == 'settings' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
-                            <span class="font-bold">설정</span>
+                            <span class="font-bold">{{ t('nav_settings') }}</span>
                         </a>
                     </li>
                     <li class="mt-1 hidden">
@@ -260,10 +260,20 @@
                         <div class="flex items-center gap-2">
                             <span class="text-xs font-black text-blue-500 uppercase tracking-widest">Active
                                 Project:</span>
-                            <h2 id="currentProjectNameDisplay"
-                                class="text-sm font-black text-gray-800 dark:text-white border-b-2 border-blue-500/30 pb-0.5">
-                                프로젝트 이름
-                            </h2>
+                            <div class="flex items-center gap-1 group/title">
+                                <h2 id="currentProjectNameDisplay"
+                                    class="text-sm font-black text-gray-800 dark:text-white border-b-2 border-blue-500/30 pb-0.5 cursor-help"
+                                    title="클릭하여 이름 변경">
+                                    프로젝트 이름
+                                </h2>
+                                <button onclick="quickRenameCurrentProject()" 
+                                        class="opacity-0 group-hover/title:opacity-100 p-1 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-all text-blue-500"
+                                        title="이름 변경">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
                         <button onclick="closeProjectContext()"
                             class="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-gray-400 transition-colors"
@@ -502,6 +512,57 @@
             } catch (e) {
                 console.error("Language switch failed:", e);
                 Utils.showToast('Failed to switch language', 'error');
+            }
+        }
+
+        async function quickRenameCurrentProject() {
+            const currentPid = window.currentProjectId || localStorage.getItem('currentProjectId');
+            if (!currentPid) {
+                Utils.showToast("선택된 프로젝트가 없습니다.", "warning");
+                return;
+            }
+
+            const nameEl = document.getElementById('currentProjectNameDisplay');
+            const currentName = nameEl ? nameEl.textContent.trim() : "";
+            
+            const newName = prompt("새 프로젝트 이름을 입력하세요:", currentName);
+            if (newName === null) return; // Cancelled
+            
+            const trimmedName = newName.trim();
+            if (!trimmedName) {
+                Utils.showToast("이름을 입력해주세요.", "warning");
+                return;
+            }
+
+            if (trimmedName === currentName) return;
+
+            try {
+                const res = await fetch(`/api/projects/${currentPid}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: trimmedName })
+                });
+
+                if (!res.ok) throw new Error("이름 변경 실패");
+
+                Utils.showToast("프로젝트 이름이 변경되었습니다.", "success");
+                
+                // Update UI immediately
+                if (nameEl) nameEl.textContent = trimmedName;
+                
+                // Update sidebar select (if exists)
+                const select = document.getElementById('projectSelect');
+                if (select) {
+                    const opt = Array.from(select.options).find(o => o.value === currentPid);
+                    if (opt) opt.textContent = trimmedName;
+                }
+                
+                // Update sidebar project name (if exists)
+                const sidebarName = document.getElementById('sidebar-project-name');
+                if (sidebarName) sidebarName.textContent = trimmedName;
+
+            } catch (e) {
+                Utils.showToast("오류: " + e.message, "error");
             }
         }
 

@@ -8,7 +8,7 @@
     <div
         class="flex justify-between items-center mb-4 sticky top-0 bg-gray-50 dark:bg-gray-900 z-10 py-2 border-b border-gray-200 dark:border-gray-700">
         <h2 class="text-lg font-bold flex items-center gap-2">
-            <span>⚙️ 환경 설정</span>
+            <span>⚙️ {{ t('nav_settings') }}</span>
         </h2>
         <div class="flex gap-2">
             <button onclick="loadAllSettings()" class="btn-secondary py-1.5 px-3 text-xs flex items-center gap-1">
@@ -300,6 +300,28 @@
         <!-- Content Settings Tab -->
         <div id="tab-content-content" class="tab-content">
             <div class="grid grid-cols-1 gap-4">
+
+                <!-- Project Name Settings (Rename) -->
+                <div class="card p-3 shadow-sm border border-gray-200 dark:border-gray-700">
+                    <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-3 flex items-center gap-2">
+                        <span>📽️ 프로젝트 정보 및 이름 변경</span>
+                    </h3>
+                    <div class="flex flex-col gap-3">
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-[10px] font-bold text-gray-500 mb-1 block">현재 프로젝트 이름 (Rename)</label>
+                            <div class="flex gap-2">
+                                <input type="text" id="projectNameInput" class="input-field text-xs flex-1 h-9" 
+                                       value="{{ project.name if project else '' }}" placeholder="새 이름을 입력하세요.">
+                                <button onclick="updateProjectName()" 
+                                        class="btn-primary py-0 px-4 text-xs h-9 whitespace-nowrap font-bold shadow-sm">이름 변경</button>
+                            </div>
+                            <p class="text-[10px] text-gray-400 mt-1 leading-tight">
+                                * 프로젝트 이름을 변경하면 사이드바와 상단 헤드라인에 즉시 반영됩니다.<br>
+                                * 주의: 변경 후 페이지가 새로고침됩니다.
+                            </p>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- Channel Management -->
                 <div class="card p-3 shadow-sm border border-gray-200 dark:border-gray-700">
@@ -892,11 +914,51 @@
         "Capella", "Orion"
     ];
 
+    const currentProjectId = "{{ project.id if project else '' }}";
+
     const GEMINI_LANGUAGES = [
         "ko-KR", "en-US", "ja-JP", "es-US", "fr-FR", "de-DE", "hi-IN", "id-ID",
         "it-IT", "pt-BR", "ru-RU", "nl-NL", "pl-PL", "th-TH", "tr-TR", "vi-VN",
         "ro-RO", "uk-UA", "bn-BD", "en-IN", "mr-IN", "ta-IN", "te-IN", "ar-EG"
     ];
+
+    async function updateProjectName() {
+        const nameInput = document.getElementById('projectNameInput');
+        const newName = nameInput.value.trim();
+        
+        if (!currentProjectId) {
+            Utils.showToast("프로젝트가 선택되지 않았습니다.", "error");
+            return;
+        }
+        
+        if (!newName) {
+            Utils.showToast("변경할 이름을 입력해주세요.", "warning");
+            return;
+        }
+        
+        try {
+            const res = await fetch(`/api/projects/${currentProjectId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newName })
+            });
+            
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.detail || "이름 변경 실패");
+            }
+            
+            Utils.showToast("프로젝트 이름이 변경되었습니다.", "success");
+            
+            // Reload after a short delay
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+            
+        } catch (e) {
+            Utils.showToast("오류 발생: " + e.message, "error");
+        }
+    }
 
     // [NEW] Default Master Prompt for Script Writing
     const DEFAULT_SCRIPT_MASTER_PROMPT = `최종 확정: '딥-다이브' 대본 빌드업 4단계 프로세스 (Ver. 4.0)

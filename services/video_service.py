@@ -323,6 +323,65 @@ class VideoService:
         from services.gemini_service import gemini_service
         import uuid
 
+        # [FIX] Safe Image Loading for Windows Unicode Paths
+        def _get_safe_image_clip(path, duration):
+            try:
+                import datetime
+                # Use binary stream to avoid path encoding issues
+                with open(path, "rb") as f:
+                    from PIL import Image
+                    import numpy as np
+                    import io
+                    data = f.read()
+                    img_pil = Image.open(io.BytesIO(data))
+                    if img_pil.mode not in ('RGB', 'RGBA'):
+                        img_pil = img_pil.convert('RGB')
+                    img_np = np.array(img_pil)
+                    
+                    sc = ImageClip(img_np).with_duration(duration).with_fps(fps)
+                    # [DEBUG] Log successful load to debug.log
+                    with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as _df:
+                        _df.write(f"[{datetime.datetime.now()}] ✅ [Safe Load] Image Success: {os.path.basename(path)} ({img_pil.width}x{img_pil.height})\n")
+                    return sc
+            except Exception as e:
+                import datetime
+                with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as _df:
+                    _df.write(f"[{datetime.datetime.now()}] ⚠️ [Safe Load] Failed to load image {path}: {str(e)}\n")
+                # Fallback to direct path
+                if os.path.exists(path):
+                    try: 
+                        sc = ImageClip(path).with_duration(duration).with_fps(fps)
+                        with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as _df:
+                            _df.write(f"[{datetime.datetime.now()}] ✅ [Safe Load] Image Fallback Success: {os.path.basename(path)}\n")
+                        return sc
+                    except Exception as fe:
+                        with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as _df:
+                            _df.write(f"[{datetime.datetime.now()}] ❌ [Safe Load] Image Fallback FAILED: {str(fe)}\n")
+                return None
+
+        # [FIX] Safe Video Loading for Windows Unicode Paths
+        def _get_safe_video_clip(path):
+            try:
+                import datetime
+                has_unicode = any(ord(c) > 127 for c in path)
+                if has_unicode:
+                    import shutil, tempfile
+                    ext = os.path.splitext(path)[1]
+                    temp_v = tempfile.NamedTemporaryFile(suffix=ext, delete=False)
+                    temp_v_path = temp_v.name
+                    temp_v.close()
+                    shutil.copy2(path, temp_v_path)
+                    temp_files.append(temp_v_path)
+                    with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as _df:
+                        _df.write(f"[{datetime.datetime.now()}] 🔄 [Safe Load] Video Copy (Unicode): {os.path.basename(path)} -> {os.path.basename(temp_v_path)}\n")
+                    return VideoFileClip(temp_v_path)
+                return VideoFileClip(path)
+            except Exception as e:
+                import datetime
+                with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as _df:
+                    _df.write(f"[{datetime.datetime.now()}] ❌ [Safe Load] Video Load FAILED ({path}): {str(e)}\n")
+                return None
+
         for i, img_path in enumerate(images):
             if os.path.exists(img_path):
                 # [NEW] Check if it is a Video Asset (Motion)
@@ -377,8 +436,10 @@ class VideoService:
 
                         temp_files.append(processed_path)
                         
-                        # Load clean clip
-                        clip = VideoFileClip(processed_path).without_audio()
+                        # Load clean clip via safe loader
+                        clip = _get_safe_video_clip(processed_path)
+                        if clip:
+                            clip = clip.without_audio()
 
                         # [FIX] FFMPEG already produced the video at the correct duration
                         # (-stream_loop -1 -t dur). Only use apply_loop if significantly shorter.
@@ -438,7 +499,9 @@ class VideoService:
                         processed_path = self._preprocess_video_tall_pan(
                             img_path, target_w, target_h, duration=dur, fps=fps, direction=pan_dir
                         )
-                        clip = VideoFileClip(processed_path).without_audio()
+                        clip = _get_safe_video_clip(processed_path)
+                        if clip:
+                            clip = clip.without_audio()
                         temp_files.append(processed_path)
                     
                     elif is_wide_pan:
@@ -448,7 +511,9 @@ class VideoService:
                         processed_path = self._preprocess_video_wide_pan(
                             img_path, target_w, target_h, duration=dur, fps=fps, direction=pan_dir
                         )
-                        clip = VideoFileClip(processed_path).without_audio()
+                        clip = _get_safe_video_clip(processed_path)
+                        if clip:
+                            clip = clip.without_audio()
                         temp_files.append(processed_path)
 
                     elif is_vertical:
@@ -461,13 +526,14 @@ class VideoService:
                         processed_img_path = self._create_cinematic_frame(img_path, resolution, focal_point_y=focal_y, allow_tall=False)
                         temp_files.append(processed_img_path)
                         
-                        # Explicitly convert to VideoClip
-                        clip = ImageClip(processed_img_path).with_duration(dur).with_fps(30)
+                        # [FIX] Use Safe Image Loader
+                        clip = _get_safe_image_clip(processed_img_path, dur)
                     else:
                         # For Landscape Project: Use Fill (Crop) as before
                         processed_img_path = self._resize_image_to_fill(img_path, resolution)
                         temp_files.append(processed_img_path)
-                        clip = ImageClip(processed_img_path).with_duration(dur).with_fps(30)
+                        # [FIX] Use Safe Image Loader
+                        clip = _get_safe_image_clip(processed_img_path, dur)
                     
                 # [NEW] Apply fade-in effect if requested (Works for both Video and Image)
                 if fade_in_flags and i < len(fade_in_flags) and fade_in_flags[i]:
@@ -553,9 +619,24 @@ class VideoService:
                 if safe_effect and safe_effect != 'none':
                     effect = safe_effect
 
+                # Ensure clip is valid before applying effects
+                if clip is None:
+                    print(f"⚠️ [Render] Clip for Img[{i+1}] is None. Skipping.")
+                    continue
+                
+                # [DEBUG] Check clip state
+                # [FIX v3] Explicit size logging for every scene item
+                import datetime
+                if clip:
+                    with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as _df:
+                         _df.write(f"[{datetime.datetime.now()}] Scene[{i+1}] Loaded: {clip.w}x{clip.h}, dur={clip.duration:.2f}s, item={os.path.basename(img_path)}\n")
+                else:
+                    with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as _df:
+                         _df.write(f"[{datetime.datetime.now()}] Scene[{i+1}] FAILED to load: {img_path}\n")
+
                 # [NEW] Handle positioning for TALL assets (Webtoon support)
                 # If it's a tall image and no specific effect (or static), ensure we look at the focal point instead of just the top.
-                if (not effect or effect == 'none') and is_vertical and processed_img_path and 'tall' in os.path.basename(processed_img_path):
+                if clip and (not effect or effect == 'none') and is_vertical and processed_img_path and 'tall' in os.path.basename(processed_img_path):
                     try:
                         cur_h = clip.h
                         # Calculate y_offset to center the focal point in the viewport
@@ -564,9 +645,9 @@ class VideoService:
                         min_y = target_h - cur_h
                         max_y = 0
                         y_pos = max(min_y, min(max_y, y_offset))
-                        clip = clip.with_position((0, y_pos))
-                        # Wrap in composite to fix the viewport size
-                        clip = CompositeVideoClip([clip], size=(target_w, target_h)).with_duration(dur)
+                        # Wrap in composite with black background to fix the viewport size and prevent transparency issues
+                        bg_base = ColorClip(size=(target_w, target_h), color=(0,0,0)).with_duration(dur)
+                        clip = CompositeVideoClip([bg_base, clip.with_position((0, y_pos))], size=(target_w, target_h)).with_duration(dur)
                         print(f"  → Applied focal-point positioning to tall static item #{i+1} (y={y_pos})")
                     except Exception as pe:
                         print(f"Positioning Error: {pe}")
@@ -580,14 +661,15 @@ class VideoService:
                         if effect == 'zoom_in':
                             # Center Zoom: 1.0 -> 1.15 (Tuned for better framing)
                             clip = vfx.resize(clip, lambda t: 1.0 + 0.15 * (t / dur))
-                            # Safe Container (2.0 uses with_position, with_duration)
-                            clip = CompositeVideoClip([clip.with_position('center')], size=(w,h)).with_duration(dur)
+                            # Safe Container with Explicit BG Layer
+                            bg_base = ColorClip(size=(w,h), color=(0,0,0)).with_duration(dur)
+                            clip = CompositeVideoClip([bg_base, clip.with_position('center')], size=(w,h)).with_duration(dur)
                             
                         elif effect == 'zoom_out':
                             # Center Zoom Out: 1.15 -> 1.0
-                            # [FIX] MoviePy 2.x Support: Use vfx.resize instead of .resize
                             clip = vfx.resize(clip, lambda t: 1.15 - 0.15 * (t / dur))
-                            clip = CompositeVideoClip([clip.with_position('center')], size=(w,h)).with_duration(dur)
+                            bg_base = ColorClip(size=(w,h), color=(0,0,0)).with_duration(dur)
+                            clip = CompositeVideoClip([bg_base, clip.with_position('center')], size=(w,h)).with_duration(dur)
                             
                         elif effect.startswith('pan_'):
                             # [FIX v2] Tall image detection: use actual clip height vs viewport height.
@@ -607,10 +689,13 @@ class VideoService:
                                         clip = clip.with_position(lambda t, _ms=max_scroll, _dur=dur, _x_off=int((w - new_w) / 2): (_x_off, int(0 - _ms * (t / _dur))))
                                     else: # pan_up: Bottom -> Top
                                         clip = clip.with_position(lambda t, _ms=max_scroll, _dur=dur, _x_off=int((w - new_w) / 2): (_x_off, int(-_ms + _ms * (t / _dur))))
-                                    clip = CompositeVideoClip([clip], size=(w, h)).with_duration(dur)
+                                    
+                                    bg_base = ColorClip(size=(w,h), color=(0,0,0)).with_duration(dur)
+                                    clip = CompositeVideoClip([bg_base, clip], size=(w, h)).with_duration(dur)
                                 else:
+                                    bg_base = ColorClip(size=(w,h), color=(0,0,0)).with_duration(dur)
                                     clip = clip.with_position(('center', 'center'))
-                                    clip = CompositeVideoClip([clip], size=(w, h)).with_duration(dur)
+                                    clip = CompositeVideoClip([bg_base, clip], size=(w, h)).with_duration(dur)
 
                             elif is_wide_clip and effect in ('pan_left', 'pan_right'):
                                 # --- TRUE HORIZONTAL SCROLL ---
@@ -625,10 +710,13 @@ class VideoService:
                                         # Initial position: X=-max_scroll (Right aligned)
                                         # End position: X=0 (Left aligned)
                                         clip = clip.with_position(lambda t, _ms=max_scroll, _dur=dur, _y_off=int((h - new_h) / 2): (int(-_ms + _ms * (t / _dur)), _y_off))
-                                    clip = CompositeVideoClip([clip], size=(w, h)).with_duration(dur)
+                                    
+                                    bg_base = ColorClip(size=(w,h), color=(0,0,0)).with_duration(dur)
+                                    clip = CompositeVideoClip([bg_base, clip], size=(w, h)).with_duration(dur)
                                 else:
+                                    bg_base = ColorClip(size=(w,h), color=(0,0,0)).with_duration(dur)
                                     clip = clip.with_position(('center', 'center'))
-                                    clip = CompositeVideoClip([clip], size=(w, h)).with_duration(dur)
+                                    clip = CompositeVideoClip([bg_base, clip], size=(w, h)).with_duration(dur)
                             
                             else:
                                 # --- STANDARD PAN (1.2x zoom + small movement) ---
@@ -656,8 +744,9 @@ class VideoService:
                                 elif effect == 'pan_down':
                                     clip = clip.with_position(lambda t, _my=max_y, _cx=center_x, _dur=dur: (int(_cx), int(-_my + _my * (t / _dur))))
 
-                                # Wrap
-                                clip = CompositeVideoClip([clip], size=(w, h)).with_duration(dur)
+                                # Wrap with solid background layer
+                                bg_base = ColorClip(size=(w,h), color=(0,0,0)).with_duration(dur)
+                                clip = CompositeVideoClip([bg_base, clip], size=(w, h)).with_duration(dur)
 
                     except Exception as e:
                         print(f"Effect Error: {e}")
@@ -667,8 +756,6 @@ class VideoService:
                         except Exception: pass
                         pass
 
-                clips.append(clip)
-                
                 # [NEW] Scene SFX Handling
                 if sfx_map:
                     s_idx = i + 1
@@ -678,37 +765,70 @@ class VideoService:
                              from moviepy.audio.io.AudioFileClip import AudioFileClip
                              sfx_clip = AudioFileClip(sfx_p)
                              # Overlay SFX on the current clip's duration
-                             # MoviePy 2.x: CompositeAudioClip needed, or set_audio with addition
-                             # For simplicity, we'll collect these overlays and apply at the end or track them.
-                             # But here clips is a list of VideoClips.
-                             # Let's attach it to the clip's audio.
                              if clip.audio:
                                  from moviepy.audio.AudioClip import CompositeAudioClip
-                                 # Mix original audio (e.g. silence or background) with SFX
-                                 # We need to ensure SFX doesn't exceed clip duration
                                  sfx_clip = sfx_clip.with_duration(min(sfx_clip.duration, dur))
                                  clip = clip.with_audio(CompositeAudioClip([clip.audio, sfx_clip]))
                              else:
                                  clip = clip.with_audio(sfx_clip.with_duration(min(sfx_clip.duration, dur)))
-                             print(f"🔊 [SFX] Applied to Scene {i+1}: {os.path.basename(sfx_p)}")
+                             with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as _df:
+                                 _df.write(f"[{datetime.datetime.now()}] 🔊 [SFX] Applied to Scene {i+1}: {os.path.basename(sfx_p)}\n")
                          except Exception as se:
                              print(f"SFX Overlay Error: {se}")
+
+                # [FIX v4] FINAL WRAP FOR SCEENE - Ensure solid background even for 'none' effect
+                if clip:
+                    # If not already wrapped in a CompositeVideoClip (from effects logic), wrap it now
+                    if not isinstance(clip, CompositeVideoClip):
+                         bg_base = ColorClip(size=(target_w, target_h), color=(0,0,0)).with_duration(dur)
+                         clip = CompositeVideoClip([bg_base, clip.with_position('center')], size=(target_w, target_h)).with_duration(dur)
+                    
+                    clips.append(clip)
+                else:
+                    with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as _df:
+                         _df.write(f"[{datetime.datetime.now()}] ⚠️ Scene {i+1} clip is None, skipping\n")
 
                 current_duration += dur
 
         if not clips and video is None:
+            print("❌ [Render Error] No valid clips generated for video.")
             raise ValueError("유효한 이미지나 배경 동영상이 없습니다")
 
         # 클립 연결 (이미지가 있을 때만)
         if clips:
-            video_slideshow = concatenate_videoclips(clips, method="chain")
+            print(f"🎬 [Final] Concatenating {len(clips)} clips into main sequence.")
+            # Verify clips before concatenation
+            valid_clips = []
+            for _ii, _c in enumerate(clips):
+                 if _c is not None and _c.w > 0 and _c.h > 0 and _c.duration > 0:
+                     valid_clips.append(_c)
+                 else:
+                     details = f"{_c.w}x{_c.h}, dur={_c.duration:.2f}s" if _c else "None"
+                     with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as _df:
+                         _df.write(f"[{datetime.datetime.now()}] ⚠️ Invalid clip dropped at index {_ii}: {details}\n")
+            
+            if not valid_clips:
+                if video is None:
+                    print("❌ [CRITICAL] All clips are invalid and no background video exists!")
+                    raise ValueError("유효한 클립이 생성되지 않았습니다.")
+                else:
+                    print("⚠️ [Render] All image clips were invalid, relying on background video.")
+                    video_slideshow = None
+            else:
+                try:
+                    import datetime
+                    with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as _df:
+                        _df.write(f"[{datetime.datetime.now()}] Concatenating {len(valid_clips)} clips. method=compose\n")
+                    # Use method="compose" for mixed types (VideoAsset + Effects + Images)
+                    video_slideshow = concatenate_videoclips(valid_clips, method="compose")
+                except Exception as ce:
+                    with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as _df:
+                        _df.write(f"[{datetime.datetime.now()}] Concatenate (compose) FAILED, trying chain: {str(ce)}\n")
+                    video_slideshow = concatenate_videoclips(valid_clips, method="chain")
+
             if video:
-                 # 배경 영상이 메인이므로, 슬라이드쇼는 무시하거나 오버레이? 
-                 # 기획상: 반복영상 모드에선 이미지 안씀. 
-                 # 하지만 이미지가 있으면 배경 영상 위에 얹을수도 있음. 
-                 # 현재 로직: 배경 영상이 있으면 그것을 메인으로 씀. 이미지가 있으면 무시?
-                 # -> 기획 수정: 배경 영상 모드일 땐 이미지가 없을 가능성이 높음.
-                 # 만약 이미지가 있다면? 일단 배경 영상을 덮어쓰기보단, 배경 영상이 우선순위가 되도록 video 변수 유지
+                 with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as _df:
+                      _df.write(f"[{datetime.datetime.now()}] INFO: Preference check - keeping background video over slideshow.\n")
                  pass 
             else:
                  video = video_slideshow
@@ -912,8 +1032,19 @@ class VideoService:
                     if txt_img_path:
                         # 임시파일 추적 (나중에 삭제)
                         temp_files.append(txt_img_path)
-                        
-                        txt_clip = ImageClip(txt_img_path)
+
+                        # [FIX] Load via PIL/numpy array (same as _get_safe_image_clip)
+                        # ImageClip(file_path) in MoviePy 1.0.3 may not handle RGBA masks correctly.
+                        # Loading via numpy array + with_fps() ensures proper alpha compositing.
+                        try:
+                            from PIL import Image as _PIL_Sub
+                            import numpy as _np_sub
+                            _pil_sub = _PIL_Sub.open(txt_img_path).convert('RGBA')
+                            _sub_arr = _np_sub.array(_pil_sub)
+                            txt_clip = ImageClip(_sub_arr).with_fps(fps)
+                        except Exception as _sub_load_err:
+                            print(f"[SUBTITLE] PIL load failed, fallback to path: {_sub_load_err}")
+                            txt_clip = ImageClip(txt_img_path)
                         
                         # [FIX] Position Logic
                         # 1. Check for custom position in settings
@@ -924,26 +1055,32 @@ class VideoService:
                         
                         if custom_y:
                             try:
-                                if "px" in str(custom_y):
-                                    # px 값은 preview box 픽셀 → target_h 기준 % 변환 불가 → % 방식 사용
-                                    # 안전하게 무시하고 기본값 사용
-                                    y_pos = None
-                                elif "%" in str(custom_y):
-                                    pct = float(str(custom_y).replace("%", ""))
+                                cy_str = str(custom_y)
+                                if cy_str.startswith("b:"):
+                                    # 새 bottom% 포맷: b:5% → 아래에서 5% 떨어진 위치
+                                    bottom_pct = float(cy_str[2:].replace("%", ""))
+                                    # bottom% → y_pos (element top): target_h - bottom_px - clip_height
+                                    bottom_px = int(target_h * (bottom_pct / 100))
+                                    y_pos = target_h - bottom_px - txt_clip.h
+                                elif "px" in cy_str:
+                                    y_pos = None  # px는 무시
+                                elif "%" in cy_str:
+                                    pct = float(cy_str.replace("%", ""))
                                     y_pos = int(target_h * (pct / 100))
                                 else:
-                                    y_pos = int(float(custom_y))
+                                    y_pos = int(float(cy_str))
                             except Exception:
                                 y_pos = None
 
-                        # 2. If no custom pos, use Default (top of subtitle at 80% from top)
+                        # 기본: 아래에서 5% 위치
                         if y_pos is None:
-                            y_pos = int(target_h * 0.80)
+                            bottom_px = int(target_h * 0.05)
+                            y_pos = target_h - bottom_px - txt_clip.h
+                        
+                        # Screen Boundary Safety
+                        y_pos = max(10, min(target_h - txt_clip.h - 10, y_pos))
 
-                        # Ensure it stays on screen (bottom padding)
-                        if y_pos + txt_clip.h > target_h - 30:
-                            y_pos = target_h - txt_clip.h - 30
-                        print(f"DEBUG_RENDER: Subtitle y_pos={y_pos} ({y_pos/target_h*100:.1f}% of target_h={target_h})")
+                        print(f"DEBUG_RENDER: Subtitle SYNCED y_pos={y_pos} (Center-Aligned)")
 
                         txt_clip = txt_clip.with_position(("center", y_pos))
 
@@ -955,8 +1092,12 @@ class VideoService:
                     import traceback
                     traceback.print_exc()
 
+            print(f"[SUBTITLE] Total subtitle_clips created: {len(subtitle_clips)}")
             if subtitle_clips:
-                video = CompositeVideoClip([video] + subtitle_clips)
+                # [FIX] Final composition with explicit black background to prevent transparency blackout
+                bg_final = ColorClip(size=(target_w, target_h), color=(0,0,0)).with_duration(video.duration)
+                video = CompositeVideoClip([bg_final, video] + subtitle_clips, size=(target_w, target_h))
+                print(f"[SUBTITLE] CompositeVideoClip created with {len(subtitle_clips)} subtitle clips")
 
         # 출력
         output_path = os.path.join(self.output_dir, output_filename)
@@ -1709,8 +1850,12 @@ class VideoService:
                     # If 'video' is a filepath string, we can't get .h from it directly.
                     # But add_subtitles is called with 'video' being a VideoFileClip usually.
                     if hasattr(video, 'h'):
-                        bottom_margin = int(video.h * 0.08)
-                        y_pos = video.h - txt_clip.h - bottom_margin
+                        # [FIX] Default to 85% Bottom-Anchor for post-processed subs too
+                        bottom_y = int(video.h * 0.85)
+                        y_pos = bottom_y - txt_clip.h
+                        
+                        # Clamp
+                        y_pos = max(10, min(video.h - txt_clip.h - 10, y_pos))
                         txt_clip = txt_clip.with_position(("center", y_pos))
                     else:
                         # Fallback if video is not a clip object
@@ -1728,7 +1873,10 @@ class VideoService:
                 traceback.print_exc()
 
         if subtitle_clips:
-            final = CompositeVideoClip([video] + subtitle_clips)
+            # [FIX] Add explicit black background to prevent transparency blackout on some systems
+            from moviepy.editor import ColorClip
+            bg_base = ColorClip(size=(video.w, video.h), color=(0,0,0)).with_duration(video.duration)
+            final = CompositeVideoClip([bg_base, video] + subtitle_clips, size=(video.w, video.h))
         else:
             final = video
 
@@ -1936,29 +2084,72 @@ class VideoService:
         }
         
         target_font_file = font_mapping.get(font_name, font_name)
-        if not target_font_file.lower().endswith((".ttf", ".ttc")):
+        if not target_font_file.lower().endswith((".ttf", ".ttc", ".woff", ".otf")):
             target_font_file += ".ttf"
 
+        _static_fonts_dir = os.path.join(os.path.dirname(__file__), "..", "static", "fonts")
         search_paths = [
             os.path.join(os.path.dirname(__file__), "..", "assets", "fonts"),
-            os.path.join(os.path.dirname(__file__), "..", "static", "fonts"), # [FIX] Add static fonts
+            _static_fonts_dir,
             "C:/Windows/Fonts",
             os.path.dirname(__file__)
         ]
-        
+
         font_path = None
         for path in search_paths:
             candidate = os.path.join(path, target_font_file)
             if os.path.exists(candidate):
                 font_path = candidate
                 break
-        
+
+        # .ttf를 못 찾으면 동일 이름의 .woff 버전 시도 (PIL/FreeType은 woff 직접 로드 가능)
+        if not font_path and target_font_file.lower().endswith(".ttf"):
+            woff_file = target_font_file[:-4] + ".woff"
+            for path in search_paths:
+                candidate = os.path.join(path, woff_file)
+                if os.path.exists(candidate):
+                    font_path = candidate
+                    break
+
+        # 로컬에 없으면 CSS 미리보기와 동일한 CDN에서 woff 자동 다운로드 후 캐시
+        if not font_path:
+            _font_cdn_map = {
+                "Jalnan.ttf":               "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_four@1.0/Jalnan.woff",
+                "TmonMonsori.ttf":          "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_two@1.0/TmonMonsori.woff",
+                "Pretendard-Bold.ttf":      "https://fastly.jsdelivr.net/gh/Project-Noonnu/noonfonts_2107@1.1/Pretendard-Bold.woff",
+                "NanumSquareExtraBold.ttf": "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_seven@1.1/NanumSquareExtraBold.woff",
+                "BinggraeMelona-Bold.ttf":  "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_twelve@1.1/BinggraeMelona-Bold.woff",
+                "NetmarbleB.ttf":           "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_four@1.0/netmarbleB.woff",
+                "ChosunIlboMyungjo.ttf":    "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_one@1.0/ChosunIlboMyungjo.woff",
+                "MapoFlowerIsland.ttf":     "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/MapoFlowerIsland.woff",
+                "S-CoreDream-6Bold.ttf":    "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_six@1.2/S-CoreDream-6Bold.woff",
+                "CookieRun-Regular.ttf":    "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/CookieRun-Regular.woff",
+                "NanumMyeongjo.ttf":        "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/NanumMyeongjo.woff",
+            }
+            _cdn_url = _font_cdn_map.get(target_font_file)
+            if _cdn_url:
+                try:
+                    import requests as _req
+                    _woff_name = os.path.basename(_cdn_url.split("?")[0])
+                    _save_path = os.path.join(_static_fonts_dir, _woff_name)
+                    if not os.path.exists(_save_path):
+                        print(f"[FONT] '{target_font_file}' not found. Downloading from CDN: {_woff_name}")
+                        _r = _req.get(_cdn_url, timeout=15)
+                        if _r.status_code == 200:
+                            with open(_save_path, 'wb') as _f:
+                                _f.write(_r.content)
+                            print(f"[FONT] Downloaded and cached: {_save_path}")
+                    if os.path.exists(_save_path):
+                        font_path = _save_path
+                except Exception as _dl_err:
+                    print(f"[FONT] CDN download failed for '{target_font_file}': {_dl_err}")
+
         # [DEBUG] Font Path Logging
         try:
              with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
                  df.write(f"[{datetime.datetime.now()}] FONT_DEBUG: target='{target_font_file}', found_path='{font_path}', search_paths={search_paths}\n")
         except Exception: pass
-        
+
         # G마켓 산스 없으면 malgunbd.ttf (굵은 고딕) 시도
         if not font_path and "Gmarket" in font_name:
              font_path = "C:/Windows/Fonts/malgunbd.ttf"
@@ -1976,8 +2167,19 @@ class VideoService:
                 
                 font = ImageFont.truetype(font_path, font_size, index=idx)
             else:
-                print(f"⚠️ [Font] Path not found for '{font_name}'. Falling back to arial.")
-                font = ImageFont.truetype("arial.ttf", font_size)
+                # [FIX] Last-resort fallback to standard Windows/System fonts
+                alt_fonts = ["C:/Windows/Fonts/malgun.ttf", "arial.ttf", "C:/Windows/Fonts/gulim.ttc"]
+                font = None
+                for af in alt_fonts:
+                    try:
+                        font = ImageFont.truetype(af, font_size)
+                        print(f"⚠️ [Font] Using fallback font: {af}")
+                        break
+                    except Exception: continue
+                
+                if not font:
+                    print(f"⚠️ [Font] All paths failed for '{font_name}'. Using default.")
+                    font = ImageFont.load_default()
         except Exception as e:
              print(f"DEBUG_FONT: Font loading FAILED for '{font_name}': {e}")
              try:
@@ -2126,14 +2328,27 @@ class VideoService:
         # pad_y는 이미지 캔버스 여백에만 사용 (배경 박스는 별도로 strip_pad_y 사용)
         pad_y = 0  # 세로 캔버스 패딩 제거 - strip_pad_y가 실제 배경 패딩 담당
 
-        # 배경 박스 세로 패딩 = 폰트 크기의 8% (위아래 동일) → CSS 0.08em과 일치 (5% 더 두껍게)
-        strip_pad_y = font_size * 0.08
+        # 배경 박스 세로 패딩 (사용자 요청: 슬림하게 조정)
+        strip_pad_y = font_size * 0.20
 
-        # 줄간격 계산 - CSS line-height: 1+ratio 와 일치하도록 font_size 기준
+        if line_spacing_ratio is None:
+            line_spacing_ratio = 0.1
+
+        # 줄간격 계산 - CSS 미리보기 완전 일치
+        # CSS 미리보기: margin-bottom = lineSpacing * fontSize (두 배경띠 사이의 시각적 픽셀 간격)
+        # PIL에서는 각 배경띠가 text_y ± strip_pad_y 범위를 차지하므로,
+        # 두 줄 사이에 CSS와 동일한 gap을 주려면 line_spacing에 2*strip_pad_y를 더해야 함.
+        # gap = line_spacing - 2*strip_pad_y = lineSpacing_ratio * font_size ← 목표
+        # → line_spacing = font_size * line_spacing_ratio + 2 * strip_pad_y
+        line_spacing = int(font_size * line_spacing_ratio + 2 * strip_pad_y)
+        
+        # PIL의 multiline_text는 line_spacing을 줄 사이의 추가 간격으로 사용함.
+        # 하지만 우리는 수동으로 current_y를 조절하므로 full_line_height를 정의.
+        full_line_height = font_size + line_spacing
+
+        # [FIX] Define missing variables for layout calculation
         line_count = len(wrapped_lines)
         ascent, descent = font.getmetrics()
-        line_spacing = int(font_size * line_spacing_ratio)
-        full_line_height = font_size + line_spacing  # CSS: line-height = 1 + ratio
 
         # 높이 계산
         total_text_h = font_size * line_count + line_spacing * (line_count - 1)
@@ -2180,11 +2395,12 @@ class VideoService:
 
         def _draw_line(drw, pos, txt, fnt, fill, sw=0, sf=None):
             """공백 글리프가 깨진 폰트: 문자 단위로 그리고 공백은 건너뜀"""
+            anchor = 'lt'  # [FIX] Use predictable top-left anchor
             if not broken_space:
                 if sw > 0 and sf:
-                    drw.text(pos, txt, font=fnt, fill=fill, stroke_width=sw, stroke_fill=sf)
+                    drw.text(pos, txt, font=fnt, fill=fill, stroke_width=sw, stroke_fill=sf, anchor=anchor)
                 else:
-                    drw.text(pos, txt, font=fnt, fill=fill)
+                    drw.text(pos, txt, font=fnt, fill=fill, anchor=anchor)
                 return
             x, y = float(pos[0]), float(pos[1])
             for ch in txt:
@@ -2194,9 +2410,9 @@ class VideoService:
                     x += min(raw_sp, font_size * 0.30)
                 else:
                     if sw > 0 and sf:
-                        drw.text((x, y), ch, font=fnt, fill=fill, stroke_width=sw, stroke_fill=sf)
+                        drw.text((x, y), ch, font=fnt, fill=fill, stroke_width=sw, stroke_fill=sf, anchor=anchor)
                     else:
-                        drw.text((x, y), ch, font=fnt, fill=fill)
+                        drw.text((x, y), ch, font=fnt, fill=fill, anchor=anchor)
                     x += drw.textlength(ch, font=fnt)
 
         for idx, line in enumerate(wrapped_lines):
@@ -2204,23 +2420,20 @@ class VideoService:
                 current_y += full_line_height
                 continue
 
-            # Measure Precise line dimensions
+            # Measure width with 'lt' anchor (top-left)
             s_width = int(max(1, round(final_stroke_width))) if final_stroke_width > 0.01 else 0
-            l_bbox = draw.textbbox((0, 0), line, font=font, stroke_width=s_width)
+            # [FIX] For width, we still measure the actual ink or layout
+            l_bbox = draw.textbbox((0, 0), line, font=font, stroke_width=s_width, anchor='lt')
 
-            # broken_space 폰트: textbbox의 lw가 공백 포함 과대 측정됨 → get_text_width로 재측정
             if broken_space:
                 lw = get_text_width(line, font)
             else:
                 lw = l_bbox[2] - l_bbox[0]
-            lh = l_bbox[3] - l_bbox[1]
-
-            # Calculate actual line_x to center the text
+            
             line_x = center_x - (lw / 2)
 
             # Draw Background (per line)
             if bg_color:
-                # [SAFETY] Ensure bg_color is always a PIL-compatible tuple
                 _bg = bg_color
                 if isinstance(_bg, str):
                     import re as _re
@@ -2233,21 +2446,26 @@ class VideoService:
                     else:
                         _bg = (0, 0, 0, 178)
 
-                # 배경 박스: l_bbox 기준으로 실제 텍스트 위치에 맞춤 (위아래 8% 패딩)
-                # [FIX] Apply v_offset (dynamic) + bg_v_offset (manual micro-adj)
+                # [FIX] Uniform Strip Height: Increased by 3% as requested (Total ~1.25x font_size)
                 bx0 = line_x - pad_x
                 bx1 = line_x + lw + pad_x
-                by0 = current_y + l_bbox[1] + v_offset + bg_v_offset - strip_pad_y
-                by1 = current_y + l_bbox[3] + v_offset + bg_v_offset + strip_pad_y
+                
+                # Use slightly larger offsets to increase thickness and ensure descenders are safe
+                # by0: -18% of font_size above the text top
+                # by1: +107% of font_size below the text top
+                # Total height = 1.25x font_size (approx 4% thicker than before)
+                by0 = (current_y + v_offset) + bg_v_offset - (font_size * 0.18)
+                by1 = (current_y + v_offset) + bg_v_offset + (font_size * 1.07)
 
                 try:
-                    # [FIX] Match CSS preview border-radius: 0.2em
-                    draw.rounded_rectangle([bx0, by0, bx1, by1], radius=int(font_size * 0.2), fill=_bg)
+                    # [FIX] Increased Radius - Ensure visible 4-corner rounding
+                    r = int((by1 - by0) * 0.25) 
+                    draw.rounded_rectangle([bx0, by0, bx1, by1], radius=r, fill=_bg)
                 except (AttributeError, TypeError):
                     draw.rectangle([bx0, by0, bx1, by1], fill=_bg)
 
-            # 2. Draw Text (Always at the same current_y)
-            _draw_line(draw, (line_x, current_y), line, font, final_font_color, s_width, stroke_color if s_width > 0 else None)
+            # 2. Draw Text (Fixed relative to current_y + v_offset)
+            _draw_line(draw, (line_x, current_y + v_offset), line, font, final_font_color, s_width, stroke_color if s_width > 0 else None)
 
             # Next Line
             current_y += full_line_height
@@ -2304,7 +2522,7 @@ class VideoService:
                 style_name=style_name,
                 stroke_color=stroke_color,
                 stroke_width=stroke_width,
-                bg_color=False, # [FIX] Explicitly disable bg strip for preview by default
+                bg_color=None, # [FIX] Allow style-defined bg strip in preview (sync with render)
                 bg_v_offset=bg_v_offset
             )
             
