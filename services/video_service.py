@@ -2322,14 +2322,14 @@ class VideoService:
         text_w = bbox[2] - bbox[0]
         text_h = bbox[3] - bbox[1]
         
-        # Padding Logic Split (X, Y)
-        # [FIX] Match CSS preview: padding: 0.03em 0.5em → horizontal = font_size * 0.5
-        pad_x = int(font_size * 0.5)
-        # pad_y는 이미지 캔버스 여백에만 사용 (배경 박스는 별도로 strip_pad_y 사용)
-        pad_y = 0  # 세로 캔버스 패딩 제거 - strip_pad_y가 실제 배경 패딩 담당
+        # Padding Logic Split (X, Y) — CSS preview 기준 동기화
+        # CSS: padding: 0.30em 0.6em → horizontal = font_size * 0.6
+        pad_x = int(font_size * 0.6)
+        pad_y = 0
 
-        # 배경 박스 세로 패딩 (사용자 요청: 슬림하게 조정)
-        strip_pad_y = font_size * 0.20
+        # 세로 캔버스 여백 = CSS top/bottom padding (0.30em) 과 동일하게 설정
+        # by0 = current_y - font_size*0.30 이므로 strip_pad_y >= 0.30 이어야 잘리지 않음
+        strip_pad_y = font_size * 0.30
 
         if line_spacing_ratio is None:
             line_spacing_ratio = 0.1
@@ -2415,59 +2415,67 @@ class VideoService:
                         drw.text((x, y), ch, font=fnt, fill=fill, anchor=anchor)
                     x += drw.textlength(ch, font=fnt)
 
-        for idx, line in enumerate(wrapped_lines):
+        # 1단계: 모든 줄 측정
+        line_data = []
+        temp_y = current_y
+        for line in wrapped_lines:
             if not line or not line.strip():
-                current_y += full_line_height
+                line_data.append(None)
+                temp_y += full_line_height
                 continue
-
-            # Measure width with 'lt' anchor (top-left)
             s_width = int(max(1, round(final_stroke_width))) if final_stroke_width > 0.01 else 0
-            # [FIX] For width, we still measure the actual ink or layout
             l_bbox = draw.textbbox((0, 0), line, font=font, stroke_width=s_width, anchor='lt')
-
             if broken_space:
                 lw = get_text_width(line, font)
             else:
                 lw = l_bbox[2] - l_bbox[0]
-            
-            line_x = center_x - (lw / 2)
+            lx = center_x - (lw / 2)
+            line_data.append((line, lx, lw, temp_y, s_width))
+            temp_y += full_line_height
 
-            # Draw Background (per line)
-            if bg_color:
-                _bg = bg_color
-                if isinstance(_bg, str):
-                    import re as _re
-                    _nums = _re.findall(r'[\d.]+', _bg)
-                    if len(_nums) >= 4:
-                        _a = float(_nums[3])
-                        _bg = (int(float(_nums[0])), int(float(_nums[1])), int(float(_nums[2])), int(_a * 255) if _a <= 1.0 else int(_a))
-                    elif len(_nums) >= 3:
-                        _bg = (int(float(_nums[0])), int(float(_nums[1])), int(float(_nums[2])), 178)
-                    else:
-                        _bg = (0, 0, 0, 178)
+        # 2단계: 통 배경띠 (모든 줄을 하나의 사각형으로)
+        if bg_color:
+            _bg = bg_color
+            if isinstance(_bg, str):
+                import re as _re
+                _nums = _re.findall(r'[\d.]+', _bg)
+                if len(_nums) >= 4:
+                    _a = float(_nums[3])
+                    _bg = (int(float(_nums[0])), int(float(_nums[1])), int(float(_nums[2])), int(_a * 255) if _a <= 1.0 else int(_a))
+                elif len(_nums) >= 3:
+                    _bg = (int(float(_nums[0])), int(float(_nums[1])), int(float(_nums[2])), 178)
+                else:
+                    _bg = (0, 0, 0, 178)
 
-                # [FIX] Uniform Strip Height: Increased by 3% as requested (Total ~1.25x font_size)
-                bx0 = line_x - pad_x
-                bx1 = line_x + lw + pad_x
-                
-                # Use slightly larger offsets to increase thickness and ensure descenders are safe
-                # by0: -18% of font_size above the text top
-                # by1: +107% of font_size below the text top
-                # Total height = 1.25x font_size (approx 4% thicker than before)
-                by0 = (current_y + v_offset) + bg_v_offset - (font_size * 0.18)
-                by1 = (current_y + v_offset) + bg_v_offset + (font_size * 1.07)
+            valid_lines = [d for d in line_data if d is not None]
+            if valid_lines:
+                # 가장 넓은 줄 기준 x범위 / 첫째~마지막 줄 기준 y범위
+                min_lx = min(d[1] for d in valid_lines)
+                max_rx = max(d[1] + d[2] for d in valid_lines)
+                first_y = valid_lines[0][3]
+                last_y = valid_lines[-1][3]
+
+                bx0 = min_lx - pad_x
+                bx1 = max_rx + pad_x
+                # CSS padding: 0.30em 0.6em 과 동일 — 상하 0.30em 대칭
+                by0 = (first_y + v_offset) + bg_v_offset - (font_size * 0.30)
+                by1 = (last_y + v_offset) + bg_v_offset + (font_size * 1.30)
 
                 try:
-                    # [FIX] Increased Radius - Ensure visible 4-corner rounding
-                    r = int((by1 - by0) * 0.25) 
+                    # CSS border-radius: 0.25em
+                    r = int(font_size * 0.25)
                     draw.rounded_rectangle([bx0, by0, bx1, by1], radius=r, fill=_bg)
                 except (AttributeError, TypeError):
                     draw.rectangle([bx0, by0, bx1, by1], fill=_bg)
 
-            # 2. Draw Text (Fixed relative to current_y + v_offset)
-            _draw_line(draw, (line_x, current_y + v_offset), line, font, final_font_color, s_width, stroke_color if s_width > 0 else None)
-
-            # Next Line
+        # 3단계: 텍스트 그리기
+        current_y = final_stroke_width + int(strip_pad_y)
+        for d in line_data:
+            if d is None:
+                current_y += full_line_height
+                continue
+            line, lx, lw, _, s_width = d
+            _draw_line(draw, (lx, current_y + v_offset), line, font, final_font_color, s_width, stroke_color if s_width > 0 else None)
             current_y += full_line_height
 
         import uuid

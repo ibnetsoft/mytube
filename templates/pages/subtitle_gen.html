@@ -1692,18 +1692,20 @@
             text.style.setProperty('overflow', 'visible', 'important');
 
             if (bgStripEnabled) {
-                // [FIX] Background-Only Micro-adjustment Sync
-                // Move the outer span (background) using translateY, and move the inner span (text) back by the same amount.
-                // This ensures only the background moves relative to the text, matching the backend.
-                let contentHtml = lines.map((line, idx) => {
+                // 통 배경띠: 모든 줄을 하나의 배경으로 처리 (높이 2% 추가 적용)
+                let linesHtml = lines.map((line, idx) => {
                     const isLast = (idx === lines.length - 1);
                     const mb = isLast ? '0' : `${lineSpacingPixels}px`;
-                    return `<div style="display: inline-flex; align-items: center; justify-content: center; width: auto; height: auto; margin-bottom: ${mb};">
-                        <span style="background:${bgRgba}; padding: 0.12em 0.6em; border-radius: 0.25em; display: inline-flex; align-items: center; justify-content: center; line-height: 1; transform: translateY(${vOffsetScaled}px); overflow: visible;">
-                            <span style="display: inline-block; transform: translateY(${-vOffsetScaled}px);">${line}</span>
-                        </span>
+                    return `<div style="display: flex; align-items: center; justify-content: center; margin-bottom: ${mb};">
+                        <span>${line}</span>
                     </div>`;
                 }).join('');
+
+                let contentHtml = `<div style="background:${bgRgba}; padding: 0.30em 0.6em; border-radius: 0.25em; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; transform: translateY(${vOffsetScaled}px); overflow: visible;">
+                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; transform: translateY(${-vOffsetScaled}px);">
+                        ${linesHtml}
+                    </div>
+                </div>`;
 
                 text.innerHTML = contentHtml + handlesHtml;
                 text.style.backgroundColor = 'transparent';
