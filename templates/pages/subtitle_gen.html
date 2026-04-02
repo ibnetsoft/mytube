@@ -267,6 +267,14 @@
                     class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-12 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
                     title="테두리두께 (px)">
                 <span class="text-[11px] text-gray-400">px</span>
+                <!-- 자막 세로 위치 조절 스피너 -->
+                <div class="flex flex-col items-center gap-0.5" title="자막 세로 위치 조절 (▲위로 / ▼아래로)">
+                    <button onclick="adjustSubtitlePosY(-1)"
+                        class="w-6 h-4 flex items-center justify-center rounded-sm bg-gray-500 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-500 text-white text-[10px] leading-none">▲</button>
+                    <span id="posYDisplay" class="text-[10px] text-gray-500 dark:text-gray-400 font-mono w-6 text-center leading-none">5</span>
+                    <button onclick="adjustSubtitlePosY(1)"
+                        class="w-6 h-4 flex items-center justify-center rounded-sm bg-gray-500 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-500 text-white text-[10px] leading-none">▼</button>
+                </div>
             </div>
 
             <!-- Background Strip Settings -->
@@ -1466,13 +1474,16 @@
         const box = document.getElementById('mainPreviewBox');
         if (box) {
             if (ratio === '9:16') {
-                // 숏츠: 정사각형 컨테이너 — 9:16 영상이 위아래 꽉차고 좌우는 검정 레터박스
-                box.style.aspectRatio = '1 / 1';
-                box.classList.remove('max-w-2xl', 'max-w-[300px]', 'max-w-[360px]');
-                box.classList.add('max-w-[180px]', 'mx-auto');
+                // 숏폼: 세로형 9:16 — 인라인 스타일로 max-width 강제 (Tailwind 동적 클래스 미적용 문제 우회)
+                // 가로(672px) 높이 = 672*9/16 ≈ 378px → 세로 9:16 너비 = 378*9/16 ≈ 213px
+                box.style.aspectRatio = '9 / 16';
+                box.style.maxWidth = '213px';
+                box.style.margin = '0 auto';
+                box.classList.remove('max-w-2xl');
             } else {
                 box.style.aspectRatio = ratio.replace(':', '/');
-                box.classList.remove('max-w-[300px]', 'max-w-[360px]');
+                box.style.maxWidth = '';
+                box.style.margin = '';
                 box.classList.add('max-w-2xl');
             }
         }
@@ -1496,6 +1507,41 @@
         await API.project.updateSetting(projectId, 'aspect_ratio', newRatio);
     }
 
+    // 자막 세로 위치 스피너 — ▲(delta=-1): 위로(bottom% 증가), ▼(delta=1): 아래로(bottom% 감소)
+    function adjustSubtitlePosY(delta) {
+        const posYStr = String((styleSettings && styleSettings.subtitle_pos_y) || 'b:5%');
+        const currentBottom = posYStr.startsWith('b:') ? parseFloat(posYStr.slice(2)) : 5;
+        // ▲ 누르면 bottom% 증가 (위로), ▼ 누르면 감소 (아래로), 범위 0~95%
+        const newBottom = Math.min(95, Math.max(0, currentBottom + (-delta * 2)));
+        const newPosY = `b:${newBottom.toFixed(1)}%`;
+        
+        if (typeof styleSettings === 'undefined') window.styleSettings = {};
+        styleSettings.subtitle_pos_y = newPosY;
+
+        // 디스플레이 업데이트
+        const display = document.getElementById('posYDisplay');
+        if (display) display.textContent = Math.round(newBottom);
+
+        // 미리보기 위치 즉시 반영
+        const preview = document.getElementById('previewTextMain');
+        if (preview) {
+            preview.style.setProperty('bottom', `${newBottom.toFixed(1)}%`, 'important');
+            preview.style.setProperty('top', 'auto', 'important');
+        }
+
+        // DB 저장
+        API.project.updateSetting(projectId, 'subtitle_pos_y', newPosY);
+        // [IMPORTANT] 전체 프리뷰 업데이트를 호출하여 top 픽셀 캐싱 로직 등을 동기화
+        updateSubtitlePreview();
+    }
+
+    function syncPosYDisplay() {
+        const posYStr = String((styleSettings && styleSettings.subtitle_pos_y) || 'b:5%');
+        const bottom = posYStr.startsWith('b:') ? parseFloat(posYStr.slice(2)) : 5;
+        const display = document.getElementById('posYDisplay');
+        if (display) display.textContent = Math.round(bottom);
+    }
+
     function updateSubtitlePreview() {
         const text = document.getElementById('previewTextMain');
         const preview = text; // Alias for position logic
@@ -1507,11 +1553,17 @@
             if (s.subtitle_pos_x && String(s.subtitle_pos_x).includes('%')) {
                 preview.style.setProperty('left', s.subtitle_pos_x, 'important');
             }
-            // 위치: !important로 강제 설정 (다른 코드의 !important 오버라이드 방지)
+            // 위치: styleSettings에 명시적으로 저장된 값이 있을 때만 덮어씀
+            // null/undefined이면 현재 DOM 위치를 유지 (투명도 등 다른 조작 시 위치 변경 방지)
             const posYStr = String(s.subtitle_pos_y || '');
-            const bottomVal = posYStr.startsWith('b:') ? posYStr.slice(2) : '5%';
-            preview.style.setProperty('bottom', bottomVal, 'important');
-            preview.style.setProperty('top', 'auto', 'important');
+            if (posYStr.startsWith('b:')) {
+                preview.style.setProperty('bottom', posYStr.slice(2), 'important');
+                preview.style.setProperty('top', 'auto', 'important');
+            } else if (!preview.style.bottom || preview.style.bottom === 'auto') {
+                // 아직 위치가 설정되지 않은 초기 상태에서만 기본값 적용
+                preview.style.setProperty('bottom', '5%', 'important');
+                preview.style.setProperty('top', 'auto', 'important');
+            }
             preview.style.setProperty('transform', 'translateX(-50%)', 'important');
             preview.style.setProperty('width', '90%', 'important');
         }
@@ -1541,18 +1593,19 @@
         const [w, h] = aspectRatio.split(':').map(Number);
         const boxWidth = previewBox.clientWidth;
 
-        // 숏츠(9:16) 모드일 경우 정사각형 컨테이너 내부의 실제 이미지 너비를 계산
-        const isNineSixteen = aspectRatio === '9:16';
-        const imageWidth = isNineSixteen
-            ? Math.round(boxWidth * (9 / 16))
-            : previewBox.clientWidth;
+        // 9:16 모드는 maxWidth=213px 고정이므로 직접 사용 (레이아웃 타이밍 무관)
+        // 16:9 모드는 getBoundingClientRect로 실제 너비 사용
+        const imageWidth = (aspectRatio === '9:16') ? 213 : (previewBox.getBoundingClientRect().width || previewBox.clientWidth || 400);
+        if (!imageWidth) {
+            requestAnimationFrame(() => updateSubtitlePreview());
+            return;
+        }
 
+        // videoHeight를 비율로 직접 계산 (clientHeight 타이밍 의존 제거)
         const videoHeight = (imageWidth * h) / w;
+        const scaleFactor = 1.0;
 
-        const previewHeight = previewBox.clientHeight;
-        const scaleFactor = previewHeight / videoHeight;
-
-        const actualSize = Math.round(videoHeight * (fontSizePercent / 100) * scaleFactor * 1.0);
+        const actualSize = Math.round(videoHeight * (fontSizePercent / 100));
         // 화면 가로길이의 90%로 고정 (사용자 요청 사항)
         const containerWidth = Math.round(imageWidth * 0.90);
 
@@ -1762,7 +1815,7 @@
                 text.style.setProperty('display', 'flex', 'important');
                 // offsetHeight 읽기 → 브라우저 강제 동기 리플로우
                 const _eH = text.offsetHeight || 40;
-                const _saved = (window.styleSettings && window.styleSettings.subtitle_pos_y) || '';
+                const _saved = (styleSettings && styleSettings.subtitle_pos_y) || '';
                 const _bPct = _saved.startsWith('b:') ? (parseFloat(_saved.slice(2)) / 100) : 0.05;
                 const _topPx = Math.round(_cH * (1 - _bPct) - _eH);
                 console.log('[SYNC-POS] cH=', _cH, 'eH=', _eH, 'bPct=', _bPct, '→top=', Math.max(0, _topPx));
@@ -2720,9 +2773,9 @@
                 // bottom% = (container bottom - element bottom) / containerH
                 const bottomPx = containerH - topPx - elemH;
                 const posY = 'b:' + Math.max(0, bottomPx / containerH * 100).toFixed(1) + '%';
-                if (window.styleSettings) {
-                    window.styleSettings.subtitle_pos_x = posX;
-                    window.styleSettings.subtitle_pos_y = posY;
+                if (typeof styleSettings !== 'undefined') {
+                    styleSettings.subtitle_pos_x = posX;
+                    styleSettings.subtitle_pos_y = posY;
                 }
                 API.project.updateSetting(projectId, 'subtitle_pos_x', posX);
                 API.project.updateSetting(projectId, 'subtitle_pos_y', posY);
@@ -3549,25 +3602,8 @@
                 updateDebug(`Render Called. List Element: ${!!listEl}, InnerHTML Length: ${listEl ? listEl.innerHTML.length : 0}`);
                 renderImageStrip();
                 updateSubtitlePreview();
+                syncPosYDisplay();
 
-                // [FORCE] 레이아웃 완료 후 픽셀 기반 위치 강제 복원 (bottom% 미동작 대비)
-                window.setTimeout(() => {
-                    const _p = document.getElementById('previewTextMain');
-                    if (!_p) return;
-                    const _container = document.getElementById('subtitlePreviewBox');
-                    const _cH = _container ? _container.offsetHeight : 0;
-                    if (_cH <= 0) return;
-                    const _saved = (window.styleSettings && window.styleSettings.subtitle_pos_y) || '';
-                    const _bPct = _saved.startsWith('b:') ? (parseFloat(_saved.slice(2)) / 100) : 0.05;
-                    const _eH = _p.offsetHeight || 0;
-                    const _topPx = Math.round(_cH * (1 - _bPct) - _eH);
-                    const _topClamped = Math.max(0, Math.min(_topPx, _cH - (_eH || 10)));
-                    _p.style.setProperty('top', _topClamped + 'px', 'important');
-                    _p.style.setProperty('bottom', 'auto', 'important');
-                    _p.style.setProperty('left', '50%', 'important');
-                    _p.style.setProperty('width', '90%', 'important');
-                    _p.style.setProperty('transform', 'translateX(-50%)', 'important');
-                }, 300);
 
                 if (subtitles.length > 0) {
                     selectSubtitle(0, false);
