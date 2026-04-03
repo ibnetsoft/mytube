@@ -948,14 +948,19 @@ class VideoService:
             
             # [FIX] 폰트 크기 = target resolution 기준으로 계산
             # video.h는 클립 원본 해상도(1920 등)일 수 있어 preview(target resolution 기준)와 불일치 발생
-            font_size_percent = s_settings.get("font_size", 5.0)
+            font_size_percent = s_settings.get("subtitle_font_size") or s_settings.get("font_size", 5.0)
             # target resolution의 height 사용 (preview와 동일한 기준)
             target_h = resolution[1] if isinstance(resolution, (list, tuple)) and len(resolution) >= 2 else video.h
             target_w = resolution[0] if isinstance(resolution, (list, tuple)) and len(resolution) >= 2 else video.w
 
             if 0.1 <= float(font_size_percent) <= 20:
-                # 퍼센트 모드: preview와 동일하게 target height 기준
-                f_size = int(target_h * (float(font_size_percent) / 100.0))
+                # [FIX] 16:9와 9:16 간 자막 크기 시각적 parity 확보
+                # 9:16(세로형)에서는 세로 전체 높이가 아닌, 가로 기준 9/16 높이(기본 16:9 비율의 높이)를 100% 기준으로 사용
+                if target_h > target_w: # 9:16 Mode
+                    base_h = target_w * (9.0 / 16.0)
+                else: # 16:9 Mode
+                    base_h = target_h
+                f_size = int(base_h * (float(font_size_percent) / 100.0))
             else:
                 # 레거시 픽셀 모드
                 f_size = int(float(font_size_percent))
@@ -1004,11 +1009,13 @@ class VideoService:
                     continue
                 try:
                     # [NEW] Enhanced Background Logic
-                    bg_enabled = bool(int(s_settings.get("bg_enabled", 1)) == 1)
+                    # [FIX] Support both key variants: 'subtitle_bg_enabled' (frontend) and 'bg_enabled' (legacy)
+                    _bg_enabled_raw = s_settings.get("subtitle_bg_enabled") if s_settings.get("subtitle_bg_enabled") is not None else s_settings.get("bg_enabled", 1)
+                    bg_enabled = bool(int(_bg_enabled_raw) == 1)
                     final_bg = False
                     if bg_enabled:
-                         hex_color = s_settings.get("bg_color", "#000000")
-                         opacity = float(s_settings.get("bg_opacity", 0.5))
+                         hex_color = s_settings.get("subtitle_bg_color") or s_settings.get("bg_color", "#000000")
+                         opacity = float(s_settings.get("subtitle_bg_opacity") or s_settings.get("bg_opacity", 0.5))
                          # Convert Hex to RGB then add Opacity
                          hex_color = hex_color.lstrip('#')
                          rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
@@ -1287,27 +1294,33 @@ class VideoService:
                     img_resized.save(out_path, quality=90)
                     return out_path
             
-            # Default behavior (Fit to width and letterbox/crop to 1080x1920)
-            new_w = target_w
-            new_h = int(new_w * (img_h / img_w))
-            img_resized = img.resize((new_w, new_h), Image.LANCZOS)
+            # Aspect Fill Logic (Always fill the screen)
+            img_ratio = img_w / img_h
+            target_ratio = target_w / target_h
 
-            # Create Black Background
-            bg = Image.new('RGB', (target_w, target_h), (0, 0, 0))
-            
-            x_offset = (target_w - new_w) // 2
-            
-            if new_h > target_h:
-                # Tall image (needs cropping)
+            if img_ratio > target_ratio:
+                # Image is wider than target -> Fit to Height and Crop Sides
+                new_h = target_h
+                new_w = int(new_h * img_ratio)
+                img_resized = img.resize((new_w, new_h), Image.LANCZOS)
+                
+                y_offset = 0
+                x_offset = (target_w - new_w) // 2 # Center crop horizontally
+            else:
+                # Image is taller/matches target -> Fit to Width and Crop Top/Bottom
+                new_w = target_w
+                new_h = int(new_w / img_ratio)
+                img_resized = img.resize((new_w, new_h), Image.LANCZOS)
+                
+                x_offset = 0
+                # Use focal point for vertical cropping
                 y_offset = int(target_h / 2 - (new_h * focal_point_y))
                 # Clamp to avoid gaps
                 min_y = target_h - new_h
                 max_y = 0
                 y_offset = max(min_y, min(max_y, y_offset))
-            else:
-                # Wide/Short image (needs letterbox)
-                y_offset = (target_h - new_h) // 2
 
+            bg = Image.new('RGB', (target_w, target_h), (0, 0, 0))
             bg.paste(img_resized, (x_offset, y_offset))
             
             # Template Overlay
@@ -2216,8 +2229,8 @@ class VideoService:
         manual_lines = text.split('\n')
         wrapped_lines = []
         
-        # [MODIFIED] Max lines strictly limited to 2 to prevent 3-line subtitles
-        MAX_LINES = 2
+        # [MODIFIED] 폰트 크기로 인해 3줄로 분리되더라도 텍스트가 잘리는 것(누락)을 방지하도록 4줄까지 허용
+        MAX_LINES = 4
         
         for m_line in manual_lines:
             m_line = m_line.strip()
@@ -2353,10 +2366,6 @@ class VideoService:
         # 높이 계산
         total_text_h = font_size * line_count + line_spacing * (line_count - 1)
 
-        img_w = width
-        actual_h = max(text_h, total_text_h)
-        img_h = int(actual_h + strip_pad_y * 2 + final_stroke_width * 2 + descent + 8)
-
         # [NEW] Vertical Centering Correction (Visual Midpoint Sync)
         # Some fonts (NanumMyeongjo, GmarketSans) have asymmetric internal offsets in textbbox.
         # We use a reference string 'H가' to find the actual visual center of the font.
@@ -2371,6 +2380,14 @@ class VideoService:
             v_offset = ink_center - text_center
             # print(f"DEBUG_RENDER: Vertical Offset applied: {v_offset:.2f}px (Font={font_name})")
 
+        # [NEW] Calculate offset margin needs to prevent background clipping when shifted
+        safe_top = max(0, -(v_offset + bg_v_offset))
+        safe_bot = max(0, v_offset + bg_v_offset)
+
+        img_w = width
+        actual_h = max(text_h, total_text_h)
+        img_h = int(actual_h + strip_pad_y * 2 + final_stroke_width * 2 + descent + safe_top + safe_bot + 8)
+
         img = Image.new('RGBA', (img_w, img_h), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
 
@@ -2380,8 +2397,8 @@ class VideoService:
         # Instead of one big box, draw per-line rounded strips
 
         # 텍스트 시작 위치: 이미지 상단 정렬 (stroke + bg패딩만큼 내려서 시작)
-        # → 이미지 top == video y_pos == CSS top:80% 와 일치
-        current_y = final_stroke_width + int(strip_pad_y)
+        # safe_top 마진을 추가하여 캔버스 위로 배경띠가 짤려나가는 현상 방지
+        current_y = final_stroke_width + int(strip_pad_y) + safe_top
         
         # [FIX] 공백 글리프 깨짐 감지 (GmarketSans 등 일부 폰트의 space 문자가 □로 렌더링됨)
         def _has_broken_space_glyph(fnt):
@@ -2469,7 +2486,7 @@ class VideoService:
                     draw.rectangle([bx0, by0, bx1, by1], fill=_bg)
 
         # 3단계: 텍스트 그리기
-        current_y = final_stroke_width + int(strip_pad_y)
+        current_y = final_stroke_width + int(strip_pad_y) + safe_top
         for d in line_data:
             if d is None:
                 current_y += full_line_height
