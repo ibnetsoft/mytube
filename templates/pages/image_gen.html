@@ -86,9 +86,9 @@
                     <span>프롬프트 자동 생성</span>
                 </button>
 
-                <!-- [NEW] Random Cooking Video (Shorts) -->
+                <!-- [NEW] Random Cooking Video (Shorts) - Hidden by default, shown only in shorts mode -->
                 <button onclick="generateRandomCooking()" id="cookingBtn"
-                    class="btn-primary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-md hover:scale-105 transition-transform bg-gradient-to-r from-orange-500 to-red-600 border-none">
+                    class="hidden btn-primary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-md hover:scale-105 transition-transform bg-gradient-to-r from-orange-500 to-red-600 border-none">
                     <span>🍳</span>
                     <span>랜덤 요리 영상 (Shorts)</span>
                 </button>
@@ -2886,6 +2886,10 @@
                 // 숏폼: 롱폼 비율 숨기고, 숏폼 비율 표시 (기본 3:4 선택)
                 if (longformRatioContainer) longformRatioContainer.classList.add('hidden');
                 if (shortsRatioContainer) shortsRatioContainer.classList.remove('hidden');
+                
+                // [NEW] Show Cooking Video Button only in Shorts mode
+                const cookingBtn = document.getElementById('cookingBtn');
+                if (cookingBtn) cookingBtn.classList.remove('hidden');
                 const radio34 = document.querySelector('#shortsRatioContainer input[value="3:4"]');
                 if (radio34) radio34.checked = true;
 
@@ -2906,6 +2910,10 @@
                 // 롱폼: 숏폼 비율 숨기고, 롱폼 비율 숨김 (기존처럼 16:9 자동 선택)
                 if (shortsRatioContainer) shortsRatioContainer.classList.add('hidden');
                 if (longformRatioContainer) longformRatioContainer.classList.add('hidden');
+
+                // [NEW] Hide Cooking Video Button in Longform mode
+                const cookingBtn = document.getElementById('cookingBtn');
+                if (cookingBtn) cookingBtn.classList.add('hidden');
                 const radio169 = document.querySelector('#longformRatioContainer input[value="16:9"]');
                 if (radio169) radio169.checked = true;
 

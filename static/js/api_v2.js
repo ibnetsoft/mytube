@@ -275,7 +275,8 @@ const API = {
                 body: JSON.stringify({
                     project_id: parseInt(projectId),
                     use_subtitles: options.useSubtitles ?? true,
-                    resolution: options.resolution || "720p"
+                    resolution: options.resolution || "720p",
+                    aspect_ratio: options.aspect_ratio || null
                 })
             });
             return response.json();

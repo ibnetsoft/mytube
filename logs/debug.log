@@ -6599,3 +6599,476 @@ AttributeError: 'NoneType' object has no attribute 'get'
 [2026-03-30 19:45:15.259257] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
 [2026-03-30 19:45:15.288341] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
 [2026-03-30 19:45:15.346163] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-01 12:16:12.580492] Starting render for project 140
+[2026-04-01 12:16:12.580506] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_140.mp3
+[2026-04-01 12:16:12.760620] create_slideshow(PROJ=140) Effects: ['random', 'random', 'random', 'random', 'random', 'random', 'random', 'random']
+[2026-04-01 12:16:14.086298] VideoAsset loaded: dur=7.790s, target=7.848s, path=video_prep_dd8faff3-960d-4aac-b9a1-50c8fb07fa73.mp4
+[2026-04-01 12:16:15.287505] VideoAsset loaded: dur=9.920s, target=9.938s, path=video_prep_7d5c45ea-91b7-425f-bc0e-b5ed7750b469.mp4
+[2026-04-01 12:16:16.335215] RENDER_SETTINGS: font='GmarketSansBold', color='#ffffff', style='Basic_White', stroke_color='#000000', stroke_enabled=1, stroke_width=1.5, bg_enabled=1
+[2026-04-01 12:16:16.338391] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 12:16:16.398973] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 12:16:16.440139] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 12:16:16.486160] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 12:16:16.530487] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 12:16:16.572513] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 12:16:16.618135] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 12:16:16.657192] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 12:16:16.701297] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 12:16:16.742969] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 12:16:16.785893] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 12:16:16.827983] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 12:16:16.871754] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 12:16:16.942991] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-01 14:35:21.821490] Starting render for project 140
+[2026-04-01 14:35:21.821528] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_140.mp3
+[2026-04-01 14:35:22.041807] create_slideshow(PROJ=140) Effects: ['random', 'random', 'random', 'random', 'random', 'random', 'random', 'random']
+[2026-04-01 14:35:23.362271] VideoAsset loaded: dur=7.790s, target=7.848s, path=video_prep_36d18933-123b-4ff5-bcb8-f63aeb712902.mp4
+[2026-04-01 14:35:24.580889] VideoAsset loaded: dur=9.920s, target=9.938s, path=video_prep_59996f54-db6c-4a92-8db8-e93a1049ae49.mp4
+[2026-04-01 14:35:25.745751] RENDER_SETTINGS: font='GmarketSansBold', color='#ffffff', style='Basic_White', stroke_color='#000000', stroke_enabled=1, stroke_width=10.5, bg_enabled=0
+[2026-04-01 14:35:25.750332] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 14:35:25.825004] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 14:35:25.872087] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 14:35:25.922493] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 14:35:25.975881] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 14:35:26.030975] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 14:35:26.079653] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 14:35:26.122382] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 14:35:26.174996] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 14:35:26.222619] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 14:35:26.446355] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 14:35:26.544236] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 14:35:26.605817] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 14:35:26.702131] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-01 15:15:57.421894] Starting render for project 140
+[2026-04-01 15:15:57.421908] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_140.mp3
+[2026-04-01 15:15:57.676669] create_slideshow(PROJ=140) Effects: ['random', 'random', 'random', 'random', 'random', 'random', 'random', 'random']
+[2026-04-01 15:15:57.891776] ✅ [Safe Load] Image Success: filled_9b7e3cc3-f69e-4de1-bd9e-e12a79a3c3ca.jpg (1920x1080)
+[2026-04-01 15:15:57.895357] Scene[1] Loaded: 1920x1080, dur=9.61s, item=img_140_1_194303.png
+[2026-04-01 15:15:58.914785] 🔄 [Safe Load] Video Copy (Unicode): video_prep_14ec82e0-0885-40f5-994b-2279d377191f.mp4 -> tmpzkukxf4z.mp4
+[2026-04-01 15:15:59.124604] VideoAsset loaded: dur=7.790s, target=7.848s, path=video_prep_14ec82e0-0885-40f5-994b-2279d377191f.mp4
+[2026-04-01 15:15:59.127671] Scene[2] Loaded: 1920x1080, dur=7.85s, item=vid_veo_140_2_231301.mp4
+[2026-04-01 15:16:00.348799] 🔄 [Safe Load] Video Copy (Unicode): video_prep_2fd357b4-69a4-4881-a216-857087acb267.mp4 -> tmpdklazbc8.mp4
+[2026-04-01 15:16:00.579970] VideoAsset loaded: dur=9.920s, target=9.938s, path=video_prep_2fd357b4-69a4-4881-a216-857087acb267.mp4
+[2026-04-01 15:16:00.582386] Scene[3] Loaded: 1920x1080, dur=9.94s, item=vid_veo_140_3_234137.mp4
+[2026-04-01 15:16:00.791215] ✅ [Safe Load] Image Success: filled_e3a9511e-f8c6-4913-b141-d30b33c6d926.jpg (1920x1080)
+[2026-04-01 15:16:00.794360] Scene[4] Loaded: 1920x1080, dur=6.22s, item=img_140_4_194337.png
+[2026-04-01 15:16:00.999931] ✅ [Safe Load] Image Success: filled_46ed0b82-9932-4cae-8de1-848b56e91eb6.jpg (1920x1080)
+[2026-04-01 15:16:01.002862] Scene[5] Loaded: 1920x1080, dur=5.11s, item=img_140_5_194347.png
+[2026-04-01 15:16:01.200017] ✅ [Safe Load] Image Success: filled_88bb3bf2-8ae7-46c8-8780-ac6484e426d8.jpg (1920x1080)
+[2026-04-01 15:16:01.203193] Scene[6] Loaded: 1920x1080, dur=11.98s, item=img_140_6_194358.png
+[2026-04-01 15:16:01.465718] ✅ [Safe Load] Image Success: filled_cf1a9e08-2658-4f59-ac53-d0081acfc7fb.jpg (1920x1080)
+[2026-04-01 15:16:01.468872] Scene[7] Loaded: 1920x1080, dur=6.22s, item=img_140_7_194408.png
+[2026-04-01 15:16:01.822870] ✅ [Safe Load] Image Success: filled_2d6855c2-7b93-4444-8a8a-4f5d8cb2b6e5.jpg (1920x1080)
+[2026-04-01 15:16:01.827307] Scene[8] Loaded: 1920x1080, dur=9.60s, item=img_140_8_194421.png
+[2026-04-01 15:16:02.032787] Concatenating 8 clips. method=compose
+[2026-04-01 15:16:02.326328] RENDER_SETTINGS: font='Pretendard-Bold', color='#ffffff', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-04-01 15:16:02.332186] FONT_DEBUG: target='Pretendard-Bold.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 15:16:02.406298] FONT_DEBUG: target='Pretendard-Bold.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 15:16:02.454986] FONT_DEBUG: target='Pretendard-Bold.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 15:16:02.512399] FONT_DEBUG: target='Pretendard-Bold.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 15:16:02.563419] FONT_DEBUG: target='Pretendard-Bold.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 15:16:02.624159] FONT_DEBUG: target='Pretendard-Bold.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 15:16:02.664599] FONT_DEBUG: target='Pretendard-Bold.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 15:16:02.701181] FONT_DEBUG: target='Pretendard-Bold.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 15:16:02.745947] FONT_DEBUG: target='Pretendard-Bold.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 15:16:02.784043] FONT_DEBUG: target='Pretendard-Bold.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 15:16:02.826982] FONT_DEBUG: target='Pretendard-Bold.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 15:16:02.872396] FONT_DEBUG: target='Pretendard-Bold.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 15:16:02.915891] FONT_DEBUG: target='Pretendard-Bold.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 15:16:03.049912] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-01 15:35:37.399676] Starting render for project 140
+[2026-04-01 15:35:37.399697] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_140.mp3
+[2026-04-01 15:35:37.614164] create_slideshow(PROJ=140) Effects: ['random', 'random', 'random', 'random', 'random', 'random', 'random', 'random']
+[2026-04-01 15:35:37.854578] ✅ [Safe Load] Image Success: filled_4dadeb0d-6a99-4afe-b5c2-18058efcb053.jpg (1920x1080)
+[2026-04-01 15:35:37.857954] Scene[1] Loaded: 1920x1080, dur=9.61s, item=img_140_1_194303.png
+[2026-04-01 15:35:38.762119] 🔄 [Safe Load] Video Copy (Unicode): video_prep_c1a2c933-b994-46ca-91db-c5b94a678159.mp4 -> tmpx4cwo8m5.mp4
+[2026-04-01 15:35:38.962269] VideoAsset loaded: dur=7.790s, target=7.848s, path=video_prep_c1a2c933-b994-46ca-91db-c5b94a678159.mp4
+[2026-04-01 15:35:38.965785] Scene[2] Loaded: 1920x1080, dur=7.85s, item=vid_veo_140_2_231301.mp4
+[2026-04-01 15:35:39.976823] 🔄 [Safe Load] Video Copy (Unicode): video_prep_63b8e1a0-0261-4b54-98c9-65a40d446ac8.mp4 -> tmp5xwuqstq.mp4
+[2026-04-01 15:35:40.167921] VideoAsset loaded: dur=9.920s, target=9.938s, path=video_prep_63b8e1a0-0261-4b54-98c9-65a40d446ac8.mp4
+[2026-04-01 15:35:40.170864] Scene[3] Loaded: 1920x1080, dur=9.94s, item=vid_veo_140_3_234137.mp4
+[2026-04-01 15:35:40.350889] ✅ [Safe Load] Image Success: filled_cc6e462b-38c8-4b00-8700-7bc2e91486cd.jpg (1920x1080)
+[2026-04-01 15:35:40.353117] Scene[4] Loaded: 1920x1080, dur=6.22s, item=img_140_4_194337.png
+[2026-04-01 15:35:40.532034] ✅ [Safe Load] Image Success: filled_53b23c53-43b8-4e1b-8c1c-5617268c9964.jpg (1920x1080)
+[2026-04-01 15:35:40.534645] Scene[5] Loaded: 1920x1080, dur=5.11s, item=img_140_5_194347.png
+[2026-04-01 15:35:40.725041] ✅ [Safe Load] Image Success: filled_74aae6a1-9a99-4904-97fb-9ae8f1286544.jpg (1920x1080)
+[2026-04-01 15:35:40.727869] Scene[6] Loaded: 1920x1080, dur=11.98s, item=img_140_6_194358.png
+[2026-04-01 15:35:40.930638] ✅ [Safe Load] Image Success: filled_a72fbe84-1ef6-4132-8a0c-e661406a91b2.jpg (1920x1080)
+[2026-04-01 15:35:40.933214] Scene[7] Loaded: 1920x1080, dur=6.22s, item=img_140_7_194408.png
+[2026-04-01 15:35:41.120209] ✅ [Safe Load] Image Success: filled_be0898be-488e-40dd-b3b2-53b78bca9153.jpg (1920x1080)
+[2026-04-01 15:35:41.123052] Scene[8] Loaded: 1920x1080, dur=9.60s, item=img_140_8_194421.png
+[2026-04-01 15:35:41.210229] Concatenating 8 clips. method=compose
+[2026-04-01 15:35:41.397354] RENDER_SETTINGS: font='GmarketSansBold', color='#ffffff', style='Basic_White', stroke_color='#000000', stroke_enabled=1, stroke_width=10.5, bg_enabled=1
+[2026-04-01 15:35:41.398685] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 15:35:41.455840] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 15:35:41.498294] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 15:35:41.545838] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 15:35:41.593179] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 15:35:41.643532] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 15:35:41.692500] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 15:35:41.737175] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 15:35:41.784098] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 15:35:41.838065] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 15:35:41.891695] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 15:35:41.941194] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 15:35:41.994676] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\services\..\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 15:35:42.103161] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-01 17:42:22.985888] Starting render for project 140
+[2026-04-01 17:42:22.985902] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_140.mp3
+[2026-04-01 17:42:23.199945] create_slideshow(PROJ=140) Effects: ['random', 'random', 'random', 'random', 'random', 'random', 'random', 'random']
+[2026-04-01 17:42:23.452404] ✅ [Safe Load] Image Success: filled_44d8fe54-f859-4878-aa56-48985027687d.jpg (1920x1080)
+[2026-04-01 17:42:23.456485] Scene[1] Loaded: 1920x1080, dur=9.61s, item=img_140_1_194303.png
+[2026-04-01 17:42:24.465378] 🔄 [Safe Load] Video Copy (Unicode): video_prep_f5bd5e1d-8075-4b81-abc7-86aa64a6137e.mp4 -> tmp4i6fy9fn.mp4
+[2026-04-01 17:42:24.693792] VideoAsset loaded: dur=7.790s, target=7.848s, path=video_prep_f5bd5e1d-8075-4b81-abc7-86aa64a6137e.mp4
+[2026-04-01 17:42:24.696359] Scene[2] Loaded: 1920x1080, dur=7.85s, item=vid_veo_140_2_231301.mp4
+[2026-04-01 17:42:25.952370] 🔄 [Safe Load] Video Copy (Unicode): video_prep_8485835d-b4e0-4148-9d9f-dd8f8efb6c03.mp4 -> tmppek4nrtc.mp4
+[2026-04-01 17:42:26.221698] VideoAsset loaded: dur=9.920s, target=9.938s, path=video_prep_8485835d-b4e0-4148-9d9f-dd8f8efb6c03.mp4
+[2026-04-01 17:42:26.224473] Scene[3] Loaded: 1920x1080, dur=9.94s, item=vid_veo_140_3_234137.mp4
+[2026-04-01 17:42:26.463693] ✅ [Safe Load] Image Success: filled_2a9a7dfc-3c5b-4ec1-9595-32a1df7e5b83.jpg (1920x1080)
+[2026-04-01 17:42:26.466885] Scene[4] Loaded: 1920x1080, dur=6.22s, item=img_140_4_194337.png
+[2026-04-01 17:42:26.712620] ✅ [Safe Load] Image Success: filled_cec1bd40-85f0-49d5-bba3-d4299b31f9a2.jpg (1920x1080)
+[2026-04-01 17:42:26.716547] Scene[5] Loaded: 1920x1080, dur=5.11s, item=img_140_5_194347.png
+[2026-04-01 17:42:26.984903] ✅ [Safe Load] Image Success: filled_c44a1cfa-71d0-4fbc-8266-0af2ff3b0947.jpg (1920x1080)
+[2026-04-01 17:42:26.988117] Scene[6] Loaded: 1920x1080, dur=11.98s, item=img_140_6_194358.png
+[2026-04-01 17:42:27.230253] ✅ [Safe Load] Image Success: filled_ed8c4afa-1948-47a3-884e-7cdd9599f52b.jpg (1920x1080)
+[2026-04-01 17:42:27.233564] Scene[7] Loaded: 1920x1080, dur=6.22s, item=img_140_7_194408.png
+[2026-04-01 17:42:27.496592] ✅ [Safe Load] Image Success: filled_e664e24f-52e5-4f18-9334-1c0f69c36968.jpg (1920x1080)
+[2026-04-01 17:42:27.500059] Scene[8] Loaded: 1920x1080, dur=9.60s, item=img_140_8_194421.png
+[2026-04-01 17:42:27.603992] Concatenating 8 clips. method=compose
+[2026-04-01 17:42:27.993047] RENDER_SETTINGS: font='Jalnan', color='#ffffff', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-04-01 17:42:28.006708] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 17:42:28.061756] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 17:42:28.068582] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 17:42:28.075486] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 17:42:28.081726] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 17:42:28.087452] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 17:42:28.099485] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 17:42:28.105507] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 17:42:28.111046] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 17:42:28.117574] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 17:42:28.123670] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 17:42:28.131924] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 17:42:28.137808] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 17:42:28.144147] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 17:42:28.160550] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-01 19:14:08.965169] Starting render for project 140
+[2026-04-01 19:14:08.965188] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_140.mp3
+[2026-04-01 19:14:09.697206] create_slideshow(PROJ=140) Effects: ['random', 'random']
+[2026-04-01 19:14:09.937929] ✅ [Safe Load] Image Success: filled_5fcf7b86-9db1-48ae-bbe6-26cb5dccd01a.jpg (1920x1080)
+[2026-04-01 19:14:09.941213] Scene[1] Loaded: 1920x1080, dur=9.61s, item=img_140_1_194303.png
+[2026-04-01 19:14:11.275516] 🔄 [Safe Load] Video Copy (Unicode): video_prep_15541881-c040-4b0e-8e3b-22eb6fffc60a.mp4 -> tmpsiygm62u.mp4
+[2026-04-01 19:14:11.504710] VideoAsset loaded: dur=12.080s, target=12.137s, path=video_prep_15541881-c040-4b0e-8e3b-22eb6fffc60a.mp4
+[2026-04-01 19:14:11.507763] Scene[2] Loaded: 1920x1080, dur=12.14s, item=vid_veo_140_2_231301.mp4
+[2026-04-01 19:14:11.614649] Concatenating 2 clips. method=compose
+[2026-04-01 19:14:11.825681] RENDER_SETTINGS: font='Jalnan', color='#ffffff', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-04-01 19:14:11.827550] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 19:14:11.864603] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 19:14:11.905640] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 19:14:11.950753] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 19:14:12.048263] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-01 19:27:50.652086] Starting render for project 140
+[2026-04-01 19:27:50.652106] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_140.mp3
+[2026-04-01 19:27:51.292123] create_slideshow(PROJ=140) Effects: ['random', 'random']
+[2026-04-01 19:27:51.537336] ✅ [Safe Load] Image Success: filled_4e315513-b5f2-4318-b8e7-aa5bfaa99b3a.jpg (1920x1080)
+[2026-04-01 19:27:51.542543] Scene[1] Loaded: 1920x1080, dur=9.61s, item=img_140_1_194303.png
+[2026-04-01 19:27:52.848991] 🔄 [Safe Load] Video Copy (Unicode): video_prep_993faed2-463e-4e52-9d22-bc5d74edf839.mp4 -> tmpn08ilfj_.mp4
+[2026-04-01 19:27:53.061889] VideoAsset loaded: dur=12.080s, target=12.137s, path=video_prep_993faed2-463e-4e52-9d22-bc5d74edf839.mp4
+[2026-04-01 19:27:53.065735] Scene[2] Loaded: 1920x1080, dur=12.14s, item=vid_veo_140_2_231301.mp4
+[2026-04-01 19:27:53.145998] Concatenating 2 clips. method=compose
+[2026-04-01 19:27:53.320013] RENDER_SETTINGS: font='Jalnan', color='#ffffff', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-04-01 19:27:53.333517] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 19:27:53.368786] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 19:27:53.398437] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 19:27:53.430689] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 19:27:53.512203] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-01 19:51:57.967147] Starting render for project 140
+[2026-04-01 19:51:57.967163] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_140.mp3
+[2026-04-01 19:51:58.609151] create_slideshow(PROJ=140) Effects: ['random', 'random']
+[2026-04-01 19:51:58.844606] ✅ [Safe Load] Image Success: filled_92372727-eea6-4349-8420-1885d00cfc65.jpg (1920x1080)
+[2026-04-01 19:51:58.847933] Scene[1] Loaded: 1920x1080, dur=9.61s, item=img_140_1_194303.png
+[2026-04-01 19:52:00.171143] 🔄 [Safe Load] Video Copy (Unicode): video_prep_e1f6505c-f69c-48a2-bb43-e323f3c382ab.mp4 -> tmp9tfgy85f.mp4
+[2026-04-01 19:52:00.398062] VideoAsset loaded: dur=12.080s, target=12.137s, path=video_prep_e1f6505c-f69c-48a2-bb43-e323f3c382ab.mp4
+[2026-04-01 19:52:00.400800] Scene[2] Loaded: 1920x1080, dur=12.14s, item=vid_veo_140_2_231301.mp4
+[2026-04-01 19:52:00.488095] Concatenating 2 clips. method=compose
+[2026-04-01 19:52:00.678535] RENDER_SETTINGS: font='Jalnan', color='#ffffff', style='Basic_White', stroke_color='#000000', stroke_enabled=1, stroke_width=10.5, bg_enabled=0
+[2026-04-01 19:52:00.679590] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 19:52:00.726242] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 19:52:00.762632] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 19:52:00.802415] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 19:52:00.901468] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-01 21:55:23.520271] Starting render for project 140
+[2026-04-01 21:55:23.520282] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_140.mp3
+[2026-04-01 21:55:24.215453] create_slideshow(PROJ=140) Effects: ['random', 'random']
+[2026-04-01 21:55:24.465682] ✅ [Safe Load] Image Success: filled_ae8699f9-5d27-48d9-9569-788dba7cb52a.jpg (1920x1080)
+[2026-04-01 21:55:24.469429] Scene[1] Loaded: 1920x1080, dur=9.61s, item=img_140_1_194303.png
+[2026-04-01 21:55:25.792452] 🔄 [Safe Load] Video Copy (Unicode): video_prep_f2395074-e5df-4e55-94a1-b124f7f77f7f.mp4 -> tmp_ynfet4c.mp4
+[2026-04-01 21:55:26.027633] VideoAsset loaded: dur=12.080s, target=12.137s, path=video_prep_f2395074-e5df-4e55-94a1-b124f7f77f7f.mp4
+[2026-04-01 21:55:26.031105] Scene[2] Loaded: 1920x1080, dur=12.14s, item=vid_veo_140_2_231301.mp4
+[2026-04-01 21:55:26.124857] Concatenating 2 clips. method=compose
+[2026-04-01 21:55:26.338906] RENDER_SETTINGS: font='Jalnan', color='#ffffff', style='Basic_White', stroke_color='#000000', stroke_enabled=1, stroke_width=22.5, bg_enabled=0
+[2026-04-01 21:55:27.608766] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 21:55:28.268190] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 21:55:28.885236] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 21:55:29.550869] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 21:55:29.660306] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-01 22:01:55.623770] Starting render for project 140
+[2026-04-01 22:01:55.623791] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_140.mp3
+[2026-04-01 22:01:56.270409] create_slideshow(PROJ=140) Effects: ['random', 'random']
+[2026-04-01 22:01:56.494816] ✅ [Safe Load] Image Success: filled_4f77d443-c959-4d23-8444-fe6e6baaedf3.jpg (1920x1080)
+[2026-04-01 22:01:56.497935] Scene[1] Loaded: 1920x1080, dur=9.61s, item=img_140_1_194303.png
+[2026-04-01 22:01:57.735571] 🔄 [Safe Load] Video Copy (Unicode): video_prep_69a0d522-a78e-40ad-a45c-d280d5e3fe33.mp4 -> tmp_ansn35q.mp4
+[2026-04-01 22:01:57.941694] VideoAsset loaded: dur=12.080s, target=12.137s, path=video_prep_69a0d522-a78e-40ad-a45c-d280d5e3fe33.mp4
+[2026-04-01 22:01:57.951152] Scene[2] Loaded: 1920x1080, dur=12.14s, item=vid_veo_140_2_231301.mp4
+[2026-04-01 22:01:58.045225] Concatenating 2 clips. method=compose
+[2026-04-01 22:01:58.229010] RENDER_SETTINGS: font='Jalnan', color='#ffffff', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-04-01 22:01:59.555622] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 22:02:00.158786] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 22:02:00.747647] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 22:02:01.377411] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 22:02:01.465520] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-01 22:49:30.713293] Starting render for project 140
+[2026-04-01 22:49:30.713308] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_140.mp3
+[2026-04-01 22:49:31.423383] create_slideshow(PROJ=140) Effects: ['random', 'random']
+[2026-04-01 22:49:31.670035] ✅ [Safe Load] Image Success: filled_43a6082c-2118-45d6-8e86-9ba347268b86.jpg (1920x1080)
+[2026-04-01 22:49:31.673669] Scene[1] Loaded: 1920x1080, dur=9.61s, item=img_140_1_194303.png
+[2026-04-01 22:49:32.895933] 🔄 [Safe Load] Video Copy (Unicode): video_prep_f6a669bc-133d-47c6-9031-9d8242df426f.mp4 -> tmpz_pp6n15.mp4
+[2026-04-01 22:49:33.110895] VideoAsset loaded: dur=12.080s, target=12.137s, path=video_prep_f6a669bc-133d-47c6-9031-9d8242df426f.mp4
+[2026-04-01 22:49:33.121911] Scene[2] Loaded: 1920x1080, dur=12.14s, item=vid_veo_140_2_231301.mp4
+[2026-04-01 22:49:33.220855] Concatenating 2 clips. method=compose
+[2026-04-01 22:49:33.439327] RENDER_SETTINGS: font='Jalnan', color='#ffffff', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-04-01 22:49:34.274513] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 22:49:34.934072] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 22:49:35.559664] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 22:49:36.190991] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 22:49:36.283936] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-01 22:57:43.374841] Starting render for project 140
+[2026-04-01 22:57:43.374860] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_140.mp3
+[2026-04-01 22:57:44.006609] create_slideshow(PROJ=140) Effects: ['random', 'random']
+[2026-04-01 22:57:44.238034] ✅ [Safe Load] Image Success: filled_66a875e5-efb7-4ab8-8196-2db7df9cede9.jpg (1920x1080)
+[2026-04-01 22:57:44.240010] Scene[1] Loaded: 1920x1080, dur=9.61s, item=img_140_1_194303.png
+[2026-04-01 22:57:45.476514] 🔄 [Safe Load] Video Copy (Unicode): video_prep_1e7db285-11ef-4ca3-8fe8-b9114264fd0d.mp4 -> tmpn0ew_hor.mp4
+[2026-04-01 22:57:45.678948] VideoAsset loaded: dur=12.080s, target=12.137s, path=video_prep_1e7db285-11ef-4ca3-8fe8-b9114264fd0d.mp4
+[2026-04-01 22:57:45.691150] Scene[2] Loaded: 1920x1080, dur=12.14s, item=vid_veo_140_2_231301.mp4
+[2026-04-01 22:57:45.775840] Concatenating 2 clips. method=compose
+[2026-04-01 22:57:45.952865] RENDER_SETTINGS: font='Jalnan', color='#ffffff', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-04-01 22:57:47.040372] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 22:57:47.737180] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 22:57:48.358474] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 22:57:48.972871] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 22:57:49.068264] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-01 23:09:30.965141] Starting render for project 140
+[2026-04-01 23:09:30.965163] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_140.mp3
+[2026-04-01 23:09:31.586004] create_slideshow(PROJ=140) Effects: ['random', 'random']
+[2026-04-01 23:09:31.830978] ✅ [Safe Load] Image Success: filled_c7462474-892b-41a9-91a6-e7463406e7d9.jpg (1920x1080)
+[2026-04-01 23:09:31.832685] Scene[1] Loaded: 1920x1080, dur=9.61s, item=img_140_1_194303.png
+[2026-04-01 23:09:32.968596] 🔄 [Safe Load] Video Copy (Unicode): video_prep_15e6c9a1-4d07-4081-b8e4-db5be12f0b7a.mp4 -> tmp5s3qokem.mp4
+[2026-04-01 23:09:33.158886] VideoAsset loaded: dur=12.080s, target=12.137s, path=video_prep_15e6c9a1-4d07-4081-b8e4-db5be12f0b7a.mp4
+[2026-04-01 23:09:33.162028] Scene[2] Loaded: 1920x1080, dur=12.14s, item=vid_veo_140_2_231301.mp4
+[2026-04-01 23:09:33.242474] Concatenating 2 clips. method=compose
+[2026-04-01 23:09:33.403576] RENDER_SETTINGS: font='Jalnan', color='#ffffff', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-04-01 23:09:34.306691] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 23:09:34.876798] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 23:09:35.481400] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 23:09:36.041492] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 23:09:36.133434] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-01 23:22:11.538923] Starting render for project 140
+[2026-04-01 23:22:11.538936] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_140.mp3
+[2026-04-01 23:22:12.229851] create_slideshow(PROJ=140) Effects: ['random', 'random']
+[2026-04-01 23:22:12.470542] ✅ [Safe Load] Image Success: filled_37875a04-4e21-4b76-9137-1a6477d12e62.jpg (1920x1080)
+[2026-04-01 23:22:12.472812] Scene[1] Loaded: 1920x1080, dur=9.61s, item=img_140_1_194303.png
+[2026-04-01 23:22:13.666206] 🔄 [Safe Load] Video Copy (Unicode): video_prep_82c50fee-0c47-43cd-8dfd-f3eaa15fef9c.mp4 -> tmp49xpabou.mp4
+[2026-04-01 23:22:13.858735] VideoAsset loaded: dur=12.080s, target=12.137s, path=video_prep_82c50fee-0c47-43cd-8dfd-f3eaa15fef9c.mp4
+[2026-04-01 23:22:13.861545] Scene[2] Loaded: 1920x1080, dur=12.14s, item=vid_veo_140_2_231301.mp4
+[2026-04-01 23:22:13.956208] Concatenating 2 clips. method=compose
+[2026-04-01 23:22:14.128864] RENDER_SETTINGS: font='Jalnan', color='#ffffff', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-04-01 23:22:15.560764] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 23:22:16.117052] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 23:22:16.686375] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 23:22:17.255017] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-01 23:22:17.349596] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-03 08:22:11.011826] Starting render for project 70
+[2026-04-03 08:22:11.011839] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-04-03 08:22:12.214741] create_slideshow(PROJ=70) Effects: ['random', 'random', 'zoom_in', 'zoom_out', 'none']
+[2026-04-03 08:22:12.445031] ✅ [Safe Load] Image Success: filled_eae1aa19-dad2-4212-96ae-b55c596f730a.jpg (1920x1080)
+[2026-04-03 08:22:12.448855] Scene[1] Loaded: 1920x1080, dur=1.79s, item=p70_s1_1774595251.png
+[2026-04-03 08:22:12.755083] ✅ [Safe Load] Image Success: filled_0e84f813-bf40-4178-80a8-8f5210990644.jpg (1920x1080)
+[2026-04-03 08:22:12.757648] Scene[2] Loaded: 1920x1080, dur=1.79s, item=img_70_2_150550.png
+[2026-04-03 08:22:13.073203] ✅ [Safe Load] Image Success: filled_79aeed92-d35e-4fd9-bb7b-1de5e8188263.jpg (1920x1080)
+[2026-04-03 08:22:13.075053] Scene[3] Loaded: 1920x1080, dur=1.79s, item=img_70_3_150558.png
+[2026-04-03 08:22:13.286253] ✅ [Safe Load] Image Success: filled_7cc647ee-b6e0-4bc3-ac2b-7c72a1f3b566.jpg (1920x1080)
+[2026-04-03 08:22:13.289500] Scene[4] Loaded: 1920x1080, dur=1.79s, item=p70_s2_1774603443.png
+[2026-04-03 08:22:13.588756] ✅ [Safe Load] Image Success: filled_0ae3a044-6ad1-4025-98d7-d19a59c04768.jpg (1920x1080)
+[2026-04-03 08:22:13.590945] Scene[5] Loaded: 1920x1080, dur=1.79s, item=img_70_4_150605.png
+[2026-04-03 08:22:13.677857] Concatenating 5 clips. method=compose
+[2026-04-03 08:22:13.891330] RENDER_SETTINGS: font='Jalnan', color='#fbbf24', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-04-03 08:22:16.275657] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-03 08:22:16.920737] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-03 08:22:17.059243] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-03 08:55:30.448964] Starting render for project 70
+[2026-04-03 08:55:30.448976] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-04-03 08:55:30.912357] create_slideshow(PROJ=70) Effects: ['random', 'zoom_out', 'none']
+[2026-04-03 08:55:31.097666] ✅ [Safe Load] Image Success: cinematic_3244d115-ad40-45be-a382-911d04228611.jpg (720x1280)
+[2026-04-03 08:55:31.100306] Scene[1] Loaded: 720x1280, dur=2.98s, item=p70_s3_1774603872.png
+[2026-04-03 08:55:31.196627] ✅ [Safe Load] Image Success: cinematic_ff92bbbb-979b-4bc2-8c5a-826801ac34c6.jpg (720x1280)
+[2026-04-03 08:55:31.197839] Scene[2] Loaded: 720x1280, dur=2.98s, item=p70_s4_1774604277.png
+[2026-04-03 08:55:31.300885] ✅ [Safe Load] Image Success: cinematic_ebb2675c-68cb-44e9-9901-f92cd0f17c57.jpg (720x1280)
+[2026-04-03 08:55:31.302276] Scene[3] Loaded: 720x1280, dur=2.98s, item=img_70_4_150605.png
+[2026-04-03 08:55:31.332759] Concatenating 3 clips. method=compose
+[2026-04-03 08:55:31.480765] RENDER_SETTINGS: font='Jalnan', color='#fbbf24', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-04-03 08:55:32.471767] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-03 08:55:33.063276] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-03 08:55:33.117671] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-03 09:16:15.199033] Starting render for project 70
+[2026-04-03 09:16:15.199053] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-04-03 09:16:15.657213] create_slideshow(PROJ=70) Effects: ['random', 'zoom_out', 'none']
+[2026-04-03 09:16:15.831323] ✅ [Safe Load] Image Success: cinematic_88908ea2-9fa7-4156-ab5d-4049669a902b.jpg (720x1280)
+[2026-04-03 09:16:15.833976] Scene[1] Loaded: 720x1280, dur=2.98s, item=p70_s3_1774603872.png
+[2026-04-03 09:16:15.923536] ✅ [Safe Load] Image Success: cinematic_d93cf79e-a296-405a-b5f5-ba5dc0652893.jpg (720x1280)
+[2026-04-03 09:16:15.924755] Scene[2] Loaded: 720x1280, dur=2.98s, item=p70_s4_1774604277.png
+[2026-04-03 09:16:16.012975] ✅ [Safe Load] Image Success: cinematic_e11dadc4-03e9-4631-ac6c-1d8d5ac3fff2.jpg (720x1280)
+[2026-04-03 09:16:16.014306] Scene[3] Loaded: 720x1280, dur=2.98s, item=img_70_4_150605.png
+[2026-04-03 09:16:16.042951] Concatenating 3 clips. method=compose
+[2026-04-03 09:16:16.207638] RENDER_SETTINGS: font='Jalnan', color='#fbbf24', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-04-03 09:16:17.363279] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-03 09:16:18.005598] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-03 09:16:18.056720] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-03 09:27:54.196916] Starting render for project 70
+[2026-04-03 09:27:54.196928] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-04-03 09:27:54.681745] create_slideshow(PROJ=70) Effects: ['random', 'zoom_out', 'none']
+[2026-04-03 09:27:54.863876] ✅ [Safe Load] Image Success: cinematic_38ec2983-4585-43d2-a303-a426b45464fd.jpg (720x1280)
+[2026-04-03 09:27:54.867156] Scene[1] Loaded: 720x1280, dur=2.98s, item=p70_s3_1774603872.png
+[2026-04-03 09:27:54.965810] ✅ [Safe Load] Image Success: cinematic_64537901-a523-487e-a32e-95d404233666.jpg (720x1280)
+[2026-04-03 09:27:54.967119] Scene[2] Loaded: 720x1280, dur=2.98s, item=p70_s4_1774604277.png
+[2026-04-03 09:27:55.056908] ✅ [Safe Load] Image Success: cinematic_5c164ae0-89ee-438a-9955-5f09a323c291.jpg (720x1280)
+[2026-04-03 09:27:55.058655] Scene[3] Loaded: 720x1280, dur=2.98s, item=img_70_4_150605.png
+[2026-04-03 09:27:55.087483] Concatenating 3 clips. method=compose
+[2026-04-03 09:27:55.230707] RENDER_SETTINGS: font='Jalnan', color='#fbbf24', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-04-03 09:27:56.057804] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-03 09:27:56.655004] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-03 09:27:56.721168] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-03 09:32:30.695656] Starting render for project 70
+[2026-04-03 09:32:30.695673] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-04-03 09:32:31.176384] create_slideshow(PROJ=70) Effects: ['random', 'zoom_out', 'none']
+[2026-04-03 09:32:31.443909] ✅ [Safe Load] Image Success: filled_dd422b8a-cc88-43be-838a-d98d41201648.jpg (1280x720)
+[2026-04-03 09:32:31.446024] Scene[1] Loaded: 1280x720, dur=2.98s, item=p70_s3_1774603872.png
+[2026-04-03 09:32:31.586835] ✅ [Safe Load] Image Success: filled_7ad57fe3-8c8c-4f22-b4c9-60b4ce096dd4.jpg (1280x720)
+[2026-04-03 09:32:31.588368] Scene[2] Loaded: 1280x720, dur=2.98s, item=p70_s4_1774604277.png
+[2026-04-03 09:32:31.708990] ✅ [Safe Load] Image Success: filled_b3e42972-2c10-4b97-8bd7-5e5f4f2aa984.jpg (1280x720)
+[2026-04-03 09:32:31.710403] Scene[3] Loaded: 1280x720, dur=2.98s, item=img_70_4_150605.png
+[2026-04-03 09:32:31.741182] Concatenating 3 clips. method=compose
+[2026-04-03 09:32:31.898556] RENDER_SETTINGS: font='Jalnan', color='#fbbf24', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-04-03 09:32:32.820802] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-03 09:32:33.405625] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-03 09:32:33.483522] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-03 10:49:44.482949] Starting render for project 70
+[2026-04-03 10:49:44.482969] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-04-03 10:49:45.035792] create_slideshow(PROJ=70) Effects: ['random', 'zoom_out', 'none']
+[2026-04-03 10:49:45.348777] ✅ [Safe Load] Image Success: filled_3ec88b79-e265-4237-a34d-4ead7b65fa7a.jpg (1920x1080)
+[2026-04-03 10:49:45.352410] Scene[1] Loaded: 1920x1080, dur=2.98s, item=p70_s3_1774603872.png
+[2026-04-03 10:49:45.622012] ✅ [Safe Load] Image Success: filled_6997b16e-5a85-4a7b-a96d-25f85a0314b6.jpg (1920x1080)
+[2026-04-03 10:49:45.623990] Scene[2] Loaded: 1920x1080, dur=2.98s, item=p70_s4_1774604277.png
+[2026-04-03 10:49:45.870031] ✅ [Safe Load] Image Success: filled_237f1b1f-becd-47d5-89b5-9c9f8db00ce8.jpg (1920x1080)
+[2026-04-03 10:49:45.871725] Scene[3] Loaded: 1920x1080, dur=2.98s, item=img_70_4_150605.png
+[2026-04-03 10:49:45.944845] Concatenating 3 clips. method=compose
+[2026-04-03 10:49:46.154582] RENDER_SETTINGS: font='Jalnan', color='#fbbf24', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-04-03 10:49:47.121389] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-03 10:49:47.789275] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-03 10:49:47.797478] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-03 11:04:34.116781] Starting render for project 70
+[2026-04-03 11:04:34.116795] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-04-03 11:04:34.590186] create_slideshow(PROJ=70) Effects: ['random', 'zoom_out', 'none']
+[2026-04-03 11:04:34.825641] ✅ [Safe Load] Image Success: filled_ad26db54-8b39-479b-ba62-4be287e95ebb.jpg (1280x720)
+[2026-04-03 11:04:34.828354] Scene[1] Loaded: 1280x720, dur=2.98s, item=p70_s3_1774603872.png
+[2026-04-03 11:04:34.961158] ✅ [Safe Load] Image Success: filled_c98e86c1-035a-4314-83dd-0c9afc983b30.jpg (1280x720)
+[2026-04-03 11:04:34.962564] Scene[2] Loaded: 1280x720, dur=2.98s, item=p70_s4_1774604277.png
+[2026-04-03 11:04:35.093074] ✅ [Safe Load] Image Success: filled_7b5c5de6-f72c-4de4-8827-dbf8d3c6a683.jpg (1280x720)
+[2026-04-03 11:04:35.094199] Scene[3] Loaded: 1280x720, dur=2.98s, item=img_70_4_150605.png
+[2026-04-03 11:04:35.123955] Concatenating 3 clips. method=compose
+[2026-04-03 11:04:35.309494] RENDER_SETTINGS: font='Jalnan', color='#fbbf24', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-04-03 11:04:36.191571] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-03 11:04:36.804483] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-03 11:04:36.876262] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-03 11:31:30.018578] Starting render for project 70
+[2026-04-03 11:31:30.018595] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-04-03 11:31:30.539089] create_slideshow(PROJ=70) Effects: ['random', 'zoom_out', 'none']
+[2026-04-03 11:31:30.742901] ✅ [Safe Load] Image Success: filled_ab457cb6-6ee8-4784-b218-fe2a1057ebc2.jpg (1280x720)
+[2026-04-03 11:31:30.745600] Scene[1] Loaded: 1280x720, dur=2.98s, item=p70_s3_1774603872.png
+[2026-04-03 11:31:30.866026] ✅ [Safe Load] Image Success: filled_717fdce5-88a8-4e88-9cd6-0b883584cf82.jpg (1280x720)
+[2026-04-03 11:31:30.867365] Scene[2] Loaded: 1280x720, dur=2.98s, item=p70_s4_1774604277.png
+[2026-04-03 11:31:30.978551] ✅ [Safe Load] Image Success: filled_90eb167e-4159-4bdc-a2e5-4e3bc316ceb1.jpg (1280x720)
+[2026-04-03 11:31:30.979814] Scene[3] Loaded: 1280x720, dur=2.98s, item=img_70_4_150605.png
+[2026-04-03 11:31:31.008094] Concatenating 3 clips. method=compose
+[2026-04-03 11:31:31.162100] RENDER_SETTINGS: font='Jalnan', color='#fbbf24', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-04-03 11:31:32.378224] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-03 11:31:32.986765] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-03 11:31:33.044232] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-03 11:32:21.164163] Starting render for project 70
+[2026-04-03 11:32:21.164174] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-04-03 11:32:21.616593] create_slideshow(PROJ=70) Effects: ['random', 'zoom_out', 'none']
+[2026-04-03 11:32:21.794208] ✅ [Safe Load] Image Success: cinematic_66e819bb-3fcb-45e3-95d1-dcd1a6075574.jpg (720x1280)
+[2026-04-03 11:32:21.795934] Scene[1] Loaded: 720x1280, dur=2.98s, item=p70_s3_1774603872.png
+[2026-04-03 11:32:21.885668] ✅ [Safe Load] Image Success: cinematic_d66975a6-8572-48d9-9576-5b7a25082d6c.jpg (720x1280)
+[2026-04-03 11:32:21.886946] Scene[2] Loaded: 720x1280, dur=2.98s, item=p70_s4_1774604277.png
+[2026-04-03 11:32:21.965070] ✅ [Safe Load] Image Success: cinematic_5f2404ab-107c-4cd5-9081-1e246a91af11.jpg (720x1280)
+[2026-04-03 11:32:21.966437] Scene[3] Loaded: 720x1280, dur=2.98s, item=img_70_4_150605.png
+[2026-04-03 11:32:21.989400] Concatenating 3 clips. method=compose
+[2026-04-03 11:32:22.138482] RENDER_SETTINGS: font='Jalnan', color='#fbbf24', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-04-03 11:32:23.248730] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-03 11:32:23.998799] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-03 11:32:24.070559] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-03 11:40:22.462716] Starting render for project 70
+[2026-04-03 11:40:22.462727] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-04-03 11:40:22.941390] create_slideshow(PROJ=70) Effects: ['random', 'zoom_out', 'none']
+[2026-04-03 11:40:23.196579] ✅ [Safe Load] Image Success: cinematic_cb5c1a77-f7d2-44ea-975c-09b5660e27d4.jpg (1080x1920)
+[2026-04-03 11:40:23.198696] Scene[1] Loaded: 1080x1920, dur=2.98s, item=p70_s3_1774603872.png
+[2026-04-03 11:40:23.437247] ✅ [Safe Load] Image Success: cinematic_26b0e41f-a5bd-4271-95c4-f7f26b33da28.jpg (1080x1920)
+[2026-04-03 11:40:23.439510] Scene[2] Loaded: 1080x1920, dur=2.98s, item=p70_s4_1774604277.png
+[2026-04-03 11:40:23.597518] ✅ [Safe Load] Image Success: cinematic_2aa3ac48-c633-42d5-ac73-f6eb12e6ab34.jpg (1080x1920)
+[2026-04-03 11:40:23.599264] Scene[3] Loaded: 1080x1920, dur=2.98s, item=img_70_4_150605.png
+[2026-04-03 11:40:23.668539] Concatenating 3 clips. method=compose
+[2026-04-03 11:40:23.875698] RENDER_SETTINGS: font='Jalnan', color='#fbbf24', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-04-03 11:40:24.697976] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-03 11:40:25.410331] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-03 11:40:25.599048] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-03 12:59:54.292722] Starting render for project 70
+[2026-04-03 12:59:54.292735] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-04-03 12:59:54.774439] create_slideshow(PROJ=70) Effects: ['random', 'zoom_out', 'none']
+[2026-04-03 12:59:55.028000] ✅ [Safe Load] Image Success: cinematic_8e3f00eb-0194-476b-91bd-7b26d27fc4d1.jpg (1080x1920)
+[2026-04-03 12:59:55.030951] Scene[1] Loaded: 1080x1920, dur=2.98s, item=p70_s3_1774603872.png
+[2026-04-03 12:59:55.205516] ✅ [Safe Load] Image Success: cinematic_a1cea691-86cd-4317-93e0-db3cdd98041a.jpg (1080x1920)
+[2026-04-03 12:59:55.207454] Scene[2] Loaded: 1080x1920, dur=2.98s, item=p70_s4_1774604277.png
+[2026-04-03 12:59:55.352806] ✅ [Safe Load] Image Success: cinematic_02c90662-6303-4bd4-af0c-4b22ee1d3c18.jpg (1080x1920)
+[2026-04-03 12:59:55.354411] Scene[3] Loaded: 1080x1920, dur=2.98s, item=img_70_4_150605.png
+[2026-04-03 12:59:55.404575] Concatenating 3 clips. method=compose
+[2026-04-03 12:59:55.560804] RENDER_SETTINGS: font='Jalnan', color='#fbbf24', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-04-03 12:59:56.732141] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-03 12:59:57.366159] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-03 12:59:57.434982] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-03 13:31:04.798219] Starting render for project 70
+[2026-04-03 13:31:04.798237] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-04-03 13:31:06.119811] create_slideshow(PROJ=70) Effects: ['random', 'zoom_out', 'none']
+[2026-04-03 13:31:06.453234] ✅ [Safe Load] Image Success: cinematic_9a640896-68cb-467e-88fa-8c3a69278bf7.jpg (1080x1920)
+[2026-04-03 13:31:06.456998] Scene[1] Loaded: 1080x1920, dur=2.98s, item=p70_s3_1774603872.png
+[2026-04-03 13:31:06.667212] ✅ [Safe Load] Image Success: cinematic_d721ccee-bfbe-4926-82dd-b4843a8eb799.jpg (1080x1920)
+[2026-04-03 13:31:06.668996] Scene[2] Loaded: 1080x1920, dur=2.98s, item=p70_s4_1774604277.png
+[2026-04-03 13:31:06.925294] ✅ [Safe Load] Image Success: cinematic_5d322683-d48a-42ac-80fb-68a6d141465d.jpg (1080x1920)
+[2026-04-03 13:31:06.927450] Scene[3] Loaded: 1080x1920, dur=2.98s, item=img_70_4_150605.png
+[2026-04-03 13:31:07.017533] Concatenating 3 clips. method=compose
+[2026-04-03 13:31:07.237575] RENDER_SETTINGS: font='Jalnan', color='#fbbf24', style='Basic_White', stroke_color='#000000', stroke_enabled=0, stroke_width=0.0, bg_enabled=1
+[2026-04-03 13:31:08.311874] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-03 13:31:08.974235] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-03 13:31:09.089546] calling writes_videofile code in video_service (720p safe mode)
+[2026-04-03 13:38:25.661413] Starting render for project 70
+[2026-04-03 13:38:25.661426] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\auto_tts_70.mp3
+[2026-04-03 13:38:26.147449] create_slideshow(PROJ=70) Effects: ['random', 'zoom_out', 'none']
+[2026-04-03 13:38:26.357950] ✅ [Safe Load] Image Success: cinematic_1d5ac49e-b5ec-4c3d-80f7-5825d56c2e49.jpg (1080x1920)
+[2026-04-03 13:38:26.361386] Scene[1] Loaded: 1080x1920, dur=2.98s, item=p70_s3_1774603872.png
+[2026-04-03 13:38:26.584955] ✅ [Safe Load] Image Success: cinematic_625c8deb-21aa-429d-848e-26ef90d3039b.jpg (1080x1920)
+[2026-04-03 13:38:26.586406] Scene[2] Loaded: 1080x1920, dur=2.98s, item=p70_s4_1774604277.png
+[2026-04-03 13:38:26.798296] ✅ [Safe Load] Image Success: cinematic_ff1f4f27-69b0-4bc2-9e6a-db9fa0ded510.jpg (1080x1920)
+[2026-04-03 13:38:26.800118] Scene[3] Loaded: 1080x1920, dur=2.98s, item=img_70_4_150605.png
+[2026-04-03 13:38:26.877545] Concatenating 3 clips. method=compose
+[2026-04-03 13:38:27.118447] RENDER_SETTINGS: font='Jalnan', color='#ffffff', style='Basic_White', stroke_color='#000000', stroke_enabled=1, stroke_width=5.333333333333333, bg_enabled=0
+[2026-04-03 13:38:28.057958] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-03 13:38:28.690670] FONT_DEBUG: target='Jalnan.ttf', found_path='None', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-04-03 13:38:28.799932] calling writes_videofile code in video_service (720p safe mode)

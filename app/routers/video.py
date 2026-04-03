@@ -29,6 +29,7 @@ class RenderRequest(BaseModel):
     project_id: Union[int, str]
     use_subtitles: bool = True
     resolution: str = "1080p"  # 1080p or 720p
+    aspect_ratio: Optional[str] = None # [NEW] Manual aspect ratio override (16:9, 9:16)
 
 
 class SubtitleGenerationRequest(BaseModel):
@@ -805,6 +806,21 @@ async def get_project_subtitles(project_id: int, force_refresh: bool = False):
              except Exception as e:
                  print(f"Error loading effects: {e}")
 
+        # [FIX] Force Aspect Ratio based on global App Mode for consistent Frontend UI
+        from services.settings_service import settings_service
+        global_settings = settings_service.get_settings()
+        app_mode = global_settings.get("app_mode", "longform")
+        
+        # Priority: Project Setting (already in DB) > App Mode
+        db_aspect = settings.get('aspect_ratio')
+        
+        if app_mode == 'shorts':
+            settings['aspect_ratio'] = '9:16'
+        elif not db_aspect:
+            settings['aspect_ratio'] = '16:9'
+        else:
+            settings['aspect_ratio'] = db_aspect
+
         return {
             "status": "ok",
             "subtitles": subtitles,
@@ -887,12 +903,18 @@ async def render_project_video(
         script_data = db.get_script(project_id)
         p_settings = db.get_project_settings(project_id) or {}
         
-        # [RESOLVE] Aspect Ratio from Project Settings (Highest Priority)
-        project_aspect = p_settings.get("aspect_ratio", "16:9")
-        if app_mode == 'shorts':
-            project_aspect = "9:16" # Force 9:16 if global shorts mode
-            
-        print(f"DEBUG: Project Aspect Ratio identified as {project_aspect} (App Mode: {app_mode})")
+        # [NEW] Aspect Ratio logic (User requested absolute enforcement)
+        # 쇼츠모드에서는 무조건 9:16, 롱폼에서는 무조건 16:9
+        # Check project app_mode first, fallback to global app_mode
+        proj_mode = p_settings.get("app_mode", app_mode)
+        is_shorts_project = (proj_mode == 'shorts' or p_settings.get("is_shorts") == True)
+        
+        if is_shorts_project or app_mode == 'shorts':
+            project_aspect = "9:16"
+        else:
+            project_aspect = "16:9"
+
+        print(f"DEBUG: Project Aspect Ratio strictly enforced as {project_aspect}")
 
         # 해상도 설정
         if project_aspect == '9:16':
@@ -1115,54 +1137,9 @@ async def render_project_video(
              # 이미지가 있으면 배경 동영상 무시 (이미지 슬라이드쇼가 항상 우선)
              bg_video_url = None
             
-        # [AUTO-DETECT] Resolution based on Aspect Ratio to fix User Issue
-        if images and len(images) > 0:
-            try:
-                chk_path = images[0]
-                is_vertical_asset = False
-                w, h = 0, 0
-                
-                if chk_path.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
-                     import PIL.Image
-                     if os.path.exists(chk_path):
-                         with PIL.Image.open(chk_path) as first_img:
-                             w, h = first_img.size
-                elif chk_path.lower().endswith(('.mp4', '.mov', '.avi', '.mkv')):
-                     try:
-                         # [FIX] MoviePy 2.x Compatibility
-                         from moviepy import VideoFileClip
-                         with VideoFileClip(chk_path) as clip:
-                             w, h = clip.w, clip.h
-                     except Exception as ve:
-                         print(f"[AUTO-DETECT] Video detection failed with moviepy: {ve}")
-                         # Fallback to imageio
-                         try:
-                             import imageio
-                             reader = imageio.get_reader(chk_path)
-                             meta = reader.get_meta_data()
-                             w, h = meta['size']
-                             reader.close()
-                         except Exception: pass
+        # [REMOVED] Auto-detect aspect ratio block that was overriding intended mode.
+        # We now trust the project_aspect (9:16 or 16:9) determined above.
 
-                if w > 0 and h > 0:
-                    is_vertical_asset = h > w
-                    
-                    # Current Target Resolution Orientation
-                    is_target_vertical = target_resolution[1] > target_resolution[0]
-                    
-                    if is_vertical_asset != is_target_vertical:
-                        print(f"[AUTO-FIX] Aspect Ratio Mismatch! Asset Vertical: {is_vertical_asset}, Target Vertical: {is_target_vertical}")
-                        
-                        if is_vertical_asset:
-                            # [SAFE MODE] Force Shorts 720p for maximum stability
-                            target_resolution = (720, 1280)
-                            print(f"[AUTO-FIX] Switched to Shorts Mode (720p Safe): {target_resolution}")
-                        else:
-                            # [SAFE MODE] Force Longform 720p for maximum stability
-                            target_resolution = (1280, 720)
-                            print(f"[AUTO-FIX] Switched to Longform Mode (720p Safe): {target_resolution}")
-            except Exception as e:
-                print(f"[AUTO-FIX] Failed to detect aspect ratio: {e}")
 
         # 오디오 경로
         audio_path = tts_data.get("audio_path")
