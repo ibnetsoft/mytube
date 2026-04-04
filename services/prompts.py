@@ -223,15 +223,22 @@ JSON만 반환하세요."""
 [대본]
 {script}
 
-[핵심 미션: Context-Aware Directing]
-1. 단순히 텍스트를 이미지로 바꾸는 것이 아닙니다. **대본의 감정선(Emotion)**과 **전후 맥락(Context)**을 깊이 파악하여 연출하세요.
-2. 각 장면의 분위기를 극대화할 수 있는 **카메라 무빙(Camera Movement)**과 **샷 사이즈(Shot Size)**를 전략적으로 선택하세요.
-   - **감정적 몰입/긴장**: Slow Zoom-in, Close-up
-   - **상황 공개/고독/웅장**: Slow Zoom-out (Pull back), Extreme Wide Shot
-   - **역동적 액션/혼란**: Handheld, Tracking Shot, Dutch Angle
-   - **평화/안정**: Static Shot (고정), Symmetry
-   - **시선 이동**: Pan Left/Right, Tilt Up/Down, Rack Focus (초점 이동)
-3. **연속성(Continuity)**: 이전 장면과의 시각적 흐름이 끊기지 않도록 고려하세요.
+[핵심 미션: 6개 카테고리 비주얼 분석 및 연출]
+모근 장면(Scene) 구상 시, 대본을 바탕으로 아래 6가지 카테고리 기획 단계를 반드시 거쳐야 합니다:
+
+1. **전체 스타일 (Overall Style)**: 이미 선택된 스타일 지침("{style_prefix}")을 최우선으로 따르며, 일관된 톤앤매너를 유지합니다.
+2. **캐릭터 (Character)**: 대본 내 캐릭터의 외형(표정, 의상, 특징)을 추출합니다. 지정된 캐릭터 가이드가 있다면(예: 졸라맨 등) 반드시 준수하세요.
+3. **배경 (Background)**: 장소, 시간대, 날씨 등을 구체적으로 분석하여 풍성하게 묘사합니다.
+4. **소품/구조물 (Props/Structures)**: 상황 설명에 필요한 핵심 사물이나 건축물 요소를 추출합니다.
+5. **행동/사건 (Action/Events)**: 캐릭터의 동작이나 시각적인 변화(폭발, 빛 등)를 추출합니다.
+6. **텍스트 (Text)**: **기본적으로 이미지 내 텍스트 포함은 금지**합니다. 단, 대본에 "간판에 'EXIT'라고 적혀 있다"와 같이 **특정 텍스트를 특정 위치에 쓰라는 명시적인 요청이 있는 경우에만** 허용합니다.
+
+{style_instruction}
+{character_instruction}
+{limit_instruction}
+
+2. **연출 가이드**:
+   - 대본의 감정선(Emotion)과 전후 맥락(Context)을 파악하여 카메라 무빙과 샷 사이즈를 결정하세요. (Slow Zoom, Pan, Tilt, Rack Focus 등 활용)
 
 {style_instruction}
 {character_instruction}
@@ -242,52 +249,59 @@ JSON만 반환하세요."""
     "scenes": [
         {{
             "scene_number": 1,
-            "scene_title": "장면 요약 (예: '비밀을 알게 된 주인공')",
-            "scene_text": "해당 씬 구간의 원본 대본 내용 (요약/압축 절대 금지 — 원문 그대로, 장면 간 텍스트 중복 절대 금지)",
-            "script_start": "해당 구간 첫 어절 (원문 첫 단어)",
-            "script_end": "해당 구간 끝 어절 (원문 마지막 단어)",
+            "scene_title": "장면 요약",
+            "scene_text": "해당 씬 구간의 원본 대본 내용 (요약 없이 원문 그대로)",
+            "visual_analysis": [
+                {{
+                    "category": "전체 스타일",
+                    "extracted_info": "대본에서 추출한 스타일 정보",
+                    "visual_keywords": "스타일 관련 영어 키워드"
+                }},
+                {{
+                    "category": "캐릭터",
+                    "extracted_info": "대본 내 캐릭터 묘사/상태",
+                    "visual_keywords": "캐릭터 관련 영어 키워드"
+                }},
+                {{
+                    "category": "배경",
+                    "extracted_info": "장소/시간/날씨 등",
+                    "visual_keywords": "배경 관련 영어 키워드"
+                }},
+                {{
+                    "category": "소품/구조물",
+                    "extracted_info": "방 안의 가구, 거리의 자동차 등",
+                    "visual_keywords": "소품 관련 영어 키워드"
+                }},
+                {{
+                    "category": "행동/사건",
+                    "extracted_info": "캐릭터의 동작이나 주변 변화",
+                    "visual_keywords": "동작 관련 영어 키워드"
+                }},
+                {{
+                    "category": "텍스트",
+                    "extracted_info": "명시된 텍스트 요청 내용 (없으면 '해당 없음')",
+                    "visual_keywords": "텍스트 관련 영어 키워드 (없으면 'no text')"
+                }}
+            ],
+            "script_start": "첫 어절",
+            "script_end": "끝 어절",
             "estimated_seconds": 15,
-            "visual_reasoning": "왜 이 연출을 선택했는지 (예: 긴장감을 고조시키기 위해 줌인 선택)",
+            "visual_reasoning": "위 6가지 분석 내용을 어떻게 조합하여 장면을 구성했는지 설명",
             "prompt_ko": "이미지 묘사 (한글)",
-            "prompt_en": "{style_prefix}, [Detailed Visual Description], [Camera Angle & Movement], [Lighting & Atmosphere]",
-            "flow_prompt": "A single comprehensive descriptive paragraph optimized for Google Flow (Veo 3.1). Combine the visual scene and motion instructions into a cohesive story-driven prompt. Include core character identity adapted to the current style.",
-            "scene_type": "(졸라맨 스타일 전용) character_main | character_support | infographic 중 하나. 다른 스타일은 빈 문자열로.",
-            "prompt_char": "(졸라맨 스타일 전용) scene_type=character_main이면 전신 캐릭터, scene_type=character_support이면 작은 구석 캐릭터, scene_type=infographic이면 빈 문자열. 다른 스타일은 빈 문자열로.",
-            "prompt_bg": "(졸라맨 스타일 전용) 씬 내용에 맞는 풍부한 배경/환경/인포그래픽 이미지 프롬프트. 다른 스타일은 빈 문자열로."
+            "prompt_en": "{style_prefix}, [Detailed Visual Description synthesized from 6-category analysis], [Camera Angle & Movement], [Lighting & Atmosphere]",
+            "flow_prompt": "A single comprehensive descriptive paragraph for Google Flow (Veo 3.1). Combine the visual scene and motion instructions into a cohesive story-driven prompt.",
+            "scene_type": "(졸라맨 스타일 전용) character_main | character_support | infographic",
+            "prompt_char": "(졸라맨 스타일 전용) 캐릭터 프롬프트",
+            "prompt_bg": "(졸라맨 스타일 전용) 배경 및 환경 프롬프트"
         }}
     ]
 }}
 
 [작성 규칙 - Strict Rules]
-- **Detailed Environment & Background [필수]**:
-  - 절대 'plain white background'나 단순한 배경을 반복하지 마세요. (상황상 꼭 필요한 경우 제외)
-  - 대본의 장소와 시간대에 맞는 구체적인 배경 소품, 건축물, 자연 환경, 날씨, 조명을 상세히 묘사하여 화면을 풍성하게 채우세요.
-  - 다양한 구도(Low/High angle, Eye level)와 심도(Depth)를 활용하여 시각적 다양성을 확보하세요.
-- **prompt_en 구성**:
-  1. 스타일 프리픽스("{style_prefix}")로 시작할 것.
-  2. 피사체와 배경을 아주 구체적으로 묘사할 것.
-  3. **반드시** 문장 끝부분에 전문적인 **Cinematography Keywords**를 포함할 것.
-     (예: "Cinematic lighting, Shallow depth of field, Slow zoom in, Low angle shot, Highly detailed")
-     ⚠️ "4k", "8k", "4K", "UHD", "HD", "resolution" 등 해상도 키워드 절대 사용 금지 — 이미지 내 텍스트 워터마크를 유발합니다.
-  4. **모든 prompt_en 끝에 반드시 추가**: "no text, no words, no letters, no labels, no watermarks, no speech bubbles, no captions"
-- **flow_prompt 작성 지침**:
-  - Google Flow (Veo 3.1) 모델에 최적화된 통합 프롬프트입니다.
-  - "{style_prefix}" 스타일을 기반으로, 등장인물의 외형(지정된 스타일에 따름)과 배경, 그리고 구체적인 **영상 움직임(Motion)**을 하나의 자연스러운 문단으로 서술하세요.
-  - 단순히 나열하지 말고 "A cinematic video of [Subject] [Action] while [Background Detail] as camera [Motion]..." 형식으로 생동감 있게 작성하세요.
-- **ABSOLUTELY NO TEXT IN IMAGE [최우선]**:
-  - 이미지 내에 어떠한 텍스트, 글자, 단어, 레이블, 자막, 워터마크, 말풍선도 절대 포함 금지.
-  - 해부도/다이어그램/포스터 등 원래 텍스트가 있는 소재를 묘사할 때도 글자 없이 시각적 요소만 묘사할 것.
-  - 대사 언어(한국어/일본어/영어)와 관계없이 이미지 내 모든 언어의 텍스트 금지.
-- **ANATOMY — EXACTLY TWO ARMS AND TWO HANDS [모든 스타일 공통 - 최우선]**:
-  - 팔 2개, 손 2개. 3개 이상 절대 금지.
-  - **반드시 LEFT/RIGHT arm 위치를 명시하고 마지막에 "There is no third hand or support object." 추가**:
-    - ❌ 금지: "character holding a book while thinking" → AI가 손 3개 생성
-    - ✅ 필수 (물건 들고 생각): "The left hand is clearly visible supporting the bottom of the book, while the right hand is raised to touch its chin in a thinking gesture. There is no third hand or support object."
-    - ✅ 필수 (가리키기): "The right hand points at [object]. The left hand rests on the hip. There is no third hand."
-    - ✅ 필수 (양손): "Both hands hold [object] in front. There is no third hand or support object."
-  - **색상 충돌 주의**: 손 색과 같은 색의 물체는 다른 색으로 묘사할 것.
-  - **불필요한 보조 물체 제거**: 받침대, 스탠드 등 제거.
-  - 모든 prompt_en에 반드시 포함: "strictly two arms and two hands, anatomically correct"
+- **Analysis Driven**: 모든 장면마다 위에 정의된 6가지 카테고리에 대한 분석 결과를 `visual_analysis` 리스트에 포함하고, 그 분석 정보가 `prompt_en`에 누락 없이 반영되어야 합니다.
+- **Language Integration**: `extracted_info`는 대본의 언어(한글 등)로 작성하여 사용자가 이해할 수 있게 하고, `visual_keywords`와 `prompt_en`은 이미지 생성 AI용 영어로 작성하세요.
+- **No Text Exception**: 명시적 요청이 없는 한 이미지 내 텍스트(글자)는 절대 금지하며, 대본상 명시된 경우에만 정확히 해당 텍스트를 프롬프트에 포함하세요.
+- **Anatomy Rules**: 팔 2개, 손 2개 규칙(Exactly two arms/hands)을 엄격히 준수하세요.
 - **JSON Only**: 설명 없이 오직 JSON 데이터만 반환하세요.
 """
 

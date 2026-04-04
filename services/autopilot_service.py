@@ -312,27 +312,27 @@ class AutoPilotService:
                         detailed_style = style_data.get('prompt_value', style_prefix)
                         full_prompt = f"{char['prompt_en']}, {detailed_style}"
                         
-                        # Portrait aspect ratio 1:1 (Replicate -> Gemini -> Akool Strategy)
+                        # Portrait aspect ratio 1:1 (Gemini (Primary) -> Replicate -> Akool Strategy)
                         images_bytes = None
                         
-                        # 1. Replicate Flux
+                        # 1. Gemini (Primary)
                         try:
-                            print(f"🎨 [Auto-Pilot Char] Attempting Replicate (Primary)...")
-                            images_bytes = await replicate_service.generate_image(prompt=full_prompt, aspect_ratio="1:1")
+                            print(f"🎨 [Auto-Pilot Char] Attempting Gemini (Primary)...")
+                            images_bytes = await gemini_service.generate_image(
+                                prompt=full_prompt,
+                                num_images=1,
+                                aspect_ratio="1:1"
+                            )
                         except Exception as e:
-                            print(f"⚠️ [Auto-Pilot Char] Replicate failed: {e}")
-                        
-                        # 2. Gemini Fallback
+                            print(f"⚠️ [Auto-Pilot Char] Gemini failed: {e}")
+
+                        # 2. Replicate Fallback
                         if not images_bytes:
                             try:
-                                print(f"🎨 [Auto-Pilot Char] Attempting Gemini Imagen (Fallback 1)...")
-                                images_bytes = await gemini_service.generate_image(
-                                    prompt=full_prompt,
-                                    num_images=1,
-                                    aspect_ratio="1:1"
-                                )
+                                print(f"🎨 [Auto-Pilot Char] Attempting Replicate (Fallback 1)...")
+                                images_bytes = await replicate_service.generate_image(prompt=full_prompt, aspect_ratio="1:1")
                             except Exception as e:
-                                print(f"⚠️ [Auto-Pilot Char] Gemini failed: {e}")
+                                print(f"⚠️ [Auto-Pilot Char] Replicate failed: {e}")
 
                         # 3. Akool Fallback
                         if not images_bytes:
@@ -663,26 +663,29 @@ JSON만 출력하세요:
                     images = None
                     used_backend = "none"
 
-                    # 1. Replicate Flux
+                    # 1. Gemini (Primary)
                     try:
-                        images = await replicate_service.generate_image(prompt=prompt_en, aspect_ratio=aspect_ratio)
+                        print(f"🎨 [Auto-Pilot] Attempting Gemini (Primary)...")
+                        images = await gemini_service.generate_image(prompt=prompt_en, aspect_ratio=aspect_ratio)
                         if images:
-                            used_backend = "Replicate"
+                            used_backend = "Gemini"
                     except Exception as e:
-                        print(f"⚠️ [Scene {scene_num}] Replicate failed: {e}")
+                        print(f"⚠️ [Scene {scene_num}] Gemini failed: {e}")
 
-                    # 2. Gemini Fallback
+                    # 2. Replicate Fallback
                     if not images:
                         try:
-                            images = await gemini_service.generate_image(prompt=prompt_en, aspect_ratio=aspect_ratio)
+                            print(f"🎨 [Auto-Pilot] Attempting Replicate (Fallback 1)...")
+                            images = await replicate_service.generate_image(prompt=prompt_en, aspect_ratio=aspect_ratio)
                             if images:
-                                used_backend = "Gemini"
+                                used_backend = "Replicate"
                         except Exception as e:
-                            print(f"⚠️ [Scene {scene_num}] Gemini failed: {e}")
+                            print(f"⚠️ [Scene {scene_num}] Replicate failed: {e}")
 
                     # 3. Akool Fallback
                     if not images:
                         try:
+                            print(f"🎨 [Auto-Pilot] Attempting AKOOL (Final Fallback)...")
                             images = await akool_service.generate_image(prompt=prompt_en, aspect_ratio=aspect_ratio)
                             if images:
                                 used_backend = "Akool"

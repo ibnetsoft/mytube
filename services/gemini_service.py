@@ -1,7 +1,7 @@
 """
 Gemini API 서비스
-- 텍스트 생성 (대본, 분석 등)
-- 이미지 생성 (Imagen 3)
+- 텍스트 생성 (gemini-3.1-flash)
+- 이미지 생성 (gemini-3.1-fast-image-preview)
 - 영상 생성 (Veo)
 """
 import httpx
@@ -26,7 +26,7 @@ class GeminiService:
 
     async def generate_text(self, prompt: str, temperature: float = 0.7, max_tokens: int = 8192) -> str:
         """텍스트 생성"""
-        url = f"{self.base_url}/models/gemini-2.0-flash:generateContent?key={self.api_key}"
+        url = f"{self.base_url}/models/gemini-3.1-flash:generateContent?key={self.api_key}"
 
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
@@ -47,7 +47,7 @@ class GeminiService:
 
     async def generate_text_from_image(self, prompt: str, image_bytes: bytes, mime_type: str = "image/png") -> str:
         """이미지 + 텍스트 생성 (Vision)"""
-        url = f"{self.base_url}/models/gemini-2.0-flash:generateContent?key={self.api_key}"
+        url = f"{self.base_url}/models/gemini-3.1-flash:generateContent?key={self.api_key}"
 
         encoded_image = base64.b64encode(image_bytes).decode("utf-8")
 
@@ -341,8 +341,6 @@ class GeminiService:
             [INPUT DATA]
             {json.dumps(summary_data, ensure_ascii=False)}
             
-            Write the summary in Korean, formatted nicely for a web UI. Keep it to 3-5 sentences.
-            Focus on proving that you understood the context.
             """
             
             summary = await self.generate_text(prompt, temperature=0.5)
@@ -357,170 +355,106 @@ class GeminiService:
         aspect_ratio: str = "16:9",
         num_images: int = 1
     ) -> List[bytes]:
-        """이미지 생성 (Imagen 3 우선, 실패 시 Imagen 2로 폴백)"""
+        """이미지 생성 (gemini-3.1-fast-image-preview 하드코딩)"""
         
-        # [MODIFIED] Use a wider range of models for fallback
-        models = [
-            "imagen-4.0-generate-001",      # Imagen 4 (Confirmed working for this environment)
-            "imagen-3.0-generate-001",      # Imagen 3 Standard
-            "imagen-3.0-fast-generate-001", # Imagen 3 Fast
-            "imagen-4.0-fast-generate-001", # Imagen 4 Fast
-        ]
+        # [MODIFIED] Using user-specified single model
+        model_name = "gemini-3.1-fast-image-preview"
         
-        last_error = None
-        
-        for model_name in models:
-            try:
-                url = f"{self.base_url}/models/{model_name}:predict?key={self.api_key}"
-                print(f"🎨 [Imagen] Trying model: {model_name}")
-                
-                # [NEW] Style Reinforcement for Non-Realistic Styles
-                # If the prompt contains stylistic markers but avoids realism, reinforce negative prompts
-                stylistic_keywords = ["k_manhwa", "k_webtoon", "anime", "cartoon", "ghibli", "sketch", "line art", "doodle", "wimpy", "webtoon", "infographic"]
-                is_stylistic = any(kw in prompt.lower() for kw in stylistic_keywords)
-                contains_photo = any(kw in prompt.lower() for kw in ["photo", "realistic", "8k", "cinematic"])
-                is_infographic = "infographic" in prompt.lower()
-                
-                is_wimpy = any(kw in prompt.lower() for kw in ["wimpy", "stick figure", "stickman", "졸라맨", "jollaman"])
-                # K만화/웹툰은 배경이 있어야 하므로 wimpy(흰배경) 처리 제외
-                if is_wimpy and any(kw in prompt.lower() for kw in ["webtoon", "manhwa", "k-manhwa", "k만화", "k_manhwa"]):
-                    is_wimpy = False
+        try:
+            url = f"{self.base_url}/models/{model_name}:predict?key={self.api_key}"
+            print(f"🎨 [Gemini Image] Using model: {model_name}")
+            
+            # [NEW] Style Reinforcement for Non-Realistic Styles
+            stylistic_keywords = ["k_manhwa", "k_webtoon", "anime", "cartoon", "ghibli", "sketch", "line art", "doodle", "wimpy", "webtoon", "infographic"]
+            is_stylistic = any(kw in prompt.lower() for kw in stylistic_keywords)
+            contains_photo = any(kw in prompt.lower() for kw in ["photo", "realistic", "8k", "cinematic"])
+            is_infographic = "infographic" in prompt.lower()
+            
+            is_wimpy = any(kw in prompt.lower() for kw in ["wimpy", "stick figure", "stickman", "졸라맨", "jollaman"])
+            if is_wimpy and any(kw in prompt.lower() for kw in ["webtoon", "manhwa", "k-manhwa", "k만화", "k_manhwa"]):
+                is_wimpy = False
 
-                final_prompt = prompt
-                # 비실사 스타일: 실사 키워드 차단
-                if is_stylistic and not contains_photo:
-                    if is_infographic:
-                        final_prompt += ", professional graphic design, vector illustration, clean lines"
-                    else:
-                        final_prompt += ", flat 2D style, no photorealism, no text, no words"
-                # 졸라맨 여부 재판단 (배경 유무와 상관없이 캐릭터 형태 기준)
-                is_jollaman = any(kw in prompt.lower() for kw in ["wimpy", "stick figure", "stickman", "졸라맨", "jollaman"])
-                
-                # 졸라맨: arm 강제 문구를 앞에 추가 + 뒤 suffix 강화
-                if is_wimpy:
-                    # 순수 졸라맨 (흰배경)
-                    final_prompt = (
-                        "EXACTLY TWO ARMS ONLY. NO EXTRA ARMS. NO EXTRA HANDS. "
-                        "THE CHARACTER MUST HAVE A PAIR OF BLACK DOT EYES AND A SMALL ARC SMILE ON THE FACE. "
-                        + final_prompt
-                        + ", the character has exactly one left arm and one right arm total,"
-                        " no third arm no fourth arm no duplicate limbs,"
-                        " flat 2D vector no gradients no 3D, perfectly bald smooth round white circular head, no hair, no hairstyle,"
-                        " a pair of distinct black dot eyes and a simple black arc smile (MUST HAVE EYES AND MOUTH),"
-                        " Face must NEVER be blank or empty. "
-                        " pure white background, single scene"
-                    )
-                elif is_jollaman:
-                    # 배경이 있는 졸라맨 (웹툰 등)
-                    final_prompt = (
-                        "EXACTLY TWO ARMS ONLY. NO EXTRA ARMS. NO EXTRA HANDS. "
-                        + final_prompt
-                        + ", the character has a perfectly bald smooth round white circular head, no hair, no hairstyle,"
-                        " a pair of distinct black dot eyes and a simple black arc smile (MUST HAVE EYES AND MOUTH),"
-                        " Face must NEVER be blank or empty. "
-                        " strictly two arms total, no extra limbs"
-                    )
-                # 모든 스타일 공통: 긍정형 해부학 제약 (메인 프롬프트)
-                final_prompt += (
-                    ", single person, solo, exactly two arms, exactly two hands, exactly five fingers per hand, "
-                    "anatomically correct, perfect human anatomy, natural arm position"
+            final_prompt = prompt
+            if is_stylistic and not contains_photo:
+                if is_infographic:
+                    final_prompt += ", professional graphic design, vector illustration, clean lines"
+                else:
+                    final_prompt += ", flat 2D style, no photorealism, no text, no words"
+            
+            is_jollaman = any(kw in prompt.lower() for kw in ["wimpy", "stick figure", "stickman", "졸라맨", "jollaman"])
+            
+            if is_wimpy:
+                # pure stick figure (white background)
+                final_prompt = (
+                    "EXACTLY TWO ARMS ONLY. NO EXTRA ARMS. NO EXTRA HANDS. "
+                    "THE CHARACTER MUST HAVE A PAIR OF BLACK DOT EYES AND A SMALL ARC SMILE ON THE FACE. "
+                    + final_prompt
+                    + ", the character has exactly one left arm and one right arm total,"
+                    " no third arm no fourth arm no duplicate limbs,"
+                    " flat 2D vector no gradients no 3D, perfectly bald smooth round white circular head, no hair, no hairstyle,"
+                    " a pair of distinct black dot eyes and a simple black arc smile (MUST HAVE EYES AND MOUTH),"
+                    " Face must NEVER be blank or empty. "
+                    " pure white background, single scene"
                 )
-
-                # 부정형 제약은 negativePrompt 필드로 분리 (Imagen 3 지원)
-                negative_prompt = (
-                    "extra arms, extra hands, multiple arms, too many arms, too many hands, "
-                    "extra fingers, too many fingers, additional limbs, floating arms, "
-                    "disconnected arms, deformed arms, deformed hands, mutated arms, mutated hands, "
-                    "mutated fingers, fused arms, fused hands, wrong anatomy, bad anatomy, "
-                    "more than 2 arms, more than 10 fingers, worst quality, low quality"
+            elif is_jollaman:
+                # stick figure with background
+                final_prompt = (
+                    "EXACTLY TWO ARMS ONLY. NO EXTRA ARMS. NO EXTRA HANDS. "
+                    + final_prompt
+                    + ", the character has a perfectly bald smooth round white circular head, no hair, no hairstyle,"
+                    " a pair of distinct black dot eyes and a simple black arc smile (MUST HAVE EYES AND MOUTH),"
+                    " Face must NEVER be blank or empty. "
+                    " strictly two arms total, no extra limbs"
                 )
+            
+            final_prompt += (
+                ", single person, solo, exactly two arms, exactly two hands, exactly five fingers per hand, "
+                "anatomically correct, perfect human anatomy, natural arm position"
+            )
 
-                payload = {
-                    "instances": [{"prompt": final_prompt, "negativePrompt": negative_prompt}],
-                    "parameters": {
-                        "sampleCount": num_images,
-                        "aspectRatio": aspect_ratio,
-                        "safetySetting": "block_low_and_above"
-                    }
+            negative_prompt = (
+                "extra arms, extra hands, multiple arms, too many arms, too many hands, "
+                "extra fingers, too many fingers, additional limbs, floating arms, "
+                "disconnected arms, deformed arms, deformed hands, mutated arms, mutated hands, "
+                "mutated fingers, fused arms, fused hands, wrong anatomy, bad anatomy, "
+                "more than 2 arms, more than 10 fingers, worst quality, low quality"
+            )
+
+            payload = {
+                "instances": [{"prompt": final_prompt, "negativePrompt": negative_prompt}],
+                "parameters": {
+                    "sampleCount": num_images,
+                    "aspectRatio": aspect_ratio,
+                    "safetySetting": "block_low_and_above"
                 }
+            }
+            
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                response = await client.post(url, json=payload)
                 
-                async with httpx.AsyncClient(timeout=120.0) as client:
-                    response = await client.post(url, json=payload)
-                    
-                    # 404 에러면 다음 모델 시도
-                    if response.status_code == 404:
-                        print(f"⚠️ [Imagen] Model {model_name} not found (404), trying next...")
-                        last_error = f"Model {model_name} not found"
-                        continue
-                    
-                    # 다른 에러는 즉시 실패 (단, 429 Quota 에러면 다음 모델 시도)
-                    if response.status_code != 200:
-                        error_info = response.text
-                        print(f"❌ [Imagen] Error ({response.status_code}): {error_info}")
-                        if response.status_code == 429:
-                            print(f"⚠️ [Imagen] Quota exceeded for {model_name}, trying next model...")
-                            last_error = f"Quota exceeded for {model_name}"
-                            continue
-                        raise Exception(f"API Error ({response.status_code}): {error_info}")
-                    
-                    result = response.json()
-                    print(f"🔍 [Imagen] Response from {model_name}:")
-                    print(f"   Keys: {list(result.keys())}")
-                    
-                    images = []
-                    if "predictions" in result:
-                        print(f"   Predictions count: {len(result['predictions'])}")
-                        for idx, pred in enumerate(result["predictions"]):
-                            print(f"   Prediction {idx} keys: {list(pred.keys())}")
-                            if "bytesBase64Encoded" in pred:
-                                img_bytes = base64.b64decode(pred["bytesBase64Encoded"])
-                                images.append(img_bytes)
-                                print(f"   ✅ Decoded image {idx}, size: {len(img_bytes)} bytes")
-                            # Add check for other formats if needed
-                            elif "mimeType" in pred and "bytesBase64Encoded" in pred: # Some versions
-                                 img_bytes = base64.b64decode(pred["bytesBase64Encoded"])
-                                 images.append(img_bytes)
-                                 print(f"   ✅ Decoded image {idx} (alt format), size: {len(img_bytes)} bytes")
-                            else:
-                                print(f"⚠️ [Imagen] Unknown prediction format: {pred.keys()}")
-                                print(f"   Full prediction content: {pred}")
-                                # Check if there's a safety/filter reason
-                                if "error" in pred:
-                                    print(f"   ❌ Error in prediction: {pred['error']}")
-                                if "safetyRatings" in pred:
-                                    print(f"   🚫 Safety ratings: {pred['safetyRatings']}")
-                    else:
-                        print(f"⚠️ [Imagen] No 'predictions' key in response. Keys: {result.keys()}")
-                        print(f"   Full response: {str(result)[:500]}")
-
-                    # Check if we got images (MOVED OUTSIDE else block!)
-                    if images:
-                        print(f"✅ [Imagen] Successfully generated {len(images)} image(s) with {model_name}")
-                        return images
-                    
-                    # No images generated - try next model or fail
+                if response.status_code != 200:
+                    error_info = response.text
+                    print(f"❌ [Gemini Image] Error ({response.status_code}): {error_info}")
+                    raise Exception(f"API Error ({response.status_code}): {error_info}")
+                
+                result = response.json()
+                images = []
+                if "predictions" in result:
+                    for idx, pred in enumerate(result["predictions"]):
+                        if "bytesBase64Encoded" in pred:
+                            img_bytes = base64.b64decode(pred["bytesBase64Encoded"])
+                            images.append(img_bytes)
+                
+                if images:
+                    print(f"✅ [Gemini Image] Successfully generated {len(images)} image(s)")
+                    return images
+                else:
                     error_msg = result.get('error', {}).get('message', 'No image data in response')
-                    print(f"⚠️ [Imagen] No images from {model_name}: {error_msg}")
-                    last_error = f"No images: {error_msg}"
-                    continue
-                    
-            except httpx.TimeoutException:
-                print(f"⏱️ [Imagen] Timeout with {model_name}, trying next...")
-                last_error = f"Timeout with {model_name}"
-                continue
-            except Exception as e:
-                # 404가 아닌 다른 에러는 즉시 실패
-                if "404" not in str(e):
-                    raise
-                print(f"⚠️ [Imagen] Error with {model_name}: {e}, trying next...")
-                last_error = str(e)
-                continue
-        
-        # 모든 모델 시도 실패
-        if "No images" in str(last_error) or "Safety" in str(last_error):
-             raise Exception(f"이미지 생성기(Imagen) 보안 필터에 의해 차단되었습니다. 유명인 이름, 브랜드명, 또는 부적절한 키워드가 포함되어 있는지 확인하세요. (Last error: {last_error})")
-        raise Exception(f"모든 이미지 생성 모델 시도 실패. 잠시 후 다시 시도해주세요. (Last error: {last_error})")
+                    raise Exception(f"No images generated: {error_msg}")
 
+        except Exception as e:
+            print(f"❌ [Gemini Image] Critical Error: {e}")
+            raise
 
     async def generate_video(
         self,
@@ -2175,7 +2109,7 @@ Motion prompt for this image:"""
         
         return {"error": "대본 생성 실패", "raw": text}
 
-    async def create_batch_job(self, input_file_path: str, model: str = "gemini-2.0-flash", display_name: str = "batch-job") -> dict:
+    async def create_batch_job(self, input_file_path: str, model: str = "gemini-3.1-flash", display_name: str = "batch-job") -> dict:
         """
         [새로운 기능] Gemini Batch API - 대규모 백그라운드 처리를 위한 일괄 작업 예약 (비용 50% 절감)
         JSONL 파일을 업로드하고 비동기 배치 작업을 생성합니다.

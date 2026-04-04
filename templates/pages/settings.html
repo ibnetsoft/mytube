@@ -1042,112 +1042,6 @@
         langSelect.innerHTML = GEMINI_LANGUAGES.map(l => `<option value="${l}">${l}</option>`).join('');
     }
 
-    // Load All Settings
-    async function loadAllSettings() {
-        try {
-            await loadApiKeys();
-            await checkApiConnection();
-
-            const res = await fetch('/api/settings');
-            const data = await res.json();
-
-            if (data.gemini_tts) {
-                document.getElementById('geminiVoice').value = data.gemini_tts.voice_name || 'Puck';
-                document.getElementById('geminiLanguage').value = data.gemini_tts.language_code || 'ko-KR';
-                document.getElementById('geminiStylePrompt').value = data.gemini_tts.style_prompt || '';
-            }
-
-            if (data.script_styles) {
-                document.getElementById('promptNews').value = data.script_styles.news || '';
-                document.getElementById('promptStory').value = data.script_styles.story || '';
-                document.getElementById('promptScriptMaster').value = data.script_styles.script_master || DEFAULT_SCRIPT_MASTER_PROMPT;
-                document.getElementById('promptSeniorStory').value = data.script_styles.senior_story || '';
-            }
-
-            if (data.app_mode) {
-                setAppMode(data.app_mode);
-            }
-
-            updateTemplatePreview(data.template_image_url);
-
-            Utils.showToast('설정을 불러왔습니다.', 'info');
-        } catch (e) {
-            console.error('설정 로드 실패:', e);
-        }
-    }
-
-    // [NEW] Load Webtoon Settings
-    async function loadWebtoonSettings() {
-        try {
-            const res = await fetch('/api/settings');
-            const data = await res.json();
-
-            // Default to true if not set
-            const autoSplit = data.webtoon_auto_split; // expecting boolean or string 'true'/'false'
-            const smartPan = data.webtoon_smart_pan;
-            const convertZoom = data.webtoon_convert_zoom;
-
-            // Helper to check truthiness safely (defaults to TRUE)
-            const isTrue = (val) => val === undefined || val === null || val === true || val === 'true';
-
-            document.getElementById('ws_auto_split').checked = isTrue(autoSplit);
-            document.getElementById('ws_smart_pan').checked = isTrue(smartPan);
-            document.getElementById('ws_convert_zoom').checked = isTrue(convertZoom);
-
-        } catch (e) {
-            console.error('Webtoon 설정 로드 실패:', e);
-            Utils.showToast('웹툰 설정을 불러오지 못했습니다.', 'error');
-        }
-    }
-
-    // Save All
-    async function saveAllSettings() {
-        try {
-            // 1. API 키 먼저 저장
-            await saveApiKeys();
-
-            // 2. 일반 설정 수집
-            const settings = {
-                app_mode: document.getElementById('appMode').value,
-                gemini_tts: {
-                    voice_name: document.getElementById('geminiVoice').value,
-                    language_code: document.getElementById('geminiLanguage').value,
-                    style_prompt: document.getElementById('geminiStylePrompt').value
-                },
-                script_styles: {
-                    news: document.getElementById('promptNews').value,
-                    story: document.getElementById('promptStory').value,
-                    script_master: document.getElementById('promptScriptMaster').value,
-                    senior_story: document.getElementById('promptSeniorStory').value
-                },
-                // [NEW] Webtoon Settings
-                webtoon_auto_split: document.getElementById('ws_auto_split').checked,
-                webtoon_smart_pan: document.getElementById('ws_smart_pan').checked,
-                webtoon_convert_zoom: document.getElementById('ws_convert_zoom').checked
-            };
-
-            const res = await fetch('/api/settings', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(settings)
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                if (data.mode_changed) {
-                    Utils.showToast(`✅ 설정 저장 및 모드 전환 완료!`, 'success');
-                    setTimeout(() => window.location.reload(), 1500);
-                } else {
-                    Utils.showToast('✅ 모든 설정이 저장되었습니다', 'success');
-                    await loadApiKeys();
-                    await checkApiConnection();
-                }
-            }
-        } catch (e) {
-            console.error('설정 저장 오류:', e);
-            Utils.showToast('❌ 설정 저장 중 오류가 발생했습니다.', 'error');
-        }
-    }
 
     // 키 보기/숨기기 토글
     function toggleKeyVisibility(inputId) {
@@ -2507,16 +2401,17 @@
                     setTimeout(() => window.location.reload(), 1500);
                 } else {
                     Utils.showToast('✅ 모든 설정이 저장되었습니다', 'success');
-                    // Refresh checks
-                    await loadApiKeys();
-                    await checkApiConnection();
+                    // Refresh status but wrap in try-catch to avoid breaking UI on minor failures
+                    try { await loadApiKeys(); } catch(err) { console.warn('Post-save key reload fail:', err); }
+                    try { await checkApiConnection(); } catch(err) { console.warn('Post-save health check fail:', err); }
                 }
             } else {
-                Utils.showToast('저장 실패', 'error');
+                const errData = await res.json().catch(() => ({ detail: 'Server error' }));
+                Utils.showToast('저장 실패: ' + (errData.detail || '알 수 없는 오류'), 'error');
             }
         } catch (e) {
             console.error('설정 저장 오류:', e);
-            Utils.showToast('❌ 설정 저장 중 오류가 발생했습니다.', 'error');
+            Utils.showToast('❌ 설정 저장 중 오류가 발생했습니다. 브라우저 콘솔을 확인하세요.', 'error');
         }
     }
 

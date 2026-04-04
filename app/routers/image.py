@@ -328,13 +328,7 @@ async def generate_thumbnail_background(req: ThumbnailBackgroundRequest):
         raise HTTPException(400, "Gemini API 키가 설정되지 않았습니다")
 
     try:
-        from google import genai
-        from PIL import Image
-        import uuid
-
-        client = genai.Client(api_key=config.GEMINI_API_KEY)
-
-        # 1. Imagen 4로 배경 이미지 생성
+        # 1. gemini-3.1-fast-image-preview로 배경 이미지 생성
         clean_prompt = req.prompt
         
         # [NEW] Style Inheritance architecture
@@ -409,38 +403,22 @@ async def generate_thumbnail_background(req: ThumbnailBackgroundRequest):
             f"High quality, 8k, YouTube thumbnail background, no watermark. DO NOT INCLUDE: {negative_constraints}."
         )
 
-        # 이미지 생성 (전략: Replicate -> Gemini -> AKOOL Fallback)
+        # 이미지 생성 (전략: gemini_service (gemini-3.1-fast-image-preview))
         images_bytes = None
         
-        # 1차 시도: Replicate (flux-schnell)
         try:
-            print(f"🎨 [ThumbnailBG] Attempting Replicate (Primary)...")
-            images_bytes = await replicate_service.generate_image(prompt=final_prompt, aspect_ratio=req.aspect_ratio)
+            print(f"🎨 [ThumbnailBG] Generating image using Gemini Service...")
+            images_bytes = await gemini_service.generate_image(
+                prompt=final_prompt,
+                num_images=1,
+                aspect_ratio=req.aspect_ratio
+            )
         except Exception as e:
-            print(f"⚠️ [ThumbnailBG] Replicate failed: {e}")
-
-        # 2차 시도: Gemini Imagen (Fallback 1)
-        if not images_bytes:
-            try:
-                print(f"🎨 [ThumbnailBG] Attempting Gemini Imagen (Fallback 1)...")
-                images_bytes = await gemini_service.generate_image(
-                    prompt=final_prompt,
-                    num_images=1,
-                    aspect_ratio=req.aspect_ratio
-                )
-            except Exception as e:
-                print(f"⚠️ [ThumbnailBG] Gemini failed: {e}")
-
-        # 3차 시도: AKOOL (Final Fallback)
-        if not images_bytes:
-            try:
-                print(f"🎨 [ThumbnailBG] Attempting AKOOL (Final Fallback)...")
-                images_bytes = await akool_service.generate_image(prompt=final_prompt, aspect_ratio=req.aspect_ratio)
-            except Exception as e:
-                print(f"⚠️ [ThumbnailBG] AKOOL failed: {e}")
+            print(f"⚠️ [ThumbnailBG] Gemini generation failed: {e}")
+            return {"status": "error", "error": f"이미지 생성 실패: {str(e)}"}
 
         if not images_bytes:
-            return {"status": "error", "error": "모든 이미지 생성 서비스가 실패했습니다."}
+            return {"status": "error", "error": "이미지 생성 결과가 없습니다."}
         
         # 2. 이미지 저장 (raw bytes → 파일)
         save_dir = "static/img/thumbnails"
@@ -473,13 +451,11 @@ async def generate_thumbnail(req: ThumbnailGenerateRequest):
         raise HTTPException(400, "Gemini API 키가 설정되지 않았습니다")
 
     try:
-        from google import genai
         from PIL import Image, ImageDraw, ImageFont
         import io
         import platform # Import platform for OS detection
         import re # Import regex
 
-        # If background_path is provided, use it. Otherwise, generate new image.
         # If background_path is provided, use it. Otherwise, generate new image.
         img = None
         
@@ -498,54 +474,29 @@ async def generate_thumbnail(req: ThumbnailGenerateRequest):
                 pass
 
         if img is None: # If no bg or failed to load, generate
-            from google import genai
-            client = genai.Client(api_key=config.GEMINI_API_KEY)
-
-            # 1. Imagen 4로 배경 이미지 생성 (무조건 텍스트 생성 억제)
+            # [MODIFIED] 통일된 gemini_service 사용 (hardcoded model 적용됨)
             clean_prompt = req.prompt
-            
-            # negative_constraints 강화 (CJK 포함)
-            negative_constraints = "text, words, letters, alphabet, typography, watermark, signature, speech bubble, logo, brand name, writing, caption, chinese characters, japanese kanji, korean hangul, hanzi"
-            
-            response = client.models.generate_images(
-                model="imagen-4.0-generate-001",
-                prompt=f"ABSOLUTELY NO TEXT. {clean_prompt}. Background only. High quality, 8k. DO NOT INCLUDE: {negative_constraints}.",
-                config={
-                    "number_of_images": 1,
-                    "aspect_ratio": req.aspect_ratio, # [NEW]
-                    "safety_filter_level": "BLOCK_LOW_AND_ABOVE"
-                }
-            )
-            if response.generated_images:
-                 img = response.generated_images[0].image._pil_image
-                 img = img.resize(target_size, Image.LANCZOS)
-            else:
-                 raise HTTPException(500, "Background generation failed")
-            
-            # [FORCE FIX] 사용자 요청: 절대 텍스트 금지 (프롬프트 전처리)
-            # [FORCE FIX] 사용자 요청: 절대 텍스트 금지 (프롬프트 전처리)
-            # 2. negative_constraints 강화 (CJK 포함)
             negative_constraints = "text, words, letters, alphabet, typography, watermark, signature, speech bubble, logo, brand name, writing, caption, chinese characters, japanese kanji, korean hangul, hanzi"
             
             final_prompt = f"ABSOLUTELY NO TEXT. NO CHINESE/JAPANESE/KOREAN CHARACTERS. {clean_prompt}. High quality, 8k, detailed, YouTube thumbnail background, empty background, no watermark. DO NOT INCLUDE: {negative_constraints}. INVISIBLE TEXT."
-
-            # 최신 google-genai SDK는 config에 negative_prompt 지원 가능성 높음 (또는 튜닝된 템플릿 사용)
-            response = client.models.generate_images(
-                model="imagen-4.0-generate-001",
-                prompt=final_prompt,
-                config={
-                    "number_of_images": 1,
-                    "aspect_ratio": "16:9",
-                    "safety_filter_level": "BLOCK_LOW_AND_ABOVE"
-                }
-            )
-
-            if not response.generated_images:
-                return {"status": "error", "error": "배경 이미지 생성 실패"}
-
-            # 2. 이미지 로드
-            img_data = response.generated_images[0].image._pil_image
-            img = img_data.resize((1280, 720), Image.LANCZOS)
+            
+            try:
+                print(f"🎨 [ThumbnailGen] Generating background via gemini_service...")
+                images_bytes = await gemini_service.generate_image(
+                    prompt=final_prompt,
+                    num_images=1,
+                    aspect_ratio=req.aspect_ratio or "16:9"
+                )
+                
+                if images_bytes:
+                    img = Image.open(io.BytesIO(images_bytes[0]))
+                    img = img.resize(target_size, Image.LANCZOS)
+                else:
+                    return {"status": "error", "error": "배경 이미지 생성 실패 (No data)"}
+                    
+            except Exception as e:
+                print(f"❌ [ThumbnailGen] Generation Error: {e}")
+                return {"status": "error", "error": f"배경 생성 실패: {str(e)}"}
 
 
         # 3. 텍스트 오버레이
@@ -912,27 +863,27 @@ async def generate_character_image(
         
         print(f"👤 [Char Generation] Style: {style}, Prompt: {prompt[:100]}...")
 
-        # 이미지 생성 (전략: Replicate -> Gemini -> AKOOL Fallback)
+        # 이미지 생성 (전략: Gemini (Primary) -> Replicate -> AKOOL Fallback)
         images_bytes = None
         
-        # 1차 시도: Replicate (flux-schnell)
+        # 1차 시도: Gemini (gemini-3.1-fast-image-preview)
         try:
-            print(f"🎨 [Char Generation] Attempting Replicate (Primary)...")
-            images_bytes = await replicate_service.generate_image(prompt=full_prompt, aspect_ratio="1:1")
+            print(f"🎨 [Char Generation] Attempting Gemini (Primary)...")
+            images_bytes = await gemini_service.generate_image(
+                prompt=full_prompt,
+                num_images=1,
+                aspect_ratio="1:1"
+            )
         except Exception as e:
-            print(f"⚠️ [Char Generation] Replicate failed: {e}")
+            print(f"⚠️ [Char Generation] Gemini failed: {e}")
 
-        # 2차 시도: Gemini Imagen (Fallback 1)
+        # 2차 시도: Replicate (flux-schnell)
         if not images_bytes:
             try:
-                print(f"🎨 [Char Generation] Attempting Gemini Imagen (Fallback 1)...")
-                images_bytes = await gemini_service.generate_image(
-                    prompt=full_prompt,
-                    num_images=1,
-                    aspect_ratio="1:1"
-                )
+                print(f"🎨 [Char Generation] Attempting Replicate (Fallback 1)...")
+                images_bytes = await replicate_service.generate_image(prompt=full_prompt, aspect_ratio="1:1")
             except Exception as e:
-                print(f"⚠️ [Char Generation] Gemini failed: {e}")
+                print(f"⚠️ [Char Generation] Replicate failed: {e}")
 
         # 3차 시도: AKOOL (Final Fallback)
         if not images_bytes:
@@ -1181,17 +1132,22 @@ async def generate_image(
             print(f"🎨 [Image Gen] COMPOSITE mode — generating character + background separately...")
 
             async def _generate_single(p: str) -> bytes | None:
-                """단일 프롬프트로 이미지 생성 (Replicate → Gemini → AKOOL 폴백)"""
+                """단일 프롬프트로 이미지 생성 (Gemini -> Replicate -> AKOOL 폴백)"""
                 result = None
+                # 1. Gemini (Primary)
                 try:
-                    result = await replicate_service.generate_image(prompt=p, aspect_ratio="1:1")
+                    result = await gemini_service.generate_image(prompt=p, num_images=1, aspect_ratio="1:1")
                 except Exception as e:
-                    print(f"⚠️ [Composite] Replicate failed: {e}")
+                    print(f"⚠️ [Composite] Gemini failed: {e}")
+                
+                # 2. Replicate (Fallback)
                 if not result:
                     try:
-                        result = await gemini_service.generate_image(prompt=p, num_images=1, aspect_ratio="1:1")
+                        result = await replicate_service.generate_image(prompt=p, aspect_ratio="1:1")
                     except Exception as e:
-                        print(f"⚠️ [Composite] Gemini failed: {e}")
+                        print(f"⚠️ [Composite] Replicate failed: {e}")
+                
+                # 3. AKOOL (Final Fallback)
                 if not result:
                     try:
                         result = await akool_service.generate_image(prompt=p, aspect_ratio="1:1")
@@ -1232,20 +1188,8 @@ async def generate_image(
 
 
         if not images_bytes:
-            print(f"🎨 [Image Gen] Attempting Replicate (Primary)...")
+            print(f"🎨 [Image Gen] Attempting Gemini (Primary)...")
             try:
-                images_bytes = await replicate_service.generate_image(
-                    prompt=effective_prompt,
-                    aspect_ratio=aspect_ratio,
-                    negative_prompt=no_human_negative
-                )
-            except Exception as e:
-                print(f"⚠️ [Image Gen] Replicate failed: {e}")
-
-        # 공통 폴백: Gemini Imagen
-        if not images_bytes:
-            try:
-                print(f"🎨 [Image Gen] Attempting Gemini Imagen (Fallback)...")
                 images_bytes = await gemini_service.generate_image(
                     prompt=effective_prompt,
                     num_images=1,
@@ -1253,6 +1197,18 @@ async def generate_image(
                 )
             except Exception as e:
                 print(f"⚠️ [Image Gen] Gemini failed: {e}")
+
+        # Fallback 1: Replicate
+        if not images_bytes:
+            try:
+                print(f"🎨 [Image Gen] Attempting Replicate (Fallback 1)...")
+                images_bytes = await replicate_service.generate_image(
+                    prompt=effective_prompt,
+                    aspect_ratio=aspect_ratio,
+                    negative_prompt=no_human_negative
+                )
+            except Exception as e:
+                print(f"⚠️ [Image Gen] Replicate failed: {e}")
 
         # 최종 폴백: AKOOL
         if not images_bytes:

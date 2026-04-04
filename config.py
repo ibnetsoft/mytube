@@ -33,7 +33,7 @@ class Config:
 
     # API URLs
     YOUTUBE_BASE_URL = "https://www.googleapis.com/youtube/v3"
-    GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+    GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash:generateContent"
     PEXELS_BASE_URL = "https://api.pexels.com/videos"
 
     # 경로 설정
@@ -98,7 +98,14 @@ class Config:
     @classmethod
     def update_api_key(cls, key_name: str, value: str):
         """API 키 런타임 업데이트 및 .env 파일 저장"""
-        valid_keys = ['YOUTUBE_API_KEY', 'GEMINI_API_KEY', 'ELEVENLABS_API_KEY', 'TYPECAST_API_KEY', 'GOOGLE_APPLICATION_CREDENTIALS', 'OPENAI_API_KEY', 'PEXELS_API_KEY', 'REPLICATE_API_TOKEN', 'TOPVIEW_API_KEY', 'TOPVIEW_UID', 'AKOOL_TOKEN', 'AKOOL_CLIENT_ID', 'AKOOL_CLIENT_SECRET', 'AKOOL_API_KEY']
+        valid_keys = [
+            'YOUTUBE_API_KEY', 'GEMINI_API_KEY', 'ELEVENLABS_API_KEY', 'TYPECAST_API_KEY', 
+            'GOOGLE_APPLICATION_CREDENTIALS', 'OPENAI_API_KEY', 'PEXELS_API_KEY', 
+            'REPLICATE_API_TOKEN', 'TOPVIEW_API_KEY', 'TOPVIEW_UID', 'AKOOL_TOKEN', 
+            'AKOOL_CLIENT_ID', 'AKOOL_CLIENT_SECRET', 'AKOOL_API_KEY',
+            'BLOG_CLIENT_ID', 'BLOG_CLIENT_SECRET', 'BLOG_ID',
+            'WP_URL', 'WP_USERNAME', 'WP_PASSWORD'
+        ]
 
         if key_name not in valid_keys:
             return False
