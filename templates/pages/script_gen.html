@@ -10,17 +10,17 @@
         <!-- Explorer Header -->
         <div class="flex items-center justify-between px-3 py-2 bg-gray-800 border-b border-gray-700">
             <h3 class="text-sm font-bold text-white flex items-center gap-2">
-                대본 보관함
+                {{ t('label_script_archive') }}
             </h3>
             <div class="flex gap-1">
                 <button onclick="createNewFolder()"
                     class="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-2 py-1 rounded transition-colors"
-                    title="새 폴더">
+                    title="{{ t('title_new_folder') }}">
                     📁+
                 </button>
                 <button onclick="refreshExplorer()"
                     class="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-2 py-1 rounded transition-colors"
-                    title="새로고침">
+                    title="{{ t('title_refresh') }}">
                     🔄
                 </button>
             </div>
@@ -29,7 +29,7 @@
         <!-- Explorer Tree -->
         <div id="explorerTree" class="flex-1 overflow-y-auto p-2 custom-scrollbar">
             <div class="text-center py-10 text-gray-500 text-sm dark:text-gray-400">
-                불러오는 중...
+                {{ t('opt_loading') }}
             </div>
         </div>
     </div>
@@ -41,14 +41,14 @@
         <div class="flex gap-1 bg-gray-800 rounded-t-xl p-1.5 border-b border-gray-700">
             <button onclick="setScriptMode('ai')" id="tabAI"
                 class="px-4 py-2 rounded-lg text-xs font-bold transition-all bg-gray-700 text-white">
-                AI 자동 생성
+                {{ t('tab_ai_auto') }}
             </button>
             <button onclick="setScriptMode('manual')" id="tabManual"
                 class="px-4 py-2 rounded-lg text-xs font-medium text-gray-400 hover:text-gray-200">
-                직접 입력
+                {{ t('tab_manual_input') }}
             </button>
             <div class="flex-1"></div>
-                새 대본</span>
+                {{ t('btn_new_script') }}</span>
         </div>
 
         <!-- Scrollable Content -->
@@ -59,14 +59,14 @@
                 <!-- Topic & Structure Info -->
                 <div id="analysisInfo" class="card mb-4 hidden">
                     <div class="flex justify-between items-center mb-2">
-                        <h3 class="text-sm font-bold text-white">대본 구조 기반</h3>
+                        <h3 class="text-sm font-bold text-white">{{ t('label_script_structure') }}</h3>
                         <button onclick="window.location.href='/script-plan'"
                             class="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-gray-300 transition-colors">
-                            구조 다시 짜기
+                            {{ t('btn_redo_structure') }}
                         </button>
                     </div>
                     <input type="text" id="structureTopic" class="input-field text-sm"
-                        placeholder="영상 주제">
+                        placeholder="{{ t('placeholder_video_topic') }}">
                 </div>
 
 
@@ -76,20 +76,20 @@
                 <div class="flex items-center justify-between gap-2 mb-4">
                     <!-- Narration Mode Selection -->
                     <div class="flex items-center gap-3 bg-gray-800/80 px-3 py-1.5 rounded-lg border border-gray-700">
-                            나레이션 모드</span>
+                            {{ t('label_narration_mode') }}</span>
                         <div class="flex gap-1">
                             <label class="cursor-pointer">
                                 <input type="radio" name="narrationMode" value="single" class="sr-only peer" checked>
                                 <div
                                     class="px-3 py-1 text-[10px] rounded bg-gray-700 text-gray-500 peer-checked:bg-blue-600 peer-checked:text-white transition-all dark:text-gray-400">
-                                    단독 나레이션
+                                    {{ t('opt_single_narration') }}
                                 </div>
                             </label>
                             <label class="cursor-pointer">
                                 <input type="radio" name="narrationMode" value="multi" class="sr-only peer">
                                 <div
                                     class="px-3 py-1 text-[10px] rounded bg-gray-700 text-gray-500 peer-checked:bg-purple-600 peer-checked:text-white transition-all dark:text-gray-400">
-                                    멀티 보이스 (대화/상황극)
+                                    {{ t('opt_multi_voice') }}
                                 </div>
                             </label>
                         </div>
@@ -98,33 +98,33 @@
                     <div class="flex gap-2">
                         <button onclick="stopAndSave()" id="stopBtn"
                             class="hidden btn-secondary bg-red-900/50 text-red-400 py-2 px-4 rounded-lg text-sm">
-                            멈춤 & 저장
+                            {{ t('btn_stop_save') }}
                         </button>
                         <button onclick="generateScript()" id="generateBtn"
                             class="btn-primary py-2.5 px-6 rounded-lg text-sm font-bold">
-                            대본 생성 시작
+                            {{ t('btn_generate_script') }}
                         </button>
                     </div>
                 </div>
 
                 <!-- AI Data Preview (Collapsed) -->
                 <details class="bg-gray-900 rounded-lg p-2 border border-gray-700 mb-4">
-                    <summary class="text-xs text-blue-400 cursor-pointer">AI 전달 데이터 확인</summary>
-                        class="mt-2 text-[10px] text-gray-400 font-mono whitespace-pre-wrap max-h-40 overflow-auto">(데이터 로딩 중...)</pre>
+                    <summary class="text-xs text-blue-400 cursor-pointer">{{ t('label_ai_data_check') }}</summary>
+                        class="mt-2 text-[10px] text-gray-400 font-mono whitespace-pre-wrap max-h-40 overflow-auto">{{ t('hint_data_loading') }}</pre>
                 </details>
             </div>
 
             <!-- Manual Input Mode (Hidden by default) -->
             <div id="manualInputSection" class="hidden">
                 <div class="bg-yellow-900/20 border border-yellow-800 rounded-lg p-4 mb-4">
-                    <h3 class="text-sm font-bold text-white mb-2">외부 대본 붙여넣기</h3>
-                    <p class="text-xs text-gray-400 mb-3">AI 생성을 건너뛰고 준비된 대본을 바로 사용합니다.</p>
+                    <h3 class="text-sm font-bold text-white mb-2">{{ t('label_paste_script') }}</h3>
+                    <p class="text-xs text-gray-400 mb-3">{{ t('hint_paste_script') }}</p>
                     <textarea id="manualScriptInput" class="input-field font-mono text-sm" rows="10"
-                        placeholder="여기에 대본을 붙여넣으세요..."></textarea>
+                        placeholder="{{ t('placeholder_paste_script') }}"></textarea>
                 </div>
                 <div class="flex justify-end">
                     <button onclick="registerManualScript()" class="btn-primary py-2 px-6 rounded-lg text-sm font-bold">
-                        작성 완료
+                        {{ t('btn_done_writing') }}
                     </button>
                 </div>
             </div>
@@ -133,26 +133,26 @@
             <div id="resultSection" class="hidden">
                 <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
                     <div class="flex items-center justify-between mb-3">
-                        <h3 class="text-sm font-bold text-white">생성된 대본</h3>
+                        <h3 class="text-sm font-bold text-white">{{ t('label_generated_script') }}</h3>
                         <div class="flex gap-2">
                             <button onclick="translateScript()" id="translateBtn"
-                                class="btn-secondary text-xs hidden">번역</button>
+                                class="btn-secondary text-xs hidden">{{ t('btn_translate') }}</button>
                             <!-- [NEW] Clean Script Button -->
                             <button onclick="cleanCurrentScript()"
                                 class="btn-secondary text-xs flex items-center gap-1 border-yellow-600/50 text-yellow-500 hover:bg-yellow-500/10 px-3">
-                                <span>✨</span> 대본 정제
+                                <span>✨</span> {{ t('btn_refine_script') }}
                             </button>
                             <button onclick="copyScript()"
                                 class="btn-primary text-xs flex items-center gap-1 bg-blue-600 hover:bg-blue-500 text-white px-3">
-                                📋 <span class="font-bold">전체 복사</span>
+                                📋 <span class="font-bold">{{ t('btn_copy_all') }}</span>
                             </button>
-                            <button onclick="saveCurrentScript()" class="btn-primary text-xs">저장</button>
+                            <button onclick="saveCurrentScript()" class="btn-primary text-xs">{{ t('btn_save') }}</button>
                         </div>
                     </div>
 
                     <div class="flex gap-3 text-xs text-gray-400 mb-3">
-                        <span id="charCount" class="bg-gray-700 px-2 py-0.5 rounded">0 자</span>
-                        <span id="readTime" class="bg-gray-700 px-2 py-0.5 rounded">읽기 시간: 0 분</span>
+                        <span id="charCount" class="bg-gray-700 px-2 py-0.5 rounded">0 {{ t('label_char_count_suffix') }}</span>
+                        <span id="readTime" class="bg-gray-700 px-2 py-0.5 rounded">{{ t('label_read_time') }}0 {{ t('unit_minute') }}</span>
                     </div>
 
                     <textarea id="scriptContent" class="input-field font-mono text-sm" rows="15"></textarea>
@@ -162,20 +162,20 @@
                         <button onclick="continueWithAutopilot()" id="autopilotBtn"
                             class="py-2 px-6 font-bold shadow-md hover:shadow-xl transition-all rounded-lg flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white border-0">
                             <span>🚀</span>
-                            <span>오토파일럿으로 진행</span>
+                            <span>{{ t('btn_continue_autopilot') }}</span>
                         </button>
 
                         <button onclick="addToQueue()" id="queueBtn"
                             class="py-2 px-6 font-bold shadow-md hover:shadow-xl transition-all rounded-lg flex items-center gap-2 bg-gradient-to-r from-green-600 to-teal-600 text-white border-0">
                             <span>📥</span>
-                            <span>큐에 추가</span>
+                            <span>{{ t('btn_add_to_que') }}</span>
                         </button>
 
                         <button onclick="goToImageGen()" class="btn-primary py-2 px-4 rounded-lg text-sm">
-                            이미지 생성
+                            {{ t('btn_generate_image') }}
                         </button>
                         <button onclick="goToTTS()" class="btn-secondary py-2 px-4 rounded-lg text-sm">
-                            음성/TTS 생성
+                            {{ t('btn_generate_voice') }}
                         </button>
                         {% if app_mode == 'blog' %}
                             <span>✨</span> {{ t('btn_blog_automation') }}
@@ -192,12 +192,12 @@
 <!-- Folder Creation Modal -->
 <div id="folderModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
     <div class="bg-gray-800 rounded-xl p-6 w-80 border border-gray-600">
-        <h3 class="text-lg font-bold text-white mb-4">새 폴더 만들기</h3>
+        <h3 class="text-lg font-bold text-white mb-4">{{ t('label_create_folder') }}</h3>
         <input type="text" id="newFolderName" class="input-field w-full mb-4"
-            placeholder="폴더 이름">
+            placeholder="{{ t('placeholder_folder_name') }}">
         <div class="flex gap-2 justify-end">
-            <button onclick="closeFolderModal()" class="btn-secondary py-2 px-4 text-sm">취소</button>
-            <button onclick="confirmCreateFolder()" class="btn-primary py-2 px-4 text-sm">생성</button>
+            <button onclick="closeFolderModal()" class="btn-secondary py-2 px-4 text-sm">{{ t('btn_cancel') }}</button>
+            <button onclick="confirmCreateFolder()" class="btn-primary py-2 px-4 text-sm">{{ t('btn_create') }}</button>
         </div>
     </div>
 </div>
@@ -258,7 +258,30 @@
         status_no_motion_desc: "{{ t('status_no_motion_desc') }}",
         status_no_motion_desc_content: "{{ t('status_no_motion_desc_content') }}",
         marker_script_based_dynamic_change: "{{ t('marker_script_based_dynamic_change') }}",
-        marker_additional_visual_effects: "{{ t('marker_additional_visual_effects') }}"
+        marker_additional_visual_effects: "{{ t('marker_additional_visual_effects') }}",
+        toast_auto_gen_start: "{{ t('toast_auto_gen_start') }}",
+        err_no_structure_data: "{{ t('err_no_structure_data') }}",
+        loading_preparing: "{{ t('loading_preparing') }}",
+        toast_stopped_by_user: "{{ t('toast_stopped_by_user') }}",
+        loading_generating_prefix: "{{ t('loading_generating_prefix') }}",
+        err_section_gen_failed: "{{ t('err_section_gen_failed') }}",
+        err_unknown: "{{ t('err_unknown') }}",
+        toast_script_generated: "{{ t('toast_script_generated') }}",
+        toast_generation_stopped: "{{ t('toast_generation_stopped') }}",
+        toast_enter_script: "{{ t('toast_enter_script') }}",
+        toast_script_saved: "{{ t('toast_script_saved') }}",
+        err_project_not_found: "{{ t('err_project_not_found') }}",
+        confirm_continue_autopilot: "{{ t('confirm_continue_autopilot') }}",
+        loading_starting: "{{ t('loading_starting') }}",
+        toast_autopilot_started: "{{ t('toast_autopilot_started') }}",
+        err_autopilot_start_fail: "{{ t('err_autopilot_start_fail') }}",
+        err_project_not_selected: "{{ t('err_project_not_selected') }}",
+        loading_adding: "{{ t('loading_adding') }}",
+        toast_added_to_queue: "{{ t('toast_added_to_queue') }}",
+        err_queue_add_fail: "{{ t('err_queue_add_fail') }}",
+        label_char_count_suffix: "{{ t('label_char_count_suffix') }}",
+        label_read_time: "{{ t('label_read_time') }}",
+        unit_minute: "{{ t('unit_minute') }}"
     };
 
     // ========== EXPLORER FUNCTIONS ==========
@@ -622,7 +645,7 @@
 
                 Utils.showToast(`"${projectName}" ${i18n.status_deleted}`, 'success');
             } else {
-                throw new Error('삭제 실패');
+                throw new Error(i18n.status_failed_delete);
             }
         } catch (e) {
             console.error('Delete error:', e);
@@ -847,7 +870,7 @@
         // [NEW] Auto Start Check
         if (urlParams.get('auto_start') === 'true') {
             console.log("Auto-start generation triggered");
-            Utils.showToast('대본 생성을 자동으로 시작합니다...', 'info');
+            Utils.showToast(i18n.toast_auto_gen_start, 'info');
             setTimeout(() => {
                 if (document.getElementById('generateBtn')) {
                     generateScript();
@@ -861,7 +884,7 @@
     async function generateScript() {
         const projectId = getCurrentProject();
         if (!projectId) {
-            Utils.showToast('프로젝트를 먼저 선택해주세요', 'warning');
+            Utils.showToast(i18n.status_select_project_first, 'warning');
             return;
         }
 
@@ -882,13 +905,13 @@
         }
 
         if (!structureData || !structureData.sections || structureData.sections.length === 0) {
-            Utils.showToast('대본 구조 데이터가 없습니다. "대본 기획" 단계를 먼저 진행해주세요.', 'error');
+            Utils.showToast(i18n.err_no_structure_data, 'error');
             return;
         }
 
         const btn = document.getElementById('generateBtn');
         const stopBtn = document.getElementById('stopBtn');
-        Utils.setLoading(btn, true, '생성 준비 중...');
+        Utils.setLoading(btn, true, i18n.loading_preparing);
         stopBtn.classList.remove('hidden');
         window.stopGeneration = false;
 
@@ -929,13 +952,13 @@
             for (let i = 0; i < sections.length; i++) {
                 if (window.stopGeneration) {
                     console.log("Stopped by user");
-                    Utils.showToast('사용자에 의해 중단됨', 'warning');
+                    Utils.showToast(i18n.toast_stopped_by_user, 'warning');
                     break;
                 }
 
                 const section = sections[i];
                 const keyPoints = section.key_points || [];
-                Utils.setLoading(btn, true, `생성 중... (${i + 1}/${sections.length}: ${section.title})`);
+                Utils.setLoading(btn, true, `${i18n.loading_generating_prefix} (${i + 1}/${sections.length}: ${section.title})`);
                 console.log(`Generating section ${i + 1}: ${section.title} `);
 
                 let modeInstruction = "";
@@ -999,11 +1022,11 @@ ${modeInstruction}
 
                         finalScript += (finalScript ? '\n\n' : '') + sectionText;
                     } else {
-                        finalScript += (finalScript ? '\n\n' : '') + `(이 섹션 생성 실패: ${result.error || '알 수 없는 오류'})`;
+                        finalScript += (finalScript ? '\n\n' : '') + `(${i18n.err_section_gen_failed}: ${result.error || i18n.err_unknown})`;
                     }
                 } catch (sectionErr) {
                     console.error(`Section ${i + 1} error: `, sectionErr);
-                    finalScript += (finalScript ? '\n\n' : '') + `(생성 오류: ${sectionErr.message})`;
+                    finalScript += (finalScript ? '\n\n' : '') + `(${i18n.err_gen_error}: ${sectionErr.message})`;
                 }
 
                 // Show progress
@@ -1027,12 +1050,12 @@ ${modeInstruction}
                 console.log("Script saved to DB");
             }
 
-            Utils.showToast('대본 생성 완료!', 'success');
+            Utils.showToast(i18n.toast_script_generated, 'success');
             refreshExplorer();
 
         } catch (e) {
             console.error('Generation error:', e);
-            Utils.showToast('생성 오류: ' + e.message, 'error');
+            Utils.showToast(i18n.err_gen_error + ': ' + e.message, 'error');
         } finally {
             Utils.setLoading(btn, false);
             stopBtn.classList.add('hidden');
@@ -1042,13 +1065,13 @@ ${modeInstruction}
 
     function stopAndSave() {
         window.stopGeneration = true;
-        Utils.showToast('생성 중단됨', 'warning');
+        Utils.showToast(i18n.toast_generation_stopped, 'warning');
     }
 
     async function registerManualScript() {
         const text = document.getElementById('manualScriptInput').value.trim();
         if (!text) {
-            Utils.showToast('대본을 입력해주세요', 'warning');
+            Utils.showToast(i18n.toast_enter_script, 'warning');
             return;
         }
 
@@ -1061,7 +1084,7 @@ ${modeInstruction}
         if (projectId) {
             try {
                 await API.project.saveScript(projectId, text, text.length, Math.ceil(text.length / 415));
-                Utils.showToast('대본이 저장되었습니다', 'success');
+                Utils.showToast(i18n.toast_script_saved, 'success');
                 refreshExplorer();
             } catch (e) {
                 console.error(e);
@@ -1072,15 +1095,15 @@ ${modeInstruction}
     async function continueWithAutopilot() {
         const projectId = getCurrentProject();
         if (!projectId) {
-            Utils.showToast("프로젝트를 찾을 수 없습니다.", "error");
+            Utils.showToast(i18n.err_project_not_found, "error");
             return;
         }
 
-        if (!confirm("현재 대본으로 나머지 과정(이미지 생성, 오디오, 렌더링)을 오토파일럿으로 진행하시겠습니까?")) return;
+        if (!confirm(i18n.confirm_continue_autopilot)) return;
 
         const btn = document.getElementById('autopilotBtn');
         const originalText = btn.innerHTML;
-        Utils.setLoading(btn, true, "🚀 시동 중...");
+        Utils.setLoading(btn, true, "🚀 " + i18n.loading_starting);
 
         try {
             const res = await fetch(`/api/autopilot/continue/${projectId}`, {
@@ -1091,10 +1114,10 @@ ${modeInstruction}
             const data = await res.json();
 
             if (data.status === 'ok') {
-                Utils.showToast("오토파일럿이 시작되었습니다! 🚀", "success");
+                Utils.showToast(i18n.toast_autopilot_started + " 🚀", "success");
                 window.location.href = `/autopilot?project_id=${projectId}&monitor=true`;
             } else {
-                throw new Error(data.error || "오토파일럿 시작 실패");
+                throw new Error(data.error || i18n.err_autopilot_start_fail);
             }
         } catch (e) {
             console.error(e);
@@ -1108,13 +1131,13 @@ ${modeInstruction}
     async function addToQueue() {
         const projectId = getCurrentProject();
         if (!projectId) {
-            Utils.showToast("프로젝트가 선택되지 않았습니다.", "error");
+            Utils.showToast(i18n.err_project_not_selected, "error");
             return;
         }
 
         const btn = document.getElementById('queueBtn');
         const originalText = btn.innerHTML;
-        Utils.setLoading(btn, true, "담는 중...");
+        Utils.setLoading(btn, true, i18n.loading_adding);
 
         try {
             // 1. Ensure current script is saved
@@ -1148,10 +1171,10 @@ ${modeInstruction}
 
             const data = await res.json();
             if (data.status === 'ok') {
-                Utils.showToast("대기열에 추가되었습니다!", "success");
+                Utils.showToast(i18n.toast_added_to_queue, "success");
                 window.location.href = '/autopilot?tab=batch';
             } else {
-                throw new Error(data.error || "대기열 추가 실패");
+                throw new Error(data.error || i18n.err_queue_add_fail);
             }
         } catch (e) {
             console.error(e);

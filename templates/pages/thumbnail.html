@@ -82,7 +82,7 @@
     <!-- 이미지 스타일 (배경 화풍) -->
     <div class="mb-4">
         <div class="flex items-center gap-2 mb-2">
-            <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">🎨 이미지 생성 (배경)</span>
+            <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ t('label_image_gen_bg') }}</span>
             <span id="imageStyleBadge" class="text-[10px] bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full font-semibold">realistic</span>
         </div>
         <div id="imageStyleGrid" class="style-grid">
@@ -93,7 +93,7 @@
     <!-- 썸네일 레이아웃 스타일 -->
     <div>
         <div class="flex items-center gap-2 mb-2">
-            <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">📐 썸네일 레이아웃</span>
+            <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ t('label_thumb_layout') }}</span>
         </div>
         <div id="thumbnailStyleGrid" class="style-grid">
             <!-- Loaded via JS -->
@@ -158,7 +158,7 @@
                     </button>
                     <button onclick="savePermanentSettings()" id="saveSettingsBtn"
                         class="flex-1 btn-secondary py-3 flex items-center justify-center gap-2"
-                        title="현재 모든 설정을 서버에 영구 저장합니다.">
+                        title="{{ t('title_save_all_settings') }}">
                         <span>💾</span>
                         <span class="hidden md:inline">{{ t('btn_save_settings') }}</span>
                     </button>
@@ -168,22 +168,22 @@
                     <div class="flex items-center gap-2">
                         <select id="stylePresetSelect" onchange="loadStylePreset(this.value)"
                             class="flex-1 bg-gray-800 border border-gray-700 text-white text-xs rounded px-2 py-1.5 focus:ring-purple-500 focus:border-purple-500">
-                            <option value="">-- 스타일 선택 --</option>
+                            <option value="">{{ t('opt_select_style') }}</option>
                         </select>
                         <button onclick="deleteStylePreset()" id="btnDeleteStylePreset"
-                            class="text-red-400 hover:text-red-300 text-xs hidden px-2 py-1.5">🗑️ 삭제</button>
+                            class="text-red-400 hover:text-red-300 text-xs hidden px-2 py-1.5">🗑️ {{ t('btn_delete') }}</button>
                     </div>
                     <div class="flex items-center gap-2">
-                        <input type="text" id="stylePresetName" placeholder="스타일 이름 입력..."
+                        <input type="text" id="stylePresetName" placeholder="{{ t('placeholder_style_name') }}"
                             class="flex-1 bg-gray-800 border border-gray-700 text-white text-xs rounded px-2 py-1.5">
                         <button onclick="saveStylePreset()"
                             class="bg-purple-600/80 hover:bg-purple-600 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors whitespace-nowrap">
-                            🎨 저장
+                            🎨 {{ t('btn_save') }}
                         </button>
                     </div>
                     <button onclick="saveAsDefaultStyle()"
                         class="w-full bg-yellow-600/80 hover:bg-yellow-600 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors">
-                        ⭐ 현재 스타일을 기본값으로 지정 (DB 저장)
+                        {{ t('btn_set_as_default') }}
                     </button>
                 </div>
             </div>
@@ -262,6 +262,101 @@
 {% block scripts %}
 <script src="/static/js/thumbnail_hook_text.js?v=2"></script>
 <script>
+    const i18n = {
+        label_style_none: "{{ t('label_style_none') }}",
+        loading_saving: "{{ t('loading_saving') }}",
+        toast_style_font_saved: "{{ t('toast_style_font_saved') }}",
+        toast_viral_applied: "{{ t('toast_viral_applied') }}",
+        toast_text_style_applied: "{{ t('toast_text_style_applied') }}",
+        label_layout_face: "{{ t('label_layout_face') }}",
+        label_layout_contrast: "{{ t('label_layout_contrast') }}",
+        label_layout_mystery: "{{ t('label_layout_mystery') }}",
+        label_layout_dynamic: "{{ t('label_layout_dynamic') }}",
+        toast_layout_set_suffix: "{{ t('toast_layout_set_suffix') }}",
+        default_video_title: "{{ t('default_video_title') }}",
+        toast_ai_no_json: "{{ t('toast_ai_no_json') }}",
+        toast_quota_exceeded: "{{ t('toast_quota_exceeded') }}",
+        loading_ai_gen: "{{ t('loading_ai_gen') }}",
+        toast_ideas_generated: "{{ t('toast_ideas_generated') }}",
+        label_idea_prefix: "{{ t('label_idea_prefix') }}",
+        btn_selected_state: "{{ t('btn_selected_state') }}",
+        btn_select_state: "{{ t('btn_select_state') }}",
+        label_layout_colon: "{{ t('label_layout_colon') }}",
+        btn_edit_prompt: "{{ t('btn_edit_prompt') }}",
+        toast_idea_applied: "{{ t('toast_idea_applied') }}",
+        placeholder_text_input: "{{ t('placeholder_text_input') }}",
+        title_delete_layer: "{{ t('title_delete_layer') }}",
+        label_font_header: "{{ t('label_font_header') }}",
+        label_size_header: "{{ t('label_size_header') }}",
+        label_color_header: "{{ t('label_color_header') }}",
+        label_outline_header: "{{ t('label_outline_header') }}",
+        title_outline_thick: "{{ t('title_outline_thick') }}",
+        label_bg_header: "{{ t('label_bg_header') }}",
+        label_position_header: "{{ t('label_position_header') }}",
+        btn_reset_pos: "{{ t('btn_reset_pos') }}",
+        drag_to_adjust_hint: "{{ t('drag_to_adjust_hint') }}",
+        label_shape_prefix: "{{ t('label_shape_prefix') }}",
+        label_start_color: "{{ t('label_start_color') }}",
+        btn_transparent: "{{ t('btn_transparent') }}",
+        btn_color_opt: "{{ t('btn_color_opt') }}",
+        label_end_color: "{{ t('label_end_color') }}",
+        label_start_opacity: "{{ t('label_start_opacity') }}",
+        label_end_opacity: "{{ t('label_end_opacity') }}",
+        btn_flip_gradient: "{{ t('btn_flip_gradient') }}",
+        opt_direction_h: "{{ t('opt_direction_h') }}",
+        opt_direction_v: "{{ t('opt_direction_v') }}",
+        loading_bg_gen: "{{ t('loading_bg_gen') }}",
+        toast_bg_gen_success: "{{ t('toast_bg_gen_success') }}",
+        err_bg_gen_fail: "{{ t('err_bg_gen_fail') }}",
+        toast_server_restart_needed: "{{ t('toast_server_restart_needed') }}",
+        toast_bg_uploaded: "{{ t('toast_bg_uploaded') }}",
+        toast_select_idea_or_upload: "{{ t('toast_select_idea_or_upload') }}",
+        toast_add_text_or_shape: "{{ t('toast_add_text_or_shape') }}",
+        loading_saving_thumb: "{{ t('loading_saving_thumb') }}",
+        toast_img_convert_fail: "{{ t('toast_img_convert_fail') }}",
+        toast_thumb_saved: "{{ t('toast_thumb_saved') }}",
+        size_portrait: "{{ t('size_portrait') }}",
+        size_landscape: "{{ t('size_landscape') }}",
+        style_realistic: "{{ t('style_realistic') }}",
+        style_anime: "{{ t('style_anime') }}",
+        style_cinematic: "{{ t('style_cinematic') }}",
+        style_cartoon: "{{ t('style_cartoon') }}",
+        style_oil_painting: "{{ t('style_oil_painting') }}",
+        style_watercolor: "{{ t('style_watercolor') }}",
+        style_sketch: "{{ t('style_sketch') }}",
+        style_pixel_art: "{{ t('style_pixel_art') }}",
+        style_3d: "{{ t('style_3d') }}",
+        style_k_webtoon: "{{ t('style_k_webtoon') }}",
+        style_k_manhwa: "{{ t('style_k_manhwa') }}",
+        layout_japanese_viral: "{{ t('layout_japanese_viral') }}",
+        layout_face: "{{ t('layout_face') }}",
+        layout_text: "{{ t('layout_text') }}",
+        layout_contrast: "{{ t('layout_contrast') }}",
+        layout_mystery: "{{ t('layout_mystery') }}",
+        layout_minimal: "{{ t('layout_minimal') }}",
+        layout_dramatic: "{{ t('layout_dramatic') }}",
+        layout_ghibli: "{{ t('layout_ghibli') }}",
+        layout_wimpy: "{{ t('layout_wimpy') }}",
+        toast_project_not_found: "{{ t('toast_project_not_found') }}",
+        warn_no_project_selected: "{{ t('warn_no_project_selected') }}",
+        toast_gen_error: "{{ t('toast_gen_error') }}",
+        err_generic_msg: "{{ t('err_generic_msg') }}",
+        err_save_fail: "{{ t('err_save_fail') }}",
+        status_saving: "{{ t('status_saving') }}",
+        status_generating: "{{ t('status_generating') }}",
+        opt_select_style: "{{ t('opt_select_style') }}",
+        toast_enter_style_name: "{{ t('toast_enter_style_name') }}",
+        toast_style_preset_saved_prefix: "{{ t('toast_style_preset_saved_prefix') }}",
+        toast_style_not_found: "{{ t('toast_style_not_found') }}",
+        toast_style_preset_loaded_prefix: "{{ t('toast_style_preset_loaded_prefix') }}",
+        toast_style_load_fail: "{{ t('toast_style_load_fail') }}",
+        confirm_delete_style: "{{ t('confirm_delete_style') }}",
+        toast_style_deleted_prefix: "{{ t('toast_style_deleted_prefix') }}",
+        toast_default_style_saved: "{{ t('toast_default_style_saved') }}",
+        toast_all_settings_saved: "{{ t('toast_all_settings_saved') }}",
+        toast_state_restored: "{{ t('toast_state_restored') }}",
+        err_unknown: "{{ t('err_unknown') }}",
+    };
     window.targetLang = 'ko';
     let thumbnailData = null;
     let selectedPrompt = null;
@@ -494,8 +589,8 @@
         if (ideaPrompt) {
             if (!thumbnailData) thumbnailData = {};
             thumbnailData.ideas = [{
-                concept: settings.thumbnail_idea_concept || '오토파일럿 자동 생성',
-                layout: '자동 생성',
+                concept: settings.thumbnail_idea_concept || i18n.loading_ai_gen,
+                layout: i18n.default_video_title,
                 prompt_en: ideaPrompt
             }];
             // 아이디어 섹션 표시
@@ -542,10 +637,10 @@
             const noImgSvg = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='90'%3E%3Crect fill='%23374151' width='160' height='90'/%3E%3Ctext fill='%239CA3AF' x='50%25' y='50%25' text-anchor='middle' dy='.3em' font-size='11'%3ENo Img%3C/text%3E%3C/svg%3E`;
 
             const displayNames = {
-                'realistic':'리얼리스틱','anime':'애니메이션','cinematic':'시네마틱',
-                'cartoon':'카툰','oil_painting':'유화','watercolor':'수채화',
-                'sketch':'스케치','pixel_art':'픽셀아트','3d':'3D',
-                'k_webtoon':'K웹툰','k_manhwa':'K만화',
+                'realistic': i18n.style_realistic, 'anime': i18n.style_anime, 'cinematic': i18n.style_cinematic,
+                'cartoon': i18n.style_cartoon, 'oil_painting': i18n.style_oil_painting, 'watercolor': i18n.style_watercolor,
+                'sketch': i18n.style_sketch, 'pixel_art': i18n.style_pixel_art, '3d': i18n.style_3d,
+                'k_webtoon': i18n.style_k_webtoon, 'k_manhwa': i18n.style_k_manhwa,
             };
 
             grid.innerHTML = Object.entries(imageStylesPresets).map(([key, data]) => {
@@ -571,10 +666,10 @@
         const badge = document.getElementById('imageStyleBadge');
         if (badge) {
             const displayNames = {
-                'realistic':'리얼리스틱','anime':'애니메이션','cinematic':'시네마틱',
-                'cartoon':'카툰','oil_painting':'유화','watercolor':'수채화',
-                'sketch':'스케치','pixel_art':'픽셀아트','3d':'3D',
-                'k_webtoon':'K웹툰','k_manhwa':'K만화',
+                'realistic': i18n.style_realistic, 'anime': i18n.style_anime, 'cinematic': i18n.style_cinematic,
+                'cartoon': i18n.style_cartoon, 'oil_painting': i18n.style_oil_painting, 'watercolor': i18n.style_watercolor,
+                'sketch': i18n.style_sketch, 'pixel_art': i18n.style_pixel_art, '3d': i18n.style_3d,
+                'k_webtoon': i18n.style_k_webtoon, 'k_manhwa': i18n.style_k_manhwa,
             };
             badge.textContent = displayNames[key] || key;
         }
@@ -608,15 +703,15 @@
             thumbnailStylesPresets = presets; // [NEW] Store globally
 
             const displayNames = {
-                'japanese_viral': '바이럴',
-                'face': '얼굴 클로즈업',
-                'text': '텍스트 중심',
-                'contrast': '고대비',
-                'mystery': '미스터리',
-                'minimal': '미니멀',
-                'dramatic': '드라마틱',
-                'ghibli': '지브리풍',
-                'wimpy': '윔피키드풍',
+                'japanese_viral': i18n.layout_japanese_viral,
+                'face': i18n.layout_face,
+                'text': i18n.layout_text,
+                'contrast': i18n.layout_contrast,
+                'mystery': i18n.layout_mystery,
+                'minimal': i18n.layout_minimal,
+                'dramatic': i18n.layout_dramatic,
+                'ghibli': i18n.layout_ghibli,
+                'wimpy': i18n.layout_wimpy,
             };
 
             const currentStyle = document.getElementById('thumbnailStyle').value;
@@ -624,7 +719,7 @@
 
             const entries = Object.entries(presets);
             if (entries.length === 0) {
-                grid.innerHTML = '<p class="text-xs text-gray-400 col-span-full">스타일 없음</p>';
+                grid.innerHTML = `<p class="text-xs text-gray-400 col-span-full">${i18n.label_style_none}</p>`;
                 return;
             }
 
@@ -651,13 +746,13 @@
         const btn = document.getElementById('saveStyleBtn');
 
         if (!projectId) {
-            Utils.showToast("프로젝트를 먼저 선택해주세요.", "warning");
+            Utils.showToast(i18n.warn_no_project_selected, "warning");
             return;
         }
 
         const originalText = btn.innerHTML;
         btn.disabled = true;
-        btn.innerHTML = '<span>🔄</span><span>저장중...</span>';
+        btn.innerHTML = `<span>🔄</span><span>${i18n.loading_saving}</span>`;
 
         try {
             // [MODIFIED] Save Style + Font Preferences
@@ -670,11 +765,11 @@
             };
 
             await API.project.saveSettings(projectId, payload);
-            Utils.showToast(`스타일 및 폰트 설정이 저장되었습니다.`, "success");
+            Utils.showToast(i18n.toast_style_font_saved, "success");
             console.log('Thumbnail settings saved:', payload);
         } catch (e) {
             console.error('Failed to save thumbnail style:', e);
-            Utils.showToast("저장 실패: " + e.message, "error");
+            Utils.showToast(i18n.err_save_fail + ': ' + e.message, "error");
         } finally {
             btn.disabled = false;
             btn.innerHTML = originalText;
@@ -714,20 +809,20 @@
             shapeLayers = [
                 { x: -4, y: 485, width: 1287, height: 235, color_start: '#000000', color_end: '#000001', opacity: 0.2, opacity_end: 0.8, gradient_direction: 'vertical' }
             ];
-            Utils.showToast('바이럴 스타일이 적용되었습니다.', 'info');
+            Utils.showToast(i18n.toast_viral_applied, 'info');
         } else if (styleId === 'text') {
             textLayers.forEach(l => { l.bg_color = '#000000'; l.color = '#FFFFFF'; });
-            Utils.showToast('텍스트 중심 블랙&화이트 레이아웃이 적용되었습니다.', 'info');
+            Utils.showToast(i18n.toast_text_style_applied, 'info');
         } else {
             // General Toast for other styles
             const displayNames = {
-                'face': '얼굴 강조형',
-                'contrast': '반분할(좌우대비)',
-                'mystery': '미스터리/실루엣',
-                'dynamic': '다이내믹(광각)'
+                'face': i18n.label_layout_face,
+                'contrast': i18n.label_layout_contrast,
+                'mystery': i18n.label_layout_mystery,
+                'dynamic': i18n.label_layout_dynamic,
             };
             const currentLabel = displayNames[styleId] || styleId;
-            Utils.showToast(`${currentLabel} 레이아웃이 설정되었습니다.`, 'info');
+            Utils.showToast(`${currentLabel} ${i18n.toast_layout_set_suffix}`, 'info');
         }
 
         // Only render if textLayers has been initialized and container exists
@@ -755,7 +850,7 @@
 
     // 1. 아이디어 생성
     async function generateIdeas(buttonId = 'ideaBtn') {
-        const title = document.getElementById('videoTitle').value.trim() || '영상';
+        const title = document.getElementById('videoTitle').value.trim() || i18n.default_video_title;
         const style = document.getElementById('thumbnailStyle').value;
 
         // [NEW] Get Style Instruction from Presets
@@ -781,7 +876,7 @@
         } catch (e) { console.log('Art style fetch failed:', e); }
 
         const btn = document.getElementById(buttonId);
-        if (btn) Utils.setLoading(btn, true, '생성 중...');
+        if (btn) Utils.setLoading(btn, true, i18n.status_generating);
 
         const _detectedLang = detectLanguageFromTitle(title);
         const _langMap = {
@@ -857,25 +952,25 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
                     } catch (parseError) {
                         console.error('JSON parse error:', parseError);
                         console.error('Raw text was:', result.text);
-                        Utils.showToast('JSON 파싱 실패: ' + parseError.message + ' (콘솔 확인)', 'error');
+                        Utils.showToast(i18n.toast_gen_error + ': ' + parseError.message, 'error');
                     }
                 } else {
                     console.error('No JSON found in response. Full text:', result.text);
-                    Utils.showToast('AI가 JSON 형식으로 응답하지 않았습니다. 다시 시도해주세요.', 'error');
+                    Utils.showToast(i18n.toast_ai_no_json, 'error');
                 }
             } else {
                 console.error('API returned error status:', JSON.stringify(result, null, 2));
 
                 // 할당량 초과 에러 특별 처리
                 if (result.error && result.error.code === 429) {
-                    Utils.showToast('⚠️ Gemini API 할당량이 초과되었습니다. API 키를 확인하거나 내일 다시 시도해주세요.', 'error');
+                    Utils.showToast(i18n.toast_quota_exceeded, 'error');
                 } else {
-                    Utils.showToast('아이디어 생성 실패: ' + (result.error?.message || result.error || '알 수 없는 오류'), 'error');
+                    Utils.showToast(i18n.err_generic_msg + ': ' + (result.error?.message || result.error || i18n.err_unknown), 'error');
                 }
             }
         } catch (error) {
             console.error('Error in generateIdeas:', error);
-            Utils.showToast('오류가 발생했습니다: ' + error.message, 'error');
+            Utils.showToast(i18n.err_generic_msg + ': ' + error.message, 'error');
         } finally {
             Utils.setLoading(btn, false);
         }
@@ -885,23 +980,23 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
     async function generateUnifiedIdea() {
         const projectId = getCurrentProject();
         if (!projectId) {
-            Utils.showToast('프로젝트를 먼저 선택하세요', 'warning');
+            Utils.showToast(i18n.warn_no_project_selected, 'warning');
             return;
         }
 
         const btn = document.getElementById('unifiedIdeaBtn');
-        Utils.setLoading(btn, true, 'AI 분석 및 생성 중...');
+        Utils.setLoading(btn, true, i18n.loading_ai_gen);
 
         try {
             // Generate Ideas + Texts (language auto-detected from title)
             await generateIdeas('unifiedIdeaBtn');
 
-            Utils.showToast('아이디어와 후킹 문구가 생성되었습니다!', 'success');
+            Utils.showToast(i18n.toast_ideas_generated, 'success');
             // 서버에도 자동 저장 (새로고침 시 유지)
             await autoSaveToServer();
         } catch (e) {
             console.error('Unified generation error:', e);
-            Utils.showToast('생성 중 오류가 발생했습니다.', 'error');
+            Utils.showToast(i18n.toast_gen_error, 'error');
         } finally {
             Utils.setLoading(btn, false);
         }
@@ -950,13 +1045,13 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
         container.innerHTML = thumbnailData.ideas.map((idea, i) => `
             <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-primary transition ${i === selectedIdeaIndex ? 'ring-2 ring-primary bg-blue-50 dark:bg-gray-600' : ''}" onclick="selectIdea(${i})">
                 <div class="flex items-center justify-between mb-2">
-                    <span class="font-medium text-gray-800 dark:text-white">아이디어 ${i + 1}</span>
-                    <button onclick="event.stopPropagation(); selectIdea(${i})" class="btn-primary text-xs">${i === selectedIdeaIndex ? '선택됨' : '선택'}</button>
+                    <span class="font-medium text-gray-800 dark:text-white">${i18n.label_idea_prefix} ${i + 1}</span>
+                    <button onclick="event.stopPropagation(); selectIdea(${i})" class="btn-primary text-xs">${i === selectedIdeaIndex ? i18n.btn_selected_state : i18n.btn_select_state}</button>
                 </div>
                 <p class="text-gray-600 dark:text-gray-400 mb-2">${idea.concept}</p>
-                <p class="text-sm text-gray-500 dark:text-gray-400">레이아웃: ${idea.layout}</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">${i18n.label_layout_colon}${idea.layout}</p>
                 <details class="mt-2">
-                    <summary class="text-xs text-blue-500 cursor-pointer">프롬프트 수정</summary>
+                    <summary class="text-xs text-blue-500 cursor-pointer">${i18n.btn_edit_prompt}</summary>
                     <textarea 
                         class="w-full h-32 bg-gray-900 text-green-400 p-2 rounded text-xs mt-2 focus:ring-1 focus:ring-blue-500 outline-none resize-y"
                         onclick="event.stopPropagation()"
@@ -1096,7 +1191,7 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
         renderLayers();
         drawPreview();
 
-        Utils.showToast(`아이디어가 적용되었습니다.`, 'success');
+        Utils.showToast(i18n.toast_idea_applied, 'success');
 
         // 스크롤
         document.getElementById('textSection').scrollIntoView({ behavior: 'smooth' });
@@ -1132,8 +1227,8 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
                 <!-- Text Input + Delete -->
                 <div class="flex items-center gap-1 mb-3">
                     <input type="text" value="${layer.text}" oninput="updateLayer(${i}, 'text', this.value)"
-                        class="input-field font-bold text-sm w-full" placeholder="텍스트 입력...">
-                    <button onclick="removeLayer(${i})" class="flex-shrink-0 text-gray-400 hover:text-red-500 transition p-1 rounded hover:bg-red-500/10" title="레이어 삭제">
+                        class="input-field font-bold text-sm w-full" placeholder="${i18n.placeholder_text_input}">
+                    <button onclick="removeLayer(${i})" class="flex-shrink-0 text-gray-400 hover:text-red-500 transition p-1 rounded hover:bg-red-500/10" title="${i18n.title_delete_layer}">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                     </button>
                 </div>
@@ -1142,20 +1237,20 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
                 <div class="flex flex-wrap gap-2 items-end">
                     <!-- Font -->
                     <div class="flex-1 min-w-[100px]">
-                        <label class="block text-[9px] text-gray-500 mb-1 dark:text-gray-400">폰트</label>
+                        <label class="block text-[9px] text-gray-500 mb-1 dark:text-gray-400">${i18n.label_font_header}</label>
                         <select onchange="updateLayer(${i}, 'font_family', this.value)" class="input-field py-1 text-xs w-full h-8">
-                            <option value="Recipekorea" ${layer.font_family === 'Recipekorea' ? 'selected' : ''}>레시피코리아</option>
+                            <option value="Recipekorea" ${layer.font_family === 'Recipekorea' ? 'selected' : ''}>Recipekorea</option>
                             <option value="GmarketSansBold" ${layer.font_family === 'GmarketSansBold' ? 'selected' : ''}>Gmarket Bold</option>
-                            <option value="malgun" ${layer.font_family === 'malgun' ? 'selected' : ''}>맑은고딕</option>
-                            <option value="gungsuh" ${layer.font_family === 'gungsuh' ? 'selected' : ''}>궁서체</option>
-                            <option value="NanumGothic" ${layer.font_family === 'NanumGothic' ? 'selected' : ''}>나눔고딕</option>
-                            <option value="NanumPen" ${layer.font_family === 'NanumPen' ? 'selected' : ''}>나눔손글씨</option>
+                            <option value="malgun" ${layer.font_family === 'malgun' ? 'selected' : ''}>Malgun Gothic</option>
+                            <option value="gungsuh" ${layer.font_family === 'gungsuh' ? 'selected' : ''}>Gungsuh</option>
+                            <option value="NanumGothic" ${layer.font_family === 'NanumGothic' ? 'selected' : ''}>Nanum Gothic</option>
+                            <option value="NanumPen" ${layer.font_family === 'NanumPen' ? 'selected' : ''}>Nanum Pen</option>
                         </select>
                     </div>
 
                     <!-- Size -->
                     <div class="w-14">
-                        <label class="block text-[9px] text-gray-500 mb-1 dark:text-gray-400">크기</label>
+                        <label class="block text-[9px] text-gray-500 mb-1 dark:text-gray-400">${i18n.label_size_header}</label>
                         <input type="number" value="${layer.font_size}" oninput="updateLayer(${i}, 'font_size', parseInt(this.value))" 
                             class="input-field py-1 text-xs w-full h-8 px-1 text-center">
                     </div>
@@ -1164,7 +1259,7 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
 
                     <!-- Text Color -->
                     <div>
-                        <label class="block text-[9px] text-gray-500 mb-1 dark:text-gray-400">색상</label>
+                        <label class="block text-[9px] text-gray-500 mb-1 dark:text-gray-400">${i18n.label_color_header}</label>
                         <div class="h-8 w-8 relative overflow-hidden rounded border border-gray-300 dark:border-gray-600">
                              <input type="color" value="${layer.color}" onchange="updateLayer(${i}, 'color', this.value)" 
                                 class="absolute -top-2 -left-2 w-12 h-12 p-0 border-none cursor-pointer">
@@ -1174,20 +1269,20 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
                     <!-- Stroke -->
                     <div class="flex gap-1 items-end">
                         <div class="group/stroke">
-                             <label class="block text-[9px] text-gray-500 mb-1 dark:text-gray-400">외곽선</label>
+                             <label class="block text-[9px] text-gray-500 mb-1 dark:text-gray-400">${i18n.label_outline_header}</label>
                              <div class="h-8 w-8 relative overflow-hidden rounded border border-gray-300 dark:border-gray-600">
                                 <input type="color" value="${layer.stroke_color || '#000000'}" onchange="updateLayer(${i}, 'stroke_color', this.value)" 
                                    class="absolute -top-2 -left-2 w-12 h-12 p-0 border-none cursor-pointer">
                              </div>
                         </div>
                         <input type="number" value="${layer.stroke_width}" oninput="updateLayer(${i}, 'stroke_width', parseInt(this.value))" 
-                            class="input-field py-1 text-xs w-10 h-8 px-1 text-center" title="외곽선 두께">
+                            class="input-field py-1 text-xs w-10 h-8 px-1 text-center" title="${i18n.title_outline_thick}">
                     </div>
 
                     <!-- BG -->
                     <div class="flex gap-1 items-end">
                         <div>
-                             <label class="block text-[9px] text-gray-500 mb-1 dark:text-gray-400">배경</label>
+                             <label class="block text-[9px] text-gray-500 mb-1 dark:text-gray-400">${i18n.label_bg_header}</label>
                              <div class="h-8 w-8 relative overflow-hidden rounded border border-gray-300 dark:border-gray-600 ${!layer.bg_color ? 'opacity-30' : ''}">
                                 <input type="color" value="${layer.bg_color || '#000000'}" onchange="updateLayer(${i}, 'bg_color', this.value)"
                                    class="absolute -top-2 -left-2 w-12 h-12 p-0 border-none cursor-pointer">
@@ -1201,7 +1296,7 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
 
                 <!-- Position Row -->
                 <div class="flex gap-2 items-center mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
-                    <span class="text-[9px] text-gray-400 dark:text-gray-500 font-bold whitespace-nowrap">📍 위치</span>
+                    <span class="text-[9px] text-gray-400 dark:text-gray-500 font-bold whitespace-nowrap">${i18n.label_position_header}</span>
                     <div class="flex gap-1 items-center">
                         <label class="text-[9px] text-gray-500 dark:text-gray-400">X</label>
                         <input type="number" value="${layer.x_offset || 0}"
@@ -1215,8 +1310,8 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
                             class="input-field py-0.5 text-xs w-16 h-7 px-1 text-center">
                     </div>
                     <button onclick="updateLayer(${i}, 'x_offset', 0); updateLayer(${i}, 'y_offset', 0); drawPreview(); renderLayers();"
-                        class="h-7 btn-secondary text-[9px] px-2 whitespace-nowrap">초기화</button>
-                    <span class="text-[9px] text-gray-400 dark:text-gray-500 ml-auto">드래그로도 조절 가능</span>
+                        class="h-7 btn-secondary text-[9px] px-2 whitespace-nowrap">${i18n.btn_reset_pos}</button>
+                    <span class="text-[9px] text-gray-400 dark:text-gray-500 ml-auto">${i18n.drag_to_adjust_hint}</span>
                 </div>
             </div>
         `).join('');
@@ -1263,7 +1358,7 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
             <div class="p-3 rounded-lg border relative transition ${i === selectedShapeIndex ? 'bg-blue-100 border-blue-400 dark:bg-blue-900/40 dark:border-blue-500 ring-1 ring-blue-400' : 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800'}"
                  onclick="selectShapeLayer(${i})">
                 <div class="flex items-center justify-between mb-2">
-                    <span class="text-[10px] font-bold text-blue-500">도형 ${i + 1}</span>
+                    <span class="text-[10px] font-bold text-blue-500">${i18n.label_shape_prefix} ${i + 1}</span>
                     <button onclick="removeShapeLayer(${i}); event.stopPropagation();" class="text-gray-400 hover:text-red-500">×</button>
                 </div>
                 
@@ -1276,14 +1371,14 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
 
                 <div class="grid grid-cols-2 gap-2 mb-2">
                     <div>
-                        <label class="block text-[10px] text-gray-500 dark:text-gray-400">시작 색상</label>
+                        <label class="block text-[10px] text-gray-500 dark:text-gray-400">${i18n.label_start_color}</label>
                         <div class="flex gap-1 items-center">
                             <input type="color" value="${shape.color_start === 'transparent' ? '#ffffff' : shape.color_start}" onchange="updateShapeLayer(${i}, 'color_start', this.value)" class="flex-1 h-6 p-0 border-none rounded cursor-pointer ${shape.color_start === 'transparent' ? 'opacity-30' : ''}">
-                            <button onclick="updateShapeLayer(${i}, 'color_start', shapeLayers[${i}].color_start === 'transparent' ? '#ffffff' : 'transparent'); event.stopPropagation();" class="text-[9px] w-12 btn-secondary py-0 ${shape.color_start === 'transparent' ? 'ring-1 ring-blue-400' : ''}">${shape.color_start === 'transparent' ? '투명' : '색상'}</button>
+                            <button onclick="updateShapeLayer(${i}, 'color_start', shapeLayers[${i}].color_start === 'transparent' ? '#ffffff' : 'transparent'); event.stopPropagation();" class="text-[9px] w-12 btn-secondary py-0 ${shape.color_start === 'transparent' ? 'ring-1 ring-blue-400' : ''}">${shape.color_start === 'transparent' ? i18n.btn_transparent : i18n.btn_color_opt}</button>
                         </div>
                     </div>
                     <div>
-                        <label class="block text-[10px] text-gray-500 dark:text-gray-400">끝 색상 (선택)</label>
+                        <label class="block text-[10px] text-gray-500 dark:text-gray-400">${i18n.label_end_color}</label>
                         <div class="flex gap-1">
                             <input type="color" value="${shape.color_end || '#000000'}" onchange="updateShapeLayer(${i}, 'color_end', this.value)" class="w-full h-6 p-0 border-none rounded cursor-pointer ${!shape.color_end ? 'opacity-30' : ''}">
                             <button onclick="updateShapeLayer(${i}, 'color_end', '${shape.color_end ? '' : '#000000'}')" class="text-[9px] w-12 btn-secondary py-0">${shape.color_end ? 'OFF' : 'ON'}</button>
@@ -1293,20 +1388,20 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
 
                 <div class="space-y-1">
                      <div class="flex items-center gap-2">
-                         <span class="text-[10px] text-gray-500 w-14 dark:text-gray-400">시작 투명도</span>
+                         <span class="text-[10px] text-gray-500 w-14 dark:text-gray-400">${i18n.label_start_opacity}</span>
                          <input type="range" min="0" max="1" step="0.1" value="${shape.opacity}" oninput="updateShapeLayer(${i}, 'opacity', parseFloat(this.value))" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
                      </div>
                      <div class="flex items-center gap-2" style="${!shape.color_end ? 'opacity: 0.5; pointer-events: none;' : ''}">
-                         <span class="text-[10px] text-gray-500 w-14 dark:text-gray-400">끝 투명도</span>
+                         <span class="text-[10px] text-gray-500 w-14 dark:text-gray-400">${i18n.label_end_opacity}</span>
                          <input type="range" min="0" max="1" step="0.1" value="${shape.opacity_end ?? shape.opacity}" oninput="updateShapeLayer(${i}, 'opacity_end', parseFloat(this.value))" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
                      </div>
                 </div>
                 
                 <div class="mt-2 flex justify-end gap-1">
-                     <button onclick="flipShapeGradient(${i}); event.stopPropagation();" class="text-xs p-1 px-2 rounded border dark:bg-gray-700 dark:border-gray-600 hover:bg-blue-100 dark:hover:bg-blue-900/40">🔄 반전</button>
+                     <button onclick="flipShapeGradient(${i}); event.stopPropagation();" class="text-xs p-1 px-2 rounded border dark:bg-gray-700 dark:border-gray-600 hover:bg-blue-100 dark:hover:bg-blue-900/40">${i18n.btn_flip_gradient}</button>
                      <select onchange="updateShapeLayer(${i}, 'gradient_direction', this.value)" class="text-xs p-1 rounded border dark:bg-gray-700 dark:border-gray-600">
-                        <option value="horizontal" ${shape.gradient_direction === 'horizontal' ? 'selected' : ''}>방향: 가로</option>
-                        <option value="vertical" ${shape.gradient_direction === 'vertical' ? 'selected' : ''}>방향: 세로</option>
+                        <option value="horizontal" ${shape.gradient_direction === 'horizontal' ? 'selected' : ''}>${i18n.opt_direction_h}</option>
+                        <option value="vertical" ${shape.gradient_direction === 'vertical' ? 'selected' : ''}>${i18n.opt_direction_v}</option>
                      </select>
                 </div>
             </div>
@@ -1573,7 +1668,7 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
     // 배경 생성 함수
     async function generateBackground(style = null) {
         const btn = document.getElementById('bgBtn');
-        Utils.setLoading(btn, true, '배경 생성 중...');
+        Utils.setLoading(btn, true, i18n.loading_bg_gen);
 
         // 스타일 파라미터가 없으면 현재 선택된 스타일 사용
         const currentStyle = style || document.getElementById('thumbnailStyle').value;
@@ -1591,21 +1686,21 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
                 currentBackgroundUrl = result.url;
                 bgImage = null; // Reset any manually uploaded image so we load the new URL
 
-                Utils.showToast('배경 이미지가 생성되었습니다!', 'success');
+                Utils.showToast(i18n.toast_bg_gen_success, 'success');
                 drawPreview(); // 배경 적용
                 saveStateToLocal(); // 저장
                 autoSaveToServer(); // 서버에도 저장
             } else {
                 // 404 등의 경우 detail 필드로 에러가 옴
-                const errorMsg = result.error || result.detail || '배경 생성 실패';
+                const errorMsg = result.error || result.detail || i18n.err_bg_gen_fail;
                 if (errorMsg === 'Not Found' || errorMsg.includes('Not Found')) {
-                    Utils.showToast('⚠️ 서버 재시작이 필요합니다. (새로운 기능 적용을 위해 main.py를 재실행해주세요)', 'error');
+                    Utils.showToast(i18n.toast_server_restart_needed, 'error');
                 } else {
                     Utils.showToast(errorMsg, 'error');
                 }
             }
         } catch (error) {
-            Utils.showToast('오류가 발생했습니다: ' + error.message, 'error');
+            Utils.showToast(i18n.err_generic_msg + ': ' + error.message, 'error');
             console.error(error);
         } finally {
             Utils.setLoading(btn, false);
@@ -1898,7 +1993,7 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
                     if (placeholder) placeholder.classList.add('hidden');
 
                     drawPreview();
-                    Utils.showToast('배경 이미지가 업로드되었습니다', 'success');
+                    Utils.showToast(i18n.toast_bg_uploaded, 'success');
                 };
                 img.src = e.target.result;
             };
@@ -1911,19 +2006,19 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
     async function generateFinalThumbnail() {
         // [Modified] Check if bgImage exists instead of selectedPrompt, to allow uploaded images
         if (!bgImage && !selectedPrompt) {
-            Utils.showToast('먼저 아이디어를 선택하거나 이미지를 업로드하세요', 'warning');
+            Utils.showToast(i18n.toast_select_idea_or_upload, 'warning');
             return;
         }
 
         const validLayers = textLayers.filter(l => l.text.trim() !== '');
         if (validLayers.length === 0 && shapeLayers.length === 0) {
-            Utils.showToast('최소 하나 이상의 텍스트 또는 도형을 입력하세요', 'warning');
+            Utils.showToast(i18n.toast_add_text_or_shape, 'warning');
             return;
         }
 
         const btn = document.getElementById('generateBtn');
         const originalText = btn.innerText;
-        Utils.setLoading(btn, true, '썸네일 저장 중...');
+        Utils.setLoading(btn, true, i18n.loading_saving_thumb);
 
         try {
             const canvas = document.getElementById('thumbnailCanvas');
@@ -1932,14 +2027,14 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
             canvas.toBlob(async (blob) => {
                 if (!blob) {
                     Utils.setLoading(btn, false);
-                    Utils.showToast('이미지 변환에 실패했습니다', 'error');
+                    Utils.showToast(i18n.toast_img_convert_fail, 'error');
                     return;
                 }
 
                 const projectId = getCurrentProject();
                 if (!projectId) {
                     Utils.setLoading(btn, false);
-                    Utils.showToast('프로젝트 정보를 찾을 수 없습니다', 'error');
+                    Utils.showToast(i18n.toast_project_not_found, 'error');
                     return;
                 }
 
@@ -1964,7 +2059,7 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
                         generatedHistory.unshift(result.url);
                         updateHistory();
 
-                        Utils.showToast('썸네일이 저장되었습니다!', 'success');
+                        Utils.showToast(i18n.toast_thumb_saved, 'success');
 
                         // [NEW] Update Progress Stepper Immediately
                         if (window.updateStepStatus) {
@@ -1979,18 +2074,18 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
                         saveStateToLocal(); // 저장
                         document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth' });
                     } else {
-                        throw new Error(result.detail || result.error || '저장 실패');
+                        throw new Error(result.detail || result.error || i18n.err_save_fail);
                     }
                 } catch (err) {
                     console.error('Upload Error:', err);
-                    Utils.showToast(`저장 실패: ${err.message}`, 'error');
+                    Utils.showToast(`${i18n.err_save_fail}: ${err.message}`, 'error');
                 } finally {
                     Utils.setLoading(btn, false);
                 }
             }, 'image/png', 1.0); // High quality
 
         } catch (error) {
-            Utils.showToast('오류가 발생했습니다: ' + error.message, 'error');
+            Utils.showToast(i18n.err_generic_msg + ': ' + error.message, 'error');
             console.error(error);
             Utils.setLoading(btn, false);
         }
@@ -2060,7 +2155,7 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
 
             // Update Info Text
             const info = document.getElementById('thumbnailSizeInfo');
-            if (info) info.innerText = '크기: 720 x 1280 (9:16)';
+            if (info) info.innerText = i18n.size_portrait;
         } else {
             targetW = 1280; targetH = 720;
 
@@ -2070,7 +2165,7 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
 
             // Update Info Text
             const info = document.getElementById('thumbnailSizeInfo');
-            if (info) info.innerText = '크기: 1280 x 720 (16:9)';
+            if (info) info.innerText = i18n.size_landscape;
         }
 
         // Canvas scale logic (display vs internal)
@@ -2119,7 +2214,7 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
 
         // 레이어 수 맞추기
         while (textLayers.length < preset.layerStyles.length) {
-            textLayers.push({ text: `텍스트 ${textLayers.length + 1}`, position: 'center', x_offset: 0, y_offset: 0, font_family: 'malgun', font_size: 72, color: '#FFFFFF', stroke_color: '#000000', stroke_width: 2, bg_color: null });
+            textLayers.push({ text: `Text ${textLayers.length + 1}`, position: 'center', x_offset: 0, y_offset: 0, font_family: 'malgun', font_size: 72, color: '#FFFFFF', stroke_color: '#000000', stroke_width: 2, bg_color: null });
         }
         textLayers.length = preset.layerStyles.length;
 
@@ -2151,7 +2246,7 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
         if (!sel) return;
         const presets = _getStylePresets();
         const names = Object.keys(presets);
-        sel.innerHTML = '<option value="">-- 스타일 선택 --</option>' +
+        sel.innerHTML = `<option value="">${i18n.opt_select_style}</option>` +
             names.map(n => `<option value="${n}"${n === selectValue ? ' selected' : ''}>${n}</option>`).join('');
         const delBtn = document.getElementById('btnDeleteStylePreset');
         if (delBtn) delBtn.classList.toggle('hidden', !selectValue);
@@ -2160,14 +2255,14 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
     function saveStylePreset() {
         const nameInput = document.getElementById('stylePresetName');
         const name = (nameInput?.value || '').trim();
-        if (!name) { Utils.showToast('스타일 이름을 입력하세요.', 'error'); return; }
+        if (!name) { Utils.showToast(i18n.toast_enter_style_name, 'error'); return; }
 
         const presets = _getStylePresets();
         presets[name] = _extractCurrentStyle();
         _saveStylePresets(presets);
         _refreshStylePresetSelect(name);
         if (nameInput) nameInput.value = '';
-        Utils.showToast(`스타일 "${name}" 저장 완료`, 'success');
+        Utils.showToast(`${i18n.toast_style_preset_saved_prefix} "${name}"`, 'success');
     }
 
     function loadStylePreset(name) {
@@ -2177,14 +2272,14 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
         }
         const presets = _getStylePresets();
         const preset = presets[name];
-        if (!preset) { Utils.showToast('스타일을 찾을 수 없습니다.', 'error'); return; }
+        if (!preset) { Utils.showToast(i18n.toast_style_not_found, 'error'); return; }
         try {
             _applyStylePreset(preset);
             document.getElementById('btnDeleteStylePreset')?.classList.remove('hidden');
-            Utils.showToast(`스타일 "${name}" 불러오기 완료`, 'success');
+            Utils.showToast(`${i18n.toast_style_preset_loaded_prefix} "${name}"`, 'success');
         } catch (e) {
             console.error('Style preset load error:', e);
-            Utils.showToast('스타일 불러오기 실패', 'error');
+            Utils.showToast(i18n.toast_style_load_fail, 'error');
         }
     }
 
@@ -2192,12 +2287,12 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
         const sel = document.getElementById('stylePresetSelect');
         const name = sel?.value;
         if (!name) return;
-        if (!confirm(`"${name}" 스타일을 삭제할까요?`)) return;
+        if (!confirm(`"${name}" ${i18n.confirm_delete_style}`)) return;
         const presets = _getStylePresets();
         delete presets[name];
         _saveStylePresets(presets);
         _refreshStylePresetSelect('');
-        Utils.showToast(`스타일 "${name}" 삭제됨`, 'success');
+        Utils.showToast(`${i18n.toast_style_deleted_prefix} "${name}"`, 'success');
     }
 
     async function saveAsDefaultStyle() {
@@ -2209,12 +2304,12 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
             });
             const result = await res.json();
             if (result.status === 'ok') {
-                Utils.showToast('⭐ 현재 스타일이 전역 기본값으로 저장되었습니다.', 'success');
+                Utils.showToast(i18n.toast_default_style_saved, 'success');
             } else {
-                Utils.showToast('저장 실패: ' + (result.error || ''), 'error');
+                Utils.showToast(i18n.err_save_fail + ': ' + (result.error || ''), 'error');
             }
         } catch (e) {
-            Utils.showToast('저장 실패: ' + e.message, 'error');
+            Utils.showToast(i18n.err_save_fail + ': ' + e.message, 'error');
         }
     }
 
@@ -2241,7 +2336,7 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
         const btn = document.getElementById('saveSettingsBtn');
         const projectId = getCurrentProject();
         if (!projectId) {
-            Utils.showToast('프로젝트를 선택해주세요.', 'error');
+            Utils.showToast(i18n.warn_no_project_selected, 'error');
             return;
         }
 
@@ -2285,14 +2380,14 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
 
             const result = await response.json();
             if (result.status === 'ok') {
-                Utils.showToast('스타일, 폰트, 색상 등 모든 설정이 서버에 영구 저장되었습니다.', 'success');
+                Utils.showToast(i18n.toast_all_settings_saved, 'success');
                 saveStateToLocal(); // 로컬 세션도 동기화
             } else {
-                throw new Error(result.error || '저장 실패');
+                throw new Error(result.error || i18n.err_save_fail);
             }
         } catch (error) {
             console.error('Save settings error:', error);
-            Utils.showToast(`저장 실패: ${error.message}`, 'error');
+            Utils.showToast(`${i18n.err_save_fail}: ${error.message}`, 'error');
         } finally {
             Utils.setLoading(btn, false);
         }
@@ -2448,7 +2543,7 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
             renderShapeLayers();
             drawPreview();
 
-            Utils.showToast('이전 작업 상태를 복구했습니다.', 'info');
+            Utils.showToast(i18n.toast_state_restored, 'info');
 
         } catch (e) {
             console.error('State load error:', e);

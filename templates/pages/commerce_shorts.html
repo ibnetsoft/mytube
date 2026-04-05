@@ -366,7 +366,21 @@
         status_no_videos_yet: "{{ t('status_no_videos_yet') }}",
         label_engine: "{{ t('label_engine') }}",
         label_task_id: "{{ t('label_task_id') }}",
-        click_to_apply: "{{ t('click_to_apply') }}"
+        click_to_apply: "{{ t('click_to_apply') }}",
+        label_no_product_name: "{{ t('label_no_product_name') }}",
+        label_created_at: "{{ t('label_created_at') }}",
+        status_completed_short: "{{ t('status_completed_short') }}",
+        status_processing_short: "{{ t('status_processing_short') }}",
+        status_failed_short: "{{ t('status_failed_short') }}",
+        status_waiting_short: "{{ t('status_waiting_short') }}",
+        btn_play: "{{ t('btn_play') }}",
+        btn_download: "{{ t('btn_download') }}",
+        btn_refresh: "{{ t('btn_refresh') }}",
+        btn_delete: "{{ t('btn_delete') }}",
+        toast_checking_video_status: "{{ t('toast_checking_video_status') }}",
+        confirm_delete_video: "{{ t('confirm_delete_video') }}",
+        toast_video_deleted: "{{ t('toast_video_deleted') }}",
+        err_delete_video_failed: "{{ t('err_delete_video_failed') }}"
     };
 
     // ============ 이미지 업로드 관련 함수 ============
@@ -827,7 +841,7 @@
                         <img 
                             src="${video.thumbnail_url}" 
                             class="w-32 h-48 object-cover rounded-lg" 
-                            alt="썸네일"
+                            alt="${i18n.label_image || 'thumbnail'}"
                         />
                     ` : `
                         <div class="w-32 h-48 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">
@@ -838,9 +852,9 @@
                 
                 <!-- 정보 -->
                 <div class="flex-1">
-                    <h4 class="font-bold text-lg mb-1">${video.product_name || '제품명 없음'}</h4>
+                    <h4 class="font-bold text-lg mb-1">${video.product_name || i18n.label_no_product_name}</h4>
                     <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">${video.product_price || ''}</p>
-                    <p class="text-xs text-gray-500 mb-2 dark:text-gray-400">생성일: ${new Date(video.created_at).toLocaleDateString()}</p>
+                    <p class="text-xs text-gray-500 mb-2 dark:text-gray-400">${i18n.label_created_at}${new Date(video.created_at).toLocaleDateString()}</p>
                     
                     <!-- 상태 배지 -->
                     <div class="flex items-center gap-2 mb-2">
@@ -849,10 +863,10 @@
                         video.status === 'failed' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
                             'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
                 }">
-                            ${video.status === 'completed' ? '✅ 완료' :
-                    video.status === 'processing' ? '⏳ 생성 중' :
-                        video.status === 'failed' ? '❌ 실패' :
-                            '⏸️ 대기 중'
+                            ${video.status === 'completed' ? `✅ ${i18n.status_completed_short}` :
+                    video.status === 'processing' ? `⏳ ${i18n.status_processing_short}` :
+                        video.status === 'failed' ? `❌ ${i18n.status_failed_short}` :
+                            `⏸️ ${i18n.status_waiting_short}`
                 }
                         </span>
                         
@@ -876,18 +890,18 @@
                 <div class="flex flex-col gap-2">
                     ${video.video_url ? `
                         <button onclick="playVideo('${video.video_url}')" class="btn-primary px-3 py-2 text-sm whitespace-nowrap">
-                            ▶️ 재생
+                            ▶️ ${i18n.btn_play}
                         </button>
                         <a href="${video.video_url}" download class="btn-secondary px-3 py-2 text-sm text-center whitespace-nowrap">
-                            ⬇️ 다운로드
+                            ⬇️ ${i18n.btn_download}
                         </a>
                     ` : video.status === 'processing' ? `
                         <button onclick="refreshVideo(${video.id})" class="btn-secondary px-3 py-2 text-sm whitespace-nowrap">
-                            🔄 새로고침
+                            🔄 ${i18n.btn_refresh}
                         </button>
                     ` : ''}
                     <button onclick="deleteVideo(${video.id})" class="btn-danger px-3 py-2 text-sm whitespace-nowrap">
-                        🗑️ 삭제
+                        🗑️ ${i18n.btn_delete}
                     </button>
                 </div>
             </div>
@@ -925,20 +939,20 @@
     }
 
     async function refreshVideo(videoId) {
-        Utils.showToast('영상 상태를 확인하고 있습니다...', 'info');
+        Utils.showToast(i18n.toast_checking_video_status, 'info');
         await loadMyVideos();
     }
 
     async function deleteVideo(videoId) {
-        if (!confirm('이 영상을 삭제하시겠습니까?')) return;
+        if (!confirm(i18n.confirm_delete_video)) return;
 
         try {
             await fetch(`/api/commerce/videos/${videoId}`, { method: 'DELETE' });
-            Utils.showToast('영상이 삭제되었습니다', 'success');
+            Utils.showToast(i18n.toast_video_deleted, 'success');
             loadMyVideos();
         } catch (error) {
             console.error('Delete failed:', error);
-            Utils.showToast('삭제에 실패했습니다', 'error');
+            Utils.showToast(i18n.err_delete_video_failed, 'error');
         }
     }
 

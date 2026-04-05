@@ -54,13 +54,13 @@
             <!-- 프로젝트 선택 -->
             <div class="px-3 py-1.5 border-b border-gray-200 dark:border-gray-700 shrink-0">
                 <div class="flex items-center justify-between mb-1">
-                    <span class="text-[10px] font-medium text-gray-500 dark:text-gray-400">현재 프로젝트</span>
+                    <span class="text-[10px] font-medium text-gray-500 dark:text-gray-400">{{ t('label_current_project') }}</span>
                     <button onclick="openProjectModal()"
-                        class="text-[10px] text-blue-500 hover:text-blue-600 font-bold">새로만들기</button>
+                        class="text-[10px] text-blue-500 hover:text-blue-600 font-bold">{{ t('new_project_btn') }}</button>
                 </div>
                 <select id="projectSelect" onchange="onProjectChange(this.value)"
                     class="w-full text-xs p-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-800 dark:text-white">
-                    <option value="">프로젝트 선택...</option>
+                    <option value="">{{ t('select_project_placeholder') }}</option>
                 </select>
                 <div id="currentProjectInfo" class="mt-1 text-[10px] text-gray-500 hidden dark:text-gray-400">
                     <span id="projectStatus"></span>
@@ -74,20 +74,20 @@
                         <a href="/projects" id="nav-projects"
                             class="sidebar-item {% if page == 'projects' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
-                            <span>내 프로젝트</span>
+                            <span>{{ t('nav_my_projects') }}</span>
                         </a>
                     </li>
                     <li class="{% if app_mode == 'webtoon' %}hidden{% endif %}">
                         <a href="/" id="nav-topic" class="sidebar-item {% if page == 'topic' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
-                            <span>주제 찾기</span>
+                            <span>{{ t('nav_topic') }}</span>
                         </a>
                     </li>
                     <li class="{% if app_mode == 'webtoon' %}hidden{% endif %}">
                         <a href="/repository" id="nav-repository"
                             class="sidebar-item {% if page == 'repository' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
-                            <span>저장소</span>
+                            <span>{{ t('nav_repository') }}</span>
                         </a>
                     </li>
 
@@ -95,48 +95,48 @@
                         <a href="/script-plan" id="nav-plan"
                             class="sidebar-item {% if page == 'script-plan' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
-                            <span>대본 기획</span>
+                            <span>{{ t('nav_plan') }}</span>
                         </a>
                     </li>
                     <li class="{% if app_mode == 'commerce' %}hidden{% endif %}">
                         <a href="/script-gen" id="nav-script"
                             class="sidebar-item {% if page == 'script-gen' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
-                            <span>대본 생성</span>
+                            <span>{{ t('nav_script') }}</span>
                         </a>
                     </li>
                     <li class="hidden">
                         <a href="/video-gen" id="nav-intro"
                             class="sidebar-item {% if page == 'video-gen' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
-                            <span>인트로 생성</span>
+                            <span>{{ t('nav_intro') }}</span>
                         </a>
                     </li>
                     <li class="{% if app_mode in ['commerce'] %}hidden{% endif %}">
                         <a href="/image-gen" id="nav-image"
                             class="sidebar-item {% if page == 'image-gen' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
-                            <span>이미지 생성</span>
+                            <span>{{ t('nav_image') }}</span>
                         </a>
                     </li>
                     <li class="hidden">
                         <a href="/audio-gen" id="nav-audio"
                             class="sidebar-item {% if page == 'audio-gen' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
-                            <span>오디오 생성</span>
+                            <span>{{ t('nav_audio') }}</span>
                         </a>
                     </li>
                     <li class="{% if app_mode in ['commerce', 'webtoon'] %}hidden{% endif %}">
                         <a href="/thumbnail" id="nav-thumbnail"
                             class="sidebar-item {% if page == 'thumbnail' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
-                            <span>썸네일 생성</span>
+                            <span>{{ t('nav_thumbnail') }}</span>
                         </a>
                     </li>
                     <li class="{% if app_mode in ['commerce'] %}hidden{% endif %}">
                         <a href="/tts" id="nav-tts" class="sidebar-item {% if page == 'tts' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
-                            <span>TTS 생성</span>
+                            <span>{{ t('nav_tts') }}</span>
                         </a>
                     </li>
 
@@ -145,21 +145,21 @@
                             class="sidebar-item {% if page == 'subtitle-gen' %}active{% endif %}"
                             onclick="(function(e){ const pid = window.currentProjectId || localStorage.getItem('currentProjectId'); if(pid){ e.preventDefault(); window.location.href='/subtitle-gen?project_id='+pid; } })(event)">
                             <span class="sidebar-icon"></span>
-                            <span>자막 편집</span>
+                            <span>{{ t('nav_subtitle') }}</span>
                         </a>
                     </li>
                     <li class="{% if app_mode in ['commerce'] %}hidden{% endif %}">
                         <a href="/render" id="nav-render"
                             class="sidebar-item {% if page == 'render' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
-                            <span>영상 렌더링</span>
+                            <span>{{ t('nav_render') }}</span>
                         </a>
                     </li>
                     <li class="{% if app_mode in ['commerce', 'shorts'] %}hidden{% endif %}">
                         <a href="/title-desc" id="nav-title"
                             class="sidebar-item {% if page == 'title-desc' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
-                            <span>제목/설명 생성</span>
+                            <span>{{ t('nav_title_desc') }}</span>
                         </a>
                     </li>
 
@@ -167,8 +167,7 @@
                         <a href="/video-upload" id="nav-upload"
                             class="sidebar-item {% if page == 'video-upload' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
-                            <span>{% if is_independent %}영상 업로드{% else %}예약 업로드{% endif
-                                %}</span>
+                            <span>{% if is_independent %}{{ t('nav_upload') }}{% else %}{{ t('nav_reserve') }}{% endif %}</span>
                         </a>
                     </li>
 
@@ -176,7 +175,7 @@
                         <a href="/shorts" id="nav-shorts"
                             class="sidebar-item {% if page == 'shorts' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
-                            <span>쇼츠 추출</span>
+                            <span>{{ t('nav_shorts') }}</span>
                         </a>
                     </li>
                     <li class="mt-1 pt-1 border-t border-gray-200 dark:border-gray-700 {% if app_mode != 'commerce' %}hidden{% endif %}">
@@ -184,7 +183,7 @@
                             class="sidebar-item bg-gradient-to-r from-orange-500/10 to-yellow-500/10 border border-orange-500/30 {% if page == 'commerce-shorts' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
                             <span
-                                class="bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-yellow-400 font-bold">커머스 쇼츠</span>
+                                class="bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-yellow-400 font-bold">{{ t('nav_commerce_shorts') }}</span>
                             <span
                                 class="ml-auto text-[8px] bg-orange-500/20 text-orange-400 px-1 py-0.5 rounded">New</span>
                         </a>
@@ -196,7 +195,7 @@
                             class="sidebar-item bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 {% if page == 'autopilot' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
                             <span
-                                class="bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-400 font-bold">오토파일럿</span>
+                                class="bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-400 font-bold">{{ t('nav_autopilot') }}</span>
                             <span
                                 class="ml-auto text-[8px] bg-purple-500/20 text-purple-400 px-1 py-0.5 rounded">Beta</span>
                         </a>
@@ -212,7 +211,7 @@
                         <a href="https://wallet.airing.work/" target="_blank"
                             class="sidebar-item group hover:bg-blue-500/10 transition-all flex items-center gap-3">
                             <span class="sidebar-icon grayscale group-hover:grayscale-0"></span>
-                            <span class="font-black text-blue-500 dark:text-blue-400">WALLET 서비스</span>
+                            <span class="font-black text-blue-500 dark:text-blue-400">{{ t('nav_wallet') }}</span>
                             <span class="ml-auto opacity-30 dark:opacity-60 text-white">
                                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
@@ -230,8 +229,8 @@
                 <div class="px-3 py-2">
                     <button onclick="toggleTheme()"
                         class="w-full flex items-center justify-center gap-2 p-1 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-[10px] font-medium">
-                        <span class="dark:hidden">라이트 모드</span>
-                        <span class="hidden dark:inline">다크 모드</span>
+                        <span class="dark:hidden">{{ t('label_light_mode') }}</span>
+                        <span class="hidden dark:inline">{{ t('label_dark_mode') }}</span>
                     </button>
                 </div>
 
@@ -240,7 +239,7 @@
                     <div id="apiStatus" class="text-xs text-gray-500 dark:text-gray-400">
                         <div class="flex items-center gap-2 mb-1">
                             <span id="statusDot" class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
-                            <span class="text-[10px]">API 상태 확인 중...</span>
+                            <span class="text-[10px]">{{ t('status_api_checking') }}</span>
                         </div>
                     </div>
                 </div>
@@ -263,12 +262,12 @@
                             <div class="flex items-center gap-1 group/title">
                                 <h2 id="currentProjectNameDisplay"
                                     class="text-sm font-black text-gray-800 dark:text-white border-b-2 border-blue-500/30 pb-0.5 cursor-help"
-                                    title="클릭하여 이름 변경">
-                                    프로젝트 이름
+                                    title="{{ t('title_click_rename') }}">
+                                    {{ t('label_project_name') }}
                                 </h2>
-                                <button onclick="quickRenameCurrentProject()" 
+                                <button onclick="quickRenameCurrentProject()"
                                         class="opacity-0 group-hover/title:opacity-100 p-1 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-all text-blue-500"
-                                        title="이름 변경">
+                                        title="{{ t('title_rename') }}">
                                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
                                     </svg>
@@ -317,7 +316,7 @@
                                         class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
                                         <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
                                     </div>
-                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">기획</span>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{ t('step_plan') }}</span>
                                 </a>
 
                                 <!-- Step 4: Script -->
@@ -328,7 +327,7 @@
                                         class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
                                         <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
                                     </div>
-                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">대본</span>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{ t('step_script') }}</span>
                                 </a>
 
                                 <!-- Step 5: Intro -->
@@ -339,7 +338,7 @@
                                         class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
                                         <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
                                     </div>
-                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">인트로</span>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{ t('step_intro') }}</span>
                                 </a>
 
                                 <!-- Step 6: Image -->
@@ -350,7 +349,7 @@
                                         class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
                                         <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
                                     </div>
-                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">이미지</span>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{ t('step_image') }}</span>
                                 </a>
 
                                 <!-- Step 7: Thumbnail -->
@@ -361,7 +360,7 @@
                                         class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
                                         <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
                                     </div>
-                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">썸네일</span>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{ t('step_thumbnail') }}</span>
                                 </a>
 
                                 <!-- Step 8: TTS -->
@@ -386,7 +385,7 @@
                                         class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
                                         <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
                                     </div>
-                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">자막</span>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{ t('step_subtitle') }}</span>
                                 </a>
 
                                 <!-- Step 11: Render -->
@@ -397,7 +396,7 @@
                                         class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
                                         <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
                                     </div>
-                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">렌더링</span>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{ t('step_render') }}</span>
                                 </a>
 
                                 <!-- Step 12: Upload -->
@@ -408,7 +407,7 @@
                                         class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
                                         <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
                                     </div>
-                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">업로드</span>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{ t('step_upload') }}</span>
                                 </a>
                             </div>
                         </div>
@@ -427,21 +426,21 @@
     <div id="projectModal" class="modal-overlay hidden">
         <div class="modal-content max-w-md">
             <div class="p-6 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-bold text-gray-800 dark:text-white">새 프로젝트 만들기</h3>
+                <h3 class="text-lg font-bold text-gray-800 dark:text-white">{{ t('title_new_project') }}</h3>
             </div>
             <div class="p-6">
                 <div class="mb-4">
-                    <label class="block text-sm font-bold text-gray-800 dark:text-white mb-2">프로젝트 이름</label>
+                    <label class="block text-sm font-bold text-gray-800 dark:text-white mb-2">{{ t('label_project_name') }}</label>
                     <input type="text" id="newProjectName"
                         class="input-field py-3 text-base dark:bg-gray-800 dark:border-gray-700"
-                        placeholder="예: 2024년 트렌드 분석 영상">
+                        placeholder="{{ t('placeholder_project_name_input') }}">
                 </div>
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">주제 (선택)</label>
-                    <input type="text" id="newProjectTopic" class="input-field" placeholder="예: 재테크, 일상, 정보전달 (생략 가능)">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('label_topic_optional') }}</label>
+                    <input type="text" id="newProjectTopic" class="input-field" placeholder="{{ t('placeholder_topic_input') }}">
                 </div>
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">콘텐츠 언어</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('label_content_language') }}</label>
                     <select id="newProjectLanguage" class="input-field">
                         <option value="ko">🇰🇷 한국어 (Korean)</option>
                         <option value="en">🇺🇸 English</option>
@@ -451,8 +450,8 @@
                     </select>
                 </div>
                 <div class="flex gap-3">
-                    <button onclick="createNewProject()" class="flex-1 btn-primary">생성하기</button>
-                    <button onclick="closeProjectModal()" class="btn-secondary">취소</button>
+                    <button onclick="createNewProject()" class="flex-1 btn-primary">{{ t('btn_create') }}</button>
+                    <button onclick="closeProjectModal()" class="btn-secondary">{{ t('btn_cancel') }}</button>
                 </div>
             </div>
         </div>
@@ -467,7 +466,7 @@
         <!-- 모드 표시 (롱폼, 숏폼, 커머스, 블로그) -->
         <div class="flex items-center gap-2 px-3 py-1.5 bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-full shadow-lg border border-gray-200 dark:border-gray-700">
             <span class="text-[10px] font-black uppercase tracking-tighter text-gray-700 dark:text-gray-300">
-                {% if app_mode == 'shorts' %}숏폼{% elif app_mode == 'commerce' %}커머스{% elif app_mode == 'webtoon' %}웹툰{% else %}롱폼{% endif %} 모드
+                {% if app_mode == 'shorts' %}{{ t('mode_shortform') }}{% elif app_mode == 'commerce' %}{{ t('mode_commerce_label') }}{% elif app_mode == 'webtoon' %}{{ t('mode_webtoon_label') }}{% else %}{{ t('mode_longform') }}{% endif %} {{ t('label_mode_suffix') }}
             </span>
         </div>
 
@@ -518,19 +517,19 @@
         async function quickRenameCurrentProject() {
             const currentPid = window.currentProjectId || localStorage.getItem('currentProjectId');
             if (!currentPid) {
-                Utils.showToast("선택된 프로젝트가 없습니다.", "warning");
+                Utils.showToast(i18n.warn_no_project_selected, "warning");
                 return;
             }
 
             const nameEl = document.getElementById('currentProjectNameDisplay');
             const currentName = nameEl ? nameEl.textContent.trim() : "";
-            
-            const newName = prompt("새 프로젝트 이름을 입력하세요:", currentName);
+
+            const newName = prompt(i18n.prompt_enter_new_project_name, currentName);
             if (newName === null) return; // Cancelled
-            
+
             const trimmedName = newName.trim();
             if (!trimmedName) {
-                Utils.showToast("이름을 입력해주세요.", "warning");
+                Utils.showToast(i18n.warn_enter_name, "warning");
                 return;
             }
 
@@ -543,26 +542,26 @@
                     body: JSON.stringify({ name: trimmedName })
                 });
 
-                if (!res.ok) throw new Error("이름 변경 실패");
+                if (!res.ok) throw new Error(i18n.err_rename_fail);
 
-                Utils.showToast("프로젝트 이름이 변경되었습니다.", "success");
-                
+                Utils.showToast(i18n.toast_name_changed, "success");
+
                 // Update UI immediately
                 if (nameEl) nameEl.textContent = trimmedName;
-                
+
                 // Update sidebar select (if exists)
                 const select = document.getElementById('projectSelect');
                 if (select) {
                     const opt = Array.from(select.options).find(o => o.value === currentPid);
                     if (opt) opt.textContent = trimmedName;
                 }
-                
+
                 // Update sidebar project name (if exists)
                 const sidebarName = document.getElementById('sidebar-project-name');
                 if (sidebarName) sidebarName.textContent = trimmedName;
 
             } catch (e) {
-                Utils.showToast("오류: " + e.message, "error");
+                Utils.showToast(i18n.err_generic_msg + e.message, "error");
             }
         }
 
@@ -598,6 +597,12 @@
             err_no_project_name: "{{ t('err_no_project_name') }}",
             toast_project_created: "{{ t('toast_project_created') }}",
             err_fail_create_project: "{{ t('err_fail_create_project') }}",
+            warn_no_project_selected: "{{ t('warn_no_project_selected') }}",
+            prompt_enter_new_project_name: "{{ t('prompt_enter_new_project_name') }}",
+            warn_enter_name: "{{ t('warn_enter_name') }}",
+            err_rename_fail: "{{ t('err_rename_fail') }}",
+            toast_name_changed: "{{ t('toast_name_changed') }}",
+            err_generic_msg: "{{ t('err_generic_msg') }}",
 
             // Autopilot keys
             label_preset: "{{ t('label_preset') }}",

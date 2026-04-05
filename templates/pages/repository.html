@@ -65,6 +65,7 @@
         err_insufficient_info: "{{ t('err_insufficient_info') }}",
         confirm_start_plan: "{{ t('confirm_start_plan') }}",
         toast_creating_plan: "{{ t('toast_creating_plan') }}",
+        time_approx_10_20s: "{{ t('time_approx_10_20s') }}",
         toast_plan_created_moving: "{{ t('toast_plan_created_moving') }}",
         err_occurred: "{{ t('err_occurred') }}",
         toast_excel_download_info: "{{ t('toast_excel_download_info') }}"
@@ -243,7 +244,7 @@
 
         if (!confirm(`'${title}'\n${i18n.confirm_start_plan}`)) return;
 
-        Utils.showToast(`${i18n.toast_creating_plan}... (약 10-20초)`, "info");
+        Utils.showToast(`${i18n.toast_creating_plan}... ${i18n.time_approx_10_20s}`, "info");
 
         try {
             const res = await fetch('/api/repository/create-plan', {

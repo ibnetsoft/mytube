@@ -32,8 +32,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await Promise.all([loadStyles(), loadVoices(), fetchPresets(), loadChannels()]);
 
     // 2. Load Saved Settings (Global / Default Project)
-    // 2. Load Saved Settings (Global / Default Project)
-    await Promise.all([loadSavedSettings(), loadSubtitleDefaults()]);
+    await Promise.all([loadSavedSettings(), loadSubtitleDefaults(), fetchSubtitlePresets()]);
 
     // 3. Event Listeners
     const startBtn = document.getElementById('startAutopilotBtn');
@@ -1265,15 +1264,26 @@ async function loadSubtitleDefaults() {
         const data = await res.json();
         const s = data.settings || {};
 
-        // [NEW] Cache for Preset Saving & Start Payload
+        // 1. Initial Load from Backend Defaults
         window.currentSubtitleSettings = s;
         renderSubtitlePreview(s);
 
-        if (data.status === 'ok') {
-            // Already rendered by renderSubtitlePreview(s)
-        } else {
-            panel.innerHTML = `<div class="col-span-2 text-red-400 text-xs">${i18n.status_load_failed}</div>`;
+        // 2. [NEW] Check LocalStorage for User-Selected Subtitle Preset
+        const lastSelected = localStorage.getItem('last_selected_subtitle_preset');
+        if (lastSelected) {
+            // Wait a bit for fetchSubtitlePresets to finish and select it
+            setTimeout(() => {
+                const subSelect = document.getElementById('subtitlePresetSelect');
+                if (subSelect) {
+                    subSelect.value = lastSelected;
+                    // If the value exists (preset still there), apply it
+                    if (subSelect.value === lastSelected) {
+                        applySubtitlePresetByName(lastSelected);
+                    }
+                }
+            }, 500);
         }
+
     } catch (e) {
         console.error(e);
         panel.innerHTML = `<div class="col-span-2 text-red-400 text-xs">${i18n.status_connection_error}</div>`;
@@ -1285,43 +1295,131 @@ function renderSubtitlePreview(s) {
     const panel = document.getElementById('subtitlePreviewPanel');
     if (!panel) return;
 
-    // Logic extracted from above for reuse
-    const fontName = s.subtitle_font || 'N/A';
-    const size = s.subtitle_font_size ? `${s.subtitle_font_size}%` : 'N/A';
-    const color = s.subtitle_color || 'N/A';
-    const opacity = s.subtitle_bg_opacity !== undefined ? s.subtitle_bg_opacity : 'N/A';
-    const stroke = s.subtitle_stroke_width > 0 ? `${s.subtitle_stroke_width}px` : 'None';
-    const lineSpace = s.subtitle_line_spacing || '0.1';
+    // [FIX] Support both new snake_case and old/alternative keys
+    const fontName = s.subtitle_font || s.font || 'N/A';
+    const sizeVal = s.subtitle_font_size || s.fontSize || s.size;
+    const size = sizeVal ? `${sizeVal}%` : 'N/A';
+    const color = s.subtitle_color || s.color || 'N/A';
+    const opacityVal = s.subtitle_bg_opacity !== undefined ? s.subtitle_bg_opacity : (s.bgOpacity !== undefined ? s.bgOpacity : 'N/A');
+    const opacity = opacityVal;
+    const strokeWidth = s.subtitle_stroke_width !== undefined ? s.subtitle_stroke_width : (s.strokeWidth || 0);
+    const stroke = strokeWidth > 0 ? `${strokeWidth}px` : 'None';
+    const lineSpace = s.subtitle_line_spacing || s.lineSpacing || '0.1';
 
     panel.innerHTML = `
         <div class="flex flex-col">
             <span class="text-xs text-gray-500">폰트 (Font)</span>
-            <span class="font-bold text-white">${fontName}</span>
+            <span class="font-bold text-white text-[10px] break-all">${fontName}</span>
         </div>
         <div class="flex flex-col">
             <span class="text-xs text-gray-500">크기 (Size)</span>
-            <span class="font-bold text-white">${size}</span>
+            <span class="font-bold text-white text-[10px]">${size}</span>
         </div>
         <div class="flex flex-col">
             <span class="text-xs text-gray-500">색상 (Color)</span>
             <div class="flex items-center gap-2">
                 <div class="w-3 h-3 rounded-full border border-gray-600" style="background-color: ${color}"></div>
-                <span class="font-bold text-white">${color}</span>
+                <span class="font-bold text-white text-[10px]">${color}</span>
             </div>
         </div>
         <div class="flex flex-col">
             <span class="text-xs text-gray-500">테두리 (Stroke)</span>
-            <span class="font-bold text-white">${stroke}</span>
+            <span class="font-bold text-white text-[10px]">${stroke}</span>
         </div>
         <div class="flex flex-col">
             <span class="text-xs text-gray-500">배경 투명도 (Opacity)</span>
-            <span class="font-bold text-white">${opacity}</span>
+            <span class="font-bold text-white text-[10px]">${opacity}</span>
         </div>
         <div class="flex flex-col">
             <span class="text-xs text-gray-500">줄 간격 (Spacing)</span>
-            <span class="font-bold text-white">${lineSpace}</span>
+            <span class="font-bold text-white text-[10px]">${lineSpace}</span>
         </div>
     `;
+}
+
+// [NEW] Subtitle Preset Logic
+async function fetchSubtitlePresets() {
+    const sel = document.getElementById('subtitlePresetSelect');
+    if (!sel) return;
+
+    try {
+        const res = await fetch('/api/subtitle/presets');
+        const data = await res.json();
+        
+        if (data.status === 'ok' && data.presets) {
+            // Keep the custom option
+            sel.innerHTML = `<option value="" class="bg-gray-800 text-white">-- ${i18n.preset_custom || '직접설정(마지막 저장값)'} --</option>`;
+            
+            data.presets.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.name; // Use name as value
+                opt.innerText = p.name;
+                opt.className = "bg-gray-800 text-white"; // [FIX] Ensure readability
+                sel.appendChild(opt);
+            });
+        }
+    } catch (e) {
+        console.error("Failed to load subtitle presets:", e);
+    }
+
+    // Add change listener
+    sel.onchange = (e) => {
+        const presetName = e.target.value;
+        if (presetName) {
+            applySubtitlePresetByName(presetName);
+            localStorage.setItem('last_selected_subtitle_preset', presetName);
+        } else {
+            // Custom selection -> fallback to global defaults or keep last
+            localStorage.removeItem('last_selected_subtitle_preset');
+            loadSubtitleDefaults(); // Reload main defaults 
+        }
+    };
+}
+
+async function applySubtitlePresetByName(name) {
+    try {
+        const res = await fetch('/api/subtitle/presets');
+        const data = await res.json();
+        if (data.status === 'ok' && data.presets) {
+            // [FIX] Use == to handle string vs number names (e.g. "2" vs 2)
+            const preset = data.presets.find(p => p.name == name);
+            const settingsRaw = preset ? (preset.settings_json || preset.settings) : null;
+            if (settingsRaw) {
+                // [FIX] Robust multi-parse for double-stringified JSON
+                let s = settingsRaw;
+                if (typeof s === 'string') {
+                    try { 
+                        s = JSON.parse(s);
+                        // If still a string after one parse, try once more
+                        if (typeof s === 'string') s = JSON.parse(s);
+                    } catch (e) {
+                        console.error("JSON Parse Error in applySubtitlePresetByName:", e);
+                    }
+                }
+                
+                if (s && typeof s === 'object') {
+                    // [CRITICAL FIX] Map keys from Subtitle Editor (fontFamily, etc) to Autopilot (subtitle_font, etc)
+                    const mapped = {
+                        subtitle_font: s.subtitle_font || s.fontFamily || s.font || 'GmarketSansBold',
+                        subtitle_font_size: s.subtitle_font_size || s.fontSize || s.size || 6.4,
+                        subtitle_color: s.subtitle_color || s.textColor || s.color || '#ffffff',
+                        subtitle_stroke_color: s.subtitle_stroke_color || s.strokeColor || '#000000',
+                        subtitle_stroke_width: s.subtitle_stroke_width !== undefined ? s.subtitle_stroke_width : (s.strokeWidth || 0),
+                        subtitle_line_spacing: s.subtitle_line_spacing !== undefined ? s.subtitle_line_spacing : (s.lineSpacing || 0.1),
+                        subtitle_bg_enabled: s.subtitle_bg_enabled !== undefined ? (s.subtitle_bg_enabled ? 1 : 0) : (s.bgStripEnabled !== undefined ? (s.bgStripEnabled ? 1 : 0) : 1),
+                        subtitle_bg_color: s.subtitle_bg_color || s.bgStripColor || '#000000',
+                        subtitle_bg_opacity: s.subtitle_bg_opacity !== undefined ? s.subtitle_bg_opacity : (s.bgStripOpacity !== undefined ? s.bgStripOpacity : 0.5),
+                        subtitle_bg_v_offset: s.subtitle_bg_v_offset !== undefined ? s.subtitle_bg_v_offset : (s.bg_v_offset || 0)
+                    };
+                    
+                    window.currentSubtitleSettings = mapped;
+                    renderSubtitlePreview(mapped);
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Failed to apply subtitle preset:", e);
+    }
 }
 
 // [NEW] Preset Functions

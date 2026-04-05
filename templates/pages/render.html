@@ -12,7 +12,7 @@
 
         <!-- Resolution & Settings -->
         <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3">
-            <span class="text-xs font-bold text-gray-700 dark:text-gray-300">해상도</span>
+            <span class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('label_resolution') }}</span>
             <select id="resolution"
                 class="text-xs border-gray-300 dark:border-gray-600 rounded py-1 bg-gray-50 dark:bg-gray-700 dark:text-white">
                 <option value="720p">720p (HD)</option>
@@ -21,14 +21,14 @@
             <input type="hidden" id="aspectRatio" value="16:9">
             <label class="flex items-center gap-1 cursor-pointer ml-3">
                 <input type="checkbox" id="useSubtitles" class="w-3 h-3 text-blue-600 rounded" checked>
-                <span class="text-xs text-gray-600 dark:text-gray-300 select-none">자막 포함</span>
+                <span class="text-xs text-gray-600 dark:text-gray-300 select-none">{{ t('label_include_subtitle') }}</span>
             </label>
         </div>
 
         <!-- Render Button -->
         <button onclick="createVideo()" id="renderBtn"
             class="btn-primary py-1.5 px-6 text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all ml-auto">
-            <span>🎬 렌더링 시작</span>
+            <span>🎬 {{ t('btn_start_render') }}</span>
         </button>
     </div>
 
@@ -36,26 +36,26 @@
     <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shrink-0">
         <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
             <div class="flex items-center gap-2">
-                <h4 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">⏳ 렌더링 대기 큐</h4>
+                <h4 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">⏳ {{ t('label_render_queue') }}</h4>
                 <span id="queueCount" class="text-[10px] bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded-full font-bold">0</span>
             </div>
             <!-- Mode Filter Tabs -->
             <div class="flex items-center gap-1">
                 <button onclick="setQueueFilter('all')" id="queueTab_all"
-                    class="queue-tab active text-[10px] px-2 py-1 rounded border transition-all">전체</button>
+                    class="queue-tab active text-[10px] px-2 py-1 rounded border transition-all">{{ t('filter_all') }}</button>
                 <button onclick="setQueueFilter('longform')" id="queueTab_longform"
-                    class="queue-tab text-[10px] px-2 py-1 rounded border transition-all">롱폼</button>
+                    class="queue-tab text-[10px] px-2 py-1 rounded border transition-all">{{ t('mode_longform') }}</button>
                 <button onclick="setQueueFilter('shorts')" id="queueTab_shorts"
-                    class="queue-tab text-[10px] px-2 py-1 rounded border transition-all">쇼츠</button>
+                    class="queue-tab text-[10px] px-2 py-1 rounded border transition-all">{{ t('mode_shorts') }}</button>
             </div>
             <div class="flex items-center gap-2 ml-auto">
                 <button onclick="toggleSelectAll()" id="selectAllBtn"
                     class="text-[10px] bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600">
-                    전체 선택
+                    {{ t('btn_select_all') }}
                 </button>
                 <button onclick="startBatchRender()" id="batchRenderBtn"
                     class="text-[10px] bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all">
-                    ▶ 선택 렌더링 시작
+                    ▶ {{ t('btn_start_selected_render') }}
                 </button>
                 <button onclick="loadRenderQueue()" class="text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">↻</button>
             </div>
@@ -63,13 +63,13 @@
 
         <!-- Queue List -->
         <div id="queueList" class="flex flex-col gap-1 max-h-[180px] overflow-y-auto custom-scrollbar">
-            <div class="text-xs text-gray-400 text-center py-3">대기 중인 프로젝트가 없습니다.</div>
+            <div class="text-xs text-gray-400 text-center py-3">{{ t('status_no_queue_projects') }}</div>
         </div>
 
         <!-- Batch Progress -->
         <div id="batchProgressArea" class="hidden mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
             <div class="flex items-center justify-between text-[10px] text-gray-500 mb-1">
-                <span id="batchProgressLabel">렌더링 중...</span>
+                <span id="batchProgressLabel">{{ t('status_rendering_progress') }}</span>
                 <span id="batchProgressCount">0/0</span>
             </div>
             <div class="h-1.5 bg-gray-200 dark:bg-gray-700 rounded overflow-hidden">
@@ -80,22 +80,22 @@
 
             <!-- Project Status Summary -->
             <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shrink-0">
-                <h4 class="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide dark:text-gray-400">프로젝트 상태</h4>
+                <h4 class="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide dark:text-gray-400">{{ t('label_project_status') }}</h4>
                 <div class="grid grid-cols-2 gap-2">
-                    <div id="scriptStatus" class="status-item">📝 대본</div>
-                    <div id="imageStatus" class="status-item">🖼️ 이미지</div>
-                    <div id="audioStatus" class="status-item">🔊 오디오</div>
-                    <div id="videoStatus" class="status-item">🎬 비디오</div>
+                    <div id="scriptStatus" class="status-item">📝 {{ t('label_script') }}</div>
+                    <div id="imageStatus" class="status-item">🖼️ {{ t('label_image') }}</div>
+                    <div id="audioStatus" class="status-item">🔊 {{ t('label_audio') }}</div>
+                    <div id="videoStatus" class="status-item">🎬 {{ t('label_video') }}</div>
                 </div>
             </div>
 
             <!-- Intro Video Section (Compact) -->
             <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shrink-0">
                 <div class="flex justify-between items-center mb-2">
-                    <h4 class="text-xs font-bold text-gray-500 uppercase dark:text-gray-400">인트로 영상</h4>
+                    <h4 class="text-xs font-bold text-gray-500 uppercase dark:text-gray-400">{{ t('label_intro_video') }}</h4>
                     <button onclick="document.getElementById('introFileInput').click()"
                         class="text-[10px] bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded hover:bg-gray-200">
-                        📁 업로드
+                        📁 {{ t('btn_upload') }}
                     </button>
                     <input type="file" id="introFileInput" accept="video/*" class="hidden">
                 </div>
@@ -107,7 +107,7 @@
                 </div>
                 <div id="introEmpty"
                     class="text-center p-2 text-xs text-gray-400 border border-dashed rounded bg-gray-50 dark:bg-gray-900/50">
-                    업로드된 인트로 영상이 없습니다.
+                    {{ t('status_no_intro_video') }}
                 </div>
             </div>
 
@@ -115,12 +115,12 @@
             <div
                 class="bg-gray-900 rounded-lg border border-gray-800 p-3 overflow-hidden flex flex-col font-mono text-xs text-green-400 h-[300px]">
                 <div class="flex justify-between border-b border-gray-800 pb-1 mb-2">
-                    <span>>_ 렌더링 진행 로그</span>
+                    <span>>_ {{ t('label_render_log') }}</span>
                     <span id="renderTimer" class="text-yellow-400">00:00</span>
                 </div>
                 <div id="renderLogContent"
                     class="flex-1 overflow-y-auto custom-scrollbar opacity-80 whitespace-pre-wrap">
-                    렌더링 준비 완료
+                    {{ t('status_render_ready') }}
                 </div>
                 <!-- Progress Bar overlaid in log -->
                 <div class="mt-2 h-1 bg-gray-800 rounded overflow-hidden">
@@ -144,7 +144,7 @@
                 <div id="videoPlaceholder"
                     class="absolute inset-0 flex flex-col items-center justify-center bg-gray-100 dark:bg-gray-900 text-gray-400 z-0">
                     <span class="text-6xl mb-4 animate-pulse">🎬</span>
-                    <p>렌더링이 완료되면 여기에 영상이 표시됩니다.</p>
+                    <p>{{ t('status_video_placeholder') }}</p>
                 </div>
             </div>
 
@@ -152,13 +152,13 @@
             <div
                 class="p-3 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-600 flex justify-between items-center shrink-0 rounded-b-lg">
                 <div class="flex gap-2">
-                    <button onclick="downloadScript()" class="text-xs btn-secondary px-2">📝 대본</button>
-                    <button onclick="downloadPrompts()" class="text-xs btn-secondary px-2">🖼️ 이미지</button>
+                    <button onclick="downloadScript()" class="text-xs btn-secondary px-2">📝 {{ t('label_script') }}</button>
+                    <button onclick="downloadPrompts()" class="text-xs btn-secondary px-2">🖼️ {{ t('label_image') }}</button>
                 </div>
                 <div class="flex gap-2">
                     <a id="downloadVideoBtn" href="#"
                         class="btn-primary py-1.5 px-4 text-sm font-bold opacity-50 pointer-events-none transition-opacity">
-                        💾 최종 영상 다운로드
+                        💾 {{ t('btn_download_final_video') }}
                     </a>
                 </div>
             </div>
@@ -197,6 +197,38 @@
 
 <script>
     let isPolling = false;
+
+    // i18n for JS
+    var i18n_render = {
+        status_loading_short: "{{ t('status_loading_short') }}",
+        status_fail_prefix: "{{ t('status_fail_prefix') }}",
+        err_occurred: "{{ t('err_occurred') }}",
+        status_render_started: "{{ t('status_render_started') }}",
+        status_render_success: "{{ t('status_render_success') }}",
+        btn_rerender: "{{ t('btn_rerender') }}",
+        toast_video_done: "{{ t('toast_video_done') }}",
+        status_render_fail_msg: "{{ t('status_render_fail_msg') }}",
+        btn_retry: "{{ t('btn_retry') }}",
+        err_render_failed: "{{ t('err_render_failed') }}",
+        status_uploading: "{{ t('status_uploading') }}",
+        toast_intro_applied: "{{ t('toast_intro_applied') }}",
+        err_upload_fail: "{{ t('err_upload_fail') }}",
+        confirm_delete: "{{ t('confirm_delete') }}",
+        toast_delete_done: "{{ t('toast_delete_done') }}",
+        status_no_queue_projects: "{{ t('status_no_queue_projects') }}",
+        mode_shorts: "{{ t('mode_shorts') }}",
+        mode_longform: "{{ t('mode_longform') }}",
+        label_project: "{{ t('label_project') }}",
+        btn_go_to_project: "{{ t('btn_go_to_project') }}",
+        btn_select_all: "{{ t('btn_select_all') }}",
+        btn_deselect_all: "{{ t('btn_deselect_all') }}",
+        warn_select_project_to_render: "{{ t('warn_select_project_to_render') }}",
+        status_rendering_progress: "{{ t('status_rendering_progress') }}",
+        status_rendering_project_prefix: "{{ t('status_rendering_project_prefix') }}",
+        btn_start_selected_render: "{{ t('btn_start_selected_render') }}",
+        status_done: "{{ t('status_done') }}",
+        toast_batch_render_done_suffix: "{{ t('toast_batch_render_done_suffix') }}"
+    };
 
     document.addEventListener('DOMContentLoaded', async () => {
         // URL 쿼리 파라미터로 넘어온 project_id 처리 (오토파일럿 등)
@@ -284,7 +316,7 @@
         const sub = document.getElementById('useSubtitles').checked;
         const btn = document.getElementById('renderBtn');
 
-        Utils.setLoading(btn, true, "로딩 중...");
+        Utils.setLoading(btn, true, i18n_render.status_loading_short);
 
         try {
             const res = await API.project.render(projectId, { resolution, aspect_ratio, useSubtitles: sub });
@@ -292,11 +324,11 @@
                 startRenderingUI();
                 pollRenderStatus(projectId);
             } else {
-                Utils.showToast("실패: " + (res.message || 'Error'), 'error');
+                Utils.showToast(i18n_render.status_fail_prefix + (res.message || 'Error'), 'error');
                 Utils.setLoading(btn, false);
             }
         } catch (e) {
-            Utils.showToast("오류 발생", 'error');
+            Utils.showToast(i18n_render.err_occurred, 'error');
             Utils.setLoading(btn, false);
         }
     }
@@ -307,7 +339,7 @@
         document.getElementById('renderBtn').innerHTML = `<span class="animate-spin">⏳</span> {{ t('status_loading') }}`;
 
         const log = document.getElementById('renderLogContent');
-        log.innerHTML += `\n[${new Date().toLocaleTimeString()}] 비디오 렌더링 시작...`;
+        log.innerHTML += `\n[${new Date().toLocaleTimeString()}] ${i18n_render.status_render_started}`;
 
         // Start Timer
         let sec = 0;
@@ -353,14 +385,14 @@
         isPolling = false;
         clearInterval(window.renderTimer);
         document.getElementById('renderProgressBar').style.width = '100%';
-        document.getElementById('renderLogContent').innerHTML += `\n[DONE] 렌더링 성공!`;
+        document.getElementById('renderLogContent').innerHTML += `\n[DONE] ${i18n_render.status_render_success}`;
 
         const btn = document.getElementById('renderBtn');
         btn.disabled = false;
-        btn.innerHTML = `<span>🎬 다시 렌더링</span>`;
+        btn.innerHTML = `<span>🎬 ${i18n_render.btn_rerender}</span>`;
 
         showVideoResult(path);
-        Utils.showToast("비디오 제작이 완료되었습니다!", 'success');
+        Utils.showToast(i18n_render.toast_video_done, 'success');
 
         // Update Video Status Indicator
         document.getElementById('videoStatus').classList.add('done');
@@ -373,11 +405,11 @@
         isPolling = false;
         clearInterval(window.renderTimer);
         document.getElementById('renderProgressBar').style.backgroundColor = 'red';
-        document.getElementById('renderLogContent').innerHTML += `\n[ERROR] 렌더링 실패.`;
+        document.getElementById('renderLogContent').innerHTML += `\n[ERROR] ${i18n_render.status_render_fail_msg}`;
         const btn = document.getElementById('renderBtn');
         btn.disabled = false;
-        btn.innerHTML = `<span>⚠️ 재시도</span>`;
-        Utils.showToast("렌더링 중 오류가 발생했습니다.", 'error');
+        btn.innerHTML = `<span>⚠️ ${i18n_render.btn_retry}</span>`;
+        Utils.showToast(i18n_render.err_render_failed, 'error');
     }
 
     function showVideoResult(path) {
@@ -409,15 +441,15 @@
         const formData = new FormData();
         formData.append('file', file);
 
-        Utils.showToast("업로드 중...", 'info');
+        Utils.showToast(i18n_render.status_uploading, 'info');
         try {
             const res = await fetch(`/api/video/upload-intro/${projectId}`, { method: 'POST', body: formData });
             const data = await res.json();
             if (data.status === 'success') {
                 showIntroPreview(data.intro_path);
-                Utils.showToast("인트로 영상이 적용되었습니다.", 'success');
+                Utils.showToast(i18n_render.toast_intro_applied, 'success');
             } else Utils.showToast(data.error, 'error');
-        } catch (err) { Utils.showToast("업로드 실패", 'error'); }
+        } catch (err) { Utils.showToast(i18n_render.err_upload_fail, 'error'); }
         e.target.value = '';
     }
 
@@ -430,12 +462,12 @@
     }
 
     async function deleteIntroVideo() {
-        if (!confirm("삭제하시겠습니까?")) return;
+        if (!confirm(i18n_render.confirm_delete)) return;
         const projectId = getCurrentProject();
         await fetch(`/api/video/delete-intro/${projectId}`, { method: 'DELETE' });
         document.getElementById('introPreview').classList.add('hidden');
         document.getElementById('introEmpty').classList.remove('hidden');
-        Utils.showToast("삭제 완료", 'success');
+        Utils.showToast(i18n_render.toast_delete_done, 'success');
     }
 
     function downloadScript() { /* ... existing logic ... */ }
@@ -476,20 +508,20 @@
         document.getElementById('queueCount').textContent = _allQueueItems.length;
 
         if (items.length === 0) {
-            list.innerHTML = '<div class="text-xs text-gray-400 text-center py-3">대기 중인 프로젝트가 없습니다.</div>';
+            list.innerHTML = `<div class="text-xs text-gray-400 text-center py-3">${i18n_render.status_no_queue_projects}</div>`;
             return;
         }
 
         list.innerHTML = items.map((p, idx) => {
             const modeTag = p.app_mode === 'shorts'
-                ? '<span class="text-[9px] bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300 px-1 rounded">쇼츠</span>'
-                : '<span class="text-[9px] bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 px-1 rounded">롱폼</span>';
+                ? `<span class="text-[9px] bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300 px-1 rounded">${i18n_render.mode_shorts}</span>`
+                : `<span class="text-[9px] bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 px-1 rounded">${i18n_render.mode_longform}</span>`;
             const itemState = p._batchState || '';
             const stateIcon = itemState === 'rendering' ? '<span class="animate-spin text-blue-500">⏳</span>'
                 : itemState === 'done' ? '<span class="text-green-500">✓</span>'
                 : itemState === 'failed' ? '<span class="text-red-500">✗</span>'
                 : '';
-            const displayName = p.display_name || p.name || p.topic || `프로젝트 ${p.id}`;
+            const displayName = p.display_name || p.name || p.topic || `${i18n_render.label_project} ${p.id}`;
             const estTime = p.est_time ? `<span class="text-[9px] bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-1 py-0.5 rounded shrink-0 whitespace-nowrap">⏱ ${p.est_time}</span>` : '';
             return `<div class="queue-item ${itemState}" id="queueItem_${p.id}">
                 <input type="checkbox" class="queue-checkbox w-3 h-3" data-id="${p.id}" ${_isBatchRendering ? 'disabled' : ''}>
@@ -497,7 +529,7 @@
                 ${modeTag}
                 ${estTime}
                 ${stateIcon}
-                <button onclick="loadProjectAndNavigate(${p.id})" class="text-[9px] text-gray-400 hover:text-blue-500 shrink-0" title="이 프로젝트로 이동">→</button>
+                <button onclick="loadProjectAndNavigate(${p.id})" class="text-[9px] text-gray-400 hover:text-blue-500 shrink-0" title="${i18n_render.btn_go_to_project}">→</button>
             </div>`;
         }).join('');
     }
@@ -506,7 +538,7 @@
         const boxes = document.querySelectorAll('.queue-checkbox:not(:disabled)');
         const allChecked = Array.from(boxes).every(b => b.checked);
         boxes.forEach(b => b.checked = !allChecked);
-        document.getElementById('selectAllBtn').textContent = allChecked ? '전체 선택' : '전체 해제';
+        document.getElementById('selectAllBtn').textContent = allChecked ? i18n_render.btn_select_all : i18n_render.btn_deselect_all;
     }
 
     function getCheckedProjectIds() {
@@ -517,13 +549,13 @@
         if (_isBatchRendering) return;
         const ids = getCheckedProjectIds();
         if (ids.length === 0) {
-            Utils.showToast('렌더링할 프로젝트를 선택하세요.', 'warning');
+            Utils.showToast(i18n_render.warn_select_project_to_render, 'warning');
             return;
         }
 
         _isBatchRendering = true;
         const btn = document.getElementById('batchRenderBtn');
-        btn.textContent = '⏳ 렌더링 중...';
+        btn.textContent = `⏳ ${i18n_render.status_rendering_progress}`;
         btn.disabled = true;
 
         const resolution = document.getElementById('resolution').value;
@@ -539,7 +571,7 @@
         for (const pid of ids) {
             // Update item state
             setQueueItemState(pid, 'rendering');
-            document.getElementById('batchProgressLabel').textContent = `렌더링 중: 프로젝트 ${pid}`;
+            document.getElementById('batchProgressLabel').textContent = `${i18n_render.status_rendering_project_prefix}${pid}`;
 
             try {
                 const res = await fetch(`/api/projects/${pid}/render`, {
@@ -566,10 +598,10 @@
         }
 
         _isBatchRendering = false;
-        btn.textContent = '▶ 선택 렌더링 시작';
+        btn.textContent = `▶ ${i18n_render.btn_start_selected_render}`;
         btn.disabled = false;
-        document.getElementById('batchProgressLabel').textContent = '완료!';
-        Utils.showToast(`${completed}개 프로젝트 렌더링 완료`, 'success');
+        document.getElementById('batchProgressLabel').textContent = i18n_render.status_done;
+        Utils.showToast(`${completed}${i18n_render.toast_batch_render_done_suffix}`, 'success');
 
         // Reload queue after 2s
         setTimeout(loadRenderQueue, 2000);

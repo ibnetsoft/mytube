@@ -67,32 +67,32 @@
                     {{ t('th_video_title') }}</th>
                 <th scope="col"
                     class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="대본 기획">{{ t('th_plan') }}</th>
+                    title="{{ t('th_plan') }}">{{ t('th_plan') }}</th>
                 <th scope="col"
                     class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="대본 생성">{{ t('th_script') }}</th>
+                    title="{{ t('th_script') }}">{{ t('th_script') }}</th>
                 <th scope="col"
                     class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="이미지 생성">{{ t('th_image') }}</th>
+                    title="{{ t('th_image') }}">{{ t('th_image') }}</th>
                 <th scope="col"
                     class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="TTS 생성">{{ t('th_tts') }}</th>
+                    title="{{ t('th_tts') }}">{{ t('th_tts') }}</th>
                 <th scope="col"
                     class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="영상 렌더링">{{ t('th_video') }}</th>
+                    title="{{ t('th_video') }}">{{ t('th_video') }}</th>
                 <th scope="col"
                     class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="썸네일 생성">{{ t('th_thumbnail') }}</th>
+                    title="{{ t('th_thumbnail') }}">{{ t('th_thumbnail') }}</th>
                 <th scope="col"
                     class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="설명/태그">{{ t('th_desc') }}</th>
+                    title="{{ t('th_desc') }}">{{ t('th_desc') }}</th>
                 <th scope="col"
                     class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="업로드/예약 완료">{% if is_independent %}{{ t('th_upload') }}{% else %}{{ t('th_publish') }}{% endif %}</th>
+                    title="{{ t('th_upload') }}">{% if is_independent %}{{ t('th_upload') }}{% else %}{{ t('th_publish') }}{% endif %}</th>
                 {% if is_independent %}
                 <th scope="col"
                     class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="발행 완료">{{ t('th_publish') }}</th>
+                    title="{{ t('th_publish') }}">{{ t('th_publish') }}</th>
                 {% endif %}
                 <th scope="col"
                     class="px-2 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap">
@@ -161,7 +161,13 @@
         status_bulk_action_prefix: "{{ t('status_bulk_action_prefix') }}",
         status_done: "{{ t('status_done') }}",
         title_yt_rocket_independent: "{{ t('title_yt_rocket_independent') }}",
-        title_yt_rocket_cloud: "{{ t('title_yt_rocket_cloud') }}"
+        title_yt_rocket_cloud: "{{ t('title_yt_rocket_cloud') }}",
+        err_upload_failed_msg: "{{ t('err_upload_failed_msg') }}",
+        err_publish_failed: "{{ t('err_publish_failed') }}",
+        err_public_switch_failed: "{{ t('err_public_switch_failed') }}",
+        err_delete_failed_msg: "{{ t('err_delete_failed_msg') }}",
+        err_action_failed_suffix: "{{ t('err_action_failed_suffix') }}",
+        err_generic_msg: "{{ t('err_generic_msg') }}"
     };
 
     async function loadProjectList() {
@@ -436,7 +442,7 @@
                     loadProjectList();
                 } else throw new Error(data.error || `${i18n.status_failed_upload}`);
             } catch (e) {
-                Utils.showToast(`업로드 실패: ${e.message}`, 'error');
+                Utils.showToast(`${i18n.err_upload_failed_msg}${e.message}`, 'error');
             } finally {
                 rocketBtn.innerText = originalText;
                 rocketBtn.disabled = false;
@@ -481,8 +487,8 @@
                     loadProjectList();
                 } else throw new Error(pubData.error || `${i18n.status_failed_central_record}`);
             } catch (e) {
-                console.error('발행 요청 실패:', e);
-                Utils.showToast(`오류: ${e.message}`, 'error');
+                console.error(i18n.err_publish_failed, e);
+                Utils.showToast(`${i18n.err_generic_msg}${e.message}`, 'error');
             } finally {
                 rocketBtn.innerText = originalText;
                 rocketBtn.disabled = false;
@@ -507,8 +513,8 @@
                 throw new Error(data.detail || `${i18n.status_failed_conversion}`);
             }
         } catch (e) {
-            console.error('공개 전환 실패:', e);
-            Utils.showToast(`오류 발생: ${e.message}`, 'error');
+            console.error(i18n.err_public_switch_failed, e);
+            Utils.showToast(`${i18n.err_generic_msg}${e.message}`, 'error');
         }
     }
 
@@ -581,7 +587,7 @@
             }
         } catch (e) {
             console.error('Bulk delete error:', e);
-            Utils.showToast(`삭제 중 오류 발생: ${e.message}`, 'error');
+            Utils.showToast(`${i18n.err_delete_failed_msg}${e.message}`, 'error');
         }
     }
 
@@ -628,11 +634,11 @@
                 // Sidebar refresh
                 if (window.loadProjects) window.loadProjects();
             } else {
-                throw new Error(data.detail || `${actionText} 실패`);
+                throw new Error(data.detail || `${actionText}${i18n.err_action_failed_suffix}`);
             }
         } catch (e) {
             console.error(`${action} error:`, e);
-            Utils.showToast(`오류 발생: ${e.message}`, 'error');
+            Utils.showToast(`${i18n.err_generic_msg}${e.message}`, 'error');
         }
     }
 

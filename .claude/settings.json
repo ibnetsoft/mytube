@@ -19,7 +19,9 @@
       "Bash(taskkill //F //PID 70808)",
       "Bash(taskkill //F //PID 91224)",
       "Bash(taskkill //F //PID 78700)",
-      "Bash(taskkill //F //PID 78112)"
+      "Bash(taskkill //F //PID 78112)",
+      "Bash(grep -n \"^    '[a-z_]*': {$\" \"c:/Users/kimse/Downloads/유튜브소재발굴기/롱폼생성기/services/i18n.py\")",
+      "Bash(grep -v \"^\\\\s*//\")"
     ]
   }
 }
