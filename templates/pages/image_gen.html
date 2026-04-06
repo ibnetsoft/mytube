@@ -63,7 +63,7 @@
                 </button>
                 <span id="sceneCountBadge"
                     class="hidden text-xs font-bold bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-3 py-2 rounded-lg">
-                    0 Scenes
+                    {{ t('label_scenes_count', count=0) }}
                 </span>
 
                 <!-- Save Settings Button -->
@@ -114,7 +114,7 @@
                                     onchange="previewCharImage(this)">
                             </div>
 
-                            <span class="text-xs text-gray-400">OR</span>
+                            <span class="text-xs text-gray-400">{{ t('label_or') }}</span>
 
                             <!-- Use Thumbnail Checkbox -->
                             <label
@@ -2398,7 +2398,7 @@
                 // Display result next to button
                 const resultBadge = document.getElementById('sceneCountBadge');
                 if (resultBadge) {
-                    resultBadge.textContent = `${result.scene_count} Scenes`;
+                    resultBadge.textContent = i18n.label_scenes_count.replace('{count}', result.scene_count);
                     resultBadge.classList.remove('hidden');
                 }
 

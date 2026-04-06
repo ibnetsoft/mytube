@@ -726,7 +726,7 @@ function log(msg) {
 
 function clearLogs() {
     const area = document.getElementById('modalConsoleLogs');
-    if (area) area.innerHTML = '<div class="text-gray-700 italic border-b border-gray-800/20 pb-1">Logs cleared.</div>';
+    if (area) area.innerHTML = `<div class="text-gray-700 italic border-b border-gray-800/20 pb-1">${i18n.msg_logs_cleared || 'Logs cleared.'}</div>`;
 }
 
 function openAutopilotModal(topic = "") {
@@ -736,10 +736,10 @@ function openAutopilotModal(topic = "") {
         document.getElementById('modalTopicTitle').innerText = topic ? `(${topic})` : "";
         document.getElementById('modalProgressPercent').innerText = "0%";
         document.getElementById('modalProgressBar').style.width = "0%";
-        document.getElementById('modalStatusText').innerText = "오토파일럿 시작 중...";
+        document.getElementById('modalStatusText').innerText = i18n.status_autopilot_starting || "오토파일럿 시작 중...";
         document.getElementById('modalDoneBtn').classList.add('hidden');
         const detailEl = document.getElementById('modalStepDetail');
-        if (detailEl) detailEl.textContent = '서버에 작업 요청 전송 중...';
+        if (detailEl) detailEl.textContent = i18n.status_sending_request || '서버에 작업 요청 전송 중...';
         const elapsedEl = document.getElementById('modalElapsed');
         if (elapsedEl) elapsedEl.textContent = '';
         const logArea = document.getElementById('modalConsoleLogs');
@@ -759,18 +759,18 @@ function closeAutopilotModal() {
 
 function getFriendlyStatus(status) {
     const map = {
-        'created': '워크플로우 초기화 중...',
-        'analyzing': '유튜브 데이터 분석 중...',
-        'analyzed': '데이터 분석 완료',
-        'planning': '대본 기획 구성 중...',
-        'planned': '기획안 확정 완료',
-        'scripting': 'AI 대본 작성 중...',
-        'scripted': '대본 초안 완성',
-        'generating_assets': 'AI 비주얼 에셋 생성 중 (이미지/영상)...',
-        'generating_thumbnail': '맞춤형 썸네일 제작 중...',
-        'rendering': '최종 영상 합성 및 렌더링 중...',
-        'done': '모든 제작이 완료되었습니다! ✨',
-        'error': '처리 중 오류가 발생했습니다.'
+        'created': i18n.status_workflow_init || '워크플로우 초기화 중...',
+        'analyzing': i18n.status_analyzing_youtube || '유튜브 데이터 분석 중...',
+        'analyzed': i18n.status_analysis_done || '데이터 분석 완료',
+        'planning': i18n.status_planning_script || '대본 기획 구성 중...',
+        'planned': i18n.status_plan_confirmed || '기획안 확정 완료',
+        'scripting': i18n.status_writing_script || 'AI 대본 작성 중...',
+        'scripted': i18n.status_script_drafted || '대본 초안 완성',
+        'generating_assets': i18n.status_generating_visuals || 'AI 비주얼 에셋 생성 중 (이미지/영상)...',
+        'generating_thumbnail': i18n.status_generating_thumb || '맞춤형 썸네일 제작 중...',
+        'rendering': i18n.status_rendering_final || '최종 영상 합성 및 렌더링 중...',
+        'done': i18n.status_done_desc || '모든 제작이 완료되었습니다! ✨',
+        'error': i18n.status_error_desc || '처리 중 오류가 발생했습니다.'
     };
     return map[status] || status;
 }
@@ -806,7 +806,7 @@ function getAutopilotConfig() {
     const productUrl = document.getElementById('productUrlInput')?.value.trim() || '';
 
     if (creationMode === 'default' && !topic) {
-        alert("Please enter a topic keyword.");
+        alert(i18n.alert_enter_topic || "Please enter a topic keyword.");
         topicInput.focus();
         return null;
     }
@@ -991,12 +991,12 @@ function pollStatus(projectId) {
                     if (_detailInterval) clearInterval(_detailInterval);
                     isProcessing = false;
                     const detailEl = document.getElementById('modalStepDetail');
-                    if (detailEl) detailEl.textContent = '프로젝트 생성 실패 — 서버 로그를 확인하세요';
+                    if (detailEl) detailEl.textContent = i18n.status_project_init_failed || '프로젝트 생성 실패 — 서버 로그를 확인하세요';
                     const statusText = document.getElementById('modalStatusText');
-                    if (statusText) statusText.innerText = '오류 발생';
-                    log(`❌ 프로젝트를 찾을 수 없습니다 (ID: ${projectId}). 서버 에러가 발생했습니다.`);
+                    if (statusText) statusText.innerText = i18n.label_error || '오류 발생';
+                    log(`❌ ${i18n.msg_project_not_found || '프로젝트를 찾을 수 없습니다'} (ID: ${projectId}).`);
                     const startBtn = document.getElementById('startAutopilotBtn') || document.getElementById('btnStartProduction');
-                    if (startBtn) { startBtn.disabled = false; startBtn.innerHTML = '<span>제작 시작하기</span> ⚡'; }
+                    if (startBtn) { startBtn.disabled = false; startBtn.innerHTML = `<span>${i18n.btn_auto_production}</span> ⚡`; }
                 }
                 return;
             }
@@ -1037,7 +1037,7 @@ function pollStatus(projectId) {
                 if (_detailInterval) clearInterval(_detailInterval);
                 isProcessing = false;
                 const detailEl = document.getElementById('modalStepDetail');
-                if (detailEl) detailEl.textContent = '모든 작업 완료!';
+                if (detailEl) detailEl.textContent = i18n.status_all_done || '모든 작업 완료!';
                 log(`🏁 ${i18n.status_done_redirecting}`);
 
                 const doneBtn = document.getElementById('modalDoneBtn');
@@ -1060,10 +1060,10 @@ function pollStatus(projectId) {
                 isProcessing = false;
                 log(`❌ ${i18n.status_error_occurred_check_logs}`);
 
-                const startBtn = document.getElementById('startAutopilotBtn');
+                const startBtn = document.getElementById('startAutopilotBtn') || document.getElementById('btnStartProduction');
                 if (startBtn) {
                     startBtn.disabled = false;
-                    startBtn.innerHTML = '<span>제작 시작하기</span> ⚡';
+                    startBtn.innerHTML = `<span>${i18n.btn_auto_production}</span> ⚡`;
                 }
             }
         } catch (e) {
@@ -1368,12 +1368,25 @@ async function fetchSubtitlePresets() {
         if (presetName) {
             applySubtitlePresetByName(presetName);
             localStorage.setItem('last_selected_subtitle_preset', presetName);
+            // [NEW] 만약 전역 프리셋을 선택 중이었다면 '커스텀'으로 변경하여 폰트 등 설정이 꼬이지 않게 함
+            const globalPresetSelect = document.getElementById('presetSelect');
+            if (globalPresetSelect && globalPresetSelect.value !== "") {
+                // 이 부분을 활성화하면 자막 프리셋 바꿀 때마다 전역 프리셋이 해제됨 (원하는대로 결정)
+                // globalPresetSelect.value = ""; 
+            }
         } else {
             // Custom selection -> fallback to global defaults or keep last
             localStorage.removeItem('last_selected_subtitle_preset');
             loadSubtitleDefaults(); // Reload main defaults 
         }
     };
+}
+
+async function fetchSubtitlePresetsSilently() {
+    try {
+        const res = await fetch('/api/subtitle/presets');
+        return await res.json();
+    } catch (e) { return { status: 'error' }; }
 }
 
 async function applySubtitlePresetByName(name) {

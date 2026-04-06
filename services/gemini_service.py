@@ -1,6 +1,6 @@
 """
 Gemini API 서비스
-- 텍스트 생성 (gemini-3.1-flash)
+- 텍스트 생성 (gemini-2.0-flash)
 - 이미지 생성 (gemini-3.1-fast-image-preview)
 - 영상 생성 (Veo)
 """
@@ -26,7 +26,7 @@ class GeminiService:
 
     async def generate_text(self, prompt: str, temperature: float = 0.7, max_tokens: int = 8192) -> str:
         """텍스트 생성"""
-        url = f"{self.base_url}/models/gemini-3.1-flash:generateContent?key={self.api_key}"
+        url = f"{self.base_url}/models/gemini-2.0-flash:generateContent?key={self.api_key}"
 
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
@@ -47,7 +47,7 @@ class GeminiService:
 
     async def generate_text_from_image(self, prompt: str, image_bytes: bytes, mime_type: str = "image/png") -> str:
         """이미지 + 텍스트 생성 (Vision)"""
-        url = f"{self.base_url}/models/gemini-3.1-flash:generateContent?key={self.api_key}"
+        url = f"{self.base_url}/models/gemini-2.0-flash:generateContent?key={self.api_key}"
 
         encoded_image = base64.b64encode(image_bytes).decode("utf-8")
 
@@ -2109,7 +2109,7 @@ Motion prompt for this image:"""
         
         return {"error": "대본 생성 실패", "raw": text}
 
-    async def create_batch_job(self, input_file_path: str, model: str = "gemini-3.1-flash", display_name: str = "batch-job") -> dict:
+    async def create_batch_job(self, input_file_path: str, model: str = "gemini-2.0-flash", display_name: str = "batch-job") -> dict:
         """
         [새로운 기능] Gemini Batch API - 대규모 백그라운드 처리를 위한 일괄 작업 예약 (비용 50% 절감)
         JSONL 파일을 업로드하고 비동기 배치 작업을 생성합니다.

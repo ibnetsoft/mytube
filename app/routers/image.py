@@ -690,7 +690,14 @@ async def generate_thumbnail(req: ThumbnailGenerateRequest):
 
 
 @router.get("/api/trends/keywords")
-
+async def get_trend_keywords(language: str = "ko", period: str = "now", age: str = "all"):
+    """인기 트렌드 키워드 생성 (버블 차트용)"""
+    try:
+        keywords = await gemini_service.generate_trending_keywords(language, period, age)
+        return {"status": "ok", "keywords": keywords}
+    except Exception as e:
+        print(f"Trend Keywords Error: {e}")
+        return {"status": "error", "error": str(e)}
 
 @router.post("/api/image/analyze-character")
 async def analyze_character(

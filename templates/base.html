@@ -257,8 +257,7 @@
                     <!-- Top Row: Title & Actions -->
                     <div class="flex items-center justify-between mb-3">
                         <div class="flex items-center gap-2">
-                            <span class="text-xs font-black text-blue-500 uppercase tracking-widest">Active
-                                Project:</span>
+                            <span class="text-xs font-black text-blue-500 uppercase tracking-widest">{{ t('label_active_project') }}</span>
                             <div class="flex items-center gap-1 group/title">
                                 <h2 id="currentProjectNameDisplay"
                                     class="text-sm font-black text-gray-800 dark:text-white border-b-2 border-blue-500/30 pb-0.5 cursor-help"
@@ -303,7 +302,7 @@
                                         <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
                                     </div>
                                     <span
-                                        class="text-[10px] mt-1 text-gray-400 dark:text-gray-300 font-bold transition-colors">주제</span>
+                                        class="text-[10px] mt-1 text-gray-400 dark:text-gray-300 font-bold transition-colors">{{ t('step_topic') }}</span>
                                 </a>
 
 
@@ -371,7 +370,7 @@
                                         class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
                                         <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
                                     </div>
-                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">TTS</span>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{ t('step_tts') }}</span>
                                 </a>
 
 
@@ -603,6 +602,7 @@
             err_rename_fail: "{{ t('err_rename_fail') }}",
             toast_name_changed: "{{ t('toast_name_changed') }}",
             err_generic_msg: "{{ t('err_generic_msg') }}",
+            label_scenes_count: "{{ t('label_scenes_count') }}",
 
             // Autopilot keys
             label_preset: "{{ t('label_preset') }}",

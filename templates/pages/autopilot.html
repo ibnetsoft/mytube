@@ -187,8 +187,8 @@
                             <div class="flex items-center gap-2">
                                 <span class="text-[9px] text-gray-500">{{ t('label_preset') }}:</span>
                                 <select id="subtitlePresetSelect" 
-                                    class="bg-gray-800 border border-gray-700 text-white text-[11px] rounded-lg px-2 py-1 focus:ring-1 focus:ring-teal-500/50 outline-none min-w-[120px]">
-                                    <option value="" class="bg-gray-800 text-white">-- {{ t('opt_select') }} --</option>
+                                    class="bg-gray-800 border border-gray-700 text-white text-[11px] rounded-lg px-2 py-1 focus:ring-1 focus:ring-teal-500/50 outline-none min-w-[140px] hover:bg-gray-700 transition-colors">
+                                    <option value="" class="bg-gray-800 text-white">-- {{ t('preset_custom') }} --</option>
                                 </select>
                             </div>
                         </div>
@@ -577,6 +577,12 @@
 
     .log-item {
         animation: log-append 0.3s ease-out forwards;
+    }
+
+    /* Select Dropdown Styling for visibility on all browsers */
+    select option {
+        background-color: #1f2937 !important; /* bg-gray-800 */
+        color: white !important;
     }
 </style>
 
