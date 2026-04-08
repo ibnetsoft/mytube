@@ -1,7 +1,7 @@
 """
 Gemini API 서비스
 - 텍스트 생성 (gemini-2.0-flash)
-- 이미지 생성 (gemini-3.1-fast-image-preview)
+- 이미지 생성 (gemini-3.1-flash-image-preview / 나노바나나 2.0)
 - 영상 생성 (Veo)
 """
 import httpx
@@ -12,6 +12,7 @@ import json
 import re
 import database as db
 
+import google.generativeai as genai
 from config import config
 from services.prompts import prompts
 
@@ -36,12 +37,19 @@ class GeminiService:
             }
         }
 
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=180.0) as client:
             response = await client.post(url, json=payload)
             result = response.json()
 
             if "candidates" in result:
-                return result["candidates"][0]["content"]["parts"][0]["text"]
+                candidate = result["candidates"][0]
+                finish_reason = candidate.get("finishReason", "")
+                text = candidate["content"]["parts"][0]["text"]
+                usage = result.get("usageMetadata", {})
+                print(f"[Gemini] finishReason={finish_reason}, outputTokens={usage.get('candidatesTokenCount', '?')}, inputTokens={usage.get('promptTokenCount', '?')}")
+                if finish_reason == "MAX_TOKENS":
+                    print(f"[Gemini] WARNING: Output truncated by token limit! Consider reducing scene count or increasing maxOutputTokens.")
+                return text
             else:
                 raise Exception(f"Gemini API 오류: {result}")
 
@@ -64,8 +72,8 @@ class GeminiService:
                 ]
             }],
             "generationConfig": {
-                "temperature": 0.4, # Lower temperature for accurate description
-                "maxOutputTokens": 2048
+                "temperature": 0.4,
+                "maxOutputTokens": 8192
             }
         }
 
@@ -355,106 +363,140 @@ class GeminiService:
         aspect_ratio: str = "16:9",
         num_images: int = 1
     ) -> List[bytes]:
-        """이미지 생성 (gemini-3.1-fast-image-preview 하드코딩)"""
-        
-        # [MODIFIED] Using user-specified single model
-        model_name = "gemini-3.1-fast-image-preview"
-        
-        try:
-            url = f"{self.base_url}/models/{model_name}:predict?key={self.api_key}"
-            print(f"🎨 [Gemini Image] Using model: {model_name}")
-            
-            # [NEW] Style Reinforcement for Non-Realistic Styles
-            stylistic_keywords = ["k_manhwa", "k_webtoon", "anime", "cartoon", "ghibli", "sketch", "line art", "doodle", "wimpy", "webtoon", "infographic"]
-            is_stylistic = any(kw in prompt.lower() for kw in stylistic_keywords)
-            contains_photo = any(kw in prompt.lower() for kw in ["photo", "realistic", "8k", "cinematic"])
-            is_infographic = "infographic" in prompt.lower()
-            
-            is_wimpy = any(kw in prompt.lower() for kw in ["wimpy", "stick figure", "stickman", "졸라맨", "jollaman"])
-            if is_wimpy and any(kw in prompt.lower() for kw in ["webtoon", "manhwa", "k-manhwa", "k만화", "k_manhwa"]):
-                is_wimpy = False
+        """이미지 생성 (Imagen 폴백 체인: imagen-4 → imagen-3 → imagen-3-fast)"""
 
-            final_prompt = prompt
-            if is_stylistic and not contains_photo:
-                if is_infographic:
-                    final_prompt += ", professional graphic design, vector illustration, clean lines"
-                else:
-                    final_prompt += ", flat 2D style, no photorealism, no text, no words"
-            
-            is_jollaman = any(kw in prompt.lower() for kw in ["wimpy", "stick figure", "stickman", "졸라맨", "jollaman"])
-            
-            if is_wimpy:
-                # pure stick figure (white background)
-                final_prompt = (
-                    "EXACTLY TWO ARMS ONLY. NO EXTRA ARMS. NO EXTRA HANDS. "
-                    "THE CHARACTER MUST HAVE A PAIR OF BLACK DOT EYES AND A SMALL ARC SMILE ON THE FACE. "
-                    + final_prompt
-                    + ", the character has exactly one left arm and one right arm total,"
-                    " no third arm no fourth arm no duplicate limbs,"
-                    " flat 2D vector no gradients no 3D, perfectly bald smooth round white circular head, no hair, no hairstyle,"
-                    " a pair of distinct black dot eyes and a simple black arc smile (MUST HAVE EYES AND MOUTH),"
-                    " Face must NEVER be blank or empty. "
-                    " pure white background, single scene"
-                )
-            elif is_jollaman:
-                # stick figure with background
-                final_prompt = (
-                    "EXACTLY TWO ARMS ONLY. NO EXTRA ARMS. NO EXTRA HANDS. "
-                    + final_prompt
-                    + ", the character has a perfectly bald smooth round white circular head, no hair, no hairstyle,"
-                    " a pair of distinct black dot eyes and a simple black arc smile (MUST HAVE EYES AND MOUTH),"
-                    " Face must NEVER be blank or empty. "
-                    " strictly two arms total, no extra limbs"
-                )
-            
+        # 스타일 키워드 검사
+        stylistic_keywords = ["k_manhwa", "k_webtoon", "anime", "cartoon", "ghibli", "sketch", "line art", "doodle", "wimpy", "webtoon", "infographic", "black and white", "minimalist"]
+        is_stylistic = any(kw in prompt.lower() for kw in stylistic_keywords)
+        contains_photo = any(kw in prompt.lower() for kw in ["photo", "realistic", "8k", "cinematic"])
+        is_infographic = "infographic" in prompt.lower()
+        is_wimpy = any(kw in prompt.lower() for kw in ["wimpy", "stick figure", "stickman", "졸라맨", "jollaman"])
+        if is_wimpy and any(kw in prompt.lower() for kw in ["webtoon", "manhwa", "k-manhwa", "k만화", "k_manhwa"]):
+            is_wimpy = False
+        is_jollaman = any(kw in prompt.lower() for kw in ["wimpy", "stick figure", "stickman", "졸라맨", "jollaman"])
+
+        final_prompt = prompt
+        if is_stylistic and not contains_photo:
+            if is_infographic:
+                final_prompt += ", professional graphic design, vector illustration, clean lines"
+            else:
+                final_prompt += ", flat 2D style, no photorealism, no text, no words"
+
+        if is_wimpy:
+            final_prompt = (
+                "EXACTLY TWO ARMS ONLY. NO EXTRA ARMS. NO EXTRA HANDS. "
+                "THE CHARACTER MUST HAVE A PAIR OF BLACK DOT EYES AND A SMALL ARC SMILE ON THE FACE. "
+                + final_prompt
+                + ", the character has exactly one left arm and one right arm total,"
+                " no third arm no fourth arm no duplicate limbs,"
+                " flat 2D vector no gradients no 3D, perfectly bald smooth round white circular head, no hair, no hairstyle,"
+                " a pair of distinct black dot eyes and a simple black arc smile (MUST HAVE EYES AND MOUTH),"
+                " Face must NEVER be blank or empty. pure white background, single scene"
+            )
+        elif is_jollaman:
+            final_prompt = (
+                "EXACTLY TWO ARMS ONLY. NO EXTRA ARMS. NO EXTRA HANDS. "
+                + final_prompt
+                + ", the character has a perfectly bald smooth round white circular head, no hair, no hairstyle,"
+                " a pair of distinct black dot eyes and a simple black arc smile (MUST HAVE EYES AND MOUTH),"
+                " Face must NEVER be blank or empty. strictly two arms total, no extra limbs"
+            )
+
+        if not is_stylistic and not is_wimpy and not is_jollaman:
             final_prompt += (
                 ", single person, solo, exactly two arms, exactly two hands, exactly five fingers per hand, "
                 "anatomically correct, perfect human anatomy, natural arm position"
             )
+        else:
+            # 스타일리시/카툰 모드일 때는 실사 유도 지시문 배제
+            final_prompt += ", flat 2D vector illustration, strictly minimal, no shadows, no gradients, hand-drawn sketch style"
 
-            negative_prompt = (
-                "extra arms, extra hands, multiple arms, too many arms, too many hands, "
-                "extra fingers, too many fingers, additional limbs, floating arms, "
-                "disconnected arms, deformed arms, deformed hands, mutated arms, mutated hands, "
-                "mutated fingers, fused arms, fused hands, wrong anatomy, bad anatomy, "
-                "more than 2 arms, more than 10 fingers, worst quality, low quality"
-            )
+        negative_prompt = (
+            "extra arms, extra hands, multiple arms, too many arms, too many hands, "
+            "extra fingers, too many fingers, additional limbs, floating arms, "
+            "disconnected arms, deformed arms, deformed hands, mutated arms, mutated hands, "
+            "mutated fingers, fused arms, fused hands, wrong anatomy, bad anatomy, "
+            "more than 2 arms, more than 10 fingers, worst quality, low quality"
+        )
 
-            payload = {
-                "instances": [{"prompt": final_prompt, "negativePrompt": negative_prompt}],
-                "parameters": {
-                    "sampleCount": num_images,
-                    "aspectRatio": aspect_ratio,
-                    "safetySetting": "block_low_and_above"
-                }
-            }
+        # 1. 최우선 순위: 나노바나나 2.0 (Gemini 3.1 Flash Live)
+        try:
+            print(f"🎨 [Gemini Image] Trying Nano Banana 2.0 (gemini-3.1-flash-live-preview)")
+            genai.configure(api_key=self.api_key)
+            # v1beta 모델명 사용 (이미지 전용 나노바나나 2 모델)
+            model = genai.GenerativeModel("gemini-3.1-flash-image-preview")
             
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                response = await client.post(url, json=payload)
+            # SDK 동기 함수를 비동기 루프에서 실행 (또는 generate_content_async 사용)
+            # 0.8.6+ 버전은 generate_content_async 지원
+            response = await model.generate_content_async(
+                final_prompt,
+                generation_config={
+                    "candidate_count": num_images,
+                }
+            )
+            
+            images = []
+            # SDK 응답에서 이미지 추출 (사용자 가이드 및 최신 API 사양 반영)
+            if hasattr(response, 'generated_images'):
+                for gen_img in response.generated_images:
+                    images.append(gen_img.image.data)
+            
+            # 만약 generated_images가 없으면 parts에서 직접 찾기 (예비)
+            if not images and response.candidates:
+                for candidate in response.candidates:
+                    for part in candidate.content.parts:
+                        if hasattr(part, 'inline_data'):
+                            images.append(part.inline_data.data)
+            
+            if images:
+                print(f"✅ [Gemini Image] Nano Banana 2 succeeded, {len(images)} image(s)")
+                return images
                 
-                if response.status_code != 200:
-                    error_info = response.text
-                    print(f"❌ [Gemini Image] Error ({response.status_code}): {error_info}")
-                    raise Exception(f"API Error ({response.status_code}): {error_info}")
-                
-                result = response.json()
-                images = []
-                if "predictions" in result:
-                    for idx, pred in enumerate(result["predictions"]):
-                        if "bytesBase64Encoded" in pred:
-                            img_bytes = base64.b64decode(pred["bytesBase64Encoded"])
-                            images.append(img_bytes)
-                
-                if images:
-                    print(f"✅ [Gemini Image] Successfully generated {len(images)} image(s)")
-                    return images
-                else:
-                    error_msg = result.get('error', {}).get('message', 'No image data in response')
-                    raise Exception(f"No images generated: {error_msg}")
-
         except Exception as e:
-            print(f"❌ [Gemini Image] Critical Error: {e}")
-            raise
+            print(f"⚠️ [Gemini Image] Nano Banana 2.0 failed: {e}. Falling back to Imagen...")
+
+        # 2. 폴백: 기존 Imagen 모델 체인
+        payload = {
+            "instances": [{"prompt": final_prompt, "negativePrompt": negative_prompt}],
+            "parameters": {
+                "sampleCount": num_images,
+                "aspectRatio": aspect_ratio,
+                "safetySetting": "block_low_and_above"
+            }
+        }
+
+        models = [
+            "imagen-4.0-generate-001",
+            "imagen-3.0-generate-001",
+            "imagen-3.0-fast-generate-001",
+        ]
+        for model_name in models:
+            try:
+                url = f"{self.base_url}/models/{model_name}:predict?key={self.api_key}"
+                print(f"🎨 [Gemini Image] Trying model: {model_name}")
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    response = await client.post(url, json=payload)
+                    if response.status_code != 200:
+                        print(f"❌ [Gemini Image] {model_name} Error ({response.status_code}): {response.text[:200]}")
+                        continue
+                    result = response.json()
+                    images = []
+                    if "predictions" in result:
+                        for pred in result["predictions"]:
+                            if "bytesBase64Encoded" in pred:
+                                images.append(base64.b64decode(pred["bytesBase64Encoded"]))
+                    if images:
+                        print(f"✅ [Gemini Image] {model_name} succeeded, {len(images)} image(s)")
+                        return images
+                    else:
+                        err = result.get('error', {}).get('message', 'No image data')
+                        print(f"❌ [Gemini Image] {model_name}: {err}")
+                        continue
+            except Exception as e:
+                print(f"❌ [Gemini Image] {model_name} exception: {e}")
+                continue
+
+        raise Exception("All Image generation models failed (including Nano Banana 2.0 and Imagen)")
 
     async def generate_video(
         self,
@@ -1279,13 +1321,38 @@ Motion prompt for this image:"""
         import re
         import math
 
+        def _sanitize_json_strings(text: str) -> str:
+            """JSON 문자열 내부의 raw 개행/탭 문자를 이스케이프 (Gemini가 자주 포함시킴)"""
+            result = []
+            in_string = False
+            escape = False
+            for ch in text:
+                if escape:
+                    result.append(ch)
+                    escape = False
+                elif ch == '\\':
+                    result.append(ch)
+                    escape = True
+                elif ch == '"' and not escape:
+                    in_string = not in_string
+                    result.append(ch)
+                elif in_string and ch == '\n':
+                    result.append('\\n')
+                elif in_string and ch == '\r':
+                    result.append('\\r')
+                elif in_string and ch == '\t':
+                    result.append('\\t')
+                else:
+                    result.append(ch)
+            return ''.join(result)
+
         def _parse_text_to_scenes(raw_text: str) -> list:
             """Gemini 응답 텍스트에서 scenes 리스트를 추출 (잘린 JSON도 복구 시도)"""
             cleaned = re.sub(r'```json\s*|\s*```', '', raw_text).strip()
 
-            # 1차: 정상 파싱
+            # 1차: 정상 파싱 (JSON string 내 개행 sanitize 후 시도)
             try:
-                data = json.loads(cleaned)
+                data = json.loads(_sanitize_json_strings(cleaned))
                 if isinstance(data, dict):
                     return data.get("scenes", [])
                 elif isinstance(data, list):
@@ -1293,11 +1360,11 @@ Motion prompt for this image:"""
             except json.JSONDecodeError as e:
                 print(f"[SceneParse] Error: {e}")
 
-            # 2차: 배열/객체 블록 추출 후 파싱
+            # 2차: 배열/객체 블록 추출 후 파싱 (sanitize 적용)
             try:
                 m = re.search(r'(\{[\s\S]*\}|\[[\s\S]*\])', cleaned)
                 if m:
-                    data = json.loads(m.group(0))
+                    data = json.loads(_sanitize_json_strings(m.group(0)))
                     if isinstance(data, dict):
                         return data.get("scenes", [])
                     elif isinstance(data, list):
@@ -1305,12 +1372,12 @@ Motion prompt for this image:"""
             except Exception:
                 pass
 
-            # 3차: JSON이 잘린 경우 완성된 개별 scene 객체만 추출
+            # 3차: JSON이 잘린 경우 완성된 개별 scene 객체만 추출 (sanitize 적용)
             try:
                 scenes = []
                 for obj_match in re.finditer(r'\{[^{}]*"scene_number"[^{}]*\}', cleaned, re.DOTALL):
                     try:
-                        obj = json.loads(obj_match.group(0))
+                        obj = json.loads(_sanitize_json_strings(obj_match.group(0)))
                         if isinstance(obj, dict) and obj.get("scene_number"):
                             scenes.append(obj)
                     except Exception:
@@ -1346,6 +1413,15 @@ Motion prompt for this image:"""
             return [c for c in chunks if c]
 
         style_prefix_val = style_prompt or 'High quality illustration'
+
+        def _safe_format(template: str, **kwargs) -> str:
+            """format() safe version: replaces {key} placeholders, then converts {{ }} escapes to { }"""
+            result = template
+            for k, v in kwargs.items():
+                result = result.replace('{' + k + '}', str(v))
+            # Convert Python format escapes {{ → { and }} → } (same as str.format())
+            result = result.replace('{{', '{').replace('}}', '}')
+            return result
 
         # ── 레퍼런스 이미지 로딩 (스타일 프리셋 썸네일) ──────────────────
         _ref_image_bytes: bytes | None = None
@@ -1432,7 +1508,8 @@ Motion prompt for this image:"""
                     f"[현재 씬 생성 구간 - 이 부분에 대해서만 {c_scenes}개 씬 생성]\n"
                     f"{chunk_text}"
                 )
-                c_prompt = prompts.GEMINI_IMAGE_PROMPTS.format(
+                c_prompt = _safe_format(
+                    prompts.GEMINI_IMAGE_PROMPTS,
                     num_scenes=c_scenes,
                     script=chunk_text_with_context,
                     style_instruction=style_instruction,
@@ -1448,7 +1525,8 @@ Motion prompt for this image:"""
             scenes = all_scenes
         else:
             # ── 단일 호출 모드 (기존) ──────────────────────────────────────
-            prompt = prompts.GEMINI_IMAGE_PROMPTS.format(
+            prompt = _safe_format(
+                prompts.GEMINI_IMAGE_PROMPTS,
                 num_scenes=num_scenes,
                 script=script,
                 style_instruction=style_instruction,
@@ -2109,7 +2187,7 @@ Motion prompt for this image:"""
         
         return {"error": "대본 생성 실패", "raw": text}
 
-    async def create_batch_job(self, input_file_path: str, model: str = "gemini-2.0-flash", display_name: str = "batch-job") -> dict:
+    async def create_batch_job(self, input_file_path: str, model: str = "gemini-3.1-flash-live-preview", display_name: str = "batch-job") -> dict:
         """
         [새로운 기능] Gemini Batch API - 대규모 백그라운드 처리를 위한 일괄 작업 예약 (비용 50% 절감)
         JSONL 파일을 업로드하고 비동기 배치 작업을 생성합니다.

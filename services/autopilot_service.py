@@ -752,10 +752,39 @@ JSON만 출력하세요:
         # [NEW] Load settings for overrides
         p_settings = db.get_project_settings(project_id) or {}
 
+        # [FIX] Check if scene_texts cover the full script
+        # Gemini sometimes generates scene_texts that skip the beginning of the script.
+        # In that case, use full_script split into N equal segments for TTS instead.
+        try:
+            _script_data = db.get_script(project_id)
+            _full_script = (_script_data.get("full_script") or "").strip() if _script_data else ""
+        except Exception:
+            _full_script = ""
+
+        _all_scene_texts = " ".join([
+            (p.get('scene_text') or p.get('narrative') or p.get('script') or "")
+            for p in sorted_prompts
+        ]).strip()
+
+        _tts_text_map = {}  # scene_number → text to use for TTS
+        if _full_script and len(_full_script) > 100:
+            _coverage = len(_all_scene_texts) / len(_full_script) if _full_script else 1.0
+            print(f"📝 [Auto-Pilot] TTS scene_text coverage: {_coverage:.0%} of full_script ({len(_all_scene_texts)}/{len(_full_script)} chars)")
+            if _coverage < 0.75:
+                # Scene texts don't cover enough of the full script → split full_script into N parts
+                print(f"⚠️ [Auto-Pilot] Coverage < 75%: splitting full_script into {len(sorted_prompts)} equal parts for TTS")
+                n = len(sorted_prompts)
+                part_len = max(1, len(_full_script) // n)
+                for i, p in enumerate(sorted_prompts):
+                    start = i * part_len
+                    end = (i + 1) * part_len if i < n - 1 else len(_full_script)
+                    _tts_text_map[p.get('scene_number')] = _full_script[start:end].strip()
+
         for i, p in enumerate(sorted_prompts):
             db.update_project(project_id, status=f"tts_{i+1}/{len(sorted_prompts)}")
-            text = p.get('scene_text') or p.get('narrative') or p.get('script') or ""
             scene_num = p.get('scene_number')
+            # Use full_script split text if coverage was insufficient, else use scene_text
+            text = _tts_text_map.get(scene_num) or p.get('scene_text') or p.get('narrative') or p.get('script') or ""
             
             # [NEW] Voice Override
             scene_voice = p_settings.get(f"scene_{scene_num}_voice")
@@ -996,27 +1025,31 @@ JSON만 출력하세요:
 
         # Re-fetch prompts to get latest image/audio URLs
         image_prompts = db.get_image_prompts(project_id)
+        # [FIX] Sort by scene_number so is_vid = i < video_scene_count targets the FIRST N scenes
+        image_prompts = sorted(image_prompts, key=lambda x: x.get('scene_number', 0))
         p_settings = db.get_project_settings(project_id) or {} # [NEW] Load settings
-        
+
         for i, p in enumerate(image_prompts):
             is_vid = i < video_scene_count
             log_debug(f"  > Scene {p.get('scene_number')}: is_vid={is_vid}, has_image={bool(p.get('image_url'))}")
             if not is_vid: continue
-            
+
             scene_num = p.get("scene_number")
             db.update_project(project_id, status=f"videos_{i+1}/{video_scene_count}")
-            
+
             image_url = p.get("image_url")
             if not image_url: continue
             image_abs_path = os.path.join(config.OUTPUT_DIR, image_url.replace("/output/", ""))
-            
-            # [FIX] Skip re-generation if video already exists (e.g. generated on image gen page)
+
+            # [FIX] Skip re-generation if video already exists AND is valid (not 0-byte from failed Veo)
             existing_video_url = p.get("video_url")
             if existing_video_url:
                 existing_video_path = os.path.join(config.OUTPUT_DIR, existing_video_url.replace("/output/", ""))
-                if os.path.exists(existing_video_path):
-                    print(f"  ⏭️ [Auto-Pilot] Scene {scene_num}: Video already exists → SKIP re-generation. ({os.path.basename(existing_video_path)})")
+                if os.path.exists(existing_video_path) and os.path.getsize(existing_video_path) > 500 * 1024:
+                    print(f"  ⏭️ [Auto-Pilot] Scene {scene_num}: Valid video already exists → SKIP re-generation. ({os.path.basename(existing_video_path)})")
                     continue  # Use existing video, don't regenerate
+                elif os.path.exists(existing_video_path):
+                    print(f"  ⚠️ [Auto-Pilot] Scene {scene_num}: video_url exists but file is invalid/empty ({os.path.getsize(existing_video_path)}B) → Regenerating.")
                 else:
                     print(f"  ⚠️ [Auto-Pilot] Scene {scene_num}: video_url set but file missing → Regenerating.")
 
@@ -1541,18 +1574,23 @@ JSON만 출력하세요:
                 except Exception as sub_e: 
                     print(f"⚠️ Subtitle Gen Error: {sub_e}")
             
-            if not subs: 
+            if not subs:
                 subs = video_service.generate_smart_subtitles(script_data["full_script"], tts_data["duration"])
         elif not use_subtitles:
             print("🚫 [Auto-Pilot] Subtitles disabled manually.")
         else:
             print("⚠️ [Auto-Pilot] Cannot generate subtitles: TTS data missing.")
 
+        print(f"📝 [Auto-Pilot] subtitle_path={settings.get('subtitle_path')} | subs count={len(subs)}")
+        log_debug(f"[RENDER] subs={len(subs)}, use_subtitles={use_subtitles}")
+
         # 2. Load Timeline Images
         # [FIX] Always use fresh DB data from image_prompts (includes video_url from Pass 3)
         # The timeline_images_path JSON file is created during Pass 2 (before video generation)
         # so it may not contain the latest video_url values.
         images = []
+        _valid_scene_numbers = []
+        _skipped_scene_numbers = []
         sorted_prompts = sorted(images_data, key=lambda x: x.get('scene_number', 0))
         for img in sorted_prompts:
             # Priority: video_url (motion video) > wan_image (Original Tall) > image_url (Sliced Image)
@@ -1593,10 +1631,31 @@ JSON만 출력하세요:
                     fpath = os.path.join(config.OUTPUT_DIR, video_url.replace("/output/", ""))
                 else:
                     fpath = os.path.join(config.OUTPUT_DIR, video_url.split("/")[-1])
-                
+
                 if os.path.exists(fpath):
-                    best_path = fpath
-                    print(f"📸 [Auto-Pilot] Scene {scene_num}: Using VIDEO - {os.path.basename(fpath)}")
+                    # [FIX] Validate video file is not corrupt/incomplete before using it
+                    # Veo may save a partial/corrupt file even when generation fails
+                    fsize = os.path.getsize(fpath)
+                    _video_valid = False
+                    if fsize > 500 * 1024:  # Must be at least 500KB
+                        try:
+                            import subprocess
+                            result = subprocess.run(
+                                ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                                 '-of', 'default=noprint_wrappers=1:nokey=1', fpath],
+                                capture_output=True, text=True, timeout=10
+                            )
+                            _dur_str = result.stdout.strip()
+                            if _dur_str and float(_dur_str) > 0.5:
+                                _video_valid = True
+                        except Exception as _ve:
+                            # ffprobe unavailable — fall back to size-only check
+                            _video_valid = (fsize > 1 * 1024 * 1024)  # 1MB minimum
+                    if _video_valid:
+                        best_path = fpath
+                        print(f"📸 [Auto-Pilot] Scene {scene_num}: Using VIDEO - {os.path.basename(fpath)}")
+                    else:
+                        print(f"⚠️ [Auto-Pilot] Scene {scene_num}: VIDEO invalid/corrupt (size={fsize}bytes), falling back to image")
                     
             elif is_vertical_pan and wan_path:
                  best_path = wan_path
@@ -1616,54 +1675,79 @@ JSON만 출력하세요:
                      best_path = fpath
                      print(f"📸 [Auto-Pilot] Scene {scene_num}: Using Sliced Image (Fallback) - {os.path.basename(fpath)}")
 
-            if best_path: 
+            if best_path:
                 images.append(best_path)
-                
+                _valid_scene_numbers.append(scene_num)
+            else:
+                print(f"⚠️ [Auto-Pilot] Scene {scene_num}: No valid path found → SKIPPED from render")
+                _skipped_scene_numbers.append(scene_num)
+
         audio_path = tts_data["audio_path"] if tts_data else None
         output_filename = f"autopilot_{project_id}_{config.get_kst_time().strftime('%H%M%S')}.mp4"
 
         # [IMPROVED] Calculate Durations from Start Timings
         image_durations = 5.0 # Default fallback
         timings_path = settings.get("image_timings_path")
-        
+
         smart_sync_enabled = False
         if tts_data and timings_path and os.path.exists(timings_path):
             try:
                 with open(timings_path, "r", encoding="utf-8") as f:
                     loaded_starts = json.load(f)
-                
+
                 if loaded_starts:
-                    # If the file contains DURATIONS (old format), we need to detect it.
-                    # Usually start times begin with 0.0. 
-                    # If there are many values and sum is > total_duration, then if it's start times, the last value would be < total_duration.
-                    # Best check: Is it monotonically increasing?
                     is_pacing_format = all(x < y for x, y in zip(loaded_starts, loaded_starts[1:])) if len(loaded_starts) > 1 else True
-                    
+
                     if is_pacing_format:
-                        # Convert Start Times to Durations
                         total_dur = tts_data["duration"]
-                        durations = []
+                        all_durations = []
                         for i in range(len(loaded_starts)):
                             if i < len(loaded_starts) - 1:
-                                durations.append(loaded_starts[i+1] - loaded_starts[i])
+                                all_durations.append(loaded_starts[i+1] - loaded_starts[i])
                             else:
-                                durations.append(max(2.0, total_dur - loaded_starts[i]))
-                        image_durations = durations
+                                all_durations.append(max(2.0, total_dur - loaded_starts[i]))
                     else:
-                        # Old format: Durations
-                        image_durations = loaded_starts
-                    
-                    # Align with images count
-                    if len(image_durations) >= len(images):
-                        image_durations = image_durations[:len(images)]
+                        all_durations = loaded_starts
+
+                    # [FIX] Filter durations to only include scenes that have a valid image/video
+                    # sorted_prompts has all scenes; filter to match _valid_scene_numbers
+                    if _skipped_scene_numbers and len(all_durations) == len(sorted_prompts):
+                        skipped_indices = set()
+                        for idx, p in enumerate(sorted_prompts):
+                            if p.get('scene_number') in _skipped_scene_numbers:
+                                skipped_indices.add(idx)
+                        image_durations = [d for idx, d in enumerate(all_durations) if idx not in skipped_indices]
+
+                        # [FIX] Shift subs timing: subtract accumulated skipped duration
+                        if subs and skipped_indices:
+                            skipped_offset = sum(all_durations[idx] for idx in skipped_indices)
+                            print(f"⚠️ [Auto-Pilot] Skipped {len(skipped_indices)} scenes ({skipped_offset:.2f}s). Adjusting subtitle timing by -{skipped_offset:.2f}s")
+                            adjusted_subs = []
+                            for sub in subs:
+                                new_start = sub["start"] - skipped_offset
+                                new_end = sub["end"] - skipped_offset
+                                if new_end > 0:  # discard subs that end before video start
+                                    adjusted_subs.append({
+                                        "text": sub["text"],
+                                        "start": max(0.0, round(new_start, 2)),
+                                        "end": round(new_end, 2)
+                                    })
+                            subs = adjusted_subs
+                            print(f"📝 [Auto-Pilot] Subtitle timing adjusted: {len(subs)} subs remain")
                     else:
-                        rem_dur = tts_data["duration"] - sum(image_durations) if isinstance(image_durations, list) else 0
-                        rem_cnt = len(images) - len(image_durations)
-                        if rem_cnt > 0:
-                            avg = max(3.0, rem_dur / rem_cnt)
+                        image_durations = all_durations
+
+                    # Align length with images count
+                    if isinstance(image_durations, list):
+                        if len(image_durations) > len(images):
+                            image_durations = image_durations[:len(images)]
+                        elif len(image_durations) < len(images):
+                            rem_dur = tts_data["duration"] - sum(image_durations)
+                            rem_cnt = len(images) - len(image_durations)
+                            avg = max(3.0, rem_dur / rem_cnt) if rem_cnt > 0 else 5.0
                             image_durations = image_durations + [avg] * rem_cnt
 
-                    print(f"✅ [Auto-Pilot] Start-Time Sync Applied: {len(image_durations)} scenes")
+                    print(f"✅ [Auto-Pilot] Start-Time Sync Applied: {len(image_durations)} scenes, skipped={_skipped_scene_numbers}")
                     smart_sync_enabled = True
             except Exception as e:
                 print(f"⚠️ Failed to load smart timings: {e}")
@@ -1718,12 +1802,19 @@ JSON만 출력하세요:
                 print(f"⚠️ BGM Download failed: {bgme}")
 
         # [NEW] Collect Focal Points and Motions
+        # [FIX] Use _valid_scene_numbers already computed in images loop above
         f_points = []
         effects = []
         for i, img in enumerate(sorted_prompts):
             s_num = img.get('scene_number')
+
+            # Skip prompts that didn't produce a valid path (e.g. Veo video failed)
+            if s_num in _skipped_scene_numbers:
+                log_debug(f"⚠️ [Render] Scene {s_num}: Skipped → no effects/focal")
+                continue
+
             f_points.append(img.get("focal_point_y", 0.5))
-            
+
             # Fetch motion from settings (saved from webtoon producer or manual)
             eff = settings.get(f"scene_{s_num}_motion")
             if not eff or eff == 'random':
@@ -1734,10 +1825,20 @@ JSON만 출력하세요:
             effects.append(eff)
             log_debug(f"🎞️ [Render] Scene {s_num}: Effect={eff}")
 
+        # [FIX] Sanitize subtitle_settings: None values for numeric fields cause TypeError in video_service
+        render_settings = dict(settings)
+        # bg_enabled: None → 1 (enabled by default)
+        if render_settings.get("subtitle_bg_enabled") is None and render_settings.get("bg_enabled") is None:
+            render_settings["subtitle_bg_enabled"] = 1
+        elif render_settings.get("subtitle_bg_enabled") is None:
+            render_settings["subtitle_bg_enabled"] = render_settings.get("bg_enabled", 1)
+        if render_settings.get("bg_enabled") is None:
+            render_settings["bg_enabled"] = render_settings.get("subtitle_bg_enabled", 1)
+
         final_path = video_service.create_slideshow(
             images=images, audio_path=audio_path, output_filename=output_filename,
             duration_per_image=image_durations, subtitles=subs, project_id=project_id,
-            resolution=resolution, subtitle_settings=settings, sfx_map=sfx_map,
+            resolution=resolution, subtitle_settings=render_settings, sfx_map=sfx_map,
             focal_point_ys=f_points, image_effects=effects
         )
 

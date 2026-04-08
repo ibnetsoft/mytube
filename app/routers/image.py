@@ -220,10 +220,10 @@ async def generate_image_prompts_api(req: PromptsGenerateRequest):
         return {"prompts": prompts_list}
         
     except Exception as e:
-        print(f"Scene analysis error: {e}")
         import traceback
-        traceback.print_exc()
-        raise HTTPException(500, f"분석 실패: {str(e)}")
+        err_detail = traceback.format_exc()
+        print(f"[GENERATE-PROMPTS ERROR] {e}\n{err_detail}")
+        raise HTTPException(500, f"분석 실패: {str(e)[:500]}")
 
 
 @router.post("/api/projects/{project_id}/random-cooking")

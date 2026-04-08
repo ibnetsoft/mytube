@@ -1266,22 +1266,21 @@ async def render_project_video(
                          
                          shift_delta = earliest_start
                          
-                         # [NEW] Sync Images with Start Time
-                         first_img_idx = 0
-                         if forced_timings and len(forced_timings) > 0:
-                             for idx, t in enumerate(forced_timings):
-                                 if t <= shift_delta:
-                                     first_img_idx = idx
-                                 else:
-                                     break
-                         
-                         if first_img_idx > 0:
-                             print(f"DEBUG_RENDER: [Auto-Relativize] Discarding first {first_img_idx} unused images/effects.")
-
-                             # 인플레이스 슬라이싱: 변수 재할당 대신 리스트 뮤테이션으로 로컬변수 스코프 충돌 방지
-                             images[:] = images[first_img_idx:]
-                             if forced_timings:
-                                 forced_timings = forced_timings[first_img_idx:]
+                         # [REMOVED] Sync Images with Start Time - Do NOT discard images/timings based on gap.
+                         # This was causing the first image to be skipped incorrectly.
+                         # first_img_idx = 0
+                         # if forced_timings and len(forced_timings) > 0:
+                         #     for idx, t in enumerate(forced_timings):
+                         #         if t <= shift_delta:
+                         #             first_img_idx = idx
+                         #         else:
+                         #             break
+                         # 
+                         # if first_img_idx > 0:
+                         #     print(f"DEBUG_RENDER: [Auto-Relativize] Discarding first {first_img_idx} unused images/effects.")
+                         #     images[:] = images[first_img_idx:]
+                         #     if forced_timings:
+                         #         forced_timings = forced_timings[first_img_idx:]
 
                          # Shift all remaining subtitles
                          for s in subs:

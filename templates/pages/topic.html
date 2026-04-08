@@ -25,6 +25,22 @@
 
             <!-- 필터 그룹 (언어 / 기간 / 연령) -->
             <div class="flex flex-wrap items-center gap-3">
+                <!-- [NEW] 국가 선택 -->
+                <div class="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
+                    <button id="btn-ko" onclick="changeTrendLanguage('ko')" 
+                        class="lang-btn px-4 py-2 text-sm font-bold rounded-md transition-all active:scale-95 bg-indigo-500 text-white shadow-md">
+                        🇰🇷 {{ t('lang_ko') }}
+                    </button>
+                    <button id="btn-ja" onclick="changeTrendLanguage('ja')" 
+                        class="lang-btn px-4 py-2 text-sm font-bold rounded-md transition-all active:scale-95 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700">
+                        🇯🇵 {{ t('lang_ja') }}
+                    </button>
+                    <button id="btn-en" onclick="changeTrendLanguage('en')" 
+                        class="lang-btn px-4 py-2 text-sm font-bold rounded-md transition-all active:scale-95 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700">
+                        🇺🇸 {{ t('lang_en') }}
+                    </button>
+                </div>
+
                 <!-- 기간 선택 -->
                 <select id="trend-period"
                     class="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2">
@@ -771,11 +787,7 @@
     function changeTrendLanguage(lang) {
         currentLang = lang;
         updateTrendLangUI(lang);
-        // We no longer auto-load when language tab is clicked to follow user request
-        // But maybe users still want to switch lang and reload? 
-        // User said "click the button to load", so I'll keep it manual.
-        const langText = lang === 'ko' ? i18n.lang_ko : (lang === 'ja' ? i18n.lang_ja : i18n.lang_en);
-        Utils.showToast(`${langText} ${i18n.status_filter_set_refresh}`, 'info');
+        loadTrendKeywords(lang);
     }
 
     function updateTrendLangUI(lang) {

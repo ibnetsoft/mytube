@@ -473,6 +473,9 @@ class VideoService:
                          pass 
                     else:
                          print(f"ERROR: Video asset failed to load. Skipping: {img_path}")
+                         import datetime
+                         with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as _df:
+                             _df.write(f"[{datetime.datetime.now()}] ❌ Scene[{i+1}] VIDEO FAILED to load, skipped: {os.path.basename(img_path)}\n")
                          continue # Skip this frame entirely if video failed to load
                 else: 
                     # Image Processing (Cinematic Frame or Fit)
@@ -1011,17 +1014,32 @@ class VideoService:
                     # [NEW] Enhanced Background Logic
                     # [FIX] Support both key variants: 'subtitle_bg_enabled' (frontend) and 'bg_enabled' (legacy)
                     _bg_enabled_raw = s_settings.get("subtitle_bg_enabled") if s_settings.get("subtitle_bg_enabled") is not None else s_settings.get("bg_enabled", 1)
+                    if _bg_enabled_raw is None:
+                        _bg_enabled_raw = 1  # Default: bg enabled
                     bg_enabled = bool(int(_bg_enabled_raw) == 1)
                     final_bg = False
                     if bg_enabled:
-                         hex_color = s_settings.get("subtitle_bg_color") or s_settings.get("bg_color", "#000000")
+                         bg_color_val = s_settings.get("subtitle_bg_color") or s_settings.get("bg_color", "#000000")
                          opacity = float(s_settings.get("subtitle_bg_opacity") or s_settings.get("bg_opacity", 0.5))
-                         # Convert Hex to RGB then add Opacity
-                         hex_color = hex_color.lstrip('#')
-                         rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+                         
+                         # [FIX] Robust Color Conversion for BG
+                         if isinstance(bg_color_val, str) and bg_color_val.startswith("#"):
+                             try:
+                                 hex_color = bg_color_val.lstrip('#')
+                                 rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+                             except Exception:
+                                 rgb = (0, 0, 0) # Fallback to black
+                         else:
+                             # Try parsing via _parse_color or default to black
+                             parsed_c = self._parse_color(bg_color_val)
+                             if isinstance(parsed_c, tuple):
+                                 rgb = parsed_c[:3]
+                             else:
+                                 rgb = (0, 0, 0)
+                                 
                          final_bg = (*rgb, int(opacity * 255))
 
-                    bg_v_offset = int(s_settings.get("bg_v_offset", 0))
+                    bg_v_offset = int(s_settings.get("bg_v_offset") or 0)
                     txt_img_path = self._create_subtitle_image(
                         text=sub["text"],
                         width=target_w,
@@ -1046,9 +1064,10 @@ class VideoService:
                         try:
                             from PIL import Image as _PIL_Sub
                             import numpy as _np_sub
-                            _pil_sub = _PIL_Sub.open(txt_img_path).convert('RGBA')
-                            _sub_arr = _np_sub.array(_pil_sub)
-                            txt_clip = ImageClip(_sub_arr).with_fps(fps)
+                            with _PIL_Sub.open(txt_img_path) as _pil_sub:
+                                _pil_sub_rgba = _pil_sub.convert('RGBA')
+                                _sub_arr = _np_sub.array(_pil_sub_rgba)
+                                txt_clip = ImageClip(_sub_arr).with_fps(fps)
                         except Exception as _sub_load_err:
                             print(f"[SUBTITLE] PIL load failed, fallback to path: {_sub_load_err}")
                             txt_clip = ImageClip(txt_img_path)
@@ -1098,6 +1117,10 @@ class VideoService:
                     print(f"Error creating subtitle clip for text '{sub.get('text', '')}': {e}")
                     import traceback
                     traceback.print_exc()
+            
+            # [NEW] Force Garbage Collection after heavy clip creation
+            import gc
+            gc.collect()
 
             print(f"[SUBTITLE] Total subtitle_clips created: {len(subtitle_clips)}")
             if subtitle_clips:
@@ -2017,11 +2040,13 @@ class VideoService:
 
         # [FIX] Safety cleaning just in case (Include Unicode Brackets)
         if text:
-            # 1. Normalize Unicode (Full-width -> ASCII, etc.)
+            # 1. Strip Unicode curly quotes BEFORE NFKC (NFKC converts them to ASCII ' which we can't distinguish)
+            text = re.sub(r"[\u2018\u2019\u201C\u201D\u2032\u2033\u0027\u0060]", '', text)
+            # 2. Normalize Unicode (Full-width -> ASCII, etc.)
             text = unicodedata.normalize('NFKC', text)
-            # 2. Regex Clean (Strip all brackets)
+            # 3. Regex Clean (Strip all brackets)
             text = re.sub(r'[()\[\]\{\}（）「」『』【】]', '', text)
-            # 3. Newline Safety
+            # 4. Newline Safety
             text = text.replace('\r', '').strip()
             
             # 4. [NEW] Auto-Fallback for Japanese Fonts
@@ -2030,6 +2055,14 @@ class VideoService:
                 if any(k in font_name for k in ko_fonts):
                     print(f"DEBUG_RENDER: Japanese text detected in K-Font '{font_name}'. Falling back to NotoSansJP.")
                     font_name = "NotoSansJP"
+
+            # 5. [NEW] Auto-Fallback for Korean Text in non-Korean fonts
+            # NotoSansJP, Impact, Roboto etc. don't support Hangul → invisible glyphs
+            if re.search(r'[\uAC00-\uD7A3\u1100-\u11FF\u3130-\u318F]', text):
+                non_korean_fonts = ["NotoSansJP", "Impact", "Roboto", "Arial", "impact", "roboto", "ja"]
+                if any(k in font_name for k in non_korean_fonts):
+                    print(f"DEBUG_RENDER: Korean text detected in non-Korean font '{font_name}'. Falling back to malgun.")
+                    font_name = "Malgun Gothic"
         
         # 스타일 조회
         style = self.SUBTITLE_STYLES.get(style_name, self.SUBTITLE_STYLES["Basic_White"])
@@ -2100,7 +2133,9 @@ class VideoService:
         if not target_font_file.lower().endswith((".ttf", ".ttc", ".woff", ".otf")):
             target_font_file += ".ttf"
 
-        _static_fonts_dir = os.path.join(os.path.dirname(__file__), "..", "static", "fonts")
+        print(f"🔍 [Font Resolve] Request: '{font_name}' -> File: '{target_font_file}'")
+
+        _static_fonts_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "static", "fonts"))
         search_paths = [
             os.path.join(os.path.dirname(__file__), "..", "assets", "fonts"),
             _static_fonts_dir,
@@ -2163,13 +2198,24 @@ class VideoService:
                  df.write(f"[{datetime.datetime.now()}] FONT_DEBUG: target='{target_font_file}', found_path='{font_path}', search_paths={search_paths}\n")
         except Exception: pass
 
-        # G마켓 산스 없으면 malgunbd.ttf (굵은 고딕) 시도
-        if not font_path and "Gmarket" in font_name:
-             font_path = "C:/Windows/Fonts/malgunbd.ttf"
-             
-        # 그래도 없으면 기본
+        # [FIX] Final fallback must be a RELIABLE Hangul font on Windows
         if not font_path or not os.path.exists(font_path):
-             font_path = "C:/Windows/Fonts/malgun.ttf"
+             win_malgun = "C:/Windows/Fonts/malgun.ttf"
+             win_malgun_bd = "C:/Windows/Fonts/malgunbd.ttf"
+             if os.path.exists(win_malgun_bd):
+                 font_path = win_malgun_bd
+             elif os.path.exists(win_malgun):
+                 font_path = win_malgun
+             else:
+                 # Try common locations in case drive is not C:
+                 possible_malguns = [
+                     os.path.join(os.environ.get('SystemRoot', 'C:/Windows'), 'Fonts', 'malgun.ttf'),
+                     os.path.join(os.environ.get('SystemRoot', 'C:/Windows'), 'Fonts', 'gulim.ttc')
+                 ]
+                 for p in possible_malguns:
+                     if os.path.exists(p):
+                         font_path = p
+                         break
              
         try:
             if font_path and os.path.exists(font_path):
@@ -2186,12 +2232,13 @@ class VideoService:
                 for af in alt_fonts:
                     try:
                         font = ImageFont.truetype(af, font_size)
-                        print(f"⚠️ [Font] Using fallback font: {af}")
+                        print(f"✅ [Font Fallback Success] Used: {af}")
+                        font_path = af
                         break
                     except Exception: continue
                 
                 if not font:
-                    print(f"⚠️ [Font] All paths failed for '{font_name}'. Using default.")
+                    print(f"❌ [Font CRITICAL] All Hangul fonts failed. Using PIL default (Hangul will likely fail).")
                     font = ImageFont.load_default()
         except Exception as e:
              print(f"DEBUG_FONT: Font loading FAILED for '{font_name}': {e}")
@@ -2348,12 +2395,10 @@ class VideoService:
             line_spacing_ratio = 0.1
 
         # 줄간격 계산 - CSS 미리보기 완전 일치
-        # CSS 미리보기: margin-bottom = lineSpacing * fontSize (두 배경띠 사이의 시각적 픽셀 간격)
-        # PIL에서는 각 배경띠가 text_y ± strip_pad_y 범위를 차지하므로,
-        # 두 줄 사이에 CSS와 동일한 gap을 주려면 line_spacing에 2*strip_pad_y를 더해야 함.
-        # gap = line_spacing - 2*strip_pad_y = lineSpacing_ratio * font_size ← 목표
-        # → line_spacing = font_size * line_spacing_ratio + 2 * strip_pad_y
-        line_spacing = int(font_size * line_spacing_ratio + 2 * strip_pad_y)
+        # CSS: padding 0.30em, line-height 1, margin-bottom = lineSpacing_ratio * fontSize
+        # 배경이 단일 사각형이므로 strip_pad_y 보정 불필요
+        # full_line_height = font_size * (1 + line_spacing_ratio) 로 CSS와 동일
+        line_spacing = int(font_size * line_spacing_ratio)
         
         # PIL의 multiline_text는 line_spacing을 줄 사이의 추가 간격으로 사용함.
         # 하지만 우리는 수동으로 current_y를 조절하므로 full_line_height를 정의.
@@ -2410,26 +2455,40 @@ class VideoService:
 
         broken_space = _has_broken_space_glyph(font)
 
+        # [FIX] 쉼표·마침표 y보정: 일부 한국 디스플레이 폰트(GmarketSans 등)는
+        # , . 글리프를 셀 상단에 배치(타이포그래피 어포스트로피 스타일)하여 위로 뜨는 문제 발생.
+        # 기준 문자 '가' 잉크 하단과 비교해 차이만큼 아래로 내림.
+        punct_y_fix = 0
+        try:
+            comma_mask = font.getmask(',')
+            comma_ink = comma_mask.getbbox()   # (left, top, right, bottom) of ink pixels
+            ref_mask   = font.getmask('가')
+            ref_ink    = ref_mask.getbbox()
+            if comma_ink and ref_ink:
+                # comma_ink[3]: 쉼표 잉크 하단 / ref_ink[3]: '가' 잉크 하단
+                # 쉼표 하단이 '가' 하단의 60% 미만이면 위로 뜨는 폰트로 판단
+                if comma_ink[3] < ref_ink[3] * 0.6:
+                    punct_y_fix = ref_ink[3] - comma_ink[3]
+        except Exception:
+            pass
+
+        _PUNCT_CHARS = frozenset('.,')
+
         def _draw_line(drw, pos, txt, fnt, fill, sw=0, sf=None):
-            """공백 글리프가 깨진 폰트: 문자 단위로 그리고 공백은 건너뜀"""
-            anchor = 'lt'  # [FIX] Use predictable top-left anchor
-            if not broken_space:
-                if sw > 0 and sf:
-                    drw.text(pos, txt, font=fnt, fill=fill, stroke_width=sw, stroke_fill=sf, anchor=anchor)
-                else:
-                    drw.text(pos, txt, font=fnt, fill=fill, anchor=anchor)
-                return
+            """문자 단위 렌더링 (공백 보정 + 쉼표/마침표 y보정)"""
+            anchor = 'lt'
             x, y = float(pos[0]), float(pos[1])
             for ch in txt:
                 if ch in (' ', '\u00A0', '\u2009', '\u202F', '\u3000'):
                     raw_sp = drw.textlength(ch, font=fnt)
-                    # GmarketSans 등 일부 폰트의 공백 advance가 비정상적으로 넓음 → 폰트크기의 30%로 제한
-                    x += min(raw_sp, font_size * 0.30)
+                    x += min(raw_sp, font_size * 0.30) if broken_space else raw_sp
                 else:
+                    # 쉼표·마침표는 y를 아래로 보정
+                    ch_y = y + (punct_y_fix if ch in _PUNCT_CHARS else 0)
                     if sw > 0 and sf:
-                        drw.text((x, y), ch, font=fnt, fill=fill, stroke_width=sw, stroke_fill=sf, anchor=anchor)
+                        drw.text((x, ch_y), ch, font=fnt, fill=fill, stroke_width=sw, stroke_fill=sf, anchor=anchor)
                     else:
-                        drw.text((x, y), ch, font=fnt, fill=fill, anchor=anchor)
+                        drw.text((x, ch_y), ch, font=fnt, fill=fill, anchor=anchor)
                     x += drw.textlength(ch, font=fnt)
 
         # 1단계: 모든 줄 측정
@@ -2499,6 +2558,7 @@ class VideoService:
         temp_filename = f"sub_{uuid.uuid4()}.png"
         output_path = os.path.join(self.output_dir, temp_filename)
         img.save(output_path)
+        img.close() # [FIX] Explicit Memory Free
         
         return output_path
 

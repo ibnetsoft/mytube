@@ -67,6 +67,9 @@ PLATFORM_TRANSLATIONS = {
         'status_done_redirecting': '완료! 결과 페이지로 이동합니다...',
         'status_error_occurred_check_logs': '오류 발생. 로그를 확인하세요.',
         'status_processing_monitor': '처리중 (모니터링)...',
+        'plan_kr_trend': '🇰🇷 한국 트렌드',
+        'plan_jp_trend': '🇯🇵 일본 트렌드',
+        'plan_us_trend': '🇺🇸 미국 트렌드',
         'status_no_voices_available': '사용 가능한 보이스 없음',
         'status_error_loading_voices': '보이스 로드 오류',
         'status_no_queue_items': '대기중인 항목 없음',
@@ -1125,6 +1128,13 @@ PLATFORM_TRANSLATIONS = {
         'btn_upload_new': '📁 새 파일 업로드',
         'btn_shrink_view': '접기 📂',
         'btn_expand_view': '전체 보기 📂',
+        'btn_ai_gen': 'AI 생성',
+        'btn_media_upload_v2': '미디어 업로드',
+        'btn_copy': '복사',
+        'btn_gen_images': '이미지 생성',
+        'btn_regen_prompt': '프롬프트 재생성',
+        'err_server_comm': '서버 통신 오류',
+        'label_no_desc': '설명 없음',
         'char_new_name': '새 캐릭터',
         'char_name_unknown': '이름 없음',
         'char_role': '역할',
@@ -1164,7 +1174,7 @@ PLATFORM_TRANSLATIONS = {
         'msg_char_ref_deleted': '캐릭터 레퍼런스가 삭제되었습니다.',
         'err_no_thumbnail_img': '썸네일 이미지가 확인되지 않습니다.',
         'err_project_info_load_fail': '프로젝트 정보 로드 실패',
-        'err_select_image_or_thumbnail': '이미지를 선택하거나 "썸네일 사용"을 체크해주세요.',
+        'err_select_image_or_thumbnail': '이미지를 선택하거나 [썸네일 사용]을 체크해주세요.',
         'label_character': '캐릭터',
         'msg_chars_analyzed_n': '{n}개 캐릭터 분석 완료 (자동 저장됨)',
         'msg_char_analyzed': '캐릭터 외형 분석 완료 (자동 저장됨)',
@@ -3012,6 +3022,13 @@ PLATFORM_TRANSLATIONS = {
         'btn_upload_new': '📁 Upload New File',
         'btn_shrink_view': 'Collapse 📂',
         'btn_expand_view': 'Expand 📂',
+        'btn_ai_gen': 'AI Generate',
+        'btn_media_upload_v2': 'Upload Media',
+        'btn_copy': 'Copy',
+        'btn_gen_images': 'Generate Images',
+        'btn_regen_prompt': 'Regen Prompt',
+        'err_server_comm': 'Server communication error',
+        'label_no_desc': 'No description',
         'char_new_name': 'New Character',
         'char_name_unknown': 'Unknown',
         'char_role': 'Role',
@@ -3051,7 +3068,7 @@ PLATFORM_TRANSLATIONS = {
         'msg_char_ref_deleted': 'Character reference deleted.',
         'err_no_thumbnail_img': 'Thumbnail image not found.',
         'err_project_info_load_fail': 'Failed to load project info',
-        'err_select_image_or_thumbnail': 'Please select an image or check "Use Thumbnail".',
+        'err_select_image_or_thumbnail': 'Please select an image or check [Use Thumbnail].',
         'label_character': 'Character',
         'msg_chars_analyzed_n': '{n} characters analyzed (auto-saved)',
         'msg_char_analyzed': 'Character appearance analyzed (auto-saved)',
@@ -4973,6 +4990,13 @@ PLATFORM_TRANSLATIONS = {
         'btn_upload_new': '📁 Tải lên tệp mới',
         'btn_shrink_view': 'Thu gọn 📂',
         'btn_expand_view': 'Mở rộng 📂',
+        'btn_ai_gen': 'Tạo AI',
+        'btn_media_upload_v2': 'Tải media',
+        'btn_copy': 'Sao chép',
+        'btn_gen_images': 'Tạo ảnh',
+        'btn_regen_prompt': 'Tạo lại prompt',
+        'err_server_comm': 'Lỗi kết nối máy chủ',
+        'label_no_desc': 'Không có mô tả',
         'char_new_name': 'Nhân vật mới',
         'char_name_unknown': 'Không rõ tên',
         'char_role': 'Vai trò',
@@ -5074,7 +5098,7 @@ PLATFORM_TRANSLATIONS = {
         'msg_char_ref_deleted': 'Đã xóa tham chiếu nhân vật.',
         'err_no_thumbnail_img': 'Không tìm thấy ảnh thumbnail.',
         'err_project_info_load_fail': 'Tải thông tin dự án thất bại',
-        'err_select_image_or_thumbnail': 'Vui lòng chọn ảnh hoặc chọn "Dùng thumbnail".',
+        'err_select_image_or_thumbnail': 'Vui lòng chọn ảnh hoặc chọn [Dùng thumbnail].',
         'label_character': 'Nhân vật',
         'msg_chars_analyzed_n': 'Đã phân tích {n} nhân vật (tự động lưu)',
         'msg_char_analyzed': 'Đã phân tích ngoại hình nhân vật (tự động lưu)',
@@ -7175,10 +7199,16 @@ class Translator:
         self.lang = lang if lang in PLATFORM_TRANSLATIONS else 'ko'
         self.data = PLATFORM_TRANSLATIONS[self.lang]
 
-    def t(self, key):
+    def t(self, key, **kwargs):
         val = self.data.get(key, key)
+        result = str(val)
+        if kwargs:
+            try:
+                result = result.format(**kwargs)
+            except (KeyError, ValueError):
+                pass
         # Escape newlines so values are safe in JavaScript string literals
-        return str(val).replace('\r\n', '\\n').replace('\r', '\\n').replace('\n', '\\n')
+        return result.replace('\r\n', '\\n').replace('\r', '\\n').replace('\n', '\\n')
 
     def set_lang(self, lang):
         if lang in PLATFORM_TRANSLATIONS:

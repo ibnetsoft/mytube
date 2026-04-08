@@ -108,6 +108,21 @@ async def get_project(project_id: int):
         raise HTTPException(404, "Project not found")
     return project
 
+@router.get("/projects/{project_id}/script-structure")
+async def get_script_structure(project_id: int):
+    structure = db.get_script_structure(project_id)
+    if not structure:
+        raise HTTPException(404, "No script structure found")
+    return structure
+
+@router.post("/projects/{project_id}/script-structure")
+async def save_script_structure(project_id: int, data: dict):
+    try:
+        db.save_script_structure(project_id, data)
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
 @router.put("/projects/{project_id}")
 async def update_project(project_id: int, data: ProjectUpdate):
     try:

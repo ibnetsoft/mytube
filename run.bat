@@ -35,5 +35,6 @@ echo   종료: Ctrl+C
 echo ========================================
 echo.
 
-REM 서버 실행
+REM 서버 실행 (--reload: 코드 변경 시 자동 재시작)
+set DEBUG=true
 python main.py
