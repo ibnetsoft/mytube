@@ -25,6 +25,16 @@ class GeminiService:
     def api_key(self):
         return config.GEMINI_API_KEY
 
+    def log_debug(self, msg: str):
+        """Write to debug.log for monitoring"""
+        print(msg)
+        try:
+            from datetime import datetime
+            with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
+                f.write(f"[{datetime.now()}] [Gemini] {msg}\n")
+        except Exception:
+            pass
+
     async def generate_text(self, prompt: str, temperature: float = 0.7, max_tokens: int = 8192) -> str:
         """텍스트 생성"""
         url = f"{self.base_url}/models/gemini-2.0-flash:generateContent?key={self.api_key}"
@@ -502,15 +512,44 @@ class GeminiService:
         self,
         prompt: str,
         image_path: Optional[str] = None,
-        duration_seconds: int = 6, 
+        duration_seconds: int = 5, 
         aspect_ratio: str = "16:9",
         model: str = "veo-3.1-generate-preview",
         **kwargs
-    ) -> dict:
-        """영상 생성 (Veo) - 최신 SDK 방식 사용"""
-        # [NEW] generate_video_preview의 로직으로 대체하여 딕셔너리 반환
-        # (기존 httpx 방식은 권한/모델명 불일치 에러 잦음)
-        return await self.generate_video_preview(prompt=prompt, model=model)
+    ) -> Optional[bytes]:
+        """영상 생성 (Veo) - 최신 SDK 방식 사용. 바이트 데이터를 직접 반환함."""
+        # Cap duration for preview model
+        if "preview" in model:
+            duration_seconds = min(duration_seconds, 5)
+        
+        self.log_debug(f"📹 [Veo] Starting full video generation (dur={duration_seconds}s): {prompt[:50]}...")
+
+        res = await self.generate_video_preview(prompt=prompt, image_path=image_path, model=model)
+        if res.get("status") == "ok" and res.get("video_url"):
+            # Download the video
+            try:
+                self.log_debug(f"📥 [Veo] Downloading video from {res['video_url']}...")
+                download_url = res['video_url']
+                if "generativelanguage.googleapis.com" in download_url and "key=" not in download_url:
+                    sep = "&" if "?" in download_url else "?"
+                    download_url += f"{sep}key={self.api_key}"
+                
+                async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+                    resp = await client.get(download_url)
+
+
+                    if resp.status_code == 200:
+                        self.log_debug(f"✅ [Veo] Download complete ({len(resp.content)} bytes)")
+                        return resp.content
+                    else:
+                        self.log_debug(f"❌ [Veo] Download failed with status {resp.status_code}")
+            except Exception as e:
+                self.log_debug(f"⚠️ [Veo] Download failed: {e}")
+        else:
+            self.log_debug(f"❌ [Veo] Generation failed: {res.get('error')}")
+        return None
+
+
 
     async def analyze_comments(self, comments: List[str], video_title: str, transcript: Optional[str] = None) -> dict:
         """댓글 및 대본 분석"""
@@ -988,12 +1027,20 @@ class GeminiService:
             print(f"Trend Gen Error: {e}")
             return []
 
-    async def generate_character_prompts_from_script(self, script: str, visual_style: str = "photorealistic") -> List[dict]:
-        """대본을 분석하여 등장인물 정보 및 이미지 프롬프트 생성"""
-        
+    async def generate_character_prompts_from_script(self, script: str, visual_style: str = "photorealistic", char_ethnicity: str = None) -> List[dict]:
+        """대본을 분석하여 등장인물 정보 및 이미지 프롬프트 생성 (캐릭터 설정 단계)"""
+        ethnicity_instruction = ""
+        if char_ethnicity:
+            ethnicity_instruction = f"""
+[인종/인종적 배경 지침 - 절대 준수]
+- 이 영상의 모든 인물은 다음 인종/배경을 가져야 합니다: "{char_ethnicity}"
+- 서양인(Caucasian) 위주가 아닌, 위 지침에 따른 신체적 특징을 가진 인물을 묘사하세요.
+"""
+
         prompt = prompts.GEMINI_CHARACTER_PROMPTS.format(
-            script=script[:8000], 
-            visual_style=visual_style
+            script=script[:8000],
+            visual_style=visual_style,
+            ethnicity_instruction=ethnicity_instruction
         )
         
         text = await self.generate_text(prompt, temperature=0.5)
@@ -1003,7 +1050,16 @@ class GeminiService:
         if json_match:
             try:
                 data = json.loads(json_match.group())
-                return data.get("characters", [])
+                chars = data.get("characters", [])
+                
+                # [ETHNICITY ENFORCEMENT]
+                if char_ethnicity and chars:
+                    eth_key = char_ethnicity.split(",")[0].strip().lower()
+                    for char in chars:
+                        pen = char.get("prompt_en", "")
+                        if pen and eth_key not in pen.lower():
+                            char["prompt_en"] = f"{char_ethnicity}, {pen}"
+                return chars
             except Exception as e:
                 print(f"Character prompt JSON parse error: {e}")
                 pass
@@ -1195,7 +1251,7 @@ Motion prompt for this image:"""
             result = cut[:last_sep].rstrip(', ') if last_sep > 100 else cut
         return result
 
-    async def generate_image_prompts_from_script(self, script: str, duration_seconds: int, style_prompt: str = None, characters: List[dict] = None, target_scene_count: int = None, style_key: str = None, gemini_instruction: str = None, reference_image_url: str = None) -> List[dict]:
+    async def generate_image_prompts_from_script(self, script: str, duration_seconds: int, style_prompt: str = None, characters: List[dict] = None, target_scene_count: int = None, style_key: str = None, gemini_instruction: str = None, reference_image_url: str = None, char_ethnicity: str = None) -> List[dict]:
         """대본을 분석하여 장면별 이미지 프롬프트 생성 (가변 페이싱 및 캐릭터 일관성 적용)"""
 
         # target_scene_count가 전달된 경우 우선 사용 (씬 분석 결과)
@@ -1275,6 +1331,14 @@ Motion prompt for this image:"""
 
 [캐릭터 외형 일관성]
 - 모든 씬에서 캐릭터의 외형(헤어스타일, 의상 등)을 동일하게 유지하세요.
+"""
+
+        ethnicity_instruction = ""
+        if char_ethnicity:
+            ethnicity_instruction = f"""
+[인종/인종적 배경 지침 - 절대 준수]
+- 이 영상의 모든 인물은 다음 인종/배경을 가져야 합니다: "{char_ethnicity}"
+- 서양인(Caucasian) 위주로 생성되지 않도록, 위 지침에 기술된 신체적 특징(눈매, 피부톤, 골격 등)을 모든 프롬프트에 명시적으로 반영하세요.
 """
 
         # 장면 수 지침 생성
@@ -1514,6 +1578,7 @@ Motion prompt for this image:"""
                     script=chunk_text_with_context,
                     style_instruction=style_instruction,
                     character_instruction=character_instruction,
+                    ethnicity_instruction=ethnicity_instruction,
                     limit_instruction=chunk_limit,
                     style_prefix=style_prefix_val
                 )
@@ -1531,6 +1596,7 @@ Motion prompt for this image:"""
                 script=script,
                 style_instruction=style_instruction,
                 character_instruction=character_instruction,
+                ethnicity_instruction=ethnicity_instruction,
                 limit_instruction=limit_instruction,
                 style_prefix=style_prefix_val
             )
@@ -1552,6 +1618,24 @@ Motion prompt for this image:"""
                         enforced_count += 1
                 if enforced_count > 0:
                     print(f"[StyleEnforce] Injected style prefix into {enforced_count}/{len(scenes)} scenes")
+
+            # [ETHNICITY ENFORCEMENT]
+            if char_ethnicity:
+                # Get the first part of the ethnicity description (e.g., "East Asian")
+                eth_key = char_ethnicity.split(",")[0].strip().lower()
+                eth_enforced_count = 0
+                for scene in scenes:
+                    pen = scene.get("prompt_en", "")
+                    if pen and eth_key not in pen.lower():
+                        # Inject after style if style exists, else at front
+                        if style_prompt and style_prompt.lower() in pen.lower():
+                            # Find end of style
+                            scene["prompt_en"] = pen.replace(style_prompt, f"{style_prompt}, {char_ethnicity}")
+                        else:
+                            scene["prompt_en"] = f"{char_ethnicity}, {pen}"
+                        eth_enforced_count += 1
+                if eth_enforced_count > 0:
+                    print(f"[EthnicityEnforce] Injected ethnicity into {eth_enforced_count}/{len(scenes)} scenes")
 
 
             # [FIX] target_scene_count가 지정된 경우 씬 분리 없이 그대로 반환
@@ -1687,7 +1771,7 @@ Motion prompt for this image:"""
         except Exception:
             return "nature calm loop" # Fallback
 
-    async def generate_video_preview(self, prompt: str, model: str = "veo-3.1-generate-preview") -> dict:
+    async def generate_video_preview(self, prompt: str, image_path: Optional[str] = None, model: str = "veo-3.1-generate-preview") -> dict:
         """Gemini Veo를 사용한 비디오 생성 (동기 SDK를 스레드에서 실행)"""
         if not self.api_key:
             return {"status": "error", "error": "API Key is missing"}
@@ -1701,13 +1785,27 @@ Motion prompt for this image:"""
                 from google import genai
                 client = genai.Client(api_key=api_key)
 
-                print(f"🎬 [Veo] Starting generation, model={model}, prompt={prompt[:80]}...")
+                self.log_debug(f"🎬 [Veo] SDK Client created. Model={model}")
+                
+                # Image-to-Video 처리
+                image_arg = None
+                if image_path and os.path.exists(image_path):
+                    try:
+                        ext = os.path.splitext(image_path)[1].lower()
+                        mime_type = "image/png" if ext == ".png" else "image/jpeg"
+                        with open(image_path, "rb") as f:
+                            image_arg = {"image_bytes": f.read(), "mime_type": mime_type}
+                        self.log_debug(f"🖼️ [Veo] Using reference image: {os.path.basename(image_path)}")
+                    except Exception as ie:
+                        self.log_debug(f"⚠️ [Veo] Image load failed: {ie}")
+
                 operation = client.models.generate_videos(
                     model=model,
                     prompt=prompt,
+                    image=image_arg,
                     config={'number_of_videos': 1}
                 )
-                print(f"🎬 [Veo] Operation started: {type(operation).__name__}")
+                self.log_debug(f"🎬 [Veo] Operation started: {type(operation).__name__} (id: {getattr(operation, 'id', 'unknown')})")
 
                 # 폴링: client.operations.get(operation 객체) 로 갱신
                 max_wait = 300
@@ -1716,11 +1814,12 @@ Motion prompt for this image:"""
                     elapsed = int(time.time() - start)
                     if elapsed >= max_wait:
                         return {"status": "error", "error": "Veo 영상 생성 시간 초과 (5분)"}
-                    print(f"⏳ [Veo] Waiting... {elapsed}s")
+                    self.log_debug(f"⏳ [Veo] Waiting... {elapsed}s")
                     time.sleep(20)
                     operation = client.operations.get(operation)
 
-                print(f"🎬 [Veo] Operation done: {type(operation).__name__}")
+                self.log_debug(f"🎬 [Veo] Operation done: {type(operation).__name__}")
+
 
                 # 에러 확인
                 op_error = getattr(operation, 'error', None)
@@ -1780,11 +1879,12 @@ Motion prompt for this image:"""
                 for name, cand in candidates:
                     uri = _find_video_uri(cand)
                     if uri:
-                        print(f"✅ [Veo] Video URI found in {name}: {uri}")
+                        self.log_debug(f"✅ [Veo] Video URI found in {name}: {uri}")
                         return {"status": "ok", "video_url": uri}
 
                 # 마지막 디버그 덤프 (실패 시 원인 파악을 위해 상세 출력)
-                print(f"🎬 [Veo] URI Not Found. op_type={type(operation).__name__}")
+                self.log_debug(f"🎬 [Veo] URI Not Found. op_type={type(operation).__name__}")
+
                 try:
                     # 상세 객체 정보 로깅 (pydantic 모델이면 to_dict 사용 시도)
                     if hasattr(operation, 'to_dict'):

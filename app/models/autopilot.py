@@ -24,6 +24,7 @@ class AutoPilotStartRequest(BaseModel):
     creation_mode: str = "default"
     product_url: Optional[str] = None
     use_character_analysis: bool = False
+    char_ethnicity: Optional[str] = "East Asian heritage, Polished porcelain skin"
     is_queued: bool = False
 
 

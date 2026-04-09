@@ -297,7 +297,12 @@ class AutoPilotService:
             style_prefix = style_data.get("prompt_value", "photorealistic")
         
         try:
-            characters = await gemini_service.generate_character_prompts_from_script(script_text, visual_style=style_prefix)
+            char_ethnicity = config_dict.get("char_ethnicity") or "East Asian heritage, Polished porcelain skin"
+            characters = await gemini_service.generate_character_prompts_from_script(
+                script_text, 
+                visual_style=style_prefix,
+                char_ethnicity=char_ethnicity
+            )
             if characters:
                 db.save_project_characters(project_id, characters)
                 print(f"✅ [Auto-Pilot] {len(characters)}명의 캐릭터를 식별하고 저장했습니다. (Style: {style_prefix})")
@@ -603,12 +608,15 @@ JSON만 출력하세요:
             print(f"🖼️ [Auto-Pilot] Generating image prompts for {target_duration}s video (style_key={image_style_key}, ref_img={'yes' if reference_image_url else 'no'})...")
             # [NEW] 캐릭터 정보 조회 및 전달
             characters = db.get_project_characters(project_id)
+            char_ethnicity = config_dict.get("char_ethnicity") or "East Asian heritage, Polished porcelain skin"
+            
             image_prompts = await gemini_service.generate_image_prompts_from_script(
                 script, target_duration, style_prefix,
                 characters=characters,
                 style_key=image_style_key,
                 gemini_instruction=gemini_instruction,
-                reference_image_url=reference_image_url
+                reference_image_url=reference_image_url,
+                char_ethnicity=char_ethnicity
             )
             db.save_image_prompts(project_id, image_prompts)
             image_prompts = db.get_image_prompts(project_id)
@@ -617,16 +625,28 @@ JSON만 출력하세요:
         # Determine how many scenes to make as video
         log_debug(f"🔍 [DEBUG] _generate_assets START: all_video={all_video}, motion_method={motion_method}")
         
+        # Ensure all_video is boolean or truthy
+        if isinstance(all_video, str):
+            all_video = (all_video.lower() == 'true')
+        elif isinstance(all_video, int):
+            all_video = bool(all_video)
+
         if all_video:
             video_scene_count = len(image_prompts)
             log_debug(f"🎬 [Auto-Pilot] 'ALL VIDEO' mode enabled. Generating {video_scene_count} video scenes.")
         else:
-            video_scene_count = config_dict.get("video_scene_count", 0)
+            # Type-safe extraction from config_dict
+            try:
+                raw_count = config_dict.get("video_scene_count", 0)
+                video_scene_count = int(raw_count) if raw_count is not None else 0
+            except (ValueError, TypeError):
+                video_scene_count = 0
             log_debug(f"🎬 [Auto-Pilot] Video scene count set to: {video_scene_count}")
         
         # [NEW] Force loud debug for all_video to see if it's really working
         if all_video or video_scene_count > 0:
              log_debug(f"🚀🚀🚀 [DYNAMO] VIDEO GENERATION IS ACTIVE! Count: {video_scene_count}, Engine: {video_engine} 🚀🚀🚀")
+
 
         # 2. Assets (Video/Image)
         from services.replicate_service import replicate_service
@@ -1028,11 +1048,23 @@ JSON만 출력하세요:
         # [FIX] Sort by scene_number so is_vid = i < video_scene_count targets the FIRST N scenes
         image_prompts = sorted(image_prompts, key=lambda x: x.get('scene_number', 0))
         p_settings = db.get_project_settings(project_id) or {} # [NEW] Load settings
+        
+        # [NEW] Sync/Re-validate video_scene_count from settings just in case
+        try:
+            db_count = p_settings.get("video_scene_count")
+            if db_count is not None:
+                video_scene_count = int(db_count)
+                log_debug(f"📹 [Auto-Pilot] Synced video_scene_count from DB: {video_scene_count}")
+        except (ValueError, TypeError):
+            pass
+
+        log_debug(f"📹 [Auto-Pilot] Pass 3 Start: Count={video_scene_count}, Engine={video_engine}, Scenes={len(image_prompts)}")
 
         for i, p in enumerate(image_prompts):
             is_vid = i < video_scene_count
             log_debug(f"  > Scene {p.get('scene_number')}: is_vid={is_vid}, has_image={bool(p.get('image_url'))}")
             if not is_vid: continue
+
 
             scene_num = p.get("scene_number")
             db.update_project(project_id, status=f"videos_{i+1}/{video_scene_count}")
@@ -1085,9 +1117,10 @@ JSON만 출력하세요:
                 
                 # [EXPERIMENTAL] 건너뛰기 로직 보완 -> [UPDATED] Image 엔진도 비디오 파일 생성 (2D Pan/Zoom)
                 if local_engine == "image":
-                    print(f"🖼️ [Image-Only] Scene {scene_num} using 2D Pan/Zoom Motion...")
+                    log_debug(f"🖼️ [Image-Only] Scene {scene_num} using 2D Pan/Zoom Motion...")
                     # Motion type determined by manual override or default 'zoom_in'
                     motion_type = p_settings.get(f"scene_{scene_num}_motion", "zoom_in")
+
                     
                     # [NEW] Webtoon Settings from DB (Global Preference)
                     # p_settings might have project specific override, but for now we trust Global Settings
@@ -1123,11 +1156,12 @@ JSON만 출력하세요:
                     if manual_motion_desc:
                         # 사용자가 수동으로 입력한 모션 묘사가 있으면 결합
                         final_prompt = f"{base_visual}, {manual_motion_desc}"
-                        print(f"🔥 [Wan Content Motion Override] Scene {scene_num}: {manual_motion_desc}")
+                        log_debug(f"🔥 [Wan Content Motion Override] Scene {scene_num}: {manual_motion_desc}")
                     else:
                         # AI가 생성한 motion_desc를 그대로 사용 (이미 충분히 상세함)
                         final_prompt = base_visual
-                        print(f"🎬 [Wan Production Prompt] Scene {scene_num}: {final_prompt[:100]}...")
+                        log_debug(f"🎬 [Wan Production Prompt] Scene {scene_num}: {final_prompt[:100]}...")
+
                     
                     # 카메라 이동 추가
                     manual_motion = p_settings.get(f"scene_{scene_num}_motion")
@@ -1156,17 +1190,18 @@ JSON만 출력하세요:
                         if manual_motion in motion_map:
                             selected_prompt = motion_map[manual_motion]
                             final_prompt += f", {selected_prompt}"
-                            print(f"🎬 [Wan Camera Move] Scene {scene_num}: {manual_motion} -> {selected_prompt[:50]}...")
+                            log_debug(f"🎬 [Wan Camera Move] Scene {scene_num}: {manual_motion} -> {selected_prompt[:50]}...")
                         else:
                             # Fallback for unmapped standard motions
                             final_prompt += f", {manual_motion.replace('_', ' ')} motion"
                 else:
                     final_prompt = base_visual
-                print(f"🤖 [Auto-Switch] Scene {scene_num}: Dialogue={has_dialogue} -> Engine={local_engine}")
+                log_debug(f"🤖 [Auto-Switch] Scene {scene_num}: Dialogue={has_dialogue} -> Engine={local_engine}")
+
 
                 if local_engine == "veo":
                     try:
-                        print(f"🎬 [Veo] Generating video for Scene {scene_num}...")
+                        log_debug(f"🎬 [Veo] Generating video for Scene {scene_num}...")
                         self.set_step(project_id, f"씬 {scene_num} Veo 영상 생성 중...")
                         veo_aspect = "9:16" if self.config.get("mode") == "shorts" else "16:9"
                         video_bytes = await gemini_service.generate_video(
@@ -1180,14 +1215,15 @@ JSON만 출력하세요:
                             out = os.path.join(config.OUTPUT_DIR, filename)
                             with open(out, 'wb') as f: f.write(video_bytes)
                             db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
-                            print(f"✅ [Veo] Success for Scene {scene_num}")
+                            log_debug(f"✅ [Veo] Success for Scene {scene_num}")
                             continue
                         else:
-                            print(f"⚠️ [Veo] Empty result for Scene {scene_num}. Falling back to Wan...")
+                            log_debug(f"⚠️ [Veo] Empty result for Scene {scene_num}. Falling back to Wan...")
                             local_engine = "wan"
                     except Exception as veo_e:
-                        print(f"⚠️ [Veo] Error for Scene {scene_num}: {veo_e}. Falling back to Wan...")
+                        log_debug(f"⚠️ [Veo] Error for Scene {scene_num}: {veo_e}. Falling back to Wan...")
                         local_engine = "wan"
+
 
                 if local_engine == "akool":
                     audio_abs_path = scene_audio_map.get(scene_num)
@@ -1231,12 +1267,12 @@ JSON만 출력하세요:
                                 out = os.path.join(config.OUTPUT_DIR, filename)
                                 with open(out, 'wb') as f: f.write(video_data)
                                 db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
-                                print(f"✅ [Akool] Premium I2V Success for Scene {scene_num}")
+                                log_debug(f"✅ [Akool] Premium I2V Success for Scene {scene_num}")
                             else:
                                 raise Exception("Empty data returned from Akool Premium")
                                 
                         except Exception as ak_i2v_e:
-                            print(f"⚠️ [Akool] I2V Failed: {ak_i2v_e}. Fallback to Replicate(Wan)...")
+                            log_debug(f"⚠️ [Akool] I2V Failed: {ak_i2v_e}. Fallback to Replicate(Wan)...")
                             # Fallback logic below (it will flow into Replicate block if we structure it right, 
                             # or we duplicate call here. Let's redirect to Replicate block)
                             preferred_engine = "wan" 
@@ -1245,11 +1281,12 @@ JSON만 출력하세요:
                         # [FIX] Skip Wan for Vertical Pan scenes (preserve aspect ratio)
                         manual_motion = p_settings.get(f"scene_{scene_num}_motion")
                         if manual_motion in ["pan_down", "pan_up", "vertical_pan"]:
-                            print(f"⏩ [Auto-Pilot] Scene {scene_num} is Vertical Pan ({manual_motion}). Skipping Wan to preserve full resolution.")
+                            log_debug(f"⏩ [Auto-Pilot] Scene {scene_num} is Vertical Pan ({manual_motion}). Skipping Wan to preserve full resolution.")
                             continue
 
+
                         try:
-                            print(f"📹 [Auto-Pilot] Generating Wan Video for Scene {scene_num}")
+                            log_debug(f"📹 [Auto-Pilot] Generating Wan Video for Scene {scene_num}")
                             
                             # [FIX] Use full original image for Wan 2.1 if available (prevents character cropping)
                             wan_asset_filename = p_settings.get(f"scene_{scene_num}_wan_image", "")
@@ -1257,14 +1294,15 @@ JSON만 출력하세요:
                                 wan_asset_dir = os.path.join(config.OUTPUT_DIR, str(project_id), "assets", "image")
                                 wan_image_path = os.path.join(wan_asset_dir, wan_asset_filename)
                                 if os.path.exists(wan_image_path):
-                                    print(f"  🎯 [Wan] Using FULL original image: {wan_asset_filename}")
+                                    log_debug(f"  🎯 [Wan] Using FULL original image: {wan_asset_filename}")
                                     wan_source_path = wan_image_path
                                 else:
                                     wan_source_path = image_abs_path
-                                    print(f"  ⚠️ [Wan] wan_asset not found, fallback to sliced: {os.path.basename(image_abs_path)}")
+                                    log_debug(f"  ⚠️ [Wan] wan_asset not found, fallback to sliced: {os.path.basename(image_abs_path)}")
                             else:
                                 wan_source_path = image_abs_path
-                                print(f"  ℹ️ [Wan] No wan_asset configured. Using sliced panel: {os.path.basename(image_abs_path)}")
+                                log_debug(f"  ℹ️ [Wan] No wan_asset configured. Using sliced panel: {os.path.basename(image_abs_path)}")
+
                             
                             video_data = await replicate_service.generate_video_from_image(
                                 wan_source_path, 
@@ -1280,7 +1318,7 @@ JSON만 출력하세요:
                                 with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
                                     df.write(f"[{datetime.now()}] ✅ Successfully generated Wan video for Scene {scene_num}\n")
                         except Exception as wan_e:
-                            print(f"⚠️ [Wan] Failed: {wan_e}. Falling back to Akool Seedance...")
+                            log_debug(f"⚠️ [Wan] Failed: {wan_e}. Falling back to Akool Seedance...")
                             try:
                                 video_data = await akool_service.generate_akool_video_v4(
                                     image_abs_path,
@@ -1293,11 +1331,12 @@ JSON만 출력하세요:
                                     out = os.path.join(config.OUTPUT_DIR, filename)
                                     with open(out, 'wb') as f: f.write(video_data)
                                     db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
-                                    print(f"✅ [Akool Seedance] Fallback Success for Scene {scene_num}")
+                                    log_debug(f"✅ [Akool Seedance] Fallback Success for Scene {scene_num}")
                                 else:
                                     raise Exception("Empty data from Akool Seedance")
                             except Exception as seed_e:
-                                print(f"❌ [Akool Seedance] Also failed: {seed_e}")
+                                log_debug(f"❌ [Akool Seedance] Also failed: {seed_e}")
+
                                 # Both engines failed, continue to next scene
             except Exception as ve:
                 err_msg = f"⚠️ [Auto-Pilot] Video generation failed for Scene {scene_num}: {ve}"
@@ -1373,6 +1412,13 @@ JSON만 출력하세요:
                 idea_data = json.loads(json_match_idea.group())
                 visual_concept = idea_data.get("image_prompt", visual_concept)
                 idea_concept = idea_data.get("hook_text", "")
+
+            # [NEW] Ethnicity Enforcement for Thumbnail
+            char_ethnicity = config_dict.get("char_ethnicity") or "East Asian heritage, Polished porcelain skin"
+            if char_ethnicity:
+                eth_key = char_ethnicity.split(",")[0].strip().lower()
+                if eth_key not in visual_concept.lower():
+                    visual_concept = f"{char_ethnicity}, {visual_concept}"
 
         except Exception as e:
             print(f"⚠️ [Auto-Pilot] Thumbnail Planning Error: {e}")

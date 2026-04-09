@@ -112,6 +112,8 @@ async def start_autopilot_api(
     db.update_project_setting(pid, "use_character_analysis", "1" if req.use_character_analysis else "0")
     db.update_project_setting(pid, "video_engine", req.video_engine or "wan")
     db.update_project_setting(pid, "app_mode", req.mode)
+    if req.char_ethnicity:
+        db.update_project_setting(pid, "char_ethnicity", req.char_ethnicity)
     if req.duration_seconds:
         db.update_project_setting(pid, "duration_seconds", req.duration_seconds)
 

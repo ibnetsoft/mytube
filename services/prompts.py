@@ -185,6 +185,8 @@ JSON만 반환하세요."""
 - 대신 해당 스타일에 맞는 매체(Medium) 키워드를 사용하세요 (예: 'hand-drawn line art', 'flat colors', 'brush strokes', 'ink doodle').
 - 캐릭터의 외형 묘사는 반드시 이 "{visual_style}" 세계관 안에서 자연스럽게 보여야 합니다.
 
+{ethnicity_instruction}
+
 **분석 지침:**
 1. 대본에 언급되거나 암시된 모든 등장인물을 식별하세요.
 2. 각 캐릭터의 역할(주인공/조연/배경인물)을 파악하세요.
@@ -235,6 +237,7 @@ JSON만 반환하세요."""
 
 {style_instruction}
 {character_instruction}
+{ethnicity_instruction}
 {limit_instruction}
 
 2. **연출 가이드**:
