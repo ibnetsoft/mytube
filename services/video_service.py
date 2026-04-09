@@ -459,6 +459,21 @@ class VideoService:
 
                         clip = clip.with_duration(dur)
                         
+                        # [NEW] Vertical/Letterbox Consistency for VIDEO assets
+                        if is_vertical:
+                            clip_ratio = clip.w / clip.h
+                            target_ratio = target_w / target_h
+                            if clip_ratio > target_ratio:
+                                # Video is wider (e.g. 3:4 video in 9:16 frame) -> Fit Width
+                                original_clip = clip
+                                clip = clip.resized(width=target_w)
+                                # Centered by default in CompositeVideoClip if we set position later, 
+                                # but usually we set it manually or it defaults to center.
+                                print(f"📱 [Letterbox Video] Scene {i+1}: Resized to fit width {target_w} (Ratio: {clip_ratio:.2f})")
+                            else:
+                                # Video is taller or same -> Fit Height (standard)
+                                clip = clip.resized(height=target_h)
+                                
                     except Exception as e:
                         print(f"Failed to load video asset {img_path}: {e}")
                         pass
@@ -494,6 +509,25 @@ class VideoService:
                             is_wide_pan = True
 
                     dur = duration_per_image[i] if isinstance(duration_per_image, list) else duration_per_image
+
+                    # [NEW] Aspect Ratio Awareness for Panning
+                    # If the project is vertical (9:16/3:4/1:1) and the image is wider than the frame (e.g. 3:4 in 9:16),
+                    # we must letterbox it to satisfy the user's request. 
+                    # Wide/Tall panning effects for these cases would force cropping, so we suppress them.
+                    from PIL import Image
+                    try:
+                        with Image.open(img_path) as im:
+                            img_w, img_h = im.size
+                            img_ratio = img_w / img_h
+                            target_ratio = target_w / target_h
+                            
+                            if is_vertical and img_ratio > target_ratio:
+                                # This image REQUIRES letterbox. Disable panning that forces fill/crop.
+                                if is_wide_pan or is_tall_pan:
+                                    print(f"⚠️ [Render] Scene {i}: Panning disabled to preserve Letterbox (Ratio: {img_ratio:.2f} > {target_ratio:.2f})")
+                                    is_wide_pan = False
+                                    is_tall_pan = False
+                    except Exception: pass
 
                     if is_tall_pan:
                         # Use FFmpeg Preprocess for consistent Vertical Pan
@@ -661,16 +695,45 @@ class VideoService:
                     try:
                         w, h = target_w, target_h # [FIX] Use target viewport size, not clip size, because tall clips have clip.h > target_h
                         
-                        if effect == 'zoom_in':
-                            # Center Zoom: 1.0 -> 1.15 (Tuned for better framing)
-                            clip = vfx.resize(clip, lambda t: 1.0 + 0.15 * (t / dur))
-                            # Safe Container with Explicit BG Layer
-                            bg_base = ColorClip(size=(w,h), color=(0,0,0)).with_duration(dur)
-                            clip = CompositeVideoClip([bg_base, clip.with_position('center')], size=(w,h)).with_duration(dur)
+                        if effect == 'zoom_in' or effect == 'zoom_out':
+                            # [FIX] Trap Zoom within the Content Area (Letterbox Area Protection)
+                            # We need to find the actual content height (e.g. 1440 for 3:4) to prevent leaking into black bars
+                            content_w, content_h = w, h
+                            if is_vertical:
+                                try:
+                                    if is_video_asset:
+                                        # For video assets, we fitted them to width in previous step
+                                        # so clip.w == target_w. The height is the content height.
+                                        content_w, content_h = clip.w, clip.h 
+                                    else:
+                                        # For images, calculate from source
+                                        from PIL import Image as _PIL
+                                        with _PIL.open(img_path) as _i:
+                                            ir = _i.width / _i.height
+                                        content_w = w
+                                        content_h = int(w / ir)
+                                except Exception: pass
+
+                            if effect == 'zoom_in':
+                                # Center Zoom: 1.0 -> 1.15 (Tuned for better framing)
+                                clip = vfx.resize(clip, lambda t: 1.0 + 0.15 * (t / dur))
+                            else:
+                                # Center Zoom Out: 1.15 -> 1.0
+                                clip = vfx.resize(clip, lambda t: 1.15 - 0.15 * (t / dur))
                             
-                        elif effect == 'zoom_out':
-                            # Center Zoom Out: 1.15 -> 1.0
-                            clip = vfx.resize(clip, lambda t: 1.15 - 0.15 * (t / dur))
+                            # [LOCK] Apply center-crop to keep content within its original 3:4/1:1 bounds
+                            if content_h < h:
+                                # We take a slice of the zoomed clip that matches the original content size
+                                # MoviePy 2.x standard cropped(x1, y1, x2, y2)
+                                # The zoomed clip is now larger (e.g. 1242x2208). 
+                                # We want to take a slice from its center that is width=w and height=content_h.
+                                cx, cy = clip.w / 2, clip.h / 2
+                                x1, y1 = cx - w/2, cy - content_h/2
+                                x2, y2 = x1 + w, y1 + content_h
+                                clip = clip.cropped(x1=x1, y1=y1, x2=x2, y2=y2)
+                                print(f"  🔒 [Zoom Locked] Scene {i+1}: Trapped in {w}x{content_h} box (Center: {cx:.0f},{cy:.0f})")
+
+                            # Safe Container with Explicit BG Layer
                             bg_base = ColorClip(size=(w,h), color=(0,0,0)).with_duration(dur)
                             clip = CompositeVideoClip([bg_base, clip.with_position('center')], size=(w,h)).with_duration(dur)
                             
@@ -788,6 +851,10 @@ class VideoService:
                     
                     clips.append(clip)
                 else:
+                    # [NEW] Placeholder for missing scene asset — prevents timing shift/compression
+                    print(f"⚠️ Scene {i+1} asset missing. Inserting black placeholder frame ({dur:.2f}s).")
+                    black_placeholder = ColorClip(size=(target_w, target_h), color=(0,0,0)).with_duration(dur)
+                    clips.append(black_placeholder)
                     with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as _df:
                          _df.write(f"[{datetime.datetime.now()}] ⚠️ Scene {i+1} clip is None, skipping\n")
 
@@ -884,10 +951,12 @@ class VideoService:
         if title_text:
             try:
                 # 제목용 텍스트 이미지 생성 (노란색, 조금 더 크게)
+                # [FIXED] Scale title based on reference resolution
+                t_size = int(70 * (video.w / 1920.0)) if video.w > video.h else 70
                 title_img_path = self._create_subtitle_image(
                     text=title_text,
                     width=video.w,
-                    font_size=70,
+                    font_size=t_size,
                     font_color="#FFD700", # Gold
                     font_name=config.DEFAULT_FONT_PATH
                 )
@@ -895,13 +964,10 @@ class VideoService:
                     temp_files.append(title_img_path)
                     title_clip = ImageClip(title_img_path)
                     # 상단에서 약간 띄움 (100px)
-                    from moviepy.video.fx.margin import margin
-                    # margin 함수 대신 position으로 조정
-                    # ("center", 100) -> 상단 100px 지점
+                    # ("center", 150) -> 상단 150px 지점
                     title_clip = title_clip.with_position(("center", 150)) 
                     title_clip = title_clip.with_duration(video.duration)
-                    
-                video = CompositeVideoClip([video, title_clip])
+                    video = CompositeVideoClip([video, title_clip])
             except Exception as e:
                 print(f"제목 생성 실패: {e}")
 
@@ -957,12 +1023,9 @@ class VideoService:
             target_w = resolution[0] if isinstance(resolution, (list, tuple)) and len(resolution) >= 2 else video.w
 
             if 0.1 <= float(font_size_percent) <= 20:
-                # [FIX] 16:9와 9:16 간 자막 크기 시각적 parity 확보
-                # 9:16(세로형)에서는 세로 전체 높이가 아닌, 가로 기준 9/16 높이(기본 16:9 비율의 높이)를 100% 기준으로 사용
-                if target_h > target_w: # 9:16 Mode
-                    base_h = target_w * (9.0 / 16.0)
-                else: # 16:9 Mode
-                    base_h = target_h
+                # [FIXED] Use WIDTH as base for visual consistency in Shorts (9:16)
+                # This prevents huge subtitles in vertical videos.
+                base_h = target_w
                 f_size = int(base_h * (float(font_size_percent) / 100.0))
             else:
                 # 레거시 픽셀 모드
@@ -1304,7 +1367,7 @@ class VideoService:
             # We don't have an 'allow_wide' param yet, let's detect it based on img_w
             is_wide_source = img_w > img_h * (target_w / target_h)
             
-            if is_wide_source:
+            if is_wide_source and not (target_h > target_w):
                 # Wide image -> Fit to HEIGHT (1920) to enable panning across width
                 new_h = target_h
                 new_w = int(new_h * (img_w / img_h))
@@ -1322,13 +1385,24 @@ class VideoService:
             target_ratio = target_w / target_h
 
             if img_ratio > target_ratio:
-                # Image is wider than target -> Fit to Height and Crop Sides
-                new_h = target_h
-                new_w = int(new_h * img_ratio)
-                img_resized = img.resize((new_w, new_h), Image.LANCZOS)
-                
-                y_offset = 0
-                x_offset = (target_w - new_w) // 2 # Center crop horizontally
+                # Image is wider than target
+                if target_h > target_w:
+                    # [USER REQUEST] For Vertical (Shorts/3:4/1:1): Letterbox (Black bars top/bottom) 
+                    # This ensures the entire 3:4 or 1:1 image is visible in a 9:16 frame.
+                    new_w = target_w
+                    new_h = int(new_w / img_ratio)
+                    img_resized = img.resize((new_w, new_h), Image.LANCZOS)
+                    
+                    x_offset = 0
+                    y_offset = (target_h - new_h) // 2
+                else:
+                    # Landscape: Fit to Height and Crop Sides (Aspect Fill)
+                    new_h = target_h
+                    new_w = int(new_h * img_ratio)
+                    img_resized = img.resize((new_w, new_h), Image.LANCZOS)
+                    
+                    y_offset = 0
+                    x_offset = (target_w - new_w) // 2 # Center crop horizontally
             else:
                 # Image is taller/matches target -> Fit to Width and Crop Top/Bottom
                 new_w = target_w
@@ -1426,6 +1500,7 @@ class VideoService:
             "16:9": (1280, 720),
             "9:16": (720, 1280),
             "1:1": (1024, 1024),
+            "3:4": (960, 1280),
         }
         target_w, target_h = ratio_map.get(aspect_ratio, (1280, 720))
 
@@ -1886,9 +1961,28 @@ class VideoService:
                     # If 'video' is a filepath string, we can't get .h from it directly.
                     # But add_subtitles is called with 'video' being a VideoFileClip usually.
                     if hasattr(video, 'h'):
-                        # [FIX] Default to 85% Bottom-Anchor for post-processed subs too
-                        bottom_y = int(video.h * 0.85)
-                        y_pos = bottom_y - txt_clip.h
+                        # [FIX] Position Logic (Same as slideshow)
+                        custom_y = s_settings.get('subtitle_pos_y') or s_settings.get('pos_y')
+                        y_pos = None
+
+                        if custom_y:
+                            try:
+                                cy_str = str(custom_y)
+                                if cy_str.startswith("b:"):
+                                    bottom_pct = float(cy_str[2:].replace("%", ""))
+                                    bottom_px = int(video.h * (bottom_pct / 100))
+                                    y_pos = video.h - bottom_px - txt_clip.h
+                                elif "%" in cy_str:
+                                    pct = float(cy_str.replace("%", ""))
+                                    y_pos = int(video.h * (pct / 100))
+                                else:
+                                    y_pos = int(float(cy_str))
+                            except Exception: pass
+
+                        if y_pos is None:
+                            # Default fallback
+                            bottom_y = int(video.h * 0.85)
+                            y_pos = bottom_y - txt_clip.h
                         
                         # Clamp
                         y_pos = max(10, min(video.h - txt_clip.h - 10, y_pos))
@@ -2223,8 +2317,18 @@ class VideoService:
                 idx = 0
                 if "batang.ttc" in font_path.lower() and ("gungsuh" in font_name.lower() or "궁서" in font_name):
                     idx = 2
-                
-                font = ImageFont.truetype(font_path, font_size, index=idx)
+
+                # [NEW] Try to find Bold variant if not Gungsuh
+                final_font_path = font_path
+                if "gungsuh" not in font_name.lower() and "궁서" not in font_name:
+                    bold_variants = ["bd.ttf", "b.ttf", "-bold.ttf", "_bold.ttf", "bold.ttf", "B.ttf"]
+                    for v in bold_variants:
+                        test_p = font_path.replace(".ttf", v).replace(".TTF", v)
+                        if os.path.exists(test_p):
+                            final_font_path = test_p
+                            break
+
+                font = ImageFont.truetype(final_font_path, font_size, index=idx)
             else:
                 # [FIX] Last-resort fallback to standard Windows/System fonts
                 alt_fonts = ["C:/Windows/Fonts/malgun.ttf", "arial.ttf", "C:/Windows/Fonts/gulim.ttc"]
@@ -2236,7 +2340,7 @@ class VideoService:
                         font_path = af
                         break
                     except Exception: continue
-                
+
                 if not font:
                     print(f"❌ [Font CRITICAL] All Hangul fonts failed. Using PIL default (Hangul will likely fail).")
                     font = ImageFont.load_default()

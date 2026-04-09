@@ -77,6 +77,34 @@
                             </div>
                         </div>
 
+                        <!-- [NEW] Aspect Ratio Selector (Integrated between Topic and Mode) -->
+                        <div class="mb-4 bg-black/20 p-2.5 rounded-xl border border-purple-500/20">
+                            <label class="block text-[10px] font-bold text-gray-400 mb-2 px-1">📏 {{ t('label_aspect_ratio') }}</label>
+                            <div class="flex gap-2" id="aspectRatioGroup">
+                                <button type="button" onclick="setAspectRatio('9:16')" data-ratio="9:16"
+                                    class="ratio-btn flex-1 py-1.5 text-[10px] rounded-lg bg-gray-800 text-gray-400 hover:text-white transition-all border border-gray-700 flex flex-col items-center gap-1">
+                                    <span class="text-xs">📱</span>
+                                    <span>9:16</span>
+                                </button>
+                                <button type="button" onclick="setAspectRatio('3:4')" data-ratio="3:4"
+                                    class="ratio-btn flex-1 py-1.5 text-[10px] rounded-lg bg-gray-800 text-gray-400 hover:text-white transition-all border border-gray-700 flex flex-col items-center gap-1">
+                                    <span class="text-xs">📸</span>
+                                    <span>3:4</span>
+                                </button>
+                                <button type="button" onclick="setAspectRatio('1:1')" data-ratio="1:1"
+                                    class="ratio-btn flex-1 py-1.5 text-[10px] rounded-lg bg-gray-800 text-gray-400 hover:text-white transition-all border border-gray-700 flex flex-col items-center gap-1">
+                                    <span class="text-xs">⬛</span>
+                                    <span>1:1</span>
+                                </button>
+                                <button type="button" onclick="setAspectRatio('16:9')" data-ratio="16:9"
+                                    class="ratio-btn flex-1 py-1.5 text-[10px] rounded-lg bg-gray-800 text-gray-400 hover:text-white transition-all border border-gray-700 flex flex-col items-center gap-1">
+                                    <span class="text-xs">📺</span>
+                                    <span>16:9</span>
+                                </button>
+                            </div>
+                            <input type="hidden" id="aspectRatio" value="16:9">
+                        </div>
+
                         <!-- [NEW] Creation Mode Toggle (Only for Shorts) - More prominent -->
                         <div id="commerceModeToggle"
                             class="hidden mb-4 p-2 bg-gradient-to-r from-cyan-900/40 to-blue-900/40 rounded-xl border border-cyan-500/30">
@@ -196,6 +224,23 @@
                             id="subtitlePreviewPanel">
                             <div class="col-span-2 text-center py-2 italic">{{ t('opt_loading') }}</div>
                         </div>
+
+                        <!-- [NEW] Subtitle Vertical Position Control -->
+                        <div class="mt-4 p-2.5 bg-black/30 rounded-xl border border-teal-500/20 shadow-inner">
+                            <div class="flex items-center justify-between mb-2 px-1">
+                                <label class="text-[10px] font-bold text-gray-300 flex items-center gap-1.5">
+                                    ↕️ {{ t('label_v_position') or '자막 위치 (높이 조정)' }}
+                                </label>
+                                <span id="subtitleVPosLabel" class="text-[10px] font-mono font-bold text-teal-400 bg-teal-500/10 px-2 py-0.5 rounded-lg border border-teal-500/20">85%</span>
+                            </div>
+                            <input type="range" id="subtitleVPos" min="50" max="98" value="85" step="1"
+                                class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-teal-500 hover:accent-teal-400 transition-all"
+                                oninput="updateSubtitleVPos(this.value)">
+                            <div class="flex justify-between text-[8px] text-gray-500 font-medium mt-1 px-1 italic">
+                                <span>{{ t('pos_middle') or '중앙(Middle)' }}</span>
+                                <span>{{ t('pos_bottom') or '하단(Bottom)' }}</span>
+                            </div>
+                        </div>
                         <p class="text-[9px] text-gray-600 mt-2 text-center dark:text-gray-300">{{ t('hint_subtitle_auto') }}</p>
                     </div>
                 </div>
@@ -214,6 +259,10 @@
                                     class="text-[10px] bg-pink-500/10 text-pink-400 px-2 py-0.5 rounded font-bold">0
                                     {{ t('unit_scenes') }}</span>
                             </div>
+                            <!-- [NEW] Random Cooking Video Quick Button -->
+                            <button type="button" onclick="setRandomCookingTopic()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-orange-500 to-rose-600 text-white text-[10px] font-bold shadow-lg shadow-orange-900/40 hover:scale-105 active:scale-95 transition-all border border-orange-400/30">
+                                <span class="text-xs">🍳</span> 랜덤 요리 영상 (Shorts)
+                            </button>
                         </div>
 
                         <!-- [NEW] Ethnicity Dropdown for Autopilot -->

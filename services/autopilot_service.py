@@ -441,10 +441,13 @@ class AutoPilotService:
         if not (manual_plan and manual_plan.get("structure")) and config_dict.get("auto_plan"):
              print(f"🤖 [Auto-Pilot] 자동 기획 생성 시작...")
              try:
-                  target_duration_min = config_dict.get("duration_seconds", 300) // 60
+                  target_duration_sec = config_dict.get("duration_seconds", 300)
+                  duration_str = f"{target_duration_sec}s" if target_duration_sec < 60 else f"{target_duration_sec // 60}m"
                   struct_prompt = f"""
 Create a structured plan for a YouTube video based on this analysis.
-Analysis: {json.dumps(analysis, ensure_ascii=False)}
+Target Duration: {duration_str}
+...
+<rest of prompt needs to use duration_str>
 
 Context:
 - Video Topic: {db.get_project(project_id).get('topic')}
@@ -549,7 +552,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                 print(f"📝 [Auto-Pilot] script_structure 없음 → 대본에서 구조 자동 생성...")
                 topic = db.get_project(project_id).get("topic", "")
                 style_key_for_struct = config_dict.get("script_style", "default")
-                target_min = target_duration_sec // 60
+                duration_label = f"{target_duration_sec}s" if target_duration_sec < 60 else f"{target_duration_sec // 60}m"
 
                 struct_prompt = f"""다음 대본을 분석하여 구조화된 기획안을 JSON으로 만들어 주세요.
 
@@ -561,10 +564,10 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
 - sections: 대본의 주요 섹션 목록 (title + key_points 2~3개)
 - cta: 마무리/행동촉구 내용
 - style: "{style_key_for_struct}"
-- duration: {target_min}
+- duration: {duration_label}
 
 JSON만 출력하세요:
-{{"hook": "...", "sections": [{{"title": "...", "key_points": ["...", "..."]}}], "cta": "...", "style": "{style_key_for_struct}", "duration": {target_min}}}"""
+{{"hook": "...", "sections": [{{"title": "...", "key_points": ["...", "..."]}}], "cta": "...", "style": "{style_key_for_struct}", "duration": "{duration_label}"}}"""
 
                 struct_text = await gemini_service.generate_text(struct_prompt, temperature=0.3)
                 match = re.search(r'\{[\s\S]*\}', struct_text)
@@ -666,17 +669,19 @@ JSON만 출력하세요:
                     image_abs_path = os.path.join(config.OUTPUT_DIR, p.get("image_url").replace("/output/", ""))
                 
                 if not image_abs_path or not os.path.exists(image_abs_path):
-                    # [CRITICAL] Determine aspect ratio based on Mode (Shorts vs Longform)
-                    duration_sec = config_dict.get("duration_seconds", 300)
+                    # [CRITICAL] Determine aspect ratio based on User Setting or Mode
+                    aspect_ratio = config_dict.get("aspect_ratio")
                     mode = config_dict.get("mode", "longform")
+                    duration_sec = config_dict.get("duration_seconds", 300)
                     
-                    if mode == "shorts":
-                        aspect_ratio = "9:16"
-                    elif mode == "longform":
-                        aspect_ratio = "16:9"
-                    else:
-                        # Fallback to duration threshold
-                        aspect_ratio = "16:9" if (duration_sec and duration_sec >= 60) else "9:16"
+                    if not aspect_ratio:
+                        if mode == "shorts":
+                            aspect_ratio = "9:16"
+                        elif mode == "longform":
+                            aspect_ratio = "16:9"
+                        else:
+                            # Fallback to duration threshold
+                            aspect_ratio = "16:9" if (duration_sec and duration_sec >= 60) else "9:16"
                     
                     self.set_step(project_id, f"씬 {scene_num} 이미지 생성 중... ({aspect_ratio})")
                     print(f"🎨 [Auto-Pilot] Generating image for Scene {scene_num} (Mode: {mode}, Duration: {duration_sec}s, Aspect Ratio: {aspect_ratio})")
@@ -1129,12 +1134,20 @@ JSON만 출력하세요:
                     w_pan = db.get_global_setting("webtoon_smart_pan", True, value_type="bool")
                     w_zoom = db.get_global_setting("webtoon_convert_zoom", True, value_type="bool")
 
+                    # [FIX] Respect user aspect ratio for Image Motion
+                    m_aspect = config_dict.get("aspect_ratio") or ("9:16" if config_dict.get("mode") == "shorts" else "16:9")
+                    m_w, m_h = 1080, 1920
+                    if m_aspect == "3:4": m_w, m_h = 1080, 1440
+                    elif m_aspect == "1:1": m_w, m_h = 1080, 1080
+                    elif m_aspect == "4:3": m_w, m_h = 1440, 1080
+                    elif m_aspect == "16:9": m_w, m_h = 1920, 1080
+
                     # Create 2D Motion Video
                     motion_bytes = await video_service.create_image_motion_video(
                         image_path=image_abs_path,
                         duration=video_duration,
                         motion_type=motion_type,
-                        width=1080, height=1920, # Default vertical shorts
+                        width=m_w, height=m_h,
                         auto_split=w_auto,
                         smart_pan=w_pan,
                         convert_zoom=w_zoom
@@ -1203,7 +1216,8 @@ JSON만 출력하세요:
                     try:
                         log_debug(f"🎬 [Veo] Generating video for Scene {scene_num}...")
                         self.set_step(project_id, f"씬 {scene_num} Veo 영상 생성 중...")
-                        veo_aspect = "9:16" if self.config.get("mode") == "shorts" else "16:9"
+                        # [FIX] Respect user aspect ratio even in Shorts mode
+                        veo_aspect = config_dict.get("aspect_ratio") or ("9:16" if config_dict.get("mode") == "shorts" else "16:9")
                         video_bytes = await gemini_service.generate_video(
                             prompt=final_prompt,
                             image_path=image_abs_path,
@@ -1349,14 +1363,17 @@ JSON만 출력하세요:
         updated_prompts = db.get_image_prompts(project_id)
         sorted_updated = sorted(updated_prompts, key=lambda x: x.get('scene_number', 0))
         
-        timeline_images = [p.get('video_url') or p.get('image_url') for p in sorted_updated]
-        timeline_images = [img for img in timeline_images if img]
+        # [FIX] Preserve 1:1 Mapping between Subtitles and Images to prevent jumbling/compression
+        timeline_images = [p.get('video_url') or p.get('image_url') or "" for p in sorted_updated]
+        # [REMOVED] Filtering makes the list shorter than intended scenes/subtitles, causing sync issues
+        # timeline_images = [img for img in timeline_images if img]
         
         tl_images_path = os.path.join(config.OUTPUT_DIR, f"timeline_images_{project_id}.json")
         with open(tl_images_path, "w", encoding="utf-8") as f:
             json.dump(timeline_images, f, ensure_ascii=False, indent=2)
         db.update_project_setting(project_id, "timeline_images_path", tl_images_path)
         print(f"✅ [Auto-Pilot] Timeline Finalized with {len(timeline_images)} assets.")
+        self.set_step(project_id, "에셋 정리 및 오디오 준비 중...")
 
         # Cleanup temps
         for f in temp_audios:
@@ -1588,6 +1605,7 @@ JSON만 출력하세요:
 
     async def _render_video(self, project_id: int):
         db.update_project(project_id, status="rendering")
+        self.set_step(project_id, "최종 영상 렌더링 중... (수 분 정도 소용될 수 있습니다)")
         images_data = db.get_image_prompts(project_id)
         tts_data = db.get_tts(project_id)
         script_data = db.get_script(project_id)
@@ -1696,7 +1714,7 @@ JSON만 출력하세요:
                                 _video_valid = True
                         except Exception as _ve:
                             # ffprobe unavailable — fall back to size-only check
-                            _video_valid = (fsize > 1 * 1024 * 1024)  # 1MB minimum
+                            _video_valid = (fsize > 300 * 1024)  # Lowered threshold (300KB) to accommodate Veo previews
                     if _video_valid:
                         best_path = fpath
                         print(f"📸 [Auto-Pilot] Scene {scene_num}: Using VIDEO - {os.path.basename(fpath)}")
@@ -1804,10 +1822,54 @@ JSON만 출력하세요:
             image_durations = total_dur / len(images) if images else 5.0
             print(f"⚠️ [Auto-Pilot] Fallback to N-Division Sync ({image_durations if not isinstance(image_durations, list) else 'list'}s per image)")
         
-        # [NEW] Determine Resolution based on App Mode
+        # [IMPROVED] Dynamic Resolution Detection based on User Setting or Generated Assets
         app_mode = settings.get("app_mode", "longform")
+        user_ratio = settings.get("aspect_ratio")
+        
+        # Default fallback
         resolution = (1920, 1080) if app_mode == "longform" else (1080, 1920)
-        print(f"🎬 [Auto-Pilot] Rendering video with resolution: {resolution} (Mode: {app_mode})")
+        
+        # Mapping for standard user-selected ratios
+        ratio_map = {
+            "16:9": (1920, 1080),
+            "9:16": (1080, 1920),
+            "3:4": (1080, 1440),
+            "1:1": (1080, 1080)
+        }
+
+        if app_mode == "shorts":
+            # [FINAL FIX] For Shorts, the video file itself MUST ALWAYS be 9:16 (1080x1920).
+            # The images will be produced in the user-selected ratio (3:4, 1:1, etc.) 
+            # and then letterboxed into this 9:16 frame.
+            resolution = (1080, 1920)
+            print(f"📱 [Auto-Pilot] Shorts Mode: Forcing 9:16 (1080x1920) file container for platform compatibility.")
+        elif user_ratio in ratio_map:
+            resolution = ratio_map[user_ratio]
+            print(f"📏 [Auto-Pilot] Using user-selected aspect ratio: {user_ratio} -> {resolution}")
+        elif images:
+            try:
+                from PIL import Image
+                with Image.open(images[0]) as img:
+                    img_w, img_h = img.size
+                    asset_ratio = img_w / img_h
+                    
+                    if app_mode == "longform":
+                        target_h = 1080
+                        target_w = int(target_h * asset_ratio)
+                    else:
+                        target_w = 1080
+                        target_h = int(target_w / asset_ratio)
+                    
+                    # Round to even to satisfy FFMPEG requirements
+                    target_w = (target_w // 2) * 2
+                    target_h = (target_h // 2) * 2
+                    
+                    resolution = (target_w, target_h)
+                    print(f"📸 [Auto-Pilot] Detected asset ratio: {img_w}x{img_h} -> Target: {resolution}")
+            except Exception as re:
+                print(f"⚠️ [Auto-Pilot] Failed to detect resolution from asset: {re}")
+        
+        print(f"🎬 [Auto-Pilot] Final rendering resolution: {resolution}")
 
         # [NEW] Collect SFX Mapping
         # [NEW] Collect SFX Mapping from JSON
@@ -1835,6 +1897,7 @@ JSON만 출력하세요:
                 
                 if not os.path.exists(local_bgm_path):
                     print(f"🎵 [Auto-Pilot] Downloading BGM: {bgm_url}")
+                    self.set_step(project_id, "배경음악(BGM) 다운로드 중...")
                     r = requests.get(bgm_url, timeout=30)
                     if r.status_code == 200:
                         with open(local_bgm_path, "wb") as f:

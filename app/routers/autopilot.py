@@ -116,6 +116,8 @@ async def start_autopilot_api(
         db.update_project_setting(pid, "char_ethnicity", req.char_ethnicity)
     if req.duration_seconds:
         db.update_project_setting(pid, "duration_seconds", req.duration_seconds)
+    if req.aspect_ratio:
+        db.update_project_setting(pid, "aspect_ratio", req.aspect_ratio)
 
 
     if req.is_queued:

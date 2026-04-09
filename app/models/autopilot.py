@@ -17,6 +17,7 @@ class AutoPilotStartRequest(BaseModel):
     voice_id: str = "default"
     duration_minutes: int = 10
     duration_seconds: Optional[int] = None
+    aspect_ratio: Optional[str] = "16:9"
     subtitle_settings: Optional[dict] = None
     upload_privacy: Optional[str] = "private"
     upload_schedule_at: Optional[str] = None

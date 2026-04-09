@@ -246,7 +246,9 @@ function setMode(mode) {
         btnLong.classList.add('bg-purple-600', 'text-white', 'font-bold');
         btnLong.classList.remove('text-gray-500');
         btnShort.classList.remove('bg-purple-600', 'text-white', 'font-bold');
-        btnShort.classList.add('text-gray-500');
+        btnShort.classList.add('text-gray-400');
+        
+        setAspectRatio('16:9');
 
         const durLabel = document.querySelector('#targetDuration + span');
         if (durLabel) durLabel.innerText = i18n.unit_min_short;
@@ -261,9 +263,11 @@ function setMode(mode) {
         setCreationMode('default');
     } else {
         btnShort.classList.add('bg-purple-600', 'text-white', 'font-bold');
-        btnShort.classList.remove('text-gray-500');
-        btnLong.classList.remove('bg-purple-600', 'text-white', 'font-bold');
-        btnLong.classList.add('text-gray-500');
+        btnLong.classList.add('text-gray-400');
+        btnShort.classList.remove('text-gray-400' , 'hover:text-white');
+        btnShort.classList.add('bg-purple-600', 'text-white', 'font-bold');
+
+        setAspectRatio('9:16');
 
         const durLabel = document.querySelector('#targetDuration + span');
         if (durLabel) durLabel.innerText = i18n.unit_sec_short;
@@ -277,6 +281,89 @@ function setMode(mode) {
 
         // Ensure creation mode is synced
         setCreationMode(document.getElementById('creationMode')?.value || 'default');
+    }
+}
+
+function setAspectRatio(ratio) {
+    const input = document.getElementById('aspectRatio');
+    if (!input) return;
+    input.value = ratio;
+
+    // Visual update
+    const buttons = document.querySelectorAll('.ratio-btn');
+    buttons.forEach(btn => {
+        if (btn.dataset.ratio === ratio) {
+            btn.classList.add('bg-purple-600', 'text-white', 'font-bold', 'border-purple-400');
+            btn.classList.remove('bg-gray-800', 'text-gray-400', 'border-gray-700');
+        } else {
+            btn.classList.remove('bg-purple-600', 'text-white', 'font-bold', 'border-purple-400');
+            btn.classList.add('bg-gray-800', 'text-gray-400', 'border-gray-700');
+        }
+    });
+}
+
+/**
+ * [NEW] 랜덤 요리 영상 모드 설정 (Shorts)
+ * 사용자가 버튼 클릭 시 자동으로 주제와 비율, 모드를 요리에 맞게 세팅
+ */
+function setRandomCookingTopic() {
+    const topics = [
+        "군침 도는 야시장 길거리 음식 베스트 5",
+        "5분 만에 만드는 초간단 편의점 꿀조합 야식",
+        "집에서 만드는 셰프급 정통 이탈리안 까르보나라",
+        "아이들이 정말 좋아하는 초간단 홈베이킹 쿠키",
+        "다이어트 식단인데 너무 맛있는 닭가슴살 샐러드",
+        "한국인이 사랑하는 10분 완성 뚝딱 김치찌개 레시피",
+        "자취생 필수! 냉장고 파먹기로 만드는 환상적인 볶음밥",
+        "한 번 먹으면 멈출 수 없는 중독성 강한 마약 토스트"
+    ];
+    const randomTopic = topics[Math.floor(Math.random() * topics.length)];
+
+    // 1. 모드 설정 (Shorts)
+    setMode('shorts');
+
+    // 2. 비율 설정 (9:16)
+    setAspectRatio('9:16');
+
+    // 3. 주제 입력
+    const topicInput = document.getElementById('topicInput');
+    if (topicInput) {
+        topicInput.value = randomTopic;
+        // 시각적 강조 효과
+        topicInput.classList.add('ring-2', 'ring-orange-500', 'bg-orange-500/10');
+        topicInput.focus();
+        setTimeout(() => topicInput.classList.remove('ring-2', 'ring-orange-500', 'bg-orange-500/10'), 2000);
+    }
+
+    // 4. 비주얼 스타일 선택 (요리 관련 스타일 자동 검색)
+    const foodKeywords = ['cook', 'food', 'realistic', 'delicious', 'recipe'];
+    const styleCards = document.querySelectorAll('.style-card-imageStyle');
+    let selected = false;
+
+    for (let card of styleCards) {
+        const val = card.dataset.value.toLowerCase();
+        if (foodKeywords.some(kw => val.includes(kw))) {
+            selectStyle('imageStyle', card.dataset.value);
+            selected = true;
+            break;
+        }
+    }
+    // 적절한 스타일을 못 찾은 경우 기본값(realistic) 선택
+    if (!selected) selectStyle('imageStyle', 'realistic');
+
+    // 5. 사용자 알림 (Toast 스타일)
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            icon: 'success',
+            title: '요리 영상 모드 활성화',
+            text: `주제: "${randomTopic}"`,
+            timer: 2000,
+            showConfirmButton: false,
+            background: '#1a1a1a',
+            color: '#fff',
+            toast: true,
+            position: 'top-end'
+        });
     }
 }
 
@@ -844,7 +931,8 @@ function getAutopilotConfig() {
         youtube_channel_id: document.getElementById('youtubeChannelId')?.value ? parseInt(document.getElementById('youtubeChannelId').value) : null,
         creation_mode: creationMode,
         product_url: productUrl,
-        use_character_analysis: document.getElementById('useCharacterAnalysis')?.checked || false
+        aspect_ratio: document.getElementById('aspectRatio')?.value || '16:9',
+        use_character_analysis: document.getElementById('useCharacterAnalysis')?.checked || false,
     };
     return config;
 }
@@ -1335,6 +1423,38 @@ function renderSubtitlePreview(s) {
             <span class="font-bold text-white text-[10px]">${lineSpace}</span>
         </div>
     `;
+
+    // [NEW] Sync Vertical Position Slider UI
+    const vPosSlider = document.getElementById('subtitleVPos');
+    const vPosLabel = document.getElementById('subtitleVPosLabel');
+    if (vPosSlider && vPosLabel) {
+        let yStr = s.subtitle_pos_y || s.pos_y || "b:15%"; // Default 15% from bottom (85% height)
+        let val = 85; 
+        if (typeof yStr === 'string' && yStr.startsWith("b:")) {
+            let dist = parseFloat(yStr.replace("b:", "").replace("%", ""));
+            val = 100 - dist;
+        } else if (typeof yStr === 'string' && yStr.includes("%")) {
+            val = parseFloat(yStr.replace("%", ""));
+        }
+        vPosSlider.value = val;
+        vPosLabel.innerText = `${Math.round(val)}%`;
+    }
+}
+
+/**
+ * [NEW] 자막 수직 위치 업데이트
+ * @param {number} val - 상단 기준 높이 백분율 (50~98%)
+ */
+function updateSubtitleVPos(val) {
+    const label = document.getElementById('subtitleVPosLabel');
+    if (label) label.innerText = `${val}%`;
+
+    if (!window.currentSubtitleSettings) window.currentSubtitleSettings = {};
+    
+    // 백엔드 포맷 (b:N%)으로 변환: 하단에서 떨어진 거리
+    // 예: 상단 기준 85% 위치 = 하단 기준 15% 거리
+    const distFromBottom = 100 - val;
+    window.currentSubtitleSettings['subtitle_pos_y'] = `b:${distFromBottom}%`;
 }
 
 // [NEW] Subtitle Preset Logic
