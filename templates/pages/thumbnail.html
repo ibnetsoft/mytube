@@ -57,55 +57,18 @@
 </style>
 
 
-<!-- 1단계: 아이디어 생성 -->
-<div class="card mb-6">
+<!-- 숏폼 템플릿 제작 (순수 디자인 모드) -->
+<div class="mb-6">
     <input type="hidden" id="thumbnailStyle" value="japanese_viral">
     <input type="hidden" id="imageStyleKey" value="realistic">
-    <!-- 상단 행: 영상주제 | 버튼들 -->
-    <div class="flex items-center gap-3 mb-4">
-        <!-- 영상 주제 입력 -->
-        <input type="text" id="videoTitle" class="input-field flex-1" placeholder="{{ t('placeholder_video_topic') }}">
-        <!-- 아이디어 및 후킹 문구 생성 버튼 -->
-        <button onclick="generateUnifiedIdea()" id="unifiedIdeaBtn"
-            class="px-3 py-1.5 text-xs btn-primary rounded shadow transition flex items-center gap-1 whitespace-nowrap">
-            <span>✨</span>
-            <span>{{ t('btn_gen_ideas_unified') }}</span>
-        </button>
-        <!-- 세팅저장 버튼 -->
-        <button onclick="saveThumbnailStyle()" id="saveStyleBtn"
-            class="px-3 py-1.5 text-xs bg-green-600 hover:bg-green-700 text-white rounded shadow transition flex items-center gap-1 whitespace-nowrap">
-            <span>💾</span>
-            <span>{{ t('btn_save_settings_only') }}</span>
-        </button>
-    </div>
-
-    <!-- 이미지 스타일 (배경 화풍) -->
-    <div class="mb-4">
-        <div class="flex items-center gap-2 mb-2">
-            <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ t('label_image_gen_bg') }}</span>
-            <span id="imageStyleBadge" class="text-[10px] bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full font-semibold">realistic</span>
-        </div>
-        <div id="imageStyleGrid" class="style-grid">
-            <!-- Loaded via JS -->
-        </div>
-    </div>
-
-    <!-- 썸네일 레이아웃 스타일 -->
-    <div>
-        <div class="flex items-center gap-2 mb-2">
-            <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ t('label_thumb_layout') }}</span>
-        </div>
-        <div id="thumbnailStyleGrid" class="style-grid">
-            <!-- Loaded via JS -->
-        </div>
-    </div>
+    <input type="hidden" id="videoTitle" value="My Template">
 </div>
 
 <!-- AI 생성 문구 표시 영역 -->
 <div id="hookTextsSection" class="hidden card mb-4">
     <h4 class="text-sm font-bold text-blue-800 dark:text-blue-300 mb-3 flex items-center gap-2">
         <span>🎯</span>
-        <span>{{ t('ai_recommend_hook') }}</span>
+        <span>AI 추천 후킹 문구 (클릭 시 적용)</span>
     </h4>
     <div id="hookTextsList" class="flex flex-wrap gap-2 mb-3"></div>
     <p id="hookReasoning" class="text-xs text-blue-600 dark:text-blue-400 italic"></p>
@@ -113,7 +76,7 @@
 
 <!-- 2단계: 아이디어 선택 및 이미지 생성 -->
 <div id="ideasSection" class="card mb-6 hidden">
-    <h3 class="font-bold text-gray-800 dark:text-white mb-4">{{ t('thumb_stage_2') }}</h3>
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">2단계: 템플릿 디자인 소스 선택</h3>
     <div id="ideasList" class="space-y-4 mb-4"></div>
 </div>
 
@@ -133,100 +96,135 @@
             </div>
 
             <button onclick="addLayer()" class="btn-secondary w-full mb-4 text-sm">
-                {{ t('btn_add_text_layer') }}
+                텍스트 레이어 추가
+            </button>
+
+            <div id="shapeLayersContainer" class="space-y-2 mb-4">
+                <!-- 도형 레이어들이 여기에 동적으로 생성됨 -->
+            </div>
+
+            <button onclick="addShapeLayer()" class="btn-secondary w-full mb-4 text-sm">
+                도형 레이어 추가
             </button>
 
             <div class="border-t border-gray-200 dark:border-gray-700 my-4 pt-4">
                 <p class="text-xs text-gray-500 mb-2 dark:text-gray-400">{{ t('helper_step_1') }}</p>
                 <div class="flex gap-2 mb-3">
+                    <button onclick="clearBackground()" class="flex-1 btn-secondary py-2 border-dashed">
+                        배경 투명화
+                    </button>
                     <button onclick="document.getElementById('bgUploadInput').click()"
-                        class="flex-1 btn-secondary py-2">
+                        class="flex-1 btn-secondary py-2 text-xs">
                         {{ t('btn_upload_bg') }}
                     </button>
                     <input type="file" id="bgUploadInput" class="hidden" accept="image/*"
-                        onchange="uploadBackgroundImage(this)">
+                         onchange="uploadBackgroundImage(this)">
 
-                    <button onclick="generateBackground()" id="bgBtn" class="flex-1 btn-secondary py-2">
+                    <button onclick="generateBackground()" id="bgBtn" class="flex-1 btn-secondary py-2 text-xs">
                         {{ t('btn_ai_gen_bg') }}
                     </button>
                 </div>
 
-                <p class="text-xs text-gray-500 mb-2 dark:text-gray-400">{{ t('helper_step_2') }}</p>
-                <div class="flex gap-2">
-                    <button onclick="generateFinalThumbnail()" id="generateBtn" class="flex-[3] btn-primary py-3">
-                        {{ t('btn_finalize_thumb') }}
+                <div class="flex flex-col gap-2">
+                    <button onclick="generateFinalThumbnail()" id="generateBtn" class="w-full btn-primary py-4 text-sm font-bold shadow-xl transform active:scale-[0.98] transition-all">
+                        🚀 최종 템플릿 확정 및 저장
                     </button>
-                    <button onclick="savePermanentSettings()" id="saveSettingsBtn"
-                        class="flex-1 btn-secondary py-3 flex items-center justify-center gap-2"
-                        title="{{ t('title_save_all_settings') }}">
-                        <span>💾</span>
-                        <span class="hidden md:inline">{{ t('btn_save_settings') }}</span>
-                    </button>
+                    <p class="text-[10px] text-center text-gray-400 mt-1 italic">
+                        * 저장된 프리셋은 영상 제작 단계에서 자동으로 적용됩니다.
+                    </p>
                 </div>
-                <!-- 스타일 프리셋 멀티 저장/불러오기 -->
-                <div class="mt-2 bg-gray-800/50 border border-gray-700 rounded-lg p-2 space-y-2">
+                <!-- 숏폼 템플릿 프리셋 관리 -->
+                <div class="mt-4 bg-purple-900/10 border border-purple-500/20 rounded-xl p-4 space-y-3">
+                    <h4 class="text-xs font-bold text-purple-400 flex items-center gap-2">
+                        <span>숏폼 템플릿</span>
+                    </h4>
                     <div class="flex items-center gap-2">
-                        <select id="stylePresetSelect" onchange="loadStylePreset(this.value)"
-                            class="flex-1 bg-gray-800 border border-gray-700 text-white text-xs rounded px-2 py-1.5 focus:ring-purple-500 focus:border-purple-500">
-                            <option value="">{{ t('opt_select_style') }}</option>
+                        <select id="shortsTemplateSelect" onchange="loadShortsTemplatePreset(this.value)"
+                            class="flex-1 bg-gray-900 border border-gray-700 text-white text-xs rounded-lg px-3 py-2.5 focus:ring-purple-500 focus:border-purple-500">
+                            <option value="">-- 템플릿 선택 --</option>
                         </select>
-                        <button onclick="deleteStylePreset()" id="btnDeleteStylePreset"
-                            class="text-red-400 hover:text-red-300 text-xs hidden px-2 py-1.5">🗑️ {{ t('btn_delete') }}</button>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <input type="text" id="stylePresetName" placeholder="{{ t('placeholder_style_name') }}"
-                            class="flex-1 bg-gray-800 border border-gray-700 text-white text-xs rounded px-2 py-1.5">
-                        <button onclick="saveStylePreset()"
-                            class="bg-purple-600/80 hover:bg-purple-600 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors whitespace-nowrap">
-                            🎨 {{ t('btn_save') }}
+                        <button onclick="deleteShortsTemplatePreset()" id="btnDeleteShortsPreset"
+                            class="bg-red-500/10 hover:bg-red-500/20 text-red-500 text-xs rounded-lg px-3 py-2.5 hidden border border-red-500/20 transition-all">
+                            🗑️
                         </button>
                     </div>
+                    <div class="flex flex-col gap-2">
+                        <input type="text" id="shortsPresetName" 
+                            placeholder="새 템플릿 이름 입력"
+                            class="w-full bg-gray-900 border border-gray-700 text-white text-xs rounded-lg px-3 py-2.5 focus:ring-purple-500 focus:border-purple-500">
+                        <button onclick="saveShortsTemplatePreset()"
+                            class="w-full bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-lg px-3 py-2.5 transition-all shadow-lg flex items-center justify-center gap-2">
+                            <span>✨</span> 현재 디자인을 프리셋으로 저장
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 mt-4">
                     <button onclick="saveAsDefaultStyle()"
-                        class="w-full bg-yellow-600/80 hover:bg-yellow-600 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors">
-                        {{ t('btn_set_as_default') }}
+                        class="bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-500 border border-yellow-500/20 px-3 py-2 rounded-lg text-xs font-medium transition-colors">
+                        ⭐ {{ t('btn_save_default') or '기본값 저장' }}
+                    </button>
+                    <button id="btnLoadDefault" onclick="loadDefaultStyle()"
+                        class="bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 px-3 py-2 rounded-lg text-xs font-medium transition-colors">
+                        🔄 {{ t('btn_load_default') or '기본값 불러오기' }}
                     </button>
                 </div>
             </div>
         </div>
 
+        <!-- 우측: 미리보기 및 세부 설정 -->
         <div class="space-y-4">
-            <div>
+            <!-- 미리보기 섹션 -->
+            <div class="card p-3">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">🖼️ {{ t('label_preview') or '미리보기' }}</span>
+                        <!-- [NEW] Settings Save Button Moved Here -->
+                        <button onclick="savePermanentSettings()" id="saveSettingsBtn" 
+                            class="p-1.5 text-gray-400 hover:text-blue-500 transition-colors"
+                            title="전체 설정 저장">
+                            <span class="text-sm">💾</span>
+                        </button>
+                    </div>
+                    <div class="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1 border border-gray-200 dark:border-gray-700">
+                        <button type="button" onclick="setAspectRatio('16:9')" id="ratio169Btn"
+                            class="px-2 py-1 text-[10px] rounded transition-all hover:bg-gray-200 dark:hover:bg-gray-700">📺 16:9</button>
+                        <button type="button" onclick="setAspectRatio('9:16')" id="ratio916Btn"
+                            class="px-2 py-1 text-[10px] rounded transition-all hover:bg-gray-200 dark:hover:bg-gray-700 font-bold">📱 9:16</button>
+                    </div>
+                </div>
+                
                 <div id="previewContainer"
-                    class="bg-gray-100 dark:bg-gray-700 rounded-lg p-2 relative overflow-hidden flex items-center justify-center transition-all duration-300 max-h-[600px] mx-auto">
-                    <canvas id="thumbnailCanvas" width="1280" height="720"
-                        class="w-full h-auto rounded shadow-inner bg-gray-200 dark:bg-gray-800"></canvas>
+                    class="bg-pattern dark:bg-gray-950 rounded-lg p-4 relative overflow-hidden flex items-center justify-center transition-all duration-300 mx-auto border-2 border-gray-300 dark:border-gray-800 shadow-inner"
+                    style="width: 340px; height: 604px; min-height: 400px;">
+                    <canvas id="thumbnailCanvas" 
+                        width="720" height="1280"
+                        class="max-w-full max-h-full rounded-sm shadow-2xl bg-black transition-transform duration-300"></canvas>
                     <div id="previewPlaceholder"
-                        class="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <span class="text-gray-500 text-sm dark:text-gray-400">{{ t('placeholder_select_idea') }}</span>
+                        class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                        <span class="text-gray-500 text-[10px] dark:text-gray-400 opacity-80 bg-gray-900/50 px-3 py-1 rounded-full border border-gray-700/50 backdrop-blur-sm">
+                            디자인 중... (배경 생성 시 노출)
+                        </span>
                     </div>
                 </div>
             </div>
 
-
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">{{
-                    t('label_shape_layer') }}</label>
-                <div id="shapeLayersContainer" class="space-y-4 mb-4"></div>
-                <button onclick="addShapeLayer()" class="btn-secondary w-full text-sm">
-                    {{ t('btn_add_shape_layer') }}
-                </button>
-            </div>
         </div>
     </div>
 </div>
 
 <!-- 4단계: 결과 -->
 <div id="resultSection" class="card hidden">
-    <h3 class="font-bold text-gray-800 dark:text-white mb-4">{{ t('thumb_stage_4') }}</h3>
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">{{ t('template_stage_4') or '4단계: 확정된 템플릿' }}</h3>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div
-            class="flex justify-center items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-2 aspect-video w-full max-w-2xl mx-auto overflow-hidden">
+            class="flex justify-center items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-2 w-full max-w-2xl mx-auto overflow-hidden min-h-[300px]">
             <img id="resultImage" src="" alt="Generated Thumbnail"
-                class="w-full h-full rounded shadow-lg object-contain">
+                class="max-w-full max-h-[500px] rounded shadow-lg object-contain">
         </div>
         <div class="space-y-4">
             <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                <h4 class="font-medium text-gray-800 dark:text-white mb-2">📐 {{ t('image_info_title') }}</h4>
+                <h4 class="font-medium text-gray-800 dark:text-white mb-2">📐 {{ t('template_info_title') or '템플릿 정보' }}</h4>
                 <p id="thumbnailSizeInfo" class="text-sm text-gray-600 dark:text-gray-400">{{ t('label_size') }}:
                     1280 x 720 (16:9)</p>
                 <p class="text-sm text-gray-600 dark:text-gray-400">{{ t('label_format') }}: PNG</p>
@@ -262,7 +260,8 @@
 {% block scripts %}
 <script src="/static/js/thumbnail_hook_text.js?v=2"></script>
 <script>
-    const i18n = {
+    // 기존 i18n 객체에 썸네일 전용 번역 추가 (SyntaxError/ReferenceError 방지)
+    window.i18n = Object.assign(window.i18n || {}, {
         label_style_none: "{{ t('label_style_none') }}",
         loading_saving: "{{ t('loading_saving') }}",
         toast_style_font_saved: "{{ t('toast_style_font_saved') }}",
@@ -282,6 +281,11 @@
         btn_selected_state: "{{ t('btn_selected_state') }}",
         btn_select_state: "{{ t('btn_select_state') }}",
         label_layout_colon: "{{ t('label_layout_colon') }}",
+        // [NEW] Added translations
+        btn_clear_bg: "배경 투명화",
+        helper_step_2_template: "최종 템플릿 확정 및 저장",
+        btn_finalize_template: "최종 템플릿 확정 및 저장",
+        btn_add_shape_layer: "도형 레이어 추가",
         btn_edit_prompt: "{{ t('btn_edit_prompt') }}",
         toast_idea_applied: "{{ t('toast_idea_applied') }}",
         placeholder_text_input: "{{ t('placeholder_text_input') }}",
@@ -354,17 +358,18 @@
         toast_style_deleted_prefix: "{{ t('toast_style_deleted_prefix') }}",
         toast_default_style_saved: "{{ t('toast_default_style_saved') }}",
         toast_all_settings_saved: "{{ t('toast_all_settings_saved') }}",
-        toast_state_restored: "{{ t('toast_state_restored') }}",
         err_unknown: "{{ t('err_unknown') }}",
-    };
+    });
+
     window.targetLang = 'ko';
+    const appMode = "{{ app_mode }}";
     let thumbnailData = null;
     let selectedPrompt = null;
     let selectedIdeaIndex = -1;
     let generatedHistory = [];
     let currentBackgroundPath = null; // 생성된 배경 이미지 경로 (백엔드용)
     let currentBackgroundUrl = null; // 생성된 배경 이미지 URL (프론트엔드용)
-    let currentAspectRatio = '16:9'; // [NEW] Default AR
+    let currentAspectRatio = '9:16'; // Default: 세로 모드
 
     // 텍스트 레이어 상태 (동적 관리) — text는 빈 문자열로 초기화하여 캔버스 공백 유지
     let textLayers = [
@@ -396,14 +401,19 @@
 
     // 프로젝트 데이터 로드
     document.addEventListener('DOMContentLoaded', async () => {
+        // [FIX] 기본값 세로(9:16) — appMode 무관하게 항상 세로 모드로 시작
+        setAspectRatio('9:16', false);
+
         const projectId = getCurrentProject();
         initCanvasEvents(); // 캔버스 이벤트 초기화
         await loadThumbnailStyles();
         await loadImageStyles(); // 이미지 스타일 그리드 로드 (화풍)
         await loadDefaultStyleFromDB(); // ⭐ 전역 기본 스타일 항상 먼저 적용
         _refreshStylePresetSelect(''); // 스타일 프리셋 드롭다운 초기화
+
         renderLayers(); // 기본 레이어 렌더링
         if (typeof renderShapeLayers === 'function') renderShapeLayers();
+        await refreshShortsTemplatePresets(); // 숏폼 템플릿 목록 로드
         drawPreview(); // 초기 캔버스 그리기
 
         if (projectId) {
@@ -476,9 +486,9 @@
                 // [NEW] Auto Aspect Ratio based on Project Settings
                 if (settings?.aspect_ratio) {
                     setAspectRatio(settings.aspect_ratio);
-                    console.log(`Auto-set Aspect Ratio to ${settings.aspect_ratio} from project settings`);
-                } else if (settings?.app_mode === 'shorts') {
-                    setAspectRatio('9:16');
+                } else {
+                    // No saved ratio, use mode default
+                    setAspectRatio(appMode === 'shorts' ? '9:16' : '16:9');
                 }
 
                 // [NEW] Apply Saved Font Preferences to Default Layer
@@ -1663,6 +1673,74 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
         }
     }
 
+    // [Draw Helpers]
+    const hexToRgb = (hex) => {
+        if (!hex || hex === 'transparent') return '0, 0, 0';
+        const bigint = parseInt(hex.slice(1), 16);
+        const r = (bigint >> 16) & 255;
+        const g = (bigint >> 8) & 255;
+        const b = bigint & 255;
+        return `${r}, ${g}, ${b}`;
+    };
+
+    function _drawShape(ctx, shape) {
+        const x = shape.x, y = shape.y, w = shape.width, h = shape.height;
+        const isStartTransparent = shape.color_start === 'transparent';
+        const startRgb = hexToRgb(shape.color_start);
+        const opacityStart = isStartTransparent ? 0 : (shape.opacity !== undefined ? shape.opacity : 1.0);
+        const opacityEnd = shape.opacity_end !== undefined ? shape.opacity_end : opacityStart;
+
+        let fillStyle;
+        if (shape.color_end && shape.color_end !== shape.color_start) {
+            const endRgb = hexToRgb(shape.color_end);
+            let grad = shape.gradient_direction === 'vertical' ? ctx.createLinearGradient(x, y, x, y + h) : ctx.createLinearGradient(x, y, x + w, y);
+            grad.addColorStop(0, `rgba(${startRgb}, ${opacityStart})`);
+            grad.addColorStop(1, `rgba(${endRgb}, ${opacityEnd})`);
+            fillStyle = grad;
+        } else if (opacityStart !== opacityEnd) {
+            let grad = shape.gradient_direction === 'vertical' ? ctx.createLinearGradient(x, y, x, y + h) : ctx.createLinearGradient(x, y, x + w, y);
+            grad.addColorStop(0, `rgba(${startRgb}, ${opacityStart})`);
+            grad.addColorStop(1, `rgba(${startRgb}, ${opacityEnd})`);
+            fillStyle = grad;
+        } else {
+            fillStyle = `rgba(${startRgb}, ${opacityStart})`;
+        }
+
+        ctx.save();
+        ctx.fillStyle = fillStyle;
+        ctx.fillRect(x, y, w, h);
+        ctx.restore();
+    }
+
+    function _drawText(ctx, layer) {
+        if (!layer.text) return;
+        const canvas = ctx.canvas;
+        const size = layer.font_size || 72;
+        ctx.font = `bold ${size}px "${layer.font_family || 'Recipekorea'}"`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        let x = canvas.width / 2 + (layer.x_offset || 0);
+        let y = canvas.height / 2 + (layer.y_offset || 0);
+
+        if (layer.bg_color) {
+            const metrics = ctx.measureText(layer.text);
+            const padW = 20, padH = 10;
+            ctx.fillStyle = layer.bg_color;
+            ctx.fillRect(x - metrics.width / 2 - padW, y - size / 2 - padH, metrics.width + padW * 2, size + padH * 2);
+        }
+
+        if (layer.stroke_width > 0) {
+            ctx.strokeStyle = layer.stroke_color || '#000000';
+            ctx.lineWidth = layer.stroke_width;
+            ctx.lineJoin = 'round';
+            ctx.strokeText(layer.text, x, y);
+        }
+
+        ctx.fillStyle = layer.color || '#FFFFFF';
+        ctx.fillText(layer.text, x, y);
+    }
+
     let bgImage = null; // Global background image object
 
     // 배경 생성 함수
@@ -1707,14 +1785,39 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
         }
     }
 
+    function clearBackground() {
+        bgImage = null;
+        currentBackgroundUrl = null;
+        currentBackgroundPath = null;
+        
+        const placeholder = document.getElementById('previewPlaceholder');
+        if (placeholder) placeholder.classList.remove('hidden');
+        
+        drawPreview();
+        saveStateToLocal();
+        Utils.showToast(i18n.toast_bg_cleared || '배경이 투명화되었습니다.', 'success');
+    }
+
     // 캔버스 미리보기 렌더링
     function drawPreview() {
         const canvas = document.getElementById('thumbnailCanvas');
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
 
-        // Clear canvas
-        ctx.fillStyle = '#1f2937';
+        // 1. Clear & Draw Checkerboard for Transparency
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw Checkerboard
+        const size = 20;
+        for (let y = 0; y < canvas.height; y += size) {
+            for (let x = 0; x < canvas.width; x += size) {
+                ctx.fillStyle = (Math.floor(x / size) + Math.floor(y / size)) % 2 === 0 ? '#ffffff' : '#e5e7eb';
+                ctx.fillRect(x, y, size, size);
+            }
+        }
+        
+        // Dark Overlay for Contrast
+        ctx.fillStyle = 'rgba(31, 41, 55, 0.4)';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         // 2. 배경 그리기
@@ -1755,228 +1858,65 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
         shapeHandleBBoxes = [];
 
         shapeLayers.forEach((shape, i) => {
-            const x = shape.x;
-            const y = shape.y;
-            const w = shape.width;
-            const h = shape.height;
+            _drawShape(ctx, shape);
 
-            // Hitbox 저장
-            shapeBBoxes.push({ x, y, w, h, index: i });
+            // Hitbox for selection
+            shapeBBoxes.push({ x: shape.x, y: shape.y, w: shape.width, h: shape.height, index: i });
 
-            // Hex to RGB Helper (transparent 지원)
-            const hexToRgb = (hex) => {
-                if (!hex || hex === 'transparent') return '0, 0, 0';
-                const bigint = parseInt(hex.slice(1), 16);
-                const r = (bigint >> 16) & 255;
-                const g = (bigint >> 8) & 255;
-                const b = bigint & 255;
-                return `${r}, ${g}, ${b}`;
-            };
-
-            const isStartTransparent = shape.color_start === 'transparent';
-            const startRgb = hexToRgb(shape.color_start);
-            const opacityStart = isStartTransparent ? 0 : (shape.opacity !== undefined ? shape.opacity : 1.0);
-            const opacityEnd = shape.opacity_end !== undefined ? shape.opacity_end : opacityStart;
-
-            let fillStyle;
-
-            if (shape.color_end && shape.color_end !== shape.color_start) {
-                const endRgb = hexToRgb(shape.color_end);
-
-                // 그라디언트
-                let grad;
-                if (shape.gradient_direction === 'vertical') {
-                    grad = ctx.createLinearGradient(x, y, x, y + h);
-                } else {
-                    grad = ctx.createLinearGradient(x, y, x + w, y);
-                }
-
-                grad.addColorStop(0, `rgba(${startRgb}, ${opacityStart})`);
-                grad.addColorStop(1, `rgba(${endRgb}, ${opacityEnd})`);
-                fillStyle = grad;
-            } else if (opacityStart !== opacityEnd) {
-                // 단색이지만 투명도만 다를 때 (투명도 그라디언트)
-                let grad;
-                if (shape.gradient_direction === 'vertical') {
-                    grad = ctx.createLinearGradient(x, y, x, y + h);
-                } else {
-                    grad = ctx.createLinearGradient(x, y, x + w, y);
-                }
-                grad.addColorStop(0, `rgba(${startRgb}, ${opacityStart})`);
-                grad.addColorStop(1, `rgba(${startRgb}, ${opacityEnd})`);
-                fillStyle = grad;
-            } else {
-                // 완전 단색
-                fillStyle = `rgba(${startRgb}, ${opacityStart})`;
-            }
-
-            ctx.save();
-            ctx.fillStyle = fillStyle;
-            ctx.fillRect(x, y, w, h);
-
-            // 선택된 도형은 외곽선 + 핸들 표시
-            if (i === selectedShapeIndex) {
+            // Selection UI (Handles) - Only on main canvas
+            if (ctx.canvas.id === 'thumbnailCanvas' && i === selectedShapeIndex) {
+                const x = shape.x, y = shape.y, w = shape.width, h = shape.height;
+                ctx.save();
                 ctx.strokeStyle = '#00cdff';
                 ctx.lineWidth = 2;
                 ctx.strokeRect(x, y, w, h);
 
-                // 핸들 그리기
                 const handleSize = 8;
                 const handles = [
-                    { type: 'nw', x: x, y: y },
-                    { type: 'n', x: x + w / 2, y: y },
-                    { type: 'ne', x: x + w, y: y },
-                    { type: 'e', x: x + w, y: y + h / 2 },
-                    { type: 'se', x: x + w, y: y + h },
-                    { type: 's', x: x + w / 2, y: y + h },
-                    { type: 'sw', x: x, y: y + h },
-                    { type: 'w', x: x, y: y + h / 2 }
+                    { type: 'nw', x: x, y: y }, { type: 'n', x: x + w / 2, y: y },
+                    { type: 'ne', x: x + w, y: y }, { type: 'e', x: x + w, y: y + h / 2 },
+                    { type: 'se', x: x + w, y: y + h }, { type: 's', x: x + w / 2, y: y + h },
+                    { type: 'sw', x: x, y: y + h }, { type: 'w', x: x, y: y + h / 2 }
                 ];
 
                 ctx.strokeStyle = '#00cdff';
                 ctx.fillStyle = '#ffffff';
-
                 handles.forEach(h => {
                     const hx = h.x - handleSize / 2;
                     const hy = h.y - handleSize / 2;
                     ctx.fillRect(hx, hy, handleSize, handleSize);
                     ctx.strokeRect(hx, hy, handleSize, handleSize);
+                    shapeHandleBBoxes.push({ x: hx, y: hy, w: handleSize, h: handleSize, type: h.type, index: i });
+                });
+                ctx.restore();
+            }
+        });
+    }
 
-                    shapeHandleBBoxes.push({
-                        x: hx, y: hy, w: handleSize, h: handleSize,
-                        type: h.type, index: i
-                    });
+    function drawTextOverlays(ctx) {
+        layerBBoxes = [];
+        textLayers.forEach((layer, i) => {
+            _drawText(ctx, layer);
+            
+            // Selection Hitbox
+            if (layer.text && ctx.canvas.id === 'thumbnailCanvas') {
+                const size = layer.font_size || 72;
+                ctx.font = `bold ${size}px "${layer.font_family || 'Recipekorea'}"`;
+                const metrics = ctx.measureText(layer.text);
+                const x = ctx.canvas.width / 2 + (layer.x_offset || 0);
+                const y = ctx.canvas.height / 2 + (layer.y_offset || 0);
+                layerBBoxes.push({
+                    x: x - metrics.width / 2,
+                    y: y - size / 2,
+                    w: metrics.width,
+                    h: size,
+                    index: i
                 });
             }
-            ctx.restore();
         });
     }
 
-    // 텍스트 그리기 (기본 함수 분리)
-    function drawTextOverlays(ctx) {
-        // 히트박스 초기화
-        layerBBoxes = [];
 
-        // 기본 폰트 설정 (브라우저 캔버스용)
-        // main.py와 최대한 비슷하게 맞춤
-        const getFont = (family, size) => {
-            const fontMap = {
-                'Recipekorea': 'Recipekorea',
-                'GmarketSansBold': 'Gmarket Sans Bold',
-                'GmarketSansMedium': 'Gmarket Sans Medium',
-                'malgun': 'Malgun Gothic',
-                'gungsuh': 'Gungsuh',
-                'NanumGothic': 'NanumGothic',
-                'NanumPen': 'Nanum Pen Script',
-                'gmarket': 'Gmarket Sans',
-                'cookie': 'CookieRun'
-            };
-            let fontName = fontMap[family] || family || 'Malgun Gothic';
-            return `bold ${size}px "${fontName}", sans-serif`;
-        };
-
-        textLayers.forEach((layer, i) => {
-            if (!layer.text.trim()) return;
-
-            ctx.save();
-
-            // [NEW] Auto-scaling + auto-wrap: 캔버스 폭을 벗어나면 줄바꿈 후 폰트 축소
-            let currentFontSize = layer.font_size;
-            ctx.font = getFont(layer.font_family, currentFontSize);
-            let maxWidth = ctx.canvas.width * 0.90; // 90% width limit
-
-            // 텍스트 줄바꿈 함수
-            function wrapText(text, maxW) {
-                let metrics = ctx.measureText(text);
-                if (metrics.width <= maxW) return [text];
-                // 한글은 글자 단위로 줄바꿈
-                let lines = [];
-                let current = '';
-                for (let ch of text) {
-                    let test = current + ch;
-                    if (ctx.measureText(test).width > maxW && current) {
-                        lines.push(current);
-                        current = ch;
-                    } else {
-                        current = test;
-                    }
-                }
-                if (current) lines.push(current);
-                return lines;
-            }
-
-            let lines = wrapText(layer.text, maxWidth);
-
-            // 줄바꿈 후에도 개별 줄이 넘치면 폰트 축소
-            let longestLine = lines.reduce((a, b) => ctx.measureText(a).width > ctx.measureText(b).width ? a : b, '');
-            let longestWidth = ctx.measureText(longestLine).width;
-            if (longestWidth > maxWidth) {
-                let scaleFactor = maxWidth / longestWidth;
-                currentFontSize = Math.max(16, Math.floor(currentFontSize * scaleFactor));
-                ctx.font = getFont(layer.font_family, currentFontSize);
-                lines = wrapText(layer.text, maxWidth); // 재계산
-            }
-
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-
-            // 위치 계산 (Dynamic)
-            let x = ctx.canvas.width / 2; // center x
-            let y = ctx.canvas.height / 2; // center y
-
-            const canvasH = ctx.canvas.height;
-            if (layer.position === 'center') y = canvasH * 0.5;
-            else if (layer.position === 'top') y = canvasH * 0.15;
-            else if (layer.position === 'bottom') y = canvasH * 0.85;
-            else if (layer.position === 'row1') y = canvasH * 0.15;
-            else if (layer.position === 'row2') y = canvasH * 0.35;
-            else if (layer.position === 'row3') y = canvasH * 0.55;
-            else if (layer.position === 'row4') y = canvasH * 0.75;
-            else if (layer.position === 'row5') y = canvasH * 0.90;
-
-            x += (layer.x_offset || 0);
-            y += (layer.y_offset || 0);
-
-            // 여러 줄 렌더링
-            const lineHeight = currentFontSize * 1.25;
-            const totalHeight = lineHeight * lines.length;
-            const startY = y - (totalHeight / 2) + (lineHeight / 2);
-
-            lines.forEach((line, lineIdx) => {
-                const lineY = startY + lineIdx * lineHeight;
-
-                // 외곽선
-                if (layer.stroke_width > 0) {
-                    ctx.lineWidth = layer.stroke_width * 2;
-                    ctx.strokeStyle = layer.stroke_color;
-                    ctx.strokeText(line, x, lineY);
-                }
-
-                // 채우기
-                ctx.fillStyle = layer.color;
-                ctx.fillText(line, x, lineY);
-            });
-
-            // 히트박스 저장 (전체 텍스트 영역)
-            let totalW = lines.reduce((max, line) => Math.max(max, ctx.measureText(line).width), 0);
-            layerBBoxes.push({
-                x: x - totalW / 2,
-                y: startY - lineHeight / 2,
-                w: totalW,
-                h: totalHeight,
-                index: i
-            });
-
-            ctx.restore();
-        });
-    }
-
-    // renderLayers에서 drawPreview 호출 포함
-    const originalRenderLayers = renderLayers;
-    renderLayers = function () {
-        originalRenderLayers();
-        drawPreview();
-    };
 
     // 배경 이미지 업로드 핸들러
     function uploadBackgroundImage(input) {
@@ -2143,34 +2083,49 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
         const previewContainer = document.getElementById('previewContainer');
         if (!canvas || !previewContainer) return;
 
-        // Update Canvas Size
-        let targetW, targetH;
+        // [Aggressive Fix] 캔버스와 컨테이너 스타일을 정밀하게 강제
         if (ratio === '9:16') {
-            targetW = 720; targetH = 1280;
+            // 내부 해상도 (물리적)
+            canvas.width = 720;
+            canvas.height = 1280;
 
-            // Container Styling for Shorts
+            // 컨테이너 스타일 (시각적)
             previewContainer.style.maxWidth = '340px';
+            previewContainer.style.width = '340px';
+            previewContainer.style.height = '604.44px'; // 340 * 16/9
             previewContainer.style.aspectRatio = '9/16';
-            previewContainer.classList.remove('aspect-video');
-
-            // Update Info Text
+            
+            // 정보 텍스트
             const info = document.getElementById('thumbnailSizeInfo');
-            if (info) info.innerText = i18n.size_portrait;
+            if (info) info.innerText = i18n.size_portrait || '세로 (9:16)';
         } else {
-            targetW = 1280; targetH = 720;
+            // 내부 해상도 (물리적)
+            canvas.width = 1280;
+            canvas.height = 720;
 
-            // Container Styling for Longform
+            // 컨테이너 스타일 (시각적)
             previewContainer.style.maxWidth = '100%';
+            previewContainer.style.width = '100%';
+            previewContainer.style.height = 'auto';
             previewContainer.style.aspectRatio = '16/9';
 
-            // Update Info Text
+            // 정보 텍스트
             const info = document.getElementById('thumbnailSizeInfo');
-            if (info) info.innerText = i18n.size_landscape;
+            if (info) info.innerText = i18n.size_landscape || '가로 (16:9)';
         }
 
-        // Canvas scale logic (display vs internal)
-        canvas.width = targetW;
-        canvas.height = targetH;
+        // Update Visual Highlights
+        const btn169 = document.getElementById('ratio169Btn');
+        const btn916 = document.getElementById('ratio916Btn');
+        if (btn169 && btn916) {
+            if (ratio === '9:16') {
+                btn916.classList.add('bg-white', 'dark:bg-gray-700', 'shadow-sm', 'font-bold');
+                btn169.classList.remove('bg-white', 'dark:bg-gray-700', 'shadow-sm', 'font-bold');
+            } else {
+                btn169.classList.add('bg-white', 'dark:bg-gray-700', 'shadow-sm', 'font-bold');
+                btn916.classList.remove('bg-white', 'dark:bg-gray-700', 'shadow-sm', 'font-bold');
+            }
+        }
 
         drawPreview();
         if (save) saveStateToLocal();
@@ -2207,6 +2162,8 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
             savedAt: new Date().toISOString()
         };
     }
+
+    // --- Consolidated Template Funcs Moved/Fixed Below ---
 
     function _applyStylePreset(preset) {
         const canvas = document.getElementById('thumbnailCanvas');
@@ -2250,6 +2207,138 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
             names.map(n => `<option value="${n}"${n === selectValue ? ' selected' : ''}>${n}</option>`).join('');
         const delBtn = document.getElementById('btnDeleteStylePreset');
         if (delBtn) delBtn.classList.toggle('hidden', !selectValue);
+    }
+
+    // ===========================================
+    // Shorts Template Presets (Server Sync)
+    // ===========================================
+
+    async function refreshShortsTemplatePresets(defaultSelect = '') {
+        try {
+            const res = await fetch('/api/shorts-template/presets');
+            const data = await res.json();
+            if (data.status === 'ok') {
+                const select = document.getElementById('shortsTemplateSelect');
+                if (!select) return;
+                
+                const currentValue = select.value;
+                select.innerHTML = `<option value="">-- ${i18n.opt_select_template || '템플릿 선택'} --</option>`;
+                
+                data.presets.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.name;
+                    opt.textContent = p.name;
+                    select.appendChild(opt);
+                });
+                
+                select.value = defaultSelect || currentValue;
+                document.getElementById('btnDeleteShortsPreset')?.classList.toggle('hidden', !select.value);
+            }
+        } catch (e) { console.error('Failed to load presets:', e); }
+    }
+
+    async function saveShortsTemplatePreset() {
+        const nameInput = document.getElementById('shortsPresetName');
+        const name = (nameInput?.value || '').trim();
+        if (!name) { 
+            Utils.showToast(i18n.toast_enter_style_name || '프리셋 이름을 입력하세요.', 'error'); 
+            return; 
+        }
+
+        const btn = event.currentTarget;
+        Utils.setLoading(btn, true);
+
+        try {
+            // 1. Extract Current State (Style)
+            const settings = _extractCurrentStyle();
+            
+            // 2. Clear canvas and draw 100% clean for PNG export (No checkerboard, No dark overlay)
+            const canvas = document.getElementById('thumbnailCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Store original state for redraw
+            const origBG = currentBackgroundUrl;
+            
+            // Redraw Clean
+            ctx.clearRect(0,0, canvas.width, canvas.height);
+            // We draw manually to skip overlays
+            if (bgImage) {
+                ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+            }
+            // Draw shapes
+            shapeLayers.forEach(s => _drawShape(ctx, s));
+            // Draw texts
+            textLayers.forEach(l => _drawText(ctx, l));
+            
+            const imageData = canvas.toDataURL('image/png');
+            
+            // Redraw with UI overlays
+            drawPreview();
+
+            // 3. Save to Server
+            const res = await fetch('/api/shorts-template/presets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: name,
+                    settings: settings,
+                    image_data: imageData
+                })
+            });
+
+            const result = await res.json();
+            if (result.status === 'ok') {
+                Utils.showToast(`${i18n.toast_style_preset_saved_prefix || '저장되었습니다:'} "${name}"`, 'success');
+                nameInput.value = '';
+                await refreshShortsTemplatePresets(name);
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (e) {
+            Utils.showToast(e.message, 'error');
+        } finally {
+            Utils.setLoading(btn, false);
+        }
+    }
+
+    async function loadShortsTemplatePreset(name) {
+        if (!name) {
+            document.getElementById('btnDeleteShortsPreset')?.classList.add('hidden');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/shorts-template/presets');
+            const data = await res.json();
+            const preset = data.presets.find(p => p.name === name);
+            
+            if (preset && preset.settings) {
+                _applyStylePreset(preset.settings);
+                document.getElementById('btnDeleteShortsPreset')?.classList.remove('hidden');
+                Utils.showToast(`${i18n.toast_style_preset_loaded_prefix || '불러왔습니다:'} "${name}"`, 'success');
+            }
+        } catch (e) {
+            Utils.showToast(i18n.toast_style_load_fail || '로드 실패', 'error');
+        }
+    }
+
+    async function deleteShortsTemplatePreset() {
+        const select = document.getElementById('shortsTemplateSelect');
+        const name = select.value;
+        if (!name) return;
+
+        if (!confirm(`"${name}" - ${i18n.confirm_delete_style || '이 프리셋을 삭제할까요?'}`)) return;
+
+        try {
+            const res = await fetch(`/api/shorts-template/presets/${encodeURIComponent(name)}`, { method: 'DELETE' });
+            const result = await res.json();
+            if (result.status === 'ok') {
+                Utils.showToast(i18n.toast_style_deleted_prefix || '삭제되었습니다.', 'success');
+                await refreshShortsTemplatePresets();
+            }
+        } catch (e) {
+            Utils.showToast('삭제 실패', 'error');
+        }
     }
 
     function saveStylePreset() {
@@ -2394,18 +2483,8 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
     }
 
     async function loadStateFromLocal() {
-        // [Fix] Ensure we know the App Mode first
-        let currentMode = window.APP_MODE;
-        if (!currentMode) {
-            try {
-                const res = await fetch('/api/settings');
-                const settings = await res.json();
-                currentMode = settings.app_mode || 'longform';
-                window.APP_MODE = currentMode;
-            } catch (e) {
-                currentMode = 'longform';
-            }
-        }
+        // [Fix] 전역 appMode 변수 직접 사용 (가장 확실함)
+        const currentMode = appMode;
 
         let saved = sessionStorage.getItem('thumbnail_gen_state');
         let state = null;
@@ -2438,7 +2517,11 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
             } catch (e) { }
         }
 
-        if (!state) return;
+        if (!state) {
+            // 저장된 상태 없음 → 항상 세로(9:16) 기본값
+            setAspectRatio('9:16', false);
+            return;
+        }
         try {
             const currentProjectId = getCurrentProject();
 
@@ -2461,15 +2544,8 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
             if (state.title) document.getElementById('videoTitle').value = state.title;
             // [MODIFIED] Do not apply defaults when restoring saved style
             if (state.style) selectThumbnailStyle(state.style, false);
-            // Aspect Ratio Restore
-            // [FIX] Force Aspect Ratio based on Mode
-            if (currentMode === 'shorts') {
-                setAspectRatio('9:16', false);
-            } else if (state.aspectRatio) {
-                setAspectRatio(state.aspectRatio, false);
-            } else {
-                setAspectRatio('16:9', false);
-            }
+            // Aspect Ratio — 항상 세로(9:16) 기본값 (저장된 값 무시)
+            setAspectRatio('9:16', false);
 
 
 

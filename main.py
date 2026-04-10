@@ -185,6 +185,7 @@ from app.routers import sources as sources_router
 from app.routers import pages as pages_router
 from app.routers import gemini as gemini_router
 from app.routers import image as image_router
+from app.routers import thumbnails as thumbnails_router
 
 app.include_router(autopilot_router.router)
 app.include_router(video_router.router)
@@ -200,6 +201,7 @@ app.include_router(sources_router.router)
 app.include_router(pages_router.router)
 app.include_router(gemini_router.router)
 app.include_router(image_router.router)
+app.include_router(thumbnails_router.router)
 pages_router.init_pages(templates)
 
 

@@ -442,6 +442,7 @@ class GeminiService:
                 final_prompt,
                 generation_config={
                     "candidate_count": num_images,
+                    "aspect_ratio": aspect_ratio,
                 }
             )
             
@@ -522,9 +523,9 @@ class GeminiService:
         if "preview" in model:
             duration_seconds = min(duration_seconds, 5)
         
-        self.log_debug(f"📹 [Veo] Starting full video generation (dur={duration_seconds}s): {prompt[:50]}...")
+        self.log_debug(f"📹 [Veo] Starting full video generation (dur={duration_seconds}s, ratio={aspect_ratio}): {prompt[:50]}...")
 
-        res = await self.generate_video_preview(prompt=prompt, image_path=image_path, model=model)
+        res = await self.generate_video_preview(prompt=prompt, image_path=image_path, model=model, aspect_ratio=aspect_ratio)
         if res.get("status") == "ok" and res.get("video_url"):
             # Download the video
             try:
@@ -1771,7 +1772,7 @@ Motion prompt for this image:"""
         except Exception:
             return "nature calm loop" # Fallback
 
-    async def generate_video_preview(self, prompt: str, image_path: Optional[str] = None, model: str = "veo-3.1-generate-preview") -> dict:
+    async def generate_video_preview(self, prompt: str, image_path: Optional[str] = None, model: str = "veo-3.1-generate-preview", aspect_ratio: str = "16:9") -> dict:
         """Gemini Veo를 사용한 비디오 생성 (동기 SDK를 스레드에서 실행)"""
         if not self.api_key:
             return {"status": "error", "error": "API Key is missing"}
@@ -1803,7 +1804,10 @@ Motion prompt for this image:"""
                     model=model,
                     prompt=prompt,
                     image=image_arg,
-                    config={'number_of_videos': 1}
+                    config={
+                        'number_of_videos': 1,
+                        'aspect_ratio': aspect_ratio
+                    }
                 )
                 self.log_debug(f"🎬 [Veo] Operation started: {type(operation).__name__} (id: {getattr(operation, 'id', 'unknown')})")
 

@@ -735,9 +735,12 @@ async def get_project_subtitles(project_id: int, force_refresh: bool = False):
              with open(timeline_images_path, "r", encoding="utf-8") as f:
                  timeline_images = json.load(f)
         
-        # Source images from DB
+        # Source images from DB - [FIX] Use scene-aware list to prevent jumbling/compression
         prompts = db.get_image_prompts(project_id)
-        source_images = [p['image_url'] for p in prompts if p.get('image_url')]
+        source_images = []
+        for p in prompts:
+            # If both image and video are missing, we still need a placeholder to keep timing sync
+            source_images.append(p.get('video_url') or p.get('image_url') or "")
 
         # Fallback to source images if timeline is empty
         if not timeline_images:
@@ -951,41 +954,46 @@ async def render_project_video(
                  
                  for url in timeline_urls:
                      if not url:
+                         images.append("")
                          continue
+                         
+                     fpath = None
                      if url.startswith("/static/"):
                         rel = url.replace("/static/", "", 1).replace("/", os.sep)
                         fpath = os.path.join(config.STATIC_DIR, rel)
                      elif url.startswith("/output/"):
                         rel = url.replace("/output/", "", 1).replace("/", os.sep)
                         fpath = os.path.join(config.OUTPUT_DIR, rel)
-                     else:
-                        continue
                      
-                     if os.path.exists(fpath):
+                     if fpath and os.path.exists(fpath):
                          images.append(fpath)
+                     else:
+                         images.append("") # Keep index placeholder 
                          
                  if images:
                      loaded_from_timeline = True
              except Exception as e:
                  print(f"Failed to load timeline images: {e}")
                  
-        # Fallback to DB if no timeline
+        # Fallback to DB if no timeline - [FIX] Scene-aware list construction
         if not loaded_from_timeline:
-            print("DEBUG: No timeline found, loading from DB prompts")
+            print("DEBUG: No timeline found, building from DB prompts (scene-aware)")
             for img in images_data:
-                if img.get("image_url"):
-                    if img["image_url"].startswith("/static/"):
-                        relative_path = img["image_url"].replace("/static/", "", 1)
-                        relative_path = relative_path.replace("/", os.sep)
+                target_url = img.get("image_url") or img.get("video_url")
+                
+                fpath = None
+                if target_url:
+                    if target_url.startswith("/static/"):
+                        relative_path = target_url.replace("/static/", "", 1).replace("/", os.sep)
                         fpath = os.path.join(config.STATIC_DIR, relative_path)
-                    elif img["image_url"].startswith("/output/"):
-                        relative_path = img["image_url"].replace("/output/", "", 1)
+                    elif target_url.startswith("/output/"):
+                        relative_path = target_url.replace("/output/", "", 1).replace("/", os.sep)
                         fpath = os.path.join(config.OUTPUT_DIR, relative_path)
-                    else:
-                        continue
-
-                    if os.path.exists(fpath):
-                        images.append(fpath)
+                
+                if fpath and os.path.exists(fpath):
+                    images.append(fpath)
+                else:
+                    images.append("") # Placeholder for missing scene asset
         
         # [FIX] Patch loaded images with latest video_url from DB
         # This ensures we use generated videos even if timeline.json still points to static images
@@ -1513,7 +1521,8 @@ async def render_project_video(
                     subtitles=subs,
                     subtitle_settings=s_settings,
                     background_video_url=bg_video_url_arg,
-                    thumbnail_path=thumbnail_path_arg,
+                    thumbnail_path=thumbnail_path_arg, # Keeps 0.1s baking (YT thumb)
+                    template_overlay_path=thumbnail_path_arg, # [NEW] Adds persistent overlay
                     duration_per_image=duration_per_image,
                     fade_in_flags=fade_in_flags,
                     image_effects=image_effects,

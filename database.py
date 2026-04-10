@@ -375,6 +375,17 @@ def init_db():
         )
     """)
 
+    # [NEW] 숏폼 템플릿 스타일 프리셋
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS shorts_template_presets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE,
+            settings_json TEXT,
+            image_path TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -389,6 +400,17 @@ def migrate_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT UNIQUE,
             settings_json TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # [NEW] Shorts Template Style Presets Table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS shorts_template_presets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE,
+            settings_json TEXT,
+            image_path TEXT,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -793,6 +815,11 @@ scene_type별 구조:
         
     try:
         cursor.execute("ALTER TABLE project_settings ADD COLUMN app_mode TEXT DEFAULT 'longform'")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN shorts_template_preset TEXT")
     except sqlite3.OperationalError:
         pass
 
@@ -2564,6 +2591,44 @@ def delete_subtitle_style_preset(name: str):
         conn.commit()
     except Exception as e:
         print(f"[DB Error] delete_subtitle_style_preset: {e}")
+    finally:
+        if conn: conn.close()
+
+def get_shorts_template_presets():
+    """숏폼 템플릿 프리셋 목록 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT name, settings_json, image_path FROM shorts_template_presets ORDER BY updated_at DESC")
+        return [dict(row) for row in cursor.fetchall()]
+    except Exception as e:
+        print(f"[DB Error] get_shorts_template_presets: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def save_shorts_template_preset(name: str, settings_json: str, image_path: Optional[str] = None):
+    """숏폼 템플릿 프리셋 저장 (Upsert)"""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("INSERT OR REPLACE INTO shorts_template_presets (name, settings_json, image_path, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)", 
+                       (name, settings_json, image_path))
+        conn.commit()
+    except Exception as e:
+        print(f"[DB Error] save_shorts_template_preset: {e}")
+    finally:
+        if conn: conn.close()
+
+def delete_shorts_template_preset(name: str):
+    """숏폼 템플릿 프리셋 삭제"""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM shorts_template_presets WHERE name = ?", (name,))
+        conn.commit()
+    except Exception as e:
+        print(f"[DB Error] delete_shorts_template_preset: {e}")
     finally:
         if conn: conn.close()
 

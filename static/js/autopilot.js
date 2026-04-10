@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await Promise.all([loadStyles(), loadVoices(), fetchPresets(), loadChannels()]);
 
     // 2. Load Saved Settings (Global / Default Project)
-    await Promise.all([loadSavedSettings(), loadSubtitleDefaults(), fetchSubtitlePresets()]);
+    await Promise.all([loadSavedSettings(), loadSubtitleDefaults(), fetchSubtitlePresets(), loadShortsTemplatePresets()]);
 
     // 3. Event Listeners
     const startBtn = document.getElementById('startAutopilotBtn');
@@ -145,6 +145,10 @@ async function loadStyles() {
 
             tGrid.innerHTML = '';
             Object.entries(data).forEach(([key, val]) => {
+                // [FILTER] Hide legacy/sample styles from Autopilot UI as requested by user
+                const hiddenStyles = ['face', 'contrast', 'text', 'mystery', 'japanese_viral'];
+                if (hiddenStyles.includes(key)) return;
+
                 // Special labels for specific styles; others use their stored name
                 const specialLabels = {
                     'japanese_viral': i18n.style_viral
@@ -172,14 +176,37 @@ async function loadStyles() {
                 const firstKey = Object.keys(data)[0];
                 if (firstKey) selectStyle('thumbnailStyle', firstKey);
             }
-            // shorts 모드면 섹션 강제 숨김
-            if (document.getElementById('appMode')?.value === 'shorts') {
-                const ts = document.getElementById('thumbnailStyleSection');
-                if (ts) ts.classList.add('hidden');
-            }
+            // [FIX] Always show thumbnail style if not explicitly disabled
+            if (ts) ts.classList.remove('hidden');
         } catch (e) {
             console.error("Failed to load thumbnail styles:", e);
         }
+    }
+}
+
+// [NEW] 숏폼 템플릿 프리셋 목록 로드
+async function loadShortsTemplatePresets() {
+    const sel = document.getElementById('shortsTemplatePreset');
+    if (!sel) return;
+    
+    try {
+        const res = await fetch('/api/shorts-template/presets');
+        const data = await res.json();
+        if (data.status === 'ok') {
+            const currentVal = sel.value;
+            // 기본 옵션 이후 삭제
+            while (sel.options.length > 1) sel.remove(1);
+            
+            data.presets.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.name;
+                opt.textContent = p.name;
+                sel.appendChild(opt);
+            });
+            if (currentVal) sel.value = currentVal;
+        }
+    } catch (e) {
+        console.error('Failed to load shorts template presets:', e);
     }
 }
 
@@ -276,8 +303,9 @@ function setMode(mode) {
 
         const commerceToggle = document.getElementById('commerceModeToggle');
         if (commerceToggle) commerceToggle.classList.remove('hidden');
+        // 썸네일 섹션: 항상 표시 (사용자 요청으로 복원)
         const thumbSection = document.getElementById('thumbnailStyleSection');
-        if (thumbSection) thumbSection.classList.add('hidden');
+        if (thumbSection) thumbSection.classList.remove('hidden');
 
         // Ensure creation mode is synced
         setCreationMode(document.getElementById('creationMode')?.value || 'default');

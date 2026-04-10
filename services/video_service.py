@@ -70,7 +70,8 @@ class VideoService:
         subtitle_settings: Optional[dict] = None,
 
         background_video_url: Optional[str] = None,
-        thumbnail_path: Optional[str] = None,  # [NEW] Baked-in Thumbnail
+        thumbnail_path: Optional[str] = None,  # [NEW] Baked-in Thumbnail (0.1s at start)
+        template_overlay_path: Optional[str] = None, # [NEW] Persistent Overlay (Start to End)
         fade_in_flags: Optional[List[bool]] = None,  # [NEW] Fade-in effect per image
         image_effects: Optional[List[str]] = None,   # [NEW] Ken Burns Effects
         intro_video_path: Optional[str] = None,   # [NEW] Intro Video Prepend
@@ -1191,6 +1192,30 @@ class VideoService:
                 bg_final = ColorClip(size=(target_w, target_h), color=(0,0,0)).with_duration(video.duration)
                 video = CompositeVideoClip([bg_final, video] + subtitle_clips, size=(target_w, target_h))
                 print(f"[SUBTITLE] CompositeVideoClip created with {len(subtitle_clips)} subtitle clips")
+
+        # [NEW] Persistent Template Overlay (Shorts Template) - Topmost Layer
+        if template_overlay_path and os.path.exists(template_overlay_path):
+            print(f"Applying persistent template overlay: {template_overlay_path}")
+            try:
+                from PIL import Image as _PIL_Tmpl
+                import numpy as _np_tmpl
+                with _PIL_Tmpl.open(template_overlay_path) as _pil_tmpl:
+                    _pil_tmpl_rgba = _pil_tmpl.convert('RGBA')
+                    # Match resolution
+                    target_w = resolution[0] if isinstance(resolution, (list, tuple)) and len(resolution) >= 2 else video.w
+                    target_h = resolution[1] if isinstance(resolution, (list, tuple)) and len(resolution) >= 2 else video.h
+                    
+                    if _pil_tmpl_rgba.size != (target_w, target_h):
+                        _pil_tmpl_rgba = _pil_tmpl_rgba.resize((target_w, target_h), _PIL_Tmpl.LANCZOS)
+                    
+                    _tmpl_arr = _np_tmpl.array(_pil_tmpl_rgba)
+                    tmpl_clip = ImageClip(_tmpl_arr).with_duration(video.duration).with_fps(fps).with_position('center')
+                    
+                    # Layer on top
+                    video = CompositeVideoClip([video, tmpl_clip], size=(target_w, target_h))
+                    print("Shorts template overlay applied successfully.")
+            except Exception as te:
+                print(f"Failed to apply template overlay: {te}")
 
         # 출력
         output_path = os.path.join(self.output_dir, output_filename)

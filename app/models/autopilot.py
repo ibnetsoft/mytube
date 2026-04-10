@@ -27,6 +27,7 @@ class AutoPilotStartRequest(BaseModel):
     use_character_analysis: bool = False
     char_ethnicity: Optional[str] = "East Asian heritage, Polished porcelain skin"
     is_queued: bool = False
+    shorts_template_preset: Optional[str] = ""
 
 
 class AutopilotPresetSave(BaseModel):

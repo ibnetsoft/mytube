@@ -1944,11 +1944,24 @@ JSON만 출력하세요:
         if render_settings.get("bg_enabled") is None:
             render_settings["bg_enabled"] = render_settings.get("subtitle_bg_enabled", 1)
 
+        # [NEW] Shorts Template Overlay 처리
+        template_overlay_path = None
+        preset_name = render_settings.get("shorts_template_preset")
+        if preset_name:
+            all_presets = db.get_shorts_template_presets()
+            match = next((p for p in all_presets if p['name'] == preset_name), None)
+            if match and match.get('image_path') and os.path.exists(match.get('image_path')):
+                template_overlay_path = match.get('image_path')
+                print(f"🎬 [Auto-Pilot] Applying Overlay Template: {preset_name}")
+            else:
+                if match and match.get('image_path'):
+                    print(f"⚠️ [Auto-Pilot] Template image file not found at: {match.get('image_path')}")
+
         final_path = video_service.create_slideshow(
             images=images, audio_path=audio_path, output_filename=output_filename,
             duration_per_image=image_durations, subtitles=subs, project_id=project_id,
             resolution=resolution, subtitle_settings=render_settings, sfx_map=sfx_map,
-            focal_point_ys=f_points, image_effects=effects
+            focal_point_ys=f_points, image_effects=effects, template_overlay_path=template_overlay_path
         )
 
         db.update_project_setting(project_id, "video_path", f"/output/{output_filename}")

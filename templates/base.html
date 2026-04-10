@@ -131,7 +131,7 @@
                         <a href="/thumbnail" id="nav-thumbnail"
                             class="sidebar-item {% if page == 'thumbnail' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
-                            <span>{{ t('nav_thumbnail') }}</span>
+                            <span>{{ t('nav_shorts_template') or '템플릿' }}</span>
                         </a>
                     </li>
                     <li class="{% if app_mode in ['commerce'] %}hidden{% endif %}">
@@ -360,7 +360,7 @@
                                         class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center transition-all duration-300">
                                         <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
                                     </div>
-                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{ t('step_thumbnail') }}</span>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{ t('step_shorts_template') or '숏폼 템플릿' }}</span>
                                 </a>
 
                                 <!-- Step 8: TTS -->
@@ -1058,7 +1058,7 @@
                     setVisible(navScript, true);
                     setVisible(navImage, true);
                     setVisible(navAudio, false);
-                    setVisible(navThumbnail, false);
+                    setVisible(navThumbnail, true);
                     setVisible(navTts, true);
                     setVisible(navSubtitle, true);
                     setVisible(navRender, true);

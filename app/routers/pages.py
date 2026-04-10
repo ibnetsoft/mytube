@@ -91,7 +91,8 @@ async def page_title_desc(request: Request):
 
 @router.get("/thumbnail", response_class=HTMLResponse)
 async def page_thumbnail(request: Request, project_id: Optional[int] = Query(None)):
-    return _render(request, "pages/thumbnail.html", "thumbnail", "썸네일 생성", project_id=project_id)
+    app_mode = db.get_global_setting("app_mode", "longform")
+    return _render(request, "pages/thumbnail.html", "thumbnail", "썸네일 생성", project_id=project_id, app_mode=app_mode)
 
 @router.get("/shorts", response_class=HTMLResponse)
 async def page_shorts(request: Request):

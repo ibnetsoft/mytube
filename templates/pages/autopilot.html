@@ -341,19 +341,27 @@
                         </div>
                     </div>
 
-                    <!-- Thumbnail Style Selector -->
-                    <div id="thumbnailStyleSection" class="hidden card bg-gray-900/40 border-orange-500/10 p-4 rounded-xl">
-                        <div class="flex items-center gap-2 mb-3">
-                            <div
-                                class="w-7 h-7 rounded-lg bg-orange-500/20 flex items-center justify-center text-orange-400 font-bold text-xs">
-                                3</div>
-                            <h3 class="text-sm font-bold text-white">{{ t('label_thumbnail_style') }}</h3>
+                    <!-- Shorts Template Style Selector (Formerly Thumbnail) -->
+                    <div id="thumbnailStyleSection" class="card bg-gray-900/40 border-orange-500/10 p-4 rounded-xl">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center gap-2">
+                                <div class="w-7 h-7 rounded-lg bg-orange-500/20 flex items-center justify-center text-orange-400 font-bold text-xs">3</div>
+                                <h3 class="text-sm font-bold text-white">{{ t('label_shorts_template_style') or '숏폼 템플릿 스타일' }}</h3>
+                            </div>
+                            
+                            <!-- [NEW] My Design Templates Selector -->
+                            <div class="flex flex-col gap-1">
+                                <select id="shortsTemplatePreset" 
+                                    class="bg-gray-800 border-none text-white text-[9px] rounded-md px-2 py-1 focus:ring-1 focus:ring-orange-500 outline-none min-w-[120px]">
+                                    <option value="">-- {{ t('opt_no_template') or '디자인 템플릿 없음' }} --</option>
+                                </select>
+                            </div>
                         </div>
                         <input type="hidden" id="thumbnailStyle" value="face">
                         <div id="thumbnailStyleGrid"
                             class="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[220px] overflow-y-auto p-1 custom-scrollbar">
                             <div class="col-span-full py-4 text-center text-gray-600 text-[10px] dark:text-gray-300">
-                                {{ t('label_thumbnail_loading') }}</div>
+                                {{ t('label_template_loading') or '템플릿 로딩 중...' }}</div>
                         </div>
                     </div>
 

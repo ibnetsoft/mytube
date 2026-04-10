@@ -4,6 +4,7 @@ from typing import List, Optional, Dict, Any
 import database as db
 from services.gemini_service import gemini_service
 import json
+import os
 
 router = APIRouter(prefix="/api", tags=["Thumbnails"])
 
@@ -142,5 +143,71 @@ async def get_default_style():
         if not raw:
             return {"status": "ok", "style": None}
         return {"status": "ok", "style": json.loads(raw)}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+# ===========================================
+# Shorts Template Presets
+# ===========================================
+
+class ShortsTemplatePresetSave(BaseModel):
+    name: str
+    settings: dict
+    image_data: Optional[str] = None # Base64 PNG
+
+@router.get("/shorts-template/presets")
+async def get_shorts_template_presets():
+    """숏폼 템플릿 프리셋 목록 조회"""
+    try:
+        presets = db.get_shorts_template_presets()
+        # Parse settings_json
+        for p in presets:
+            if p.get('settings_json'):
+                p['settings'] = json.loads(p['settings_json'])
+        return {"status": "ok", "presets": presets}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+@router.post("/shorts-template/presets")
+async def save_shorts_template_preset(req: ShortsTemplatePresetSave):
+    """숏폼 템플릿 프리셋 저장"""
+    try:
+        if not req.name:
+            return {"status": "error", "error": "프리셋 이름을 입력하세요."}
+        
+        image_path = None
+        if req.image_data:
+            import base64
+            from config import config
+            import uuid
+            
+            # Save base64 image to assets/templates
+            header, encoded = req.image_data.split(",", 1)
+            data = base64.b64decode(encoded)
+            
+            # [Robustness] Use config.ASSETS_DIR if available, else calculate fallback
+            base_assets = getattr(config, 'ASSETS_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "assets"))
+            tpl_dir = os.path.join(base_assets, "templates")
+            os.makedirs(tpl_dir, exist_ok=True)
+            
+            filename = f"template_{uuid.uuid4().hex}.png"
+            image_path = os.path.join(tpl_dir, filename)
+            
+            with open(image_path, "wb") as f:
+                f.write(data)
+            
+            # Convert to relative path for portability if needed, or keep absolute
+        
+        db.save_shorts_template_preset(req.name, json.dumps(req.settings, ensure_ascii=False), image_path)
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+@router.delete("/shorts-template/presets/{name}")
+async def delete_shorts_template_preset(name: str):
+    """숏폼 템플릿 프리셋 삭제"""
+    try:
+        db.delete_shorts_template_preset(name)
+        return {"status": "ok"}
     except Exception as e:
         return {"status": "error", "error": str(e)}

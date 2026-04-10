@@ -68,6 +68,7 @@ async def start_autopilot_api(
                     "use_character_analysis": "use_character_analysis",
                     "upload_privacy":    "upload_privacy",
                     "youtube_channel_id":"youtube_channel_id",
+                    "shorts_template_preset": "shorts_template_preset",
                 }
                 for req_field, preset_key in field_map.items():
                     if preset_key in p_settings:
@@ -112,6 +113,7 @@ async def start_autopilot_api(
     db.update_project_setting(pid, "use_character_analysis", "1" if req.use_character_analysis else "0")
     db.update_project_setting(pid, "video_engine", req.video_engine or "wan")
     db.update_project_setting(pid, "app_mode", req.mode)
+    db.update_project_setting(pid, "shorts_template_preset", req.shorts_template_preset) 
     if req.char_ethnicity:
         db.update_project_setting(pid, "char_ethnicity", req.char_ethnicity)
     if req.duration_seconds:
