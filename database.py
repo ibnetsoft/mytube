@@ -2607,6 +2607,19 @@ def get_shorts_template_presets():
     finally:
         if conn: conn.close()
 
+def get_shorts_template_preset(name: str):
+    """특정 숏폼 템플릿 조회"""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM shorts_template_presets WHERE name = ?", (name,))
+        row = cursor.fetchone()
+        conn.close()
+        return dict(row) if row else None
+    except Exception as e:
+        print(f"[DB Error] get_shorts_template_preset: {e}")
+        return None
+
 def save_shorts_template_preset(name: str, settings_json: str, image_path: Optional[str] = None):
     """숏폼 템플릿 프리셋 저장 (Upsert)"""
     conn = get_db()

@@ -109,6 +109,7 @@ templates = Jinja2Templates(directory=config.TEMPLATES_DIR)
 app.mount("/static", StaticFiles(directory=config.STATIC_DIR), name="static")
 app.mount("/output", StaticFiles(directory=config.OUTPUT_DIR), name="output")
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+app.mount("/assets", StaticFiles(directory=config.ASSETS_DIR), name="assets")
 
 # i18n
 from services.i18n import Translator
@@ -554,8 +555,8 @@ async def bulk_update_prompts(project_id: int, req: BulkPromptUpdate):
             
             prompt_item = {
                 "scene_number": scene_number,
-                "scene_text": base.get("scene_text") or f"Scene {scene_number}",
-                "prompt_ko": line,                     # 프롬프트 내용을 KO/EN 모두에 일단 넣음 (사용자 편의)
+                "scene_text": base.get("scene_text") or "Scene " + str(scene_number),
+                "prompt_ko": line,
                 "prompt_en": line, 
                 "image_url": base.get("image_url", ""),
                 "video_url": base.get("video_url", ""),

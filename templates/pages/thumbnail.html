@@ -152,7 +152,7 @@
                         <input type="text" id="shortsPresetName" 
                             placeholder="새 템플릿 이름 입력"
                             class="w-full bg-gray-900 border border-gray-700 text-white text-xs rounded-lg px-3 py-2.5 focus:ring-purple-500 focus:border-purple-500">
-                        <button onclick="saveShortsTemplatePreset()"
+                        <button onclick="saveShortsTemplatePreset(event)"
                             class="w-full bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-lg px-3 py-2.5 transition-all shadow-lg flex items-center justify-center gap-2">
                             <span>✨</span> 현재 디자인을 프리셋으로 저장
                         </button>
@@ -164,7 +164,7 @@
                         class="bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-500 border border-yellow-500/20 px-3 py-2 rounded-lg text-xs font-medium transition-colors">
                         ⭐ {{ t('btn_save_default') or '기본값 저장' }}
                     </button>
-                    <button id="btnLoadDefault" onclick="loadDefaultStyle()"
+                    <button id="btnLoadDefault" onclick="loadDefaultStyleFromDB()"
                         class="bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 px-3 py-2 rounded-lg text-xs font-medium transition-colors">
                         🔄 {{ t('btn_load_default') or '기본값 불러오기' }}
                     </button>
@@ -408,7 +408,12 @@
         initCanvasEvents(); // 캔버스 이벤트 초기화
         await loadThumbnailStyles();
         await loadImageStyles(); // 이미지 스타일 그리드 로드 (화풍)
-        await loadDefaultStyleFromDB(); // ⭐ 전역 기본 스타일 항상 먼저 적용
+        await loadDefaultStyleFromDB(); // [FIXED] No arguments needed for this function
+            
+        // [ADDED] Force update UI after loading
+            renderLayers();
+            renderShapeLayers();
+            drawPreview();
         _refreshStylePresetSelect(''); // 스타일 프리셋 드롭다운 초기화
 
         renderLayers(); // 기본 레이어 렌더링
@@ -553,7 +558,7 @@
                     if (textCandidates) {
                         textCandidates.innerHTML = hookTexts.map((text, i) => `
                             <button onclick="applyHookText('${text.replace(/'/g, "\\'")}', ${i})"
-                                class="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full hover:bg-blue-200 dark:hover:bg-blue-800 transition">
+                                class="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:bg-blue-200 rounded-full hover:bg-blue-200 dark:hover:bg-blue-800 transition">
                                 ${text}
                             </button>
                         `).join('');
@@ -811,11 +816,16 @@
 
         // 스타일에 따른 기본 텍스트 설정 자동 최적화
         if (styleId === 'japanese_viral') {
-            textLayers = [
-                { text: '', position: 'center', x_offset: -5, y_offset: 150, font_family: 'Recipekorea', font_size: 89, color: '#FFFFFF', stroke_color: '#000000', stroke_width: 8, bg_color: null },
-                { text: '', position: 'center', x_offset: 3, y_offset: 100, font_family: 'Recipekorea', font_size: 99, color: '#00FFAA', stroke_color: '#000000', stroke_width: 8, bg_color: null },
-                { text: '', position: 'center', x_offset: -495, y_offset: -260, font_family: 'gungsuh', font_size: 39, color: '#FFFFFF', stroke_color: '#000000', stroke_width: 2, bg_color: null }
+            // Preserve CURRENT text values while applying styles
+            const newLayers = [
+                { position: 'center', x_offset: -5, y_offset: 150, font_family: 'Recipekorea', font_size: 89, color: '#FFFFFF', stroke_color: '#000000', stroke_width: 8, bg_color: null },
+                { position: 'center', x_offset: 3, y_offset: 100, font_family: 'Recipekorea', font_size: 99, color: '#00FFAA', stroke_color: '#000000', stroke_width: 8, bg_color: null },
+                { position: 'center', x_offset: -495, y_offset: -260, font_family: 'gungsuh', font_size: 39, color: '#FFFFFF', stroke_color: '#000000', stroke_width: 2, bg_color: null }
             ];
+            textLayers = newLayers.map((nl, i) => ({
+                ...nl,
+                text: (textLayers[i] ? textLayers[i].text : '')
+            }));
             shapeLayers = [
                 { x: -4, y: 485, width: 1287, height: 235, color_start: '#000000', color_end: '#000001', opacity: 0.2, opacity_end: 0.8, gradient_direction: 'vertical' }
             ];
@@ -837,9 +847,9 @@
 
         // Only render if textLayers has been initialized and container exists
         try {
-            if (textLayers && textLayers.length > 0 && document.getElementById('layersContainer')) {
                 renderLayers();
-            }
+                renderShapeLayers();
+                drawPreview();
         } catch (e) {
             console.warn("renderLayers skipped:", e);
         }
@@ -1944,6 +1954,9 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
     // 최종 썸네일 생성
     // 최종 썸네일 생성 (Canvas 캡처 & 저장)
     async function generateFinalThumbnail() {
+        // [MODIFIED] Always save current editable settings to server before finalizing image
+        await savePermanentSettings();
+
         // [Modified] Check if bgImage exists instead of selectedPrompt, to allow uploaded images
         if (!bgImage && !selectedPrompt) {
             Utils.showToast(i18n.toast_select_idea_or_upload, 'warning');
@@ -2145,13 +2158,39 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
     function _extractCurrentStyle() {
         const canvas = document.getElementById('thumbnailCanvas');
         const cw = canvas.width, ch = canvas.height;
+        
+        // [ULTRA-ROBUST] Re-extract EVERYTHING from the physical DOM inputs to be 100% sure
+        const finalLayerStyles = textLayers.map((l, i) => {
+            const container = document.querySelector(`#layersContainer > div:nth-child(${i + 1})`);
+            if (container) {
+                // Find inputs by their specific attributes or order
+                const inputs = container.querySelectorAll('input, select');
+                const textInput = container.querySelector('input[type="text"]');
+                const fontSelect = container.querySelector('select');
+                const sizeInput = container.querySelector('input[type="number"]'); // First number input is size
+                
+                // Color inputs are tricky: 1st is Text, 2nd is Stroke, 3rd is BG
+                const colorInputs = container.querySelectorAll('input[type="color"]');
+                const numberInputs = container.querySelectorAll('input[type="number"]');
+
+                return {
+                    text: textInput ? textInput.value : l.text,
+                    font_family: fontSelect ? fontSelect.value : l.font_family,
+                    font_size: sizeInput ? parseInt(sizeInput.value) : l.font_size,
+                    color: colorInputs[0] ? colorInputs[0].value : l.color,
+                    stroke_color: colorInputs[1] ? colorInputs[1].value : l.stroke_color,
+                    stroke_width: numberInputs[1] ? parseInt(numberInputs[1].value) : l.stroke_width, // 2nd number input is stroke
+                    position: l.position,
+                    x_offset: numberInputs[2] ? parseInt(numberInputs[2].value) : (l.x_offset || 0), // 3rd is X
+                    y_offset: numberInputs[3] ? parseInt(numberInputs[3].value) : (l.y_offset || 0), // 4th is Y
+                    bg_color: l.bg_color // BG color needs toggle state check, but we keep its value
+                };
+            }
+            return { ...l };
+        });
+
         return {
-            layerStyles: textLayers.map(l => ({
-                font_family: l.font_family, font_size: l.font_size,
-                color: l.color, stroke_color: l.stroke_color, stroke_width: l.stroke_width,
-                position: l.position, x_offset: l.x_offset || 0, y_offset: l.y_offset || 0,
-                bg_color: l.bg_color || null
-            })),
+            layerStyles: finalLayerStyles,
             shapeStyles: shapeLayers.map(s => ({
                 x_ratio: s.x / cw, y_ratio: s.y / ch,
                 w_ratio: s.width / cw, h_ratio: s.height / ch,
@@ -2166,36 +2205,45 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
     // --- Consolidated Template Funcs Moved/Fixed Below ---
 
     function _applyStylePreset(preset) {
-        const canvas = document.getElementById('thumbnailCanvas');
-        const cw = canvas.width, ch = canvas.height;
+        try {
+            console.log("Applying Style Preset:", preset);
+            const canvas = document.getElementById('thumbnailCanvas');
+            const cw = canvas.width, ch = canvas.height;
 
-        // 레이어 수 맞추기
-        while (textLayers.length < preset.layerStyles.length) {
-            textLayers.push({ text: `Text ${textLayers.length + 1}`, position: 'center', x_offset: 0, y_offset: 0, font_family: 'malgun', font_size: 72, color: '#FFFFFF', stroke_color: '#000000', stroke_width: 2, bg_color: null });
-        }
-        textLayers.length = preset.layerStyles.length;
+            // 1. Text Layers Restore
+            if (preset.layerStyles && Array.isArray(preset.layerStyles)) {
+                textLayers = preset.layerStyles.map((style, i) => {
+                    // [FIXED] If preset HAS text, use it! Otherwise preserve current.
+                    const newText = (style.text && style.text.trim() !== '') ? style.text : (textLayers[i] ? textLayers[i].text : '');
+                    return {
+                        ...style,
+                        text: newText 
+                    };
+                });
+            }
 
-        preset.layerStyles.forEach((style, i) => {
-            const cur = textLayers[i];
-            Object.assign(cur, style);
-        });
-
-        if (preset.shapeStyles && preset.shapeStyles.length > 0) {
-            shapeLayers.length = 0;
-            preset.shapeStyles.forEach(s => {
-                shapeLayers.push({
+            // 2. Shape Layers Restore
+            if (preset.shapeStyles && Array.isArray(preset.shapeStyles)) {
+                shapeLayers = preset.shapeStyles.map(s => ({
                     x: Math.round(s.x_ratio * cw), y: Math.round(s.y_ratio * ch),
                     width: Math.round(s.w_ratio * cw), height: Math.round(s.h_ratio * ch),
                     color_start: s.color_start, color_end: s.color_end,
                     opacity: s.opacity, opacity_end: s.opacity_end,
                     gradient_direction: s.gradient_direction
-                });
-            });
+                }));
+            }
+
+            // 3. UI Sync
+            renderLayers();
+            renderShapeLayers();
+            drawPreview();
+            saveStateToLocal();
+            
+            console.log("Preset application success.");
+        } catch (e) {
+            console.error("Failed to apply style preset:", e);
+            Utils.showToast("스타일 적용 중 오류가 발생했습니다.", 'error');
         }
-        renderLayers();
-        renderShapeLayers();
-        drawPreview();
-        saveStateToLocal();
     }
 
     function _refreshStylePresetSelect(selectValue) {
@@ -2215,7 +2263,7 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
 
     async function refreshShortsTemplatePresets(defaultSelect = '') {
         try {
-            const res = await fetch('/api/shorts-template/presets');
+            const res = await fetch(`/api/shorts-template/presets?t=${Date.now()}`);
             const data = await res.json();
             if (data.status === 'ok') {
                 const select = document.getElementById('shortsTemplateSelect');
@@ -2224,20 +2272,24 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
                 const currentValue = select.value;
                 select.innerHTML = `<option value="">-- ${i18n.opt_select_template || '템플릿 선택'} --</option>`;
                 
-                data.presets.forEach(p => {
-                    const opt = document.createElement('option');
-                    opt.value = p.name;
-                    opt.textContent = p.name;
-                    select.appendChild(opt);
-                });
+                if (data.presets && Array.isArray(data.presets)) {
+                    data.presets.forEach(p => {
+                        const opt = document.createElement('option');
+                        opt.value = p.name;
+                        opt.textContent = p.name;
+                        select.appendChild(opt);
+                    });
+                }
                 
                 select.value = defaultSelect || currentValue;
                 document.getElementById('btnDeleteShortsPreset')?.classList.toggle('hidden', !select.value);
+            } else {
+                console.warn('Failed to fetch presets:', data.error);
             }
         } catch (e) { console.error('Failed to load presets:', e); }
     }
 
-    async function saveShortsTemplatePreset() {
+    async function saveShortsTemplatePreset(event) {
         const nameInput = document.getElementById('shortsPresetName');
         const name = (nameInput?.value || '').trim();
         if (!name) { 
@@ -2245,8 +2297,8 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
             return; 
         }
 
-        const btn = event.currentTarget;
-        Utils.setLoading(btn, true);
+        const btn = event?.currentTarget || document.activeElement;
+        if (btn) Utils.setLoading(btn, true);
 
         try {
             // 1. Extract Current State (Style)
@@ -2308,7 +2360,7 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
         }
 
         try {
-            const res = await fetch('/api/shorts-template/presets');
+            const res = await fetch(`/api/shorts-template/presets?t=${Date.now()}`);
             const data = await res.json();
             const preset = data.presets.find(p => p.name === name);
             
@@ -2415,6 +2467,9 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
                     shapeLayers = [...savedShapes];
                 }
                 console.log('[DefaultStyle] 전역 기본 스타일 적용됨');
+                renderLayers();
+                renderShapeLayers();
+                drawPreview();
             }
         } catch (e) {
             console.warn('[DefaultStyle] 불러오기 실패:', e);
@@ -2525,11 +2580,10 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
         try {
             const currentProjectId = getCurrentProject();
 
-            // [NEW] Project ID Scope Check
-            // If saved state has no ID (legacy) or ID mismatch -> Reset
-            if (!state.projectId || state.projectId !== currentProjectId) {
-                console.log(`Project ID mismatch or Legacy Data (Saved: ${state.projectId}, Current: ${currentProjectId}). Resetting state.`);
-                sessionStorage.removeItem('thumbnail_gen_state');
+            // [NEW] Project ID Scope Check (Loose check to avoid string/int mismatch)
+            if (!state.projectId || String(state.projectId) !== String(currentProjectId)) {
+                console.log(`Project ID mismatch or Legacy Data (Saved: ${state.projectId}, Current: ${currentProjectId}). Skipping local restore.`);
+                // sessionStorage.removeItem('thumbnail_gen_state'); // Don't wipe, just don't load
                 return;
             }
 
@@ -2561,10 +2615,7 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
             if (state.textLayers) {
                 // 저장된 텍스트 레이어 전체 복원 (스타일 + 내용)
                 textLayers = state.textLayers;
-                // 배경 이미지가 없으면 텍스트 내용만 비움 (스타일은 유지)
-                if (!state.currentBackgroundUrl) {
-                    textLayers.forEach(l => { l.text = ''; });
-                }
+                
                 document.getElementById('textSection').classList.remove('hidden');
                 // 텍스트 후보 표시 복구
                 if (thumbnailData && thumbnailData.texts) {
@@ -2618,6 +2669,8 @@ ideas는 1개만 생성하세요. texts는 딱 3개만 생성하세요. 각 텍�
             renderLayers();
             renderShapeLayers();
             drawPreview();
+            
+            console.log("State restoration finished.");
 
             Utils.showToast(i18n.toast_state_restored, 'info');
 

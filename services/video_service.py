@@ -76,7 +76,8 @@ class VideoService:
         image_effects: Optional[List[str]] = None,   # [NEW] Ken Burns Effects
         intro_video_path: Optional[str] = None,   # [NEW] Intro Video Prepend
         sfx_map: Optional[dict] = None,          # [NEW] Scene SFX Map {scene_num: sfx_path}
-        focal_point_ys: Optional[List[float]] = None # [NEW] Smart Focus Point (0.0 - 1.0)
+        focal_point_ys: Optional[List[float]] = None, # [NEW] Smart Focus Point (0.0 - 1.0)
+        content_aspect_ratio: Optional[str] = None   # [NEW] '1:1', '3:4' etc.
     ) -> str:
         """
         이미지 슬라이드쇼 영상 생성 (시네마틱 프레임 적용)
@@ -497,6 +498,19 @@ class VideoService:
                     # Image Processing (Cinematic Frame or Fit)
                     target_w, target_h = resolution
                     is_vertical = target_h > target_w
+                    
+                    # [DYNAMIC] Calculate Content Box Height for Shorts
+                    content_h = target_h
+                    if is_vertical:
+                        ratio_val = 1.0 # Default 1:1
+                        if content_aspect_ratio:
+                            try:
+                                num, den = map(int, content_aspect_ratio.split(':'))
+                                ratio_val = num / den
+                            except: pass
+                        content_h = int(target_w / ratio_val)
+                        content_h = min(content_h, target_h)
+                        print(f"🎬 [Render] Scene {i+1} Bound: {content_aspect_ratio or '1:1'} ({target_w}x{content_h})")
 
                     # [NEW] Detect if pan is requested for images
                     is_tall_pan = False
@@ -561,7 +575,7 @@ class VideoService:
                             focal_y = focal_point_ys[i]
 
                         # For Shorts/Vertical: Use Cinematic Frame (Fit Width + Smart Crop Focal Point)
-                        processed_img_path = self._create_cinematic_frame(img_path, resolution, focal_point_y=focal_y, allow_tall=False)
+                        processed_img_path = self._create_cinematic_frame(img_path, resolution, focal_point_y=focal_y, allow_tall=False, content_aspect_ratio=content_aspect_ratio)
                         temp_files.append(processed_img_path)
                         
                         # [FIX] Use Safe Image Loader
@@ -697,23 +711,10 @@ class VideoService:
                         w, h = target_w, target_h # [FIX] Use target viewport size, not clip size, because tall clips have clip.h > target_h
                         
                         if effect == 'zoom_in' or effect == 'zoom_out':
-                            # [FIX] Trap Zoom within the Content Area (Letterbox Area Protection)
-                            # We need to find the actual content height (e.g. 1440 for 3:4) to prevent leaking into black bars
-                            content_w, content_h = w, h
+                            # [FIX] Use DYNAMIC content box instead of source image ratio
+                            content_w, content_h = target_w, content_h # Inherit from session calculation
                             if is_vertical:
-                                try:
-                                    if is_video_asset:
-                                        # For video assets, we fitted them to width in previous step
-                                        # so clip.w == target_w. The height is the content height.
-                                        content_w, content_h = clip.w, clip.h 
-                                    else:
-                                        # For images, calculate from source
-                                        from PIL import Image as _PIL
-                                        with _PIL.open(img_path) as _i:
-                                            ir = _i.width / _i.height
-                                        content_w = w
-                                        content_h = int(w / ir)
-                                except Exception: pass
+                                print(f"  🔒 [Zoom Protect] Constraint: {content_w}x{content_h}")
 
                             if effect == 'zoom_in':
                                 # Center Zoom: 1.0 -> 1.15 (Tuned for better framing)
@@ -723,16 +724,13 @@ class VideoService:
                                 clip = vfx.resize(clip, lambda t: 1.15 - 0.15 * (t / dur))
                             
                             # [LOCK] Apply center-crop to keep content within its original 3:4/1:1 bounds
-                            if content_h < h:
+                            if is_vertical and content_h < h:
                                 # We take a slice of the zoomed clip that matches the original content size
-                                # MoviePy 2.x standard cropped(x1, y1, x2, y2)
-                                # The zoomed clip is now larger (e.g. 1242x2208). 
-                                # We want to take a slice from its center that is width=w and height=content_h.
                                 cx, cy = clip.w / 2, clip.h / 2
                                 x1, y1 = cx - w/2, cy - content_h/2
                                 x2, y2 = x1 + w, y1 + content_h
                                 clip = clip.cropped(x1=x1, y1=y1, x2=x2, y2=y2)
-                                print(f"  🔒 [Zoom Locked] Scene {i+1}: Trapped in {w}x{content_h} box (Center: {cx:.0f},{cy:.0f})")
+                                print(f"  🔒 [Zoom Locked] Scene {i+1}: Trapped in {w}x{content_h} box")
 
                             # Safe Container with Explicit BG Layer
                             bg_base = ColorClip(size=(w,h), color=(0,0,0)).with_duration(dur)
@@ -948,7 +946,8 @@ class VideoService:
             video = video.with_audio(audio)
 
             
-        # 제목 오버레이 추가
+        # [MOVED] Title overlay logic moved to after subtitles to ensure it's on top
+        title_clip = None
         if title_text:
             try:
                 # 제목용 텍스트 이미지 생성 (노란색, 조금 더 크게)
@@ -958,17 +957,22 @@ class VideoService:
                     text=title_text,
                     width=video.w,
                     font_size=t_size,
-                    font_color="#FFD700", # Gold
+                    font_color="white", # [FIX] Gold to White
                     font_name=config.DEFAULT_FONT_PATH
                 )
                 if title_img_path:
                     temp_files.append(title_img_path)
                     title_clip = ImageClip(title_img_path)
-                    # 상단에서 약간 띄움 (100px)
-                    # ("center", 150) -> 상단 150px 지점
-                    title_clip = title_clip.with_position(("center", 150)) 
+                    
+                    # [FIXED] Enforce Vertical Clamping for Shorts
+                    # content_h is the safe box height. Center of it is target_h/2.
+                    v_margin = (target_h - content_h) // 2
+                    v_safe_min = v_margin if is_vertical else 50
+                    
+                    title_y = max(v_safe_min + 50, 150) # Fallback to at least safe zone
+                    
+                    title_clip = title_clip.with_position(("center", title_y)) 
                     title_clip = title_clip.with_duration(video.duration)
-                    video = CompositeVideoClip([video, title_clip])
             except Exception as e:
                 print(f"제목 생성 실패: {e}")
 
@@ -1162,12 +1166,18 @@ class VideoService:
                             except Exception:
                                 y_pos = None
 
-                        # 기본: 아래에서 5% 위치
+                        # [FIX] Anti-Letterbox Positioning Logic (RESTORED)
+                        # We must keep text inside the SQUARE image area, NOT in the black bars.
                         if y_pos is None:
-                            bottom_px = int(target_h * 0.05)
-                            y_pos = target_h - bottom_px - txt_clip.h
+                            if target_h > target_w: # Vertical (Shorts)
+                                 # 25% margin from bottom keeps it inside the 1:1 image area
+                                 bottom_px = int(target_h * 0.25)
+                                 y_pos = target_h - bottom_px - txt_clip.h
+                            else: # Landscape
+                                 bottom_px = int(target_h * 0.12)
+                                 y_pos = target_h - bottom_px - txt_clip.h
                         
-                        # Screen Boundary Safety
+                        # Screen Boundary Safety (Final Clamp)
                         y_pos = max(10, min(target_h - txt_clip.h - 10, y_pos))
 
                         print(f"DEBUG_RENDER: Subtitle SYNCED y_pos={y_pos} (Center-Aligned)")
@@ -1189,9 +1199,19 @@ class VideoService:
             print(f"[SUBTITLE] Total subtitle_clips created: {len(subtitle_clips)}")
             if subtitle_clips:
                 # [FIX] Final composition with explicit black background to prevent transparency blackout
+                # [TOPMOST] Ensure Title is appended AFTER subtitles to stay on top
                 bg_final = ColorClip(size=(target_w, target_h), color=(0,0,0)).with_duration(video.duration)
-                video = CompositeVideoClip([bg_final, video] + subtitle_clips, size=(target_w, target_h))
-                print(f"[SUBTITLE] CompositeVideoClip created with {len(subtitle_clips)} subtitle clips")
+                
+                overlay_layers = subtitle_clips
+                if title_clip:
+                    overlay_layers.append(title_clip)
+                    
+                video = CompositeVideoClip([bg_final, video] + overlay_layers, size=(target_w, target_h))
+                print(f"[SUBTITLE] CompositeVideoClip created with {len(subtitle_clips)} subtitle clips and Title overlay")
+            elif title_clip:
+                # No subtitles, but has title
+                video = CompositeVideoClip([video, title_clip], size=(target_w, target_h))
+                print(f"[TITLE] Title overlay applied (No subtitles)")
 
         # [NEW] Persistent Template Overlay (Shorts Template) - Topmost Layer
         if template_overlay_path and os.path.exists(template_overlay_path):
@@ -1354,7 +1374,7 @@ class VideoService:
         return output_path
 
         
-    def _create_cinematic_frame(self, image_path: str, target_size: tuple, template_path: str = None, focal_point_y: float = 0.5, allow_tall: bool = False):
+    def _create_cinematic_frame(self, image_path: str, target_size: tuple, template_path: str = None, focal_point_y: float = 0.5, allow_tall: bool = False, content_aspect_ratio: str = None):
         """
         [MODIFIED] Vertical Aspect Ratio Logic 2.0
         - If allow_tall=True -> No Crop vertically (Keep full height for Panning)
@@ -1409,25 +1429,63 @@ class VideoService:
             img_ratio = img_w / img_h
             target_ratio = target_w / target_h
 
-            if img_ratio > target_ratio:
-                # Image is wider than target
-                if target_h > target_w:
-                    # [USER REQUEST] For Vertical (Shorts/3:4/1:1): Letterbox (Black bars top/bottom) 
-                    # This ensures the entire 3:4 or 1:1 image is visible in a 9:16 frame.
-                    new_w = target_w
+            # Aspect Fill Logic (Always fill the screen)
+            img_ratio = img_w / img_h
+            target_ratio = target_w / target_h
+
+            if target_h > (target_w * 1.5): # 9:16 Shorts
+                # [DYNAMIC] Match User-Selected Ratio
+                content_w = target_w
+                ratio_val = 1.0 # Default 1:1
+                
+                if content_aspect_ratio:
+                    try:
+                        num, den = map(int, content_aspect_ratio.split(':'))
+                        ratio_val = num / den
+                    except: pass
+                
+                content_h = int(content_w / ratio_val)
+                # Clamp content_h to NOT exceed target_h
+                content_h = min(content_h, target_h)
+                
+                # Resizing carefully to fill at least the designated box
+                target_box_ratio = content_w / content_h
+                
+                # [FIXED] Aspect Fit Logic (Contain) - Ensure image stays inside the box without cropping
+                if img_ratio > target_box_ratio: # Wide source compared to box -> Fit to Width
+                    new_w = content_w
                     new_h = int(new_w / img_ratio)
-                    img_resized = img.resize((new_w, new_h), Image.LANCZOS)
-                    
-                    x_offset = 0
-                    y_offset = (target_h - new_h) // 2
-                else:
-                    # Landscape: Fit to Height and Crop Sides (Aspect Fill)
-                    new_h = target_h
+                else: # Tall source compared to box -> Fit to Height
+                    new_h = content_h
                     new_w = int(new_h * img_ratio)
-                    img_resized = img.resize((new_w, new_h), Image.LANCZOS)
                     
-                    y_offset = 0
-                    x_offset = (target_w - new_w) // 2 # Center crop horizontally
+                img_resized = img.resize((new_w, new_h), Image.LANCZOS)
+                
+                # Center the fitted image inside the 9:16 target frame
+                final_frame = Image.new('RGB', (target_w, target_h), (0, 0, 0))
+                
+                x_offset = (target_w - new_w) // 2
+                y_offset = (target_h - new_h) // 2 # Center vertically in total frame
+                
+                final_frame.paste(img_resized, (x_offset, y_offset))
+                
+                out_fn = f"cinematic_framed_{uuid.uuid4().hex[:8]}.jpg"
+                out_path = os.path.join(config.OUTPUT_DIR, out_fn)
+                final_frame.save(out_path, quality=90)
+                return out_path
+            
+            # Original Logic for Landscape/Standard
+            if img_ratio > target_ratio:
+                # Image is wider than target -> Fit to Height and Crop Left/Right
+                new_h = target_h
+                new_w = int(new_h * img_ratio)
+                img_resized = img.resize((new_w, new_h), Image.LANCZOS)
+                
+                y_offset = 0
+                x_offset = int(target_w / 2 - (new_w * focal_point_x))
+                min_x = target_w - new_w
+                max_x = 0
+                x_offset = max(min_x, min(max_x, x_offset))
             else:
                 # Image is taller/matches target -> Fit to Width and Crop Top/Bottom
                 new_w = target_w
@@ -1435,9 +1493,7 @@ class VideoService:
                 img_resized = img.resize((new_w, new_h), Image.LANCZOS)
                 
                 x_offset = 0
-                # Use focal point for vertical cropping
                 y_offset = int(target_h / 2 - (new_h * focal_point_y))
-                # Clamp to avoid gaps
                 min_y = target_h - new_h
                 max_y = 0
                 y_offset = max(min_y, min(max_y, y_offset))
@@ -2004,10 +2060,14 @@ class VideoService:
                                     y_pos = int(float(cy_str))
                             except Exception: pass
 
+                        # [FIX] Anti-Letterbox Positioning Logic (RESTORED)
                         if y_pos is None:
-                            # Default fallback
-                            bottom_y = int(video.h * 0.85)
-                            y_pos = bottom_y - txt_clip.h
+                            if hasattr(video, 'w') and hasattr(video, 'h') and video.h > video.w: # Vertical
+                                 bottom_px = int(video.h * 0.25)
+                                 y_pos = video.h - bottom_px - txt_clip.h
+                            else:
+                                 bottom_y = int(video.h * 0.88)
+                                 y_pos = bottom_y - txt_clip.h
                         
                         # Clamp
                         y_pos = max(10, min(video.h - txt_clip.h - 10, y_pos))
@@ -2472,21 +2532,18 @@ class VideoService:
                     ch_w = get_text_width(ch, font)
 
                     if cur_w + ch_w > safe_width and cur:
-                        # 라틴 텍스트: 마지막 공백에서 자르기 시도
-                        sp = cur.rfind(' ')
-                        if sp > int(len(cur) * 0.4):
-                            wrapped_lines.append(cur[:sp])
-                            cur = cur[sp+1:] + ch
-                            cur_w = get_text_width(cur, font)
-                        else:
-                            # CJK 또는 공백 없는 경우: 글자 단위로 자르기
-                            wrapped_lines.append(cur)
-                            cur = ch
-                            cur_w = ch_w
+                        # Character-based wrap for safety
+                        wrapped_lines.append(cur)
+                        cur = ch
+                        cur_w = ch_w
 
                         if len(wrapped_lines) >= MAX_LINES:
-                            # 최대 줄 수 도달 - 나머지를 마지막 줄에 이어붙임
-                            wrapped_lines[-1] += cur + m_line[i+1:]
+                            # [FIX] Do NOT accumulate the rest of the line. 
+                            # Truncate to avoid horizontal overflow.
+                            remaining_text = m_line[i+1:]
+                            if len(remaining_text) > 2:
+                                if len(wrapped_lines[-1]) > 5:
+                                    wrapped_lines[-1] = wrapped_lines[-1][:-1] + "..."
                             cur = ""
                             force_break = True
                             break
@@ -2498,7 +2555,11 @@ class VideoService:
                     if cur and len(wrapped_lines) < MAX_LINES:
                         wrapped_lines.append(cur)
                     elif cur:
-                        wrapped_lines[-1] += cur
+                        # Last line safety
+                        if get_text_width(wrapped_lines[-1] + cur, font) > safe_width:
+                             wrapped_lines[-1] = (wrapped_lines[-1] + cur)[:int(len(wrapped_lines[-1])*0.9)] + "..."
+                        else:
+                             wrapped_lines[-1] += cur
                 
         # [Final Safety Slice]
         wrapped_lines = wrapped_lines[:MAX_LINES]
@@ -2680,7 +2741,8 @@ class VideoService:
                 current_y += full_line_height
                 continue
             line, lx, lw, _, s_width = d
-            _draw_line(draw, (lx, current_y + v_offset), line, font, final_font_color, s_width, stroke_color if s_width > 0 else None)
+            # [FIX] Apply bg_v_offset to text as well to keep it centered within the scaled background box
+            _draw_line(draw, (lx, (current_y + v_offset) + bg_v_offset), line, font, final_font_color, s_width, stroke_color if s_width > 0 else None)
             current_y += full_line_height
 
         import uuid

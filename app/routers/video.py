@@ -1509,10 +1509,21 @@ async def render_project_video(
                     except Exception as e:
                         print(f"DEBUG_RENDER: Auto-parsing effects failed: {e}")
 
-                # 3. 단일 패스 영상 생성
-                print(f"DEBUG_RENDER: Final images list ({len(images)} items) before create_slideshow:")
-                for _ii, _ip in enumerate(images):
-                    print(f"  [{_ii}] {_ip} | exists={os.path.exists(_ip)} | is_video={_ip.lower().endswith(('.mp4','.mov','.avi','.mkv'))}")
+                # [FIXED] Correctly handle Template Overlay path for persistent design
+                template_path_arg = None
+                template_preset_name = p_settings.get("shorts_template_preset")
+                if template_preset_name:
+                    tmpl_preset = db.get_shorts_template_preset(template_preset_name)
+                    if tmpl_preset and tmpl_preset.get('image_path'):
+                        t_raw_path = tmpl_preset['image_path']
+                        if os.path.exists(t_raw_path):
+                            template_path_arg = t_raw_path
+                        else:
+                            # Fallback to local assets if relative
+                            t_abs = os.path.join(config.ASSETS_DIR, os.path.basename(t_raw_path))
+                            if os.path.exists(t_abs):
+                                template_path_arg = t_abs
+                
                 video_path = video_service.create_slideshow(
                     images=images,
                     audio_path=effective_audio_path,
@@ -1522,7 +1533,7 @@ async def render_project_video(
                     subtitle_settings=s_settings,
                     background_video_url=bg_video_url_arg,
                     thumbnail_path=thumbnail_path_arg, # Keeps 0.1s baking (YT thumb)
-                    template_overlay_path=thumbnail_path_arg, # [NEW] Adds persistent overlay
+                    template_overlay_path=template_path_arg, # [FIXED] Pass the ACTUAL template path, not thumbnail
                     duration_per_image=duration_per_image,
                     fade_in_flags=fade_in_flags,
                     image_effects=image_effects,

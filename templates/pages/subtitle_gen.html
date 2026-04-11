@@ -175,7 +175,20 @@
         <div
             class="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 shrink-0 flex-wrap">
 
-            <!-- Presets Section -->
+            <!-- Shorts Template Section -->
+            <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3 ml-1">
+                <select id="shortsTemplateSelect" onchange="applyShortsTemplate(this.value)"
+                    class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-indigo-200 dark:border-indigo-900 rounded-md py-1 px-2 w-32 focus:ring-1 focus:ring-indigo-500 focus:outline-none cursor-pointer">
+                    <option value="">-- {{ t('opt_select_template') }} --</option>
+                </select>
+                <button onclick="refreshShortsTemplatePresets()" class="p-1 text-gray-400 hover:text-indigo-500" title="새로고침">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Pre-existing Presets Section -->
             <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3">
                 <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_preset') }}</span>
                 <div class="flex items-center gap-1">
@@ -445,6 +458,13 @@
                                 style="bottom: 15%;">
                                 {{ t('status_preview_rendering') }}
                             </div>
+                        </div>
+
+                        <!-- [NEW] Shorts Template Overlay (TOPMOST) -->
+                        <div id="shortsTemplatePreviewBox" class="absolute inset-0 z-50 pointer-events-none">
+                            <img id="shortsTemplateOverlayImage" 
+                                class="w-full h-full object-contain" 
+                                style="display: none;" alt="Shorts Template">
                         </div>
 
                     </div>
@@ -869,6 +889,12 @@
             return '/uploads/' + parts.slice(1).join('/uploads/');
         }
 
+        // Assets (Template Presets)
+        if (/\/assets\//i.test(normalized)) {
+            const parts = normalized.split(/\/assets\//i);
+            return '/assets/' + parts.slice(1).join('/assets/');
+        }
+
         return path;
     };
 
@@ -888,6 +914,9 @@
 
         // [PRESETS] Load Subtitle Presets
         await loadSubtitlePresets();
+        
+        // [NEW] Load Shorts Template Presets
+        await refreshShortsTemplatePresets();
 
         // Initialize Utils-dependent variables
         if (!projectId) {
@@ -1633,9 +1662,8 @@
         // stroke 및 bg v-offset 스케일링에 사용. 미정의 상태에서 ReferenceError 발생 → 배경띠 렌더링 중단 버그 수정
         const scaleFactor = videoHeight / 360.0;
         
-        // [FIX] 9:16 프로젝트에서 자막이 비정상적으로 커지는 현상 방지 (16:9와 시각적 크기 동기화)
-        // 가로 대비 세로가 긴 9:16에서는 세로 전체가 아닌, 가로 기준 9/16 높이를 100% 기준으로 삼음
-        const baseHeightForScaling = (aspectRatio === '9:16') ? (imageWidth * 9 / 16) : videoHeight;
+        // [FIXED] Standardize scaling: use width as base for project parity (Industry Standard)
+        const baseHeightForScaling = imageWidth;
         const actualSize = Math.round(baseHeightForScaling * (fontSizePercent / 100));
         // 화면 가로길이의 90%로 고정 (사용자 요청 사항)
         const containerWidth = Math.round(imageWidth * 0.90);
@@ -2165,9 +2193,18 @@
                     subtitles: subtitles,
                     image_timings: imageTimings,
                     images: images,
-                    image_effects: imageEffects
+                    image_effects: imageEffects,
+                    // [NEW] Ensure template name is included in save if needed by backend
+                    shorts_template_preset: document.getElementById('shortsTemplateSelect')?.value || ''
                 })
             });
+            
+            // [NEW] Also update project setting explicitly to be safe
+            const tmplSelect = document.getElementById('shortsTemplateSelect');
+            if (tmplSelect && tmplSelect.value) {
+                await API.project.updateSetting(projectId, 'shorts_template_preset', tmplSelect.value);
+            }
+
             console.log("[Save] Sending Image Effects:", imageEffects);
             // alert(`[DEBUG] Saving Effects: ${JSON.stringify(imageEffects)}`); // Explicit User Feedback
             updateDebug(`[Save] Effects Sent: ${JSON.stringify(imageEffects)}`);
@@ -3552,7 +3589,8 @@
                         bgOpacity: parseFloat(data.settings.subtitle_bg_opacity || 0.5),
                         aspect_ratio: data.settings.aspect_ratio || '9:16',
                         subtitle_pos_x: data.settings.subtitle_pos_x || null,
-                        subtitle_pos_y: data.settings.subtitle_pos_y || null
+                        subtitle_pos_y: data.settings.subtitle_pos_y || null,
+                        shorts_template_preset: data.settings.shorts_template_preset || null
                     };
 
                     // [NEW] Store App Mode for UI Logic — project setting > global APP_MODE > 'longform'
@@ -3560,6 +3598,16 @@
                     console.log("App Mode:", window.currentAppMode);
 
                     // Apply UI
+                    // [NEW] Restore Shorts Template Selection
+                    if (styleSettings.shorts_template_preset) {
+                        const tmplSelect = document.getElementById('shortsTemplateSelect');
+                        if (tmplSelect) {
+                            tmplSelect.value = styleSettings.shorts_template_preset;
+                            // Trigger preview visual
+                            applyShortsTemplate(styleSettings.shorts_template_preset);
+                        }
+                    }
+
                     const fontEl = document.getElementById('fontFamilySelect');
                     if (fontEl) fontEl.value = styleSettings.font;
 
@@ -3910,6 +3958,57 @@
             console.log('[BGM] Settings load failed:', e.message);
         }
     }
+    // --- [NEW] Shorts Template Logic ---
+    async function refreshShortsTemplatePresets() {
+        try {
+            const res = await fetch('/api/shorts-template/presets?t=' + Date.now());
+            const data = await res.json();
+            const select = document.getElementById('shortsTemplateSelect');
+            if (select && data.presets) {
+                const currentVal = select.value;
+                select.innerHTML = '<option value="">-- ' + (i18n.label_template || '템플릿') + ' ' + i18n.opt_select + ' --</option>';
+                data.presets.forEach(p => {
+                    const name = typeof p === 'string' ? p : p.name;
+                    if (!name) return;
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    select.appendChild(opt);
+                });
+                if (currentVal) select.value = currentVal;
+            }
+        } catch (e) { console.error("Template load fail:", e); }
+    }
+
+    async function applyShortsTemplate(name) {
+        if (!projectId) return;
+        
+        const overlayImg = document.getElementById('shortsTemplateOverlayImage');
+        if (!name) {
+            if (overlayImg) overlayImg.style.display = 'none';
+            await API.project.updateSetting(projectId, 'shorts_template_preset', '');
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/shorts-template/preset/${name}?t=` + Date.now());
+            const data = await res.json();
+            if (data.status === 'ok' && data.preset) {
+                // Update Preview
+                if (overlayImg && data.preset.image_path) {
+                    overlayImg.src = Utils.convertToWebPath(data.preset.image_path) + '?t=' + Date.now();
+                    overlayImg.style.display = 'block';
+                }
+                // Save to Project Settings immediately
+                await API.project.updateSetting(projectId, 'shorts_template_preset', name);
+                Utils.showToast(name + " " + (i18n.toast_preset_applied_suffix || "템플릿 적용됨"), "success");
+            }
+        } catch (e) {
+            console.error("Template apply fail:", e);
+            Utils.showToast(i18n.err_preset_apply_fail, "error");
+        }
+    }
+
     // --- Preset Management ---
     async function loadSubtitlePresets() {
         try {

@@ -1867,7 +1867,23 @@
             // 다음 단계 (수동 이동)
             const nextSection = document.getElementById('nextStepSection');
             if (nextSection) {
+                const mode = window._appMode || 'longform';
+                // 숏폼이면 썸네일로, 그 외는 TTS로 가이드
+                const nextUrl = mode === 'shorts' ? '/thumbnail' : '/tts';
+                const nextLabel = mode === 'shorts' ? 'Go to Thumbnail' : 'Go to TTS';
+                const nextIcon = mode === 'shorts' ? '🖼️' : '🎙️';
+                
+                nextSection.innerHTML = `
+                    <div class="mt-8 mb-4 flex justify-center">
+                        <a href="${nextUrl}" class="btn-primary py-4 px-10 text-lg flex items-center gap-3 shadow-2xl hover:scale-105 transition-transform bg-gradient-to-r ${mode === 'shorts' ? 'from-green-600 to-teal-600' : 'from-blue-600 to-indigo-600'} rounded-2xl font-black group">
+                            <span class="text-2xl group-hover:rotate-12 transition-transform">${nextIcon}</span>
+                            <span>${nextLabel}</span>
+                            <span class="ml-2 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all">→</span>
+                        </a>
+                    </div>
+                `;
                 nextSection.classList.remove('hidden');
+                nextSection.scrollIntoView({ behavior: 'smooth', block: 'end' });
             }
         } catch (e) {
             console.error(e);

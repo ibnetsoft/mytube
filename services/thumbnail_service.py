@@ -262,6 +262,9 @@ class ThumbnailRenderer:
             font_family = layer.get("font_family", "text")
 
             # 좌표 변환: 3가지 형식 지원
+            is_portrait = height > width
+            ref_w, ref_h = (720, 1280) if is_portrait else (1280, 720)
+
             if "font_size_ratio" in layer:
                 # 형식 1: 비율 기반 (스타일 레시피)
                 font_size = max(20, int(layer["font_size_ratio"] * height))
@@ -270,27 +273,35 @@ class ThumbnailRenderer:
                 y = layer.get("y_ratio", 0.5) * height
             elif "position" in layer:
                 # 형식 2: 프론트엔드 position 기반 (row1~row5, center, top, bottom)
-                font_size = int(layer.get("font_size", 80) * (height / 720))
-                stroke_width = int(layer.get("stroke_width", 8) * (height / 720))
+                font_size = int(layer.get("font_size", 80) * (height / ref_h))
+                stroke_width = int(layer.get("stroke_width", 8) * (height / ref_h))
                 x = width / 2  # 항상 중앙 정렬
                 pos = layer.get("position", "center")
-                pos_map = {
-                    "center": 0.5, "top": 0.15, "bottom": 0.85,
-                    "row1": 0.15, "row2": 0.35, "row3": 0.55, "row4": 0.75, "row5": 0.90
-                }
+                
+                # 9:16 세로 모드일 경우, 텍스트 배치를 중앙 정사각형 영역(Y: 280~1000)으로 제한
+                if is_portrait:
+                    pos_map = {
+                        "center": 0.5, "top": 0.30, "bottom": 0.70,
+                        "row1": 0.28, "row2": 0.38, "row3": 0.50, "row4": 0.62, "row5": 0.72
+                    }
+                else:
+                    pos_map = {
+                        "center": 0.5, "top": 0.15, "bottom": 0.85,
+                        "row1": 0.15, "row2": 0.35, "row3": 0.55, "row4": 0.75, "row5": 0.90
+                    }
                 y = height * pos_map.get(pos, 0.5)
-                # x_offset, y_offset 적용 (1280x720 기준 → 실제 크기 스케일링)
-                x += layer.get("x_offset", 0) * (width / 1280)
-                y += layer.get("y_offset", 0) * (height / 720)
+                # x_offset, y_offset 적용 (레퍼런스 크기 기준 → 실제 크기 스케일링)
+                x += layer.get("x_offset", 0) * (width / ref_w)
+                y += layer.get("y_offset", 0) * (height / ref_h)
             else:
-                # 형식 3: Legacy 절대 좌표 (1280x720 기준)
-                font_size = int(layer.get("font_size", 80) * (height / 720))
-                stroke_width = int(layer.get("stroke_width", 0) * (height / 720))
-                x = layer.get("x", width / 2) * (width / 1280)
-                y = layer.get("y", height / 2) * (height / 720)
+                # 형식 3: Legacy 절대 좌표 (레퍼런스 크기 기준)
+                font_size = int(layer.get("font_size", 80) * (height / ref_h))
+                stroke_width = int(layer.get("stroke_width", 0) * (height / ref_h))
+                x = layer.get("x", width / 2) * (width / ref_w)
+                y = layer.get("y", height / 2) * (height / ref_h)
 
             # 폰트 로드
-            ttf_name = self.font_map.get(font_family, "GmarketSansTTFBold.ttf")
+            ttf_name = self.font_map.get(font_family, "NotoSansKR-Bold.ttf")
             font = self._load_font(ttf_name, font_size)
 
             # 텍스트 줄바꿈 (캔버스 폭의 90%까지 허용)
@@ -310,8 +321,16 @@ class ThumbnailRenderer:
                 line_y = start_y + (i * line_height)
 
                 # 캔버스 밖으로 나가지 않도록 클램핑
+                # 세로 모드(9:16)일 경우 레터박스 침범 방지 (중앙 정사각형 영역 밖으로 나가지 않게 함)
+                if is_portrait:
+                    # 안전 영역: 1280 기준 280~1000 사이
+                    safe_top = 280 * (height / 1280)
+                    safe_bottom = 1000 * (height / 1280)
+                    line_y = max(safe_top, min(line_y, safe_bottom - font_size))
+                else:
+                    line_y = max(5, min(line_y, height - font_size - 5))
+                
                 line_x = max(5, min(line_x, width - text_w - 5))
-                line_y = max(5, min(line_y, height - font_size - 5))
 
                 draw.text((line_x, line_y), line, font=font, fill=color,
                           stroke_width=stroke_width, stroke_fill=stroke_color)

@@ -168,6 +168,22 @@ async def get_shorts_template_presets():
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
+@router.get("/shorts-template/preset/{name}")
+async def get_shorts_template_preset(name: str):
+    """특정 숏폼 템플릿 프리셋 상세 조회"""
+    try:
+        preset = db.get_shorts_template_preset(name)
+        if not preset:
+            return {"status": "error", "error": "프리셋을 찾을 수 없습니다."}
+        
+        # Parse settings_json
+        if preset.get('settings_json'):
+            preset['settings'] = json.loads(preset['settings_json'])
+            
+        return {"status": "ok", "preset": preset}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
 @router.post("/shorts-template/presets")
 async def save_shorts_template_preset(req: ShortsTemplatePresetSave):
     """숏폼 템플릿 프리셋 저장"""

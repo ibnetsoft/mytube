@@ -1550,19 +1550,24 @@ JSON만 출력하세요:
 
             text_layers = None
 
-            # 저장된 텍스트 레이어가 있으면 스타일 유지 + 텍스트만 교체
+            # 저장된 텍스트 레이어가 있으면 스타일 유지 (텍스트는 사용자 입력값 우선)
             if saved_text_layers and len(saved_text_layers) > 0:
                 print(f"🎨 [Auto-Pilot] 저장된 썸네일 스타일 사용 (레이어 {len(saved_text_layers)}개)")
                 text_layers = []
-                # 후킹 문구 후보를 레이어에 배분
-                texts_to_assign = hook_candidates[:len(saved_text_layers)] if hook_candidates else [hook_text]
+                # 후킹 문구 후보를 레이어에 배분 (사용자 입력이 없는 레이어에만)
+                texts_to_assign = hook_candidates if hook_candidates else [hook_text]
                 for i, layer in enumerate(saved_text_layers):
                     new_layer = dict(layer)  # 스타일 복사
-                    # 텍스트만 교체 (저장된 스타일 유지)
-                    if i < len(texts_to_assign):
-                        new_layer["text"] = texts_to_assign[i]
-                    elif "text" not in new_layer or not new_layer["text"].strip():
-                        new_layer["text"] = hook_text
+                    
+                    # [FIX] 사용자가 직접 텍스트를 입력했다면 그것을 유지하고, 
+                    # 텍스트가 비어있는 경우에만 AI 생성을 채워넣음
+                    saved_txt = (new_layer.get("text") or "").strip()
+                    if not saved_txt:
+                        if i < len(texts_to_assign):
+                            new_layer["text"] = texts_to_assign[i]
+                        else:
+                            new_layer["text"] = hook_text
+                    
                     text_layers.append(new_layer)
 
             # 저장된 설정 없으면 기존 스타일 레시피 사용
@@ -1961,7 +1966,8 @@ JSON만 출력하세요:
             images=images, audio_path=audio_path, output_filename=output_filename,
             duration_per_image=image_durations, subtitles=subs, project_id=project_id,
             resolution=resolution, subtitle_settings=render_settings, sfx_map=sfx_map,
-            focal_point_ys=f_points, image_effects=effects, template_overlay_path=template_overlay_path
+            focal_point_ys=f_points, image_effects=effects, template_overlay_path=template_overlay_path,
+            content_aspect_ratio=user_ratio
         )
 
         db.update_project_setting(project_id, "video_path", f"/output/{output_filename}")
