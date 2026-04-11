@@ -154,12 +154,13 @@ class ShortsTemplatePresetSave(BaseModel):
     name: str
     settings: dict
     image_data: Optional[str] = None # Base64 PNG
+    category: Optional[str] = "shorts"
 
 @router.get("/shorts-template/presets")
-async def get_shorts_template_presets():
+async def get_shorts_template_presets(category: str = "shorts"):
     """숏폼 템플릿 프리셋 목록 조회"""
     try:
-        presets = db.get_shorts_template_presets()
+        presets = db.get_shorts_template_presets(category)
         # Parse settings_json
         for p in presets:
             if p.get('settings_json'):
@@ -169,10 +170,10 @@ async def get_shorts_template_presets():
         return {"status": "error", "error": str(e)}
 
 @router.get("/shorts-template/preset/{name}")
-async def get_shorts_template_preset(name: str):
+async def get_shorts_template_preset(name: str, category: str = "shorts"):
     """특정 숏폼 템플릿 프리셋 상세 조회"""
     try:
-        preset = db.get_shorts_template_preset(name)
+        preset = db.get_shorts_template_preset(name, category)
         if not preset:
             return {"status": "error", "error": "프리셋을 찾을 수 없습니다."}
         
@@ -211,19 +212,17 @@ async def save_shorts_template_preset(req: ShortsTemplatePresetSave):
             
             with open(image_path, "wb") as f:
                 f.write(data)
-            
-            # Convert to relative path for portability if needed, or keep absolute
         
-        db.save_shorts_template_preset(req.name, json.dumps(req.settings, ensure_ascii=False), image_path)
+        db.save_shorts_template_preset(req.name, json.dumps(req.settings, ensure_ascii=False), image_path, req.category)
         return {"status": "ok"}
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
 @router.delete("/shorts-template/presets/{name}")
-async def delete_shorts_template_preset(name: str):
+async def delete_shorts_template_preset(name: str, category: str = "shorts"):
     """숏폼 템플릿 프리셋 삭제"""
     try:
-        db.delete_shorts_template_preset(name)
+        db.delete_shorts_template_preset(name, category)
         return {"status": "ok"}
     except Exception as e:
         return {"status": "error", "error": str(e)}

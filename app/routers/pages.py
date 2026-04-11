@@ -94,6 +94,11 @@ async def page_thumbnail(request: Request, project_id: Optional[int] = Query(Non
     app_mode = db.get_global_setting("app_mode", "longform")
     return _render(request, "pages/thumbnail.html", "thumbnail", "썸네일 생성", project_id=project_id, app_mode=app_mode)
 
+@router.get("/template", response_class=HTMLResponse)
+async def page_template(request: Request, project_id: Optional[int] = Query(None)):
+    app_mode = db.get_global_setting("app_mode", "longform")
+    return _render(request, "pages/template.html", "template", "템플릿", project_id=project_id, app_mode=app_mode)
+
 @router.get("/shorts", response_class=HTMLResponse)
 async def page_shorts(request: Request):
     return _render(request, "pages/shorts.html", "shorts", "쇼츠 생성")
@@ -105,6 +110,10 @@ async def page_commerce_shorts(request: Request):
 @router.get("/settings", response_class=HTMLResponse)
 async def page_settings(request: Request):
     return _render(request, "pages/settings.html", "settings", "설정")
+
+@router.get("/logs", response_class=HTMLResponse)
+async def page_logs(request: Request):
+    return _render(request, "pages/logs.html", "logs", "로그")
 
 @router.get("/autopilot", response_class=HTMLResponse)
 async def page_autopilot(request: Request):

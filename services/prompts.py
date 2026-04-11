@@ -305,6 +305,8 @@ JSON만 반환하세요."""
 - **Language Integration**: `extracted_info`는 대본의 언어(한글 등)로 작성하여 사용자가 이해할 수 있게 하고, `visual_keywords`와 `prompt_en`은 이미지 생성 AI용 영어로 작성하세요.
 - **No Text Exception**: 명시적 요청이 없는 한 이미지 내 텍스트(글자)는 절대 금지하며, 대본상 명시된 경우에만 정확히 해당 텍스트를 프롬프트에 포함하세요.
 - **Anatomy Rules**: 팔 2개, 손 2개 규칙(Exactly two arms/hands)을 엄격히 준수하세요.
+- **Natural Segmentation (Korean)**: `scene_text`를 나눌 때 한국어의 자연스러운 호흡과 문맥을 최우선으로 고려하세요. 마침표, 쉼표, 또는 의미가 끝나는 어미 단위로 장면을 분할해야 합니다. 특히 관형어와 체언 사이(예: "새" + "드레싱")를 절대 끊지 마세요. TTS 성우가 자연스럽게 읽을 수 있는 의미 단위(Sense group)로 문장을 나누십시오.
+- **Subtitles Layout Preference**: 자막을 억지로 2줄로 길게 구성하지 마세요. 한 레이아웃에 한 줄(공백 포함 약 15~22자 내외)이 들어가는 것이 가장 깔끔하며, 호흡상 무리가 없다면 적극적으로 한 줄 단위의 장면 구성을 지향하십시오.
 - **JSON Only**: 설명 없이 오직 JSON 데이터만 반환하세요.
 """
 
@@ -579,6 +581,8 @@ JSON만 반환하세요."""
 - **Atmosphere**: Bright, vibrant colors, soft volumetric lighting, magical and kid-friendly environment.
 - **Characters**: Cute, expressive characters with big eyes and friendly smiles.
 - **Constraint**: NO TEXT in images. Anatomically correct limbs (strictly 2 arms, 2 hands).
+- **Natural Segmentation (Korean)**: 문장을 나누어 장면을 구성할 때, 한국어의 자연스러운 의미 단위(Sense group)를 유지하세요. 관형어와 체언(예: "작은" + "별") 사이를 끊지 말고, 아이들이 따라 부르기 편한 호흡 단위로 자막 텍스트를 구성하십시오.
+- **Subtitles Layout Preference**: 자막은 억지로 2줄로 채우지 마십시오. 한 레이아웃에 한 줄(약 12~18자 내외)이 들어가는 것이 아이들의 가독성에 가장 좋으며, 짧고 명확한 한 줄 단위의 구성을 강력히 지향하십시오.
 
 [프롬프트 구성 지침]
 - 각 섹션(Verse 1, Chorus, Verse 2, Ending)에 대해 하나씩, 총 4개 이상의 이미지 프롬프트를 작성하세요.

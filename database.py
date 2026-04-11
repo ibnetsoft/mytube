@@ -386,6 +386,23 @@ def init_db():
         )
     """)
 
+    
+    # AI 생성 로그 테이블 [NEW]
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ai_generation_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER,
+            task_type TEXT,
+            model_id TEXT,
+            provider TEXT,
+            status TEXT,
+            prompt_summary TEXT,
+            error_msg TEXT,
+            elapsed_time REAL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -411,9 +428,15 @@ def migrate_db():
             name TEXT UNIQUE,
             settings_json TEXT,
             image_path TEXT,
+            category TEXT DEFAULT 'shorts',
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    # [MIGRATION] Add category column if not exists
+    try:
+        cursor.execute("ALTER TABLE shorts_template_presets ADD COLUMN category TEXT DEFAULT 'shorts'")
+    except Exception:
+        pass
 
     # [NEW] Global Settings Table
     cursor.execute("""
@@ -2594,12 +2617,15 @@ def delete_subtitle_style_preset(name: str):
     finally:
         if conn: conn.close()
 
-def get_shorts_template_presets():
+def get_shorts_template_presets(category: Optional[str] = None):
     """숏폼 템플릿 프리셋 목록 조회"""
     conn = get_db()
     cursor = conn.cursor()
     try:
-        cursor.execute("SELECT name, settings_json, image_path FROM shorts_template_presets ORDER BY updated_at DESC")
+        if category:
+            cursor.execute("SELECT name, settings_json, image_path FROM shorts_template_presets WHERE category = ? ORDER BY updated_at DESC", (category,))
+        else:
+            cursor.execute("SELECT name, settings_json, image_path FROM shorts_template_presets ORDER BY updated_at DESC")
         return [dict(row) for row in cursor.fetchall()]
     except Exception as e:
         print(f"[DB Error] get_shorts_template_presets: {e}")
@@ -2607,12 +2633,15 @@ def get_shorts_template_presets():
     finally:
         if conn: conn.close()
 
-def get_shorts_template_preset(name: str):
+def get_shorts_template_preset(name: str, category: Optional[str] = None):
     """특정 숏폼 템플릿 조회"""
     try:
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM shorts_template_presets WHERE name = ?", (name,))
+        if category:
+            cursor.execute("SELECT * FROM shorts_template_presets WHERE name = ? AND category = ?", (name, category))
+        else:
+            cursor.execute("SELECT * FROM shorts_template_presets WHERE name = ?", (name,))
         row = cursor.fetchone()
         conn.close()
         return dict(row) if row else None
@@ -2620,25 +2649,28 @@ def get_shorts_template_preset(name: str):
         print(f"[DB Error] get_shorts_template_preset: {e}")
         return None
 
-def save_shorts_template_preset(name: str, settings_json: str, image_path: Optional[str] = None):
+def save_shorts_template_preset(name: str, settings_json: str, image_path: Optional[str] = None, category: str = 'shorts'):
     """숏폼 템플릿 프리셋 저장 (Upsert)"""
     conn = get_db()
     cursor = conn.cursor()
     try:
-        cursor.execute("INSERT OR REPLACE INTO shorts_template_presets (name, settings_json, image_path, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)", 
-                       (name, settings_json, image_path))
+        cursor.execute("INSERT OR REPLACE INTO shorts_template_presets (name, settings_json, image_path, category, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)", 
+                       (name, settings_json, image_path, category))
         conn.commit()
     except Exception as e:
         print(f"[DB Error] save_shorts_template_preset: {e}")
     finally:
         if conn: conn.close()
 
-def delete_shorts_template_preset(name: str):
+def delete_shorts_template_preset(name: str, category: Optional[str] = None):
     """숏폼 템플릿 프리셋 삭제"""
     conn = get_db()
     cursor = conn.cursor()
     try:
-        cursor.execute("DELETE FROM shorts_template_presets WHERE name = ?", (name,))
+        if category:
+            cursor.execute("DELETE FROM shorts_template_presets WHERE name = ? AND category = ?", (name, category))
+        else:
+            cursor.execute("DELETE FROM shorts_template_presets WHERE name = ?", (name,))
         conn.commit()
     except Exception as e:
         print(f"[DB Error] delete_shorts_template_preset: {e}")
@@ -2997,3 +3029,51 @@ def get_recent_projects(limit: int = 10) -> List[Dict]:
     rows = cursor.fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status: str, prompt_summary: str = "", error_msg: str = "", elapsed_time: float = 0.0):
+    """AI 생성 로그 추가"""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            INSERT INTO ai_generation_logs (project_id, task_type, model_id, provider, status, prompt_summary, error_msg, elapsed_time)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (project_id, task_type, model_id, provider, status, prompt_summary, error_msg, elapsed_time))
+        conn.commit()
+    except Exception as e:
+        print(f"[DB] Failed to add AI log: {e}")
+    finally:
+        conn.close()
+
+
+def get_ai_logs(limit: int = 100) -> List[Dict[str, Any]]:
+    """AI 생성 로그 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT id, project_id, task_type, model_id, provider, status, prompt_summary, error_msg, elapsed_time, created_at
+            FROM ai_generation_logs
+            ORDER BY created_at DESC
+            LIMIT ?
+        """, (limit,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except Exception as e:
+        print(f"[DB] Failed to get AI logs: {e}")
+        return []
+    finally:
+        conn.close()
+
+def clear_ai_logs():
+    """모든 AI 로그 삭제"""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM ai_generation_logs")
+        conn.commit()
+    except Exception as e:
+        print(f"[DB] Failed to clear AI logs: {e}")
+    finally:
+        conn.close()

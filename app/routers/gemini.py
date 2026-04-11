@@ -249,3 +249,20 @@ async def generate_nursery_image_prompts_api(req: NurseryImagePromptsRequest):
         return {"status": "ok", "scenes": scenes}
     except Exception as e:
         return {"status": "error", "error": str(e)}
+@router.get("/api/logs")
+async def get_ai_logs_api(limit: int = 100):
+    """AI 생성 로그 목록 조회"""
+    try:
+        logs = db.get_ai_logs(limit=limit)
+        return {"status": "ok", "logs": logs}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+@router.delete("/api/logs")
+async def clear_ai_logs_api():
+    """AI 생성 로그 초기화"""
+    try:
+        db.clear_ai_logs()
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}

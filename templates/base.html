@@ -131,7 +131,14 @@
                         <a href="/thumbnail" id="nav-thumbnail"
                             class="sidebar-item {% if page == 'thumbnail' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
-                            <span>{{ t('nav_shorts_template') or '템플릿' }}</span>
+                            <span>{{ t('nav_thumbnail') }}</span>
+                        </a>
+                    </li>
+                    <li class="{% if app_mode in ['commerce'] %}hidden{% endif %}">
+                        <a href="/template" id="nav-template"
+                            class="sidebar-item {% if page == 'template' %}active{% endif %}">
+                            <span class="sidebar-icon"></span>
+                            <span>{{ t('nav_shorts_template') }}</span>
                         </a>
                     </li>
                     <li class="{% if app_mode in ['commerce'] %}hidden{% endif %}">
@@ -206,6 +213,13 @@
                             class="sidebar-item flex items-center gap-3 {% if page == 'settings' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
                             <span class="font-bold">{{ t('nav_settings') }}</span>
+                        </a>
+                    </li>
+                    <li class="mt-1">
+                        <a href="/logs" id="nav-logs"
+                            class="sidebar-item flex items-center gap-3 {% if page == 'logs' %}active{% endif %}">
+                            <span class="sidebar-icon"></span>
+                            <span class="font-bold">{{ t('nav_logs') }}</span>
                         </a>
                     </li>
                     <li class="mt-1 hidden">

@@ -435,6 +435,7 @@ class GeminiService:
         )
 
         # 1. 최우선 순위: 나노바나나 2.0 (Gemini 3.1 Flash Image Preview)
+        start_time = _time.time()
         try:
             print(f"🎨 [Gemini Image] Trying Nano Banana 2.0 (gemini-3.1-flash-image-preview)")
             
@@ -459,11 +460,15 @@ class GeminiService:
                             images.append(part.inline_data.data)
             
             if images:
+                elapsed = _time.time() - start_time
                 print(f"✅ [Gemini Image] Nano Banana 2.0 succeeded via google-genai (Async), {len(images)} image(s)")
+                db.add_ai_log(None, 'image', 'gemini-3.1-flash-image-preview', 'google', 'success', prompt_summary=prompt[:100], elapsed_time=elapsed)
                 return images
                 
         except Exception as e:
+            elapsed = _time.time() - start_time
             print(f"⚠️ [Gemini Image] Nano Banana 2.0 failed (Async): {e}. Falling back to legacy Imagen chain...")
+            db.add_ai_log(None, 'image', 'gemini-3.1-flash-image-preview', 'google', 'failed', prompt_summary=prompt[:100], error_msg=str(e), elapsed_time=elapsed)
 
         # 2. 폴백: 기존 Imagen 모델 체인
         payload = {
@@ -481,13 +486,16 @@ class GeminiService:
             "imagen-3.0-fast-generate-001",
         ]
         for model_name in models:
+            start_time = _time.time()
             try:
                 url = f"{self.base_url}/models/{model_name}:predict?key={self.api_key}"
                 print(f"🎨 [Gemini Image] Trying model: {model_name}")
                 async with httpx.AsyncClient(timeout=120.0) as client:
                     response = await client.post(url, json=payload)
+                    elapsed = _time.time() - start_time
                     if response.status_code != 200:
                         print(f"❌ [Gemini Image] {model_name} Error ({response.status_code}): {response.text[:200]}")
+                        db.add_ai_log(None, 'image', model_name, 'google', 'failed', prompt_summary=prompt[:100], error_msg=f"HTTP {response.status_code}", elapsed_time=elapsed)
                         continue
                     result = response.json()
                     images = []
@@ -497,13 +505,17 @@ class GeminiService:
                                 images.append(base64.b64decode(pred["bytesBase64Encoded"]))
                     if images:
                         print(f"✅ [Gemini Image] {model_name} succeeded, {len(images)} image(s)")
+                        db.add_ai_log(None, 'image', model_name, 'google', 'success', prompt_summary=prompt[:100], elapsed_time=elapsed)
                         return images
                     else:
                         err = result.get('error', {}).get('message', 'No image data')
                         print(f"❌ [Gemini Image] {model_name}: {err}")
+                        db.add_ai_log(None, 'image', model_name, 'google', 'failed', prompt_summary=prompt[:100], error_msg=err, elapsed_time=elapsed)
                         continue
             except Exception as e:
+                elapsed = _time.time() - start_time
                 print(f"❌ [Gemini Image] {model_name} exception: {e}")
+                db.add_ai_log(None, 'image', model_name, 'google', 'failed', prompt_summary=prompt[:100], error_msg=str(e), elapsed_time=elapsed)
                 continue
 
         raise Exception("All Image generation models failed (including Nano Banana 2.0 and Imagen)")
@@ -724,14 +736,25 @@ class GeminiService:
             history_instruction=history_instruction
         )
 
-        text = await self.generate_text(prompt, temperature=0.5)
-        json_match = re.search(r'\{[\s\S]*\}', text)
-        if json_match:
-            try:
-                return json.loads(json_match.group())
-            except Exception:
-                pass
-        return {"error": "구조 생성 실패", "raw": text}
+        start_time = _time.time()
+        try:
+            text = await self.generate_text(prompt, temperature=0.5)
+            elapsed = _time.time() - start_time
+            json_match = re.search(r'\{[\s\S]*\}', text)
+            if json_match:
+                try:
+                    res = json.loads(json_match.group())
+                    db.add_ai_log(None, 'script', 'gemini-2.0-flash', 'google', 'success', prompt_summary=topic_keyword, elapsed_time=elapsed)
+                    return res
+                except Exception:
+                    pass
+            db.add_ai_log(None, 'script', 'gemini-2.0-flash', 'google', 'failed', prompt_summary=topic_keyword, error_msg="JSON parse failed", elapsed_time=elapsed)
+            return {"error": "구조 생성 실패", "raw": text}
+        except Exception as e:
+            elapsed = _time.time() - start_time
+            db.add_ai_log(None, 'script', 'gemini-2.0-flash', 'google', 'failed', prompt_summary=topic_keyword, error_msg=str(e), elapsed_time=elapsed)
+            print(f"Script Structure Gen Error: {e}")
+            return {"error": "구조 생성 실패", "raw": text}
     async def generate_nursery_rhyme_ideas(self) -> List[dict]:
         """동요 아이디어 10개 생성"""
         prompt = prompts.GEMINI_NURSERY_RHYME_IDEAS
@@ -1812,15 +1835,17 @@ Motion prompt for this image:"""
 
                 # 폴링: client.operations.get(operation 객체) 로 갱신
                 max_wait = 300
-                start = time.time()
+                start = _time.time()
                 while not operation.done:
-                    elapsed = int(time.time() - start)
+                    elapsed = int(_time.time() - start)
                     if elapsed >= max_wait:
+                        db.add_ai_log(None, 'video', model, 'google', 'failed', prompt_summary=prompt[:100], error_msg="Timeout (5m)", elapsed_time=float(elapsed))
                         return {"status": "error", "error": "Veo 영상 생성 시간 초과 (5분)"}
                     self.log_debug(f"⏳ [Veo] Waiting... {elapsed}s")
-                    time.sleep(20)
+                    _time.sleep(20)
                     operation = client.operations.get(operation)
 
+                final_elapsed = _time.time() - start
                 self.log_debug(f"🎬 [Veo] Operation done: {type(operation).__name__}")
 
 
@@ -1883,6 +1908,7 @@ Motion prompt for this image:"""
                     uri = _find_video_uri(cand)
                     if uri:
                         self.log_debug(f"✅ [Veo] Video URI found in {name}: {uri}")
+                        db.add_ai_log(None, 'video', model, 'google', 'success', prompt_summary=prompt[:100], elapsed_time=final_elapsed)
                         return {"status": "ok", "video_url": uri}
 
                 # 마지막 디버그 덤프 (실패 시 원인 파악을 위해 상세 출력)
@@ -1906,6 +1932,7 @@ Motion prompt for this image:"""
                     sr = _get_val(res, 'safety_ratings')
                     if sr: safety_msg = f" (Safety Ratings: {sr})"
                 
+                db.add_ai_log(None, 'video', model, 'google', 'failed', prompt_summary=prompt[:100], error_msg=f"URI not found{safety_msg}", elapsed_time=final_elapsed)
                 return {"status": "error", "error": f"Video URI를 찾을 수 없음{safety_msg} (모든 결과 영역 탐색 실패)"}
 
             except Exception as e:

@@ -3023,7 +3023,7 @@ class VideoService:
         # [MODIFIED] Grouping re-enabled for better readability (Requested: Long single lines)
         grouped_sentences = []
         current_group = ""
-        MAX_GROUP_LEN = 40 # 자막 한 줄에 적당한 길이 (유튜브 숏츠/롱폼 기준)
+        MAX_GROUP_LEN = 25 # 자막 한 줄에 적당한 길이 (기존 40 -> 한 줄 지향 25로 축소)
         
         for s in raw_sentences:
             if not current_group:
