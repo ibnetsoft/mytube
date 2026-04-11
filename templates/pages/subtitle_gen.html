@@ -171,173 +171,163 @@
     <!-- LEFT COLUMN WRAPPER -->
     <div class="col-span-12 xl:col-span-8 lg:col-span-7 flex flex-col gap-2 min-h-0 overflow-hidden">
 
-        <!-- 1. Top Control Bar (Style & Actions) -->
-        <div
-            class="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 shrink-0 flex-wrap">
+        <!-- 1. Top Control Bar (Style & Actions) — 2줄 구조 -->
+        <div class="flex flex-col gap-1 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 shrink-0">
 
-            <!-- Shorts Template Section -->
-            <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3 ml-1">
-                <select id="shortsTemplateSelect" onchange="applyShortsTemplate(this.value)"
-                    class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-indigo-200 dark:border-indigo-900 rounded-md py-1 px-2 w-32 focus:ring-1 focus:ring-indigo-500 focus:outline-none cursor-pointer">
-                    <option value="">-- {{ t('opt_select_template') }} --</option>
-                </select>
-                <button onclick="refreshShortsTemplatePresets()" class="p-1 text-gray-400 hover:text-indigo-500" title="새로고침">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                    </svg>
-                </button>
-            </div>
+            <!-- Row 1: Template / Preset / Font / Color -->
+            <div class="flex items-center gap-2 flex-nowrap overflow-x-auto overflow-y-hidden">
 
-            <!-- Pre-existing Presets Section -->
-            <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3">
-                <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_preset') }}</span>
-                <div class="flex items-center gap-1">
-                    <select id="subtitlePresetSelect" onchange="applySubtitlePreset(this.value)"
-                        class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-28 focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer">
-                        <option value="">{{ t('opt_select') }}</option>
+                <!-- Shorts Template Section -->
+                <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3 ml-1 flex-shrink-0">
+                    <select id="shortsTemplateSelect" onchange="applyShortsTemplate(this.value)"
+                        class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-indigo-200 dark:border-indigo-900 rounded-md py-1 px-2 w-32 focus:ring-1 focus:ring-indigo-500 focus:outline-none cursor-pointer">
+                        <option value="">-- {{ t('opt_select_template') }} --</option>
                     </select>
-                    <button onclick="deleteCurrentSubtitlePreset()"
-                        class="p-1 text-gray-400 hover:text-red-500 transition-colors" title="{{ t('title_delete_preset') }}">
+                    <button onclick="refreshShortsTemplatePresets()" class="p-1 text-gray-400 hover:text-indigo-500" title="새로고침">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
-                            </path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                         </svg>
                     </button>
                 </div>
-                <div class="flex items-center gap-1 ml-1 border-l border-gray-200 dark:border-gray-600 pl-2">
-                    <input type="text" id="newPresetName" placeholder="{{ t('placeholder_new_preset') }}"
-                        class="text-[11px] bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded px-1.5 py-1 w-20 focus:outline-none focus:ring-1 focus:ring-blue-500">
-                    <button onclick="saveCurrentAsPreset()"
-                        class="text-[11px] bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded transition-colors whitespace-nowrap font-bold">
-                        {{ t('btn_save') }}
-                    </button>
-                </div>
-            </div>
 
-            <!-- Font Settings -->
-            <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3">
-                <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_font') }}</span>
-                <select id="fontFamilySelect"
-                    class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-28 focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer">
-                    <option value="GmarketSansBold" selected>G마켓 산스</option>
-                    <option value="TmonMonsori">티몬 몬소리</option>
-                    <option value="Jalnan">여기어때 잘난</option>
-                    <option value="Black Han Sans">검은고딕</option>
-                    <option value="Pretendard-Bold">프리텐다드</option>
-                    <option value="NanumSquareExtraBold">나눔스퀘어</option>
-                    <option value="Jua">배민 주아</option>
-                    <option value="Do Hyeon">배민 도현</option>
-                    <option value="CookieRun-Regular">쿠키런</option>
-                    <option value="BinggraeMelona-Bold">빙그레</option>
-                    <option value="NetmarbleB">넷마블</option>
-                    <option value="ChosunIlboMyungjo">조선일보 명조</option>
-                    <option value="MapoFlowerIsland">마포 꽃섬</option>
-                    <option value="S-CoreDream-6Bold">에스코어 드림</option>
-                    <option value="Gungsuh">궁서체</option>
-                    <option value="NanumMyeongjo">나눔명조</option>
-                    <option value="Malgun Gothic">맑은 고딕</option>
-                </select>
-                <!-- 폰트 크기 -->
-                <div class="flex items-center gap-1">
-                    <span class="text-[11px] text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_size_percent') }}</span>
-                    <input type="number" id="fontSizeSlider" value="5.4" min="1" max="20" step="0.1"
-                        class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-14 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                        title="{{ t('label_size_percent') }} (%)">
-                    <span class="text-[11px] text-gray-400">%</span>
-                    <span id="fontSizeValue" class="hidden">5.4%</span>
-                </div>
-
-                <!-- 줄간격 -->
-                <div class="flex items-center gap-1">
-                    <span class="text-[11px] text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_line_spacing') }}</span>
-                    <input type="number" id="lineSpacingInput" value="0.1" min="-0.5" max="1.5" step="0.05"
-                        class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-14 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                        title="{{ t('label_line_spacing_ratio') }}">
-                </div>
-            </div>
-
-            <!-- Color Settings -->
-            <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3">
-                <div class="flex flex-col items-center gap-0.5">
-                    <input type="color" id="textColorInput" value="#ffffff"
-                        class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer"
-                        title="{{ t('label_text_color') }}">
-                    <span class="text-[9px] text-gray-400">{{ t('label_text_color') }}</span>
-                </div>
-                <div class="flex flex-col items-center gap-0.5">
-                    <input type="color" id="strokeColorInput" value="#000000"
-                        class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer"
-                        title="{{ t('label_stroke_color') }}">
-                    <span class="text-[9px] text-gray-400">{{ t('label_stroke_color') }}</span>
-                </div>
-            </div>
-
-            <!-- Stroke Width -->
-            <div class="flex items-center gap-1.5 border-r border-gray-200 dark:border-gray-600 pr-3">
-                <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_stroke_width') }}</span>
-                <input type="number" id="strokeWidthInput" value="0" min="0" max="15" step="0.5"
-                    class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-12 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                    title="{{ t('label_stroke_width') }} (px)">
-                <span class="text-[11px] text-gray-400">px</span>
-                <!-- 자막 세로 위치 조절 스피너 -->
-                <div class="flex flex-col items-center gap-0.5">
-                    <button onclick="adjustSubtitlePosY(-1)"
-                        class="w-6 h-4 flex items-center justify-center rounded-sm bg-gray-500 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-500 text-white text-[10px] leading-none">▲</button>
-                    <span id="posYDisplay" class="text-[10px] text-gray-500 dark:text-gray-400 font-mono w-6 text-center leading-none">5</span>
-                    <button onclick="adjustSubtitlePosY(1)"
-                        class="w-6 h-4 flex items-center justify-center rounded-sm bg-gray-500 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-500 text-white text-[10px] leading-none">▼</button>
-                </div>
-            </div>
-
-            <!-- Background Strip Settings -->
-            <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3">
-                <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_bg_strip') }}</span>
-                <label class="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" id="bgStripToggle" class="sr-only peer" onchange="updateBgStrip(this)">
-                    <div
-                        class="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600">
+                <!-- Pre-existing Presets Section -->
+                <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3 flex-shrink-0">
+                    <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_preset') }}</span>
+                    <div class="flex items-center gap-1">
+                        <select id="subtitlePresetSelect" onchange="applySubtitlePreset(this.value)"
+                            class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-28 focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer">
+                            <option value="">{{ t('opt_select') }}</option>
+                        </select>
+                        <button onclick="deleteCurrentSubtitlePreset()"
+                            class="p-1 text-gray-400 hover:text-red-500 transition-colors" title="{{ t('title_delete_preset') }}">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+                                </path>
+                            </svg>
+                        </button>
                     </div>
-                </label>
-                <div class="flex flex-col items-center gap-0.5">
-                    <input type="color" id="bgColorInput" value="#000000"
-                        class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer"
-                        title="{{ t('label_bg_color') }}">
-                    <span class="text-[9px] text-gray-400">{{ t('label_bg_color') }}</span>
+                    <div class="flex items-center gap-1 ml-1 border-l border-gray-200 dark:border-gray-600 pl-2">
+                        <input type="text" id="newPresetName" placeholder="{{ t('placeholder_new_preset') }}"
+                            class="text-[11px] bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded px-1.5 py-1 w-20 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        <button onclick="saveCurrentAsPreset()"
+                            class="text-[11px] bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded transition-colors whitespace-nowrap font-bold">
+                            {{ t('btn_save') }}
+                        </button>
+                    </div>
                 </div>
-                <div class="flex items-center gap-1">
-                    <span class="text-[11px] text-gray-500 dark:text-gray-400">{{ t('label_opacity') }}</span>
-                    <input type="number" id="bgOpacityInput" value="0.5" min="0" max="1" step="0.1"
+
+                <!-- Font Settings -->
+                <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3 flex-shrink-0">
+                    <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_font') }}</span>
+                    <select id="fontFamilySelect"
+                        class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-28 focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer">
+                        <option value="GmarketSansBold" selected>G마켓 산스</option>
+                        <option value="TmonMonsori">티몬 몬소리</option>
+                        <option value="Jalnan">여기어때 잘난</option>
+                        <option value="Black Han Sans">검은고딕</option>
+                        <option value="Pretendard-Bold">프리텐다드</option>
+                        <option value="NanumSquareExtraBold">나눔스퀘어</option>
+                        <option value="Jua">배민 주아</option>
+                        <option value="Do Hyeon">배민 도현</option>
+                        <option value="CookieRun-Regular">쿠키런</option>
+                        <option value="BinggraeMelona-Bold">빙그레</option>
+                        <option value="NetmarbleB">넷마블</option>
+                        <option value="ChosunIlboMyungjo">조선일보 명조</option>
+                        <option value="MapoFlowerIsland">마포 꽃섬</option>
+                        <option value="S-CoreDream-6Bold">에스코어 드림</option>
+                        <option value="Gungsuh">궁서체</option>
+                        <option value="NanumMyeongjo">나눔명조</option>
+                        <option value="Malgun Gothic">맑은 고딕</option>
+                    </select>
+                    <!-- 폰트 크기 -->
+                    <div class="flex items-center gap-1">
+                        <span class="text-[11px] text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_size_percent') }}</span>
+                        <input type="number" id="fontSizeSlider" value="5.4" min="1" max="20" step="0.1"
+                            class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-14 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                            title="{{ t('label_size_percent') }} (%)">
+                        <span class="text-[11px] text-gray-400">%</span>
+                        <span id="fontSizeValue" class="hidden">5.4%</span>
+                    </div>
+                    <!-- 줄간격 -->
+                    <div class="flex items-center gap-1">
+                        <span class="text-[11px] text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_line_spacing') }}</span>
+                        <input type="number" id="lineSpacingInput" value="0.1" min="-0.5" max="1.5" step="0.05"
+                            class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-14 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                            title="{{ t('label_line_spacing_ratio') }}">
+                    </div>
+                </div>
+
+                <!-- Color Settings -->
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <div class="flex flex-col items-center gap-0.5">
+                        <input type="color" id="textColorInput" value="#ffffff"
+                            class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer"
+                            title="{{ t('label_text_color') }}">
+                        <span class="text-[9px] text-gray-400">{{ t('label_text_color') }}</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-0.5">
+                        <input type="color" id="strokeColorInput" value="#000000"
+                            class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer"
+                            title="{{ t('label_stroke_color') }}">
+                        <span class="text-[9px] text-gray-400">{{ t('label_stroke_color') }}</span>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Row 2: 테두리 / 배경띠 / Action Buttons -->
+            <div class="flex items-center gap-2 flex-nowrap overflow-x-auto overflow-y-hidden py-0.5 border-t border-gray-100 dark:border-gray-700 pt-1">
+
+                <!-- 테두리 (Stroke Width) -->
+                <div class="flex items-center gap-1.5 border-r border-gray-200 dark:border-gray-600 pr-3 flex-shrink-0">
+                    <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">테두리</span>
+                    <input type="number" id="strokeWidthInput" value="0" min="0" max="15" step="0.5"
                         class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-12 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                        title="{{ t('label_opacity') }} (0~1)">
+                        title="테두리 두께 (px)">
+                    <span class="text-[11px] text-gray-400">px</span>
+                    <!-- 자막 세로 위치 조절 스피너 -->
+                    <div class="flex flex-col items-center gap-0.5">
+                        <button onclick="adjustSubtitlePosY(-1)"
+                            class="w-6 h-4 flex items-center justify-center rounded-sm bg-gray-500 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-500 text-white text-[10px] leading-none">▲</button>
+                        <span id="posYDisplay" class="text-[10px] text-gray-500 dark:text-gray-400 font-mono w-6 text-center leading-none">5</span>
+                        <button onclick="adjustSubtitlePosY(1)"
+                            class="w-6 h-4 flex items-center justify-center rounded-sm bg-gray-500 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-500 text-white text-[10px] leading-none">▼</button>
+                    </div>
                 </div>
-                <div
-                    class="flex items-center gap-1 bg-gray-50 dark:bg-gray-800 px-1 rounded-md border border-gray-200 dark:border-gray-700">
-                    <span class="text-[10px] text-gray-400" title="배경띠 위아래 미세 위치 조정">↕</span>
-                    <input type="number" id="bgVOffsetInput" value="0" step="1"
-                        class="text-[11px] text-gray-800 dark:text-gray-100 bg-transparent border-0 p-0 w-8 text-center focus:ring-0"
-                        title="배경띠 미세 위치 (px)">
+
+                <!-- Background Strip Settings -->
+                <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3 flex-shrink-0">
+                    <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_bg_strip') }}</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="bgStripToggle" class="sr-only peer" onchange="updateBgStrip(this)">
+                        <div
+                            class="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600">
+                        </div>
+                    </label>
+                    <div class="flex flex-col items-center gap-0.5">
+                        <input type="color" id="bgColorInput" value="#000000"
+                            class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer"
+                            title="{{ t('label_bg_color') }}">
+                        <span class="text-[9px] text-gray-400">{{ t('label_bg_color') }}</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <span class="text-[11px] text-gray-500 dark:text-gray-400">{{ t('label_opacity') }}</span>
+                        <input type="number" id="bgOpacityInput" value="0.5" min="0" max="1" step="0.1"
+                            class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-12 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                            title="{{ t('label_opacity') }} (0~1)">
+                    </div>
+                    <div
+                        class="flex items-center gap-1 bg-gray-50 dark:bg-gray-800 px-1 rounded-md border border-gray-200 dark:border-gray-700">
+                        <span class="text-[10px] text-gray-400" title="배경띠 위아래 미세 위치 조정">↕</span>
+                        <input type="number" id="bgVOffsetInput" value="0" step="1"
+                            class="text-[11px] text-gray-800 dark:text-gray-100 bg-transparent border-0 p-0 w-8 text-center focus:ring-0"
+                            title="배경띠 미세 위치 (px)">
+                    </div>
                 </div>
-            </div>
 
-            <!-- Presets -->
-            <div class="flex items-center gap-1 border-r border-gray-200 dark:border-gray-600 pr-3">
-                <button onclick="applyPreset('basic_white')"
-                    class="w-6 h-6 bg-white border-2 border-gray-300 rounded-md text-[11px] font-bold text-gray-800 flex items-center justify-center shadow-sm hover:border-gray-400 transition-colors"
-                    title="{{ t('label_white') }}">A</button>
-                <button onclick="applyPreset('basic_black')"
-                    class="w-6 h-6 bg-gray-900 border-2 border-gray-600 rounded-md text-[11px] font-bold text-white flex items-center justify-center shadow-sm hover:border-gray-400 transition-colors"
-                    title="{{ t('label_black') }}">A</button>
-                <button onclick="applyPreset('yellow_shadow')"
-                    class="w-6 h-6 bg-yellow-400 border-2 border-yellow-500 rounded-md text-[11px] font-bold text-gray-900 flex items-center justify-center shadow-sm hover:border-yellow-600 transition-colors"
-                    title="{{ t('label_yellow') }}">A</button>
-            </div>
-
-            <div class="flex-1"></div>
-
-            <!-- Actions — 모두 동일한 베이스 스타일 -->
-            <div
-                class="flex items-center gap-1.5 text-xs font-bold CustomScroll flex-nowrap overflow-x-auto overflow-y-hidden py-1">
+                <!-- 구분선 -->
+                <div class="h-5 w-px bg-gray-300 dark:bg-gray-600 flex-shrink-0"></div>
                 <button onclick="resetAndReload(this)"
                     class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-gray-500 hover:bg-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 text-white disabled:opacity-50 flex-shrink-0">
                     {{ t('btn_reset_reload') }}
@@ -361,13 +351,14 @@
                 </button>
                 <button id="renderBtn" onclick="renderVideoInPlace()"
                     class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-purple-600 hover:bg-purple-700 text-white shadow-sm shadow-purple-600/30 animate-pulse-slow disabled:opacity-50 flex-shrink-0">
-                    {{ t('btn_render_video') }}
+                    렌더링
                 </button>
                 <button id="renderQueueBtn" onclick="addToRenderQueue()"
                     class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-gray-600 hover:bg-gray-700 text-white shadow-sm disabled:opacity-50 flex-shrink-0">
                     {{ t('btn_render_queue') }}
                 </button>
             </div>
+
         </div>
 
         <!-- Left Panel: Subtitle List -->

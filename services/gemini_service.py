@@ -16,10 +16,15 @@ import google.generativeai as genai
 from config import config
 from services.prompts import prompts
 
+from google import genai
+from google.genai import types
+
 
 class GeminiService:
     def __init__(self):
         self.base_url = "https://generativelanguage.googleapis.com/v1beta"
+        # [NEW] Initialize the modern client
+        self.client = genai.Client(api_key=config.GEMINI_API_KEY)
 
     @property
     def api_key(self):
@@ -429,42 +434,36 @@ class GeminiService:
             "more than 2 arms, more than 10 fingers, worst quality, low quality"
         )
 
-        # 1. 최우선 순위: 나노바나나 2.0 (Gemini 3.1 Flash Live)
+        # 1. 최우선 순위: 나노바나나 2.0 (Gemini 3.1 Flash Image Preview)
         try:
-            print(f"🎨 [Gemini Image] Trying Nano Banana 2.0 (gemini-3.1-flash-live-preview)")
-            genai.configure(api_key=self.api_key)
-            # v1beta 모델명 사용 (이미지 전용 나노바나나 2 모델)
-            model = genai.GenerativeModel("gemini-3.1-flash-image-preview")
+            print(f"🎨 [Gemini Image] Trying Nano Banana 2.0 (gemini-3.1-flash-image-preview)")
             
-            # SDK 동기 함수를 비동기 루프에서 실행 (또는 generate_content_async 사용)
-            # 0.8.6+ 버전은 generate_content_async 지원
-            response = await model.generate_content_async(
-                final_prompt,
-                generation_config={
-                    "candidate_count": num_images,
-                    "aspect_ratio": aspect_ratio,
-                }
+            # [FIX] Use the MODERN async SDK (client.aio) for non-blocking performance
+            response = await self.client.aio.models.generate_content(
+                model="gemini-3.1-flash-image-preview",
+                contents=final_prompt,
+                config=types.GenerateContentConfig(
+                    response_modalities=["IMAGE"],
+                    candidate_count=num_images,
+                    image_config=types.ImageConfig(
+                        aspect_ratio=aspect_ratio if aspect_ratio in ["1:1", "16:9", "9:16", "3:4", "4:3"] else "16:9"
+                    )
+                )
             )
             
             images = []
-            # SDK 응답에서 이미지 추출 (사용자 가이드 및 최신 API 사양 반영)
-            if hasattr(response, 'generated_images'):
-                for gen_img in response.generated_images:
-                    images.append(gen_img.image.data)
-            
-            # 만약 generated_images가 없으면 parts에서 직접 찾기 (예비)
-            if not images and response.candidates:
+            if response.candidates:
                 for candidate in response.candidates:
                     for part in candidate.content.parts:
-                        if hasattr(part, 'inline_data'):
+                        if part.inline_data:
                             images.append(part.inline_data.data)
             
             if images:
-                print(f"✅ [Gemini Image] Nano Banana 2 succeeded, {len(images)} image(s)")
+                print(f"✅ [Gemini Image] Nano Banana 2.0 succeeded via google-genai (Async), {len(images)} image(s)")
                 return images
                 
         except Exception as e:
-            print(f"⚠️ [Gemini Image] Nano Banana 2.0 failed: {e}. Falling back to Imagen...")
+            print(f"⚠️ [Gemini Image] Nano Banana 2.0 failed (Async): {e}. Falling back to legacy Imagen chain...")
 
         # 2. 폴백: 기존 Imagen 모델 체인
         payload = {
@@ -515,7 +514,7 @@ class GeminiService:
         image_path: Optional[str] = None,
         duration_seconds: int = 5, 
         aspect_ratio: str = "16:9",
-        model: str = "veo-3.1-generate-preview",
+        model: str = "veo-3.1-fast-generate-preview",
         **kwargs
     ) -> Optional[bytes]:
         """영상 생성 (Veo) - 최신 SDK 방식 사용. 바이트 데이터를 직접 반환함."""
@@ -1772,7 +1771,7 @@ Motion prompt for this image:"""
         except Exception:
             return "nature calm loop" # Fallback
 
-    async def generate_video_preview(self, prompt: str, image_path: Optional[str] = None, model: str = "veo-3.1-generate-preview", aspect_ratio: str = "16:9") -> dict:
+    async def generate_video_preview(self, prompt: str, image_path: Optional[str] = None, model: str = "veo-3.1-fast-generate-preview", aspect_ratio: str = "16:9") -> dict:
         """Gemini Veo를 사용한 비디오 생성 (동기 SDK를 스레드에서 실행)"""
         if not self.api_key:
             return {"status": "error", "error": "API Key is missing"}
@@ -1783,10 +1782,10 @@ Motion prompt for this image:"""
         def _run_sync():
             import time
             try:
-                from google import genai
-                client = genai.Client(api_key=api_key)
+                # [FIX] Use the class-level client instead of creating a new one
+                client = self.client
 
-                self.log_debug(f"🎬 [Veo] SDK Client created. Model={model}")
+                self.log_debug(f"🎬 [Veo] Using class-level SDK Client. Model={model}")
                 
                 # Image-to-Video 처리
                 image_arg = None
