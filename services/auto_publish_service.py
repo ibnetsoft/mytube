@@ -101,8 +101,9 @@ class AutoPublishService:
                 except Exception as e:
                     print(f"[Error] Failed to publish video {video_id}: {e}")
 
-        except Exception as e:
-            print(f"[Error] Failed to connect to Central Server: {e}")
+        except Exception:
+            # Silence connection errors to central server (port 3000) to keep logs clean
+            pass
 
 # Singleton
 auto_publish_service = AutoPublishService()
