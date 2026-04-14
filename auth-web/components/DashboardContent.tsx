@@ -18,8 +18,10 @@ interface UserProfile {
 
 interface ApiKeyState {
     gemini: string
-    openai: string
-    pexels: string
+    youtube: string
+    elevenlabs: string
+    topview: string
+    topview_uid: string
 }
 
 const ADMIN_EMAIL = 'ejsh0519@naver.com'
@@ -54,9 +56,11 @@ export default function DashboardContent() {
     const [searchQuery, setSearchQuery] = useState('')
     const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null)
     const [copied, setCopied] = useState(false)
-    const [apiKeys, setApiKeys] = useState<ApiKeyState>({ gemini: '', openai: '', pexels: '' })
+    const [apiKeys, setApiKeys] = useState<ApiKeyState>({ gemini: '', youtube: '', elevenlabs: '', topview: '', topview_uid: '' })
     const [apiSaved, setApiSaved] = useState(false)
     const [showApiPanel, setShowApiPanel] = useState(false)
+    const [userApiKeys, setUserApiKeys] = useState<ApiKeyState>({ gemini: '', youtube: '', elevenlabs: '', topview: '', topview_uid: '' })
+    const [savingUserApi, setSavingUserApi] = useState(false)
     const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'api'>('overview')
 
     // ─── Auth Check ──────────────────────────────────────────
@@ -110,8 +114,10 @@ export default function DashboardContent() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         gemini_api_key: apiKeys.gemini,
-                        openai_api_key: apiKeys.openai,
-                        pexels_api_key: apiKeys.pexels,
+                        youtube_api_key: apiKeys.youtube,
+                        elevenlabs_api_key: apiKeys.elevenlabs,
+                        topview_api_key: apiKeys.topview,
+                        topview_uid: apiKeys.topview_uid,
                     })
                 })
             } catch (localErr) {
@@ -412,6 +418,23 @@ export default function DashboardContent() {
                                                     </div>
                                                     <div className="flex items-end gap-2">
                                                         <button
+                                                            onClick={e => {
+                                                                e.stopPropagation();
+                                                                // Load existing keys (mock for now or from metadata)
+                                                                setUserApiKeys({
+                                                                    gemini: u.user_metadata?.gemini_api_key || '',
+                                                                    youtube: u.user_metadata?.youtube_api_key || '',
+                                                                    elevenlabs: u.user_metadata?.elevenlabs_api_key || '',
+                                                                    topview: u.user_metadata?.topview_api_key || '',
+                                                                    topview_uid: u.user_metadata?.topview_uid || '',
+                                                                });
+                                                                setShowApiPanel(!showApiPanel);
+                                                            }}
+                                                            className="px-3 py-2 text-xs bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 rounded-lg font-bold transition-all"
+                                                        >
+                                                            🔑 API 관리
+                                                        </button>
+                                                        <button
                                                             onClick={e => e.stopPropagation()}
                                                             className="px-3 py-2 text-xs bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20 rounded-lg font-bold transition-all"
                                                         >
@@ -424,6 +447,55 @@ export default function DashboardContent() {
                                                             🚫 차단
                                                         </button>
                                                     </div>
+
+                                                    {/* User-Specific API Edit Panel */}
+                                                    {showApiPanel && (
+                                                        <div className="col-span-12 mt-4 pt-4 border-t border-white/5 space-y-4">
+                                                            <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">이 유저 전용 API 키 설정</p>
+                                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                                {([
+                                                                    { label: '✨ Gemini API Key', key: 'gemini' as const },
+                                                                    { label: '▶️ YouTube Data API Key', key: 'youtube' as const },
+                                                                    { label: '🎙️ ElevenLabs API Key', key: 'elevenlabs' as const },
+                                                                    { label: '🛒 TopView API Key', key: 'topview' as const },
+                                                                    { label: '🛒 TopView UID', key: 'topview_uid' as const },
+                                                                ]).map(({ label, key }) => (
+                                                                    <div key={key}>
+                                                                        <label className="text-[9px] text-gray-500 block mb-1">{label}</label>
+                                                                        <input
+                                                                            type="password"
+                                                                            value={userApiKeys[key]}
+                                                                            onChange={e => setUserApiKeys({ ...userApiKeys, [key]: e.target.value })}
+                                                                            className="w-full px-3 py-2 bg-black/50 border border-white/10 rounded-lg text-xs font-mono text-blue-300 focus:outline-none focus:border-blue-500/50"
+                                                                            placeholder="Key 입력..."
+                                                                        />
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                            <div className="flex justify-end">
+                                                                <button
+                                                                    onClick={async (e) => {
+                                                                        e.stopPropagation();
+                                                                        setSavingUserApi(true);
+                                                                        try {
+                                                                            const res = await fetch(`/api/admin/users/${u.id}/settings`, {
+                                                                                method: 'POST',
+                                                                                headers: { 'Content-Type': 'application/json' },
+                                                                                body: JSON.stringify(userApiKeys)
+                                                                            });
+                                                                            if (res.ok) alert('저장되었습니다.');
+                                                                            else alert('저장 실패');
+                                                                        } catch (err) { console.error(err); }
+                                                                        setSavingUserApi(false);
+                                                                    }}
+                                                                    disabled={savingUserApi}
+                                                                    className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+                                                                >
+                                                                    {savingUserApi ? '저장 중...' : '해당 유저 키 업데이트'}
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
@@ -444,9 +516,11 @@ export default function DashboardContent() {
                             </div>
 
                             {[
-                                { label: 'Google Gemini API Key', key: 'gemini' as const, icon: '✦', placeholder: 'AIza...' },
-                                { label: 'OpenAI API Key', key: 'openai' as const, icon: '🤖', placeholder: 'sk-...' },
-                                { label: 'Pexels API Key', key: 'pexels' as const, icon: '📸', placeholder: 'pexels-...' },
+                                { label: 'Google Gemini API Key', key: 'gemini' as const, icon: '✨', placeholder: 'AIza...' },
+                                { label: 'YouTube Data API Key', key: 'youtube' as const, icon: '▶️', placeholder: 'AIza...' },
+                                { label: 'ElevenLabs API Key', key: 'elevenlabs' as const, icon: '🎙️', placeholder: 'sk_...' },
+                                { label: 'TopView API Key', key: 'topview' as const, icon: '🛒', placeholder: 'topview-...' },
+                                { label: 'TopView UID', key: 'topview_uid' as const, icon: '🛒', placeholder: 'uid-...' },
                             ].map(({ label, key, icon, placeholder }) => (
                                 <div key={key} className="border border-white/5 rounded-2xl p-5 hover:border-blue-500/20 transition-all">
                                     <div className="flex items-center gap-2 mb-3">
