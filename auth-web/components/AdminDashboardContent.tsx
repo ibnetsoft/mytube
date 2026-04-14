@@ -12,6 +12,26 @@ const ADMIN_EMAILS = ['ejsh0519@naver.com']
 
 type Tab = 'users' | 'queue'
 
+type ApiKeySet = {
+    gemini: string
+    youtube: string
+    elevenlabs: string
+    topview: string
+    topview_uid: string
+}
+
+const EMPTY_KEYS: ApiKeySet = {
+    gemini: '', youtube: '', elevenlabs: '', topview: '', topview_uid: ''
+}
+
+const KEY_LABELS: Record<keyof ApiKeySet, string> = {
+    gemini: '✨ Gemini API Key',
+    youtube: '▶️ YouTube Data API Key',
+    elevenlabs: '🎙️ ElevenLabs API Key',
+    topview: '🛒 TopView API Key',
+    topview_uid: '🛒 TopView UID',
+}
+
 export default function AdminDashboardContent() {
     const router = useRouter()
     const { t } = useLanguage()
@@ -21,17 +41,12 @@ export default function AdminDashboardContent() {
     const [loading, setLoading] = useState(true)
     const [isAdmin, setIsAdmin] = useState(false)
     const [activeTab, setActiveTab] = useState<Tab>('users')
+    const [selectedUser, setSelectedUser] = useState<any | null>(null)
+    const [apiKeys, setApiKeys] = useState<ApiKeySet>(EMPTY_KEYS)
+    const [savingKeys, setSavingKeys] = useState(false)
+    const [keysSaved, setKeysSaved] = useState(false)
 
     useEffect(() => {
-        const initAuth = async () => {
-            const { data: { session } } = await supabase.auth.getSession()
-            handleAuth(session)
-        }
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            handleAuth(session)
-        })
-
         const handleAuth = (session: any) => {
             if (!session?.user) {
                 setLoading(false)
@@ -48,6 +63,21 @@ export default function AdminDashboardContent() {
                 setLoading(false)
             }
         }
+
+        const initAuth = async () => {
+            try {
+                const { data: { session } } = await supabase.auth.getSession()
+                handleAuth(session)
+            } catch (e) {
+                console.error('Auth init failed:', e)
+                setLoading(false)
+                setIsAdmin(false)
+            }
+        }
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            handleAuth(session)
+        })
 
         initAuth()
         return () => subscription.unsubscribe()
@@ -102,6 +132,53 @@ export default function AdminDashboardContent() {
         }
     }
 
+    const openUserPanel = (user: any) => {
+        setSelectedUser(user)
+        setKeysSaved(false)
+        // Load existing keys from user_metadata
+        const meta = user.user_metadata || {}
+        setApiKeys({
+            gemini: meta.gemini_api_key || '',
+            youtube: meta.youtube_api_key || '',
+            elevenlabs: meta.elevenlabs_api_key || '',
+            topview: meta.topview_api_key || '',
+            topview_uid: meta.topview_uid || '',
+        })
+    }
+
+    const saveUserApiKeys = async () => {
+        if (!selectedUser) return
+        setSavingKeys(true)
+        setKeysSaved(false)
+        try {
+            const res = await fetch(`/api/admin/users/${selectedUser.id}/settings`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(apiKeys)
+            })
+            if (res.ok) {
+                setKeysSaved(true)
+                // Update local state so re-open shows latest values
+                setUsers(users.map(u =>
+                    u.id === selectedUser.id
+                        ? { ...u, user_metadata: {
+                            ...(u.user_metadata || {}),
+                            gemini_api_key: apiKeys.gemini,
+                            youtube_api_key: apiKeys.youtube,
+                            elevenlabs_api_key: apiKeys.elevenlabs,
+                            topview_api_key: apiKeys.topview,
+                            topview_uid: apiKeys.topview_uid,
+                        }}
+                        : u
+                ))
+            }
+        } catch (e) {
+            console.error('API 키 저장 실패', e)
+        } finally {
+            setSavingKeys(false)
+        }
+    }
+
     const updateRequestStatus = async (requestId: string, status: string) => {
         try {
             const res = await fetch('/api/admin/publishing', {
@@ -149,6 +226,64 @@ export default function AdminDashboardContent() {
 
     return (
         <div className="min-h-screen bg-gray-950 text-white p-8 font-sans">
+            {/* User API Key Panel (Side Drawer) */}
+            {selectedUser && (
+                <div className="fixed inset-0 z-50 flex">
+                    {/* Backdrop */}
+                    <div className="flex-1 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedUser(null)} />
+                    {/* Drawer */}
+                    <div className="w-full max-w-md bg-gray-900 border-l border-white/10 shadow-2xl flex flex-col overflow-y-auto">
+                        <div className="p-6 border-b border-white/10 flex justify-between items-start">
+                            <div>
+                                <h3 className="font-black text-lg text-white">🔑 API 키 관리</h3>
+                                <p className="text-xs text-gray-400 mt-1 break-all">{selectedUser.email}</p>
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-black uppercase mt-1 inline-block ${selectedUser.app_metadata?.membership === 'independent' ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                                    {selectedUser.app_metadata?.membership || 'standard'}
+                                </span>
+                            </div>
+                            <button onClick={() => setSelectedUser(null)} className="text-gray-500 hover:text-white text-xl leading-none">✕</button>
+                        </div>
+
+                        <div className="p-6 flex-1 space-y-4">
+                            <p className="text-xs text-gray-500 leading-relaxed">
+                                아래 키를 입력하면 해당 유저의 로컬 앱에서 Supabase 인증 후 자동으로 사용됩니다.
+                                빈 칸으로 저장하면 해당 키가 제거됩니다.
+                            </p>
+
+                            {(Object.keys(EMPTY_KEYS) as (keyof ApiKeySet)[]).map(key => (
+                                <div key={key}>
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">
+                                        {KEY_LABELS[key]}
+                                    </label>
+                                    <input
+                                        type="password"
+                                        value={apiKeys[key]}
+                                        onChange={e => setApiKeys(prev => ({ ...prev, [key]: e.target.value }))}
+                                        onFocus={e => (e.target as HTMLInputElement).type = 'text'}
+                                        onBlur={e => (e.target as HTMLInputElement).type = 'password'}
+                                        placeholder={apiKeys[key] ? '••••••••••••' : '(미설정)'}
+                                        className="w-full bg-black/40 border border-white/10 text-xs px-4 py-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300 placeholder:text-gray-700"
+                                    />
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="p-6 border-t border-white/10">
+                            {keysSaved && (
+                                <p className="text-xs text-green-400 font-bold mb-3 text-center">✅ 저장 완료</p>
+                            )}
+                            <button
+                                onClick={saveUserApiKeys}
+                                disabled={savingKeys}
+                                className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-black rounded-2xl transition-all text-sm"
+                            >
+                                {savingKeys ? '저장 중...' : '💾 키 저장하기'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="max-w-7xl mx-auto">
                 <div className="flex justify-between items-center mb-10">
                     <h1 className="text-3xl font-black bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent flex items-center gap-3 italic">
@@ -208,7 +343,7 @@ export default function AdminDashboardContent() {
                                 </thead>
                                 <tbody className="divide-y divide-white/5 font-medium">
                                     {users.map((user) => (
-                                        <tr key={user.id} className="hover:bg-white/5 transition-all h-24">
+                                        <tr key={user.id} className="hover:bg-white/5 transition-all h-24 cursor-pointer" onClick={() => openUserPanel(user)}>
                                             <td className="px-10 py-4">
                                                 <div className="font-bold text-white text-base tracking-tight">{user.email}</div>
                                                 <div className="text-[10px] text-gray-600 font-mono mt-1 opacity-70 tracking-tighter truncate max-w-[200px]">{user.id}</div>

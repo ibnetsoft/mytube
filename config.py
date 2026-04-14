@@ -97,6 +97,25 @@ class Config:
         return True
 
     @classmethod
+    def load_remote_keys(cls, keys: dict):
+        """Supabase에서 받은 API 키를 메모리에만 올림 (파일 저장 없음).
+        로컬 앱 재시작 시 Supabase에서 다시 받아오므로 로컬 저장 불필요."""
+        valid_keys = {
+            'GEMINI_API_KEY', 'YOUTUBE_API_KEY',
+            'ELEVENLABS_API_KEY', 'TOPVIEW_API_KEY', 'TOPVIEW_UID',
+        }
+        loaded = []
+        for key_name, value in keys.items():
+            if key_name in valid_keys and value:
+                setattr(cls, key_name, value)
+                os.environ[key_name] = value   # 동일 프로세스 내 서브서비스도 참조 가능
+                loaded.append(key_name)
+        if loaded:
+            import logging
+            logging.getLogger(__name__).info(f"🔑 [Config] Supabase 원격 키 로드 완료: {loaded}")
+        return loaded
+
+    @classmethod
     def update_api_key(cls, key_name: str, value: str):
         """API 키 런타임 업데이트 및 .env 파일 저장"""
         valid_keys = [
