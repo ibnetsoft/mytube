@@ -93,6 +93,26 @@ export default function DashboardContent() {
         if (isAdmin && activeTab === 'users') fetchUsers()
     }, [isAdmin, activeTab, fetchUsers])
 
+    // API 탭 진입 시 기존 키 로드
+    useEffect(() => {
+        if (isAdmin && activeTab === 'api' && user?.id) {
+            fetch(`/api/admin/settings?userId=${user.id}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.error) {
+                        setApiKeys({
+                            gemini:      data.gemini_val      || '',
+                            youtube:     data.youtube_val     || '',
+                            elevenlabs:  data.elevenlabs_val  || '',
+                            topview:     data.topview_val     || '',
+                            topview_uid: data.topview_uid_val || '',
+                        })
+                    }
+                })
+                .catch(console.error)
+        }
+    }, [isAdmin, activeTab, user?.id])
+
     const handleSignOut = async () => {
         await supabase.auth.signOut()
         router.push('/')
@@ -124,11 +144,11 @@ export default function DashboardContent() {
                 console.warn('Local app sync failed (Is it running?):', localErr)
             }
 
-            // 2. Save to Dashboard Backend (Persistence)
+            // 2. Save to Supabase via admin settings API
             const res = await fetch('/api/admin/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(apiKeys)
+                body: JSON.stringify({ userId: user?.id, ...apiKeys })
             })
             
             if (res.ok) {
