@@ -437,7 +437,7 @@ class GeminiService:
         # 1. 최우선 순위: 나노바나나 2.0 (Gemini 3.1 Flash Image Preview)
         start_time = _time.time()
         try:
-            print(f"🎨 [Gemini Image] Trying Nano Banana 2.0 (gemini-3.1-flash-image-preview)")
+            self.log_debug(f"🎨 [Gemini Image] Trying Nano Banana 2.0 (gemini-3.1-flash-image-preview)")
             
             # [FIX] Use the MODERN async SDK (client.aio) for non-blocking performance
             response = await self.client.aio.models.generate_content(
@@ -459,15 +459,13 @@ class GeminiService:
                         if part.inline_data:
                             images.append(part.inline_data.data)
             
-            if images:
-                elapsed = _time.time() - start_time
-                print(f"✅ [Gemini Image] Nano Banana 2.0 succeeded via google-genai (Async), {len(images)} image(s)")
+                self.log_debug(f"✅ [Gemini Image] Nano Banana 2.0 succeeded via google-genai (Async), {len(images)} image(s)")
                 db.add_ai_log(None, 'image', 'gemini-3.1-flash-image-preview', 'google', 'success', prompt_summary=prompt[:100], elapsed_time=elapsed)
                 return images
                 
         except Exception as e:
             elapsed = _time.time() - start_time
-            print(f"⚠️ [Gemini Image] Nano Banana 2.0 failed (Async): {e}. Falling back to legacy Imagen chain...")
+            self.log_debug(f"⚠️ [Gemini Image] Nano Banana 2.0 failed (Async): {e}. Falling back to legacy Imagen chain...")
             db.add_ai_log(None, 'image', 'gemini-3.1-flash-image-preview', 'google', 'failed', prompt_summary=prompt[:100], error_msg=str(e), elapsed_time=elapsed)
 
         # 2. 폴백: 기존 Imagen 모델 체인
@@ -489,12 +487,12 @@ class GeminiService:
             start_time = _time.time()
             try:
                 url = f"{self.base_url}/models/{model_name}:predict?key={self.api_key}"
-                print(f"🎨 [Gemini Image] Trying model: {model_name}")
+                self.log_debug(f"🎨 [Gemini Image] Trying model: {model_name}")
                 async with httpx.AsyncClient(timeout=120.0) as client:
                     response = await client.post(url, json=payload)
                     elapsed = _time.time() - start_time
                     if response.status_code != 200:
-                        print(f"❌ [Gemini Image] {model_name} Error ({response.status_code}): {response.text[:200]}")
+                        self.log_debug(f"❌ [Gemini Image] {model_name} Error ({response.status_code}): {response.text[:200]}")
                         db.add_ai_log(None, 'image', model_name, 'google', 'failed', prompt_summary=prompt[:100], error_msg=f"HTTP {response.status_code}", elapsed_time=elapsed)
                         continue
                     result = response.json()
@@ -504,17 +502,17 @@ class GeminiService:
                             if "bytesBase64Encoded" in pred:
                                 images.append(base64.b64decode(pred["bytesBase64Encoded"]))
                     if images:
-                        print(f"✅ [Gemini Image] {model_name} succeeded, {len(images)} image(s)")
+                        self.log_debug(f"✅ [Gemini Image] {model_name} succeeded, {len(images)} image(s)")
                         db.add_ai_log(None, 'image', model_name, 'google', 'success', prompt_summary=prompt[:100], elapsed_time=elapsed)
                         return images
                     else:
                         err = result.get('error', {}).get('message', 'No image data')
-                        print(f"❌ [Gemini Image] {model_name}: {err}")
+                        self.log_debug(f"❌ [Gemini Image] {model_name}: {err}")
                         db.add_ai_log(None, 'image', model_name, 'google', 'failed', prompt_summary=prompt[:100], error_msg=err, elapsed_time=elapsed)
                         continue
             except Exception as e:
                 elapsed = _time.time() - start_time
-                print(f"❌ [Gemini Image] {model_name} exception: {e}")
+                self.log_debug(f"❌ [Gemini Image] {model_name} exception: {e}")
                 db.add_ai_log(None, 'image', model_name, 'google', 'failed', prompt_summary=prompt[:100], error_msg=str(e), elapsed_time=elapsed)
                 continue
 

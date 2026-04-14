@@ -177,6 +177,7 @@ async function loadStyles() {
                 if (firstKey) selectStyle('thumbnailStyle', firstKey);
             }
             // [FIX] Always show thumbnail style if not explicitly disabled
+            const ts = document.getElementById('thumbnailStyleSection');
             if (ts) ts.classList.remove('hidden');
         } catch (e) {
             console.error("Failed to load thumbnail styles:", e);
@@ -522,8 +523,9 @@ async function loadVoices() {
                 scriptSelect.appendChild(opt);
             });
 
+            const currentVal = scriptSelect.value;
             if (currentVal && data[currentVal]) scriptSelect.value = currentVal;
-            else if (Object.keys(data).length > 0) scriptSelect.value = Object.keys(data)[0];
+            else if (Object.keys(data).length > 0 && !scriptSelect.value) scriptSelect.value = Object.keys(data)[0];
 
         } catch (e) {
             console.error("Failed to load script styles:", e);

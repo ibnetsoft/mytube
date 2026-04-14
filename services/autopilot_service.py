@@ -2094,13 +2094,25 @@ JSON만 출력하세요:
         channel_id = p_settings.get("youtube_channel_id")
         if channel_id:
             try:
-                # get_channel must be implemented in database.py
                 channel = db.get_channel(channel_id)
                 if channel and channel.get("credentials_path"):
                     cand_path = channel["credentials_path"]
+                    # 상대 경로 지원
+                    if not os.path.isabs(cand_path):
+                        cand_path = os.path.join(config.BASE_DIR, cand_path)
+                    
                     if os.path.exists(cand_path):
                         token_path = cand_path
-                        print(f"🔑 [Upload] Using channel token: {channel.get('name')} ({token_path})")
+                    else:
+                        # [FIX] 복구 시도
+                        rec_filename = f"token_{channel_id}.pickle"
+                        rec_path = os.path.join(config.BASE_DIR, "tokens", rec_filename)
+                        if os.path.exists(rec_path):
+                            token_path = rec_path
+                            print(f"🔑 [Upload] Recovered token: {channel.get('name')} ({token_path})")
+
+                if token_path:
+                    print(f"🔑 [Upload] Using resolved token: {channel.get('name')} ({token_path})")
             except Exception as ce:
                 print(f"⚠️ [Upload] Failed to resolve channel {channel_id}: {ce}")
 

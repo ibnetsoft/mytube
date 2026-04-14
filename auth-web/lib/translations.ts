@@ -28,6 +28,12 @@ export interface Translation {
     guide3: string;
     version: string;
 
+    // New Dashboard fields
+    apiManagement?: string;
+    userName?: string;
+    startDate?: string;
+    update?: string;
+
     // Admin (optional but good to have)
     adminTitle: string;
     totalUsers: string;
@@ -85,6 +91,10 @@ export const translations: Record<Language, Translation> = {
         guide2: "다운로드한 PicadiriStudio.exe를 실행합니다.",
         guide3: "로그인 창에 복사한 키를 붙여넣으세요.",
         version: "최신 버전",
+        apiManagement: "API 관리",
+        userName: "사용자명",
+        startDate: "시작일",
+        update: "업데이트",
         adminTitle: "🛡️ 관리자 대시보드",
         totalUsers: "총 사용자",
         newUsers: "이번 달 가입",
@@ -139,6 +149,10 @@ export const translations: Record<Language, Translation> = {
         guide2: "Run the downloaded PicadiriStudio.exe.",
         guide3: "Paste the copied key into the login window.",
         version: "Latest Version",
+        apiManagement: "API Management",
+        userName: "User Name",
+        startDate: "Start Date",
+        update: "Update",
         adminTitle: "🛡️ Admin Dashboard",
         totalUsers: "Total Users",
         newUsers: "New This Month",
