@@ -3032,7 +3032,7 @@ def get_recent_projects(limit: int = 10) -> List[Dict]:
 
 
 def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status: str, prompt_summary: str = "", error_msg: str = "", elapsed_time: float = 0.0):
-    """AI 생성 로그 추가"""
+    """AI 생성 로그 추가 (로컬 DB + Supabase 원격 동기화)"""
     conn = get_db()
     cursor = conn.cursor()
     try:
@@ -3045,6 +3045,36 @@ def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status:
         print(f"[DB] Failed to add AI log: {e}")
     finally:
         conn.close()
+
+    # 백그라운드에서 Supabase 원격 동기화 (메인 스레드 블로킹 없음)
+    import threading
+    def _push_remote():
+        try:
+            import requests as _req, os as _os
+            license_path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "license.key")
+            if not _os.path.exists(license_path):
+                return
+            with open(license_path) as f:
+                user_id = f.read().strip()
+            if not user_id:
+                return
+            _req.post(
+                "https://mytube-ashy-seven.vercel.app/api/logs",
+                json={
+                    "userId": user_id,
+                    "task_type": task_type,
+                    "model_id": model_id,
+                    "provider": provider,
+                    "status": status,
+                    "prompt_summary": prompt_summary,
+                    "error_msg": error_msg,
+                    "elapsed_time": elapsed_time,
+                },
+                timeout=5
+            )
+        except Exception:
+            pass  # 원격 실패는 무시 (로컬 로그는 이미 저장됨)
+    threading.Thread(target=_push_remote, daemon=True).start()
 
 
 def get_ai_logs(limit: int = 100) -> List[Dict[str, Any]]:
@@ -3075,5 +3105,35 @@ def clear_ai_logs():
         conn.commit()
     except Exception as e:
         print(f"[DB] Failed to clear AI logs: {e}")
+    finally:
+        conn.close()
+
+
+
+def get_project_settings_by_youtube_id(youtube_video_id: str):
+    """유튜브 비디오 ID로 프로젝트 설정을 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT * FROM project_settings WHERE youtube_video_id = ?", (youtube_video_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except Exception as e:
+        print(f"[DB Error] get_project_settings_by_youtube_id: {e}")
+        return None
+    finally:
+        conn.close()
+
+def get_channel(channel_id: int):
+    """ID로 채널 정보를 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT * FROM channels WHERE id = ?", (channel_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except Exception as e:
+        print(f"[DB Error] get_channel: {e}")
+        return None
     finally:
         conn.close()

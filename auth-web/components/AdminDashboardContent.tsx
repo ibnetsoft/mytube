@@ -12,6 +12,18 @@ const ADMIN_EMAILS = ['ejsh0519@naver.com']
 
 type Tab = 'users' | 'queue'
 
+type AiLog = {
+    id: number
+    task_type: string
+    model_id: string
+    provider: string
+    status: string
+    prompt_summary: string
+    error_msg: string
+    elapsed_time: number
+    created_at: string
+}
+
 type ApiKeySet = {
     gemini: string
     youtube: string
@@ -45,6 +57,9 @@ export default function AdminDashboardContent() {
     const [apiKeys, setApiKeys] = useState<ApiKeySet>(EMPTY_KEYS)
     const [savingKeys, setSavingKeys] = useState(false)
     const [keysSaved, setKeysSaved] = useState(false)
+    const [logUser, setLogUser] = useState<any | null>(null)
+    const [logs, setLogs] = useState<AiLog[]>([])
+    const [logsLoading, setLogsLoading] = useState(false)
 
     useEffect(() => {
         const handleAuth = (session: any) => {
@@ -195,6 +210,22 @@ export default function AdminDashboardContent() {
         }
     }
 
+    const openLogViewer = async (user: any, e: React.MouseEvent) => {
+        e.stopPropagation()
+        setLogUser(user)
+        setLogs([])
+        setLogsLoading(true)
+        try {
+            const res = await fetch(`/api/admin/users/${user.id}/logs`)
+            const data = await res.json()
+            setLogs(data.logs || [])
+        } catch (e) {
+            console.error('로그 로딩 실패', e)
+        } finally {
+            setLogsLoading(false)
+        }
+    }
+
     const formatDate = (dateStr: string | null) => {
         if (!dateStr) return '-'
         const d = new Date(dateStr)
@@ -226,6 +257,111 @@ export default function AdminDashboardContent() {
 
     return (
         <div className="min-h-screen bg-gray-950 text-white p-8 font-sans">
+            {/* Log Viewer Modal */}
+            {logUser && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setLogUser(null)} />
+                    <div className="relative w-full max-w-5xl bg-gray-900 border border-white/10 rounded-3xl shadow-2xl flex flex-col max-h-[85vh]">
+                        {/* Header */}
+                        <div className="p-6 border-b border-white/10 flex justify-between items-center flex-shrink-0">
+                            <div>
+                                <h3 className="font-black text-lg text-white flex items-center gap-2">
+                                    📊 AI 생성 로그
+                                </h3>
+                                <p className="text-xs text-gray-400 mt-1">{logUser.email}</p>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                {/* Stats */}
+                                {!logsLoading && logs.length > 0 && (
+                                    <div className="flex gap-3 text-[10px] font-black">
+                                        <span className="bg-white/5 px-3 py-1.5 rounded-xl">
+                                            TOTAL <span className="text-white ml-1">{logs.length}</span>
+                                        </span>
+                                        <span className="bg-green-500/10 text-green-400 px-3 py-1.5 rounded-xl">
+                                            SUCCESS <span className="ml-1">{logs.filter(l => l.status === 'success').length}</span>
+                                        </span>
+                                        <span className="bg-red-500/10 text-red-400 px-3 py-1.5 rounded-xl">
+                                            FAILED <span className="ml-1">{logs.filter(l => l.status === 'failed').length}</span>
+                                        </span>
+                                        <span className="bg-blue-500/10 text-blue-400 px-3 py-1.5 rounded-xl">
+                                            AVG {(logs.reduce((a, l) => a + (l.elapsed_time || 0), 0) / logs.length).toFixed(1)}s
+                                        </span>
+                                    </div>
+                                )}
+                                <button onClick={() => setLogUser(null)} className="text-gray-500 hover:text-white text-xl leading-none">✕</button>
+                            </div>
+                        </div>
+                        {/* Table */}
+                        <div className="overflow-y-auto flex-1">
+                            {logsLoading ? (
+                                <div className="flex items-center justify-center py-24 text-gray-500 font-black text-xs uppercase tracking-widest animate-pulse">
+                                    로딩 중...
+                                </div>
+                            ) : logs.length === 0 ? (
+                                <div className="flex items-center justify-center py-24 text-gray-600 font-black text-xs uppercase tracking-widest">
+                                    로그 없음 — 아직 생성 기록이 없습니다
+                                </div>
+                            ) : (
+                                <table className="w-full text-left text-xs">
+                                    <thead className="bg-black/40 text-gray-500 font-black uppercase tracking-widest sticky top-0">
+                                        <tr>
+                                            <th className="px-6 py-3">TIME</th>
+                                            <th className="px-6 py-3">TASK</th>
+                                            <th className="px-6 py-3">MODEL</th>
+                                            <th className="px-6 py-3">PROMPT SUMMARY</th>
+                                            <th className="px-6 py-3 text-right">DURATION</th>
+                                            <th className="px-6 py-3 text-center">STATUS</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {logs.map(log => {
+                                            const d = new Date(log.created_at)
+                                            const timeStr = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`
+                                            const dateStr = `${String(d.getMonth()+1).padStart(2,'0')}. ${String(d.getDate()).padStart(2,'0')}.`
+                                            return (
+                                                <tr key={log.id} className="hover:bg-white/5 transition-all">
+                                                    <td className="px-6 py-3 font-mono text-gray-400 whitespace-nowrap">
+                                                        <div className="font-bold text-white">{timeStr}</div>
+                                                        <div className="text-[10px] text-gray-600">{dateStr}</div>
+                                                    </td>
+                                                    <td className="px-6 py-3">
+                                                        <span className={`px-2 py-1 rounded-lg font-black uppercase text-[10px] ${log.task_type === 'image' ? 'bg-pink-500/15 text-pink-400' : log.task_type === 'video' ? 'bg-purple-500/15 text-purple-400' : 'bg-blue-500/15 text-blue-400'}`}>
+                                                            {log.task_type}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-3 font-mono text-gray-300 whitespace-nowrap">
+                                                        <div className="text-[11px] font-bold">{log.model_id}</div>
+                                                        <div className="text-[9px] text-gray-600 uppercase">{log.provider}</div>
+                                                    </td>
+                                                    <td className="px-6 py-3 text-gray-400 max-w-xs truncate italic">
+                                                        &ldquo;{log.prompt_summary}&rdquo;
+                                                        {log.status === 'failed' && log.error_msg && (
+                                                            <div className="text-red-400 text-[10px] mt-0.5 not-italic truncate">{log.error_msg}</div>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-3 text-right font-mono font-bold whitespace-nowrap">
+                                                        <span className={log.elapsed_time > 20 ? 'text-orange-400' : 'text-gray-300'}>
+                                                            {log.elapsed_time?.toFixed(1)}s
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-3 text-center">
+                                                        {log.status === 'success' ? (
+                                                            <span className="bg-green-500/15 text-green-400 border border-green-500/20 px-3 py-1 rounded-full font-black text-[10px] uppercase">SUCCESS</span>
+                                                        ) : (
+                                                            <span className="bg-red-500/15 text-red-400 border border-red-500/20 px-3 py-1 rounded-full font-black text-[10px] uppercase">FAILED</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            )
+                                        })}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* User API Key Panel (Side Drawer) */}
             {selectedUser && (
                 <div className="fixed inset-0 z-50 flex">
@@ -370,7 +506,13 @@ export default function AdminDashboardContent() {
                                                 </div>
                                             </td>
                                             <td className="px-10 py-4 text-center">
-                                                <div className="flex justify-center gap-3">
+                                                <div className="flex justify-center gap-2">
+                                                    <button
+                                                        onClick={(e) => openLogViewer(user, e)}
+                                                        className="text-blue-400/80 hover:text-blue-300 hover:bg-blue-500/10 text-[10px] border border-blue-500/20 px-3 py-2 rounded-xl transition-all font-black uppercase tracking-tighter"
+                                                    >
+                                                        📊 로그
+                                                    </button>
                                                     <button className="text-red-500/80 hover:text-red-400 hover:bg-red-500/10 text-[10px] border border-red-500/20 px-3 py-2 rounded-xl transition-all font-black uppercase tracking-tighter">
                                                         {t.ban}
                                                     </button>
