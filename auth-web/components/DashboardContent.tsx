@@ -62,6 +62,9 @@ export default function DashboardContent() {
     const [userApiKeys, setUserApiKeys] = useState<ApiKeyState>({ gemini: '', youtube: '', elevenlabs: '', topview: '', topview_uid: '' })
     const [savingUserApi, setSavingUserApi] = useState(false)
     const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'api'>('overview')
+    const [logViewUser, setLogViewUser] = useState<UserProfile | null>(null)
+    const [logs, setLogs] = useState<any[]>([])
+    const [logsLoading, setLogsLoading] = useState(false)
 
     // ─── Auth Check ──────────────────────────────────────────
     useEffect(() => {
@@ -73,6 +76,23 @@ export default function DashboardContent() {
     }, [router])
 
     const isAdmin = user?.email === ADMIN_EMAIL
+
+    // ─── Log Viewer ──────────────────────────────────────────
+    const openLogViewer = async (u: UserProfile, e: React.MouseEvent) => {
+        e.stopPropagation()
+        setLogViewUser(u)
+        setLogs([])
+        setLogsLoading(true)
+        try {
+            const res = await fetch(`/api/admin/users/${u.id}/logs`)
+            const data = await res.json()
+            setLogs(data.logs || [])
+        } catch (err) {
+            console.error('로그 로딩 실패', err)
+        } finally {
+            setLogsLoading(false)
+        }
+    }
 
     // ─── Fetch User List (admin only) ────────────────────────
     const fetchUsers = useCallback(async () => {
@@ -186,6 +206,91 @@ export default function DashboardContent() {
 
     return (
         <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-blue-500/30">
+
+            {/* ── Log Viewer Modal ── */}
+            {logViewUser && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setLogViewUser(null)} />
+                    <div className="relative w-full max-w-5xl bg-[#111] border border-white/10 rounded-3xl shadow-2xl flex flex-col max-h-[85vh]">
+                        <div className="p-6 border-b border-white/10 flex justify-between items-center flex-shrink-0">
+                            <div>
+                                <h3 className="font-black text-lg text-white">📊 AI 생성 로그</h3>
+                                <p className="text-xs text-gray-400 mt-1">{logViewUser.email}</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                {!logsLoading && logs.length > 0 && (
+                                    <div className="flex gap-2 text-[10px] font-black">
+                                        <span className="bg-white/5 px-3 py-1.5 rounded-xl">TOTAL <span className="text-white ml-1">{logs.length}</span></span>
+                                        <span className="bg-green-500/10 text-green-400 px-3 py-1.5 rounded-xl">SUCCESS <span className="ml-1">{logs.filter((l:any) => l.status === 'success').length}</span></span>
+                                        <span className="bg-red-500/10 text-red-400 px-3 py-1.5 rounded-xl">FAILED <span className="ml-1">{logs.filter((l:any) => l.status !== 'success').length}</span></span>
+                                        <span className="bg-blue-500/10 text-blue-400 px-3 py-1.5 rounded-xl">AVG {logs.length ? (logs.reduce((a:number,l:any)=>a+(l.elapsed_time||0),0)/logs.length).toFixed(1) : 0}s</span>
+                                    </div>
+                                )}
+                                <button onClick={() => setLogViewUser(null)} className="text-gray-500 hover:text-white text-xl leading-none ml-2">✕</button>
+                            </div>
+                        </div>
+                        <div className="overflow-y-auto flex-1">
+                            {logsLoading ? (
+                                <div className="flex items-center justify-center py-24 text-gray-500 font-black text-xs uppercase tracking-widest animate-pulse">로딩 중...</div>
+                            ) : logs.length === 0 ? (
+                                <div className="flex items-center justify-center py-24 text-gray-600 font-black text-xs uppercase tracking-widest">로그 없음 — 아직 생성 기록이 없습니다</div>
+                            ) : (
+                                <table className="w-full text-left text-xs">
+                                    <thead className="bg-black/40 text-gray-500 font-black uppercase tracking-widest sticky top-0">
+                                        <tr>
+                                            <th className="px-6 py-3">TIME</th>
+                                            <th className="px-6 py-3">TASK</th>
+                                            <th className="px-6 py-3">MODEL</th>
+                                            <th className="px-6 py-3">PROMPT SUMMARY</th>
+                                            <th className="px-6 py-3 text-right">DURATION</th>
+                                            <th className="px-6 py-3 text-center">STATUS</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {logs.map((log: any) => {
+                                            const d = new Date(log.created_at)
+                                            const timeStr = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`
+                                            const dateStr = `${String(d.getMonth()+1).padStart(2,'0')}. ${String(d.getDate()).padStart(2,'0')}.`
+                                            return (
+                                                <tr key={log.id} className="hover:bg-white/5 transition-all">
+                                                    <td className="px-6 py-3 font-mono whitespace-nowrap">
+                                                        <div className="font-bold text-white">{timeStr}</div>
+                                                        <div className="text-[10px] text-gray-600">{dateStr}</div>
+                                                    </td>
+                                                    <td className="px-6 py-3">
+                                                        <span className={`px-2 py-1 rounded-lg font-black uppercase text-[10px] ${log.task_type === 'image' ? 'bg-pink-500/15 text-pink-400' : log.task_type === 'video' ? 'bg-purple-500/15 text-purple-400' : 'bg-blue-500/15 text-blue-400'}`}>
+                                                            {log.task_type}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-3 font-mono whitespace-nowrap">
+                                                        <div className="text-[11px] font-bold text-gray-300">{log.model_id}</div>
+                                                        <div className="text-[9px] text-gray-600 uppercase">{log.provider}</div>
+                                                    </td>
+                                                    <td className="px-6 py-3 text-gray-400 max-w-xs">
+                                                        <div className="truncate italic">&ldquo;{log.prompt_summary}&rdquo;</div>
+                                                        {log.status !== 'success' && log.error_msg && (
+                                                            <div className="text-red-400 text-[10px] mt-0.5 truncate not-italic">{log.error_msg}</div>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-3 text-right font-mono font-bold whitespace-nowrap">
+                                                        <span className={log.elapsed_time > 20 ? 'text-orange-400' : 'text-gray-300'}>{(log.elapsed_time||0).toFixed(1)}s</span>
+                                                    </td>
+                                                    <td className="px-6 py-3 text-center">
+                                                        {log.status === 'success'
+                                                            ? <span className="bg-green-500/15 text-green-400 border border-green-500/20 px-3 py-1 rounded-full font-black text-[10px] uppercase">SUCCESS</span>
+                                                            : <span className="bg-red-500/15 text-red-400 border border-red-500/20 px-3 py-1 rounded-full font-black text-[10px] uppercase">FAILED</span>
+                                                        }
+                                                    </td>
+                                                </tr>
+                                            )
+                                        })}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* ── Top Nav ── */}
             <nav className="sticky top-0 z-50 border-b border-white/5 bg-black/70 backdrop-blur-xl px-6 py-3">
@@ -438,9 +543,14 @@ export default function DashboardContent() {
                                                     </div>
                                                     <div className="flex items-end gap-2">
                                                         <button
+                                                            onClick={e => openLogViewer(u, e)}
+                                                            className="px-3 py-2 text-xs bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 rounded-lg font-bold transition-all"
+                                                        >
+                                                            📊 로그
+                                                        </button>
+                                                        <button
                                                             onClick={e => {
                                                                 e.stopPropagation();
-                                                                // Load existing keys (mock for now or from metadata)
                                                                 setUserApiKeys({
                                                                     gemini: u.user_metadata?.gemini_api_key || '',
                                                                     youtube: u.user_metadata?.youtube_api_key || '',
