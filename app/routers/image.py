@@ -26,7 +26,6 @@ from app.utils import (
 from services.gemini_service import gemini_service
 from services.replicate_service import replicate_service
 from services.akool_service import akool_service
-from services.video_service import video_service
 
 router = APIRouter(tags=["Image"])
 
@@ -1127,64 +1126,7 @@ async def generate_image(
         _style_prefix = (_style_settings.get('prompt_value') or STYLE_PROMPTS.get(style.lower(), '')).strip()
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # [2-PROMPT COMPOSITE MODE] prompt_char + prompt_bg가 있으면 분리 생성 후 합성
-        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # DB에서 해당 씬의 prompt_char, prompt_bg 조회
-        scene_prompts = db.get_image_prompts(project_id)
-        scene_data = next((s for s in scene_prompts if s.get('scene_number') == scene_number), None)
-        prompt_char = scene_data.get('prompt_char', '') if scene_data else ''
-        prompt_bg = scene_data.get('prompt_bg', '') if scene_data else ''
-
-        if prompt_char and prompt_bg:
-            print(f"🎨 [Image Gen] COMPOSITE mode — generating character + background separately...")
-
-            async def _generate_single(p: str) -> bytes | None:
-                """단일 프롬프트로 이미지 생성 (Gemini -> Replicate -> AKOOL 폴백)"""
-                result = None
-                # 1. Gemini (Primary)
-                try:
-                    result = await gemini_service.generate_image(prompt=p, num_images=1, aspect_ratio="1:1")
-                except Exception as e:
-                    print(f"⚠️ [Composite] Gemini failed: {e}")
-                
-                # 2. Replicate (Fallback)
-                if not result:
-                    try:
-                        result = await replicate_service.generate_image(prompt=p, aspect_ratio="1:1")
-                    except Exception as e:
-                        print(f"⚠️ [Composite] Replicate failed: {e}")
-                
-                # 3. AKOOL (Final Fallback)
-                if not result:
-                    try:
-                        result = await akool_service.generate_image(prompt=p, aspect_ratio="1:1")
-                    except Exception as e:
-                        print(f"⚠️ [Composite] AKOOL failed: {e}")
-                return result[0] if result else None
-
-            # 캐릭터 이미지 생성
-            char_bytes = await _generate_single(prompt_char)
-            # 배경 이미지 생성
-            bg_bytes = await _generate_single(prompt_bg)
-
-            if char_bytes and bg_bytes:
-                print(f"✅ [Composite] Both images generated — compositing...")
-                try:
-                    composite_bytes = video_service.composite_character_on_background(
-                        char_bytes=char_bytes,
-                        bg_bytes=bg_bytes,
-                        aspect_ratio=aspect_ratio,
-                    )
-                    images_bytes = [composite_bytes]
-                    print(f"✅ [Composite] Compositing complete, size: {len(composite_bytes)} bytes")
-                except Exception as e:
-                    print(f"⚠️ [Composite] Compositing failed: {e} — falling back to single-prompt mode")
-                    images_bytes = None
-            else:
-                print(f"⚠️ [Composite] Image generation partially failed (char={bool(char_bytes)}, bg={bool(bg_bytes)}) — falling back to single-prompt mode")
-
-        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # [SINGLE-PROMPT MODE] 기본 단일 프롬프트 생성 (또는 합성 실패 시 폴백)
+        # [SINGLE-PROMPT MODE] 모든 스타일 단일 프롬프트
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
         # 스타일 prefix가 프롬프트에 없으면 앞에 추가

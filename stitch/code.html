@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>The Atelier | AI Script Studio</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=Manrope:wght@500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-container": "#004adf",
+                        "on-primary": "#002780",
+                        "on-error": "#690005",
+                        "on-tertiary-fixed-variant": "#004f58",
+                        "surface-container": "#171f33",
+                        "on-secondary-fixed": "#000767",
+                        "inverse-on-surface": "#283044",
+                        "primary-fixed": "#dce1ff",
+                        "surface-dim": "#0b1326",
+                        "surface-container-lowest": "#060e20",
+                        "surface-container-low": "#131b2e",
+                        "secondary-fixed-dim": "#bdc2ff",
+                        "on-primary-container": "#c6d0ff",
+                        "tertiary-container": "#006470",
+                        "surface-container-high": "#222a3d",
+                        "on-primary-fixed": "#001550",
+                        "tertiary": "#00daf3",
+                        "surface-bright": "#31394d",
+                        "on-tertiary": "#00363d",
+                        "surface": "#0b1326",
+                        "error": "#ffb4ab",
+                        "secondary-container": "#343d96",
+                        "on-secondary-container": "#a8afff",
+                        "on-primary-fixed-variant": "#003ab3",
+                        "error-container": "#93000a",
+                        "primary-fixed-dim": "#b6c4ff",
+                        "outline-variant": "#454652",
+                        "on-surface-variant": "#c5c5d4",
+                        "on-background": "#dae2fd",
+                        "outline": "#8f909e",
+                        "on-secondary-fixed-variant": "#343d96",
+                        "tertiary-fixed-dim": "#00daf3",
+                        "surface-tint": "#b6c4ff",
+                        "secondary": "#bdc2ff",
+                        "on-tertiary-fixed": "#001f24",
+                        "on-surface": "#dae2fd",
+                        "surface-variant": "#2d3449",
+                        "secondary-fixed": "#e0e0ff",
+                        "tertiary-fixed": "#9cf0ff",
+                        "inverse-surface": "#dae2fd",
+                        "on-secondary": "#1b247f",
+                        "on-tertiary-container": "#31e6ff",
+                        "inverse-primary": "#004ee8",
+                        "on-error-container": "#ffdad6",
+                        "surface-container-highest": "#2d3449",
+                        "primary": "#b6c4ff",
+                        "background": "#0b1326"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "2xl": "1rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .glass-panel {
+            background: rgba(45, 52, 73, 0.6);
+            backdrop-filter: blur(24px);
+        }
+        .gradient-button {
+            background: linear-gradient(135deg, #b6c4ff 0%, #004adf 100%);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #454652;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body selection:bg-primary/30 h-screen overflow-hidden flex">
+<!-- SideNavBar (from JSON) -->
+<aside class="flex flex-col h-full py-6 bg-[#060e20] w-64 border-r border-white/5 font-['Inter'] text-sm tracking-tight">
+<div class="px-6 mb-10">
+<h1 class="font-['Manrope'] text-xl font-bold text-[#dae2fd] tracking-wide">The Atelier</h1>
+<p class="text-on-surface-variant text-xs mt-1">AI Script Studio</p>
+</div>
+<nav class="flex-1 space-y-1 px-3">
+<a class="flex items-center gap-3 px-3 py-2 text-[#b6c4ff] font-semibold border-r-2 border-[#b6c4ff] bg-white/5 transition-transform scale-102 active:scale-98" href="#">
+<span class="material-symbols-outlined">edit_note</span>
+<span>Workspace</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#919191] hover:text-[#dae2fd] hover:bg-[#171f33] transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">folder_open</span>
+<span>Library</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#919191] hover:text-[#dae2fd] hover:bg-[#171f33] transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">insights</span>
+<span>Analytics</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#919191] hover:text-[#dae2fd] hover:bg-[#171f33] transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">group</span>
+<span>Collaborators</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#919191] hover:text-[#dae2fd] hover:bg-[#171f33] transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span>Settings</span>
+</a>
+</nav>
+<div class="px-4 mt-auto">
+<button class="w-full gradient-button text-on-primary-fixed font-bold py-3 rounded-2xl flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">add_circle</span>
+                New Project
+            </button>
+<div class="mt-6 flex items-center gap-3 px-2">
+<div class="h-8 w-8 rounded-full overflow-hidden bg-surface-container-high ring-1 ring-white/10">
+<img alt="User profile" class="w-full h-full object-cover" data-alt="Close up portrait of a professional creative professional in a dimly lit studio environment with cool blue accent lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAMIeHjVUvvuRjlK3ad4kWwBAz4wWeqME-iACwj7fMVapCBJnaCbbCW7kziId6K3tIMT3jPyq33DOuvDMzwvP5TtkIfFp7tWxubNl2pXssr8dSzuOIn6pcdIjoygtCY7z6kOvTwG4X7lAiGNhK9rzY3Trdvc0fQhbtvDGEXifzCigULH1tIVOQeCpy6rNq5gcgIyWKA_53Gys9KNKO2ZBCBPJn1v7mvwe1XQl3x2MW2O7tJFu74unV9ZqiF0Hr8Y8hCeC_VSW8xx40"/>
+</div>
+<div class="flex flex-col">
+<span class="text-xs font-semibold text-on-surface">Alex Rivera</span>
+<span class="text-[10px] text-on-surface-variant">Lead Architect</span>
+</div>
+</div>
+</div>
+</aside>
+<div class="flex flex-col flex-1 min-w-0">
+<!-- TopAppBar (from JSON) -->
+<header class="flex items-center justify-between px-8 w-full sticky top-0 z-50 bg-[#0b1326]/80 backdrop-blur-xl h-16 border-b border-white/5 shadow-[0_40px_60px_rgba(218,226,253,0.04)] font-['Manrope'] font-medium text-sm">
+<div class="flex items-center gap-8">
+<span class="font-bold text-[#b6c4ff]">Script Engine v1.2</span>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-[#b6c4ff] border-b-2 border-[#b6c4ff] pb-5 translate-y-2.5" href="#">Outline</a>
+<a class="text-[#dae2fd]/60 hover:text-[#dae2fd] transition-colors" href="#">Character Map</a>
+<a class="text-[#dae2fd]/60 hover:text-[#dae2fd] transition-colors" href="#">Beat Sheet</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span>
+<input class="bg-surface-container-lowest border-none rounded-xl pl-10 pr-4 py-1.5 text-xs w-64 focus:ring-1 focus:ring-primary/20 transition-all" placeholder="Search archive..." type="text"/>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">history</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">auto_awesome</span>
+</button>
+</div>
+<div class="h-6 w-[1px] bg-white/5 mx-2"></div>
+<button class="px-4 py-1.5 text-on-surface border border-outline-variant/30 rounded-xl hover:bg-white/5 transition-all">Share</button>
+<button class="px-4 py-1.5 gradient-button text-on-primary-fixed font-bold rounded-xl hover:scale-105 transition-all">Export Script</button>
+</div>
+</header>
+<main class="flex flex-1 overflow-hidden">
+<!-- Left Pane: Configuration (NotebookLM Style) -->
+<section class="w-[400px] bg-surface-container-lowest flex flex-col border-r border-white/5">
+<div class="p-6 space-y-8 overflow-y-auto custom-scrollbar">
+<!-- Script Core Settings -->
+<div class="space-y-4">
+<h3 class="font-headline text-xs font-bold uppercase tracking-widest text-primary-fixed-dim">Project DNA</h3>
+<div class="space-y-4">
+<div class="group">
+<label class="text-[10px] font-bold text-on-surface-variant mb-1.5 block uppercase tracking-tighter">Topic &amp; Premise</label>
+<textarea class="w-full bg-surface-container-low border-none rounded-2xl p-4 text-sm focus:bg-surface-container-high transition-all h-32 resize-none leading-relaxed" placeholder="A neon-noir heist set in a world where memories are digital currency..."></textarea>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div>
+<label class="text-[10px] font-bold text-on-surface-variant mb-1.5 block uppercase tracking-tighter">Duration</label>
+<div class="relative">
+<select class="w-full bg-surface-container-low border-none rounded-2xl px-4 py-3 text-sm appearance-none focus:ring-0">
+<option>90 mins</option>
+<option>120 mins</option>
+<option>60 mins</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">expand_more</span>
+</div>
+</div>
+<div>
+<label class="text-[10px] font-bold text-on-surface-variant mb-1.5 block uppercase tracking-tighter">Visual Style</label>
+<div class="relative">
+<select class="w-full bg-surface-container-low border-none rounded-2xl px-4 py-3 text-sm appearance-none focus:ring-0">
+<option>Hyper-Noir</option>
+<option>Cyber-Punk</option>
+<option>Solar-Punk</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">style</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Source Materials (NotebookLM style) -->
+<div class="space-y-4">
+<div class="flex items-center justify-between">
+<h3 class="font-headline text-xs font-bold uppercase tracking-widest text-primary-fixed-dim">Source Materials</h3>
+<button class="text-primary text-[10px] font-bold hover:underline flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">add</span>
+                                Add File
+                            </button>
+</div>
+<div class="space-y-2">
+<div class="p-3 bg-surface-container-high/40 rounded-2xl border border-outline-variant/10 flex items-center gap-3 group hover:bg-surface-container-high transition-all">
+<div class="w-10 h-10 rounded-xl bg-primary-container/20 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">description</span>
+</div>
+<div class="flex-1 overflow-hidden">
+<p class="text-xs font-semibold truncate">World_Building_Bible.pdf</p>
+<p class="text-[10px] text-on-surface-variant">24 pages analyzed</p>
+</div>
+<span class="material-symbols-outlined text-xs text-on-surface-variant group-hover:text-primary cursor-pointer">close</span>
+</div>
+<div class="p-3 bg-surface-container-high/40 rounded-2xl border border-outline-variant/10 flex items-center gap-3 group hover:bg-surface-container-high transition-all">
+<div class="w-10 h-10 rounded-xl bg-tertiary-container/20 flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">audio_file</span>
+</div>
+<div class="flex-1 overflow-hidden">
+<p class="text-xs font-semibold truncate">Director_Interview_01.mp3</p>
+<p class="text-[10px] text-on-surface-variant">Transcription complete</p>
+</div>
+<span class="material-symbols-outlined text-xs text-on-surface-variant group-hover:text-primary cursor-pointer">close</span>
+</div>
+</div>
+</div>
+<!-- Action Console -->
+<div class="pt-4 space-y-3">
+<button class="w-full gradient-button text-on-primary-fixed font-bold py-4 rounded-2xl flex items-center justify-center gap-3 shadow-xl shadow-primary-container/20 hover:scale-[1.02] active:scale-[0.98] transition-all">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">auto_mode</span>
+                            Generate Master Script
+                        </button>
+<div class="grid grid-cols-2 gap-3">
+<button class="bg-secondary-container text-on-secondary-container py-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-secondary-container/80 transition-all">
+<span class="material-symbols-outlined text-sm">rocket_launch</span>
+                                Autopilot
+                            </button>
+<button class="bg-surface-container-high text-on-surface py-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-surface-bright transition-all">
+<span class="material-symbols-outlined text-sm">save</span>
+                                Save State
+                            </button>
+</div>
+</div>
+</div>
+</section>
+<!-- Right Pane: Script Canvas -->
+<section class="flex-1 bg-surface relative overflow-hidden flex flex-col">
+<!-- Floating Toolbar -->
+<div class="absolute top-6 left-1/2 -translate-x-1/2 glass-panel px-6 py-2 rounded-full border border-white/5 shadow-2xl z-20 flex items-center gap-4">
+<button class="p-2 hover:bg-white/10 rounded-full text-on-surface-variant hover:text-primary transition-all">
+<span class="material-symbols-outlined">zoom_in</span>
+</button>
+<button class="p-2 hover:bg-white/10 rounded-full text-on-surface-variant hover:text-primary transition-all">
+<span class="material-symbols-outlined">zoom_out</span>
+</button>
+<div class="h-4 w-[1px] bg-white/10 mx-2"></div>
+<button class="p-2 hover:bg-white/10 rounded-full text-on-surface-variant hover:text-primary transition-all">
+<span class="material-symbols-outlined">grid_view</span>
+</button>
+<button class="p-2 hover:bg-white/10 rounded-full text-primary transition-all">
+<span class="material-symbols-outlined">view_quilt</span>
+</button>
+<div class="h-4 w-[1px] bg-white/10 mx-2"></div>
+<button class="p-2 hover:bg-white/10 rounded-full text-on-surface-variant hover:text-primary transition-all">
+<span class="material-symbols-outlined">history_edu</span>
+</button>
+</div>
+<!-- Empty State / Canvas Waiting -->
+<div class="flex-1 flex flex-col items-center justify-center p-20 text-center relative">
+<!-- Subtle background decoration -->
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full opacity-10 pointer-events-none">
+<div class="absolute top-1/4 left-1/4 w-96 h-96 bg-primary blur-[120px]"></div>
+<div class="absolute bottom-1/4 right-1/4 w-96 h-96 bg-tertiary blur-[120px]"></div>
+</div>
+<div class="relative z-10 max-w-md">
+<div class="w-24 h-24 mx-auto mb-8 bg-surface-container-high rounded-[2.5rem] flex items-center justify-center border border-white/10 shadow-inner group">
+<span class="material-symbols-outlined text-4xl text-primary animate-pulse">pen_size_2</span>
+</div>
+<h2 class="font-headline text-3xl font-extrabold text-on-surface mb-4">Canvas Waiting</h2>
+<p class="text-on-surface-variant text-base leading-relaxed mb-8">
+                            Configure your script's parameters on the left or upload source materials to initialize the generative canvas.
+                        </p>
+<!-- Mini Bento Grid Suggestion -->
+<div class="grid grid-cols-2 gap-4">
+<div class="p-4 bg-surface-container rounded-2xl border border-outline-variant/10 text-left hover:border-primary/40 cursor-pointer transition-all">
+<span class="material-symbols-outlined text-primary mb-2">auto_awesome</span>
+<h4 class="text-xs font-bold text-on-surface">Start with Prompt</h4>
+<p class="text-[10px] text-on-surface-variant mt-1">Let AI draft the core premise and characters.</p>
+</div>
+<div class="p-4 bg-surface-container rounded-2xl border border-outline-variant/10 text-left hover:border-primary/40 cursor-pointer transition-all">
+<span class="material-symbols-outlined text-tertiary mb-2">upload_file</span>
+<h4 class="text-xs font-bold text-on-surface">Upload Research</h4>
+<p class="text-[10px] text-on-surface-variant mt-1">Transform documents into a structured script.</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Status Bar -->
+<footer class="h-12 border-t border-white/5 flex items-center justify-between px-6 bg-surface-container-lowest/50 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2">
+<div class="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_#b6c4ff]"></div>
+<span>Engine Ready</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">memory</span>
+<span>3.2GB Context Load</span>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<span>Tokens: 14,204 / 128k</span>
+<span class="text-primary hover:text-primary-fixed transition-colors cursor-pointer">View JSON Structure</span>
+</div>
+</footer>
+</section>
+</main>
+</div>
+<!-- Right Side Overlay Inspector (Minimized by default) -->
+<div class="w-12 h-full bg-[#060e20] border-l border-white/5 flex flex-col items-center py-6 gap-6">
+<button class="p-2 text-on-surface-variant hover:text-primary transition-all">
+<span class="material-symbols-outlined">psychology</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:text-primary transition-all">
+<span class="material-symbols-outlined">layers</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:text-primary transition-all">
+<span class="material-symbols-outlined">chat_bubble</span>
+</button>
+<div class="h-[1px] w-4 bg-white/5"></div>
+<button class="p-2 text-on-surface-variant hover:text-primary transition-all">
+<span class="material-symbols-outlined">bug_report</span>
+</button>
+</div>
+</body></html>

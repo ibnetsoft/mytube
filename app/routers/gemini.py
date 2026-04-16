@@ -133,42 +133,17 @@ async def generate_deep_dive_script_api(req: StructureGenerateRequest):
 
 @router.post("/api/gemini/generate")
 async def gemini_generate(req: GeminiRequest):
-    """Gemini 텍스트 생성"""
-    print(f"🔍 [Gemini API] Request received for prompt: {req.prompt[:100]}...")
-    url = f"{config.GEMINI_URL}?key={config.GEMINI_API_KEY}"
-
-    payload = {
-        "contents": [{"parts": [{"text": req.prompt}]}],
-        "generationConfig": {
-            "temperature": req.temperature,
-            "maxOutputTokens": req.max_tokens
-        }
-    }
-
+    """Gemini 텍스트 생성 (로깅 지원)"""
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(url, json=payload)
-            try:
-                result = response.json()
-            except Exception:
-                return {"status": "error", "error": f"API 응답 파싱 실패 (HTTP {response.status_code}): {response.text[:200]}"}
-
-            if "candidates" in result:
-                try:
-                    text = result["candidates"][0]["content"]["parts"][0]["text"]
-                    return {"status": "ok", "text": text}
-                except (KeyError, IndexError) as e:
-                    return {"status": "error", "error": f"응답 구조 오류: {str(e)}. Raw: {str(result)[:200]}"}
-            else:
-                # 에러 상세 메시지 추출
-                err_msg = result.get("error", {})
-                if isinstance(err_msg, dict):
-                    err_msg = err_msg.get("message", str(err_msg))
-                return {"status": "error", "error": str(err_msg)[:300]}
-    except httpx.TimeoutException:
-        return {"status": "error", "error": "Gemini API 요청 시간 초과 (120초). 다시 시도해주세요."}
+        text = await gemini_service.generate_text(
+            req.prompt, 
+            temperature=req.temperature, 
+            max_tokens=req.max_tokens,
+            task_type="manual_gen"
+        )
+        return {"status": "ok", "text": text}
     except Exception as e:
-        return {"status": "error", "error": f"Gemini API 호출 실패: {str(e)}"}
+        return {"status": "error", "error": str(e)}
 
 
 @router.post("/api/gemini/analyze-comments")
@@ -250,11 +225,20 @@ async def generate_nursery_image_prompts_api(req: NurseryImagePromptsRequest):
     except Exception as e:
         return {"status": "error", "error": str(e)}
 @router.get("/api/logs")
-async def get_ai_logs_api(limit: int = 100):
-    """AI 생성 로그 목록 조회"""
+async def get_ai_logs_api(limit: int = 100, days: int = None):
+    """AI 생성 로그 목록 조회 (필터 추가)"""
     try:
-        logs = db.get_ai_logs(limit=limit)
+        logs = db.get_ai_logs(limit=limit, days=days)
         return {"status": "ok", "logs": logs}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+@router.get("/api/logs/daily-usage")
+async def get_daily_usage_api():
+    """오늘 하루 총 토큰 사용량 조회"""
+    try:
+        total = db.get_daily_token_usage()
+        return {"status": "ok", "total_tokens": total}
     except Exception as e:
         return {"status": "error", "error": str(e)}
 

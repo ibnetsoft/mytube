@@ -57,15 +57,20 @@ async def login_channel_api(channel_id: int):
             
         # 토큰 파일 경로 결정 (tokens/token_1.pickle 등)
         from config import config
-        token_dir = os.path.join(config.BASE_DIR, "tokens")
-        os.makedirs(token_dir, exist_ok=True)
-        token_path = os.path.join(token_dir, f"token_{channel_id}.pickle")
+        token_dir = "tokens"  # 상대 경로 사용
+        abs_token_dir = os.path.join(config.BASE_DIR, token_dir)
+        os.makedirs(abs_token_dir, exist_ok=True)
+        
+        # 파일명 일관성 유지 (token_{id}.pickle)
+        token_filename = f"token_{channel_id}.pickle"
+        abs_token_path = os.path.join(abs_token_dir, token_filename)
+        rel_token_path = os.path.join(token_dir, token_filename)
         
         # 1. 인증 프로세스 실행 (interactive=True 이므로 브라우저 오픈)
-        youtube_upload_service.get_authenticated_service(token_path=token_path, interactive=True)
+        youtube_upload_service.get_authenticated_service(token_path=abs_token_path, interactive=True)
         
-        # 2. 성공 시 DB에 경로 저장
-        db.update_channel_credentials(channel_id, token_path)
+        # 2. 성공 시 DB에 상대 경로 저장 (폴더 이동에 유연하게 대응)
+        db.update_channel_credentials(channel_id, rel_token_path)
         
         return {"status": "ok", "message": f"'{channel['name']}' 채널 인증이 성공적으로 완료되었습니다."}
     except Exception as e:

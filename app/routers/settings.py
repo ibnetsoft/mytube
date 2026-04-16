@@ -36,6 +36,13 @@ class GlobalSettings(BaseModel):
     wp_url: Optional[str] = None
     wp_username: Optional[str] = None
     wp_password: Optional[str] = None
+    # [NEW] API Keys
+    youtube_api_key: Optional[str] = None
+    gemini_api_key: Optional[str] = None
+    elevenlabs_api_key: Optional[str] = None
+    pexels_api_key: Optional[str] = None
+    replicate_api_token: Optional[str] = None
+    openai_api_key: Optional[str] = None
 
 @router.get("")
 async def get_global_settings_api():
@@ -107,6 +114,10 @@ async def get_global_settings_api():
     merged["wp_username"] = global_conf["wp_username"]
     merged["wp_password"] = global_conf["wp_password"]
     
+    # [NEW] Add Current API Keys Status
+    api_status = config.get_api_keys_status()
+    merged["api_status"] = api_status
+    
     return merged
 
 @router.post("")
@@ -160,6 +171,20 @@ async def save_global_settings_api(settings: GlobalSettings):
         db.save_global_setting("wp_username", settings.wp_username)
     if settings.wp_password is not None:
         db.save_global_setting("wp_password", settings.wp_password)
+    
+    # [NEW] Update API Keys in config/env
+    if settings.youtube_api_key is not None:
+        config.update_api_key("YOUTUBE_API_KEY", settings.youtube_api_key)
+    if settings.gemini_api_key is not None:
+        config.update_api_key("GEMINI_API_KEY", settings.gemini_api_key)
+    if settings.elevenlabs_api_key is not None:
+        config.update_api_key("ELEVENLABS_API_KEY", settings.elevenlabs_api_key)
+    if settings.pexels_api_key is not None:
+        config.update_api_key("PEXELS_API_KEY", settings.pexels_api_key)
+    if settings.replicate_api_token is not None:
+        config.update_api_key("REPLICATE_API_TOKEN", settings.replicate_api_token)
+    if settings.openai_api_key is not None:
+        config.update_api_key("OPENAI_API_KEY", settings.openai_api_key)
     
     # 모드 변경 여부 반환
     mode_changed = previous_mode != settings.app_mode if settings.app_mode else False

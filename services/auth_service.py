@@ -12,6 +12,8 @@ class AuthService:
         self.verify_url = "https://mytube-ashy-seven.vercel.app/api/verify"
         self._membership = "standard" # Default
         self._user_email = ""
+        self._youtube_channel = ""
+        self._youtube_handle = ""
         self._verified = False
         self._last_verified = None
         self._is_restricted = False
@@ -68,6 +70,8 @@ class AuthService:
                 if data.get("success"):
                     self._membership = data.get("membership", "standard")
                     self._user_email = data.get("email", "")
+                    self._youtube_channel = data.get("youtube_channel", "")
+                    self._youtube_handle = data.get("youtube_handle", "")
                     
                     # [NEW] Check for restriction from admin
                     if data.get("status") == "restricted":
@@ -132,6 +136,12 @@ class AuthService:
 
     def get_user_email(self):
         return self._user_email
+
+    def get_youtube_channel(self):
+        return self._youtube_channel
+
+    def get_youtube_handle(self):
+        return self._youtube_handle
 
     def remote_keys_loaded(self):
         """이번 세션에서 Supabase 원격 키를 성공적으로 받았는지 여부"""

@@ -421,7 +421,7 @@ class AutoPilotService:
         }}
         JSON만 출력하세요.
         """
-        result_text = await gemini_service.generate_text(prompt, temperature=0.7)
+        result_text = await gemini_service.generate_text(prompt, temperature=0.7, project_id=db.get_project_id_by_video_id(video_id) or None, task_type="analysis")
         try:
             import re
             json_match = re.search(r'\{[\s\S]*\}', result_text)
@@ -441,46 +441,18 @@ class AutoPilotService:
         if not (manual_plan and manual_plan.get("structure")) and config_dict.get("auto_plan"):
              print(f"🤖 [Auto-Pilot] 자동 기획 생성 시작...")
              try:
-                  target_duration_sec = config_dict.get("duration_seconds", 300)
-                  duration_str = f"{target_duration_sec}s" if target_duration_sec < 60 else f"{target_duration_sec // 60}m"
-                  struct_prompt = f"""
-Create a structured plan for a YouTube video based on this analysis.
-Target Duration: {duration_str}
-...
-<rest of prompt needs to use duration_str>
-
-Context:
-- Video Topic: {db.get_project(project_id).get('topic')}
-- Script Style: {style_desc}
-- Target Duration: {target_duration_min} minutes
-
-Required Format (JSON Only):
-{{
-  "hook": "Strong opening sentence to grab attention",
-  "sections": [
-    {{ "title": "Section Title", "key_points": ["point1", "point2"] }}
-  ],
-  "cta": "Conclusion and call to action",
-  "style": "{style_key}",
-  "duration": {target_duration_min}
-}}
-Language: Korean
-Style Guide: Narration/Monologue only. NO dialogue between characters.
-"""
-                  # request_s = type('obj', (object,), {"prompt": struct_prompt, "temperature": 0.7})
-                  result_text_s = await gemini_service.generate_text(struct_prompt, temperature=0.7)
+                  # [AUTO-PLAN] Automatic Planning
+                  struct_prompt = f"Create a structured plan for a YouTube video...\nTopic: {db.get_project(project_id).get('topic')}\nStyle: {style_desc}"
+                  result_text_s = await gemini_service.generate_text(struct_prompt, temperature=0.7, project_id=project_id, task_type="planning")
                   
                   import re
                   match = re.search(r'\{[\s\S]*\}', result_text_s)
                   if match:
                       new_struct = json.loads(match.group())
-                      # Ensure style and duration are set if AI missed them
                       if "style" not in new_struct: new_struct["style"] = style_key
-                      if "duration" not in new_struct: new_struct["duration"] = target_duration_min
-                      
                       db.save_script_structure(project_id, new_struct)
-                      manual_plan = {"structure": new_struct} # Update local var to trigger next block
-                      print(f"✅ [Auto-Pilot] 자동 기획 완료 및 저장. (Duration: {target_duration_min}m)")
+                      manual_plan = {"structure": new_struct}
+                      print(f"✅ [Auto-Pilot] 자동 기획 완료 및 저장.")
              except Exception as e:
                  print(f"⚠️ [Auto-Pilot] 자동 기획 실패: {e}")
         
@@ -521,7 +493,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                 prompt += f"\n\n[Writing Style Directive]: {style_desc}\nApply this style strictly throughout the script."
 
         # request = type('obj', (object,), {"prompt": prompt, "temperature": 0.8})
-        script = await gemini_service.generate_text(prompt, temperature=0.8)
+        script = await gemini_service.generate_text(prompt, temperature=0.8, project_id=project_id, task_type="scripting")
         
         # [CRITICAL] 4가지 금지 항목 정제 (괄호, 타임스탬프, 이모티콘, 화자 표시)
         import re

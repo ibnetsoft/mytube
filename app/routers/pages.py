@@ -109,7 +109,17 @@ async def page_commerce_shorts(request: Request):
 
 @router.get("/settings", response_class=HTMLResponse)
 async def page_settings(request: Request):
-    return _render(request, "pages/settings.html", "settings", "설정")
+    from services.auth_service import auth_service
+    import datetime
+    return _templates.TemplateResponse("pages/settings.html", {
+        "request": request,
+        "page": "settings",
+        "title": "설정",
+        "now": datetime.datetime.now(),
+        "membership": auth_service.get_membership(),
+        "youtube_channel": auth_service.get_youtube_channel(),
+        "youtube_handle": auth_service.get_youtube_handle()
+    })
 
 @router.get("/logs", response_class=HTMLResponse)
 async def page_logs(request: Request):

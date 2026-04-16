@@ -293,9 +293,7 @@ JSON만 반환하세요."""
             "prompt_ko": "이미지 묘사 (한글)",
             "prompt_en": "{style_prefix}, [Detailed Visual Description synthesized from 6-category analysis], [Camera Angle & Movement], [Lighting & Atmosphere]",
             "flow_prompt": "A single comprehensive descriptive paragraph for Google Flow (Veo 3.1). Combine the visual scene and motion instructions into a cohesive story-driven prompt.",
-            "scene_type": "(졸라맨 스타일 전용) character_main | character_support | infographic",
-            "prompt_char": "(졸라맨 스타일 전용) 캐릭터 프롬프트",
-            "prompt_bg": "(졸라맨 스타일 전용) 배경 및 환경 프롬프트"
+            "scene_type": "(졸라맨 스타일 전용) character_main | character_support | infographic"
         }}
     ]
 }}

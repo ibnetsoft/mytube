@@ -22,6 +22,8 @@ interface ApiKeyState {
     elevenlabs: string
     topview: string
     topview_uid: string
+    youtube_channel?: string
+    youtube_handle?: string
 }
 
 const ADMIN_EMAIL = 'ejsh0519@naver.com'
@@ -56,10 +58,10 @@ export default function DashboardContent() {
     const [searchQuery, setSearchQuery] = useState('')
     const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null)
     const [copied, setCopied] = useState(false)
-    const [apiKeys, setApiKeys] = useState<ApiKeyState>({ gemini: '', youtube: '', elevenlabs: '', topview: '', topview_uid: '' })
+    const [apiKeys, setApiKeys] = useState<ApiKeyState>({ gemini: '', youtube: '', elevenlabs: '', topview: '', topview_uid: '', youtube_channel: '', youtube_handle: '' })
     const [apiSaved, setApiSaved] = useState(false)
     const [showApiPanel, setShowApiPanel] = useState(false)
-    const [userApiKeys, setUserApiKeys] = useState<ApiKeyState>({ gemini: '', youtube: '', elevenlabs: '', topview: '', topview_uid: '' })
+    const [userApiKeys, setUserApiKeys] = useState<ApiKeyState>({ gemini: '', youtube: '', elevenlabs: '', topview: '', topview_uid: '', youtube_channel: '', youtube_handle: '' })
     const [savingUserApi, setSavingUserApi] = useState(false)
     const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'api'>('overview')
     const [logViewUser, setLogViewUser] = useState<UserProfile | null>(null)
@@ -551,13 +553,15 @@ export default function DashboardContent() {
                                                         <button
                                                             onClick={e => {
                                                                 e.stopPropagation();
-                                                                setUserApiKeys({
-                                                                    gemini: u.user_metadata?.gemini_api_key || '',
-                                                                    youtube: u.user_metadata?.youtube_api_key || '',
-                                                                    elevenlabs: u.user_metadata?.elevenlabs_api_key || '',
-                                                                    topview: u.user_metadata?.topview_api_key || '',
-                                                                    topview_uid: u.user_metadata?.topview_uid || '',
-                                                                });
+                                                                    setUserApiKeys({
+                                                                        gemini: u.user_metadata?.gemini_api_key || '',
+                                                                        youtube: u.user_metadata?.youtube_api_key || '',
+                                                                        elevenlabs: u.user_metadata?.elevenlabs_api_key || '',
+                                                                        topview: u.user_metadata?.topview_api_key || '',
+                                                                        topview_uid: u.user_metadata?.topview_uid || '',
+                                                                        youtube_channel: u.user_metadata?.youtube_channel || '',
+                                                                        youtube_handle: u.user_metadata?.youtube_handle || '',
+                                                                    });
                                                                 setShowApiPanel(!showApiPanel);
                                                             }}
                                                             className="px-3 py-2 text-xs bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 rounded-lg font-bold transition-all"
@@ -583,21 +587,22 @@ export default function DashboardContent() {
                                                         <div className="col-span-12 mt-4 pt-4 border-t border-white/5 space-y-4">
                                                             <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">이 유저 전용 API 키 설정</p>
                                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                                                {([
-                                                                    { label: '✨ Gemini API Key', key: 'gemini' as const },
-                                                                    { label: '▶️ YouTube Data API Key', key: 'youtube' as const },
-                                                                    { label: '🎙️ ElevenLabs API Key', key: 'elevenlabs' as const },
-                                                                    { label: '🛒 TopView API Key', key: 'topview' as const },
-                                                                    { label: '🛒 TopView UID', key: 'topview_uid' as const },
-                                                                ]).map(({ label, key }) => (
+                                                                    { label: '✨ Gemini API Key', key: 'gemini' as const, type: 'password' },
+                                                                    { label: '▶️ YouTube Data API Key', key: 'youtube' as const, type: 'password' },
+                                                                    { label: '🎙️ ElevenLabs API Key', key: 'elevenlabs' as const, type: 'password' },
+                                                                    { label: '🛒 TopView API Key', key: 'topview' as const, type: 'password' },
+                                                                    { label: '🛒 TopView UID', key: 'topview_uid' as const, type: 'password' },
+                                                                    { label: '📺 YouTube 채널명', key: 'youtube_channel' as const, type: 'text' },
+                                                                    { label: '📺 YouTube 핸들 (@)', key: 'youtube_handle' as const, type: 'text' },
+                                                                ]).map(({ label, key, type }) => (
                                                                     <div key={key}>
                                                                         <label className="text-[9px] text-gray-500 block mb-1">{label}</label>
                                                                         <input
-                                                                            type="password"
+                                                                            type={type}
                                                                             value={userApiKeys[key]}
                                                                             onChange={e => setUserApiKeys({ ...userApiKeys, [key]: e.target.value })}
                                                                             className="w-full px-3 py-2 bg-black/50 border border-white/10 rounded-lg text-xs font-mono text-blue-300 focus:outline-none focus:border-blue-500/50"
-                                                                            placeholder="Key 입력..."
+                                                                            placeholder={`${label} 입력...`}
                                                                         />
                                                                     </div>
                                                                 ))}

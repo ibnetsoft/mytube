@@ -48,6 +48,8 @@ export async function POST(req: Request) {
             success: true,
             membership: user.app_metadata?.membership || 'standard',
             email: user.email,
+            youtube_channel: meta.youtube_channel || '',
+            youtube_handle: meta.youtube_handle || '',
             api_keys,              // 메모리 전용 로드 — 로컬 저장 안 함
         })
     } catch (error: any) {

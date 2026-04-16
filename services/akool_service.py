@@ -4,6 +4,7 @@ import os
 import json
 import time
 from config import config
+import database as db
 
 # ============================================================
 # Akool Service
@@ -152,7 +153,8 @@ class AkoolService:
         prompt: str = "Cinematic video, smooth camera movement, high quality",
         duration: int = 5,
         resolution: str = "720p",
-        model_name: str = "alibaba/wan2.5-i2v-preview"
+        model_name: str = "alibaba/wan2.5-i2v-preview",
+        project_id: int = None
     ):
         """
         Akool v4 API를 통해 Akool Premium(V2) 모델로 Image-to-Video 생성
@@ -220,6 +222,7 @@ class AkoolService:
                 if not job_id:
                     raise Exception(f"Job ID missing in response: {resp_json}")
                 
+                db.add_ai_log(project_id, 'video', model_name, 'akool', 'processing', prompt_summary=safe_prompt[:100], input_tokens=500, output_tokens=1000)
                 print(f"⏳ [AKOOL WAN 2.5] Job ID: {job_id}. Polling...")
             except Exception as e:
                 print(f"❌ [AKOOL WAN 2.5] Critical Request Error: {e}")

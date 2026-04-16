@@ -296,7 +296,7 @@ textarea.input-field {
 }
 
 .dark .sidebar-item {
-    color: #FFFFFF;
+    color: #A3C9FF; /* Light blue-gray default */
 }
 
 .sidebar-item:hover {
@@ -304,7 +304,8 @@ textarea.input-field {
 }
 
 .dark .sidebar-item:hover {
-    background-color: #374151;
+    background-color: rgba(59, 130, 246, 0.1);
+    color: #60A5FA; /* blue-400 */
 }
 
 .sidebar-item.active {
@@ -314,9 +315,10 @@ textarea.input-field {
 }
 
 .dark .sidebar-item.active {
-    background-color: rgba(59, 130, 246, 0.3);
-    color: #FFFFFF;
-    font-weight: 700;
+    background-color: rgba(37, 99, 235, 0.2);
+    color: #60A5FA; /* blue-400 - same as 16.9s */
+    font-weight: 800;
+    box-shadow: inset 2px 0 0 #3B82F6;
 }
 
 /* ===== Loading States ===== */

@@ -25,7 +25,7 @@
     <div class="mb-4 border-b border-gray-200 dark:border-gray-700">
         <div class="flex space-x-1 overflow-x-auto custom-scrollbar">
             <button onclick="switchTab('api')" id="tab-api" class="tab-button active">
-                🔑 API 설정
+                🎫 라이선스 정보
             </button>
             <button onclick="switchTab('content')" id="tab-content" class="tab-button">
                 {{ t('nav_content_settings') }}
@@ -51,246 +51,78 @@
 
     <!-- Tab Content Container -->
     <div id="settings-content">
-        <!-- API Settings Tab -->
+        <!-- API Settings Tab (Now License Info) -->
         <div id="tab-content-api" class="tab-content active">
-            <div class="grid grid-cols-1 xl:grid-cols-12 gap-4">
-                <!-- Expanded Column for API Keys & Connections -->
-                <div class="xl:col-span-12 space-y-4">
+            <div class="max-w-4xl mx-auto space-y-6 py-4">
+                <div class="card p-6 shadow-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/40 rounded-2xl flex items-center justify-center text-2xl">
+                            🎫
+                        </div>
+                        <div>
+                            <h3 class="font-black text-lg text-gray-800 dark:text-gray-100">라이선스 및 서비스 정보</h3>
+                            <p class="text-xs text-gray-400">등록된 라이선스 키와 계정 정보를 확인합니다.</p>
+                        </div>
+                    </div>
 
-                    <!-- API Keys & Connectivity -->
-                    <div class="card p-3 shadow-sm border border-gray-200 dark:border-gray-700">
-                        <h3
-                            class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-3 flex items-center justify-between">
-                            <span>🔑 API 인증 및 연결 상태</span>
-                            <a href="https://console.cloud.google.com/apis/credentials" target="_blank"
-                                class="text-[10px] text-blue-500 hover:underline">Console 바로가기 ↗</a>
-                        </h3>
-
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                            <!-- YouTube -->
-                            <div
-                                class="bg-gray-50 dark:bg-gray-800/50 rounded-md p-2 border border-gray-100 dark:border-gray-700">
-                                <div class="flex items-center justify-between mb-1">
-                                    <label
-                                        class="text-xs font-bold text-gray-700 dark:text-white flex items-center gap-1">
-                                        <span>📺 YouTube Data API</span>
-                                        <span id="youtubeStatus" class="text-[10px] font-normal text-gray-400"></span>
-                                    </label>
-                                    <span id="youtubeConnectionStatus"
-                                        class="text-[10px] bg-gray-200 dark:bg-gray-700 px-1.5 rounded text-gray-500 dark:text-gray-400">대기</span>
-                                </div>
-                                <div class="flex gap-1">
-                                    <input type="password" id="youtubeApiKey"
-                                        class="flex-1 input-field text-xs py-1 px-2 h-8" placeholder="API Key 입력">
-                                    <button onclick="toggleKeyVisibility('youtubeApiKey')"
-                                        class="btn-secondary px-2 h-8 text-xs">👁️</button>
-                                </div>
-                                <p id="youtubeKeyMasked" class="text-[10px] text-gray-400 mt-0.5 truncate h-3"></p>
-                            </div>
-
-                            <!-- Gemini -->
-                            <div
-                                class="bg-gray-50 dark:bg-gray-800/50 rounded-md p-2 border border-gray-100 dark:border-gray-700">
-                                <div class="flex items-center justify-between mb-1">
-                                    <label
-                                        class="text-xs font-bold text-gray-700 dark:text-white flex items-center gap-1">
-                                        <span>🤖 Gemini API</span>
-                                        <span id="geminiStatus" class="text-[10px] font-normal text-gray-400"></span>
-                                    </label>
-                                    <span id="geminiConnectionStatus"
-                                        class="text-[10px] bg-gray-200 dark:bg-gray-700 px-1.5 rounded text-gray-500 dark:text-gray-400">대기</span>
-                                </div>
-                                <div class="flex gap-1">
-                                    <input type="password" id="geminiApiKey"
-                                        class="flex-1 input-field text-xs py-1 px-2 h-8" placeholder="API Key 입력">
-                                    <button onclick="toggleKeyVisibility('geminiApiKey')"
-                                        class="btn-secondary px-2 h-8 text-xs">👁️</button>
-                                </div>
-                                <p id="geminiKeyMasked" class="text-[10px] text-gray-400 mt-0.5 truncate h-3"></p>
-                            </div>
-
-                            <!-- ElevenLabs -->
-                            <div
-                                class="bg-gray-50 dark:bg-gray-800/50 rounded-md p-2 border border-gray-100 dark:border-gray-700">
-                                <div class="flex items-center justify-between mb-1">
-                                    <label
-                                        class="text-xs font-bold text-gray-700 dark:text-white flex items-center gap-1">
-                                        <span>🔊 ElevenLabs API</span>
-                                        <span class="text-[10px] text-gray-400 font-normal">(선택)</span>
-                                        <span id="elevenlabsStatus"
-                                            class="text-[10px] font-normal text-gray-400"></span>
-                                    </label>
-                                    <span id="elevenlabsConnectionStatus"
-                                        class="text-[10px] bg-gray-200 dark:bg-gray-700 px-1.5 rounded text-gray-500 dark:text-gray-400">{{ t('label_not_set') }}</span>
-                                </div>
-                                <div class="flex gap-1">
-                                    <input type="password" id="elevenlabsApiKey"
-                                        class="flex-1 input-field text-xs py-1 px-2 h-8" placeholder="API Key 입력">
-                                    <button onclick="toggleKeyVisibility('elevenlabsApiKey')"
-                                        class="btn-secondary px-2 h-8 text-xs">👁️</button>
-                                </div>
-                                <p id="elevenlabsKeyMasked" class="text-[10px] text-gray-400 mt-0.5 truncate h-3">
-                                </p>
-
-                                <!-- [NEW] Voice List Toggle -->
-                                <div id="elevenVoicesContainer"
-                                    class="mt-2 pt-2 border-t border-dashed border-gray-200 dark:border-gray-700 hidden">
-                                    <div class="flex justify-between items-center mb-2">
-                                        <span class="text-[10px] font-bold text-gray-600 dark:text-gray-400">{{ t('label_my_voice') }}
-                                            (VoiceLab)</span>
-                                        <button onclick="refreshElevenVoices()"
-                                            class="text-[9px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded hover:bg-blue-100 hover:text-blue-800 transition-colors">
-                                            {{ t('btn_sync') }}
-                                        </button>
-                                    </div>
-                                    <div id="elevenVoiceList"
-                                        class="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-700 rounded p-1 max-h-32 overflow-y-auto custom-scrollbar space-y-0.5">
-                                        <p class="text-[9px] text-gray-400 text-center py-2">{{ t('msg_loading') }}</p>
-                                    </div>
-                                    <p class="text-[9px] text-gray-400 mt-1 leading-tight">
-                                        * ElevenLabs 웹사이트에서 목소리를 추가(Add/Clone)하시면 이곳에 자동 반영됩니다.
-                                    </p>
-                                </div>
-                                <div class="text-right mt-1">
-                                    <button onclick="toggleVoiceList(this)"
-                                        class="text-[10px] text-blue-500 hover:text-blue-700 hover:underline transition-colors">
-                                        {{ t('btn_voice_list_show') }}
-                                    </button>
-                                </div>
-                            </div>
-
-
-
-                            <!-- Replicate -->
-                            <div
-                                class="bg-gray-50 dark:bg-gray-800/50 rounded-md p-2 border border-gray-100 dark:border-gray-700">
-                                <div class="flex items-center justify-between mb-1">
-                                    <label
-                                        class="text-xs font-bold text-gray-700 dark:text-white flex items-center gap-1">
-                                        <span>🚀 Replicate API</span>
-                                        <span class="text-[10px] text-gray-400 font-normal">(AI영상)</span>
-                                        <span id="replicateStatus" class="text-[10px] font-normal text-gray-400"></span>
-                                    </label>
-                                    <span id="replicateConnectionStatus"
-                                        class="text-[10px] bg-gray-200 dark:bg-gray-700 px-1.5 rounded text-gray-500 dark:text-gray-400">{{ t('label_not_set') }}</span>
-                                </div>
-                                <div class="flex gap-1">
-                                    <input type="password" id="replicateApiKey"
-                                        class="flex-1 input-field text-xs py-1 px-2 h-8" placeholder="API Token 입력">
-                                    <button onclick="toggleKeyVisibility('replicateApiKey')"
-                                        class="btn-secondary px-2 h-8 text-xs">👁️</button>
-                                </div>
-                                <p id="replicateKeyMasked" class="text-[10px] text-gray-400 mt-0.5 truncate h-3">
-                                </p>
-                            </div>
-
-                            <!-- TopView -->
-                            <div
-                                class="bg-gray-50 dark:bg-gray-800/50 rounded-md p-2 border border-gray-100 dark:border-gray-700">
-                                <div class="flex items-center justify-between mb-1">
-                                    <label
-                                        class="text-xs font-bold text-gray-700 dark:text-white flex items-center gap-1">
-                                        <span>🎬 TopView API</span>
-                                        <span class="text-[10px] text-gray-400 font-normal">(Commerce)</span>
-                                        <span id="topviewStatus" class="text-[10px] font-normal text-gray-400"></span>
-                                        <span id="topview_uidStatus"
-                                            class="text-[10px] font-normal text-gray-400"></span>
-                                    </label>
-                                    <span id="topviewConnectionStatus"
-                                        class="text-[10px] bg-gray-200 dark:bg-gray-700 px-1.5 rounded text-gray-500 dark:text-gray-400">{{ t('label_not_set') }}</span>
-                                </div>
-                                <div class="flex gap-1 mb-1">
-                                    <input type="password" id="topviewApiKey"
-                                        class="flex-1 input-field text-xs py-1 px-2 h-8" placeholder="API Key 입력">
-                                    <button onclick="toggleKeyVisibility('topviewApiKey')"
-                                        class="btn-secondary px-2 h-8 text-xs">👁️</button>
-                                </div>
-                                <p id="topviewKeyMasked" class="text-[10px] text-gray-400 mb-2 truncate h-3"></p>
-
-                                <div class="flex gap-1">
-                                    <input type="password" id="topviewUid"
-                                        class="flex-1 input-field text-xs py-1 px-2 h-8" placeholder="UID 입력">
-                                    <button onclick="toggleKeyVisibility('topviewUid')"
-                                        class="btn-secondary px-2 h-8 text-xs">👁️</button>
-                                </div>
-                                <p id="topview_uidKeyMasked" class="text-[10px] text-gray-400 mt-0.5 truncate h-3"></p>
-                            </div>
-
-                            <!-- Akool -->
-                            <div
-                                class="bg-gray-50 dark:bg-gray-800/50 rounded-md p-2 border border-gray-100 dark:border-gray-700">
-                                <div class="flex items-center justify-between mb-1">
-                                    <label
-                                        class="text-xs font-bold text-gray-700 dark:text-white flex items-center gap-1">
-                                        <span>🎨 Akool API</span>
-                                        <span class="text-[10px] text-gray-400 font-normal">(Avatar/Creative)</span>
-                                        <span id="akoolClientIdStatus"
-                                            class="text-[10px] font-normal text-gray-400"></span>
-                                        <span id="akoolClientSecretStatus"
-                                            class="text-[10px] font-normal text-gray-400"></span>
-                                    </label>
-                                    <span id="akoolConnectionStatus"
-                                        class="text-[10px] bg-gray-200 dark:bg-gray-700 px-1.5 rounded text-gray-500 dark:text-gray-400"></span>
-                                </div>
-
-                                <!-- Client ID -->
-                                <div class="flex gap-1 mb-1">
-                                    <input type="password" id="akoolClientId"
-                                        class="flex-1 input-field text-xs py-1 px-2 h-8" placeholder="Client ID 입력">
-                                    <button onclick="toggleKeyVisibility('akoolClientId')"
-                                        class="btn-secondary px-2 h-8 text-xs">👁️</button>
-                                </div>
-                                <p id="akoolIdMasked" class="text-[9px] text-gray-400 mb-2 truncate h-3"></p>
-
-                                <!-- Client Secret -->
-                                <div class="flex gap-1">
-                                    <input type="password" id="akoolClientSecret"
-                                        class="flex-1 input-field text-xs py-1 px-2 h-8" placeholder="Client Secret 입력">
-                                    <button onclick="toggleKeyVisibility('akoolClientSecret')"
-                                        class="btn-secondary px-2 h-8 text-xs">👁️</button>
-                                </div>
-                                <p id="akoolSecretMasked" class="text-[9px] text-gray-400 mt-0.5 truncate h-3"></p>
-
-                                <div class="mt-4">
-                                    <label class="block text-[10px] font-black text-blue-400 uppercase mb-1">Akool v4
-                                        API Key (Seedance)</label>
-                                    <div class="relative">
-                                        <input type="password" id="akoolApiKey"
-                                            class="w-full bg-white dark:bg-gray-800 text-xs font-bold p-3 rounded-xl border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-blue-500/20 outline-none shadow-sm"
-                                            placeholder="Akool v4 API Key 입력">
-                                        <button onclick="toggleKeyVisibility('akoolApiKey')"
-                                            class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-300">
-                                            <i class="fas fa-eye"></i>
-                                        </button>
-                                    </div>
-                                    <p id="akoolApiKeyMasked" class="text-[9px] text-gray-400 mt-0.5 truncate h-3"></p>
-                                </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- License Key View -->
+                        <div class="space-y-2">
+                            <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest">현재 라이선스 키</label>
+                            <div class="flex items-center gap-2 bg-gray-50 dark:bg-gray-900/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700">
+                                <span class="text-sm font-mono font-bold text-blue-600 dark:text-blue-400">
+                                    {% if get_license_key() %}
+                                        {{ get_license_key()[:4] }}****{{ get_license_key()[-4:] if get_license_key()|length > 8 else '' }}
+                                    {% else %}
+                                        비활성 상태
+                                    {% endif %}
+                                </span>
+                                <span class="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold ml-auto">ACTIVE</span>
                             </div>
                         </div>
 
-                        <div
-                            class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex justify-between text-[10px]">
-                            <a href="https://aistudio.google.com/apikey" target="_blank"
-                                class="text-blue-500 hover:underline flex items-center gap-1">
-                                🔑 Gemini 키 발급
-                            </a>
-                            <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank"
-                                class="text-gray-500 hover:underline flex items-center gap-1 dark:text-gray-400">
-                                🔑 ElevenLabs 키 발급
-                            </a>
-                            <a href="https://replicate.com/account/api-tokens" target="_blank"
-                                class="text-gray-500 hover:underline flex items-center gap-1 dark:text-gray-400">
-                                🔑 Replicate 키 발급
-                            </a>
-                            <a href="https://www.topview.ai/dashboard/api-settings" target="_blank"
-                                class="text-blue-500 hover:underline flex items-center gap-1">
-                                🔑 TopView 키 발급
-                            </a>
-                            <a href="https://akool.com/dashboard/api" target="_blank"
-                                class="text-gray-500 hover:underline flex items-center gap-1 dark:text-gray-400">
-                                🔑 Akool 키 발급
+                        <!-- Membership Tier -->
+                        <div class="space-y-2">
+                            <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest">멤버십 등급</label>
+                            <div class="flex items-center gap-2 bg-gray-50 dark:bg-gray-900/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700">
+                                <span class="text-sm font-bold text-gray-800 dark:text-gray-100 uppercase italic">
+                                    {{ membership | default('Standard', true) }}
+                                </span>
+                                <span class="text-[10px] text-gray-400 ml-auto">구독 중</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
+                        <div class="bg-blue-50 dark:bg-blue-900/10 rounded-2xl p-5 border border-blue-100 dark:border-blue-900/30">
+                            <h4 class="text-sm font-bold text-blue-800 dark:text-blue-300 mb-2 flex items-center gap-2">
+                                🌐 API 및 서비스 통합 관리
+                            </h4>
+                            <p class="text-xs text-blue-700/70 dark:text-blue-400/70 leading-relaxed mb-4">
+                                파이썬 앱 내의 모든 API 설정(Gemini, OpenAI, YouTube 등)은 이제 **관리자 웹 대시보드**에서 원격으로 관리됩니다. 
+                                보안을 위해 로컬에서의 직접 수정은 비활성화되었습니다.
+                            </p>
+                            <a href="{{ AUTH_SERVER_URL }}/dashboard" target="_blank" 
+                               class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-xs font-black transition-all shadow-md shadow-blue-500/20 active:scale-[0.98]">
+                                어드민 대시보드 바로가기 ↗
                             </a>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Usage Stats Summary (Simple) -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="card p-4 border border-gray-100 dark:border-gray-800 shadow-sm">
+                        <p class="text-[10px] font-bold text-gray-400 uppercase mb-1">이번 달 생성 영상</p>
+                        <p class="text-xl font-black text-gray-800 dark:text-gray-100">12 / <span class="text-gray-400">50</span></p>
+                    </div>
+                    <div class="card p-4 border border-gray-100 dark:border-gray-800 shadow-sm">
+                        <p class="text-[10px] font-bold text-gray-400 uppercase mb-1">사용 가능한 엔진</p>
+                        <p class="text-xs font-bold text-blue-500">Gemini, OpenAI, Pexels</p>
+                    </div>
+                    <div class="card p-4 border border-gray-100 dark:border-gray-800 shadow-sm">
+                        <p class="text-[10px] font-bold text-gray-400 uppercase mb-1">최근 로그인</p>
+                        <p class="text-xs font-bold text-gray-500">{{ now.strftime('%Y-%m-%d') if now else '2026-04-14' }}</p>
                     </div>
                 </div>
             </div>
@@ -301,58 +133,39 @@
         <div id="tab-content-content" class="tab-content">
             <div class="grid grid-cols-1 gap-4">
 
-                <!-- Project Name Settings (Rename) -->
-                <div class="card p-3 shadow-sm border border-gray-200 dark:border-gray-700">
-                    <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-3 flex items-center gap-2">
-                        <span>{{ t('label_project_info') }}</span>
+                <!-- Content Settings (Voice & Scripts) -->
+                <div class="card p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+                    <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
+                        <i class="fas fa-sliders-h text-blue-500"></i>
+                        {{ t('title_content_gen_settings') }}
                     </h3>
-                    <div class="flex flex-col gap-3">
-                        <div class="flex flex-col gap-1.5">
-                            <label class="text-[10px] font-bold text-gray-500 mb-1 block">{{ t('label_current_project_name') }}</label>
-                            <div class="flex gap-2">
-                                <input type="text" id="projectNameInput" class="input-field text-xs flex-1 h-9"
-                                       value="{{ project.name if project else '' }}" placeholder="{{ t('placeholder_new_name') }}">
-                                <button onclick="updateProjectName()" 
-                                        class="btn-primary py-0 px-4 text-xs h-9 whitespace-nowrap font-bold shadow-sm">이름 변경</button>
+
+                    <!-- Channel Info Sub-Banner (Relocated) -->
+                    <div class="mb-6 p-3 rounded-xl border {% if youtube_channel %}border-blue-100 dark:border-blue-900/30 bg-blue-50/20 dark:bg-blue-900/10{% else %}border-dashed border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/20{% endif %} flex items-center justify-between transition-all">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-full {% if youtube_channel %}bg-red-500 text-white shadow-lg shadow-red-500/20{% else %}bg-gray-200 dark:bg-gray-700 text-gray-400{% endif %} flex items-center justify-center">
+                                <i class="fab fa-youtube text-sm"></i>
                             </div>
-                            <p class="text-[10px] text-gray-400 mt-1 leading-tight">
-                                * 프로젝트 이름을 변경하면 사이드바와 상단 헤드라인에 즉시 반영됩니다.<br>
-                                * 주의: 변경 후 페이지가 새로고침됩니다.
-                            </p>
+                            <div>
+                                <p class="text-[9px] font-black {% if youtube_channel %}text-blue-600 dark:text-blue-400{% else %}text-gray-400{% endif %} uppercase tracking-widest mb-0.5">YouTube Connection</p>
+                                <h4 class="text-xs font-bold {% if youtube_channel %}text-gray-800 dark:text-gray-100{% else %}text-gray-400{% endif %}">
+                                    {{ youtube_channel if youtube_channel else '채널 정보 미연동' }}
+                                </h4>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            {% if youtube_channel %}
+                                <div class="text-right">
+                                    <span class="text-[9px] font-black text-green-600 bg-green-100 px-1.5 py-0.5 rounded-md">LIVE</span>
+                                    <p class="text-[9px] text-gray-400 mt-0.5">{{ youtube_handle }}</p>
+                                </div>
+                            {% else %}
+                                <a href="{{ AUTH_SERVER_URL }}/dashboard" target="_blank" class="text-[10px] font-black text-blue-600 hover:text-blue-700 underline underline-offset-4">
+                                    연동하기 ↗
+                                </a>
+                            {% endif %}
                         </div>
                     </div>
-                </div>
-
-                <!-- Channel Management -->
-                <div class="card p-3 shadow-sm border border-gray-200 dark:border-gray-700">
-                    <div class="flex justify-between items-center mb-3">
-                        <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 flex items-center gap-2">
-                            <span>{{ t('label_yt_channel_mgmt') }}</span>
-                            <span class="text-[9px] bg-red-500 text-white px-1.5 py-0.5 rounded-full">BETA</span>
-                        </h3>
-                        <span class="text-[10px] text-gray-400">{{ t('label_upload_target') }}</span>
-                    </div>
-                    <div id="channelList"
-                        class="space-y-2 mb-3 max-h-40 overflow-y-auto custom-scrollbar bg-gray-50 dark:bg-gray-800/30 rounded p-1">
-                        <!-- Loaded via JS -->
-                        <p class="text-gray-400 text-xs text-center py-4">{{ t('msg_no_channels') }}</p>
-                    </div>
-                    <div
-                        class="flex gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded border border-gray-100 dark:border-gray-700">
-                        <input type="text" id="newChannelName" class="input-field text-xs flex-1 h-8"
-                            placeholder="{{ t('placeholder_channel_name') }}">
-                        <input type="text" id="newChannelHandle" class="input-field text-xs w-24 h-8"
-                            placeholder="@handle">
-                        <button onclick="addChannel()"
-                            class="btn-primary py-0 px-3 text-xs h-8 whitespace-nowrap">추가</button>
-                    </div>
-                    <input type="text" id="newChannelDesc" class="input-field text-xs w-full mt-2 h-7"
-                        placeholder="채널 설명 (선택)">
-                </div>
-
-                <!-- Content Settings (Voice & Scripts) -->
-                <div class="card p-3 shadow-sm border border-gray-200 dark:border-gray-700">
-                    <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-3">{{ t('title_content_gen_settings') }}</h3>
 
                     <!-- Platform Mode -->
                     <div class="mb-5 border-b border-gray-100 dark:border-gray-700 pb-4">
@@ -383,43 +196,6 @@
                         </div>
                     </div>
 
-                    <!-- [NEW] Template Image (Overlay) -->
-                    <div class="mb-5 border-b border-gray-100 dark:border-gray-700 pb-4">
-                        <label
-                            class="text-xs font-bold text-gray-700 dark:text-white mb-2 flex justify-between items-center">
-                            <span>{{ t('label_template_image') }}</span>
-                            <span class="text-[10px] text-gray-400 font-normal">.png 투명 배경 권장</span>
-                        </label>
-
-                        <div class="flex items-start gap-4">
-                            <!-- Preview -->
-                            <div
-                                class="w-16 h-28 bg-gray-100 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 overflow-hidden flex items-center justify-center relative group">
-                                <img id="templatePreview" src="" class="w-full h-full object-cover hidden">
-                                <div id="templatePlaceholder" class="text-gray-300 text-[10px] text-center p-1">No
-                                    Image
-                                </div>
-                                <button onclick="deleteTemplate()" id="btnDeleteTemplate"
-                                    class="hidden absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                    🗑️
-                                </button>
-                            </div>
-
-                            <!-- Upload Control -->
-                            <div class="flex-1">
-                                <input type="file" id="templateImageInput" accept="image/png, image/jpeg" class="hidden"
-                                    onchange="uploadTemplate(this)">
-                                <button onclick="document.getElementById('templateImageInput').click()"
-                                    class="btn-secondary w-full py-2 text-xs mb-2 border-dashed border-2">
-                                    {{ t('btn_image_upload_settings') }}
-                                </button>
-                                <p class="text-[10px] text-gray-400 leading-tight">
-                                    * 쇼츠 영상 생성 시, 전체 프레임 위에 오버레이로 적용됩니다.<br>
-                                    * 프레임, 로고, 테두리 장식 등에 활용하세요.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <!-- Voice -->
@@ -1160,154 +936,7 @@
     }
 
 
-    // 키 보기/숨기기 토글
-    function toggleKeyVisibility(inputId) {
-        console.log('👁️ [Settings] 토글 클릭:', inputId);
-        const input = document.getElementById(inputId);
-        if (input) {
-            const currentType = input.type;
-            input.type = currentType === 'password' ? 'text' : 'password';
-            console.log(`👁️ [Settings] ${inputId} 타입 변경: ${currentType} -> ${input.type}`);
-        }
-    }
-
-    // API 키 상태 로드
-    async function loadApiKeys() {
-        try {
-            const data = await API.apiKeys.get();
-            console.log('📡 [Settings] 로드된 API 키 상태:', data);
-
-            if (!data) return;
-
-            // 기본 키 상태 저장 객체 (서버에서 받은 원본 값을 기억)
-            window._originalApiValues = {};
-
-            // 기본 키들 업데이트
-            const standardKeys = {
-                'youtube': 'youtubeApiKey',
-                'gemini': 'geminiApiKey',
-                'elevenlabs': 'elevenlabsApiKey',
-                'replicate': 'replicateApiKey',
-                'topview': 'topviewApiKey',
-                'topview_uid': 'topviewUid'
-            };
-
-            for (const [key, inputId] of Object.entries(standardKeys)) {
-                if (data[key] && data[key].set) {
-                    window._originalApiValues[inputId] = data[key].value || "";
-                }
-                updateKeyStatus(key, data[key], inputId);
-            }
-
-            // Akool 특수 처리
-            const akoolConn = document.getElementById('akoolConnectionStatus');
-            const akoolIdSet = !!(data.akool_id && data.akool_id.set);
-            const akoolSecretSet = !!(data.akool_secret && data.akool_secret.set);
-
-            // Akool ID
-            const idStatus = document.getElementById('akoolClientIdStatus');
-            const idMasked = document.getElementById('akoolIdMasked');
-            const idInput = document.getElementById('akoolClientId');
-            if (idStatus) {
-                idStatus.innerHTML = akoolIdSet
-                    ? '<span class="status-badge status-on" style="background:transparent; color:#10b981; padding:0; margin-left:4px;">(ID ✅)</span>'
-                    : '<span class="status-badge status-off" style="background:transparent; color:#ef4444; padding:0; margin-left:4px;">(ID ❌)</span>';
-            }
-            if (idMasked) idMasked.innerText = akoolIdSet ? '현재 ID: ' + data.akool_id.masked : '';
-            if (idInput) {
-                const val = akoolIdSet ? (data.akool_id.value || "") : "";
-                window._originalApiValues['akoolClientId'] = val;
-                idInput.value = val;
-            }
-
-            // Akool Secret
-            const secStatus = document.getElementById('akoolClientSecretStatus');
-            const secMasked = document.getElementById('akoolSecretMasked');
-            const secInput = document.getElementById('akoolClientSecret');
-            if (secStatus) {
-                secStatus.innerHTML = akoolSecretSet
-                    ? '<span class="status-badge status-on" style="background:transparent; color:#10b981; padding:0; margin-left:4px;">(Secret ✅)</span>'
-                    : '<span class="status-badge status-off" style="background:transparent; color:#ef4444; padding:0; margin-left:4px;">(Secret ❌)</span>';
-            }
-            if (secMasked) secMasked.innerText = akoolSecretSet ? '현재 Secret: ' + data.akool_secret.masked : '';
-            if (secInput) {
-                const val = akoolSecretSet ? (data.akool_secret.value || "") : "";
-                window._originalApiValues['akoolClientSecret'] = val;
-                secInput.value = val;
-            }
-
-            if (akoolConn) {
-                if (akoolIdSet && akoolSecretSet) {
-                    akoolConn.innerHTML = i18n.label_configured;
-                    akoolConn.className = 'text-[10px] bg-green-100 dark:bg-green-900/30 px-1.5 rounded text-green-600 dark:text-green-400';
-                } else {
-                    akoolConn.innerHTML = i18n.label_incomplete;
-                    akoolConn.className = 'text-[10px] bg-yellow-100 dark:bg-yellow-900/30 px-1.5 rounded text-yellow-600 dark:text-yellow-400';
-                }
-            }
-
-        } catch (e) {
-            console.error('API 키 로드 오류:', e);
-        }
-    }
-
-    function updateKeyStatus(keyPrefix, keyData, inputId) {
-        const statusEl = document.getElementById(`${keyPrefix}Status`);
-        const maskedEl = document.getElementById(`${keyPrefix}KeyMasked`);
-        const inputEl = document.getElementById(inputId);
-
-        const isSet = !!(keyData && keyData.set);
-
-        if (isSet) {
-            if (statusEl) statusEl.innerHTML = `<span class="status-badge status-on">✅ ${i18n.label_configured}</span>`;
-            if (maskedEl) maskedEl.innerText = '현재 키: ' + keyData.masked;
-            if (inputEl) inputEl.value = keyData.value || "";
-        } else {
-            if (statusEl) statusEl.innerHTML = `<span class="status-badge status-off">❌ ${keyPrefix === 'youtube' || keyPrefix === 'gemini' ? i18n.label_not_set : i18n.label_not_set_opt}</span>`;
-            if (maskedEl) maskedEl.innerText = '';
-            if (inputEl) inputEl.value = '';
-        }
-    }
-
-    // API 키 개별 저장
-    async function saveApiKeys() {
-        const keys = {};
-        const fields = {
-            'youtubeApiKey': 'youtube',
-            'geminiApiKey': 'gemini',
-            'elevenlabsApiKey': 'elevenlabs',
-            'replicateApiKey': 'replicate',
-            'topviewApiKey': 'topview',
-            'topviewUid': 'topview_uid',
-            'akoolClientId': 'akool_id',
-            'akoolClientSecret': 'akool_secret',
-            'akoolApiKey': 'akool_api_key'
-        };
-
-        for (const [id, apiKey] of Object.entries(fields)) {
-            const el = document.getElementById(id);
-            const val = el ? el.value.trim() : '';
-
-            // 원래 있던 마스킹된 값(원본)과 비교하여 다를 때만 저장 (즉, 직접 입력한 경우)
-            const originalVal = (window._originalApiValues || {})[id];
-
-            if (val && val !== originalVal) {
-                keys[apiKey] = val;
-            }
-        }
-
-        if (Object.keys(keys).length > 0) {
-            console.log('🚀 [Settings] 변경된 API 키 저장 시도:', keys);
-            try {
-                await API.apiKeys.save(keys);
-                Utils.showToast(i18n.toast_api_key_saved, 'success');
-                await loadApiKeys();
-            } catch (e) {
-                console.error('API 키 저장 중 오류:', e);
-                Utils.showToast(i18n.err_save_fail, 'error');
-            }
-        }
-    }
+    // API 키는 어드민 웹 대시보드에서 관리됩니다. 로컬 저장 비활성화.
 
     // [NEW] Template Image Functions
     async function uploadTemplate(input) {
@@ -1377,30 +1006,7 @@
     }
 
     // API 연결 상태 확인
-    async function checkApiConnection() {
-        try {
-            const health = await API.health();
-
-            document.getElementById('youtubeConnectionStatus').innerHTML = health.apis?.youtube
-                ? `<span class="text-green-600">${i18n.label_connected}</span>`
-                : `<span class="text-red-600">${i18n.label_disconnected}</span>`;
-
-            document.getElementById('geminiConnectionStatus').innerHTML = health.apis?.gemini
-                ? `<span class="text-green-600">${i18n.label_connected}</span>`
-                : `<span class="text-red-600">${i18n.label_disconnected}</span>`;
-
-            document.getElementById('elevenlabsConnectionStatus').innerHTML = health.apis?.elevenlabs
-                ? `<span class="text-green-600">${i18n.label_connected}</span>`
-                : `<span class="text-yellow-600">${i18n.label_not_set_optional}</span>`;
-
-            document.getElementById('replicateConnectionStatus').innerHTML = health.apis?.replicate
-                ? `<span class="text-green-600">${i18n.label_connected}</span>`
-                : `<span class="text-yellow-600">${i18n.label_not_connected}</span>`;
-
-        } catch (e) {
-            console.error('연결 상태 확인 오류:', e);
-        }
-    }
+    // API 연결 상태 확인은 어드민 대시보드에서 관리됩니다.
 
     function exportData() {
         const data = {
@@ -2456,10 +2062,7 @@
     // [FINAL OVERRIDE] Ensure saveAllSettings handles EVERYTHING
     async function saveAllSettings() {
         try {
-            // 1. API Keys (Always save first)
-            await saveApiKeys();
-
-            // 2. Gather All Global Settings
+            // Gather All Global Settings
             const safeVal = (id) => document.getElementById(id)?.value || '';
             const safeCheck = (id) => document.getElementById(id)?.checked ?? false;
 
@@ -2518,9 +2121,6 @@
                     setTimeout(() => window.location.reload(), 1500);
                 } else {
                     Utils.showToast(i18n.toast_all_settings_saved, 'success');
-                    // Refresh status but wrap in try-catch to avoid breaking UI on minor failures
-                    try { await loadApiKeys(); } catch(err) { console.warn('Post-save key reload fail:', err); }
-                    try { await checkApiConnection(); } catch(err) { console.warn('Post-save health check fail:', err); }
                 }
             } else {
                 const errData = await res.json().catch(() => ({ detail: 'Server error' }));
@@ -2540,9 +2140,6 @@
 
     async function loadAllSettings() {
         try {
-            await loadApiKeys();
-            await checkApiConnection();
-
             const res = await fetch('/api/settings');
             const data = await res.json();
 
@@ -2673,8 +2270,6 @@
                 const result = await res.json();
                 if (result.status === 'ok') {
                     Utils.showToast(i18n.toast_tistory_auth_done, 'success');
-                    // 설정 다시 로드하여 마스킹된 토큰 표시
-                    loadApiKeys();
                 } else {
                     Utils.showToast('❌ 토큰 발급 실패: ' + result.message, 'error');
                 }

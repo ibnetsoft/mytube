@@ -4,12 +4,12 @@
 async function generateHookTexts(buttonId = 'hookTextBtn') {
     const projectId = getCurrentProject();
     if (!projectId) {
-        Utils.showToast('프로젝트를 먼저 선택하세요', 'warning');
+        Utils.showToast(i18n.toast_project_not_selected, 'warning');
         return;
     }
 
     const btn = document.getElementById(buttonId);
-    if (btn) Utils.setLoading(btn, true, '생성 중...');
+    if (btn) Utils.setLoading(btn, true, i18n.status_generating || i18n.loading_ai_gen);
 
     try {
         const style = document.getElementById('thumbnailStyle').value;
@@ -55,14 +55,14 @@ async function generateHookTexts(buttonId = 'hookTextBtn') {
                 if (typeof drawPreview === 'function') drawPreview();
             }
 
-            Utils.showToast('후킹 문구 3종이 사전 배치되었습니다!', 'success');
+            Utils.showToast(i18n.toast_hook_texts_applied, 'success');
         } else {
-            Utils.showToast('생성 실패: ' + result.error, 'error');
+            Utils.showToast((i18n.err_gen_fail || '생성 실패') + ': ' + result.error, 'error');
         }
 
     } catch (e) {
         console.error('Hook text generation error:', e);
-        Utils.showToast('오류: ' + e.message, 'error');
+        Utils.showToast((i18n.err_occurred || '오류') + ': ' + e.message, 'error');
     } finally {
         Utils.setLoading(btn, false);
     }
@@ -86,7 +86,7 @@ function displayHookTexts(texts, reasoning) {
         <button 
             onclick="applyHookText('${text.replace(/'/g, "\\'")}', ${i})" 
             class="px-3 py-2 bg-white dark:bg-gray-700 border-2 border-blue-300 dark:border-blue-600 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-800 transition text-sm font-bold text-gray-800 dark:text-white shadow-sm hover:shadow-md"
-            title="클릭하여 적용"
+            title="${i18n.btn_click_to_apply}"
         >
             ${i === 0 ? '⭐ ' : ''}${text}
         </button>
@@ -150,7 +150,7 @@ function applyHookText(text, index = 0) {
     if (typeof renderLayers === 'function') renderLayers();
     if (typeof drawPreview === 'function') drawPreview();
 
-    Utils.showToast(`${index + 1}번 문구 업데이트됨`, 'success');
+    Utils.showToast(`${index + 1}${i18n.toast_text_updated_suffix}`, 'success');
 }
 
 function startNewLayer() {

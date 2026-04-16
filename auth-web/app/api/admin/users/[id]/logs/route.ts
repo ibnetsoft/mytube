@@ -12,12 +12,23 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         const userId = params.id
         if (!userId) return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
 
-        const { data, error } = await getAdmin()
+        const { searchParams } = new URL(_req.url)
+        const days = parseInt(searchParams.get('days') || '500')
+        
+        let query = getAdmin()
             .from('ai_logs')
             .select('*')
             .eq('user_id', userId)
             .order('created_at', { ascending: false })
-            .limit(200)
+            .limit(500)
+
+        if (days > 0) {
+            const date = new Date()
+            date.setDate(date.getDate() - days)
+            query = query.gte('created_at', date.toISOString())
+        }
+
+        const { data, error } = await query
 
         if (error) throw error
         return NextResponse.json({ logs: data || [] })

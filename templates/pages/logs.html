@@ -1,0 +1,497 @@
+
+{% extends "base.html" %}
+
+{% block content %}
+<div class="h-[calc(100vh-80px)] overflow-y-auto p-4 custom-scrollbar bg-gray-50/50 dark:bg-gray-950/50">
+    <!-- Header Area -->
+    <div class="flex justify-between items-center mb-6 sticky top-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md z-10 py-4 px-6 rounded-2xl border border-white/20 dark:border-gray-800 shadow-xl shadow-blue-500/5">
+        <div class="flex items-center gap-4">
+            <div class="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center text-xl">
+                📜
+            </div>
+            <div>
+                <h2 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-500 dark:from-white dark:to-gray-400">
+                    {{ t('nav_logs') }}
+                </h2>
+                <p class="text-[10px] text-gray-400 font-medium uppercase tracking-wider">AI Generation History & Performance</p>
+            </div>
+        </div>
+        <div class="flex gap-3 items-center">
+            <!-- Period Filter -->
+            <div class="flex p-1 bg-gray-100 dark:bg-gray-800/50 rounded-2xl border border-gray-200/50 dark:border-white/5 mr-2">
+                <button onclick="loadLogs(1)" id="btn-period-1" class="period-btn px-5 py-2 text-[11px] font-black rounded-xl transition-all active bg-white dark:bg-blue-600 shadow-sm text-blue-600 dark:text-white">DAILY</button>
+                <button onclick="loadLogs(7)" id="btn-period-7" class="period-btn px-5 py-2 text-[11px] font-black rounded-xl transition-all text-gray-500">WEEKLY</button>
+                <button onclick="loadLogs(30)" id="btn-period-30" class="period-btn px-5 py-2 text-[11px] font-black rounded-xl transition-all text-gray-500">MONTHLY</button>
+            </div>
+            
+            <button onclick="loadLogs(currentPeriod)" class="group flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-[11px] font-black hover:bg-gray-50 dark:hover:bg-gray-700 transition-all shadow-md active:scale-95">
+                <span class="group-hover:rotate-180 transition-transform duration-700">🔄</span> REFRESH
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats Overview -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div class="card p-5 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl border border-white/20 dark:border-white/5 rounded-[2rem] shadow-sm group hover:border-blue-500/30 transition-all">
+            <p class="text-[10px] font-black text-gray-400 mb-1 uppercase tracking-widest">TOTAL TASKS</p>
+            <div class="flex items-baseline gap-2">
+                <span id="stat-total" class="text-3xl font-black text-gray-800 dark:text-white group-hover:scale-110 transition-transform inline-block">0</span>
+                <span class="text-[10px] text-gray-400 font-bold">UNITS</span>
+            </div>
+        </div>
+        <div class="card p-5 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl border border-white/20 dark:border-white/5 rounded-[2rem] shadow-sm group hover:border-green-500/30 transition-all">
+            <p class="text-[10px] font-black text-green-500/70 mb-1 uppercase tracking-widest">SUCCESS RATE</p>
+            <div class="flex items-baseline gap-2">
+                <span id="stat-success" class="text-3xl font-black text-green-600 dark:text-green-400">0%</span>
+                <span class="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">GLOBAL</span>
+            </div>
+        </div>
+        <div class="card p-5 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl border border-white/20 dark:border-white/5 rounded-[2rem] shadow-sm group hover:border-blue-400/30 transition-all">
+            <p class="text-[10px] font-black text-blue-500/70 mb-1 uppercase tracking-widest">AVG LATENCY</p>
+            <div class="flex items-baseline gap-2">
+                <span id="stat-latency" class="text-3xl font-black text-blue-600 dark:text-blue-400">0.0s</span>
+                <span class="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">PER TASK</span>
+            </div>
+        </div>
+        <div class="card p-5 bg-gradient-to-br from-orange-500/10 to-transparent backdrop-blur-xl border border-orange-500/20 rounded-[2rem] shadow shadow-orange-500/5 group hover:border-orange-500/50 transition-all overflow-hidden relative">
+            <div class="absolute -right-4 -bottom-4 text-6xl opacity-5 group-hover:rotate-12 transition-transform">🪙</div>
+            <p id="token-stat-label" class="text-[10px] font-black text-orange-500/80 mb-1 uppercase tracking-widest relative z-10">DAILY TOKEN USAGE</p>
+            <div class="flex items-baseline gap-2 relative z-10">
+                <span id="stat-tokens" class="text-3xl font-black text-orange-600 dark:text-orange-400">0</span>
+                <span class="text-[10px] text-orange-500 font-black">TOKENS</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stage Breakdown & Pie Chart [NEW] -->
+    <div class="flex flex-col lg:flex-row gap-4 mb-6">
+        <!-- Stages Grid (Left) -->
+        <div id="stage-breakdown" class="flex-1 grid grid-cols-2 md:grid-cols-6 gap-3 hidden">
+            <!-- populated via JS -->
+        </div>
+
+        <!-- Distribution Donut (Right) -->
+        <div id="token-distribution-card" class="w-full lg:w-64 card p-4 bg-white/50 dark:bg-gray-900/50 backdrop-blur border border-white/20 dark:border-gray-800 rounded-2xl shadow-sm hidden flex-col items-center justify-center min-h-[140px]">
+            <p class="text-[9px] font-bold text-gray-400 mb-2 uppercase tracking-tight text-center">Token Expenditure</p>
+            <div class="flex items-center gap-4">
+                <div id="pie-chart" class="relative w-24 h-24 rounded-full shadow-lg" style="background: conic-gradient(#3b82f6 0% 100%);">
+                    <div class="absolute inset-4 bg-white dark:bg-[#0b0f19] rounded-full flex items-center justify-center">
+                        <span class="text-[9px] font-black text-blue-500">USAGE</span>
+                    </div>
+                </div>
+                <div id="pie-legend" class="flex-1 space-y-1 text-[9px] font-bold">
+                    <!-- populated via JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Log Table Area -->
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-[11px] font-black tracking-widest text-gray-500 uppercase flex items-center gap-2">
+            <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+            GENERATION HISTORY
+        </h2>
+        
+        <div class="flex items-center gap-4">
+            <!-- Count and Sort -->
+            <div class="flex items-center gap-2 bg-white/5 px-2 py-1 rounded-lg border border-white/5">
+                <select id="logSortOrder" onchange="changeLogSort(this.value)" class="text-[10px] bg-transparent border-none outline-none font-black text-gray-400 cursor-pointer">
+                    <option value="newest">⌛ {{ t('sort_newest') or '최신기준' }}</option>
+                    <option value="oldest">⏳ {{ t('sort_oldest') or '과거기준' }}</option>
+                </select>
+                <div class="h-3 w-px bg-white/10"></div>
+                <select id="logPageSize" onchange="changeLogPageSize(this.value)" class="text-[10px] bg-transparent border-none outline-none font-black text-gray-400 cursor-pointer">
+                    <option value="20">20{{ t('rows_suffix') or '개씩' }}</option>
+                    <option value="50">50{{ t('rows_suffix') or '개씩' }}</option>
+                    <option value="100">100{{ t('rows_suffix') or '개씩' }}</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="card bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 overflow-hidden shadow-2xl shadow-gray-200/50 dark:shadow-none">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-gray-50/50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
+                        <th class="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Time</th>
+                        <th class="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Task</th>
+                        <th class="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Model & Provider</th>
+                        <th class="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Prompt Summary</th>
+                        <th class="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Tokens (In/Out)</th>
+                        <th class="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="logsTableBody" class="divide-y divide-gray-50 dark:divide-gray-800">
+                    <tr id="loadingOverlay">
+                        <td colspan="6" class="px-6 py-20 text-center">
+                            <div class="flex flex-col items-center gap-3">
+                                <div class="w-12 h-12 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+                                <p class="text-xs text-gray-400 font-medium">로딩 중...</p>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <!-- Log Pagination -->
+        <div id="logPagination" class="flex items-center justify-between px-6 py-4 bg-white/[0.02] border-t border-white/5 hidden">
+            <div class="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+                Showing <span id="logPageRange" class="text-white">0-0</span> of <span id="logTotalCount" class="text-white font-black">0</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="logPrevBtn" onclick="changeLogPage(-1)" class="p-2 rounded-lg hover:bg-white/5 disabled:opacity-20 transition-all text-xs">◀</button>
+                <div id="logPageNumbers" class="flex gap-1"></div>
+                <button id="logNextBtn" onclick="changeLogPage(1)" class="p-2 rounded-lg hover:bg-white/5 disabled:opacity-20 transition-all text-xs">▶</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentPeriod = 1;
+    let allLogs = [];
+    let currentLogPage = 1;
+    let logPageSize = 20;
+    let logSortOrder = 'newest';
+
+    async function loadLogs(days) {
+        currentPeriod = days;
+        document.querySelectorAll('.period-btn').forEach(btn => {
+            btn.classList.remove('active', 'bg-white', 'dark:bg-blue-600', 'shadow-sm', 'text-blue-600', 'dark:text-white');
+            btn.classList.add('text-gray-500');
+        });
+        const activeBtn = document.getElementById(`btn-period-${days}`);
+        if (activeBtn) {
+            activeBtn.classList.add('active', 'bg-white', 'dark:bg-blue-600', 'shadow-sm', 'text-blue-600', 'dark:text-white');
+            activeBtn.classList.remove('text-gray-500');
+        }
+
+        const overlay = document.getElementById('loadingOverlay');
+        if (overlay) overlay.classList.remove('hidden');
+
+        try {
+            const res = await fetch(`/api/logs?limit=500&days=${days}&t=${Date.now()}`);
+            const data = await res.json();
+            if (data.status === 'ok') {
+                allLogs = data.logs || [];
+                updateStats(allLogs);
+                currentLogPage = 1;
+                applyLogFiltersAndRender();
+            } else {
+                console.error('API Error:', data.error);
+                renderLogsTable([]); // Show empty state
+            }
+        } catch (e) {
+            console.error('Failed to load logs:', e);
+            renderLogsTable([]); // Show empty state
+        } finally {
+            if (overlay) overlay.classList.add('hidden');
+        }
+    }
+
+    function changeLogSort(val) {
+        logSortOrder = val;
+        currentLogPage = 1;
+        applyLogFiltersAndRender();
+    }
+
+    function changeLogPageSize(val) {
+        logPageSize = parseInt(val);
+        currentLogPage = 1;
+        applyLogFiltersAndRender();
+    }
+
+    function changeLogPage(delta) {
+        currentLogPage += delta;
+        applyLogFiltersAndRender();
+    }
+
+    function goToLogPage(page) {
+        currentLogPage = page;
+        applyLogFiltersAndRender();
+    }
+
+    function applyLogFiltersAndRender() {
+        const sorted = [...allLogs].sort((a, b) => {
+            const dateA = new Date(a.created_at.replace(' ', 'T'));
+            const dateB = new Date(b.created_at.replace(' ', 'T'));
+            if (logSortOrder === 'newest') return dateB - dateA;
+            if (logSortOrder === 'oldest') return dateA - dateB;
+            return 0;
+        });
+
+        const totalItems = sorted.length;
+        const totalPages = Math.ceil(totalItems / logPageSize);
+        
+        if (currentLogPage < 1) currentLogPage = 1;
+        if (currentLogPage > totalPages && totalPages > 0) currentLogPage = totalPages;
+
+        const startIdx = (currentLogPage - 1) * logPageSize;
+        const endIdx = Math.min(startIdx + logPageSize, totalItems);
+        const pageData = sorted.slice(startIdx, endIdx);
+
+        renderLogsTable(pageData);
+
+        document.getElementById('logTotalCount').textContent = totalItems;
+        document.getElementById('logPageRange').textContent = totalItems > 0 ? `${startIdx + 1}-${endIdx}` : '0-0';
+        document.getElementById('logPrevBtn').disabled = currentLogPage <= 1;
+        document.getElementById('logNextBtn').disabled = currentLogPage >= totalPages || totalPages === 0;
+
+        const numbersEl = document.getElementById('logPageNumbers');
+        numbersEl.innerHTML = '';
+        
+        let startPage = Math.max(1, currentLogPage - 2);
+        let endPage = Math.min(totalPages, startPage + 4);
+        if (endPage - startPage < 4) startPage = Math.max(1, endPage - 4);
+
+        for (let i = startPage; i <= endPage; i++) {
+            const btn = document.createElement('button');
+            btn.textContent = i;
+            btn.onclick = () => goToLogPage(i);
+            btn.className = `w-7 h-7 rounded-lg text-[10px] font-black transition-all ${i === currentLogPage ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:bg-white/10'}`;
+            numbersEl.appendChild(btn);
+        }
+
+        document.getElementById('logPagination').classList.toggle('hidden', totalItems === 0);
+    }
+
+    function renderLogsTable(logs) {
+        const tbody = document.getElementById('logsTableBody');
+        const overlay = document.getElementById('loadingOverlay');
+        if (overlay) {
+            overlay.classList.add('hidden');
+            // Ensure child elements are not visible either
+            overlay.innerHTML = ''; 
+        }
+
+        if (!logs || logs.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" class="py-20 text-center text-gray-400 font-bold uppercase tracking-widest text-xs italic">No logs found</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = logs.map(log => {
+            const dStr = log.created_at.replace(' ', 'T');
+            const d = new Date(dStr);
+            const timeStr = isNaN(d.getTime()) ? log.created_at.split(' ')[1] : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+            const dateStr = isNaN(d.getTime()) ? log.created_at.split(' ')[0] : `${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+            const statusClass = (log.status === 'success' || log.status === 'done') ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20';
+            const statusText = (log.status === 'success' || log.status === 'done') ? 'SUCCESS' : 'FAILED';
+
+            return `
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors group">
+                    <td class="px-6 py-4 font-mono">
+                        <div class="text-[11px] font-bold text-gray-800 dark:text-gray-200">${timeStr}</div>
+                        <div class="text-[9px] text-gray-400 font-bold">${dateStr}</div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="flex items-center gap-2">
+                            <span class="w-1.5 h-1.5 rounded-full ${log.task_type === 'video' ? 'bg-orange-500' : log.task_type === 'image' ? 'bg-blue-500' : 'bg-green-500'}"></span>
+                            <span class="text-[10px] font-black text-gray-700 dark:text-gray-300 uppercase">${log.task_type}</span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="text-[10px] font-black text-gray-800 dark:text-gray-200 uppercase">${log.model_id}</div>
+                        <div class="text-[8px] text-gray-400 font-bold uppercase tracking-tighter">${log.provider}</div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="text-[10px] text-gray-500 dark:text-gray-400 font-medium line-clamp-1 group-hover:text-gray-800 dark:group-hover:text-gray-200 transition-colors" title="${log.prompt_summary}">
+                            "${log.prompt_summary || '-'}"
+                        </div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] font-black text-gray-700 dark:text-gray-300 tracking-widest">${((log.input_tokens || 0) + (log.output_tokens || 0)).toLocaleString()}</span>
+                            <span class="text-[8px] text-gray-400 font-bold uppercase">TK</span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <span class="px-3 py-1 rounded-full text-[9px] font-black border uppercase tracking-tighter ${statusClass}">${statusText}</span>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function updateStats(logs) {
+        if (!logs || logs.length === 0) return;
+
+        const total = logs.length;
+        const successes = logs.filter(l => l.status === 'success' || l.status === 'done').length;
+        const rate = total > 0 ? Math.round((successes / total) * 100) : 0;
+        const avgLatency = total > 0 ? (logs.reduce((acc, l) => acc + (l.elapsed_time || 0), 0) / total).toFixed(1) : '0.0';
+        
+        const bucketCount = currentPeriod === 1 ? 24 : currentPeriod;
+        const breakdown = {
+            'video': { tokens: 0, count: 0, buckets: new Array(bucketCount).fill(0).map(() => ({ tokens: 0, count: 0 })) },
+            'image': { tokens: 0, count: 0, buckets: new Array(bucketCount).fill(0).map(() => ({ tokens: 0, count: 0 })) },
+            'script': { tokens: 0, count: 0, buckets: new Array(bucketCount).fill(0).map(() => ({ tokens: 0, count: 0 })) }
+        };
+        
+        const now = new Date();
+
+        logs.forEach(l => {
+            const task = l.task_type || 'unknown';
+            const mappedTask = (task === 'scripting' || task === 'script') ? 'script' : task;
+            if (!breakdown[mappedTask]) {
+                breakdown[mappedTask] = { tokens: 0, count: 0, buckets: new Array(bucketCount).fill(0).map(() => ({ tokens: 0, count: 0 })) };
+            }
+            
+            const tokens = (l.input_tokens || 0) + (l.output_tokens || 0);
+            const logDate = new Date(l.created_at.replace(' ', 'T'));
+            
+            // Calculate bucket index
+            let bOffset = -1;
+            if (currentPeriod === 1) {
+                bOffset = logDate.getHours();
+            } else {
+                const diffTime = Math.abs(now - logDate);
+                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                bOffset = bucketCount - 1 - diffDays;
+            }
+
+            if (bOffset >= 0 && bOffset < bucketCount) {
+                breakdown[mappedTask].buckets[bOffset].tokens += tokens;
+                breakdown[mappedTask].buckets[bOffset].count += 1;
+            }
+
+            breakdown[mappedTask].tokens += tokens;
+            breakdown[mappedTask].count += 1;
+        });
+
+        const breakdownEl = document.getElementById('stage-breakdown');
+        breakdownEl.classList.remove('hidden');
+        document.getElementById('token-distribution-card').classList.remove('hidden');
+        
+        const order = ['video', 'image', 'script', 'analysis', 'planning', 'vision_analysis', 'vision_gen'];
+        const activeStages = Object.keys(breakdown).sort((a, b) => {
+            let idxA = order.indexOf(a);
+            let idxB = order.indexOf(b);
+            if (idxA === -1) idxA = 99;
+            if (idxB === -1) idxB = 99;
+            return idxA - idxB;
+        });
+
+        const totalTokens = Object.values(breakdown).reduce((acc, d) => acc + d.tokens, 0);
+        
+        // Update Labels based on currentPeriod
+        const periodLabel = currentPeriod === 1 ? 'DAILY' : (currentPeriod === 7 ? 'WEEKLY' : 'MONTHLY');
+        document.getElementById('token-stat-label').innerText = `${periodLabel} TOKEN USAGE`;
+
+        breakdownEl.innerHTML = activeStages.map(stage => {
+            const data = breakdown[stage];
+            const icon = {
+                'image': '🎨', 'video': '📹', 'script': '📝', 'analysis': '🔍', 'planning': '🗺️', 'vision_analysis': '👁️', 'vision_gen': '👁️'
+            }[stage] || '⚙️';
+
+            const colorMap = {
+                'video': 'bg-orange-400 dark:bg-orange-500',
+                'image': 'bg-blue-400 dark:bg-blue-500',
+                'script': 'bg-green-400 dark:bg-green-500',
+                'analysis': 'bg-purple-400 dark:bg-purple-500',
+                'planning': 'bg-indigo-400 dark:bg-indigo-500'
+            };
+            const barColorClass = colorMap[stage] || 'bg-gray-400 dark:bg-gray-500';
+            
+            // Generate Mini Bar Chart HTML (based on Tokens or Count if tokens 0)
+            const maxTokensInBucket = Math.max(...(data.buckets || [{tokens:1}]).map(b => b.tokens), 1);
+            const barsHtml = (data.buckets || []).map(b => {
+                let height = 0;
+                let opacity = 0;
+                if (b.count > 0) {
+                    if (b.tokens > 0) {
+                        height = Math.max(20, (b.tokens / maxTokensInBucket) * 100);
+                        opacity = 1;
+                    } else {
+                        // Activity exists but tokens are 0 (backward compatibility)
+                        height = 15; 
+                        opacity = 0.6;
+                    }
+                } else {
+                    height = 0; // Empty slot
+                }
+                return `<div class="w-full ${barColorClass} rounded-t-sm" style="height: ${height}%; opacity: ${opacity}; min-width: 1px;"></div>`;
+            }).join('');
+
+            return `
+                <div class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100/50 dark:border-blue-800/30 rounded-xl shadow-sm flex flex-col justify-between">
+                    <div>
+                        <p class="text-[9px] font-bold text-gray-400 uppercase truncate mb-1">${stage}</p>
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-xs">${icon} <span class="text-[10px] font-black text-gray-700 dark:text-gray-200">${data.count}</span> <span class="text-[8px] text-gray-400 uppercase">건</span></span>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-end gap-[1px] h-6 w-full px-0.5 mt-2 mb-1">
+                        ${barsHtml}
+                    </div>
+
+                    <div class="text-[10px] font-black text-blue-600 dark:text-blue-400 mt-1">
+                        ${data.tokens > 0 ? data.tokens.toLocaleString() + ' <span class="text-[8px] font-normal opacity-70">TK</span>' : '-'}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // Generate Pie Chart
+        const hexColorMap = {
+            'video': '#f97316',   // orange-500
+            'image': '#3b82f6',   // blue-500
+            'script': '#22c55e',  // green-500
+            'analysis': '#a855f7', // purple-500
+            'planning': '#6366f1', // indigo-500
+            'vision_analysis': '#06b6d4', // cyan-500
+            'vision_gen': '#06b6d4'
+        };
+        
+        let currentAngle = 0;
+        const slices = activeStages.map((stage, idx) => {
+            const data = breakdown[stage];
+            const percent = totalTokens > 0 ? (data.tokens / totalTokens) * 100 : 0;
+            const color = hexColorMap[stage] || '#64748b'; // default slate-500
+            const slice = `${color} ${currentAngle}% ${currentAngle + percent}%`;
+            currentAngle += percent;
+            return { stage, percent, color, slice };
+        });
+
+        document.getElementById('pie-chart').style.background = `conic-gradient(${slices.map(s => s.slice).join(', ')})`;
+        
+        document.getElementById('pie-legend').innerHTML = slices.filter(s => s.percent > 0).map(s => `
+            <div class="flex items-center gap-1.5 dark:text-gray-300">
+                <span class="w-1.5 h-1.5 rounded-full" style="background: ${s.color}"></span>
+                <span class="flex-1 truncate uppercase">${s.stage}</span>
+                <span class="opacity-70">${s.percent.toFixed(0)}%</span>
+            </div>
+        `).join('');
+        
+        document.getElementById('stat-total').innerText = total;
+        document.getElementById('stat-success').innerText = rate + '%';
+        document.getElementById('stat-latency').innerText = avgLatency + 's';
+        document.getElementById('stat-tokens').innerText = totalTokens.toLocaleString();
+    }
+
+    function setPeriod(days) {
+        loadLogs(days);
+    }
+
+    // Initial Load
+    document.addEventListener('DOMContentLoaded', () => loadLogs(currentPeriod));
+</script>
+
+<style>
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #e2e8f0;
+    border-radius: 10px;
+}
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #1e293b;
+}
+</style>
+{% endblock %}

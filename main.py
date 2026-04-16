@@ -220,15 +220,23 @@ async def startup_event():
     try:
         # Verify License & Membership
         auth_service.verify_license()
-        
+
         db.init_db()
         db.migrate_db()
         db.reset_rendering_status() # [FIX] Stuck rendering status reset
-        
+
         # [NEW] Start Autopilot Batch Worker
         asyncio.create_task(autopilot_service.start_batch_worker())
-        
+
+        # 키 로드 상태 출력
+        from config import Config
+        gemini_ok = "✅" if Config.GEMINI_API_KEY else "❌ 없음"
+        youtube_ok = "✅" if Config.YOUTUBE_API_KEY else "❌ 없음"
+        elevenlabs_ok = "✅" if Config.ELEVENLABS_API_KEY else "❌ 없음"
         print(f"[Startup] DB Initialized. Membership: {auth_service.get_membership()}")
+        print(f"[Startup] API Keys — Gemini:{gemini_ok}  YouTube:{youtube_ok}  ElevenLabs:{elevenlabs_ok}")
+        if not Config.GEMINI_API_KEY:
+            print("[Startup] ⚠️  Gemini 키 없음 → mytube-ashy-seven.vercel.app 에서 키 저장 후 재시작 필요")
     except Exception as e:
         print(f"[Startup] Setup Failed: {e}")
 
@@ -2667,23 +2675,40 @@ async def upload_external_to_youtube(
         description = metadata.get('description', '') if metadata else ''
         tags = metadata.get('tags', []) if metadata else []
         
-        # [NEW] 채널 정보 조회하여 토큰 경로 결정
+        # [NEW] 채널 정보 조회하여 토큰 경로 결정 (Relative Path 지원)
         token_path = None
         try:
-            if requested_channel_id:
-                channel = db.get_channel(requested_channel_id)
+            target_chan_id = requested_channel_id or settings.get('youtube_channel_id')
+            if target_chan_id:
+                channel = db.get_channel(target_chan_id)
                 if channel and channel.get('credentials_path'):
                     cand_path = channel['credentials_path']
+                    # 상대 경로면 절대 경로로 변환
+                    if not os.path.isabs(cand_path):
+                        cand_path = os.path.join(config.BASE_DIR, cand_path)
+                    
                     if os.path.exists(cand_path):
                         token_path = cand_path
+                    else:
+                        # [FIX] 경로가 깨졌을 경우 현재 폴더의 tokens/ 에서 복구 시도
+                        rec_filename = f"token_{target_chan_id}.pickle"
+                        rec_path = os.path.join(config.BASE_DIR, "tokens", rec_filename)
+                        if os.path.exists(rec_path):
+                            token_path = rec_path
+                            print(f"[YouTube] Recovered token path from tokens/ directory: {token_path}")
             
             if not token_path:
                 # Fallback to first channel if not specified or not found
                 channels = db.get_all_channels()
                 if channels:
-                    cand_path = channels[0].get('credentials_path')
-                    if cand_path and os.path.exists(cand_path):
-                        token_path = cand_path
+                    for ch in channels:
+                        c_path = ch.get('credentials_path')
+                        if c_path:
+                            if not os.path.isabs(c_path):
+                                c_path = os.path.join(config.BASE_DIR, c_path)
+                            if os.path.exists(c_path):
+                                token_path = c_path
+                                break
         except Exception as e:
             print(f"[YouTube] Channel resolution error: {e}")
             token_path = None
@@ -2795,7 +2820,16 @@ if __name__ == "__main__":
     
     # [NEW] Verify License & Membership
     from services.auth_service import auth_service
-    auth_service.verify_license()
+    if not auth_service.verify_license():
+        print("!" * 50)
+        print("라이선스 인증에 실패했습니다.")
+        if auth_service.is_restricted():
+            print("관리자에 의해 계정 사용이 중단되었습니다.")
+        print("!" * 50)
+        # In actual EXE we might want to exit, but for now we let it run
+    
+    # [NEW] Start Real-time Admin Monitoring (Check every 10m)
+    auth_service.start_monitoring()
     
     # [NEW] Auto-open Browser in Production (or Frozen)
     if not config.DEBUG or getattr(sys, 'frozen', False):

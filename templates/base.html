@@ -43,17 +43,19 @@
 <body class="bg-gray-100 dark:bg-gray-900 dark:text-gray-100 min-h-screen">
     <div class="flex">
         <!-- 사이드바 -->
-        <aside class="w-64 bg-white dark:bg-gray-800 h-screen fixed left-0 top-0 shadow-lg z-40 flex flex-col">
-            <!-- 로고 -->
-            <div class="px-3 py-2 border-b border-gray-200 dark:border-gray-800 shrink-0">
+        <aside class="w-64 bg-white dark:bg-gray-950 h-screen fixed left-0 top-0 shadow-lg z-40 flex flex-col border-r border-gray-100 dark:border-blue-900/20">
+            <div class="px-3 py-3 border-b border-gray-200 dark:border-blue-900/20 shrink-0">
                 <a href="/" class="flex flex-col gap-0.5">
                     <span class="text-[10px] font-black tracking-widest text-blue-500 uppercase">{{ membership }}</span>
-                    <span class="text-base font-bold text-gray-800 dark:text-white">PICADIRI STUDIO</span>
+                    <span class="text-base font-black text-gray-800 dark:text-blue-400 flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                        PICADIRI STUDIO
+                    </span>
                 </a>
             </div>
 
             <!-- 프로젝트 선택 -->
-            <div class="px-3 py-1.5 border-b border-gray-200 dark:border-gray-700 shrink-0">
+            <div class="px-3 py-2 border-b border-gray-200 dark:border-blue-900/20 shrink-0 bg-gray-50/50 dark:bg-blue-900/5">
                 <div class="flex items-center justify-between mb-1">
                     <span class="text-[10px] font-medium text-gray-500 dark:text-gray-400">{{ t('label_current_project') }}</span>
                     <button onclick="openProjectModal()"
@@ -240,7 +242,7 @@
             </nav>
 
             <!-- Bottom Area (Theme + API Status) - Fixed at bottom of flex column -->
-            <div class="shrink-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+            <div class="shrink-0 bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-blue-900/20">
                 <div class="px-3 py-2">
                     <button onclick="toggleTheme()"
                         class="w-full flex items-center justify-center gap-2 p-1 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-[10px] font-medium">

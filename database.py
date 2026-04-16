@@ -398,6 +398,8 @@ def init_db():
             status TEXT,
             prompt_summary TEXT,
             error_msg TEXT,
+            input_tokens INTEGER DEFAULT 0,
+            output_tokens INTEGER DEFAULT 0,
             elapsed_time REAL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -797,6 +799,14 @@ scene_type별 구조:
     except sqlite3.OperationalError: pass
     try:
         cursor.execute("ALTER TABLE project_settings ADD COLUMN youtube_channel_id INTEGER")
+    except sqlite3.OperationalError: pass
+
+    # AI 로그 토큰 마이그레이션
+    try:
+        cursor.execute("ALTER TABLE ai_generation_logs ADD COLUMN input_tokens INTEGER DEFAULT 0")
+    except sqlite3.OperationalError: pass
+    try:
+        cursor.execute("ALTER TABLE ai_generation_logs ADD COLUMN output_tokens INTEGER DEFAULT 0")
     except sqlite3.OperationalError: pass
     try:
         cursor.execute("ALTER TABLE project_settings ADD COLUMN creation_mode TEXT DEFAULT 'default'")
@@ -3031,15 +3041,15 @@ def get_recent_projects(limit: int = 10) -> List[Dict]:
     return [dict(r) for r in rows]
 
 
-def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status: str, prompt_summary: str = "", error_msg: str = "", elapsed_time: float = 0.0):
+def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status: str, prompt_summary: str = "", error_msg: str = "", elapsed_time: float = 0.0, input_tokens: int = 0, output_tokens: int = 0):
     """AI 생성 로그 추가 (로컬 DB + Supabase 원격 동기화)"""
     conn = get_db()
     cursor = conn.cursor()
     try:
         cursor.execute("""
-            INSERT INTO ai_generation_logs (project_id, task_type, model_id, provider, status, prompt_summary, error_msg, elapsed_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (project_id, task_type, model_id, provider, status, prompt_summary, error_msg, elapsed_time))
+            INSERT INTO ai_generation_logs (project_id, task_type, model_id, provider, status, prompt_summary, error_msg, elapsed_time, input_tokens, output_tokens)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (project_id, task_type, model_id, provider, status, prompt_summary, error_msg, elapsed_time, input_tokens, output_tokens))
         conn.commit()
     except Exception as e:
         print(f"[DB] Failed to add AI log: {e}")
@@ -3069,6 +3079,8 @@ def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status:
                     "prompt_summary": prompt_summary,
                     "error_msg": error_msg,
                     "elapsed_time": elapsed_time,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens
                 },
                 timeout=5
             )
@@ -3077,17 +3089,47 @@ def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status:
     threading.Thread(target=_push_remote, daemon=True).start()
 
 
-def get_ai_logs(limit: int = 100) -> List[Dict[str, Any]]:
-    """AI 생성 로그 조회"""
+def get_daily_token_usage():
+    """오늘 하루 사용한 총 토큰량 합계 반환"""
     conn = get_db()
     cursor = conn.cursor()
     try:
+        # KST 기준 오늘 날짜 구하기
+        from datetime import datetime, timedelta, timezone
+        kst = timezone(timedelta(hours=9))
+        today = datetime.now(kst).strftime('%Y-%m-%d')
+        
         cursor.execute("""
-            SELECT id, project_id, task_type, model_id, provider, status, prompt_summary, error_msg, elapsed_time, created_at
+            SELECT SUM(input_tokens + output_tokens) as total 
+            FROM ai_generation_logs 
+            WHERE date(created_at, 'localtime') = ?
+        """, (today,))
+        row = cursor.fetchone()
+        return row['total'] if row and row['total'] else 0
+    except Exception as e:
+        print(f"[DB] Failed to get daily token usage: {e}")
+        return 0
+    finally:
+        conn.close()
+
+def get_ai_logs(limit: int = 100, days: int = None) -> List[Dict[str, Any]]:
+    """AI 생성 로그 조회 (날짜 필터링 지원)"""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        query = """
+            SELECT id, project_id, task_type, model_id, provider, status, prompt_summary, error_msg, elapsed_time, input_tokens, output_tokens, created_at
             FROM ai_generation_logs
-            ORDER BY created_at DESC
-            LIMIT ?
-        """, (limit,))
+        """
+        params = []
+        if days:
+            query += " WHERE created_at >= datetime('now', ?)"
+            params.append(f'-{days} days')
+        
+        query += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+
+        cursor.execute(query, params)
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except Exception as e:

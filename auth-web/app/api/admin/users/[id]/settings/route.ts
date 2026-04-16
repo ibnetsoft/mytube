@@ -18,6 +18,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
             elevenlabs: meta.elevenlabs_api_key || '',
             topview: meta.topview_api_key || '',
             topview_uid: meta.topview_uid || '',
+            youtube_channel: meta.youtube_channel || '',
+            youtube_handle: meta.youtube_handle || '',
         })
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 })
@@ -28,7 +30,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     try {
         const body = await req.json()
         const userId = params.id
-        const { gemini, youtube, elevenlabs, topview, topview_uid } = body
+        const { gemini, youtube, elevenlabs, topview, topview_uid, youtube_channel, youtube_handle } = body
 
         const supabaseAdmin = createClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -41,6 +43,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         if (elevenlabs !== undefined)  metaUpdate.elevenlabs_api_key = elevenlabs
         if (topview !== undefined)     metaUpdate.topview_api_key = topview
         if (topview_uid !== undefined) metaUpdate.topview_uid = topview_uid
+        if (youtube_channel !== undefined) metaUpdate.youtube_channel = youtube_channel
+        if (youtube_handle !== undefined)  metaUpdate.youtube_handle = youtube_handle
 
         const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
             user_metadata: metaUpdate

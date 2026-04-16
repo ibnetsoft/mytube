@@ -30,7 +30,28 @@
       "Bash(venv/Scripts/python.exe -c \"import config; print\\(config.OUTPUT_DIR\\)\")",
       "Bash(venv/Scripts/python.exe -c \"import config; c=config.Config\\(\\); print\\(c.OUTPUT_DIR\\)\")",
       "Bash(venv/Scripts/python.exe -c ':*)",
-      "Read(//c/Users/kimse/Downloads/유튜브소재발굴기/롸폼생성기/services/**)"
+      "Read(//c/Users/kimse/Downloads/유튜브소재발굴기/롸폼생성기/services/**)",
+      "Read(//c/Users/kimse/Downloads/유튜브소재발굴기/**)",
+      "Bash(npx next:*)",
+      "Bash(node -e \"const p = require\\('./node_modules/tailwindcss/package.json'\\); console.log\\('tailwind:', p.version\\)\")",
+      "Bash(node -e \"const p = require\\('./node_modules/next/package.json'\\); console.log\\('next:', p.version\\)\")",
+      "Bash(wc -c \"c:/Users/kimse/Downloads/유튜브소재발굴기/롱폼생성기/auth-web/.next/static/css/\"*.css)",
+      "Bash(grep -c \"bg-gradient\\\\|text-white\\\\|flex\\\\|rounded\" \"c:/Users/kimse/Downloads/유튜브소재발굴기/롱폼생성기/auth-web/.next/static/css/\"*.css)",
+      "Bash(awk '{print $5}')",
+      "Bash(xargs -I{} taskkill /PID {} /F)",
+      "Bash(taskkill /PID 34308 /F)",
+      "Bash(taskkill /PID 33340 /F)",
+      "Bash(cmd /c \"taskkill /PID 34308 /F & taskkill /PID 33340 /F\")",
+      "Bash(cmd /c \"tasklist /FI \\\\\"PID eq 34308\\\\\" /FO LIST & tasklist /FI \\\\\"PID eq 33340\\\\\" /FO LIST\")",
+      "Bash(cmd /c \"tasklist /FI \\\\\"PID eq 34308\\\\\"\")",
+      "Bash(powershell -Command \"Get-Process -Id 34308,33340 | Select-Object Id,ProcessName,MainWindowTitle\")",
+      "Bash(powershell -Command \"Stop-Process -Id 34308,33340 -Force; Write-Host 'Killed'\")",
+      "Bash(pip show:*)",
+      "Bash(pip install:*)",
+      "Bash(python3 -)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\auth-web\\app\\api\\admin\\users\\[id]"
     ]
   }
 }

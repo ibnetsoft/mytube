@@ -81,6 +81,26 @@
         background-color: #4b5563;
     }
 
+    /* Subtitle drag-and-drop indicators */
+    .sub-drag-over-top {
+        border-top: 2.5px solid #3b82f6 !important;
+        border-top-left-radius: 0 !important;
+        border-top-right-radius: 0 !important;
+    }
+    .sub-drag-over-bottom {
+        border-bottom: 2.5px solid #3b82f6 !important;
+        border-bottom-left-radius: 0 !important;
+        border-bottom-right-radius: 0 !important;
+    }
+    .sub-drag-palette-over {
+        background-color: rgba(59, 130, 246, 0.15) !important;
+        border-color: #3b82f6 !important;
+    }
+    .sub-dragging {
+        opacity: 0.4 !important;
+        cursor: grabbing !important;
+    }
+
     /* Compact inputs */
     .input-compact {
         @apply text-xs border-gray-300 dark:border-gray-600 rounded py-1 px-2 bg-gray-50 dark:bg-gray-700 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary;
@@ -222,23 +242,23 @@
                     <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_font') }}</span>
                     <select id="fontFamilySelect"
                         class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-28 focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer">
-                        <option value="GmarketSansBold" selected>G마켓 산스</option>
-                        <option value="TmonMonsori">티몬 몬소리</option>
-                        <option value="Jalnan">여기어때 잘난</option>
-                        <option value="Black Han Sans">검은고딕</option>
-                        <option value="Pretendard-Bold">프리텐다드</option>
-                        <option value="NanumSquareExtraBold">나눔스퀘어</option>
-                        <option value="Jua">배민 주아</option>
-                        <option value="Do Hyeon">배민 도현</option>
-                        <option value="CookieRun-Regular">쿠키런</option>
-                        <option value="BinggraeMelona-Bold">빙그레</option>
-                        <option value="NetmarbleB">넷마블</option>
-                        <option value="ChosunIlboMyungjo">조선일보 명조</option>
-                        <option value="MapoFlowerIsland">마포 꽃섬</option>
-                        <option value="S-CoreDream-6Bold">에스코어 드림</option>
-                        <option value="Gungsuh">궁서체</option>
-                        <option value="NanumMyeongjo">나눔명조</option>
-                        <option value="Malgun Gothic">맑은 고딕</option>
+                        <option value="GmarketSansBold" selected>{{ t('font_gmarket') }}</option>
+                        <option value="TmonMonsori">{{ t('font_tmon') }}</option>
+                        <option value="Jalnan">{{ t('font_jalnan') }}</option>
+                        <option value="Black Han Sans">{{ t('font_blackhan') }}</option>
+                        <option value="Pretendard-Bold">{{ t('font_pretendard') }}</option>
+                        <option value="NanumSquareExtraBold">{{ t('font_nanumsquare') }}</option>
+                        <option value="Jua">{{ t('font_jua') }}</option>
+                        <option value="Do Hyeon">{{ t('font_dohyeon') }}</option>
+                        <option value="CookieRun-Regular">{{ t('font_cookierun') }}</option>
+                        <option value="BinggraeMelona-Bold">{{ t('font_binggrae') }}</option>
+                        <option value="NetmarbleB">{{ t('font_netmarble') }}</option>
+                        <option value="ChosunIlboMyungjo">{{ t('font_chosun') }}</option>
+                        <option value="MapoFlowerIsland">{{ t('font_mapo') }}</option>
+                        <option value="S-CoreDream-6Bold">{{ t('font_score') }}</option>
+                        <option value="Gungsuh">{{ t('font_gungsuh') }}</option>
+                        <option value="NanumMyeongjo">{{ t('font_nanummyeongjo') }}</option>
+                        <option value="Malgun Gothic">{{ t('font_malgun') }}</option>
                     </select>
                     <!-- 폰트 크기 -->
                     <div class="flex items-center gap-1">
@@ -279,9 +299,8 @@
             <!-- Row 2: 테두리 / 배경띠 / Action Buttons -->
             <div class="flex items-center gap-2 flex-nowrap overflow-x-auto overflow-y-hidden py-0.5 border-t border-gray-100 dark:border-gray-700 pt-1">
 
-                <!-- 테두리 (Stroke Width) -->
                 <div class="flex items-center gap-1.5 border-r border-gray-200 dark:border-gray-600 pr-3 flex-shrink-0">
-                    <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">테두리</span>
+                    <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_stroke') }}</span>
                     <input type="number" id="strokeWidthInput" value="0" min="0" max="15" step="0.5"
                         class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-12 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
                         title="테두리 두께 (px)">
@@ -351,7 +370,7 @@
                 </button>
                 <button id="renderBtn" onclick="renderVideoInPlace()"
                     class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-purple-600 hover:bg-purple-700 text-white shadow-sm shadow-purple-600/30 animate-pulse-slow disabled:opacity-50 flex-shrink-0">
-                    렌더링
+                    {{ t('btn_render') }}
                 </button>
                 <button id="renderQueueBtn" onclick="addToRenderQueue()"
                     class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-gray-600 hover:bg-gray-700 text-white shadow-sm disabled:opacity-50 flex-shrink-0">
@@ -798,6 +817,8 @@
         label_subtitle_preview: "{{ t('label_subtitle_preview') }}",
         err_time_after_next: "{{ t('err_time_after_next') }}",
         err_time_before_prev: "{{ t('err_time_before_prev') }}",
+        opt_select: "{{ t('opt_select') }}",
+        label_template: "{{ t('label_template') }}",
         toast_last_img_fixed: "{{ t('toast_last_img_fixed') }}"
     });
 
@@ -1161,7 +1182,9 @@
                  onclick="isSelectMode ? toggleRowSelect(${index}) : selectSubtitle(${index}, false)"
                  draggable="${isSelectMode ? 'false' : 'true'}"
                  ondragstart="if(!isSelectMode) handleSubtitleDragStart(event, ${index})"
-                 ondragover="if(!isSelectMode) allowDrop(event)"
+                 ondragover="if(!isSelectMode) handleSubtitleDragOver(event, ${index})"
+                 ondragleave="if(!isSelectMode) handleSubtitleDragLeave(event)"
+                 ondragend="if(!isSelectMode) handleSubtitleDragEnd(event)"
                  ondrop="if(!isSelectMode) handleCombinedDrop(event, ${index})"
                  class="flex items-stretch p-2 mb-1 bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-700 cursor-pointer transition-all ${isActive} group relative overflow-visible">
 
@@ -2864,15 +2887,75 @@
 
 
 
+    // Track drag-and-drop insert position
+    let _subDragSrcIdx = -1;
+    let _subDropInsertIdx = -1; // index BEFORE which to insert
+
     function handleSubtitleDragStart(ev, index) {
         ev.dataTransfer.effectAllowed = "move";
         ev.dataTransfer.setData("type", "subtitle");
-        ev.dataTransfer.setData("index", index);
-        // Optional: Set drag image
+        ev.dataTransfer.setData("index", String(index));
+        _subDragSrcIdx = index;
+        _subDropInsertIdx = -1;
+        setTimeout(() => {
+            const el = document.getElementById(`sub-row-${index}`);
+            if (el) el.classList.add('sub-dragging');
+        }, 0);
+    }
+
+    function _clearSubDragIndicators() {
+        document.querySelectorAll('[id^="sub-row-"]').forEach(el => {
+            el.classList.remove('sub-drag-over-top', 'sub-drag-over-bottom', 'sub-drag-palette-over');
+        });
+    }
+
+    function handleSubtitleDragOver(ev, rowIndex) {
+        ev.preventDefault();
+        const isSubtitleDrag = (_subDragSrcIdx !== -1);
+        ev.dataTransfer.dropEffect = isSubtitleDrag ? "move" : "copy";
+        const row = document.getElementById(`sub-row-${rowIndex}`);
+        if (!row) return;
+        _clearSubDragIndicators();
+        if (isSubtitleDrag) {
+            // Show top/bottom insert line
+            const rect = row.getBoundingClientRect();
+            const isAbove = ev.clientY < rect.top + rect.height / 2;
+            if (isAbove) {
+                row.classList.add('sub-drag-over-top');
+                _subDropInsertIdx = rowIndex;
+            } else {
+                row.classList.add('sub-drag-over-bottom');
+                _subDropInsertIdx = rowIndex + 1;
+            }
+        } else {
+            // Palette image: highlight whole row as drop target
+            row.classList.add('sub-drag-palette-over');
+        }
+    }
+
+    function handleSubtitleDragLeave(ev) {
+        const row = ev.currentTarget;
+        if (!row) return;
+        const related = ev.relatedTarget;
+        if (related && row.contains(related)) return;
+        row.classList.remove('sub-drag-over-top', 'sub-drag-over-bottom', 'sub-drag-palette-over');
+    }
+
+    function handleSubtitleDragEnd(ev) {
+        _clearSubDragIndicators();
+        document.querySelectorAll('[id^="sub-row-"]').forEach(el => {
+            el.classList.remove('sub-dragging');
+        });
+        _subDragSrcIdx = -1;
+        _subDropInsertIdx = -1;
     }
 
     function handleCombinedDrop(ev, targetIndex) {
         ev.preventDefault();
+        _clearSubDragIndicators();
+        document.querySelectorAll('[id^="sub-row-"]').forEach(el => {
+            el.classList.remove('sub-dragging');
+        });
 
         const type = ev.dataTransfer.getData("type");
 
@@ -2882,12 +2965,22 @@
             if (sourceIndexStr === "" || isNaN(sourceIndexStr)) return;
             const sourceIndex = parseInt(sourceIndexStr);
 
-            if (sourceIndex === targetIndex) return;
+            // Use _subDropInsertIdx (upper/lower half detection) if available
+            let insertIdx = (_subDropInsertIdx !== -1) ? _subDropInsertIdx : targetIndex;
 
-            // Reorder Array
+            // No-op if dropping in same position
+            if (insertIdx === sourceIndex || insertIdx === sourceIndex + 1) {
+                _subDragSrcIdx = -1; _subDropInsertIdx = -1;
+                return;
+            }
+
+            // Remove from source
             const [movedItem] = subtitles.splice(sourceIndex, 1);
-            subtitles.splice(targetIndex, 0, movedItem);
+            // Adjust insertIdx after removal
+            if (insertIdx > sourceIndex) insertIdx--;
+            subtitles.splice(insertIdx, 0, movedItem);
 
+            _subDragSrcIdx = -1; _subDropInsertIdx = -1;
             saveSubtitles();
             renderSubtitles();
             Utils.showToast("자막 순서가 변경되었습니다.", "success");
@@ -3418,77 +3511,6 @@
         }
     }
 
-    function allowDrop(ev) {
-        ev.preventDefault();
-        ev.target.closest('.group').classList.add('bg-blue-50', 'dark:bg-blue-900/20');
-    }
-
-    // Reset visual on drag leave (optional but good)
-    // We didn't add ondragleave, so might skip visual reset for simplicity or add it.
-    // Let's keep it simple. The hover (dragover) effect might stick if not careful, 
-    // but the `renderSubtitles()` call will clear everything instantly on drop.
-
-    function handleCombinedDrop(ev, subIdx) {
-        ev.preventDefault();
-        const srcIdx = ev.dataTransfer.getData("text/plain");
-        if (srcIdx === "" || isNaN(srcIdx)) return;
-
-        const imageIndex = parseInt(srcIdx);
-        // Validate against sourceImages (Palette)
-        if (imageIndex < 0 || imageIndex >= sourceImages.length) return;
-
-        // Logic: Apply Image #imageIndex to start at Subtitle #subIdx
-        if (subIdx < 0 || subIdx >= subtitles.length) return;
-
-        const targetTime = subtitles[subIdx].start;
-        const targetUrl = sourceImages[imageIndex]; // Get from Palette
-
-        // 1. Check if an image timing already exists nearby (tolerance)
-        // If so, update it. If not, insert it.
-        // Actually, for reuse/insert, we should insert into the lists.
-        // But `imageTimings` and `images` must be parallel.
-        // But `imageTimings` is float[], `images` is string[].
-
-        // Current structure assumption:
-        // images uses separate index? No.
-        // `imageTimings` maps 1:1 to `images`?
-        // Let's check `get_subtitles`.
-        // `images = [url, url, ...]`
-        // `image_timings = [0.0, 5.0, ...]`
-        // They MUST be parallel arrays index-wise.
-
-        // So validation:
-        // We need to insert `targetTime` into `imageTimings`.
-        // And insert `targetUrl` into `images` at the SAME index.
-
-        if (!imageTimings) imageTimings = [];
-
-        // Find insert position
-        let insertPos = 0;
-        while (insertPos < imageTimings.length && imageTimings[insertPos] < targetTime) {
-            insertPos++;
-        }
-
-        // Prevent duplicate time exact match (overwrite instead)
-        if (insertPos < imageTimings.length && Math.abs(imageTimings[insertPos] - targetTime) < 0.1) {
-            // Overwrite existing at this time
-            images[insertPos] = targetUrl;
-            imageTimings[insertPos] = targetTime;
-        } else {
-            // Insert new
-            imageTimings.splice(insertPos, 0, targetTime);
-            images.splice(insertPos, 0, targetUrl);
-        }
-
-        // Update UI
-        renderSubtitles();
-        renderImageStrip();
-        Utils.showToast(`?대?吏 #${imageIndex + 1} 적용 완료`, 'success');
-
-        // Auto Save to persist custom order
-        // We use a debounced save or immediate? Immediate is fine for interaction.
-        saveSubtitles();
-    }
 
     async function loadProjectAndSubtitles(forceRefresh = false) {
         updateDebug(`[Func] loadProjectAndSubtitles START. Pid: ${projectId}, Force: ${forceRefresh}`);

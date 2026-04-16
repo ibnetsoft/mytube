@@ -119,6 +119,33 @@
             <div class="atl-card p-5 space-y-4">
                 <p class="atl-section-label">{{ t('plan_settings_title') }}</p>
 
+                <!-- ── Trends / Language Selection ── -->
+                <div class="space-y-2 pb-2">
+                    <label class="atl-field-label block">{{ t('label_trend_market') if t('label_trend_market') != 'label_trend_market' else 'Trend Market' }}</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="setGenerationLanguage('ko')" 
+                                class="py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all hover:scale-105 active:scale-95 border-2 border-transparent"
+                                style="background: rgba(182,196,255,0.05); color: var(--atl-primary); font-size: 10px; font-weight: 800; border-color: rgba(182,196,255,0.2);"
+                                id="langBtn-ko">
+                            <span>🇰🇷</span> {{ t('plan_kr_trend').split(' ')[1] if t('plan_kr_trend') and ' ' in t('plan_kr_trend') else 'KOREAN' }}
+                        </button>
+                        <button onclick="setGenerationLanguage('ja')" 
+                                class="py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all hover:scale-105 active:scale-95 border-2 border-transparent"
+                                style="background: rgba(255,182,182,0.05); color: #ffb6b6; font-size: 10px; font-weight: 800;"
+                                id="langBtn-ja">
+                            <span>🇯🇵</span> {{ t('plan_jp_trend').split(' ')[1] if t('plan_jp_trend') and ' ' in t('plan_jp_trend') else 'JAPANESE' }}
+                        </button>
+                        <button onclick="setGenerationLanguage('en')" 
+                                class="py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all hover:scale-105 active:scale-95 border-2 border-transparent"
+                                style="background: rgba(182,255,182,0.05); color: #b6ffb6; font-size: 10px; font-weight: 800;"
+                                id="langBtn-en">
+                            <span>🇺🇸</span> {{ t('plan_us_trend').split(' ')[1] if t('plan_us_trend') and ' ' in t('plan_us_trend') else 'ENGLISH' }}
+                        </button>
+                    </div>
+                </div>
+
+
+
                 <!-- Topic -->
                 <div class="space-y-1.5">
                     <label class="atl-field-label block">{{ t('plan_topic_label') }}</label>
@@ -835,6 +862,43 @@
 
     // [NEW] 전역 변수로 타겟 언어 관리
     let currentTargetLanguage = 'ko';
+
+    /**
+     * [NEW] Set language for script generation
+     */
+    function setGenerationLanguage(lang) {
+        currentTargetLanguage = lang;
+        
+        // Update UI Visuals
+        const buttons = {
+            'ko': { id: 'langBtn-ko', color: 'var(--atl-primary)', bg: 'rgba(182,196,255,0.2)', label: '🇰🇷 KOREAN' },
+            'ja': { id: 'langBtn-ja', color: '#ffb6b6', bg: 'rgba(255,182,182,0.2)', label: '🇯🇵 JAPANESE' },
+            'en': { id: 'langBtn-en', color: '#b6ffb6', bg: 'rgba(182,255,182,0.2)', label: '🇺🇸 ENGLISH' }
+        };
+
+        Object.entries(buttons).forEach(([l, cfg]) => {
+            const btn = document.getElementById(cfg.id);
+            if (!btn) return;
+            if (l === lang) {
+                btn.style.borderColor = cfg.color;
+                btn.style.background = cfg.bg;
+                btn.classList.add('shadow-[0_0_15px_rgba(255,255,255,0.1)]');
+            } else {
+                btn.style.borderColor = 'transparent';
+                btn.style.background = 'rgba(255,255,255,0.02)';
+                btn.classList.remove('shadow-[0_0_15px_rgba(255,255,255,0.1)]');
+            }
+        });
+
+        const langLabel = document.getElementById('targetLangLabel');
+        if (langLabel) {
+            langLabel.innerText = buttons[lang].label;
+            langLabel.style.color = buttons[lang].color;
+        }
+
+        console.log("🌐 Target Language switched to:", lang);
+    }
+
 
     async function saveScriptSettings(btn) {
         const projectId = getCurrentProject();

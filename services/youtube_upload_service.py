@@ -12,7 +12,11 @@ class YouTubeUploadService:
         from config import config
         self.client_secret_file = os.path.join(config.BASE_DIR, "client_secret.json")
         self.token_file = os.path.join(config.BASE_DIR, "token.pickle")
-        self.scopes = ["https://www.googleapis.com/auth/youtube.upload", "https://www.googleapis.com/auth/youtube"]
+        self.scopes = [
+            "https://www.googleapis.com/auth/youtube.upload", 
+            "https://www.googleapis.com/auth/youtube",
+            "https://www.googleapis.com/auth/drive.file"
+        ]
         self.api_service_name = "youtube"
         self.api_version = "v3"
 

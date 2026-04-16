@@ -1,6 +1,6 @@
 """
 Gemini API 서비스
-- 텍스트 생성 (gemini-2.0-flash)
+- 텍스트 생성 (gemini-3.1-flash)
 - 이미지 생성 (gemini-3.1-flash-image-preview / 나노바나나 2.0)
 - 영상 생성 (Veo)
 """
@@ -10,6 +10,7 @@ import base64
 import os
 import json
 import re
+import time as _time
 import database as db
 
 import google.generativeai as genai
@@ -23,8 +24,18 @@ from google.genai import types
 class GeminiService:
     def __init__(self):
         self.base_url = "https://generativelanguage.googleapis.com/v1beta"
-        # [NEW] Initialize the modern client
-        self.client = genai.Client(api_key=config.GEMINI_API_KEY)
+        self._client = None
+        self._client_key = None
+
+    @property
+    def client(self):
+        """키가 바뀌면 자동으로 재생성 (Supabase 원격 키 로드 후 반영)"""
+        current_key = config.GEMINI_API_KEY
+        if self._client is None or self._client_key != current_key:
+            if current_key:
+                self._client = genai.Client(api_key=current_key)
+                self._client_key = current_key
+        return self._client
 
     @property
     def api_key(self):
@@ -40,9 +51,11 @@ class GeminiService:
         except Exception:
             pass
 
-    async def generate_text(self, prompt: str, temperature: float = 0.7, max_tokens: int = 8192) -> str:
+    async def generate_text(self, prompt: str, temperature: float = 0.7, max_tokens: int = 8192, project_id: int = None, task_type: str = "text_gen") -> str:
         """텍스트 생성"""
-        url = f"{self.base_url}/models/gemini-2.0-flash:generateContent?key={self.api_key}"
+        if not self.api_key:
+            raise Exception("Gemini API 키가 설정되지 않았습니다. 어드민 웹에서 키를 저장한 후 앱을 재시작하세요.")
+        url = f"{self.base_url}/models/gemini-3.1-flash:generateContent?key={self.api_key}"
 
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
@@ -52,25 +65,46 @@ class GeminiService:
             }
         }
 
-        async with httpx.AsyncClient(timeout=180.0) as client:
-            response = await client.post(url, json=payload)
-            result = response.json()
+        start_time = _time.time()
+        try:
+            async with httpx.AsyncClient(timeout=180.0) as client:
+                response = await client.post(url, json=payload)
+                result = response.json()
 
-            if "candidates" in result:
-                candidate = result["candidates"][0]
-                finish_reason = candidate.get("finishReason", "")
-                text = candidate["content"]["parts"][0]["text"]
-                usage = result.get("usageMetadata", {})
-                print(f"[Gemini] finishReason={finish_reason}, outputTokens={usage.get('candidatesTokenCount', '?')}, inputTokens={usage.get('promptTokenCount', '?')}")
-                if finish_reason == "MAX_TOKENS":
-                    print(f"[Gemini] WARNING: Output truncated by token limit! Consider reducing scene count or increasing maxOutputTokens.")
-                return text
-            else:
-                raise Exception(f"Gemini API 오류: {result}")
+                if "candidates" in result:
+                    candidate = result["candidates"][0]
+                    finish_reason = candidate.get("finishReason", "")
+                    text = candidate["content"]["parts"][0]["text"]
+                    usage = result.get("usageMetadata", {})
+                    in_tokens = usage.get('promptTokenCount', 0)
+                    out_tokens = usage.get('candidatesTokenCount', 0)
+                    elapsed = _time.time() - start_time
+                    
+                    print(f"[Gemini] finishReason={finish_reason}, outputTokens={out_tokens}, inputTokens={in_tokens}, elapsed={elapsed:.1f}s")
+                    
+                    # Always log, even if project_id is None
+                    db.add_ai_log(project_id, task_type, 'gemini-3.1-flash', 'google', 'success', 
+                                 prompt_summary=prompt[:100], input_tokens=in_tokens, output_tokens=out_tokens, elapsed_time=elapsed)
+                    
+                    if finish_reason == "MAX_TOKENS":
+                        print(f"[Gemini] WARNING: Output truncated by token limit!")
+                    return text
+                else:
+                    elapsed = _time.time() - start_time
+                    error_detail = result.get('error', {})
+                    error_msg = error_detail.get('message', str(result)) if isinstance(error_detail, dict) else str(result)
+                    db.add_ai_log(project_id, task_type, 'gemini-3.1-flash', 'google', 'failed', 
+                                 prompt_summary=prompt[:100], error_msg=error_msg, elapsed_time=elapsed)
+                    raise Exception(f"Gemini API 오류: {error_msg}")
+        except Exception as e:
+            elapsed = _time.time() - start_time
+            db.add_ai_log(project_id, task_type, 'gemini-3.1-flash', 'google', 'failed', 
+                         prompt_summary=prompt[:100], error_msg=str(e), elapsed_time=elapsed)
+            raise e
 
-    async def generate_text_from_image(self, prompt: str, image_bytes: bytes, mime_type: str = "image/png") -> str:
+    async def generate_text_from_image(self, prompt: str, image_bytes: bytes, mime_type: str = "image/png", project_id: int = None, task_type: str = "vision_gen") -> str:
         """이미지 + 텍스트 생성 (Vision)"""
-        url = f"{self.base_url}/models/gemini-2.0-flash:generateContent?key={self.api_key}"
+        url = f"{self.base_url}/models/gemini-3.1-flash:generateContent?key={self.api_key}"
 
         encoded_image = base64.b64encode(image_bytes).decode("utf-8")
 
@@ -92,18 +126,36 @@ class GeminiService:
             }
         }
 
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(url, json=payload)
-            result = response.json()
+        start_time = _time.time()
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                response = await client.post(url, json=payload)
+                result = response.json()
 
-            if "candidates" in result:
-                return result["candidates"][0]["content"]["parts"][0]["text"]
-            else:
-                error_msg = result.get('error', {}).get('message', str(result))
-                print(f"❌ [Gemini Vision] API Error: {error_msg}")
-                raise Exception(f"Gemini Vision API 오류: {error_msg}")
+                if "candidates" in result:
+                    candidate = result["candidates"][0]
+                    text = candidate["content"]["parts"][0]["text"]
+                    usage = result.get("usageMetadata", {})
+                    in_tokens = usage.get('promptTokenCount', 0)
+                    out_tokens = usage.get('candidatesTokenCount', 0)
+                    elapsed = _time.time() - start_time
+                    
+                    db.add_ai_log(project_id, task_type, 'gemini-3.1-flash', 'google', 'success', 
+                                 prompt_summary=prompt[:100], input_tokens=in_tokens, output_tokens=out_tokens, elapsed_time=elapsed)
+                    return text
+                else:
+                    elapsed = _time.time() - start_time
+                    error_msg = result.get('error', {}).get('message', str(result)) if isinstance(result.get('error'), dict) else str(result)
+                    db.add_ai_log(project_id, task_type, 'gemini-3.1-flash', 'google', 'failed', 
+                                 prompt_summary=prompt[:100], error_msg=error_msg, elapsed_time=elapsed)
+                    raise Exception(f"Gemini Vision API 오류: {error_msg}")
+        except Exception as e:
+            elapsed = _time.time() - start_time
+            db.add_ai_log(project_id, task_type, 'gemini-3.1-flash', 'google', 'failed', 
+                         prompt_summary=prompt[:100], error_msg=str(e), elapsed_time=elapsed)
+            raise e
 
-    async def analyze_webtoon_panel(self, image_path: str, context: Optional[str] = None, voice_options: Optional[str] = None) -> dict:
+    async def analyze_webtoon_panel(self, image_path: str, context: Optional[str] = None, voice_options: Optional[str] = None, project_id: int = None) -> dict:
         """웹툰 패널 한 칸을 분석하여 대사, 캐릭터, 연출 정보 추출"""
         
         context_inst = ""
@@ -200,7 +252,7 @@ class GeminiService:
             mime_type = mime_map.get(ext, 'image/jpeg')
             print(f"🔍 [Gemini] Analyzing panel: {os.path.basename(image_path)} (mime: {mime_type})")
             
-            response_text = await self.generate_text_from_image(prompt, img_bytes, mime_type=mime_type)
+            response_text = await self.generate_text_from_image(prompt, img_bytes, mime_type=mime_type, project_id=project_id, task_type='vision_analysis')
             print(f"DEBUG: Gemini RAW response for panel: {response_text[:400]}...")
 
             print(f"DEBUG: Gemini RAW response for panel: {response_text[:300]}...")
@@ -242,7 +294,7 @@ class GeminiService:
                 "voice_recommendation": {}
             }
 
-    async def generate_webtoon_plan(self, scenes: List[dict]) -> dict:
+    async def generate_webtoon_plan(self, scenes: List[dict], project_id: int = None) -> dict:
         """분석된 패널 정보를 바탕으로 비디오 제작을 위한 기획/기술 제안서 생성"""
         
         scenes_preview = []
@@ -326,7 +378,7 @@ class GeminiService:
         prompt = prompt_template.replace("[[SCENES_JSON]]", scenes_json)
         
         try:
-            text = await self.generate_text(prompt, temperature=0.7)
+            text = await self.generate_text(prompt, temperature=0.7, project_id=project_id, task_type='webtoon_plan')
             
             # JSON 파싱
             import re
@@ -376,7 +428,8 @@ class GeminiService:
         self,
         prompt: str,
         aspect_ratio: str = "16:9",
-        num_images: int = 1
+        num_images: int = 1,
+        project_id: int = None
     ) -> List[bytes]:
         """이미지 생성 (Imagen 폴백 체인: imagen-4 → imagen-3 → imagen-3-fast)"""
 
@@ -426,20 +479,12 @@ class GeminiService:
             # 스타일리시/카툰 모드일 때는 실사 유도 지시문 배제
             final_prompt += ", flat 2D vector illustration, strictly minimal, no shadows, no gradients, hand-drawn sketch style"
 
-        negative_prompt = (
-            "extra arms, extra hands, multiple arms, too many arms, too many hands, "
-            "extra fingers, too many fingers, additional limbs, floating arms, "
-            "disconnected arms, deformed arms, deformed hands, mutated arms, mutated hands, "
-            "mutated fingers, fused arms, fused hands, wrong anatomy, bad anatomy, "
-            "more than 2 arms, more than 10 fingers, worst quality, low quality"
-        )
 
-        # 1. 최우선 순위: 나노바나나 2.0 (Gemini 3.1 Flash Image Preview)
+        # 나노바나나 2.0 (Gemini 3.1 Flash Image Preview) — 폴백 없음
         start_time = _time.time()
         try:
             self.log_debug(f"🎨 [Gemini Image] Trying Nano Banana 2.0 (gemini-3.1-flash-image-preview)")
-            
-            # [FIX] Use the MODERN async SDK (client.aio) for non-blocking performance
+
             response = await self.client.aio.models.generate_content(
                 model="gemini-3.1-flash-image-preview",
                 contents=final_prompt,
@@ -451,72 +496,34 @@ class GeminiService:
                     )
                 )
             )
-            
+
+            elapsed = _time.time() - start_time
             images = []
             if response.candidates:
                 for candidate in response.candidates:
                     for part in candidate.content.parts:
                         if part.inline_data:
                             images.append(part.inline_data.data)
+
+            if not images:
+                raise Exception("Nano Banana 2.0 returned no image data")
+
+            # 토킹 추정 및 기록 (이미지당 1000토큰으로 가정하거나 usage_metadata 사용)
+            usage = getattr(response, 'usage_metadata', None)
+            in_tokens = usage.prompt_token_count if usage else 1000
+            out_tokens = (usage.candidates_token_count if usage else 2000) * len(images) # 갯수 곱하기
             
-                self.log_debug(f"✅ [Gemini Image] Nano Banana 2.0 succeeded via google-genai (Async), {len(images)} image(s)")
-                db.add_ai_log(None, 'image', 'gemini-3.1-flash-image-preview', 'google', 'success', prompt_summary=prompt[:100], elapsed_time=elapsed)
-                return images
-                
+            self.log_debug(f"✅ [Gemini Image] Nano Banana 2.0 succeeded, {len(images)} image(s)")
+            db.add_ai_log(project_id, 'image', 'gemini-3.1-flash-image-preview', 'google', 'success', 
+                         prompt_summary=prompt[:100], elapsed_time=elapsed, 
+                         input_tokens=in_tokens, output_tokens=out_tokens)
+            return images
+
         except Exception as e:
             elapsed = _time.time() - start_time
-            self.log_debug(f"⚠️ [Gemini Image] Nano Banana 2.0 failed (Async): {e}. Falling back to legacy Imagen chain...")
+            self.log_debug(f"❌ [Gemini Image] Nano Banana 2.0 failed: {e}")
             db.add_ai_log(None, 'image', 'gemini-3.1-flash-image-preview', 'google', 'failed', prompt_summary=prompt[:100], error_msg=str(e), elapsed_time=elapsed)
-
-        # 2. 폴백: 기존 Imagen 모델 체인
-        payload = {
-            "instances": [{"prompt": final_prompt, "negativePrompt": negative_prompt}],
-            "parameters": {
-                "sampleCount": num_images,
-                "aspectRatio": aspect_ratio,
-                "safetySetting": "block_low_and_above"
-            }
-        }
-
-        models = [
-            "imagen-4.0-generate-001",
-            "imagen-3.0-generate-001",
-            "imagen-3.0-fast-generate-001",
-        ]
-        for model_name in models:
-            start_time = _time.time()
-            try:
-                url = f"{self.base_url}/models/{model_name}:predict?key={self.api_key}"
-                self.log_debug(f"🎨 [Gemini Image] Trying model: {model_name}")
-                async with httpx.AsyncClient(timeout=120.0) as client:
-                    response = await client.post(url, json=payload)
-                    elapsed = _time.time() - start_time
-                    if response.status_code != 200:
-                        self.log_debug(f"❌ [Gemini Image] {model_name} Error ({response.status_code}): {response.text[:200]}")
-                        db.add_ai_log(None, 'image', model_name, 'google', 'failed', prompt_summary=prompt[:100], error_msg=f"HTTP {response.status_code}", elapsed_time=elapsed)
-                        continue
-                    result = response.json()
-                    images = []
-                    if "predictions" in result:
-                        for pred in result["predictions"]:
-                            if "bytesBase64Encoded" in pred:
-                                images.append(base64.b64decode(pred["bytesBase64Encoded"]))
-                    if images:
-                        self.log_debug(f"✅ [Gemini Image] {model_name} succeeded, {len(images)} image(s)")
-                        db.add_ai_log(None, 'image', model_name, 'google', 'success', prompt_summary=prompt[:100], elapsed_time=elapsed)
-                        return images
-                    else:
-                        err = result.get('error', {}).get('message', 'No image data')
-                        self.log_debug(f"❌ [Gemini Image] {model_name}: {err}")
-                        db.add_ai_log(None, 'image', model_name, 'google', 'failed', prompt_summary=prompt[:100], error_msg=err, elapsed_time=elapsed)
-                        continue
-            except Exception as e:
-                elapsed = _time.time() - start_time
-                self.log_debug(f"❌ [Gemini Image] {model_name} exception: {e}")
-                db.add_ai_log(None, 'image', model_name, 'google', 'failed', prompt_summary=prompt[:100], error_msg=str(e), elapsed_time=elapsed)
-                continue
-
-        raise Exception("All Image generation models failed (including Nano Banana 2.0 and Imagen)")
+            raise Exception(f"이미지 생성 실패 (Nano Banana 2.0): {e}")
 
     async def generate_video(
         self,
@@ -525,6 +532,7 @@ class GeminiService:
         duration_seconds: int = 5, 
         aspect_ratio: str = "16:9",
         model: str = "veo-3.1-fast-generate-preview",
+        project_id: int = None,
         **kwargs
     ) -> Optional[bytes]:
         """영상 생성 (Veo) - 최신 SDK 방식 사용. 바이트 데이터를 직접 반환함."""
@@ -533,6 +541,10 @@ class GeminiService:
             duration_seconds = min(duration_seconds, 5)
         
         self.log_debug(f"📹 [Veo] Starting full video generation (dur={duration_seconds}s, ratio={aspect_ratio}): {prompt[:50]}...")
+        
+        # Veo는 현재 텍스트 기반이므로 대략적인 토큰 소모량 기록 (추후 API에서 정확히 받으면 수정)
+        # 이미지 분석 없이 텍스트만 보낼 경우 500/1000 정도의 가상 토큰 부여
+        db.add_ai_log(project_id, 'video', model, 'google', 'processing', prompt_summary=prompt[:100], input_tokens=500, output_tokens=1000)
 
         res = await self.generate_video_preview(prompt=prompt, image_path=image_path, model=model, aspect_ratio=aspect_ratio)
         if res.get("status") == "ok" and res.get("video_url"):
@@ -649,7 +661,7 @@ class GeminiService:
             
         return []
 
-    async def generate_script_structure(self, analysis_data: dict, recent_titles: List[str] = None, target_language: str = "ko", style_prompt: str = "", accumulated_knowledge: List[dict] = None) -> dict:
+    async def generate_script_structure(self, analysis_data: dict, recent_titles: List[str] = None, target_language: str = "ko", style_prompt: str = "", accumulated_knowledge: List[dict] = None, project_id: int = None) -> dict:
         """분석 데이터를 기반으로 대본 구조 자동 생성 (내용과 전략의 분리 + 누적 지식 활용)"""
         
         # [NEW] 분석 데이터 분리 (내용 vs 전략)
@@ -736,23 +748,27 @@ class GeminiService:
 
         start_time = _time.time()
         try:
-            text = await self.generate_text(prompt, temperature=0.5)
+            text = await self.generate_text(prompt, temperature=0.5, project_id=project_id, task_type='script_gen')
             elapsed = _time.time() - start_time
             json_match = re.search(r'\{[\s\S]*\}', text)
             if json_match:
                 try:
                     res = json.loads(json_match.group())
-                    db.add_ai_log(None, 'script', 'gemini-2.0-flash', 'google', 'success', prompt_summary=topic_keyword, elapsed_time=elapsed)
+                    # generate_text 내부에 이미 자동 로그 기능이 있지만, 
+                    # 여기서 이미 로그를 남기고 있으므로 중복을 피하거나 보강합니다.
+                    # 여기서는 상세 task_type ('script')을 위해 유지하거나 로그 호출을 수정합니다.
+                    # 일단 유지하되 input/output_tokens는 generate_text에서 자동 처리되지 않도록 넘기지 않겠습니다.
+                    # (generate_text에 project_id를 넘기지 않으면 자동로그 안됨)
                     return res
                 except Exception:
                     pass
-            db.add_ai_log(None, 'script', 'gemini-2.0-flash', 'google', 'failed', prompt_summary=topic_keyword, error_msg="JSON parse failed", elapsed_time=elapsed)
+            db.add_ai_log(None, 'script', 'gemini-3.1-flash', 'google', 'failed', prompt_summary=topic_keyword, error_msg="JSON parse failed", elapsed_time=elapsed)
             return {"error": "구조 생성 실패", "raw": text}
         except Exception as e:
             elapsed = _time.time() - start_time
-            db.add_ai_log(None, 'script', 'gemini-2.0-flash', 'google', 'failed', prompt_summary=topic_keyword, error_msg=str(e), elapsed_time=elapsed)
+            db.add_ai_log(None, 'script', 'gemini-3.1-flash', 'google', 'failed', prompt_summary=topic_keyword, error_msg=str(e), elapsed_time=elapsed)
             print(f"Script Structure Gen Error: {e}")
-            return {"error": "구조 생성 실패", "raw": text}
+            return {"error": f"구조 생성 실패: {str(e)}"}
     async def generate_nursery_rhyme_ideas(self) -> List[dict]:
         """동요 아이디어 10개 생성"""
         prompt = prompts.GEMINI_NURSERY_RHYME_IDEAS
@@ -1048,7 +1064,7 @@ class GeminiService:
             print(f"Trend Gen Error: {e}")
             return []
 
-    async def generate_character_prompts_from_script(self, script: str, visual_style: str = "photorealistic", char_ethnicity: str = None) -> List[dict]:
+    async def generate_character_prompts_from_script(self, script: str, visual_style: str = "photorealistic", char_ethnicity: str = None, project_id: int = None) -> List[dict]:
         """대본을 분석하여 등장인물 정보 및 이미지 프롬프트 생성 (캐릭터 설정 단계)"""
         ethnicity_instruction = ""
         if char_ethnicity:
@@ -1064,7 +1080,7 @@ class GeminiService:
             ethnicity_instruction=ethnicity_instruction
         )
         
-        text = await self.generate_text(prompt, temperature=0.5)
+        text = await self.generate_text(prompt, temperature=0.5, project_id=project_id, task_type='character_extraction')
         
         # JSON 파싱
         json_match = re.search(r'\{[\s\S]*\}', text)
@@ -1166,7 +1182,7 @@ class GeminiService:
             
         return prompt
 
-    async def generate_motion_desc(self, scene_text: str, prompt_en: str = "") -> str:
+    async def generate_motion_desc(self, scene_text: str, prompt_en: str = "", project_id: int = None) -> str:
         """씬 내용을 기반으로 영상 모션 프롬프트 생성 (300자 이내 영어, 씬 맥락 반영)"""
         visual_hint = prompt_en[:500] if prompt_en else ""
         prompt = f"""You are a cinematic video director creating a motion prompt for an AI video generator (Wan 2.1 / Seedance).
@@ -1216,7 +1232,7 @@ Examples of GOOD detailed prompts:
 
 Now write the motion prompt for THIS scene:"""
 
-        result = await self.generate_text(prompt, temperature=0.7)
+        result = await self.generate_text(prompt, temperature=0.7, project_id=project_id, task_type='motion_guide')
         result = result.strip().strip('"').strip("'").splitlines()[0].strip()
         # 300자 제한 - 단어 중간에서 잘리지 않도록
         if len(result) > 300:
@@ -1225,7 +1241,7 @@ Now write the motion prompt for THIS scene:"""
             result = cut[:last_sep].rstrip(', ') if last_sep > 100 else cut
         return result
 
-    async def generate_motion_desc_from_image(self, image_path: str, scene_text: str = "") -> str:
+    async def generate_motion_desc_from_image(self, image_path: str, scene_text: str = "", project_id: int = None) -> str:
         """생성된 이미지를 직접 분석하여 영상 모션 프롬프트 생성 (Gemini Vision)"""
         import os
         if not image_path or not os.path.exists(image_path):
@@ -1264,7 +1280,7 @@ Examples:
 
 Motion prompt for this image:"""
 
-        result = await self.generate_text_from_image(prompt, image_bytes, mime_type)
+        result = await self.generate_text_from_image(prompt, image_bytes, mime_type, project_id=project_id, task_type='motion_guide_vision')
         result = result.strip().strip('"').strip("'").splitlines()[0].strip()
         if len(result) > 300:
             cut = result[:300]
@@ -1272,7 +1288,7 @@ Motion prompt for this image:"""
             result = cut[:last_sep].rstrip(', ') if last_sep > 100 else cut
         return result
 
-    async def generate_image_prompts_from_script(self, script: str, duration_seconds: int, style_prompt: str = None, characters: List[dict] = None, target_scene_count: int = None, style_key: str = None, gemini_instruction: str = None, reference_image_url: str = None, char_ethnicity: str = None) -> List[dict]:
+    async def generate_image_prompts_from_script(self, script: str, duration_seconds: int, style_prompt: str = None, characters: List[dict] = None, target_scene_count: int = None, style_key: str = None, gemini_instruction: str = None, reference_image_url: str = None, char_ethnicity: str = None, project_id: int = None) -> List[dict]:
         """대본을 분석하여 장면별 이미지 프롬프트 생성 (가변 페이싱 및 캐릭터 일관성 적용)"""
 
         # target_scene_count가 전달된 경우 우선 사용 (씬 분석 결과)
@@ -1328,7 +1344,18 @@ Motion prompt for this image:"""
 
         custom_instruction = ""
         if gemini_instruction and gemini_instruction.strip():
-            custom_instruction = "\n[커스텀 지침 - 필수 준수]\n" + gemini_instruction.strip() + "\n"
+            import re as _re
+            # ${VARIABLE} 템플릿 변수를 자연어 지시로 교체 (Gemini가 그대로 복사하는 버그 방지)
+            _var_map = {
+                r'\$\{OBJECT\}':      '[대본 속 핵심 사물/캐릭터를 영어로 구체 묘사]',
+                r'\$\{EXPRESSION\}':  '[이 장면의 캐릭터 감정 표현]',
+                r'\$\{ACTION\}':      '[이 장면의 구체적인 동작]',
+                r'\$\{ENVIRONMENT\}': '[이 장면의 구체적인 배경 환경]',
+            }
+            cleaned_instruction = gemini_instruction.strip()
+            for pattern, replacement in _var_map.items():
+                cleaned_instruction = _re.sub(pattern, replacement, cleaned_instruction)
+            custom_instruction = "\n[커스텀 지침 - 필수 준수]\n" + cleaned_instruction + "\n"
 
         style_instruction = f"""
 [스타일 지침]
@@ -1798,8 +1825,6 @@ Motion prompt for this image:"""
             return {"status": "error", "error": "API Key is missing"}
 
         import asyncio
-        api_key = self.api_key
-
         def _run_sync():
             import time
             try:
@@ -1927,7 +1952,7 @@ Motion prompt for this image:"""
                 safety_msg = ""
                 res = getattr(operation, 'response', getattr(operation, 'result', None))
                 if res:
-                    sr = _get_val(res, 'safety_ratings')
+                    sr = getattr(res, 'safety_ratings', None) or (res.get('safety_ratings') if isinstance(res, dict) else None)
                     if sr: safety_msg = f" (Safety Ratings: {sr})"
                 
                 db.add_ai_log(None, 'video', model, 'google', 'failed', prompt_summary=prompt[:100], error_msg=f"URI not found{safety_msg}", elapsed_time=final_elapsed)
@@ -2155,13 +2180,11 @@ Motion prompt for this image:"""
                 )
                 parts = result.stdout.strip().split(",")
                 w, h = int(parts[0]), int(parts[1])
-                dur = float(parts[2]) if len(parts) > 2 else 0.0
             else:
                 # 이미지: PIL로 해상도 조회
                 from PIL import Image
                 img = Image.open(asset_path)
                 w, h = img.size
-                dur = 0.0
 
             ratio = h / w if w > 0 else 1.0
 

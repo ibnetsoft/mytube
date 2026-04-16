@@ -40,6 +40,11 @@ class AutoPublishService:
             time.sleep(self.interval)
 
     def _check_and_publish(self):
+        # [NEW] Check if restricted before proceeding
+        from services.auth_service import auth_service
+        if auth_service.is_restricted():
+            return
+
         user_id = self.get_license_key()
         if not user_id:
             return
@@ -62,6 +67,8 @@ class AutoPublishService:
             print(f"[Info] Found {len(publish_queue)} videos to be published to YouTube.")
 
             # 3. For each request, update YouTube privacy
+            from services.google_drive_service import google_drive_service
+
             for req in publish_queue:
                 req_id = req.get('id')
                 metadata = req.get('metadata', {})
@@ -71,35 +78,60 @@ class AutoPublishService:
                     print(f"[Warning] Request {req_id} missing videoId in metadata.")
                     continue
 
-                # [NEW] 채널 정보 조회하여 토큰 경로 결정 (main.py의 로직과 동일하게)
+                # Get local project info for token and file path
                 token_path = None
+                local_video_path = None
                 try:
-                    channels = db.get_all_channels()
-                    if channels:
-                        cand_path = channels[0].get('credentials_path')
-                        if cand_path and os.path.exists(cand_path):
-                            token_path = cand_path
-                except Exception:
-                    pass
+                    # [NEW] Find project by youtube video id
+                    p_settings = db.get_project_settings_by_youtube_id(video_id)
+                    if p_settings:
+                        local_video_path = p_settings.get('video_path')
+                        channel_id = p_settings.get('youtube_channel_id')
+                        if channel_id:
+                            channel = db.get_channel(channel_id)
+                            if channel:
+                                token_path = channel.get('credentials_path')
+                except Exception as db_err:
+                    print(f"[DB Error] Failed to find project info for {video_id}: {db_err}")
 
                 try:
-                    # Update YouTube Privacy
+                    # A. Update YouTube Privacy
                     youtube_upload_service.update_video_privacy(video_id, "public", token_path=token_path)
                     
-                    # Update status to 'published' on central server
-                    patch_res = requests.patch(f"{self.auth_server_url}/api/publishing", json={
+                    # B. [NEW] Upload to Google Drive as backup
+                    drive_link = None
+                    if local_video_path and os.path.exists(local_video_path):
+                        print(f"[Drive] Backing up video to Google Drive: {video_id}")
+                        drive_link = google_drive_service.upload_video_to_drive(local_video_path, token_path=token_path)
+                    
+                    # C. Update status to 'published' on central server with Drive Link
+                    payload = {
                         "userId": user_id,
                         "requestId": req_id,
                         "status": "published"
-                    }, timeout=10)
+                    }
+                    if drive_link:
+                        payload["driveLink"] = drive_link
+                        
+                    patch_res = requests.patch(f"{self.auth_server_url}/api/publishing", json=payload, timeout=15)
                     
                     if patch_res.status_code == 200:
-                        print(f"[Success] Video {video_id} is now PUBLIC and marked as published.")
+                        print(f"[Success] Published {video_id}. Drive Link: {drive_link}")
                     else:
-                        print(f"[Warning] Failed to update status on server for {video_id}: {patch_res.text}")
+                        print(f"[Warning] Server update failed for {video_id}: {patch_res.text}")
                         
                 except Exception as e:
-                    print(f"[Error] Failed to publish video {video_id}: {e}")
+                    err_msg = str(e)
+                    print(f"[Error] Failed to publish video {video_id}: {err_msg}")
+                    # Report failure to central server
+                    try:
+                        requests.patch(f"{self.auth_server_url}/api/publishing", json={
+                            "userId": user_id,
+                            "requestId": req_id,
+                            "status": "failed",
+                            "error": err_msg
+                        }, timeout=5)
+                    except: pass
 
         except Exception:
             # Silence connection errors to central server (port 3000) to keep logs clean

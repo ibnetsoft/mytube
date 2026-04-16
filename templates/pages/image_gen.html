@@ -1244,11 +1244,11 @@
                                 <div class="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-4">
                                     <button onclick="openAssetLibrary(${i})" 
                                             class="w-3/4 bg-white/95 dark:bg-gray-800/95 text-[10px] font-bold py-1.5 px-3 rounded-full shadow-lg border border-gray-200 dark:border-gray-700 hover:scale-105 transition-all text-gray-700 dark:text-gray-200 flex items-center justify-center gap-1.5">
-                                        📂 ${i18n.btn_library}
+                                        ${i18n.btn_library}
                                     </button>
                                     <button onclick="document.getElementById('scene-upload-${i}').click()" 
                                             class="w-3/4 bg-indigo-600/90 text-white text-[10px] font-bold py-1.5 px-3 rounded-full shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-1.5">
-                                        📁 ${i18n.btn_upload_new}
+                                        ${i18n.btn_upload_new}
                                     </button>
                                 </div>
                             ` : ''}
@@ -1263,9 +1263,9 @@
                                     <span>⚡</span> Generate
                                 </button>
                                 <div class="flex bg-gray-200 dark:bg-gray-800 rounded p-0.5 gap-0.5 shrink-0">
-                                    <button class="px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'wan' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-white font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'wan')" title="Wan 2.1">Wan</button>
-                                    <button class="px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'seedance' ? 'bg-green-100 dark:bg-green-900 shadow text-green-700 dark:text-green-300 font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'seedance')" title="Seedance">🌱 Seed</button>
-                                    <button class="px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'akool' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-white font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'akool')" title="LipSync">Lip</button>
+                                    <button class="hidden px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'wan' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-white font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'wan')" title="Wan 2.1">Wan</button>
+                                    <button class="hidden px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'seedance' ? 'bg-green-100 dark:bg-green-900 shadow text-green-700 dark:text-green-300 font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'seedance')" title="Seedance">🌱 Seed</button>
+                                    <button class="hidden px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'akool' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-white font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'akool')" title="LipSync">Lip</button>
                                     <button class="px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'veo' ? 'bg-blue-100 dark:bg-blue-900 shadow text-blue-700 dark:text-blue-300 font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'veo')" title="Veo">Veo</button>
                                 </div>
                             </div>
@@ -1565,11 +1565,17 @@
      * Asset Library & Folder Integration
      */
     async function openAssetLibrary(index) {
+        const pid = (typeof getCurrentProject === 'function') ? getCurrentProject() : null;
+        if (!pid) {
+            Utils.showToast(i18n.status_select_project_first, 'warning');
+            return;
+        }
+
         // [EXE/Local] Try to open physical folder in background for user convenience
         fetch('/api/system/open-output-folder', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ project_id: parseInt(projectId) })
+            body: JSON.stringify({ project_id: parseInt(pid) })
         }).catch(() => {});
 
         // Initialize Modal if not exists
@@ -1608,7 +1614,7 @@
         modal.dataset.currentScene = index;
 
         try {
-            const res = await fetch(`/api/projects/${projectId}/output-assets`);
+            const res = await fetch(`/api/projects/${pid}/output-assets`);
             const data = await res.json();
             if (data.status === 'ok') {
                 renderAssetLibraryList(data.files, index);
@@ -1654,13 +1660,16 @@
     }
 
     async function selectLibraryAsset(index, url, isVideo) {
+        const pid = (typeof getCurrentProject === 'function') ? getCurrentProject() : null;
+        if (!pid) return;
+
         // Confirmation before replacing
         if (!confirm('Replace current scene media with this selection?')) return;
 
         Utils.showToast('Replacing asset...', 'info');
 
         try {
-            const res = await fetch(`/api/projects/${projectId}/replace-asset`, {
+            const res = await fetch(`/api/projects/${pid}/replace-asset`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1706,10 +1715,13 @@
     }
 
     function openOutputFolderFromServer() {
+        const pid = (typeof getCurrentProject === 'function') ? getCurrentProject() : null;
+        if (!pid) return;
+
         fetch('/api/system/open-output-folder', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ project_id: parseInt(projectId) })
+            body: JSON.stringify({ project_id: parseInt(pid) })
         }).then(res => res.json()).then(data => {
             if (data.status === 'error') {
                 Utils.showToast('Failed to open local folder: ' + data.message, 'error');

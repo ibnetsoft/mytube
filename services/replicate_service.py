@@ -4,6 +4,7 @@ import aiohttp
 import asyncio
 import time
 from config import config
+import database as db
 
 class ReplicateService:
     def __init__(self):
@@ -15,7 +16,7 @@ class ReplicateService:
             self.api_key = os.getenv("REPLICATE_API_TOKEN")
         return bool(self.api_key)
 
-    async def generate_video_from_image(self, image_path: str, prompt: str = "Cinematic video, high quality, smooth motion", duration: float = 5.0, method: str = "standard"):
+    async def generate_video_from_image(self, image_path: str, prompt: str = "Cinematic video, high quality, smooth motion", duration: float = 5.0, method: str = "standard", project_id: int = None):
         """
         Replicate의 wan-video 모델을 사용하여 이미지 -> 비디오 생성
         - standard: 5초 생성 (Wan 2.1 한계)
@@ -144,6 +145,9 @@ class ReplicateService:
             loop = asyncio.get_event_loop()
             output = await loop.run_in_executor(None, self._run_replicate, input_data)
         
+        # Log starting
+        db.add_ai_log(None, 'video', 'wan-2.1', 'replicate', 'processing', prompt_summary=prompt[:100], input_tokens=500, output_tokens=1000)
+
         if output:
             url = output[0] if isinstance(output, list) else output
             return await self._download_video(str(url))

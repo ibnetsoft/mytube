@@ -1563,20 +1563,18 @@ class VideoService:
         char_bytes: bytes,
         bg_bytes: bytes,
         aspect_ratio: str = "16:9",
-        char_scale: float = 0.72,
-        white_threshold: int = 240,
-        edge_feather: int = 3
+        char_scale: float = 0.68,
     ) -> bytes:
         """
-        캐릭터 이미지(흰 배경)와 배경 이미지를 합성하여 최종 이미지 bytes 반환.
-        1. 배경을 aspect_ratio에 맞게 리사이즈
-        2. 캐릭터의 흰색 픽셀을 투명으로 변환 (알파 마스크)
-        3. 캐릭터를 배경 하단 중앙에 배치하고 합성
+        캐릭터(흰 배경)와 배경 이미지를 자연스럽게 합성.
+        1. numpy 기반 스마트 흰 배경 제거 + 부드러운 가장자리
+        2. 발 아래 그림자(ambient shadow) 합성
+        3. 배경 조명에 맞춘 색온도 보정
         """
-        from PIL import Image, ImageFilter
+        from PIL import Image, ImageFilter, ImageDraw, ImageEnhance
         import io
+        import numpy as np
 
-        # --- 해상도 결정 ---
         ratio_map = {
             "16:9": (1280, 720),
             "9:16": (720, 1280),
@@ -1585,7 +1583,7 @@ class VideoService:
         }
         target_w, target_h = ratio_map.get(aspect_ratio, (1280, 720))
 
-        # --- 배경 이미지 로드 및 리사이즈 (Aspect Fill) ---
+        # ── 배경 로드 & 크롭 ──────────────────────────────────
         bg = Image.open(io.BytesIO(bg_bytes)).convert("RGBA")
         bg_ratio = bg.width / bg.height
         tgt_ratio = target_w / target_h
@@ -1597,42 +1595,88 @@ class VideoService:
             new_h = int(new_w / bg_ratio)
         bg = bg.resize((new_w, new_h), Image.Resampling.LANCZOS)
         left = (new_w - target_w) // 2
-        top = (new_h - target_h) // 2
+        top  = (new_h - target_h) // 2
         bg = bg.crop((left, top, left + target_w, top + target_h))
 
-        # --- 캐릭터 이미지 로드 ---
+        # ── 캐릭터 로드 ──────────────────────────────────────
         char = Image.open(io.BytesIO(char_bytes)).convert("RGBA")
+        arr = np.array(char, dtype=np.float32)  # H×W×4
 
-        # --- 흰 배경 제거: 흰색에 가까운 픽셀을 투명으로 ---
-        char_data = char.load()
-        char_w, char_h = char.size
-        for y in range(char_h):
-            for x in range(char_w):
-                r, g, b, a = char_data[x, y]
-                if r >= white_threshold and g >= white_threshold and b >= white_threshold:
-                    char_data[x, y] = (r, g, b, 0)
+        r, g, b, a = arr[:,:,0], arr[:,:,1], arr[:,:,2], arr[:,:,3]
 
-        # 가장자리 부드럽게: alpha 채널에 약한 blur 적용
-        if edge_feather > 0:
-            r_ch, g_ch, b_ch, a_ch = char.split()
-            a_ch = a_ch.filter(ImageFilter.GaussianBlur(radius=edge_feather))
-            char = Image.merge("RGBA", (r_ch, g_ch, b_ch, a_ch))
+        # 흰/밝은 배경 검출 (채도 낮고 밝은 픽셀)
+        brightness  = (r + g + b) / 3.0
+        max_rgb     = np.maximum(np.maximum(r, g), b)
+        min_rgb     = np.minimum(np.minimum(r, g), b)
+        saturation  = np.where(max_rgb > 0, (max_rgb - min_rgb) / max_rgb, 0.0)
 
-        # --- 캐릭터 리사이즈: 배경 높이의 char_scale 비율로 ---
+        # 흰 배경: 밝기 ≥ 230 & 채도 < 0.12
+        is_bg = (brightness >= 230) & (saturation < 0.12)
+
+        # 배경에 가까운 픽셀 페이드 아웃 (소프트 마스크)
+        soft_mask = np.ones_like(brightness)
+        # 완전 배경 → 완전 투명
+        soft_mask[is_bg] = 0.0
+        # 경계 구간 (밝기 210~230, 채도 0.12~0.22) → 점진 페이드
+        fade_zone = (brightness >= 210) & (brightness < 230) & (saturation < 0.22) & (~is_bg)
+        fade_alpha = (brightness[fade_zone] - 210) / 20.0          # 0→1
+        soft_mask[fade_zone] = np.clip(fade_alpha, 0.0, 1.0)
+
+        new_alpha = (a / 255.0) * soft_mask
+        arr[:,:,3] = np.clip(new_alpha * 255, 0, 255)
+        char = Image.fromarray(arr.astype(np.uint8), "RGBA")
+
+        # 알파 가장자리 부드럽게 (2px blur)
+        rc, gc, bc, ac = char.split()
+        ac = ac.filter(ImageFilter.GaussianBlur(radius=2))
+        char = Image.merge("RGBA", (rc, gc, bc, ac))
+
+        # ── 캐릭터 리사이즈 ──────────────────────────────────
         char_target_h = int(target_h * char_scale)
-        char_scale_ratio = char_target_h / char_h
-        char_target_w = int(char_w * char_scale_ratio)
+        char_target_w = int(char.width * (char_target_h / char.height))
         char = char.resize((char_target_w, char_target_h), Image.Resampling.LANCZOS)
 
-        # --- 캐릭터 위치: 하단 중앙 배치 (발이 하단에 닿도록) ---
+        # ── 배치: 하단 중앙, 약간 위로 (발이 화면 끝에 붙지 않게) ──
         char_x = (target_w - char_target_w) // 2
-        char_y = target_h - char_target_h  # 발이 화면 하단에 닿게
+        char_y = target_h - char_target_h - int(target_h * 0.04)
 
-        # --- 합성 ---
+        # ── 발 아래 그림자 (ambient occlusion) ─────────────────
+        shadow_layer = Image.new("RGBA", (target_w, target_h), (0, 0, 0, 0))
+        shadow_draw  = ImageDraw.Draw(shadow_layer)
+        sx = char_x + char_target_w // 2
+        sy = char_y + char_target_h + int(target_h * 0.01)
+        srx = int(char_target_w * 0.38)
+        sry = int(target_h * 0.04)
+        shadow_draw.ellipse(
+            [sx - srx, sy - sry, sx + srx, sy + sry],
+            fill=(0, 0, 0, 90)
+        )
+        shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(radius=14))
+
+        # ── 배경 조명 색온도 샘플링 → 캐릭터 색온도 보정 ─────
+        bg_arr = np.array(bg.convert("RGB"), dtype=np.float32)
+        # 화면 하단 중앙 영역 평균 조명 색
+        sample_x1 = max(0, target_w // 4)
+        sample_x2 = min(target_w, 3 * target_w // 4)
+        sample_y1 = max(0, 2 * target_h // 3)
+        bg_sample = bg_arr[sample_y1:, sample_x1:sample_x2]
+        mean_r = float(bg_sample[:,:,0].mean())
+        mean_g = float(bg_sample[:,:,1].mean())
+        mean_b = float(bg_sample[:,:,2].mean())
+        mean_lum = (mean_r + mean_g + mean_b) / 3.0 + 1e-6
+        # 캐릭터 밝기 조정 (배경 평균 밝기 기준 ±15% 범위로 부드럽게 맞춤)
+        char_rgb = char.convert("RGB")
+        char_lum = np.array(char_rgb, dtype=np.float32).mean()
+        brightness_ratio = np.clip(mean_lum / (char_lum + 1e-6), 0.75, 1.25)
+        if abs(brightness_ratio - 1.0) > 0.05:
+            enhancer = ImageEnhance.Brightness(char)
+            char = enhancer.enhance(float(brightness_ratio))
+
+        # ── 합성 순서: 배경 → 그림자 → 캐릭터 ────────────────
         result = bg.copy()
+        result.paste(shadow_layer, (0, 0), mask=shadow_layer)
         result.paste(char, (char_x, char_y), mask=char)
 
-        # --- bytes 변환 ---
         out_buf = io.BytesIO()
         result.convert("RGB").save(out_buf, format="PNG")
         return out_buf.getvalue()
