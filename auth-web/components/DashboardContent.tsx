@@ -295,8 +295,8 @@ export default function DashboardContent() {
             )}
 
             {/* ── Top Nav ── */}
-            <nav className="sticky top-0 z-50 border-b border-white/5 bg-black/70 backdrop-blur-xl px-6 py-3">
-                <div className="max-w-7xl mx-auto flex justify-between items-center">
+            <nav className="sticky top-0 z-50 border-b border-white/5 bg-black/70 backdrop-blur-xl px-4 py-3">
+                <div className="w-full flex justify-between items-center px-4">
                     <span className="text-xl font-black bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent italic tracking-tighter">
                         PICADIRI STUDIO
                     </span>
@@ -318,7 +318,7 @@ export default function DashboardContent() {
                 </div>
             </nav>
 
-            <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+            <main className="w-full px-8 py-8 space-y-8">
 
                 {/* ── Page Header ── */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -361,85 +361,42 @@ export default function DashboardContent() {
                             </div>
                         )}
 
-                        {/* My Info Cards */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-
-                            {/* Profile Card */}
-                            <div className="bg-[#111] border border-white/5 hover:border-blue-500/30 transition-all duration-500 rounded-3xl p-8 group relative overflow-hidden">
-                                <div className="absolute top-4 right-4 text-5xl opacity-5 group-hover:opacity-15 group-hover:scale-125 group-hover:rotate-12 transition-all duration-700">👤</div>
-                                <p className="text-xs uppercase font-black text-gray-500 tracking-widest mb-5">내 프로필</p>
-                                <div className="space-y-4">
-                                    <div>
-                                        <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">사용자명</p>
+                        {/* My Info Bar (Combined) */}
+                        <div className="bg-[#111] border border-white/5 rounded-3xl p-6 flex items-center justify-between gap-8 group overflow-hidden">
+                            <div className="flex items-center gap-6">
+                                <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">👤</div>
+                                <div>
+                                    <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">사용자 정보</p>
+                                    <div className="flex items-center gap-4">
                                         <p className="text-white font-bold">{user?.user_metadata?.full_name || user?.email?.split('@')[0] || '-'}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">이메일</p>
                                         <p className="text-blue-400 font-medium text-sm">{user?.email}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">시작일</p>
-                                        <p className="text-white font-bold">{formatDate(user?.created_at)}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">마지막 로그인</p>
-                                        <p className="text-white font-bold">{formatDate(user?.last_sign_in_at)}</p>
-                                    </div>
-                                    <div className="pt-1">
-                                        <span className="text-xs font-black text-blue-400 px-3 py-1 bg-blue-500/10 rounded-full border border-blue-500/20">
-                                            {user?.app_metadata?.membership === 'independent' ? '⭐ Pro Plan' : '✦ Standard Plan'}
+                                        <span className="text-[10px] font-black text-blue-400 px-2 py-0.5 bg-blue-500/10 rounded-full border border-blue-500/20">
+                                            {user?.app_metadata?.membership === 'independent' ? '⭐ Pro' : '✦ Standard'}
                                         </span>
                                     </div>
                                 </div>
                             </div>
-
-                            {/* License Key Card */}
-                            <div className="bg-[#111] border border-white/5 hover:border-yellow-500/30 transition-all duration-500 rounded-3xl p-8 group relative overflow-hidden">
-                                <div className="absolute top-4 right-4 text-5xl opacity-5 group-hover:opacity-15 group-hover:scale-125 group-hover:rotate-12 transition-all duration-700">🔑</div>
-                                <p className="text-xs uppercase font-black text-gray-500 tracking-widest mb-5">내 라이선스 키</p>
-                                <div className="bg-black/60 border border-white/5 rounded-2xl p-4 font-mono text-yellow-400 text-sm break-all mb-6 leading-relaxed shadow-inner">
-                                    {user?.id || '-'}
+                            <div className="flex-1 max-w-sm">
+                                <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">내 라이선스 키</p>
+                                <div className="flex items-center gap-2">
+                                    <p className="font-mono text-yellow-400 text-xs truncate bg-black/40 px-3 py-1.5 rounded-lg border border-white/5">{user?.id || '-'}</p>
+                                    <button onClick={handleCopyKey} className="text-[10px] font-black uppercase text-blue-400 hover:text-white transition-colors">
+                                        {copied ? 'Copied' : 'Copy'}
+                                    </button>
                                 </div>
-                                <button
-                                    onClick={handleCopyKey}
-                                    className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all active:scale-[0.98] ${copied
-                                        ? 'bg-green-600 text-white shadow-lg shadow-green-900/30'
-                                        : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-xl shadow-blue-900/20'
-                                    }`}
-                                >
-                                    {copied ? '✓ 복사 완료!' : '🔑 키 복사하기'}
-                                </button>
                             </div>
-
-                            {/* Download + Quick Guide Card */}
-                            <div className="bg-[#111] border border-white/5 hover:border-green-500/30 transition-all duration-500 rounded-3xl p-8 group relative overflow-hidden flex flex-col gap-6">
-                                <div className="absolute top-4 right-4 text-5xl opacity-5 group-hover:opacity-15 group-hover:scale-125 group-hover:rotate-12 transition-all duration-700">🚀</div>
+                            <div className="flex items-center gap-6">
                                 <div>
-                                    <p className="text-xs uppercase font-black text-gray-500 tracking-widest mb-4">{t.downloadTitle}</p>
-                                    <p className="text-sm text-gray-500 leading-relaxed mb-5">{t.downloadDesc}</p>
-                                    <a
-                                        href={user?.app_metadata?.membership === 'independent'
-                                            ? 'https://drive.google.com/file/d/pro_link_placeholder'
-                                            : 'https://drive.google.com/file/d/lite_link_placeholder'}
-                                        target="_blank"
-                                        className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 shadow-xl shadow-green-900/20 active:scale-[0.98] transition-all"
-                                    >
-                                        📥 {user?.app_metadata?.membership === 'independent' ? t.downloadPro : t.downloadLite}
-                                    </a>
+                                    <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">마지막 로그인</p>
+                                    <p className="text-white font-bold text-sm">{formatDate(user?.last_sign_in_at)}</p>
                                 </div>
-                                <div className="border-t border-white/5 pt-5">
-                                    <p className="text-xs uppercase font-black text-purple-400 tracking-widest mb-4">{t.guideTitle}</p>
-                                    <ul className="space-y-3">
-                                        {[t.guide1, t.guide2, t.guide3].map((g, i) => (
-                                            <li key={i} className="flex gap-3 items-start text-sm text-gray-400">
-                                                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-black flex items-center justify-center">
-                                                    {i + 1}
-                                                </span>
-                                                <span className="pt-0.5">{g}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
+                                <a 
+                                    href={user?.app_metadata?.membership === 'independent' ? 'https://drive.google.com/file/d/pro' : 'https://drive.google.com/file/d/lite'}
+                                    target="_blank"
+                                    className="px-6 py-2.5 rounded-xl font-black text-xs uppercase bg-green-600 hover:bg-green-500 shadow-lg shadow-green-900/20 transition-all active:scale-[0.98]"
+                                >
+                                    📥 Download
+                                </a>
                             </div>
                         </div>
                     </div>
@@ -473,13 +430,15 @@ export default function DashboardContent() {
 
                         {/* Users Table */}
                         <div className="bg-[#111] border border-white/5 rounded-2xl overflow-hidden">
-                            <div className="grid grid-cols-12 text-[10px] uppercase font-black text-gray-500 tracking-widest px-6 py-4 border-b border-white/5 bg-black/30">
-                                <span className="col-span-3">이메일 / 사용자명</span>
-                                <span className="col-span-2">라이선스 키 (ID)</span>
-                                <span className="col-span-2">시작일</span>
-                                <span className="col-span-2">마지막 로그인</span>
-                                <span className="col-span-2">플랜</span>
-                                <span className="col-span-1 text-right">관리</span>
+                            <div className="grid grid-cols-[3fr_3fr_1.5fr_1.5fr_1fr_1fr_1fr_3.5fr] text-[10px] uppercase font-black text-gray-500 tracking-widest px-6 py-4 border-b border-white/5 bg-black/30 sticky top-0 z-10">
+                                <span>이메일 / 사용자명</span>
+                                <span>라이선스 키 (ID)</span>
+                                <span>가입일</span>
+                                <span>마지막 로그인</span>
+                                <span className="text-center">플랜</span>
+                                <span className="text-center">프로바이더</span>
+                                <span className="text-center">권한</span>
+                                <span className="text-right pr-4">고급 관리</span>
                             </div>
 
                             {usersLoading ? (
@@ -494,145 +453,65 @@ export default function DashboardContent() {
                                     {filteredUsers.map(u => (
                                         <div
                                             key={u.id}
-                                            className={`grid grid-cols-12 items-center px-6 py-4 hover:bg-white/[0.03] transition-colors cursor-pointer ${selectedUser?.id === u.id ? 'bg-blue-500/5 border-l-2 border-l-blue-500' : ''}`}
-                                            onClick={() => setSelectedUser(selectedUser?.id === u.id ? null : u)}
+                                            className={`grid grid-cols-[3fr_3fr_1.5fr_1.5fr_1fr_1fr_1fr_3.5fr] items-center px-6 py-4 hover:bg-white/[0.03] transition-colors border-b border-white/[0.02]`}
                                         >
-                                            <div className="col-span-3 min-w-0">
+                                            <div className="min-w-0 pr-4">
                                                 <p className="text-sm font-bold text-white truncate">{u.email}</p>
-                                                <p className="text-xs text-gray-500 truncate">{u.user_metadata?.full_name || '-'}</p>
+                                                <p className="text-[10px] text-gray-500 truncate mt-0.5">{u.user_metadata?.full_name || '-'}</p>
                                             </div>
-                                            <div className="col-span-2">
-                                                <p className="text-xs font-mono text-yellow-500/80 truncate">{u.id.substring(0, 18)}…</p>
+                                            <div className="pr-4">
+                                                <p className="text-xs font-mono text-yellow-500/80 break-all bg-black/30 px-2 py-1 rounded border border-white/5">{u.id}</p>
                                             </div>
-                                            <div className="col-span-2">
-                                                <p className="text-sm text-gray-300">{formatDate(u.created_at)}</p>
+                                            <div className="text-xs text-gray-400">
+                                                {formatDate(u.created_at)}
                                             </div>
-                                            <div className="col-span-2">
-                                                <p className="text-sm text-gray-300">{formatDate(u.last_sign_in_at)}</p>
+                                            <div className="text-xs text-gray-400">
+                                                {formatDate(u.last_sign_in_at)}
                                             </div>
-                                            <div className="col-span-2">
-                                                <span className={`text-xs font-bold px-2 py-1 rounded-full border ${u.app_metadata?.membership === 'independent'
-                                                    ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
-                                                    : 'bg-gray-500/10 text-gray-400 border-gray-500/20'
-                                                    }`}>
-                                                    {u.app_metadata?.membership === 'independent' ? '⭐ Pro' : '✦ Standard'}
+                                            <div className="text-center">
+                                                <span className={`text-[9px] font-black px-2 py-1 rounded-lg border ${u.app_metadata?.membership === 'independent' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`}>
+                                                    {u.app_metadata?.membership === 'independent' ? 'PRO' : 'STD'}
                                                 </span>
                                             </div>
-                                            <div className="col-span-1 flex justify-end gap-1">
+                                            <div className="text-center">
+                                                <span className="text-[10px] text-gray-500 font-bold uppercase">{u.app_metadata?.provider || 'email'}</span>
+                                            </div>
+                                            <div className="text-center">
+                                                <span className="text-[10px] text-gray-500 font-bold uppercase">{u.app_metadata?.role || 'user'}</span>
+                                            </div>
+                                            <div className="flex justify-end gap-1.5">
                                                 <button
-                                                    onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(u.id); }}
-                                                    className="px-2 py-1 text-[10px] bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 rounded-lg font-bold transition-all"
-                                                    title="키 복사"
+                                                    onClick={e => openLogViewer(u, e)}
+                                                    className="px-2.5 py-1.5 text-[9px] bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-white/5 rounded-lg font-black uppercase transition-all"
                                                 >
-                                                    복사
+                                                    📊 로그
+                                                </button>
+                                                <button
+                                                    onClick={e => {
+                                                        e.stopPropagation();
+                                                        setSelectedUser(u);
+                                                        setUserApiKeys({
+                                                            gemini: u.user_metadata?.gemini_api_key || '',
+                                                            youtube: u.user_metadata?.youtube_api_key || '',
+                                                            elevenlabs: u.user_metadata?.elevenlabs_api_key || '',
+                                                            topview: u.user_metadata?.topview_api_key || '',
+                                                            topview_uid: u.user_metadata?.topview_uid || '',
+                                                            youtube_channel: u.user_metadata?.youtube_channel || '',
+                                                            youtube_handle: u.user_metadata?.youtube_handle || '',
+                                                        });
+                                                        setShowApiPanel(true);
+                                                    }}
+                                                    className="px-2.5 py-1.5 text-[9px] bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-white/5 rounded-lg font-black uppercase transition-all"
+                                                >
+                                                    🔑 API
+                                                </button>
+                                                <button className="px-2.5 py-1.5 text-[9px] bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-white/5 rounded-lg font-black uppercase transition-all">
+                                                    ✏️ 등급
+                                                </button>
+                                                <button className="px-2.5 py-1.5 text-[9px] bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-white/5 rounded-lg font-black uppercase transition-all text-center">
+                                                    🚫 차단
                                                 </button>
                                             </div>
-
-                                            {/* Expanded Detail Row */}
-                                            {selectedUser?.id === u.id && (
-                                                <div className="col-span-12 mt-4 bg-black/30 rounded-xl p-4 grid grid-cols-2 md:grid-cols-4 gap-4 border border-white/5">
-                                                    <div>
-                                                        <p className="text-[10px] text-gray-600 uppercase tracking-widest mb-1">Full License Key</p>
-                                                        <p className="text-xs font-mono text-yellow-400 break-all">{u.id}</p>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[10px] text-gray-600 uppercase tracking-widest mb-1">Provider</p>
-                                                        <p className="text-xs text-white font-bold">{u.app_metadata?.provider || 'email'}</p>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[10px] text-gray-600 uppercase tracking-widest mb-1">Role</p>
-                                                        <p className="text-xs text-white font-bold">{u.app_metadata?.role || 'user'}</p>
-                                                    </div>
-                                                    <div className="flex items-end gap-2">
-                                                        <button
-                                                            onClick={e => openLogViewer(u, e)}
-                                                            className="px-3 py-2 text-xs bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 rounded-lg font-bold transition-all"
-                                                        >
-                                                            📊 로그
-                                                        </button>
-                                                        <button
-                                                            onClick={e => {
-                                                                e.stopPropagation();
-                                                                    setUserApiKeys({
-                                                                        gemini: u.user_metadata?.gemini_api_key || '',
-                                                                        youtube: u.user_metadata?.youtube_api_key || '',
-                                                                        elevenlabs: u.user_metadata?.elevenlabs_api_key || '',
-                                                                        topview: u.user_metadata?.topview_api_key || '',
-                                                                        topview_uid: u.user_metadata?.topview_uid || '',
-                                                                        youtube_channel: u.user_metadata?.youtube_channel || '',
-                                                                        youtube_handle: u.user_metadata?.youtube_handle || '',
-                                                                    });
-                                                                setShowApiPanel(!showApiPanel);
-                                                            }}
-                                                            className="px-3 py-2 text-xs bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 rounded-lg font-bold transition-all"
-                                                        >
-                                                            🔑 API 관리
-                                                        </button>
-                                                        <button
-                                                            onClick={e => e.stopPropagation()}
-                                                            className="px-3 py-2 text-xs bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20 rounded-lg font-bold transition-all"
-                                                        >
-                                                            ✏️ 등급 전환
-                                                        </button>
-                                                        <button
-                                                            onClick={e => e.stopPropagation()}
-                                                            className="px-3 py-2 text-xs bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg font-bold transition-all"
-                                                        >
-                                                            🚫 차단
-                                                        </button>
-                                                    </div>
-
-                                                    {/* User-Specific API Edit Panel */}
-                                                    {showApiPanel && (
-                                                        <div className="col-span-12 mt-4 pt-4 border-t border-white/5 space-y-4">
-                                                            <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">이 유저 전용 API 키 설정</p>
-                                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                                                    { label: '✨ Gemini API Key', key: 'gemini' as const, type: 'password' },
-                                                                    { label: '▶️ YouTube Data API Key', key: 'youtube' as const, type: 'password' },
-                                                                    { label: '🎙️ ElevenLabs API Key', key: 'elevenlabs' as const, type: 'password' },
-                                                                    { label: '🛒 TopView API Key', key: 'topview' as const, type: 'password' },
-                                                                    { label: '🛒 TopView UID', key: 'topview_uid' as const, type: 'password' },
-                                                                    { label: '📺 YouTube 채널명', key: 'youtube_channel' as const, type: 'text' },
-                                                                    { label: '📺 YouTube 핸들 (@)', key: 'youtube_handle' as const, type: 'text' },
-                                                                ]).map(({ label, key, type }) => (
-                                                                    <div key={key}>
-                                                                        <label className="text-[9px] text-gray-500 block mb-1">{label}</label>
-                                                                        <input
-                                                                            type={type}
-                                                                            value={userApiKeys[key]}
-                                                                            onChange={e => setUserApiKeys({ ...userApiKeys, [key]: e.target.value })}
-                                                                            className="w-full px-3 py-2 bg-black/50 border border-white/10 rounded-lg text-xs font-mono text-blue-300 focus:outline-none focus:border-blue-500/50"
-                                                                            placeholder={`${label} 입력...`}
-                                                                        />
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                            <div className="flex justify-end">
-                                                                <button
-                                                                    onClick={async (e) => {
-                                                                        e.stopPropagation();
-                                                                        setSavingUserApi(true);
-                                                                        try {
-                                                                            const res = await fetch(`/api/admin/users/${u.id}/settings`, {
-                                                                                method: 'POST',
-                                                                                headers: { 'Content-Type': 'application/json' },
-                                                                                body: JSON.stringify(userApiKeys)
-                                                                            });
-                                                                            if (res.ok) alert('저장되었습니다.');
-                                                                            else alert('저장 실패');
-                                                                        } catch (err) { console.error(err); }
-                                                                        setSavingUserApi(false);
-                                                                    }}
-                                                                    disabled={savingUserApi}
-                                                                    className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50"
-                                                                >
-                                                                    {savingUserApi ? '저장 중...' : '해당 유저 키 업데이트'}
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
                                         </div>
                                     ))}
                                 </div>
