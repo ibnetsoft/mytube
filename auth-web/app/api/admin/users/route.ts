@@ -24,11 +24,34 @@ export async function GET() {
     })
 
     try {
-        const { data: { users }, error } = await supabaseAdmin.auth.admin.listUsers()
+        // 1. Auth 유저 목록 가져오기
+        const { data: { users }, error: authError } = await supabaseAdmin.auth.admin.listUsers()
+        if (authError) throw authError
 
-        if (error) throw error
+        // 2. Public Profiles (토큰 잔액 등) 가져오기
+        const { data: profiles, error: profileError } = await supabaseAdmin
+            .from('profiles')
+            .select('*')
+        
+        if (profileError) {
+            console.error("Profile Fetch Error:", profileError)
+        }
 
-        return NextResponse.json({ users })
+        // 3. 데이터 병합 (User + Profile)
+        const enrichedUsers = users.map(user => {
+            const profile = profiles?.find(p => p.id === user.id) || {}
+            return {
+                ...user,
+                profile: {
+                    token_balance: profile.token_balance || 0,
+                    membership_tier: profile.membership_tier || 'standard',
+                    video_limit: profile.video_limit || 50,
+                    current_usage: profile.current_usage || 0
+                }
+            }
+        })
+
+        return NextResponse.json({ users: enrichedUsers })
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 })
     }

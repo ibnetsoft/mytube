@@ -44,12 +44,20 @@ export async function POST(req: Request) {
             if (meta[metaKey]) api_keys[configKey] = meta[metaKey]
         }
 
+        // Get user profile (token balance)
+        const { data: profile } = await supabaseAdmin
+            .from('profiles')
+            .select('token_balance')
+            .eq('id', userId)
+            .single()
+
         return NextResponse.json({
             success: true,
             membership: user.app_metadata?.membership || 'standard',
             email: user.email,
             youtube_channel: meta.youtube_channel || '',
             youtube_handle: meta.youtube_handle || '',
+            token_balance: profile?.token_balance || 0,
             api_keys,              // 메모리 전용 로드 — 로컬 저장 안 함
         })
     } catch (error: any) {

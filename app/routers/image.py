@@ -101,6 +101,10 @@ class ThumbnailGenerateRequest(BaseModel):
 @router.post("/api/image/generate-prompts")
 async def generate_image_prompts_api(req: PromptsGenerateRequest):
     """대본 기반 이미지 프롬프트 생성 (Unified API)"""
+    from services.auth_service import auth_service
+    if not auth_service.check_credits(500):
+        return {"status": "error", "error": "AI 토큰이 부족합니다. (프롬프트 생성 최소 500 TK 필요)"}
+
     try:
         # 1. Project Context & Duration Estimation
         duration = 60
@@ -323,6 +327,10 @@ async def generate_random_cooking_video(project_id: int):
 @router.post("/api/image/generate-thumbnail-background")
 async def generate_thumbnail_background(req: ThumbnailBackgroundRequest):
     """썸네일 배경 이미지만 생성 (텍스트 없음)"""
+    from services.auth_service import auth_service
+    if not auth_service.check_credits(500):
+        return {"status": "error", "error": "AI 토큰이 부족합니다. (썸네일 배경 생성 최소 500 TK 필요)"}
+
     if not config.GEMINI_API_KEY:
         raise HTTPException(400, "Gemini API 키가 설정되지 않았습니다")
 
@@ -704,6 +712,10 @@ async def analyze_character(
     image_path: Optional[str] = Form(None),
     project_id: Optional[int] = Form(None) # [NEW] Persistence support
 ):
+    from services.auth_service import auth_service
+    if not auth_service.check_credits(500):
+        return JSONResponse(status_code=403, content={"error": "AI 토큰이 부족합니다. (캐릭터 분석 최소 500 TK 필요)"})
+    
     try:
         image_bytes = None
         saved_image_url = None

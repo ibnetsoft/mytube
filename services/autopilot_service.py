@@ -119,6 +119,14 @@ class AutoPilotService:
 
     async def run_workflow(self, keyword: str, project_id: int = None, config_dict: dict = None):
         """오토파일럿 전체 워크플로우 실행"""
+        from services.auth_service import auth_service
+        if not auth_service.check_credits(2000): # 오토파일럿 전체 시작 시 최소 2000
+             print(f"❌ [Auto-Pilot] 토큰 부족으로 중단합니다. (최소 2,000 TK 필요)")
+             if project_id:
+                 db.update_project(project_id, status="error")
+                 self.set_step(project_id, "토큰 부족으로 중단됨")
+             return
+
         print(f"🚀 [Auto-Pilot] '{keyword}' 작업 시작")
         self.set_step(project_id, f"'{keyword}' 작업 시작 중...")
         start_dt = datetime.now()
@@ -213,6 +221,11 @@ class AutoPilotService:
                 # 5-1. 영상 소스 생성
                 db.update_project(project_id, status="generating_assets")
                 self.set_step(project_id, "AI 이미지 프롬프트 생성 중...")
+                
+                # [NEW] 에셋 생성 전 토큰 체크
+                if not auth_service.check_credits(1000):
+                    raise Exception("에셋(이미지/TTS) 생성을 위한 토큰이 부족합니다. (최소 1,000 TK 필요)")
+
                 await self._generate_assets(project_id, full_script, self.config)
 
                 # [NEW] Ensure Metadata exists (Title, Description) - Re-run if skipped earlier

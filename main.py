@@ -128,6 +128,13 @@ def get_license_key():
             return f.read().strip()
     return ""
 
+def format_currency(value):
+    try:
+        return "{:,}".format(int(value))
+    except (ValueError, TypeError):
+        return value
+
+templates.env.filters['format_currency'] = format_currency
 templates.env.globals['get_license_key'] = get_license_key
 templates.env.globals['AUTH_SERVER_URL'] = "http://localhost:3000" if config.DEBUG else "https://mytube-ashy-seven.vercel.app"
 
@@ -592,6 +599,10 @@ class AnimateRequest(BaseModel):
 @app.post("/api/projects/{project_id}/scenes/animate")
 async def animate_scene(project_id: int, req: AnimateRequest):
     """이미지를 비디오로 변환 (Replicate Wan → AKOOL v4 폴백)"""
+    from services.auth_service import auth_service
+    if not auth_service.check_credits(1000):
+        return JSONResponse(status_code=403, content={"error": "AI 토큰이 부족합니다. (영상 생성 최소 1,000 TK 필요)"})
+    
     try:
         # 1. 이미지 조회
         scene_prompts = db.get_image_prompts(project_id)

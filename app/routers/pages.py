@@ -18,10 +18,13 @@ def init_pages(templates: Jinja2Templates):
     _templates = templates
 
 def _render(request, template, page, title, **extra):
+    from services.auth_service import auth_service
     return _templates.TemplateResponse(template, {
         "request": request,
         "page": page,
         "title": title,
+        "membership": auth_service.get_membership(),
+        "token_balance": auth_service.get_token_balance(),
         **extra
     })
 
@@ -68,7 +71,9 @@ async def page_video_upload(request: Request):
         "request": request,
         "page": "video-upload",
         "title": "영상 업로드",
-        "is_independent": auth_service.is_independent()
+        "is_independent": auth_service.is_independent(),
+        "membership": auth_service.get_membership(),
+        "token_balance": auth_service.get_token_balance()
     })
 
 @router.get("/subtitle_gen", response_class=HTMLResponse)
@@ -77,12 +82,14 @@ async def page_subtitle_gen(request: Request, project_id: Optional[int] = Query(
     project = None
     if project_id:
         project = db.get_project(project_id)
-    # project_id 없으면 JS의 getCurrentProject() / localStorage 우선순위에 맡김
+    from services.auth_service import auth_service
     return _templates.TemplateResponse("pages/subtitle_gen.html", {
         "request": request,
         "page": "subtitle-gen",
         "title": "자막 편집",
-        "project": project
+        "project": project,
+        "membership": auth_service.get_membership(),
+        "token_balance": auth_service.get_token_balance()
     })
 
 @router.get("/title-desc", response_class=HTMLResponse)
@@ -117,6 +124,7 @@ async def page_settings(request: Request):
         "title": "설정",
         "now": datetime.datetime.now(),
         "membership": auth_service.get_membership(),
+        "token_balance": auth_service.get_token_balance(),
         "youtube_channel": auth_service.get_youtube_channel(),
         "youtube_handle": auth_service.get_youtube_handle()
     })

@@ -218,6 +218,31 @@ export default function AdminDashboardContent() {
         }
     }
 
+    const rechargeTokens = async (userId: string, amount: number) => {
+        const description = prompt("충전 사유를 입력하세요 (예: 보상 지급, 정기 구독 등)", "관리자 충전")
+        if (description === null) return; // Cancel
+
+        try {
+            const res = await fetch('/api/admin/users/recharge', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, amount, description })
+            })
+            const data = await res.json()
+            if (data.success) {
+                setUsers(users.map(u =>
+                    u.id === userId ? { ...u, profile: { ...u.profile, token_balance: (u.profile?.token_balance || 0) + amount } } : u
+                ))
+                alert(`성공적으로 ${amount.toLocaleString()} 토큰을 충전했습니다.`)
+            } else {
+                alert("충전 실패: " + data.error)
+            }
+        } catch (e) {
+            console.error("충전 중 오류 발생", e)
+            alert("서버 통신 오류가 발생했습니다.")
+        }
+    }
+
     const openLogViewer = async (user: any, days: number = 1, e?: React.MouseEvent) => {
         if (e) e.stopPropagation()
         setLogUser(user)
@@ -742,7 +767,7 @@ export default function AdminDashboardContent() {
                                     <tr>
                                         <th className="px-10 py-3">{t.emailId}</th>
                                         <th className="px-10 py-3">{t.joinDate}</th>
-                                        <th className="px-10 py-3">{t.lastLogin}</th>
+                                        <th className="px-10 py-3 text-center">보유 토큰</th>
                                         <th className="px-10 py-3 text-center">{t.membership}</th>
                                         <th className="px-10 py-3 text-center">{t.manage}</th>
                                     </tr>
@@ -757,8 +782,16 @@ export default function AdminDashboardContent() {
                                             <td className="px-10 py-4 text-gray-400">
                                                 {formatDate(user.created_at)}
                                             </td>
-                                            <td className="px-10 py-4 text-gray-400">
-                                                {formatDate(user.last_sign_in_at)}
+                                            <td className="px-10 py-4 text-center">
+                                                <div className="flex flex-col items-center gap-1 group/token">
+                                                    <span className="text-white font-black text-base">{user.profile?.token_balance?.toLocaleString() || 0}</span>
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); rechargeTokens(user.id, 1000000); }}
+                                                        className="text-[8px] font-black text-blue-500 opacity-0 group-hover/token:opacity-100 transition-all hover:underline"
+                                                    >
+                                                        +1M RECHARGE
+                                                    </button>
+                                                </div>
                                             </td>
                                             <td className="px-10 py-4 text-center">
                                                 <div className="flex flex-col items-center gap-1">

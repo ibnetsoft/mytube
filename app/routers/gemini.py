@@ -55,6 +55,10 @@ class NurseryImagePromptsRequest(BaseModel):
 @router.post("/api/gemini/generate-structure")
 async def generate_script_structure_api(req: StructureGenerateRequest):
     """대본 구조 생성 (중복 방지 적용)"""
+    from services.auth_service import auth_service
+    if not auth_service.check_credits(500):
+        return {"status": "error", "error": "AI 토큰이 부족합니다. 어드민 페이지에서 충전 후 이용해주세요."}
+    
     try:
         recent_projects = db.get_recent_projects(limit=5)
         recent_titles = [p['name'] for p in recent_projects]
@@ -108,6 +112,10 @@ async def generate_script_structure_api(req: StructureGenerateRequest):
 @router.post("/api/gemini/deep-dive")
 async def generate_deep_dive_script_api(req: StructureGenerateRequest):
     """여러 소스를 학습하여 고품질 '딥다이브' 대본 생성"""
+    from services.auth_service import auth_service
+    if not auth_service.check_credits(1000):
+        return {"status": "error", "error": "AI 토큰이 부족합니다. (딥다이브 최소 1,000 TK 필요)"}
+
     if not req.project_id:
         return {"status": "error", "error": "project_id is required for deep-dive"}
 
@@ -134,6 +142,10 @@ async def generate_deep_dive_script_api(req: StructureGenerateRequest):
 @router.post("/api/gemini/generate")
 async def gemini_generate(req: GeminiRequest):
     """Gemini 텍스트 생성 (로깅 지원)"""
+    from services.auth_service import auth_service
+    if not auth_service.check_credits(200):
+        return {"status": "error", "error": "AI 토큰이 부족합니다."}
+
     try:
         text = await gemini_service.generate_text(
             req.prompt, 

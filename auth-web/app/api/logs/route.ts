@@ -34,6 +34,17 @@ export async function POST(req: Request) {
             })
 
         if (error) throw error
+
+        // [Credit System] 작업 성공 시 토큰 차감 진행
+        const totalTokens = (input_tokens || 0) + (output_tokens || 0)
+        if (totalTokens > 0 && (status === 'success' || status === 'done')) {
+            await getAdmin().rpc('deduct_tokens', {
+                p_user_id: userId,
+                p_amount: totalTokens,
+                p_description: `${task_type} (${model_id})`
+            })
+        }
+
         return NextResponse.json({ success: true })
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 })

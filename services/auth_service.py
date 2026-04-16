@@ -17,7 +17,8 @@ class AuthService:
         self._verified = False
         self._last_verified = None
         self._is_restricted = False
-        self._remote_keys_loaded = False   # 이번 세션에서 원격 키를 받았는지
+        self._token_balance = 0
+        self._remote_keys_loaded = False 
         self.logger = logging.getLogger(__name__)
         self._monitor_thread = None
         self._stop_event = threading.Event()
@@ -82,6 +83,7 @@ class AuthService:
                         self._is_restricted = False
                         self._verified = True
                         self._last_verified = datetime.now()
+                        self._token_balance = data.get("token_balance", 0)
                     
                     # Supabase 원격 API 키 → 메모리 전용 로드 (로컬 저장 없음)
                     api_keys = data.get("api_keys", {})
@@ -146,5 +148,15 @@ class AuthService:
     def remote_keys_loaded(self):
         """이번 세션에서 Supabase 원격 키를 성공적으로 받았는지 여부"""
         return self._remote_keys_loaded
+
+    def get_token_balance(self):
+        return self._token_balance
+
+    def check_credits(self, required_amount: int = 1000):
+        """작업 시작 전 충분한 토큰이 있는지 확인"""
+        if self._token_balance < required_amount:
+            self.logger.warning(f"Insufficient tokens: Available {self._token_balance}, Required {required_amount}")
+            return False
+        return True
 
 auth_service = AuthService()
