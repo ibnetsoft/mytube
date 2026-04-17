@@ -89,8 +89,10 @@ export default function DashboardContent() {
     
     // UI Modals State
     const [logViewUser, setLogViewUser] = useState<UserProfile | null>(null)
-    const [apiViewUser, setApiViewUser] = useState<UserProfile | null>(null)
-    const [tempApiKeys, setTempApiKeys] = useState<any>({ openai: '', gemini: '', pexels: '', replicate: '' })
+    const [apiViewUser, setApiViewUser] = useState<any>(null);
+    const [channelViewUser, setChannelViewUser] = useState<any>(null);
+    const [tempApiKeys, setTempApiKeys] = useState<any>({ openai: '', gemini: '', pexels: '', replicate: '' });
+    const [tempChannelInfo, setTempChannelInfo] = useState<any>({ name: '', id: '' });
     
     // Data Stats State
     const [globalLogs, setGlobalLogs] = useState<any[]>([])
@@ -175,6 +177,51 @@ export default function DashboardContent() {
             }
         } catch (e) { alert("오류 발생"); }
     }
+
+    const [savingChannel, setSavingChannel] = useState(false);
+
+    const handleUpdateChannelInfo = async () => {
+        if (!channelViewUser) return;
+        setSavingChannel(true);
+        try {
+            console.log('Saving channel for user:', channelViewUser.id, tempChannelInfo);
+            const res = await fetch('/api/admin/users/update-metadata', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    userId: channelViewUser.id, 
+                    metadata: { 
+                        youtube_channel: tempChannelInfo.name,
+                        youtube_channel_id: tempChannelInfo.id 
+                    } 
+                })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                console.log('Save success!', data);
+                // [FIX] 서버에서 반환된 최신 유저 정보로 즉시 교체하여 동기화 지연 방지
+                const updatedUser = data.user;
+                if (updatedUser) {
+                    setUsers(prev => prev.map(u => u.id === updatedUser.id ? {
+                        ...u,
+                        user_metadata: updatedUser.user_metadata
+                    } : u));
+                }
+                
+                alert(isKor ? "채널 정보가 성공적으로 업데이트되었습니다." : "Channel info updated successfully.");
+                setChannelViewUser(null);
+                // fetchUsers()를 호출하지 않고 로컬 상태를 우선시함 (Race Condition 해결)
+            } else {
+                console.error('Save failed:', data.error);
+                alert((isKor ? "저장 실패: " : "Save failed: ") + (data.error || "Unknown error"));
+            }
+        } catch (e) { 
+            console.error('API Catch Error:', e);
+            alert("오류 발생"); 
+        } finally {
+            setSavingChannel(false);
+        }
+    };
 
     const handleRoleChange = async (userId: string, currentRole: string) => {
         const newRole = currentRole === 'pro' ? 'std' : 'pro';
@@ -371,7 +418,7 @@ export default function DashboardContent() {
     );
 
     return (
-        <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-blue-500/30">
+        <div className="min-h-screen bg-[#000106] text-white font-sans selection:bg-blue-500/30">
             <nav className="p-6 border-b border-white/5 bg-black/60 sticky top-0 z-[100] backdrop-blur-xl">
                 <div className="max-w-[1600px] mx-auto flex justify-between items-center">
                     <span className="text-2xl font-black italic tracking-tighter text-blue-500">PICADIRI STUDIO</span>
@@ -440,7 +487,7 @@ export default function DashboardContent() {
                         </div>
                         {overviewSubTab === 'video' ? (
                             <div className="space-y-12">
-                                <div className="bg-[#0b0f19] border border-white/5 rounded-[2.5rem] overflow-hidden shadow-2xl">
+                                <div className="bg-[#0f172a]/20 border border-white/5 rounded-[2.5rem] overflow-hidden shadow-2xl">
                                     <div className="px-10 py-6 border-b border-white/5 bg-black/20 flex justify-between items-center">
                                         <h3 className="text-[10px] font-black text-blue-500 uppercase tracking-[0.4em]">승인 대기 및 등록된 영상</h3>
                                     </div>
@@ -471,7 +518,7 @@ export default function DashboardContent() {
                                         </tbody>
                                     </table>
                                 </div>
-                                <div className="bg-[#0b0f19] border border-white/5 rounded-[2.5rem] overflow-hidden shadow-2xl opacity-70">
+                                <div className="bg-[#0f172a]/20 border border-white/5 rounded-[2.5rem] overflow-hidden shadow-2xl opacity-70">
                                     <div className="px-10 py-6 border-b border-white/5 bg-black/20"><h3 className="text-[9px] font-black text-gray-500 uppercase tracking-[0.4em]">활성 유저 채널 요약</h3></div>
                                     <table className="w-full text-left">
                                         <thead className="bg-black/30 border-b border-white/5 text-[10px] font-black text-gray-500 uppercase tracking-widest">
@@ -498,7 +545,7 @@ export default function DashboardContent() {
                 )}
 
                 {activeTab === 'users' && (
-                    <div className="bg-[#0b0f19] border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="bg-[#0f172a]/20 border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <div className="px-10 py-6 border-b border-white/5 bg-black/20 flex justify-between items-center">
                             <h3 className="text-sm font-black text-gray-400 uppercase tracking-[0.2em]">회원 관리 리스트</h3>
                             <button onClick={fetchUsers} className="px-6 py-2 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-[10px] font-black rounded-xl border border-blue-500/20 transition-all uppercase tracking-widest">새로고침</button>
@@ -515,6 +562,12 @@ export default function DashboardContent() {
                                                 <div className="font-black text-white text-base group-hover:text-blue-400 transition-colors uppercase tracking-tight">{u.email}</div>
                                                 {u.email === SUPER_ADMIN_EMAIL && <span className="px-2 py-0.5 bg-blue-600 text-[8px] font-black rounded-md text-white">최고관리자</span>}
                                                 {u.app_metadata?.is_admin && u.email !== SUPER_ADMIN_EMAIL && <span className="px-2 py-0.5 bg-indigo-500 text-[8px] font-black rounded-md text-white">부관리자</span>}
+                                                {u.user_metadata?.youtube_channel && (
+                                                    <span className="flex items-center gap-1.5 px-3 py-1 bg-red-600/10 border border-red-500/20 text-red-500 text-[9px] font-black rounded-full uppercase tracking-widest">
+                                                        <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
+                                                        {u.user_metadata.youtube_channel}
+                                                    </span>
+                                                )}
                                             </div>
                                             <div className="text-[11px] text-gray-600 font-bold mt-1 uppercase italic tracking-tighter">{u.user_metadata?.full_name || '이름 없음'}</div>
                                         </td>
@@ -522,14 +575,21 @@ export default function DashboardContent() {
                                         <td className="px-10 py-7 text-center"><button onClick={() => handleRoleChange(u.id, u.app_metadata?.membership)} className={`px-5 py-2.5 rounded-2xl text-[10px] font-black border uppercase tracking-widest transition-all ${u.app_metadata?.membership === 'pro' ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg' : 'bg-white/5 text-gray-500 border-white/10 hover:border-white/30'}`}>{u.app_metadata?.membership?.toUpperCase() === 'PRO' ? '프로' : '스탠다드'}</button></td>
                                         <td className="px-10 py-7 text-center text-[12px] font-black text-gray-500">{formatDate(u.created_at)}</td>
                                         <td className="px-10 py-7 text-center text-[12px] font-black text-gray-500">{formatDate(u.last_sign_in_at)}</td>
-                                        <td className="px-10 py-7 text-right">
-                                            <div className="flex gap-2 justify-end">
+                                        <td className="px-6 py-7 text-right">
+                                            <div className="flex gap-1.5 justify-end flex-nowrap">
                                                 {isSuperAdmin && u.email !== SUPER_ADMIN_EMAIL && (
-                                                    <button onClick={() => handleAdminRoleToggle(u.id, !!u.app_metadata?.is_admin)} className={`px-6 py-2.5 rounded-2xl text-[10px] font-black border transition-all uppercase tracking-widest ${u.app_metadata?.is_admin ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/30' : 'bg-white/5 text-gray-600 border-white/10'}`}>권한관리</button>
+                                                    <button onClick={() => handleAdminRoleToggle(u.id, !!u.app_metadata?.is_admin)} className={`px-3 py-2 rounded-xl text-[9px] font-black border transition-all uppercase tracking-tight whitespace-nowrap ${u.app_metadata?.is_admin ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/30' : 'bg-white/5 text-gray-600 border-white/10'}`}>권한관리</button>
                                                 )}
-                                                <button onClick={() => handleRecharge(u.id)} className="px-6 py-2.5 bg-green-600/10 hover:bg-green-600 text-green-500 hover:text-white text-[10px] font-black rounded-2xl border border-green-500/20 transition-all uppercase tracking-widest">토큰충전</button>
-                                                <button onClick={() => { setLogViewUser(u); setLogPeriod(1); fetchUserLogs(u.id, 1); }} className="px-6 py-2.5 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-[10px] font-black rounded-2xl border border-blue-500/20 transition-all uppercase tracking-widest">로그조회</button>
-                                                <button onClick={() => { setApiViewUser(u); setTempApiKeys(u.app_metadata?.custom_api_keys || { openai: '', gemini: '', pexels: '', replicate: '' }); }} className="px-6 py-2.5 bg-indigo-600/10 hover:bg-indigo-600 text-indigo-500 hover:text-white text-[10px] font-black rounded-2xl border border-indigo-500/20 transition-all uppercase tracking-widest">API</button>
+                                                <button onClick={() => handleRecharge(u.id)} className="px-3 py-2 bg-green-600/10 hover:bg-green-600 text-green-500 hover:text-white text-[9px] font-black rounded-xl border border-green-500/20 transition-all uppercase tracking-tight whitespace-nowrap">토큰충전</button>
+                                                <button onClick={() => { setLogViewUser(u); setLogPeriod(1); fetchUserLogs(u.id, 1); }} className="px-3 py-2 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-[9px] font-black rounded-xl border border-blue-500/20 transition-all uppercase tracking-tight whitespace-nowrap">로그조회</button>
+                                                <button onClick={() => { 
+                                                    setChannelViewUser(u);
+                                                    setTempChannelInfo({
+                                                        name: u.user_metadata?.youtube_channel || '',
+                                                        id: u.user_metadata?.youtube_channel_id || ''
+                                                    });
+                                                }} className="px-3 py-2 bg-purple-600/10 hover:bg-purple-600 text-purple-500 hover:text-white text-[9px] font-black rounded-xl border border-purple-500/20 transition-all uppercase tracking-tight whitespace-nowrap">채널ID</button>
+                                                <button onClick={() => { setApiViewUser(u); setTempApiKeys(u.app_metadata?.custom_api_keys || { openai: '', gemini: '', pexels: '', replicate: '' }); }} className="px-3 py-2 bg-indigo-600/10 hover:bg-indigo-600 text-indigo-500 hover:text-white text-[9px] font-black rounded-xl border border-indigo-500/20 transition-all uppercase tracking-tight whitespace-nowrap">API</button>
                                             </div>
                                         </td>
                                     </tr>
@@ -543,7 +603,7 @@ export default function DashboardContent() {
             {logViewUser && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-12 animate-in fade-in duration-300">
                     <div className="absolute inset-0 bg-black/95 backdrop-blur-3xl" onClick={() => setLogViewUser(null)} />
-                    <div className="relative w-full max-w-[1600px] bg-[#070707] border border-white/10 rounded-[3rem] p-12 flex flex-col max-h-[94vh] overflow-hidden shadow-2xl">
+                    <div className="relative w-full max-w-[1600px] bg-[#000106] border border-white/10 rounded-[3rem] p-12 flex flex-col max-h-[94vh] overflow-hidden shadow-2xl">
                         <div className="flex justify-between items-center mb-10">
                              <div className="flex items-center gap-6"><h3 className="text-3xl font-black text-blue-500 uppercase italic tracking-tighter">사용자 작업 로그</h3><div className="px-4 py-1.5 bg-blue-600/10 border border-blue-500/20 rounded-full text-[10px] font-black text-blue-400 uppercase tracking-widest">{logViewUser.email}</div></div>
                              <div className="flex items-center gap-4">
@@ -570,7 +630,7 @@ export default function DashboardContent() {
             {apiViewUser && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-12">
                     <div className="absolute inset-0 bg-black/90 backdrop-blur-3xl" onClick={() => setApiViewUser(null)} />
-                    <div className="relative w-full max-w-[800px] bg-[#0b0f19] border border-white/10 rounded-[3rem] p-16 flex flex-col shadow-2xl animate-in zoom-in-95 duration-300">
+                    <div className="relative w-full max-w-[800px] bg-[#000106] border border-white/10 rounded-[3rem] p-16 flex flex-col shadow-2xl animate-in zoom-in-95 duration-300">
                         <button onClick={() => setApiViewUser(null)} className="absolute top-12 right-12 w-12 h-12 flex items-center justify-center rounded-xl bg-white/5 text-gray-500 hover:text-white transition-all">X</button>
                         <div className="space-y-10">
                             <div><h3 className="text-3xl font-black uppercase italic tracking-tighter text-blue-500">유저 전용 API 설정</h3><p className="text-sm text-gray-500 mt-2 uppercase tracking-widest font-black italic">{apiViewUser.email}</p></div>
@@ -581,6 +641,63 @@ export default function DashboardContent() {
                                 </div>
                             ))}</div>
                             <button onClick={handleUpdateApiKeys} className="w-full py-6 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-[2rem] shadow-xl shadow-blue-500/20 transition-all active:scale-95 uppercase tracking-widest text-sm">저장 및 적용</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {channelViewUser && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-12">
+                    <div className="absolute inset-0 bg-black/90 backdrop-blur-3xl" onClick={() => setChannelViewUser(null)} />
+                    <div className="relative w-full max-w-[800px] bg-[#000106] border border-white/10 rounded-[3rem] p-16 flex flex-col shadow-2xl animate-in zoom-in-95 duration-300">
+                        <button onClick={() => setChannelViewUser(null)} className="absolute top-12 right-12 w-12 h-12 flex items-center justify-center rounded-xl bg-white/5 text-gray-500 hover:text-white transition-all">X</button>
+                        <div className="space-y-10">
+                            <div><h3 className="text-3xl font-black uppercase italic tracking-tighter text-purple-500">유튜브 채널 연동 관리</h3><p className="text-sm text-gray-500 mt-2 uppercase tracking-widest font-black italic">{channelViewUser.email}</p></div>
+                            <div className="space-y-8">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-4">채널 이름 (표시용)</label>
+                                    <input type="text" placeholder="예: 피카디리 스튜디오" value={tempChannelInfo.name} onChange={(e) => setTempChannelInfo({...tempChannelInfo, name: e.target.value})} className="w-full bg-black/40 border border-white/5 rounded-2xl px-8 py-5 text-sm font-black text-white focus:outline-none focus:border-purple-500/50 transition-all" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-4">유튜브 채널 ID</label>
+                                    <input type="text" placeholder="예: UCxxxxxxxxxxxx" value={tempChannelInfo.id} onChange={(e) => setTempChannelInfo({...tempChannelInfo, id: e.target.value})} className="w-full bg-black/40 border border-white/5 rounded-2xl px-8 py-5 text-sm font-black text-white focus:outline-none focus:border-purple-500/50 transition-all" />
+                                    <p className="text-[10px] text-gray-600 ml-4 font-bold">* 관리자가 수동으로 연동 채널을 지정하거나 정보를 수정할 수 있습니다.</p>
+                                </div>
+                            </div>
+                            <div className="flex gap-4">
+                                <button 
+                                    onClick={handleUpdateChannelInfo} 
+                                    disabled={savingChannel}
+                                    className={`flex-1 py-6 font-black rounded-[2rem] shadow-xl transition-all active:scale-95 uppercase tracking-widest text-sm ${savingChannel ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-500 text-white'}`}
+                                >
+                                    {savingChannel ? (isKor ? '저장 중...' : 'Saving...') : (isKor ? '텍스트 정보 저장' : 'Save Text Info')}
+                                </button>
+                                
+                                <button 
+                                    onClick={() => {
+                                        if (!tempChannelInfo.name || !tempChannelInfo.id) {
+                                            alert(isKor ? "채널 이름과 ID를 모두 입력해주세요." : "Please enter both channel name and ID.");
+                                            return;
+                                        }
+                                        
+                                        // window.open을 사용하여 CORS 우회 및 즉각적인 피드백 제공
+                                        const url = `http://127.0.0.1:8000/api/channels/login-by-info?name=${encodeURIComponent(tempChannelInfo.name)}&id=${encodeURIComponent(tempChannelInfo.id)}`;
+                                        window.open(url, '_blank', 'width=600,height=700');
+                                        
+                                        // 메타데이터 정보 저장은 별도로 수행
+                                        handleUpdateChannelInfo();
+                                    }}
+                                    className="px-10 py-6 bg-white text-black font-black rounded-[2rem] shadow-xl hover:bg-gray-100 transition-all active:scale-95 flex items-center gap-3"
+                                >
+                                    <svg className="w-5 h-5" viewBox="0 0 24 24">
+                                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
+                                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                                    </svg>
+                                    {isKor ? '구글 연동하기' : 'Connect Google'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

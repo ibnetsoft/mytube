@@ -118,6 +118,9 @@ async def page_commerce_shorts(request: Request):
 async def page_settings(request: Request):
     from services.auth_service import auth_service
     import datetime
+    # [FORCE SYNC] Fetch latest metadata from SaaS before rendering
+    auth_service.verify_license()
+    
     return _templates.TemplateResponse("pages/settings.html", {
         "request": request,
         "page": "settings",

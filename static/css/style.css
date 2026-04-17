@@ -84,7 +84,7 @@
 }
 
 .dark .card {
-    background: #111827; /* Slightly darker for better contrast with white text */
+    background: #05060a;
 }
 
 .card-compact {
@@ -166,7 +166,7 @@
 }
 
 .dark .btn-secondary {
-    background: #374151;
+    background: #1e293b;
     color: #ffffff;
 }
 
@@ -175,7 +175,7 @@
 }
 
 .dark .btn-secondary:hover:not(:disabled) {
-    background: #4B5563;
+    background: #334155;
 }
 
 .btn-secondary:disabled {
@@ -206,7 +206,7 @@
 }
 
 .dark .btn-tertiary:hover:not(:disabled) {
-    background: #374151;
+    background: #1e293b;
     color: #ffffff;
 }
 
@@ -257,15 +257,15 @@
 }
 
 .dark .input-field {
-    background: #374151;
-    border-color: #4B5563;
+    background: #05060a;
+    border-color: #1e293b;
     color: white;
 }
 
 /* ===== Select & Option Dark Theme ===== */
 select.bg-gray-900 option,
 select.bg-gray-800 option {
-    background-color: #111827;
+    background-color: #05060a;
     color: #ffffff;
 }
 
@@ -376,7 +376,7 @@ textarea.input-field {
 }
 
 .dark .video-card {
-    background: #1F2937;
+    background: #05060a;
 }
 
 .video-card:hover {
@@ -503,7 +503,7 @@ textarea.input-field {
 }
 
 .dark .progress-bar {
-    background: #374151;
+    background: #1e293b;
 }
 
 .progress-bar-fill {
@@ -522,7 +522,7 @@ textarea.input-field {
 }
 
 .dark .tabs {
-    border-color: #374151;
+    border-color: #1e293b;
 }
 
 .tab {
@@ -567,7 +567,7 @@ textarea.input-field {
 }
 
 .dark .modal-content {
-    background: #1F2937;
+    background: #000106;
 }
 
 /* ===== Spacing Utilities ===== */

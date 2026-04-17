@@ -103,7 +103,7 @@
 
     /* Compact inputs */
     .input-compact {
-        @apply text-xs border-gray-300 dark:border-gray-600 rounded py-1 px-2 bg-gray-50 dark:bg-gray-700 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary;
+        @apply text-xs border-gray-300 dark:border-gray-600 rounded py-1 px-2 bg-[#000106]/50 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary;
     }
 
     .input-compact option {
@@ -192,7 +192,7 @@
     <div class="col-span-12 xl:col-span-8 lg:col-span-7 flex flex-col gap-2 min-h-0 overflow-hidden">
 
         <!-- 1. Top Control Bar (Style & Actions) — 2줄 구조 -->
-        <div class="flex flex-col gap-1.5 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 shrink-0">
+        <div class="flex flex-col gap-1.5 p-2 bg-[#000106] rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 shrink-0">
 
             <!-- Row 1: Template / Preset / Font / Color — flex-wrap으로 언어 무관하게 줄바꿈 -->
             <div class="flex items-center gap-x-3 gap-y-1.5 flex-wrap">
@@ -200,7 +200,7 @@
                 <!-- Template -->
                 <div class="flex items-center gap-1 shrink-0">
                     <select id="shortsTemplateSelect" onchange="applyShortsTemplate(this.value)"
-                        class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-indigo-200 dark:border-indigo-900 rounded-md py-1 px-2 w-28 focus:ring-1 focus:ring-indigo-500 focus:outline-none cursor-pointer">
+                        class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-[#000106]/50 border border-indigo-200 dark:border-indigo-900 rounded-md py-1 px-2 w-28 focus:ring-1 focus:ring-indigo-500 focus:outline-none cursor-pointer">
                         <option value="">-- {{ t('opt_select_template') }} --</option>
                     </select>
                     <button onclick="refreshShortsTemplatePresets()" class="p-1 text-gray-400 hover:text-indigo-500" title="새로고침">
@@ -215,14 +215,14 @@
                 <!-- Preset -->
                 <div class="flex items-center gap-1 shrink-0">
                     <select id="subtitlePresetSelect" onchange="applySubtitlePreset(this.value)"
-                        class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-24 focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer">
+                        class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-[#000106]/50 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-24 focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer">
                         <option value="">{{ t('opt_select') }}</option>
                     </select>
                     <button onclick="deleteCurrentSubtitlePreset()" class="p-1 text-gray-400 hover:text-red-500 transition-colors" title="{{ t('title_delete_preset') }}">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                     </button>
                     <input type="text" id="newPresetName" placeholder="{{ t('placeholder_new_preset') }}"
-                        class="text-[11px] bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded px-1.5 py-1 w-20 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        class="text-[11px] bg-[#000106] border border-gray-200 dark:border-gray-700 rounded px-1.5 py-1 w-20 focus:outline-none focus:ring-1 focus:ring-blue-500">
                     <button onclick="saveCurrentAsPreset()" class="text-[11px] bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded transition-colors font-bold">
                         {{ t('btn_save') }}
                     </button>
@@ -233,7 +233,7 @@
                 <!-- Font -->
                 <div class="flex items-center gap-1.5 shrink-0">
                     <select id="fontFamilySelect"
-                        class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-28 focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer">
+                        class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-[#000106]/50 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-28 focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer">
                         <option value="GmarketSansBold" selected>{{ t('font_gmarket') }}</option>
                         <option value="TmonMonsori">{{ t('font_tmon') }}</option>
                         <option value="Jalnan">{{ t('font_jalnan') }}</option>
@@ -253,12 +253,12 @@
                         <option value="Malgun Gothic">{{ t('font_malgun') }}</option>
                     </select>
                     <input type="number" id="fontSizeSlider" value="5.4" min="1" max="20" step="0.1"
-                        class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-1 w-12 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                        class="text-[11px] text-gray-800 dark:text-gray-100 bg-[#000106]/50 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-1 w-12 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
                         title="{{ t('label_size_percent') }} (%)">
                     <span class="text-[11px] text-gray-400">%</span>
                     <span id="fontSizeValue" class="hidden">5.4%</span>
                     <input type="number" id="lineSpacingInput" value="0.1" min="-0.5" max="1.5" step="0.05"
-                        class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-1 w-12 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                        class="text-[11px] text-gray-800 dark:text-gray-100 bg-[#000106]/50 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-1 w-12 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
                         title="{{ t('label_line_spacing_ratio') }}">
                 </div>
 
@@ -284,12 +284,12 @@
                 <div class="flex items-center gap-1 shrink-0">
                     <span class="text-[10px] font-bold text-gray-400 dark:text-gray-500">{{ t('label_stroke') }}</span>
                     <input type="number" id="strokeWidthInput" value="0" min="0" max="15" step="0.5"
-                        class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-1 w-10 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                        class="text-[11px] text-gray-800 dark:text-gray-100 bg-[#000106]/50 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-1 w-10 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none">
                     <span class="text-[10px] text-gray-400">px</span>
                     <div class="flex flex-col items-center gap-0.5 ml-1">
-                        <button onclick="adjustSubtitlePosY(-1)" class="w-5 h-3.5 flex items-center justify-center rounded-sm bg-gray-400 hover:bg-gray-500 dark:bg-gray-600 text-white text-[9px] leading-none">▲</button>
+                        <button onclick="adjustSubtitlePosY(-1)" class="w-5 h-3.5 flex items-center justify-center rounded-sm bg-gray-400 hover:bg-[#000106]0 dark:bg-gray-600 text-white text-[9px] leading-none">▲</button>
                         <span id="posYDisplay" class="text-[9px] text-gray-500 font-mono w-5 text-center leading-none">5</span>
-                        <button onclick="adjustSubtitlePosY(1)" class="w-5 h-3.5 flex items-center justify-center rounded-sm bg-gray-400 hover:bg-gray-500 dark:bg-gray-600 text-white text-[9px] leading-none">▼</button>
+                        <button onclick="adjustSubtitlePosY(1)" class="w-5 h-3.5 flex items-center justify-center rounded-sm bg-gray-400 hover:bg-[#000106]0 dark:bg-gray-600 text-white text-[9px] leading-none">▼</button>
                     </div>
                 </div>
 
@@ -300,16 +300,16 @@
                     <span class="text-[10px] font-bold text-gray-400 dark:text-gray-500">{{ t('label_bg_strip') }}</span>
                     <label class="relative inline-flex items-center cursor-pointer">
                         <input type="checkbox" id="bgStripToggle" class="sr-only peer" onchange="updateBgStrip(this)">
-                        <div class="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                        <div class="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer bg-[#000106]/50 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#000106] after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
                     </label>
                     <div class="flex flex-col items-center gap-0.5">
                         <input type="color" id="bgColorInput" value="#000000" class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer" title="{{ t('label_bg_color') }}">
                         <span class="text-[9px] text-gray-400">BG</span>
                     </div>
                     <input type="number" id="bgOpacityInput" value="0.5" min="0" max="1" step="0.1"
-                        class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-1 w-10 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                        class="text-[11px] text-gray-800 dark:text-gray-100 bg-[#000106]/50 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-1 w-10 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
                         title="{{ t('label_opacity') }}">
-                    <div class="flex items-center gap-0.5 bg-gray-50 dark:bg-gray-800 px-1 rounded border border-gray-200 dark:border-gray-700">
+                    <div class="flex items-center gap-0.5 bg-[#000106] px-1 rounded border border-gray-200 dark:border-gray-700">
                         <span class="text-[10px] text-gray-400">↕</span>
                         <input type="number" id="bgVOffsetInput" value="0" step="1" class="text-[11px] bg-transparent border-0 p-0 w-7 text-center focus:ring-0 text-gray-800 dark:text-gray-100">
                     </div>
@@ -320,7 +320,7 @@
                 <!-- Action Buttons: 아이콘 + 짧은 텍스트, tooltip으로 전체 번역 표시 -->
                 <div class="flex items-center gap-1 flex-wrap">
                     <button onclick="resetAndReload(this)" title="{{ t('btn_reset_reload') }}"
-                        class="text-[10px] font-semibold px-2 py-1.5 rounded-md transition-all flex items-center gap-1 bg-gray-500 hover:bg-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 text-white disabled:opacity-50">
+                        class="text-[10px] font-semibold px-2 py-1.5 rounded-md transition-all flex items-center gap-1 bg-[#000106]0 hover:bg-gray-600 bg-[#000106]/50 dark:hover:bg-gray-600 text-white disabled:opacity-50">
                         🔄 <span class="hidden sm:inline">{{ t('btn_reset_reload') }}</span>
                     </button>
                     <button onclick="distributeImages(this)" title="{{ t('btn_ai_sync') }}"
@@ -354,20 +354,20 @@
 
         <!-- Left Panel: Subtitle List -->
         <div
-            class="flex-1 flex flex-col bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden min-h-0">
+            class="flex-1 flex flex-col bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden min-h-0">
             <!-- List Header -->
             <div
-                class="p-2 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600 flex justify-between items-center shrink-0">
+                class="p-2 bg-[#000106]/50/50 border-b border-gray-200 dark:border-gray-600 flex justify-between items-center shrink-0">
                 <h3 class="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
                     {{ t('subtitle_list_title') }}
                     <span id="debug-info" class="text-[10px] text-red-500 font-mono hidden"></span>
                 </h3>
                 <div class="flex gap-1 items-center">
                     <button onclick="addSubtitleRow()"
-                        class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-gray-500 hover:bg-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 text-white disabled:opacity-50 flex-shrink-0">
+                        class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-[#000106]0 hover:bg-gray-600 bg-[#000106]/50 dark:hover:bg-gray-600 text-white disabled:opacity-50 flex-shrink-0">
                         {{ t('btn_add') }}</button>
                     <button id="btnSelectMode" onclick="toggleSelectMode()"
-                        class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-gray-500 hover:bg-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 text-white disabled:opacity-50 flex-shrink-0">
+                        class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-[#000106]0 hover:bg-gray-600 bg-[#000106]/50 dark:hover:bg-gray-600 text-white disabled:opacity-50 flex-shrink-0">
                         {{ t('btn_select_delete') }}
                     </button>
                 </div>
@@ -379,7 +379,7 @@
                 <span id="deleteActionCount" class="text-[11px] text-red-600 dark:text-red-400 font-medium">0{{ t('items_selected') }}</span>
                 <div class="flex gap-2">
                     <button onclick="selectAllRows()"
-                        class="text-[10px] bg-white text-gray-600 px-2 py-1 rounded border border-gray-300 hover:bg-gray-50">{{ t('btn_select_all') }}</button>
+                        class="text-[10px] bg-[#000106] text-gray-600 px-2 py-1 rounded border border-gray-300 hover:bg-[#000106]">{{ t('btn_select_all') }}</button>
                     <button onclick="deleteSelectedRows()"
                         class="text-[10px] bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 font-bold">{{ t('btn_delete_selected') }}</button>
                 </div>
@@ -389,7 +389,7 @@
             <div class="flex flex-1 min-h-0 overflow-hidden">
                 <!-- Vertical Image Strip -->
                 <div id="imageThumbnailStrip"
-                    class="w-20 flex flex-col gap-2 p-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 custom-scrollbar shrink-0 items-center h-full min-h-0">
+                    class="w-20 flex flex-col gap-2 p-1 overflow-y-auto bg-[#000106] border-r border-gray-200 dark:border-gray-700 custom-scrollbar shrink-0 items-center h-full min-h-0">
                     <!-- Thumbnails injected by JS -->
                 </div>
 
@@ -416,7 +416,7 @@
 
                         <!-- Background Image/Video -->
                         <div id="previewContainer"
-                            class="absolute inset-0 flex items-start justify-center bg-gray-900 overflow-hidden">
+                            class="absolute inset-0 flex items-start justify-center bg-[#000106] overflow-hidden">
                             <!-- Added overflow-hidden here -->
                             <p class="text-gray-600 text-xs dark:text-gray-300">{{ t('preview_helper') }}</p>
                         </div>
@@ -426,7 +426,7 @@
                             <!-- Back to simple inset-0, no flex bugs -->
                             <!-- CSS 기반 미리보기 (기본 표시, 이미지 로드 시 숨김) -->
                             <div id="previewTextMain"
-                                class="absolute transform -translate-x-1/2 pointer-events-auto cursor-move select-none whitespace-pre-wrap text-center hover:border-blue-500 hover:bg-white/5 rounded-sm transition-colors dark:bg-gray-800 border-[1.5px] border-transparent group"
+                                class="absolute transform -translate-x-1/2 pointer-events-auto cursor-move select-none whitespace-pre-wrap text-center hover:border-blue-500 hover:bg-[#000106]/5 rounded-sm transition-colors bg-[#000106] border-[1.5px] border-transparent group"
                                 style="left: 50%; bottom: 5%; top: auto; width: 90%; font-weight: bold; color: white; display: inline-block; box-decoration-break: clone; -webkit-box-decoration-break: clone;">
                                 {{ t('label_subtitle_preview') }}
                             </div>
@@ -513,15 +513,15 @@
 
             <!-- Edit Area (Tab 1: Subtitle) -->
             <div id="tabContent-subtitle"
-                class="w-full flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm flex flex-col min-h-0">
+                class="w-full flex-1 bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm flex flex-col min-h-0">
                 <div class="flex flex-col mb-2">
                     <div class="flex justify-between items-center mb-1">
                         <h3 class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('edit_selected_title') }}</h3>
                         <div class="flex gap-1">
                             <button onclick="adjustTime(-0.1)"
-                                class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded border border-gray-300 dark:border-gray-600 text-[10px] font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">-0.1s</button>
+                                class="px-2 py-0.5 bg-[#000106]/50 rounded border border-gray-300 dark:border-gray-600 text-[10px] font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">-0.1s</button>
                             <button onclick="adjustTime(0.1)"
-                                class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded border border-gray-300 dark:border-gray-600 text-[10px] font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">+0.1s</button>
+                                class="px-2 py-0.5 bg-[#000106]/50 rounded border border-gray-300 dark:border-gray-600 text-[10px] font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">+0.1s</button>
                             <!-- [NEW] Contextual Save Button -->
                             <button onclick="saveSubtitles(this)"
                                 class="px-2 py-0.5 bg-green-500 text-white rounded font-bold text-[10px] shadow-sm hover:bg-green-600 transition-colors"
@@ -538,16 +538,16 @@
 
                     <!-- [NEW] Image Timing Control -->
                     <div
-                        class="flex justify-between items-center bg-blue-50 dark:bg-gray-700/50 p-1 rounded mb-1 border border-blue-100 dark:border-gray-600">
+                        class="flex justify-between items-center bg-blue-50 bg-[#000106]/50/50 p-1 rounded mb-1 border border-blue-100 dark:border-gray-600">
                         <span class="text-[10px] font-bold text-blue-600 dark:text-blue-400">{{ t('label_start_time') }}</span>
                         <div class="flex items-center gap-2">
                             <span id="currentImageTime"
                                 class="text-xs font-mono text-gray-700 dark:text-gray-200">0.0s</span>
                             <div class="flex gap-1">
                                 <button onclick="adjustImageTime(-0.1)"
-                                    class="px-1.5 py-0.5 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded text-[10px] hover:bg-gray-50">-0.1s</button>
+                                    class="px-1.5 py-0.5 bg-[#000106] dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded text-[10px] hover:bg-[#000106]">-0.1s</button>
                                 <button onclick="adjustImageTime(0.1)"
-                                    class="px-1.5 py-0.5 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded text-[10px] hover:bg-gray-50">+0.1s</button>
+                                    class="px-1.5 py-0.5 bg-[#000106] dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded text-[10px] hover:bg-[#000106]">+0.1s</button>
                             </div>
                         </div>
                     </div>
@@ -560,16 +560,16 @@
                                 class="text-xs font-mono text-gray-700 dark:text-gray-200">-</span>
                             <div class="flex gap-1">
                                 <button id="btnImgEndMinus" onclick="adjustImageEndTime(-0.1)"
-                                    class="px-1.5 py-0.5 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded text-[10px] hover:bg-gray-50">-0.1s</button>
+                                    class="px-1.5 py-0.5 bg-[#000106] dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded text-[10px] hover:bg-[#000106]">-0.1s</button>
                                 <button id="btnImgEndPlus" onclick="adjustImageEndTime(0.1)"
-                                    class="px-1.5 py-0.5 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded text-[10px] hover:bg-gray-50">+0.1s</button>
+                                    class="px-1.5 py-0.5 bg-[#000106] dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded text-[10px] hover:bg-[#000106]">+0.1s</button>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <textarea id="currentSubtitleText"
-                    class="w-full flex-1 min-h-[100px] text-sm p-3 border border-blue-200 dark:border-blue-800 rounded bg-blue-50/50 dark:bg-gray-900 focus:ring-1 focus:ring-blue-400 outline-none resize-none disabled:opacity-50 CustomScroll text-gray-700 dark:text-gray-200 transition-colors"
+                    class="w-full flex-1 min-h-[100px] text-sm p-3 border border-blue-200 dark:border-blue-800 rounded bg-blue-50/50 bg-[#000106] focus:ring-1 focus:ring-blue-400 outline-none resize-none disabled:opacity-50 CustomScroll text-gray-700 dark:text-gray-200 transition-colors"
                     placeholder="{{ t('placeholder_select_subtitle') }}"></textarea>
 
                 <!-- DEBUG OVERLAY -->
@@ -581,10 +581,10 @@
 
         <!-- BGM / SFX Area (Tab 2: BGM) -->
         <div id="tabContent-bgm"
-            class="hidden w-full flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm flex flex-col min-h-0 overflow-y-auto">
+            class="hidden w-full flex-1 bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm flex flex-col min-h-0 overflow-y-auto">
             <div id="bgmSectionBody" class="flex flex-col gap-2 flex-1">
                 <!-- BGM 설정 -->
-                <div class="bg-gray-50 dark:bg-gray-900 rounded p-2 border border-gray-200 dark:border-gray-700">
+                <div class="bg-[#000106] rounded p-2 border border-gray-200 dark:border-gray-700">
                     <div class="flex items-center justify-between mb-1.5">
                         <span class="text-[10px] font-bold text-purple-600 dark:text-purple-400">{{ t('tab_bgm_sfx') }}</span>
                         <div class="flex items-center gap-1">
@@ -616,11 +616,11 @@
                             {{ t('bgm_tab_upload') }}
                         </button>
                         <button onclick="setBgmInputMode('url')" id="bgmTabUrl"
-                            class="flex-1 text-[9px] py-0.5 rounded border border-gray-300 dark:border-gray-600 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-400">
+                            class="flex-1 text-[9px] py-0.5 rounded border border-gray-300 dark:border-gray-600 text-gray-500 hover:bg-[#000106] dark:hover:bg-gray-700 dark:text-gray-400">
                             {{ t('bgm_tab_url') }}
                         </button>
                         <button onclick="setBgmInputMode('generated')" id="bgmTabGenerated"
-                            class="flex-1 text-[9px] py-0.5 rounded border border-gray-300 dark:border-gray-600 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-400">
+                            class="flex-1 text-[9px] py-0.5 rounded border border-gray-300 dark:border-gray-600 text-gray-500 hover:bg-[#000106] dark:hover:bg-gray-700 dark:text-gray-400">
                             {{ t('bgm_tab_generated') }}
                         </button>
                     </div>
@@ -638,7 +638,7 @@
                     <div id="bgmInputUrl" class="bgm-input-panel hidden">
                         <div class="flex gap-1">
                             <input type="text" id="bgmUrlInput"
-                                class="flex-1 text-[9px] p-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded"
+                                class="flex-1 text-[9px] p-1 bg-[#000106] border border-gray-300 dark:border-gray-600 rounded"
                                 placeholder="https://... (MP3 URL)">
                             <button onclick="applyBgmUrl()"
                                 class="px-2 text-[9px] bg-purple-600 text-white rounded hover:bg-purple-700">{{ t('apply_url') }}</button>
@@ -648,7 +648,7 @@
                     <!-- 생성된 BGM 목록 모드 -->
                     <div id="bgmInputGenerated" class="bgm-input-panel hidden">
                         <button onclick="loadGeneratedBgmList()"
-                            class="w-full text-[9px] py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300">
+                            class="w-full text-[9px] py-1 bg-[#000106]/50 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300">
                             {{ t('btn_load_generated') }}
                         </button>
                         <div id="generatedBgmList" class="mt-1 space-y-1 max-h-20 overflow-y-auto"></div>
@@ -656,7 +656,7 @@
                 </div>
 
                 <!-- SFX 설정 (간략) -->
-                <div class="bg-gray-50 dark:bg-gray-900 rounded p-2 border border-gray-200 dark:border-gray-700">
+                <div class="bg-[#000106] rounded p-2 border border-gray-200 dark:border-gray-700">
                     <div class="flex items-center justify-between mb-1.5">
                         <span class="text-[10px] font-bold text-blue-600 dark:text-blue-400">{{ t('label_sfx') }}</span>
                         <label class="flex items-center gap-1 cursor-pointer">
@@ -688,7 +688,7 @@
 
     <!-- Rendered Video Section (New) -->
     <div id="renderedVideoSection"
-        class="hidden bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm shrink-0">
+        class="hidden bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm shrink-0">
         <div class="flex items-center justify-between mb-2">
             <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300">{{ t('rendered_video_title') }}</h3>
             <button onclick="closeRenderedVideo()"
@@ -1072,8 +1072,8 @@
         const html = subtitles.map((sub, index) => {
             const isChecked = selectedRows.has(index);
             const isActive = isSelectMode
-                ? (isChecked ? 'ring-2 ring-red-400 bg-red-50 dark:bg-red-900/20' : 'hover:bg-red-50/50 dark:hover:bg-gray-800')
-                : (index === selectedIndex ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-gray-800' : 'hover:bg-gray-50 dark:hover:bg-gray-800');
+                ? (isChecked ? 'ring-2 ring-red-400 bg-red-50 dark:bg-red-900/20' : 'hover:bg-red-50/50 dark:hover:bg-[#000106]')
+                : (index === selectedIndex ? 'ring-2 ring-blue-500 bg-blue-50 bg-[#000106]' : 'hover:bg-[#000106] dark:hover:bg-[#000106]');
             const imgIdx = assignments[index];
             const prevImgIdx = index > 0 ? assignments[index - 1] : -1;
             const isTransition = (imgIdx !== -1 && imgIdx !== prevImgIdx); // Image actually changes here
@@ -1100,7 +1100,7 @@
                     `;
                 } else {
                     assetHtml = `
-                        <img src="${imgUrl}" class="${imgClass} rounded-sm object-contain border-2 border-blue-400 z-0 bg-gray-100 min-h-[2rem]" alt="Scene">
+                        <img src="${imgUrl}" class="${imgClass} rounded-sm object-contain border-2 border-blue-400 z-0 bg-[#000106] min-h-[2rem]" alt="Scene">
                     `;
                 }
 
@@ -1116,7 +1116,7 @@
                     
                     <!-- [NEW] Upload/Replace Media Button -->
                     <button onclick="event.stopPropagation(); document.getElementById('upload-media-${actualIndex}').click()" 
-                            class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 w-8 h-8 bg-black/60 hover:bg-blue-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-all shadow-md backdrop-blur-sm" 
+                            class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 w-8 h-8 bg-[#000106]/60 hover:bg-blue-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-all shadow-md backdrop-blur-sm" 
                             title="소스 미디어 변경/업로드 (이미지 or 영상)">
                         📂
                     </button>
@@ -1127,7 +1127,7 @@
                     <!-- [NEW] Effect Selector (Hidden for Shorts/Vertical) -->
                     ${!isShorts ? `
                     <select onchange="event.stopPropagation(); updateImageEffect(${actualIndex}, this.value)" 
-                            class="mt-1 w-full text-[9px] p-0 border-gray-300 rounded bg-white dark:bg-gray-700 dark:text-white dark:border-gray-600 focus:ring-0 focus:border-blue-500 h-4 leading-none text-center"
+                            class="mt-1 w-full text-[9px] p-0 border-gray-300 rounded bg-[#000106]/50 dark:text-white dark:border-gray-600 focus:ring-0 focus:border-blue-500 h-4 leading-none text-center"
                             title="이미지 효과 선택">
                         <option value="random" ${imageEffects[actualIndex] === 'random' ? 'selected' : ''}>Random</option>
                         <option value="zoom_in" ${imageEffects[actualIndex] === 'zoom_in' ? 'selected' : ''}>Zoom In</option>
@@ -1145,7 +1145,7 @@
                 // Continuation
                 leftCol = `
                 <div class="flex flex-col items-center mr-2 ${colWidthClass} shrink-0 self-stretch">
-                    <div class="w-0.5 h-full bg-gray-200 dark:bg-gray-700 min-h-[2rem]"></div>
+                    <div class="w-0.5 h-full bg-gray-200 bg-[#000106]/50 min-h-[2rem]"></div>
                 </div>`;
             }
 
@@ -1158,7 +1158,7 @@
                  ondragleave="if(!isSelectMode) handleSubtitleDragLeave(event)"
                  ondragend="if(!isSelectMode) handleSubtitleDragEnd(event)"
                  ondrop="if(!isSelectMode) handleCombinedDrop(event, ${index})"
-                 class="flex items-stretch p-2 mb-1 bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-700 cursor-pointer transition-all ${isActive} group relative overflow-visible">
+                 class="flex items-stretch p-2 mb-1 bg-[#000106] rounded-lg border border-gray-100 dark:border-gray-700 cursor-pointer transition-all ${isActive} group relative overflow-visible">
 
                 ${leftCol}
 
@@ -1754,15 +1754,15 @@
             text.style.backgroundColor = 'transparent';
 
             const handlesHtml = `
-                <span class="absolute -top-[4px] -left-[4px] w-[8px] h-[8px] bg-white border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
-                <span class="absolute -top-[4px] -right-[4px] w-[8px] h-[8px] bg-white border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
-                <span class="absolute -bottom-[4px] -left-[4px] w-[8px] h-[8px] bg-white border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
-                <span class="absolute -bottom-[4px] -right-[4px] w-[8px] h-[8px] bg-white border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
-                <span class="absolute top-1/2 -left-[4px] transform -translate-y-1/2 w-[8px] h-[8px] bg-white border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
-                <span class="absolute top-1/2 -right-[4px] transform -translate-y-1/2 w-[8px] h-[8px] bg-white border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
-                <span class="absolute -top-[4px] left-1/2 transform -translate-x-1/2 w-[8px] h-[8px] bg-white border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
-                <span class="absolute -bottom-[4px] left-1/2 transform -translate-x-1/2 w-[8px] h-[8px] bg-white border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
-                <span class="absolute -bottom-[20px] left-1/2 transform -translate-x-1/2 w-[16px] h-[16px] bg-white border border-blue-500 rounded-full opacity-0 group-hover:opacity-100 shadow-sm flex items-center justify-center pointer-events-none block"><span style="font-size: 8px; color: #3b82f6;">↻</span></span>
+                <span class="absolute -top-[4px] -left-[4px] w-[8px] h-[8px] bg-[#000106] border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
+                <span class="absolute -top-[4px] -right-[4px] w-[8px] h-[8px] bg-[#000106] border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
+                <span class="absolute -bottom-[4px] -left-[4px] w-[8px] h-[8px] bg-[#000106] border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
+                <span class="absolute -bottom-[4px] -right-[4px] w-[8px] h-[8px] bg-[#000106] border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
+                <span class="absolute top-1/2 -left-[4px] transform -translate-y-1/2 w-[8px] h-[8px] bg-[#000106] border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
+                <span class="absolute top-1/2 -right-[4px] transform -translate-y-1/2 w-[8px] h-[8px] bg-[#000106] border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
+                <span class="absolute -top-[4px] left-1/2 transform -translate-x-1/2 w-[8px] h-[8px] bg-[#000106] border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
+                <span class="absolute -bottom-[4px] left-1/2 transform -translate-x-1/2 w-[8px] h-[8px] bg-[#000106] border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
+                <span class="absolute -bottom-[20px] left-1/2 transform -translate-x-1/2 w-[16px] h-[16px] bg-[#000106] border border-blue-500 rounded-full opacity-0 group-hover:opacity-100 shadow-sm flex items-center justify-center pointer-events-none block"><span style="font-size: 8px; color: #3b82f6;">↻</span></span>
             `;
 
             // POSITIONING: bottom% anchoring (element grows upward naturally)
@@ -1822,10 +1822,10 @@
         } else {
             // Fallback
             const handlesHtml = `
-                <span class="absolute -top-[4px] -left-[4px] w-[8px] h-[8px] bg-white border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
-                <span class="absolute -top-[4px] -right-[4px] w-[8px] h-[8px] bg-white border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
-                <span class="absolute -bottom-[4px] -left-[4px] w-[8px] h-[8px] bg-white border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
-                <span class="absolute -bottom-[4px] -right-[4px] w-[8px] h-[8px] bg-white border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
+                <span class="absolute -top-[4px] -left-[4px] w-[8px] h-[8px] bg-[#000106] border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
+                <span class="absolute -top-[4px] -right-[4px] w-[8px] h-[8px] bg-[#000106] border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
+                <span class="absolute -bottom-[4px] -left-[4px] w-[8px] h-[8px] bg-[#000106] border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
+                <span class="absolute -bottom-[4px] -right-[4px] w-[8px] h-[8px] bg-[#000106] border border-blue-500 rounded-sm opacity-0 group-hover:opacity-100 shadow-sm pointer-events-none block"></span>
             `;
             // convert plain text to simple spans or just insert
             let safeText = subtitleText.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, '<br>');
@@ -2660,7 +2660,7 @@
                     `<video src="${webPath}" class="w-full h-auto min-h-[40px] rounded bg-black border border-gray-600 object-contain" muted loop onmouseover="this.play()" onmouseout="this.pause()"></video>` :
                     `<img src="${webPath}" class="w-full h-auto min-h-[40px] rounded bg-black border border-gray-600 object-contain" loading="lazy">`
                 }
-                <div class="absolute top-0.5 left-0.5 bg-black/60 text-white text-[8px] px-1 rounded backdrop-blur-sm z-10">
+                <div class="absolute top-0.5 left-0.5 bg-[#000106]/60 text-white text-[8px] px-1 rounded backdrop-blur-sm z-10">
                     ${idx + 1}
                 </div>
             </div>`;
@@ -3731,7 +3731,7 @@
         ['bgmTabUpload', 'bgmTabUrl', 'bgmTabGenerated'].forEach(id => {
             const el = document.getElementById(id);
             if (el) {
-                el.className = 'flex-1 text-[9px] py-0.5 rounded border border-gray-300 dark:border-gray-600 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700';
+                el.className = 'flex-1 text-[9px] py-0.5 rounded border border-gray-300 dark:border-gray-600 text-gray-500 hover:bg-[#000106] dark:hover:bg-gray-700';
             }
         });
 
@@ -3871,7 +3871,7 @@
             }
 
             listEl.innerHTML = bgmList.map((item, i) => `
-                <div class="flex items-center gap-1 p-1 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                <div class="flex items-center gap-1 p-1 bg-[#000106] rounded border border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20"
                      onclick="setBgmSource('${item.url}', '${item.name}')">
                     <span class="text-[9px] text-gray-500 w-4 dark:text-gray-400">${i + 1}</span>
                     <span class="text-[9px] text-gray-700 dark:text-gray-300 flex-1 truncate">🎶 ${item.name}</span>

@@ -51,6 +51,7 @@ export async function POST(req: Request) {
             .eq('id', userId)
             .single()
 
+        console.log(`Verify SUCCESS for user ${userId}: channel=${meta.youtube_channel}`);
         return NextResponse.json({
             success: true,
             membership: user.app_metadata?.membership || 'std',

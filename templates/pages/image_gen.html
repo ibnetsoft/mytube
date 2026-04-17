@@ -8,7 +8,7 @@
         <h3 class="font-bold text-gray-800 dark:text-white shrink-0 flex items-center gap-2">
             <span>{{ t('title_image_gen_settings') }}</span>
             <span id="scriptStatusBadge"
-                class="text-[10px] items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 font-normal hidden md:flex">
+                class="text-[10px] items-center gap-1 px-2 py-0.5 rounded-full bg-[#000106] text-gray-400 font-normal hidden md:flex">
                 <span>🔄</span> {{ t('status_checking_script') }}
             </span>
         </h3>
@@ -17,7 +17,7 @@
             <!-- Image Options -->
             <div id="imageOptions" class="flex flex-wrap items-center gap-4">
                 <!-- Aspect Ratio (롱폼: 16:9 / 9:16) -->
-                <div id="longformRatioContainer" class="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg shadow-inner">
+                <div id="longformRatioContainer" class="flex bg-[#000106]/50 p-1 rounded-lg shadow-inner">
                     <label class="cursor-pointer" id="ratio-16-9">
                         <input type="radio" name="aspectRatio" value="16:9" checked class="peer sr-only">
                         <div
@@ -33,7 +33,7 @@
                 </div>
 
                 <!-- Aspect Ratio (숏폼 전용: 3:4 / 1:1 / 9:16) -->
-                <div id="shortsRatioContainer" class="hidden flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg shadow-inner">
+                <div id="shortsRatioContainer" class="hidden flex bg-[#000106]/50 p-1 rounded-lg shadow-inner">
                     <label class="cursor-pointer">
                         <input type="radio" name="aspectRatio" value="3:4" class="peer sr-only">
                         <div class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-white transition-all">3:4</div>
@@ -50,14 +50,14 @@
 
                 <!-- Character Analysis Button (Moved here) -->
                 <button onclick="analyzeCharacters()" id="analyzeCharacterBtn"
-                    class="btn-secondary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-sm hover:scale-105 transition-transform bg-white border border-gray-300 dark:bg-gray-700 dark:border-gray-600">
+                    class="btn-secondary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-sm hover:scale-105 transition-transform bg-[#000106] border border-gray-300 bg-[#000106]/50 dark:border-gray-600">
                     <span>🧙‍♂️</span>
                     <span class="hidden sm:inline">{{ t('btn_analyze_characters') }}</span>
                 </button>
 
                 <!-- Scene Analysis Button -->
                 <button onclick="analyzeScenes()" id="analyzeSceneBtn"
-                    class="btn-secondary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-sm hover:scale-105 transition-transform bg-white border border-gray-300 dark:bg-gray-700 dark:border-gray-600">
+                    class="btn-secondary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-sm hover:scale-105 transition-transform bg-[#000106] border border-gray-300 bg-[#000106]/50 dark:border-gray-600">
                     <span>🔍</span>
                     <span class="hidden sm:inline">{{ t('btn_analyze_scenes') }}</span>
                 </button>
@@ -68,7 +68,7 @@
 
                 <!-- Save Settings Button -->
                 <button onclick="saveImageSettings(this)" id="saveSettingsBtn"
-                    class="btn-secondary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-sm hover:scale-105 transition-transform bg-white border border-gray-300 dark:bg-gray-700 dark:border-gray-600">
+                    class="btn-secondary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-sm hover:scale-105 transition-transform bg-[#000106] border border-gray-300 bg-[#000106]/50 dark:border-gray-600">
                     <span>💾</span>
                     <span>{{ t('btn_save_settings') }}</span>
                 </button>
@@ -96,7 +96,7 @@
         </div>
 
         <!-- Character Consistency Input -->
-        <div class="w-full mt-4 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+        <div class="w-full mt-4 bg-[#000106] p-4 rounded-lg border border-gray-200 dark:border-gray-700">
             <div class="flex flex-col md:flex-row gap-6">
                 <!-- Left: Controls -->
                 <div class="flex-1">
@@ -118,7 +118,7 @@
 
                             <!-- Use Thumbnail Checkbox -->
                             <label
-                                class="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                                class="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-[#000106] dark:hover:bg-gray-700 transition-colors">
                                 <input type="checkbox" id="useThumbnailCheck"
                                     class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700"
                                     onchange="localStorage.setItem('useThumbnailCheck', this.checked)">
@@ -134,7 +134,7 @@
 
                         <!-- Preview (Upload) - 다중 이미지 지원 -->
                         <div id="charPreviewArea"
-                            class="hidden flex-wrap items-center gap-2 bg-white dark:bg-gray-900 p-2 rounded border border-gray-200 dark:border-gray-700">
+                            class="hidden flex-wrap items-center gap-2 bg-[#000106] p-2 rounded border border-gray-200 dark:border-gray-700">
                             <div id="charPreviewList" class="flex flex-wrap gap-2"></div>
                             <button onclick="clearCharImage()"
                                 class="text-red-500 hover:text-red-700 text-xs ml-1">{{ t('btn_clear_all') }}</button>
@@ -146,7 +146,7 @@
                 <div
                     class="w-full md:w-1/3 flex flex-col items-center justify-center border-l border-gray-200 dark:border-gray-600 pl-0 md:pl-6 pt-4 md:pt-0 border-dashed">
                     <div id="thumbnailReferenceContainer"
-                        class="relative w-[30%] aspect-video bg-gray-800 rounded-lg overflow-hidden shadow-sm group border border-gray-200 dark:border-gray-700">
+                        class="relative w-[30%] aspect-video bg-[#000106] rounded-lg overflow-hidden shadow-sm group border border-gray-200 dark:border-gray-700">
                         <img id="currentProjectThumbnail" src=""
                             class="w-full h-full object-contain opacity-50 transition-opacity duration-300"
                             alt="Thumbnail" onerror="this.style.opacity=0">
@@ -167,10 +167,10 @@
                         class="input-field w-full flex-1 text-sm p-3 min-h-[80px] bg-yellow-50 dark:bg-yellow-900/10 border-yellow-200 dark:border-yellow-800 focus:border-yellow-400 focus:ring-yellow-400"
                         placeholder="{{ t('placeholder_global_prompt') }}"></textarea>
                 </div>
-                <div class="flex-[4] bg-indigo-50 dark:bg-gray-800 p-4 rounded-lg border border-indigo-100 dark:border-gray-700">
+                <div class="flex-[4] bg-indigo-50 bg-[#000106] p-4 rounded-lg border border-indigo-100 dark:border-gray-700">
                     <label class="block text-sm font-bold text-gray-800 dark:text-white mb-1">{{ t('label_ethnicity') }}</label>
                     <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">{{ t('helper_ethnicity') }}</p>
-                    <select id="charEthnicity" class="input-field w-full p-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-gray-800 dark:text-gray-200">
+                    <select id="charEthnicity" class="input-field w-full p-2.5 text-sm bg-[#000106] border border-gray-300 dark:border-gray-600 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-gray-800 dark:text-gray-200">
                         <option value="East Asian heritage, Polished porcelain skin">{{ t('eth_east_asian') }}</option>
                         <option value="Southeast Asian features, Golden tan complexion">{{ t('eth_southeast_asian') }}</option>
                         <option value="South Asian descent, Desi features, Deep almond eyes">{{ t('eth_south_asian') }}</option>
@@ -198,7 +198,7 @@
 
     <!-- [MOVED] 캐릭터 분석 결과 -->
     <div id="characterResultContainer"
-        class="hidden mt-4 bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+        class="hidden mt-4 bg-[#000106] p-4 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
 
         <div
             class="flex flex-col sm:flex-row items-center justify-between mb-4 pb-2 border-b border-gray-100 dark:border-gray-700 gap-3">
@@ -275,7 +275,7 @@
         <div id="nextStepSection" class="hidden"></div>
 
         <!-- 블로그 게시 패널 -->
-        <div id="blogPostPanel" class="hidden mt-6 bg-white dark:bg-gray-800 rounded-xl border-2 border-amber-300 dark:border-amber-700 shadow-lg overflow-hidden">
+        <div id="blogPostPanel" class="hidden mt-6 bg-[#000106] rounded-xl border-2 border-amber-300 dark:border-amber-700 shadow-lg overflow-hidden">
             <div class="bg-gradient-to-r from-amber-500 to-orange-500 p-4">
                 <div class="flex items-center justify-between">
                     <h4 class="font-bold text-white flex items-center gap-2"><span>📝</span> {{ t('blog_panel_title') }}</h4>
@@ -290,7 +290,7 @@
                 </div>
                 <!-- 미리보기 정보 -->
                 <div class="flex gap-4 text-xs text-gray-500 dark:text-gray-400">
-                    <span id="blogSceneCount" class="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">{{ t('blog_scene_count') }}</span>
+                    <span id="blogSceneCount" class="bg-[#000106]/50 px-3 py-1 rounded-full">{{ t('blog_scene_count') }}</span>
                     <span id="blogImageCount" class="bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 px-3 py-1 rounded-full">{{ t('blog_image_count') }}</span>
                 </div>
                 <!-- 플랫폼 선택 -->
@@ -312,7 +312,7 @@
                     <div class="bg-green-50 dark:bg-green-900/30 p-3 flex items-center justify-between">
                         <div class="flex items-center gap-2">
                             <span class="text-green-600 dark:text-green-400 font-bold text-sm">{{ t('blog_captured_images_title') }}</span>
-                            <span id="extStatusBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500">{{ t('status_checking_extension') }}</span>
+                            <span id="extStatusBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-gray-200 bg-[#000106]/50 text-gray-500">{{ t('status_checking_extension') }}</span>
                         </div>
                         <div class="flex gap-2">
                             <button onclick="refreshCapturedBlogImages()" class="text-xs bg-green-500 text-white px-3 py-1 rounded-lg font-bold hover:bg-green-600 transition-colors">
@@ -351,7 +351,7 @@
                         <span>🚀</span> {{ t('btn_post_to_blog') }}
                     </button>
                     <button onclick="previewBlogHtml()"
-                        class="py-3 px-4 rounded-lg font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all">
+                        class="py-3 px-4 rounded-lg font-bold text-gray-600 dark:text-gray-300 bg-[#000106]/50 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all">
                         {{ t('btn_preview_blog') }}
                     </button>
                 </div>
@@ -663,10 +663,10 @@
 
         characters.forEach((char, index) => {
             const card = document.createElement('div');
-            card.className = "bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm hover:shadow-md transition-shadow relative group";
+            card.className = "bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm hover:shadow-md transition-shadow relative group";
 
             // 역할에 따른 배지 색상
-            let roleBadgeColor = "bg-gray-100 text-gray-600";
+            let roleBadgeColor = "bg-[#000106] text-gray-600";
             if (char.role && char.role.includes("주인공")) roleBadgeColor = "bg-blue-100 text-blue-700 border border-blue-200";
             else if (char.role && char.role.includes("조연")) roleBadgeColor = "bg-green-100 text-green-700 border border-green-200";
 
@@ -677,7 +677,7 @@
                         onchange="updateCharLocal(${index}, 'name', this.value)">
                     
                     <select onchange="updateCharLocal(${index}, 'role', this.value)"
-                        class="text-[10px] px-2 py-0.5 rounded-full ${roleBadgeColor} font-medium border-none focus:ring-1 focus:ring-indigo-300 cursor-pointer bg-white/50 dark:bg-gray-700 whitespace-nowrap">
+                        class="text-[10px] px-2 py-0.5 rounded-full ${roleBadgeColor} font-medium border-none focus:ring-1 focus:ring-indigo-300 cursor-pointer bg-[#000106]/50 bg-[#000106]/50 whitespace-nowrap">
                         <option value="주인공" ${char.role === '주인공' ? 'selected' : ''}>{{ t('role_main') }}</option>
                         <option value="조연" ${char.role === '조연' ? 'selected' : ''}>{{ t('role_sub') }}</option>
                         <option value="배경인물" ${char.role === '배경인물' ? 'selected' : ''}>{{ t('role_bg') }}</option>
@@ -685,11 +685,11 @@
                 </div>
                 
                 <!-- Character Image Preview -->
-                <div class="mb-3 aspect-square bg-gray-100 dark:bg-gray-900 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 flex items-center justify-center relative group/char">
+                <div class="mb-3 aspect-square bg-[#000106] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 flex items-center justify-center relative group/char">
                     <img id="char-img-${index}" src="${char.image_url || ''}" class="w-full h-full object-cover ${char.image_url ? '' : 'hidden'}" alt="${char.name}">
                     <div id="char-placeholder-${index}" class="text-gray-400 text-[10px] ${char.image_url ? 'hidden' : ''}">${i18n.img_not_generated}</div>
                     
-                    <div class="absolute inset-0 bg-black/40 opacity-0 group-hover/char:opacity-100 transition-opacity flex items-center justify-center">
+                    <div class="absolute inset-0 bg-[#000106]/40 opacity-0 group-hover/char:opacity-100 transition-opacity flex items-center justify-center">
                          <button onclick="generateCharacterImage(${index})" class="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold py-1.5 px-3 rounded-full shadow-lg transform hover:scale-105 transition-all">
                              ${i18n.btn_ai_gen}
                          </button>
@@ -698,13 +698,13 @@
 
                 <div class="mb-2">
                     <label class="text-[9px] text-gray-400 block mb-1">{{ t('label_appearance_desc') }}</label>
-                    <textarea class="w-full text-[11px] text-gray-600 dark:text-gray-300 bg-gray-50/50 dark:bg-gray-900/30 border border-gray-100 dark:border-gray-700 rounded p-1.5 focus:ring-1 focus:ring-indigo-300 outline-none"
+                    <textarea class="w-full text-[11px] text-gray-600 dark:text-gray-300 bg-[#000106]/50 bg-[#000106]/30 border border-gray-100 dark:border-gray-700 rounded p-1.5 focus:ring-1 focus:ring-indigo-300 outline-none"
                         rows="2" onchange="updateCharLocal(${index}, 'description_ko', this.value)">${char.description_ko || ''}</textarea>
                 </div>
 
                 <div>
                     <label class="text-[9px] text-gray-400 block mb-1">{{ t('label_ai_prompt') }}</label>
-                    <textarea class="w-full text-[10px] text-gray-500 dark:text-gray-400 font-mono bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-700 rounded p-1.5 min-h-[60px] focus:ring-1 focus:ring-indigo-300 outline-none scrollbar-thin"
+                    <textarea class="w-full text-[10px] text-gray-500 dark:text-gray-400 font-mono bg-[#000106]/50 border border-gray-100 dark:border-gray-700 rounded p-1.5 min-h-[60px] focus:ring-1 focus:ring-indigo-300 outline-none scrollbar-thin"
                         onchange="updateCharLocal(${index}, 'prompt_en', this.value)">${char.prompt_en || ''}</textarea>
                 </div>
 
@@ -1201,8 +1201,8 @@
             const jsonString = JSON.stringify(jsonData, null, 2);
 
             return `
-            <div id="prompt-card-${i}" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-                <div class="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+            <div id="prompt-card-${i}" class="bg-[#000106] rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                <div class="flex items-center justify-between px-4 py-3 bg-[#000106] border-b border-gray-200 dark:border-gray-700">
                     <div class="flex items-center gap-3">
                         <input type="checkbox" id="scene-checkbox-${i}" class="scene-checkbox w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 cursor-pointer" onchange="handleSceneSelection()">
                         <span class="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-sm">${i + 1}</span>
@@ -1214,7 +1214,7 @@
                 </div>
                 <div class="p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
                     <div class="${getImageColClass()} flex flex-col gap-2">
-                        <div class="image-container relative w-full bg-gray-100 dark:bg-gray-900 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 group" style="${getContainerStyle()}">
+                        <div class="image-container relative w-full bg-[#000106] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 group" style="${getContainerStyle()}">
                             ${p.video_url ? `
                                 <video src="${p.video_url}" class="absolute inset-0 w-full h-full object-cover" controls autoplay loop muted></video>
                                 <div class="absolute top-2 right-2 bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm">
@@ -1234,9 +1234,9 @@
                             `}
                             <input type="file" id="scene-upload-${i}" class="hidden" accept="image/*,video/*" onchange="uploadSceneImage(${i}, this)">
                             ${(p.image_url || p.video_url) ? `
-                                <div class="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-4">
+                                <div class="absolute inset-0 bg-[#000106]/30 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-4">
                                     <button onclick="openAssetLibrary(${i})" 
-                                            class="w-3/4 bg-white/95 dark:bg-gray-800/95 text-[10px] font-bold py-1.5 px-3 rounded-full shadow-lg border border-gray-200 dark:border-gray-700 hover:scale-105 transition-all text-gray-700 dark:text-gray-200 flex items-center justify-center gap-1.5">
+                                            class="w-3/4 bg-[#000106]/95 bg-[#000106]/95 text-[10px] font-bold py-1.5 px-3 rounded-full shadow-lg border border-gray-200 dark:border-gray-700 hover:scale-105 transition-all text-gray-700 dark:text-gray-200 flex items-center justify-center gap-1.5">
                                         ${i18n.btn_library}
                                     </button>
                                     <button onclick="document.getElementById('scene-upload-${i}').click()" 
@@ -1268,13 +1268,13 @@
                                     <p class="text-[11px] text-gray-700 dark:text-gray-200 italic line-clamp-1 w-full leading-tight font-serif">${extractDynamicPart(p.prompt_en)}</p>
                                 </div>
                                 <!-- Full Editable Textarea -->
-                                <div id="prompt-full-${i}" class="hidden absolute top-0 left-0 right-0 z-20 bg-white dark:bg-gray-800 shadow-xl p-2 rounded border dark:border-gray-700 animate-in fade-in zoom-in duration-200">
+                                <div id="prompt-full-${i}" class="hidden absolute top-0 left-0 right-0 z-20 bg-[#000106] shadow-xl p-2 rounded border dark:border-gray-700 animate-in fade-in zoom-in duration-200">
                                     <div class="flex justify-between items-center mb-1.5">
                                         <p class="text-[8px] text-gray-400">* Full data incl. style</p>
-                                        <button onclick="toggleFullPrompt(${i})" class="w-5 h-5 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-red-100 dark:hover:bg-red-900/40 text-gray-500 hover:text-red-500 transition-colors text-[11px] font-bold leading-none">✕</button>
+                                        <button onclick="toggleFullPrompt(${i})" class="w-5 h-5 flex items-center justify-center rounded-full bg-[#000106]/50 hover:bg-red-100 dark:hover:bg-red-900/40 text-gray-500 hover:text-red-500 transition-colors text-[11px] font-bold leading-none">✕</button>
                                     </div>
                                     <textarea id="prompt-json-${i}"
-                                        class="w-full h-32 text-[11px] p-2 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-blue-500 font-mono scrollbar-thin"
+                                        class="w-full h-32 text-[11px] p-2 rounded border border-gray-200 dark:border-gray-700 bg-[#000106] text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-blue-500 font-mono scrollbar-thin"
                                         onchange="updatePromptData(${i}, this.value)">${p.prompt_en || ''}</textarea>
                                 </div>
                             </div>
@@ -1292,7 +1292,7 @@
                             </div>
                             <div class="col-span-9 flex flex-col gap-0.5">
                                 <p class="text-[11px] text-gray-700 dark:text-gray-200 line-clamp-1 h-8 flex items-center overflow-hidden" id="flow-prompt-view-${i}">${p.flow_prompt || i18n.status_generating}</p>
-                                <textarea id="flow-prompt-edit-${i}" class="hidden w-full h-8 text-[11px] p-1.5 rounded border border-blue-200 dark:border-blue-900 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 scrollbar-thin overflow-y-auto resize-none" onchange="updateFlowPrompt(${i}, this.value)">${p.flow_prompt || ''}</textarea>
+                                <textarea id="flow-prompt-edit-${i}" class="hidden w-full h-8 text-[11px] p-1.5 rounded border border-blue-200 dark:border-blue-900 bg-[#000106] text-gray-700 dark:text-gray-300 scrollbar-thin overflow-y-auto resize-none" onchange="updateFlowPrompt(${i}, this.value)">${p.flow_prompt || ''}</textarea>
                             </div>
                         </div>
 
@@ -1304,10 +1304,10 @@
                                 <span>🔍 시각 요소 분석 (Visual Analysis)</span>
                                 <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7"></path></svg>
                             </button>
-                            <div id="analysis-details-${i}" class="hidden mt-2 overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30">
+                            <div id="analysis-details-${i}" class="hidden mt-2 overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800 bg-[#000106]/50 bg-[#000106]/30">
                                 <table class="w-full text-left border-collapse">
                                     <thead>
-                                        <tr class="bg-gray-100 dark:bg-gray-800">
+                                        <tr class="bg-[#000106]">
                                             <th class="px-2 py-1.5 text-[9px] font-bold text-gray-500 uppercase">${i18n.label_analysis_category}</th>
                                             <th class="px-2 py-1.5 text-[9px] font-bold text-gray-500 uppercase">${i18n.label_script_extract_info}</th>
                                             <th class="px-2 py-1.5 text-[9px] font-bold text-gray-500 uppercase border-l border-gray-200 dark:border-gray-700">${i18n.label_visual_keywords}</th>
@@ -1316,7 +1316,7 @@
                                     <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
                                         ${p.visual_analysis.map(item => `
                                         <tr>
-                                            <td class="px-2 py-1.5 text-[10px] font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap bg-gray-50/50 dark:bg-gray-800/20">${item.category}</td>
+                                            <td class="px-2 py-1.5 text-[10px] font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap bg-[#000106]/50 bg-[#000106]/20">${item.category}</td>
                                             <td class="px-2 py-1.5 text-[10px] text-gray-700 dark:text-gray-300 min-w-[120px] leading-relaxed">${item.extracted_info}</td>
                                             <td class="px-2 py-1.5 text-[10px] text-blue-600 dark:text-blue-400 font-mono italic border-l border-gray-100 dark:border-gray-800">${item.visual_keywords}</td>
                                         </tr>
@@ -1345,10 +1345,10 @@
                                 ${!p.image_url ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>
                                 <span>⚡</span> Generate
                             </button>
-                            <div class="flex bg-gray-200 dark:bg-gray-800 rounded p-0.5 gap-0.5 shrink-0">
-                                <button class="hidden px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'wan' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-white font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'wan')" title="Wan 2.1">Wan</button>
+                            <div class="flex bg-gray-200 bg-[#000106] rounded p-0.5 gap-0.5 shrink-0">
+                                <button class="hidden px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'wan' ? 'bg-[#000106] dark:bg-gray-600 shadow text-blue-600 dark:text-white font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'wan')" title="Wan 2.1">Wan</button>
                                 <button class="hidden px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'seedance' ? 'bg-green-100 dark:bg-green-900 shadow text-green-700 dark:text-green-300 font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'seedance')" title="Seedance">🌱 Seed</button>
-                                <button class="hidden px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'akool' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-white font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'akool')" title="LipSync">Lip</button>
+                                <button class="hidden px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'akool' ? 'bg-[#000106] dark:bg-gray-600 shadow text-blue-600 dark:text-white font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'akool')" title="LipSync">Lip</button>
                                 <button class="px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'veo' ? 'bg-blue-100 dark:bg-blue-900 shadow text-blue-700 dark:text-blue-300 font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'veo')" title="Veo">Veo</button>
                             </div>
                         </div>` : ''}
@@ -1356,7 +1356,7 @@
                 </div>
                 
                 <!-- Status Bar -->
-                <div class="status-indicator hidden px-4 py-2 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 text-xs font-mono text-gray-600 dark:text-gray-400"></div>
+                <div class="status-indicator hidden px-4 py-2 bg-[#000106] border-t border-gray-200 dark:border-gray-700 text-xs font-mono text-gray-600 dark:text-gray-400"></div>
             </div>
             `;
         }).join('');
@@ -1558,9 +1558,9 @@
         // Initialize Modal if not exists
         if (!document.getElementById('asset-library-modal')) {
             const modalHtml = `
-                <div id="asset-library-modal" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm hidden animate-in fade-in duration-200">
-                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden border dark:border-gray-700">
-                        <div class="p-4 border-b dark:border-gray-700 flex items-center justify-between bg-gray-50 dark:bg-gray-900">
+                <div id="asset-library-modal" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#000106]/60 backdrop-blur-sm hidden animate-in fade-in duration-200">
+                    <div class="bg-[#000106] rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden border dark:border-gray-700">
+                        <div class="p-4 border-b dark:border-gray-700 flex items-center justify-between bg-[#000106]">
                             <div class="flex items-center gap-3">
                                 <span class="text-2xl">📂</span>
                                 <div>
@@ -1577,7 +1577,7 @@
                                 </button>
                             </div>
                         </div>
-                        <div id="asset-library-list" class="flex-1 overflow-y-auto p-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 bg-gray-100/50 dark:bg-gray-900/50 scrollbar-thin">
+                        <div id="asset-library-list" class="flex-1 overflow-y-auto p-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 bg-[#000106]/50 bg-[#000106]/50 scrollbar-thin">
                             <div class="col-span-full py-20 text-center text-gray-400">Loading assets...</div>
                         </div>
                     </div>
@@ -1615,19 +1615,19 @@
 
         list.innerHTML = files.map(f => `
             <div onclick="selectLibraryAsset(${sceneIndex}, '${f.url}', ${f.is_video})" 
-                 class="relative aspect-[16/9] bg-white dark:bg-gray-800 rounded-xl overflow-hidden cursor-pointer group hover:ring-4 hover:ring-blue-500/50 transition-all shadow-md transform hover:-translate-y-1">
+                 class="relative aspect-[16/9] bg-[#000106] rounded-xl overflow-hidden cursor-pointer group hover:ring-4 hover:ring-blue-500/50 transition-all shadow-md transform hover:-translate-y-1">
                 ${f.is_video ? 
                     `<video src="${f.url}" class="w-full h-full object-cover"></video>
-                     <div class="absolute inset-0 flex items-center justify-center bg-black/10 group-hover:bg-black/0 transition-colors">
+                     <div class="absolute inset-0 flex items-center justify-center bg-[#000106]/10 group-hover:bg-[#000106]/0 transition-colors">
                         <span class="bg-purple-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold">🎬 VIDEO</span>
                      </div>` : 
                     `<img src="${f.url}" class="w-full h-full object-cover">
-                     <div class="absolute inset-0 flex items-center justify-center bg-black/10 group-hover:bg-black/0 transition-colors">
+                     <div class="absolute inset-0 flex items-center justify-center bg-[#000106]/10 group-hover:bg-[#000106]/0 transition-colors">
                         <span class="bg-blue-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold">🖼️ IMAGE</span>
                      </div>`
                 }
-                <div class="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                    <span class="opacity-0 group-hover:opacity-100 bg-white text-blue-600 text-xs px-3 py-1.5 rounded-full shadow-lg font-bold">Select & Apply</span>
+                <div class="absolute inset-0 bg-[#000106]/0 group-hover:bg-[#000106]/30 transition-colors flex items-center justify-center">
+                    <span class="opacity-0 group-hover:opacity-100 bg-[#000106] text-blue-600 text-xs px-3 py-1.5 rounded-full shadow-lg font-bold">Select & Apply</span>
                 </div>
                 <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
                     <p class="text-[9px] text-white truncate font-medium">${f.name}</p>
@@ -1816,9 +1816,9 @@
                             <img src="${result.image_url}" class="absolute inset-0 w-full h-full object-cover" alt="Scene ${i + 1}">
                             <div class="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded">✓ Image</div>
                             <input type="file" id="scene-upload-${i}" class="hidden" accept="image/*,video/*" onchange="uploadSceneImage(${i}, this)">
-                            <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <div class="absolute inset-0 bg-[#000106]/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                 <button onclick="document.getElementById('scene-upload-${i}').click()"
-                                        class="bg-white/90 dark:bg-gray-800/90 text-[10px] font-bold py-1.5 px-3 rounded-full shadow-lg hover:scale-105 transition-all text-gray-700 dark:text-gray-200">
+                                        class="bg-[#000106]/90 bg-[#000106]/90 text-[10px] font-bold py-1.5 px-3 rounded-full shadow-lg hover:scale-105 transition-all text-gray-700 dark:text-gray-200">
                                     📂 Replace Media
                                 </button>
                             </div>
@@ -3173,7 +3173,7 @@
                             class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
                             onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=\'text-center p-2\'><div class=\'text-2xl mb-1\'>🎨</div><div class=\'text-xs text-gray-600 dark:text-gray-300 font-medium\'>${krName.replace(/\n/g, ' ')}</div></div>';">
                     </div>
-                    <div class="p-2 text-center bg-white dark:bg-gray-800">
+                    <div class="p-2 text-center bg-[#000106]">
                         <span class="text-xs font-bold block dark:text-white truncate">${krName}</span>
                         <span class="text-[10px] text-gray-500 truncate dark:text-gray-400">${enName.replace(/[()]/g, '')}</span>
                     </div>

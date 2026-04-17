@@ -40,10 +40,10 @@
     {% block extra_head %}{% endblock %}
 </head>
 
-<body class="bg-gray-100 dark:bg-gray-900 dark:text-gray-100 min-h-screen">
+<body class="bg-[#000106] text-gray-100 min-h-screen">
     <div class="flex">
         <!-- 사이드바 -->
-        <aside class="w-64 bg-white dark:bg-gray-950 h-screen fixed left-0 top-0 shadow-lg z-40 flex flex-col border-r border-gray-100 dark:border-blue-900/20">
+        <aside class="w-64 bg-[#000106] h-screen fixed left-0 top-0 shadow-lg z-40 flex flex-col border-r border-blue-900/10">
             <div class="px-3 py-3 border-b border-gray-200 dark:border-blue-900/20 shrink-0">
                 <a href="/" class="flex flex-col gap-0.5">
                     <div class="flex items-center justify-between">
@@ -265,7 +265,7 @@
             </nav>
 
             <!-- Bottom Area (Theme + API Status) - Fixed at bottom of flex column -->
-            <div class="shrink-0 bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-blue-900/20">
+            <div class="shrink-0 bg-[#000106] border-t border-blue-900/10">
                 <div class="px-3 py-2">
                     <button onclick="toggleTheme()"
                         class="w-full flex items-center justify-center gap-2 p-1 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-[10px] font-medium">
@@ -292,7 +292,7 @@
 
             <!-- Top Fixed Header (Project Progress) -->
             <header id="projectProgressHeader"
-                class="hidden shrink-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 z-30 transition-all duration-300">
+                class="hidden shrink-0 bg-[#000106] border-b border-blue-900/10 z-30 transition-all duration-300">
                 <div class="px-6 py-3">
                     <!-- Top Row: Title & Actions -->
                     <div class="flex items-center justify-between mb-3">

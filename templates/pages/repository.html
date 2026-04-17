@@ -3,7 +3,7 @@
 {% block content %}
 <div class="flex h-full">
     <!-- Left: Folder List -->
-    <div class="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+    <div class="w-64 bg-[#000106] border-r border-gray-200 dark:border-gray-700 flex flex-col">
         <div class="p-4 border-b border-gray-200 dark:border-gray-700">
             <h2 class="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
                 <span>📁</span> {{ t('repo_folder') }}
@@ -16,10 +16,10 @@
     </div>
 
     <!-- Right: Content Area -->
-    <div class="flex-1 flex flex-col h-full overflow-hidden bg-gray-50 dark:bg-gray-900">
+    <div class="flex-1 flex flex-col h-full overflow-hidden bg-[#000106]">
         <!-- Header -->
         <div
-            class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between shadow-sm z-10">
+            class="bg-[#000106] border-b border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between shadow-sm z-10">
             <div>
                 <h1 id="currentFolderName" class="text-xl font-bold text-gray-800 dark:text-white">{{ t('repo_select_folder') }}</h1>
                 <p id="currentFolderDate" class="text-xs text-gray-500 dark:text-gray-400 mt-1"></p>
@@ -87,7 +87,7 @@
 
             data.folders.forEach(folder => {
                 const item = document.createElement('div');
-                item.className = 'p-3 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition flex items-center gap-2 group';
+                item.className = 'p-3 rounded-lg cursor-pointer hover:bg-[#000106] dark:hover:bg-gray-700 transition flex items-center gap-2 group';
                 item.onclick = () => loadFolderContent(folder.name);
 
                 item.innerHTML = `
@@ -121,7 +121,7 @@
             if (child.textContent.includes(folderName)) {
                 child.classList.add('bg-blue-50', 'dark:bg-blue-900/30', 'border', 'border-blue-200', 'dark:border-blue-800');
             } else {
-                child.className = 'p-3 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition flex items-center gap-2 group';
+                child.className = 'p-3 rounded-lg cursor-pointer hover:bg-[#000106] dark:hover:bg-gray-700 transition flex items-center gap-2 group';
             }
         });
 
@@ -154,9 +154,9 @@
         // Hidden/Less Priority: Video ID, Views, Channel...
 
         let html = `
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+            <div class="bg-[#000106] rounded-lg shadow overflow-hidden">
                 <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                    <thead class="bg-gray-50 dark:bg-gray-700">
+                    <thead class="bg-[#000106]/50">
                         <tr>
                             <th class="px-6 py-3 text-left w-10">
                                 <input type="checkbox" onclick="toggleAllRepoCheckboxes(this)" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700">
@@ -166,7 +166,7 @@
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Analysis Result</th>
                         </tr>
                     </thead>
-                    <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    <tbody class="bg-[#000106] divide-y divide-gray-200 dark:divide-gray-700">
         `;
 
         rows.forEach(row => {
@@ -176,7 +176,7 @@
             const safeFactor = (row['Success Factor'] || "").replace(/"/g, '&quot;');
 
             html += `
-                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition dark:bg-gray-900">
+                <tr class="hover:bg-[#000106] dark:hover:bg-gray-700 transition bg-[#000106]">
                     <td class="px-6 py-4">
                         <input type="checkbox" class="repo-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700"
                             data-title="${safeTitle}"
@@ -205,7 +205,7 @@
                             <div class="mt-1 font-medium text-blue-600 dark:text-blue-300">${row['Benchmarked Title']}</div>
                         </div>
                         <div>
-                            <span class="px-2 py-0.5 rounded textxs font-bold bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">${i18n.label_planning_intent}</span>
+                            <span class="px-2 py-0.5 rounded textxs font-bold bg-[#000106] text-gray-800 bg-[#000106]/50 dark:text-gray-200">${i18n.label_planning_intent}</span>
                             <div class="mt-1 text-xs opacity-80">${row['Synopsis']}</div>
                         </div>
                     </td>

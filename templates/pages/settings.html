@@ -6,7 +6,7 @@
 <div class="h-[calc(100vh-80px)] overflow-y-auto p-4 custom-scrollbar">
     <!-- Header with Actions -->
     <div
-        class="flex justify-between items-center mb-4 sticky top-0 bg-gray-50 dark:bg-gray-900 z-10 py-2 border-b border-gray-200 dark:border-gray-700">
+        class="flex justify-between items-center mb-4 sticky top-0 bg-[#000106] z-10 py-2 border-b border-gray-200 dark:border-gray-700">
         <h2 class="text-lg font-bold flex items-center gap-2">
             <span>⚙️ {{ t('nav_settings') }}</span>
         </h2>
@@ -54,7 +54,7 @@
         <!-- API Settings Tab (Now License Info) -->
         <div id="tab-content-api" class="tab-content active">
             <div class="max-w-4xl mx-auto space-y-6 py-4">
-                <div class="card p-6 shadow-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                <div class="card p-6 shadow-lg border border-gray-200 dark:border-gray-700 bg-[#000106]">
                     <div class="flex items-center gap-4 mb-6">
                         <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/40 rounded-2xl flex items-center justify-center text-2xl">
                             🎫
@@ -69,7 +69,7 @@
                         <!-- License Key View -->
                         <div class="space-y-2">
                             <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest">현재 라이선스 키</label>
-                            <div class="flex items-center gap-2 bg-gray-50 dark:bg-gray-900/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700">
+                            <div class="flex items-center gap-2 bg-[#000106]/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700">
                                 <span class="text-sm font-mono font-bold text-blue-600 dark:text-blue-400">
                                     {% if get_license_key() %}
                                         {{ get_license_key()[:4] }}****{{ get_license_key()[-4:] if get_license_key()|length > 8 else '' }}
@@ -84,7 +84,7 @@
                         <!-- Membership Tier -->
                         <div class="space-y-2">
                             <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest">멤버십 등급</label>
-                            <div class="flex items-center gap-2 bg-gray-50 dark:bg-gray-900/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700">
+                            <div class="flex items-center gap-2 bg-[#000106]/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700">
                                 <span class="text-sm font-bold text-gray-800 dark:text-gray-100 uppercase italic">
                                     {{ membership | default('Standard', true) }}
                                 </span>
@@ -133,9 +133,9 @@
                     </h3>
 
                     <!-- Channel Info Sub-Banner (Relocated) -->
-                    <div class="mb-6 p-3 rounded-xl border {% if youtube_channel %}border-blue-100 dark:border-blue-900/30 bg-blue-50/20 dark:bg-blue-900/10{% else %}border-dashed border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/20{% endif %} flex items-center justify-between transition-all">
+                    <div class="mb-6 p-3 rounded-xl border {% if youtube_channel %}border-blue-100 dark:border-blue-900/30 bg-blue-50/20 dark:bg-blue-900/10{% else %}border-dashed border-gray-200 dark:border-gray-700 bg-[#000106]/50 bg-[#000106]/20{% endif %} flex items-center justify-between transition-all">
                         <div class="flex items-center gap-3">
-                            <div class="w-8 h-8 rounded-full {% if youtube_channel %}bg-red-500 text-white shadow-lg shadow-red-500/20{% else %}bg-gray-200 dark:bg-gray-700 text-gray-400{% endif %} flex items-center justify-center">
+                            <div class="w-8 h-8 rounded-full {% if youtube_channel %}bg-red-500 text-white shadow-lg shadow-red-500/20{% else %}bg-gray-200 bg-[#000106]/50 text-gray-400{% endif %} flex items-center justify-center">
                                 <i class="fab fa-youtube text-sm"></i>
                             </div>
                             <div>
@@ -163,9 +163,9 @@
                     <div class="mb-5 border-b border-gray-100 dark:border-gray-700 pb-4">
                         <label class="text-xs font-bold text-gray-700 dark:text-white mb-2 block">{{ t('label_platform_mode') }}</label>
                         <input type="hidden" id="appMode" value="longform">
-                        <div class="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1 w-fit">
+                        <div class="flex bg-[#000106] rounded-lg p-1 w-fit">
                             <button id="btnModeLong" onclick="setAppMode('longform')"
-                                class="px-4 py-1.5 rounded-md text-xs font-bold transition-all bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-white">
+                                class="px-4 py-1.5 rounded-md text-xs font-bold transition-all bg-[#000106] dark:bg-gray-600 shadow text-gray-800 dark:text-white">
                                 {{ t('btnModeLong') }}
                             </button>
                             <button id="btnModeShort" onclick="setAppMode('shorts')"
@@ -304,7 +304,7 @@
                                     placeholder="예: Studio Ghibli official art style, hand-painted watercolor background..."></textarea>
                             </div>
 
-                            <div class="bg-white/50 dark:bg-gray-800/50 p-3 rounded-lg border border-blue-100 dark:border-blue-900/50">
+                            <div class="bg-[#000106]/50 bg-[#000106]/50 p-3 rounded-lg border border-blue-100 dark:border-blue-900/50">
                                 <label class="text-[10px] font-bold text-purple-600 dark:text-purple-400 mb-1 block flex justify-between items-center">
                                     <span>{{ t('label_ai_grounding') }}</span>
                                     <span class="text-[9px] font-normal text-gray-400">{{ t('helper_ai_grounding') }}</span>
@@ -372,7 +372,7 @@
                                 class="input-field flex-1 text-xs">
                             <div class="relative w-8 h-8 flex-shrink-0">
                                 <label for="customThumbStyleImage"
-                                    class="w-full h-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded flex items-center justify-center cursor-pointer hover:border-blue-500 transition-colors"
+                                    class="w-full h-full bg-[#000106] border border-gray-300 dark:border-gray-600 rounded flex items-center justify-center cursor-pointer hover:border-blue-500 transition-colors"
                                     title="{{ t('tooltip_upload_ref_image') }}">
                                     <span class="text-gray-400 text-[10px]">📷</span>
                                 </label>
@@ -439,7 +439,7 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                         <!-- Wan 2.1 -->
-                        <label class="flex items-start gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors dark:bg-gray-900">
+                        <label class="flex items-start gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-[#000106] dark:hover:bg-[#000106] cursor-pointer transition-colors bg-[#000106]">
                             <input type="radio" name="ws_video_engine" value="wan" class="mt-1" checked onchange="onVideoEngineChange()">
                             <div>
                                 <div class="font-bold text-sm text-gray-800 dark:text-gray-200">Replicate (Wan 2.1)</div>
@@ -451,7 +451,7 @@
                         </label>
 
                         <!-- Akool -->
-                        <label class="flex items-start gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors dark:bg-gray-900">
+                        <label class="flex items-start gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-[#000106] dark:hover:bg-[#000106] cursor-pointer transition-colors bg-[#000106]">
                             <input type="radio" name="ws_video_engine" value="akool" class="mt-1" onchange="onVideoEngineChange()">
                             <div>
                                 <div class="font-bold text-sm text-gray-800 dark:text-gray-200">Akool</div>
@@ -463,7 +463,7 @@
                         </label>
 
                         <!-- Seedance -->
-                        <label class="flex items-start gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors dark:bg-gray-900">
+                        <label class="flex items-start gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-[#000106] dark:hover:bg-[#000106] cursor-pointer transition-colors bg-[#000106]">
                             <input type="radio" name="ws_video_engine" value="seedance" class="mt-1" onchange="onVideoEngineChange()">
                             <div>
                                 <div class="font-bold text-sm text-gray-800 dark:text-gray-200">🌱 Seedance 1.5 Pro</div>
@@ -475,7 +475,7 @@
                         </label>
 
                         <!-- Google Veo -->
-                        <label class="flex items-start gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors dark:bg-gray-900">
+                        <label class="flex items-start gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-[#000106] dark:hover:bg-[#000106] cursor-pointer transition-colors bg-[#000106]">
                             <input type="radio" name="ws_video_engine" value="veo" class="mt-1" onchange="onVideoEngineChange()">
                             <div>
                                 <div class="font-bold text-sm text-gray-800 dark:text-gray-200">Google Veo</div>
@@ -495,7 +495,7 @@
                     </h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
 
-                        <label class="flex items-start gap-2 p-3 rounded-lg border border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40 cursor-pointer transition-colors bg-white dark:bg-gray-900">
+                        <label class="flex items-start gap-2 p-3 rounded-lg border border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40 cursor-pointer transition-colors bg-[#000106]">
                             <input type="radio" name="veo_model_version" value="veo-2.0-generate-001" class="mt-1" checked>
                             <div>
                                 <div class="flex items-center gap-1.5 mb-0.5">
@@ -504,12 +504,12 @@
                                 </div>
                                 <div class="text-xs text-gray-500 dark:text-gray-400">
                                     {{ t('msg_veo_quality') }}<br>
-                                    <code class="text-[10px] bg-gray-100 dark:bg-gray-700 px-1 rounded">veo-2.0-generate-001</code>
+                                    <code class="text-[10px] bg-[#000106]/50 px-1 rounded">veo-2.0-generate-001</code>
                                 </div>
                             </div>
                         </label>
 
-                        <label class="flex items-start gap-2 p-3 rounded-lg border border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40 cursor-pointer transition-colors bg-white dark:bg-gray-900">
+                        <label class="flex items-start gap-2 p-3 rounded-lg border border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40 cursor-pointer transition-colors bg-[#000106]">
                             <input type="radio" name="veo_model_version" value="veo-3.0-generate-001" class="mt-1">
                             <div>
                                 <div class="flex items-center gap-1.5 mb-0.5">
@@ -518,12 +518,12 @@
                                 </div>
                                 <div class="text-xs text-gray-500 dark:text-gray-400">
                                     {{ t('msg_veo2_enhanced') }}<br>
-                                    <code class="text-[10px] bg-gray-100 dark:bg-gray-700 px-1 rounded">veo-3.0-generate-001</code>
+                                    <code class="text-[10px] bg-[#000106]/50 px-1 rounded">veo-3.0-generate-001</code>
                                 </div>
                             </div>
                         </label>
 
-                        <label class="flex items-start gap-2 p-3 rounded-lg border border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40 cursor-pointer transition-colors bg-white dark:bg-gray-900">
+                        <label class="flex items-start gap-2 p-3 rounded-lg border border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40 cursor-pointer transition-colors bg-[#000106]">
                             <input type="radio" name="veo_model_version" value="veo-3.0-fast-generate-001" class="mt-1">
                             <div>
                                 <div class="flex items-center gap-1.5 mb-0.5">
@@ -532,12 +532,12 @@
                                 </div>
                                 <div class="text-xs text-gray-500 dark:text-gray-400">
                                     속도 우선, 비용 절감<br>
-                                    <code class="text-[10px] bg-gray-100 dark:bg-gray-700 px-1 rounded">veo-3.0-fast-generate-001</code>
+                                    <code class="text-[10px] bg-[#000106]/50 px-1 rounded">veo-3.0-fast-generate-001</code>
                                 </div>
                             </div>
                         </label>
 
-                        <label class="flex items-start gap-2 p-3 rounded-lg border border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40 cursor-pointer transition-colors bg-white dark:bg-gray-900">
+                        <label class="flex items-start gap-2 p-3 rounded-lg border border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40 cursor-pointer transition-colors bg-[#000106]">
                             <input type="radio" name="veo_model_version" value="veo-3.1-generate-preview" class="mt-1">
                             <div>
                                 <div class="flex items-center gap-1.5 mb-0.5">
@@ -546,12 +546,12 @@
                                 </div>
                                 <div class="text-xs text-gray-500 dark:text-gray-400">
                                     {{ t('msg_veo3_experimental') }}<br>
-                                    <code class="text-[10px] bg-gray-100 dark:bg-gray-700 px-1 rounded">veo-3.1-generate-preview</code>
+                                    <code class="text-[10px] bg-[#000106]/50 px-1 rounded">veo-3.1-generate-preview</code>
                                 </div>
                             </div>
                         </label>
 
-                        <label class="flex items-start gap-2 p-3 rounded-lg border border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40 cursor-pointer transition-colors bg-white dark:bg-gray-900">
+                        <label class="flex items-start gap-2 p-3 rounded-lg border border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40 cursor-pointer transition-colors bg-[#000106]">
                             <input type="radio" name="veo_model_version" value="veo-3.1-fast-generate-preview" class="mt-1">
                             <div>
                                 <div class="flex items-center gap-1.5 mb-0.5">
@@ -560,7 +560,7 @@
                                 </div>
                                 <div class="text-xs text-gray-500 dark:text-gray-400">
                                     {{ t('msg_veo3_fast') }}<br>
-                                    <code class="text-[10px] bg-gray-100 dark:bg-gray-700 px-1 rounded">veo-3.1-fast-generate-preview</code>
+                                    <code class="text-[10px] bg-[#000106]/50 px-1 rounded">veo-3.1-fast-generate-preview</code>
                                 </div>
                             </div>
                         </label>
@@ -891,7 +891,7 @@
         const btnShort = document.getElementById('btnModeShort');
         const btnCommerce = document.getElementById('btnModeCommerce');
 
-        const activeClass = "bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-white font-bold";
+        const activeClass = "bg-[#000106] dark:bg-gray-600 shadow text-gray-800 dark:text-white font-bold";
         const inactiveClass = "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 font-medium";
 
         if (mode === 'longform') {
@@ -1043,14 +1043,14 @@
                 const isAuthenticated = !!ch.credentials_path;
                 const statusBadge = isAuthenticated
                     ? `<span class="text-green-600 border border-green-200 bg-green-50 px-2 py-0.5 rounded text-xs">${i18n.label_connected}</span>`
-                    : `<span class="text-gray-500 border border-gray-200 bg-gray-50 px-2 py-0.5 rounded text-xs dark:text-gray-400 dark:bg-gray-900 dark:border-gray-700">${i18n.label_disconnected}</span>`;
+                    : `<span class="text-gray-500 border border-gray-200 bg-[#000106] px-2 py-0.5 rounded text-xs dark:text-gray-400 bg-[#000106] dark:border-gray-700">${i18n.label_disconnected}</span>`;
 
                 const authBtn = isAuthenticated
                     ? `<button onclick="authenticateChannel(${ch.id}, '${ch.name}')" class="text-blue-500 hover:text-blue-700 text-xs border border-blue-200 px-2 py-1 rounded">${i18n.btn_ch_reconnect}</button>`
                     : `<button onclick="authenticateChannel(${ch.id}, '${ch.name}')" class="text-white bg-blue-500 hover:bg-blue-600 px-3 py-1 rounded text-xs shadow-sm">${i18n.btn_ch_login}</button>`;
 
                 return `
-                <div class="flex items-center justify-between p-3 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-lg shadow-sm">
+                <div class="flex items-center justify-between p-3 bg-[#000106] border dark:border-gray-600 rounded-lg shadow-sm">
                     <div>
                         <div class="flex items-center gap-2 mb-1">
                             <span class="font-medium text-gray-800 dark:text-white">${ch.name}</span>
@@ -1189,13 +1189,13 @@
                     : '';
 
                 return `
-                    <div class="bg-gray-50 dark:bg-gray-800/15 p-4 rounded-xl border border-gray-100 dark:border-gray-700/50 relative group transition-all hover:shadow-md ${hasInstruction ? 'ring-1 ring-purple-100 dark:ring-purple-900/30' : ''}">
+                    <div class="bg-[#000106]/15 p-4 rounded-xl border border-gray-100 dark:border-gray-700/50 relative group transition-all hover:shadow-md ${hasInstruction ? 'ring-1 ring-purple-100 dark:ring-purple-900/30' : ''}">
                         <div class="flex justify-between items-start mb-3">
                             <div class="flex items-center gap-3">
                                 <div class="relative group/img cursor-pointer" onclick="document.getElementById('file_${key}').click()">
                                     ${imageUrl ?
-                         `<img id="img_preview_${key}" src="${imageUrl}" class="w-12 h-12 rounded-lg border border-gray-200 object-cover bg-white dark:bg-gray-800 dark:border-gray-700 shadow-sm" title="${i18n.label_img_change_click}">`
-                         : `<span id="img_preview_${key}" class="w-12 h-12 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] text-gray-500 hover:bg-gray-300 transition-colors dark:text-gray-400">No Img</span>`
+                         `<img id="img_preview_${key}" src="${imageUrl}" class="w-12 h-12 rounded-lg border border-gray-200 object-cover bg-[#000106] dark:border-gray-700 shadow-sm" title="${i18n.label_img_change_click}">`
+                         : `<span id="img_preview_${key}" class="w-12 h-12 rounded-lg bg-gray-200 bg-[#000106]/50 flex items-center justify-center text-[10px] text-gray-500 hover:bg-gray-300 transition-colors dark:text-gray-400">No Img</span>`
                      }
                                      <input type="file" id="file_${key}" class="hidden" accept="image/*" onchange="previewStyleImage(this, '${key}')">
                                  </div>
@@ -1206,12 +1206,12 @@
                                          ${modeBadge}
                                      </div>
                                      <div class="flex items-center gap-2">
-                                         <span class="text-[10px] text-gray-400 font-mono bg-gray-100 dark:bg-gray-900 px-1 rounded">${key}</span>
+                                         <span class="text-[10px] text-gray-400 font-mono bg-[#000106] px-1 rounded">${key}</span>
                                      </div>
                                  </div>
                             </div>
                             <div class="flex gap-1.5">
-                                <button onclick="toggleEditStylePreset('${key}')" id="edit_btn_${key}" class="text-[10px] bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 px-2 py-1.5 rounded-lg hover:bg-gray-50 transition-colors">✏️ ${i18n.btn_edit}</button>
+                                <button onclick="toggleEditStylePreset('${key}')" id="edit_btn_${key}" class="text-[10px] bg-[#000106] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 px-2 py-1.5 rounded-lg hover:bg-[#000106] transition-colors">✏️ ${i18n.btn_edit}</button>
                                 <button onclick="saveOneStylePreset('${key}')" id="save_btn_${key}" class="hidden text-[10px] bg-blue-600 text-white px-3 py-1.5 rounded-lg shadow-sm">💾 ${i18n.btn_save_short}</button>
                                 <button onclick="deleteStylePreset('${key}')" class="text-[10px] bg-red-50 text-red-500 border border-red-100 px-2 py-1.5 rounded-lg hover:bg-red-100 transition-colors">🗑️</button>
                             </div>
@@ -1219,14 +1219,14 @@
                         <div class="space-y-2">
                             <div>
                                 <label class="text-[9px] font-bold text-gray-400 mb-1 block uppercase tracking-wider">Base Style Prompt</label>
-                                <textarea id="preset_${key}" class="input-field w-full text-[11px] font-mono bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800" rows="2" readonly>${prompt}</textarea>
+                                <textarea id="preset_${key}" class="input-field w-full text-[11px] font-mono bg-[#000106] border-gray-100 dark:border-gray-800" rows="2" readonly>${prompt}</textarea>
                             </div>
                             <div class="${hasInstruction ? '' : 'opacity-60'}">
                                 <label class="text-[9px] font-bold text-purple-500 dark:text-purple-400 mb-1 block uppercase tracking-wider flex items-center gap-1">
                                     <span>🤖 Gemini Grounding Instruction</span>
                                     ${hasInstruction ? ' <i class="fas fa-check-circle text-[8px]"></i>' : ''}
                                 </label>
-                                <textarea id="ginst_${key}" class="input-field w-full text-[11px] font-mono ${hasInstruction ? 'bg-purple-50/30 dark:bg-purple-900/10 border-purple-100 dark:border-purple-900/30' : 'bg-gray-100 dark:bg-gray-900'} " rows="${hasInstruction ? 5 : 2}" readonly placeholder="${i18n.placeholder_no_instruction}">${geminiInstruction}</textarea>
+                                <textarea id="ginst_${key}" class="input-field w-full text-[11px] font-mono ${hasInstruction ? 'bg-purple-50/30 dark:bg-purple-900/10 border-purple-100 dark:border-purple-900/30' : 'bg-[#000106]'} " rows="${hasInstruction ? 5 : 2}" readonly placeholder="${i18n.placeholder_no_instruction}">${geminiInstruction}</textarea>
                             </div>
                         </div>
                     </div>
@@ -1252,7 +1252,7 @@
                 const img = document.createElement('img');
                 img.id = `img_preview_${key}`;
                 img.src = e.target.result;
-                img.className = "w-10 h-10 rounded border border-gray-300 object-cover bg-white";
+                img.className = "w-10 h-10 rounded border border-gray-300 object-cover bg-[#000106]";
                 img.title = i18n.label_img_change_click;
 
                 // Insert as first child of parent (.relative.group/img)
@@ -1271,12 +1271,12 @@
         if (textarea.hasAttribute('readonly')) {
             // Enable editing
             textarea.removeAttribute('readonly');
-            textarea.classList.remove('bg-gray-100', 'dark:bg-gray-900');
-            textarea.classList.add('bg-white', 'dark:bg-gray-800', 'ring-2', 'ring-yellow-400');
+            textarea.classList.remove('bg-[#000106]', 'bg-[#000106]');
+            textarea.classList.add('bg-[#000106]', 'bg-[#000106]', 'ring-2', 'ring-yellow-400');
             if (ginstArea) {
                 ginstArea.removeAttribute('readonly');
-                ginstArea.classList.remove('bg-gray-100', 'dark:bg-gray-900');
-                ginstArea.classList.add('bg-white', 'dark:bg-gray-800', 'ring-2', 'ring-purple-400');
+                ginstArea.classList.remove('bg-[#000106]', 'bg-[#000106]');
+                ginstArea.classList.add('bg-[#000106]', 'bg-[#000106]', 'ring-2', 'ring-purple-400');
                 ginstArea.rows = Math.max(6, ginstArea.value.split('\n').length + 2);
             }
             textarea.focus();
@@ -1285,12 +1285,12 @@
         } else {
             // Disable editing (cancel)
             textarea.setAttribute('readonly', true);
-            textarea.classList.add('bg-gray-100', 'dark:bg-gray-900');
-            textarea.classList.remove('bg-white', 'dark:bg-gray-800', 'ring-2', 'ring-yellow-400');
+            textarea.classList.add('bg-[#000106]', 'bg-[#000106]');
+            textarea.classList.remove('bg-[#000106]', 'bg-[#000106]', 'ring-2', 'ring-yellow-400');
             if (ginstArea) {
                 ginstArea.setAttribute('readonly', true);
-                ginstArea.classList.add('bg-gray-100', 'dark:bg-gray-900');
-                ginstArea.classList.remove('bg-white', 'dark:bg-gray-800', 'ring-2', 'ring-purple-400');
+                ginstArea.classList.add('bg-[#000106]', 'bg-[#000106]');
+                ginstArea.classList.remove('bg-[#000106]', 'bg-[#000106]', 'ring-2', 'ring-purple-400');
             }
             editBtn.classList.remove('hidden');
             saveBtn.classList.add('hidden');
@@ -1353,12 +1353,12 @@
                 const ginstArea = document.getElementById(`ginst_${key}`);
 
                 textarea.setAttribute('readonly', true);
-                textarea.classList.add('bg-gray-100', 'dark:bg-gray-900');
-                textarea.classList.remove('bg-white', 'dark:bg-gray-800', 'ring-2', 'ring-yellow-400');
+                textarea.classList.add('bg-[#000106]', 'bg-[#000106]');
+                textarea.classList.remove('bg-[#000106]', 'bg-[#000106]', 'ring-2', 'ring-yellow-400');
                 if (ginstArea) {
                     ginstArea.setAttribute('readonly', true);
-                    ginstArea.classList.add('bg-gray-100', 'dark:bg-gray-900');
-                    ginstArea.classList.remove('bg-white', 'dark:bg-gray-800', 'ring-2', 'ring-purple-400');
+                    ginstArea.classList.add('bg-[#000106]', 'bg-[#000106]');
+                    ginstArea.classList.remove('bg-[#000106]', 'bg-[#000106]', 'ring-2', 'ring-purple-400');
                 }
                 editBtn.classList.remove('hidden');
                 saveBtn.classList.add('hidden');
@@ -1503,7 +1503,7 @@
                 const rows = val.length > 200 ? 8 : val.length > 100 ? 5 : 3;
 
                 return `
-                            <div class="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-md border border-gray-100 dark:border-gray-700">
+                            <div class="bg-[#000106]/50 p-3 rounded-md border border-gray-100 dark:border-gray-700">
                                 <div class="flex justify-between items-center mb-2">
                                     <label class="text-sm font-bold text-gray-700 dark:text-gray-200">${displayName}</label>
                                     <div class="flex gap-1">
@@ -1511,7 +1511,7 @@
                                         <button onclick="saveOneScriptStylePreset('${key}')" id="script_save_btn_${key}" class="hidden text-[10px] bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition-colors">💾 ${i18n.btn_save_short}</button>
                                     </div>
                                 </div>
-                                <textarea id="script_preset_${key}" class="input-field w-full text-[11px] font-mono leading-tight bg-gray-100 dark:bg-gray-900" rows="${rows}" readonly>${val}</textarea>
+                                <textarea id="script_preset_${key}" class="input-field w-full text-[11px] font-mono leading-tight bg-[#000106]" rows="${rows}" readonly>${val}</textarea>
                             </div>
                         `;
             }).join('');
@@ -1529,8 +1529,8 @@
         if (textarea.hasAttribute('readonly')) {
             // Enable editing
             textarea.removeAttribute('readonly');
-            textarea.classList.remove('bg-gray-100', 'dark:bg-gray-900');
-            textarea.classList.add('bg-white', 'dark:bg-gray-800', 'ring-2', 'ring-yellow-400');
+            textarea.classList.remove('bg-[#000106]', 'bg-[#000106]');
+            textarea.classList.add('bg-[#000106]', 'bg-[#000106]', 'ring-2', 'ring-yellow-400');
             textarea.focus();
 
             // Toggle buttons
@@ -1539,8 +1539,8 @@
         } else {
             // Disable editing (cancel)
             textarea.setAttribute('readonly', true);
-            textarea.classList.add('bg-gray-100', 'dark:bg-gray-900');
-            textarea.classList.remove('bg-white', 'dark:bg-gray-800', 'ring-2', 'ring-yellow-400');
+            textarea.classList.add('bg-[#000106]', 'bg-[#000106]');
+            textarea.classList.remove('bg-[#000106]', 'bg-[#000106]', 'ring-2', 'ring-yellow-400');
 
             // Toggle buttons
             editBtn.classList.remove('hidden');
@@ -1566,8 +1566,8 @@
                 const saveBtn = document.getElementById(`script_save_btn_${key}`);
 
                 textarea.setAttribute('readonly', true);
-                textarea.classList.add('bg-gray-100', 'dark:bg-gray-900');
-                textarea.classList.remove('bg-white', 'dark:bg-gray-800', 'ring-2', 'ring-yellow-400');
+                textarea.classList.add('bg-[#000106]', 'bg-[#000106]');
+                textarea.classList.remove('bg-[#000106]', 'bg-[#000106]', 'ring-2', 'ring-yellow-400');
                 editBtn.classList.remove('hidden');
                 saveBtn.classList.add('hidden');
             } else {
@@ -1612,15 +1612,15 @@
                 // but for now let's rely on data.image_url. If user wants legacy images they need to migrate or we rely on 'No Img'
 
                 return `
-                    <div class="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-md border border-gray-100 dark:border-gray-700 relative group">
+                    <div class="bg-[#000106]/50 p-3 rounded-md border border-gray-100 dark:border-gray-700 relative group">
                         <div class="flex justify-between items-start mb-2">
                              <div class="flex items-center gap-2">
                                 <div class="relative group/img cursor-pointer" onclick="document.getElementById('thumb_file_${key}').click()">
                                     ${imageUrl ?
-                        `<img id="thumb_img_preview_${key}" src="${imageUrl}" class="w-10 h-10 rounded border border-gray-300 object-cover bg-white dark:bg-gray-800 dark:border-gray-700" title="${i18n.label_img_change_click}">`
-                        : `<span id="thumb_img_preview_${key}" class="w-10 h-10 rounded bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] text-gray-500 hover:bg-gray-300 transition-colors dark:text-gray-400" title="${i18n.label_img_upload_click}">No Img</span>`
+                        `<img id="thumb_img_preview_${key}" src="${imageUrl}" class="w-10 h-10 rounded border border-gray-300 object-cover bg-[#000106] dark:border-gray-700" title="${i18n.label_img_change_click}">`
+                        : `<span id="thumb_img_preview_${key}" class="w-10 h-10 rounded bg-gray-200 bg-[#000106]/50 flex items-center justify-center text-[10px] text-gray-500 hover:bg-gray-300 transition-colors dark:text-gray-400" title="${i18n.label_img_upload_click}">No Img</span>`
                     }
-                                    <div class="absolute inset-0 bg-black/30 rounded flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity">
+                                    <div class="absolute inset-0 bg-[#000106]/30 rounded flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity">
                                         <span class="text-white text-[10px]">📷</span>
                                     </div>
                                     <input type="file" id="thumb_file_${key}" class="hidden" accept="image/*" onchange="previewThumbnailStyleImage(this, '${key}')">
@@ -1640,7 +1640,7 @@
                     }
                             </div>
                         </div>
-                        <textarea id="thumbnail_preset_${key}" class="input-field w-full text-[11px] font-mono leading-tight mt-1 bg-gray-100 dark:bg-gray-900" rows="3" readonly>${prompt}</textarea>
+                        <textarea id="thumbnail_preset_${key}" class="input-field w-full text-[11px] font-mono leading-tight mt-1 bg-[#000106]" rows="3" readonly>${prompt}</textarea>
                     </div>
                 `;
             }).join('');
@@ -1661,7 +1661,7 @@
                 const img = document.createElement('img');
                 img.id = `thumb_img_preview_${key}`;
                 img.src = e.target.result;
-                img.className = "w-10 h-10 rounded border border-gray-300 object-cover bg-white";
+                img.className = "w-10 h-10 rounded border border-gray-300 object-cover bg-[#000106]";
                 img.title = i18n.label_img_change_click;
 
                 parent.prepend(img);
@@ -1678,8 +1678,8 @@
         if (textarea.hasAttribute('readonly')) {
             // Enable editing
             textarea.removeAttribute('readonly');
-            textarea.classList.remove('bg-gray-100', 'dark:bg-gray-900');
-            textarea.classList.add('bg-white', 'dark:bg-gray-800', 'ring-2', 'ring-yellow-400');
+            textarea.classList.remove('bg-[#000106]', 'bg-[#000106]');
+            textarea.classList.add('bg-[#000106]', 'bg-[#000106]', 'ring-2', 'ring-yellow-400');
             textarea.focus();
 
             // Toggle buttons
@@ -1688,8 +1688,8 @@
         } else {
             // Disable editing (cancel)
             textarea.setAttribute('readonly', true);
-            textarea.classList.add('bg-gray-100', 'dark:bg-gray-900');
-            textarea.classList.remove('bg-white', 'dark:bg-gray-800', 'ring-2', 'ring-yellow-400');
+            textarea.classList.add('bg-[#000106]', 'bg-[#000106]');
+            textarea.classList.remove('bg-[#000106]', 'bg-[#000106]', 'ring-2', 'ring-yellow-400');
 
             // Toggle buttons
             editBtn.classList.remove('hidden');
@@ -1737,8 +1737,8 @@
                 const saveBtn = document.getElementById(`thumb_save_btn_${key}`);
 
                 textarea.setAttribute('readonly', true);
-                textarea.classList.add('bg-gray-100', 'dark:bg-gray-900');
-                textarea.classList.remove('bg-white', 'dark:bg-gray-800', 'ring-2', 'ring-yellow-400');
+                textarea.classList.add('bg-[#000106]', 'bg-[#000106]');
+                textarea.classList.remove('bg-[#000106]', 'bg-[#000106]', 'ring-2', 'ring-yellow-400');
                 editBtn.classList.remove('hidden');
                 saveBtn.classList.add('hidden');
             } else {
@@ -1979,7 +1979,7 @@
             const btn = document.getElementById(btnId);
             if (!btn) return;
             if (active) {
-                btn.className = "px-4 py-1.5 rounded-md text-xs font-bold transition-all bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-white";
+                btn.className = "px-4 py-1.5 rounded-md text-xs font-bold transition-all bg-[#000106] dark:bg-gray-600 shadow text-gray-800 dark:text-white";
             } else {
                 btn.className = "px-4 py-1.5 rounded-md text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200";
             }
@@ -2015,10 +2015,10 @@
                 const gender = v.labels && v.labels.gender ? v.labels.gender : 'Unknown';
                 const genderBadge = gender === 'male' ? 'bg-blue-100 text-blue-600' :
                     gender === 'female' ? 'bg-pink-100 text-pink-600' :
-                        'bg-gray-100 text-gray-600';
+                        'bg-[#000106] text-gray-600';
 
                 return `
-                    <div class="flex justify-between items-center p-1.5 hover:bg-gray-50 dark:hover:bg-gray-800 rounded border-b border-gray-50 dark:border-gray-800 last:border-0 transition-colors group dark:bg-gray-900">
+                    <div class="flex justify-between items-center p-1.5 hover:bg-[#000106] dark:hover:bg-[#000106] rounded border-b border-gray-50 dark:border-gray-800 last:border-0 transition-colors group bg-[#000106]">
                         <div class="flex flex-col overflow-hidden">
                             <span class="text-[10px] font-bold text-gray-700 dark:text-gray-300 truncate pr-2 group-hover:text-blue-600 transition-colors" title="${v.name}">${v.name}</span>
                             <span class="text-[8px] text-gray-400 font-mono truncate" title="Voice ID: ${v.voice_id}">${v.voice_id}</span>
@@ -2184,7 +2184,7 @@
 
             if (data.rules && data.rules.length > 0) {
                 tbody.innerHTML = data.rules.map(rule => `
-                    <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                    <tr class="bg-[#000106] border-b bg-[#000106] dark:border-gray-700 hover:bg-[#000106] dark:hover:bg-gray-600">
                         <td class="px-4 py-2 font-medium text-gray-900 dark:text-white">${rule.condition_type} / <span class="text-blue-500">${rule.condition_value}</span></td>
                         <td class="px-4 py-2"><span class="bg-blue-100 text-blue-800 text-[10px] font-semibold px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">${rule.action_type}</span></td>
                         <td class="px-4 py-2">${rule.description || ''}</td>

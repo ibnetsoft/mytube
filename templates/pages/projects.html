@@ -4,14 +4,14 @@
 <div class="flex justify-between items-center mb-6">
     <!-- Bulk Actions -->
     <div id="bulkActions"
-        class="hidden flex items-center gap-3 bg-white dark:bg-gray-800 px-4 py-1.5 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+        class="hidden flex items-center gap-3 bg-[#000106] px-4 py-1.5 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
         <span id="selectedCount" class="text-xs font-bold text-gray-700 dark:text-gray-300">0 {{ t('selected_count_suffix') }}</span>
         <div class="h-4 w-px bg-gray-300 dark:bg-gray-600"></div>
         <button onclick="deleteSelectedProjects()" class="text-red-500 hover:text-red-600 text-xs font-bold flex items-center gap-1">
             <span>🗑️</span> {{ t('btn_delete_selected') }}
         </button>
         <div class="h-4 w-px bg-gray-300 dark:bg-gray-600"></div>
-        <select id="targetModeSelect" class="text-xs bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-1 py-0.5 outline-none">
+        <select id="targetModeSelect" class="text-xs bg-[#000106]/50 border border-gray-200 dark:border-gray-600 rounded px-1 py-0.5 outline-none">
             <option value="longform">{{ t('mode_longform') }}</option>
             <option value="shorts">{{ t('mode_shorts') }}</option>
             <option value="webtoon">{{ t('mode_webtoon') }}</option>
@@ -28,7 +28,7 @@
 
     <div class="flex items-center gap-4 ml-auto">
         <!-- Pagination & Sorting Controls -->
-        <div class="flex items-center gap-2 bg-white dark:bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+        <div class="flex items-center gap-2 bg-[#000106] px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
             <select id="sortOrder" onchange="changeSort(this.value)" class="text-[11px] bg-transparent border-none outline-none font-bold text-gray-600 dark:text-gray-400 cursor-pointer">
                 <option value="newest">⌛ {{ t('sort_newest') or '최신기준' }}</option>
                 <option value="oldest">⏳ {{ t('sort_oldest') or '과거기준' }}</option>
@@ -57,17 +57,17 @@
     </div>
 </div>
 
-<div class="overflow-x-auto bg-white dark:bg-gray-800 rounded-lg shadow">
+<div class="overflow-x-auto bg-[#000106] rounded-lg shadow">
     <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-        <thead class="bg-gray-50 dark:bg-gray-700">
+        <thead class="bg-[#000106]/50">
             <tr>
                 <th scope="col"
-                    class="px-2 py-2 w-10 text-center sticky left-0 z-20 bg-gray-50 dark:bg-gray-700 border-r border-gray-100 dark:border-gray-600">
+                    class="px-2 py-2 w-10 text-center sticky left-0 z-20 bg-[#000106]/50 border-r border-gray-100 dark:border-gray-600">
                     <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)"
-                        class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer">
+                        class="w-4 h-4 text-blue-600 bg-[#000106] border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 bg-[#000106]/50 dark:border-gray-600 cursor-pointer">
                 </th>
                 <th scope="col"
-                    class="px-3 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap sticky z-10 bg-gray-50 dark:bg-gray-700 border-r border-gray-100 dark:border-gray-600"
+                    class="px-3 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap sticky z-10 bg-[#000106]/50 border-r border-gray-100 dark:border-gray-600"
                     style="left: 40px;">
                     {{ t('th_project_name') }}</th>
                 <th scope="col"
@@ -116,25 +116,25 @@
                     {{ t('th_manage') }}</th>
             </tr>
         </thead>
-        <tbody id="projectTableBody" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+        <tbody id="projectTableBody" class="bg-[#000106] divide-y divide-gray-200 dark:divide-gray-700">
             <!-- Rows rendered here -->
         </tbody>
     </table>
 </div>
 
 <!-- Pagination Bottom -->
-<div id="paginationContainer" class="mt-4 flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-100 dark:border-gray-700">
+<div id="paginationContainer" class="mt-4 flex items-center justify-between px-4 py-3 bg-[#000106] rounded-lg shadow border border-gray-100 dark:border-gray-700">
     <div class="text-xs text-gray-500 dark:text-gray-400">
         {{ t('total') or '총' }} <span id="totalItemsCount" class="font-bold text-blue-500">0</span> {{ t('items') or '개' }}
     </div>
     <div class="flex items-center gap-2">
-        <button id="prevBtn" onclick="changePage(-1)" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+        <button id="prevBtn" onclick="changePage(-1)" class="p-2 rounded-lg hover:bg-[#000106] dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
             <span class="text-sm">◀</span>
         </button>
         <div id="pageNumbers" class="flex gap-1">
             <!-- Page numbers -->
         </div>
-        <button id="nextBtn" onclick="changePage(1)" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+        <button id="nextBtn" onclick="changePage(1)" class="p-2 rounded-lg hover:bg-[#000106] dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
             <span class="text-sm">▶</span>
         </button>
     </div>
@@ -345,7 +345,7 @@
             const btn = document.createElement('button');
             btn.textContent = i;
             btn.onclick = () => goToPage(i);
-            btn.className = `w-8 h-8 rounded-lg text-xs font-bold transition-all ${i === currentPage ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'}`;
+            btn.className = `w-8 h-8 rounded-lg text-xs font-bold transition-all ${i === currentPage ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-[#000106] dark:hover:bg-gray-700'}`;
             pageNumbersEl.appendChild(btn);
         }
 
@@ -376,18 +376,18 @@
                 const cursor = isDone ? 'cursor-pointer' : 'cursor-default';
                 const clickHandler = isDone ? `onclick="event.stopPropagation(); navigateToStep('${pid}', '${type}')"` : '';
 
-                return `<div class="flex items-center justify-center w-6 h-6 mx-auto rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition ${cursor}" ${clickHandler} title="${i18n.title_go_to} ${type} ${i18n.title_page}">
+                return `<div class="flex items-center justify-center w-6 h-6 mx-auto rounded-full hover:bg-[#000106] dark:hover:bg-gray-700 transition ${cursor}" ${clickHandler} title="${i18n.title_go_to} ${type} ${i18n.title_page}">
                     <span class="${color} text-base font-bold">${symbol}</span>
                 </div>`;
             };
 
             return `
-            <tr class="hover:bg-gray-100 dark:hover:bg-gray-700 transition cursor-pointer group" onclick="if(!event.target.closest('input')) selectAndGo('${p.id}')">
-                <td class="px-2 py-2 text-center sticky left-0 z-20 bg-white dark:bg-gray-800 border-r border-gray-100 dark:border-gray-700 group-hover:bg-gray-100 dark:group-hover:bg-gray-700" onclick="event.stopPropagation()">
+            <tr class="hover:bg-[#000106] dark:hover:bg-gray-700 transition cursor-pointer group" onclick="if(!event.target.closest('input')) selectAndGo('${p.id}')">
+                <td class="px-2 py-2 text-center sticky left-0 z-20 bg-[#000106] border-r border-gray-100 dark:border-gray-700 group-hover:bg-[#000106] dark:group-hover:bg-gray-700" onclick="event.stopPropagation()">
                     <input type="checkbox" name="projectSelect" value="${p.id}" onchange="updateBulkActionState()" 
-                        class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer">
+                        class="w-4 h-4 text-blue-600 bg-[#000106] border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 bg-[#000106]/50 dark:border-gray-600 cursor-pointer">
                 </td>
-                <td class="px-3 py-2 whitespace-nowrap text-[12px] font-medium text-gray-900 dark:text-white sticky z-10 bg-white dark:bg-gray-800 group-hover:bg-gray-100 dark:group-hover:bg-gray-700 border-r dark:border-gray-700"
+                <td class="px-3 py-2 whitespace-nowrap text-[12px] font-medium text-gray-900 dark:text-white sticky z-10 bg-[#000106] group-hover:bg-[#000106] dark:group-hover:bg-gray-700 border-r dark:border-gray-700"
                     style="left: 40px;"
                     ondblclick="event.stopPropagation(); startInlineEdit(this, '${p.id}', 'name')">
                     <div class="flex items-center gap-1">

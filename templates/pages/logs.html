@@ -2,9 +2,9 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="h-[calc(100vh-80px)] overflow-y-auto p-4 custom-scrollbar bg-gray-50/50 dark:bg-gray-950/50">
+<div class="h-[calc(100vh-80px)] overflow-y-auto p-4 custom-scrollbar bg-[#000106]/50 bg-[#000106]/50">
     <!-- Header Area -->
-    <div class="flex justify-between items-center mb-6 sticky top-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md z-10 py-4 px-6 rounded-2xl border border-white/20 dark:border-gray-800 shadow-xl shadow-blue-500/5">
+    <div class="flex justify-between items-center mb-6 sticky top-0 bg-[#000106]/80 bg-[#000106]/80 backdrop-blur-md z-10 py-4 px-6 rounded-2xl border border-white/20 dark:border-gray-800 shadow-xl shadow-blue-500/5">
         <div class="flex items-center gap-4">
             <div class="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center text-xl">
                 📜
@@ -18,13 +18,13 @@
         </div>
         <div class="flex gap-3 items-center">
             <!-- Period Filter -->
-            <div class="flex p-1 bg-gray-100 dark:bg-gray-800/50 rounded-2xl border border-gray-200/50 dark:border-white/5 mr-2">
-                <button onclick="loadLogs(1)" id="btn-period-1" class="period-btn px-5 py-2 text-[11px] font-black rounded-xl transition-all active bg-white dark:bg-blue-600 shadow-sm text-blue-600 dark:text-white">DAILY</button>
+            <div class="flex p-1 bg-[#000106]/50 rounded-2xl border border-gray-200/50 dark:border-white/5 mr-2">
+                <button onclick="loadLogs(1)" id="btn-period-1" class="period-btn px-5 py-2 text-[11px] font-black rounded-xl transition-all active bg-[#000106] dark:bg-blue-600 shadow-sm text-blue-600 dark:text-white">DAILY</button>
                 <button onclick="loadLogs(7)" id="btn-period-7" class="period-btn px-5 py-2 text-[11px] font-black rounded-xl transition-all text-gray-500">WEEKLY</button>
                 <button onclick="loadLogs(30)" id="btn-period-30" class="period-btn px-5 py-2 text-[11px] font-black rounded-xl transition-all text-gray-500">MONTHLY</button>
             </div>
             
-            <button onclick="loadLogs(currentPeriod)" class="group flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-[11px] font-black hover:bg-gray-50 dark:hover:bg-gray-700 transition-all shadow-md active:scale-95">
+            <button onclick="loadLogs(currentPeriod)" class="group flex items-center gap-2 px-5 py-2.5 bg-[#000106] border border-gray-200 dark:border-gray-700 rounded-2xl text-[11px] font-black hover:bg-[#000106] dark:hover:bg-gray-700 transition-all shadow-md active:scale-95">
                 <span class="group-hover:rotate-180 transition-transform duration-700">🔄</span> REFRESH
             </button>
         </div>
@@ -32,21 +32,21 @@
 
     <!-- Stats Overview -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div class="card p-5 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl border border-white/20 dark:border-white/5 rounded-[2rem] shadow-sm group hover:border-blue-500/30 transition-all">
+        <div class="card p-5 bg-[#000106]/40 bg-[#000106]/40 backdrop-blur-xl border border-white/20 dark:border-white/5 rounded-[2rem] shadow-sm group hover:border-blue-500/30 transition-all">
             <p class="text-[10px] font-black text-gray-400 mb-1 uppercase tracking-widest">TOTAL TASKS</p>
             <div class="flex items-baseline gap-2">
                 <span id="stat-total" class="text-3xl font-black text-gray-800 dark:text-white group-hover:scale-110 transition-transform inline-block">0</span>
                 <span class="text-[10px] text-gray-400 font-bold">UNITS</span>
             </div>
         </div>
-        <div class="card p-5 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl border border-white/20 dark:border-white/5 rounded-[2rem] shadow-sm group hover:border-green-500/30 transition-all">
+        <div class="card p-5 bg-[#000106]/40 bg-[#000106]/40 backdrop-blur-xl border border-white/20 dark:border-white/5 rounded-[2rem] shadow-sm group hover:border-green-500/30 transition-all">
             <p class="text-[10px] font-black text-green-500/70 mb-1 uppercase tracking-widest">SUCCESS RATE</p>
             <div class="flex items-baseline gap-2">
                 <span id="stat-success" class="text-3xl font-black text-green-600 dark:text-green-400">0%</span>
                 <span class="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">GLOBAL</span>
             </div>
         </div>
-        <div class="card p-5 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl border border-white/20 dark:border-white/5 rounded-[2rem] shadow-sm group hover:border-blue-400/30 transition-all">
+        <div class="card p-5 bg-[#000106]/40 bg-[#000106]/40 backdrop-blur-xl border border-white/20 dark:border-white/5 rounded-[2rem] shadow-sm group hover:border-blue-400/30 transition-all">
             <p class="text-[10px] font-black text-blue-500/70 mb-1 uppercase tracking-widest">AVG LATENCY</p>
             <div class="flex items-baseline gap-2">
                 <span id="stat-latency" class="text-3xl font-black text-blue-600 dark:text-blue-400">0.0s</span>
@@ -71,11 +71,11 @@
         </div>
 
         <!-- Distribution Donut (Right) -->
-        <div id="token-distribution-card" class="w-full lg:w-64 card p-4 bg-white/50 dark:bg-gray-900/50 backdrop-blur border border-white/20 dark:border-gray-800 rounded-2xl shadow-sm hidden flex-col items-center justify-center min-h-[140px]">
+        <div id="token-distribution-card" class="w-full lg:w-64 card p-4 bg-[#000106]/50 bg-[#000106]/50 backdrop-blur border border-white/20 dark:border-gray-800 rounded-2xl shadow-sm hidden flex-col items-center justify-center min-h-[140px]">
             <p class="text-[9px] font-bold text-gray-400 mb-2 uppercase tracking-tight text-center">Token Expenditure</p>
             <div class="flex items-center gap-4">
                 <div id="pie-chart" class="relative w-24 h-24 rounded-full shadow-lg" style="background: conic-gradient(#3b82f6 0% 100%);">
-                    <div class="absolute inset-4 bg-white dark:bg-[#0b0f19] rounded-full flex items-center justify-center">
+                    <div class="absolute inset-4 bg-[#000106] dark:bg-[#0b0f19] rounded-full flex items-center justify-center">
                         <span class="text-[9px] font-black text-blue-500">USAGE</span>
                     </div>
                 </div>
@@ -95,12 +95,12 @@
         
         <div class="flex items-center gap-4">
             <!-- Count and Sort -->
-            <div class="flex items-center gap-2 bg-white/5 px-2 py-1 rounded-lg border border-white/5">
+            <div class="flex items-center gap-2 bg-[#000106]/5 px-2 py-1 rounded-lg border border-white/5">
                 <select id="logSortOrder" onchange="changeLogSort(this.value)" class="text-[10px] bg-transparent border-none outline-none font-black text-gray-400 cursor-pointer">
                     <option value="newest">⌛ {{ t('sort_newest') or '최신기준' }}</option>
                     <option value="oldest">⏳ {{ t('sort_oldest') or '과거기준' }}</option>
                 </select>
-                <div class="h-3 w-px bg-white/10"></div>
+                <div class="h-3 w-px bg-[#000106]/10"></div>
                 <select id="logPageSize" onchange="changeLogPageSize(this.value)" class="text-[10px] bg-transparent border-none outline-none font-black text-gray-400 cursor-pointer">
                     <option value="20">20{{ t('rows_suffix') or '개씩' }}</option>
                     <option value="50">50{{ t('rows_suffix') or '개씩' }}</option>
@@ -110,11 +110,11 @@
         </div>
     </div>
 
-    <div class="card bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 overflow-hidden shadow-2xl shadow-gray-200/50 dark:shadow-none">
+    <div class="card bg-[#000106] rounded-3xl border border-gray-100 dark:border-gray-800 overflow-hidden shadow-2xl shadow-gray-200/50 dark:shadow-none">
         <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse">
                 <thead>
-                    <tr class="bg-gray-50/50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
+                    <tr class="bg-[#000106]/50 bg-[#000106]/50 border-b border-gray-100 dark:border-gray-800">
                         <th class="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Time</th>
                         <th class="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Task</th>
                         <th class="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Model & Provider</th>
@@ -136,14 +136,14 @@
             </table>
         </div>
         <!-- Log Pagination -->
-        <div id="logPagination" class="flex items-center justify-between px-6 py-4 bg-white/[0.02] border-t border-white/5 hidden">
+        <div id="logPagination" class="flex items-center justify-between px-6 py-4 bg-[#000106]/[0.02] border-t border-white/5 hidden">
             <div class="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
                 Showing <span id="logPageRange" class="text-white">0-0</span> of <span id="logTotalCount" class="text-white font-black">0</span>
             </div>
             <div class="flex items-center gap-2">
-                <button id="logPrevBtn" onclick="changeLogPage(-1)" class="p-2 rounded-lg hover:bg-white/5 disabled:opacity-20 transition-all text-xs">◀</button>
+                <button id="logPrevBtn" onclick="changeLogPage(-1)" class="p-2 rounded-lg hover:bg-[#000106]/5 disabled:opacity-20 transition-all text-xs">◀</button>
                 <div id="logPageNumbers" class="flex gap-1"></div>
-                <button id="logNextBtn" onclick="changeLogPage(1)" class="p-2 rounded-lg hover:bg-white/5 disabled:opacity-20 transition-all text-xs">▶</button>
+                <button id="logNextBtn" onclick="changeLogPage(1)" class="p-2 rounded-lg hover:bg-[#000106]/5 disabled:opacity-20 transition-all text-xs">▶</button>
             </div>
         </div>
     </div>
@@ -159,12 +159,12 @@
     async function loadLogs(days) {
         currentPeriod = days;
         document.querySelectorAll('.period-btn').forEach(btn => {
-            btn.classList.remove('active', 'bg-white', 'dark:bg-blue-600', 'shadow-sm', 'text-blue-600', 'dark:text-white');
+            btn.classList.remove('active', 'bg-[#000106]', 'dark:bg-blue-600', 'shadow-sm', 'text-blue-600', 'dark:text-white');
             btn.classList.add('text-gray-500');
         });
         const activeBtn = document.getElementById(`btn-period-${days}`);
         if (activeBtn) {
-            activeBtn.classList.add('active', 'bg-white', 'dark:bg-blue-600', 'shadow-sm', 'text-blue-600', 'dark:text-white');
+            activeBtn.classList.add('active', 'bg-[#000106]', 'dark:bg-blue-600', 'shadow-sm', 'text-blue-600', 'dark:text-white');
             activeBtn.classList.remove('text-gray-500');
         }
 
@@ -250,7 +250,7 @@
             const btn = document.createElement('button');
             btn.textContent = i;
             btn.onclick = () => goToLogPage(i);
-            btn.className = `w-7 h-7 rounded-lg text-[10px] font-black transition-all ${i === currentLogPage ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:bg-white/10'}`;
+            btn.className = `w-7 h-7 rounded-lg text-[10px] font-black transition-all ${i === currentLogPage ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:bg-[#000106]/10'}`;
             numbersEl.appendChild(btn);
         }
 
@@ -280,7 +280,7 @@
             const statusText = (log.status === 'success' || log.status === 'done') ? 'SUCCESS' : 'FAILED';
 
             return `
-                <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors group">
+                <tr class="hover:bg-[#000106] dark:hover:bg-[#000106]/30 transition-colors group">
                     <td class="px-6 py-4 font-mono">
                         <div class="text-[11px] font-bold text-gray-800 dark:text-gray-200">${timeStr}</div>
                         <div class="text-[9px] text-gray-400 font-bold">${dateStr}</div>
@@ -392,7 +392,7 @@
                 'analysis': 'bg-purple-400 dark:bg-purple-500',
                 'planning': 'bg-indigo-400 dark:bg-indigo-500'
             };
-            const barColorClass = colorMap[stage] || 'bg-gray-400 dark:bg-gray-500';
+            const barColorClass = colorMap[stage] || 'bg-gray-400 dark:bg-[#000106]0';
             
             // Generate Mini Bar Chart HTML (based on Tokens or Count if tokens 0)
             const maxTokensInBucket = Math.max(...(data.buckets || [{tokens:1}]).map(b => b.tokens), 1);

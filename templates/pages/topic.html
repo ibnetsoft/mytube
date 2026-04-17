@@ -17,7 +17,7 @@
                 </div>
                 <!-- [NEW] 수동 로딩 버튼 -->
                 <button onclick="loadTrendKeywords()"
-                    class="btn-secondary py-1.5 px-4 text-xs flex items-center gap-2 bg-white dark:bg-gray-800 hover:shadow-md transition-all active:scale-95">
+                    class="btn-secondary py-1.5 px-4 text-xs flex items-center gap-2 bg-[#000106] hover:shadow-md transition-all active:scale-95">
                     <span>🔄</span>
                     <span>{{ t('title_refresh') }}</span>
                 </button>
@@ -26,7 +26,7 @@
             <!-- 필터 그룹 (언어 / 기간 / 연령) -->
             <div class="flex flex-wrap items-center gap-3">
                 <!-- [NEW] 국가 선택 -->
-                <div class="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
+                <div class="flex bg-[#000106] p-1 rounded-lg">
                     <button id="btn-ko" onclick="changeTrendLanguage('ko')" 
                         class="lang-btn px-4 py-2 text-sm font-bold rounded-md transition-all active:scale-95 bg-indigo-500 text-white shadow-md">
                         🇰🇷 {{ t('lang_ko') }}
@@ -43,7 +43,7 @@
 
                 <!-- 기간 선택 -->
                 <select id="trend-period"
-                    class="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2">
+                    class="bg-[#000106]/50 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2">
                     <option value="now">{{ t('opt_now') }}</option>
                     <option value="week">{{ t('opt_this_week') }}</option>
                     <option value="month">{{ t('opt_this_month') }}</option>
@@ -51,7 +51,7 @@
 
                 <!-- 연령 선택 -->
                 <select id="trend-age"
-                    class="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2">
+                    class="bg-[#000106]/50 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2">
                     <option value="all">{{ t('opt_all_ages') }}</option>
                     <option value="10s">{{ t('opt_teens') }}</option>
                     <option value="20s">{{ t('opt_20s') }}</option>
@@ -162,19 +162,19 @@
     <div class="flex flex-wrap gap-2">
         <span class="text-sm text-gray-500 mr-2 dark:text-gray-400">{{ t('label_suggested_topics') }}</span>
         <button onclick="setSearchTopic('일상 브이로그')"
-            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">{{ t('topic_daily_vlog') }}</button>
+            class="px-3 py-1 bg-[#000106]/50 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">{{ t('topic_daily_vlog') }}</button>
         <button onclick="setSearchTopic('먹방')"
-            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">{{ t('topic_mukbang') }}</button>
+            class="px-3 py-1 bg-[#000106]/50 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">{{ t('topic_mukbang') }}</button>
         <button onclick="setSearchTopic('IT 테크')"
-            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">{{ t('topic_it_tech') }}</button>
+            class="px-3 py-1 bg-[#000106]/50 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">{{ t('topic_it_tech') }}</button>
         <button onclick="setSearchTopic('재테크')"
-            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">{{ t('topic_finance') }}</button>
+            class="px-3 py-1 bg-[#000106]/50 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">{{ t('topic_finance') }}</button>
         <button onclick="setSearchTopic('운동 헬스')"
-            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">{{ t('topic_exercise') }}</button>
+            class="px-3 py-1 bg-[#000106]/50 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">{{ t('topic_exercise') }}</button>
         <button onclick="setSearchTopic('게임')"
-            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">{{ t('topic_game') }}</button>
+            class="px-3 py-1 bg-[#000106]/50 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">{{ t('topic_game') }}</button>
         <button onclick="setSearchTopic('자기계발')"
-            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">{{ t('topic_self_dev') }}</button>
+            class="px-3 py-1 bg-[#000106]/50 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">{{ t('topic_self_dev') }}</button>
     </div>
 </div>
 
@@ -204,28 +204,28 @@
     </div>
 
     <div
-        class="overflow-x-auto bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700">
+        class="overflow-x-auto bg-[#000106] rounded-lg shadow border border-gray-200 dark:border-gray-700">
         <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-            <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+            <thead class="text-xs text-gray-700 uppercase bg-[#000106]/50 dark:text-gray-400">
                 <tr>
                     <th scope="col" class="p-4">
                         <div class="flex items-center">
                             <input id="checkbox-all" type="checkbox" onclick="toggleAllCheckboxes(this)"
-                                class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:border-gray-700">
+                                class="w-4 h-4 text-blue-600 bg-[#000106] border-gray-300 rounded focus:ring-blue-500 dark:border-gray-700">
                         </div>
                     </th>
                     <th scope="col" class="px-2 py-3">{{ t('th_thumbnail') }}</th>
-                    <th scope="col" class="px-2 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                    <th scope="col" class="px-2 py-3 cursor-pointer hover:bg-[#000106] dark:hover:bg-gray-600"
                         onclick="sortVideos('channel')">{{ t('th_channel') }}</th>
                     <th scope="col" class="px-2 py-3 w-[30%]">{{ t('th_video_title') }}</th>
-                    <th scope="col" class="px-2 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                    <th scope="col" class="px-2 py-3 cursor-pointer hover:bg-[#000106] dark:hover:bg-gray-600"
                         onclick="sortVideos('date')">{{ t('th_upload') }}</th>
                     <th scope="col" class="px-2 py-3 text-right">{{ t('th_subscribers') }}</th>
-                    <th scope="col" class="px-2 py-3 text-right cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                    <th scope="col" class="px-2 py-3 text-right cursor-pointer hover:bg-[#000106] dark:hover:bg-gray-600"
                         onclick="sortVideos('views')">{{ t('th_views') }}</th>
                     <th scope="col" class="px-2 py-3 text-center">{{ t('th_channel_contribution') }}</th>
                     <th scope="col"
-                        class="px-2 py-3 text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                        class="px-2 py-3 text-center cursor-pointer hover:bg-[#000106] dark:hover:bg-gray-600"
                         onclick="sortVideos('performance')">{{ t('th_performance') }}</th>
                     <th scope="col" class="px-2 py-3 text-right">{{ t('th_likes') }}</th>
                     <th scope="col" class="px-2 py-3 text-center">{{ t('th_actions') }}</th>
@@ -248,7 +248,7 @@
 <!-- [REMOVED] Analysis Modal replaced by direct navigation to Script Plan -->
 <div id="loadingOverlay" class="modal-overlay hidden">
     <div
-        class="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-4 max-w-sm w-full mx-4">
+        class="bg-[#000106] p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-4 max-w-sm w-full mx-4">
         <div class="loader-lg"></div>
         <div class="text-center">
             <h4 class="text-lg font-bold text-gray-800 dark:text-white mb-1">{{ t('label_ai_analyzing') }}</h4>
@@ -267,7 +267,7 @@
                 <span>{{ t('label_batch_analyze_title') }}</span>
             </h3>
             <button onclick="closeBatchModal()"
-                class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition">
+                class="p-2 hover:bg-[#000106] dark:hover:bg-gray-700 rounded-lg transition">
                 <span class="text-2xl">&times;</span>
             </button>
         </div>
@@ -280,7 +280,7 @@
                     {{ t('batch_folder_label') }}
                 </label>
                 <input type="text" id="batchFolderName"
-                    class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white"
+                    class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-[#000106] dark:border-gray-600 dark:text-white"
                     placeholder="{{ t('batch_folder_placeholder') }}">
             </div>
 
@@ -499,10 +499,10 @@
             const thumbUrl = video.snippet.thumbnails.default?.url || video.snippet.thumbnails.medium?.url;
 
             return `
-                <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition">
+                <tr class="bg-[#000106] border-b bg-[#000106] dark:border-gray-700 hover:bg-[#000106] dark:hover:bg-gray-600 transition">
                     <td class="w-4 p-4">
                         <div class="flex items-center">
-                            <input id="checkbox-table-${index}" type="checkbox" data-video-id="${video.id}" class="video-checkbox w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:border-gray-700">
+                            <input id="checkbox-table-${index}" type="checkbox" data-video-id="${video.id}" class="video-checkbox w-4 h-4 text-blue-600 bg-[#000106] border-gray-300 rounded focus:ring-blue-500 dark:border-gray-700">
                         </div>
                     </td>
                     <th scope="row" class="px-2 py-3 font-medium text-gray-900 dark:text-white whitespace-nowrap">
@@ -542,7 +542,7 @@
                              <button onclick="openAnalysisModal('${video.id}')" class="p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-gray-700 rounded transition" title="${i18n.btn_analyze}">
                                 🤖
                             </button>
-                             <button onclick="downloadThumbnail('${video.id}', '${video.snippet.thumbnails.high?.url}')" class="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition dark:text-gray-400" title="${i18n.btn_download_thumb}">
+                             <button onclick="downloadThumbnail('${video.id}', '${video.snippet.thumbnails.high?.url}')" class="p-1.5 text-gray-500 hover:bg-[#000106] dark:hover:bg-gray-700 rounded transition dark:text-gray-400" title="${i18n.btn_download_thumb}">
                                 ⬇️
                             </button>
                             <!-- Archive Actions -->

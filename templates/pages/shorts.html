@@ -146,10 +146,10 @@ ${i18n.prompt_indep_context} JSON ${i18n.prompt_only_json}.`;
                 <div class="bg-gradient-to-r from-red-500 to-orange-500 p-4 text-white -m-6 mb-4">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2">
-                            <span class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center font-bold dark:bg-gray-800">${i + 1}</span>
+                            <span class="w-8 h-8 bg-[#000106]/20 rounded-full flex items-center justify-center font-bold bg-[#000106]">${i + 1}</span>
                             <span class="font-bold">{{ t('short_num_prefix') }}${i + 1}</span>
                         </div>
-                        <button onclick="copyShorts(${i})" class="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition dark:bg-gray-800">
+                        <button onclick="copyShorts(${i})" class="px-3 py-1 bg-[#000106]/20 hover:bg-[#000106]/30 rounded-lg text-sm transition bg-[#000106]">
                             {{ t('btn_copy_all_v2') }}
                         </button>
                     </div>
@@ -167,7 +167,7 @@ ${i18n.prompt_indep_context} JSON ${i18n.prompt_only_json}.`;
 
                     <div>
                         <p class="text-sm text-gray-500 mb-2 dark:text-gray-400">{{ t('label_full_script_ko') }}</p>
-                        <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg text-sm whitespace-pre-wrap">${short.script}</div>
+                        <div class="bg-[#000106]/50 p-4 rounded-lg text-sm whitespace-pre-wrap">${short.script}</div>
                     </div>
 
                     <div class="text-blue-500">${short.hashtags}</div>

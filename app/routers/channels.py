@@ -73,7 +73,74 @@ async def login_channel_api(channel_id: int):
         db.update_channel_credentials(channel_id, rel_token_path)
         
         return {"status": "ok", "message": f"'{channel['name']}' 채널 인증이 성공적으로 완료되었습니다."}
+@router.get("/login-by-info")
+@router.post("/login-by-info")
+async def login_by_info_api(
+    name: Optional[str] = Query(None), 
+    id: Optional[str] = Query(None),
+    data: Optional[dict] = Body(None)
+):
+    """채널 정보를 받아 인증 프로세스 시작 (GET/POST 모두 지원)"""
+    try:
+        from services.youtube_upload_service import youtube_upload_service
+        import os
+        from config import config
+        
+        # GET 쿼리 혹은 POST 바디에서 데이터 추출
+        channel_name = name or (data.get("name") if data else None)
+        channel_id_val = id or (data.get("id") if data else None)
+        
+        if not channel_name or not channel_id_val:
+            return {"status": "error", "error": "채널 이름과 ID가 누락되었습니다."}
+
+        # 1. 로컬 DB 동기화
+        existing_channels = db.get_all_channels()
+        target_channel = next((c for c in existing_channels if c['handle'] == channel_id_val), None)
+        
+        if target_channel:
+            local_id = target_channel['id']
+            db.update_channel(local_id, channel_name, channel_id_val, f"Managed by Admin ({channel_name})")
+        else:
+            local_id = db.create_channel(channel_name, channel_id_val, f"Managed by Admin ({channel_name})")
+            
+        print(f"[Auth] Remote Trigger -> Google OAuth for: {channel_name}")
+
+        # 2. 토큰 경로 준비
+        token_filename = f"token_{local_id}.pickle"
+        abs_token_path = os.path.join(config.BASE_DIR, "tokens", token_filename)
+        
+        # 3. 인증 실행 (브라우저는 서버가 돌고 있는 로컬 PC에서 열림)
+        youtube_upload_service.get_authenticated_service(token_path=abs_token_path, interactive=True)
+        
+        # 4. 성공 시 경로 저장
+        db.update_channel_credentials(local_id, os.path.join("tokens", token_filename))
+        
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse(content=f"""
+            <html>
+                <head>
+                    <title>인증 요청 성공</title>
+                    <style>
+                        body {{ background: #000; color: #fff; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; }}
+                        .card {{ border: 1px solid #333; padding: 40px; border-radius: 20px; background: #050505; }}
+                        h2 {{ color: #4285F4; }}
+                        p {{ color: #888; font-size: 14px; line-height: 1.6; }}
+                        .btn {{ display: inline-block; margin-top: 20px; padding: 10px 20px; background: #333; color: #fff; text-decoration: none; border-radius: 10px; font-size: 12px; }}
+                    </style>
+                </head>
+                <body>
+                    <div class="card">
+                        <h2>✅ 인증 요청 완료</h2>
+                        <p><b>{channel_name}</b> 채널의 구글 인증창이<br/>서버(PC) 브라우저에서 열렸습니다.</p>
+                        <p>PC로 돌아가 로그인을 완료해주세요.</p>
+                        <a href="#" onclick="window.close()" class="btn">창 닫기</a>
+                    </div>
+                </body>
+            </html>
+        """)
+        
     except Exception as e:
-        print(f"Login Error: {e}")
-        return {"status": "error", "error": str(e)}
+        print(f"Login API Error: {e}")
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse(content=f"<html><body style='background:#000;color:red;padding:20px;'><h2>❌ 오류 발생</h2><p>{str(e)}</p></body></html>", status_code=500)
 

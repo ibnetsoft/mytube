@@ -25,8 +25,13 @@ export async function GET() {
         
         const enrichedUsers = (users || []).map(user => {
             const profile = (profiles || []).find(p => p.id === user.id) || {}
-            // DB 컬럼명이 'membership'일 수 있으므로 둘 다 체크
             const membership = profile.membership || profile.membership_tier || (user.app_metadata?.membership || 'standard')
+            
+            // [DEBUG] Check if youtube_channel is present
+            if (user.user_metadata?.youtube_channel) {
+                console.log(`[Users API] User ${user.email} has channel: ${user.user_metadata.youtube_channel}`);
+            }
+            
             return {
                 ...user,
                 profile: {
@@ -36,8 +41,9 @@ export async function GET() {
                     current_usage: profile.current_usage || 0
                 }
             }
-        })
-
+        });
+        
+        console.log(`[Users API] Returning ${enrichedUsers.length} users`);
         return NextResponse.json({ users: enrichedUsers })
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 })

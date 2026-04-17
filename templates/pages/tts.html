@@ -4,11 +4,11 @@
 <div class="h-[calc(100vh-140px)] flex flex-col gap-3 p-2">
     <!-- 1. Top Control Toolbar -->
     <div
-        class="flex items-center gap-3 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 shrink-0 flex-wrap">
+        class="flex items-center gap-3 p-2 bg-[#000106] rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 shrink-0 flex-wrap">
 
         <!-- Script Status Badge -->
         <span id="scriptStatusBadge"
-            class="text-[10px] flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 text-gray-400 font-normal">
+            class="text-[10px] flex items-center gap-1 px-2 py-1 rounded-full bg-[#000106] text-gray-400 font-normal">
             <span>🔄</span> {{ t('status_checking_script') }}
         </span>
 
@@ -18,7 +18,7 @@
         <div class="flex items-center gap-2">
             <span class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('label_service') }}</span>
             <select id="providerSelect"
-                class="text-xs border-gray-300 dark:border-gray-600 rounded-md py-1 px-2 focus:ring-primary focus:border-primary bg-gray-50 dark:bg-gray-700 dark:text-white">
+                class="text-xs border-gray-300 dark:border-gray-600 rounded-md py-1 px-2 focus:ring-primary focus:border-primary bg-[#000106]/50 dark:text-white">
                 <option value="gemini">Gemini ({{ t('label_free') }})</option>
                 <option value="openai">OpenAI ({{ t('label_paid') }})</option>
                 <option value="elevenlabs" selected>ElevenLabs</option>
@@ -32,7 +32,7 @@
         <div class="flex items-center gap-2" id="singleVoiceControls">
             <span class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('label_voice') }}</span>
             <select id="voiceSelect"
-                class="text-xs border-gray-300 dark:border-gray-600 rounded-md py-1 px-2 focus:ring-primary focus:border-primary bg-gray-50 dark:bg-gray-700 dark:text-white w-40">
+                class="text-xs border-gray-300 dark:border-gray-600 rounded-md py-1 px-2 focus:ring-primary focus:border-primary bg-[#000106]/50 dark:text-white w-40">
                 <option value="">{{ t('status_loading') }}</option>
             </select>
         </div>
@@ -44,7 +44,7 @@
             <span class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('label_speed') }} <span
                     id="speedValue" class="text-primary">1.0</span></span>
             <input type="range" id="audioSpeed" min="0.5" max="2.0" step="0.1" value="1.0"
-                class="w-20 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-primary"
+                class="w-20 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer bg-[#000106]/50 accent-primary"
                 title="">
         </div>
 
@@ -54,7 +54,7 @@
         <label class="inline-flex items-center cursor-pointer mr-2">
             <input type="checkbox" id="multiVoiceToggle" class="sr-only peer">
             <div
-                class="relative w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600">
+                class="relative w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer bg-[#000106]/50 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-[#000106] after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600">
             </div>
             <span class="ms-2 text-xs font-medium text-gray-900 dark:text-gray-300">{{ t('label_multivoice') }}</span>
         </label>
@@ -89,7 +89,7 @@
         <div class="col-span-12 md:col-span-4 flex flex-col gap-3 min-h-0">
             <!-- Information / Status -->
             <div id="apiStatus"
-                class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shrink-0 shadow-sm">
+                class="bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shrink-0 shadow-sm">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
                         <span class="text-sm">🔑</span>
@@ -100,7 +100,7 @@
 
             <!-- Voice Preview Section -->
             <div id="voicePreviewSection"
-                class="hidden bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm border-l-4 border-l-blue-400">
+                class="hidden bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm border-l-4 border-l-blue-400">
                 <div class="flex items-center justify-between mb-2">
                     <h4 class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('voice_preview_title') }}</h4>
                     <span id="previewVoiceLabel" class="text-[10px] text-blue-600 font-bold"></span>
@@ -112,7 +112,7 @@
 
             <!-- Multi-Voice Mapping List (Visible when Toggle ON) -->
             <div id="voiceMappingSection"
-                class="hidden flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex flex-col overflow-hidden shadow-sm">
+                class="hidden flex-1 bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex flex-col overflow-hidden shadow-sm">
                 <div class="flex items-center justify-between mb-2 shrink-0">
                     <h4 class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('character_voice_title') }}</h4>
                     <button onclick="analyzeScriptForCharacters()"
@@ -130,7 +130,7 @@
 
             <!-- Audio Result (Visible after generation) -->
             <div id="resultSection"
-                class="hidden shrink-0 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm border-l-4 border-l-purple-500">
+                class="hidden shrink-0 bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm border-l-4 border-l-purple-500">
                 <h4 class="text-xs font-bold text-gray-800 dark:text-white mb-2">{{ t('gen_result_title') }}</h4>
                 <audio id="audioPlayer" controls class="w-full h-8 mb-2"></audio>
                 <div class="flex gap-2">
@@ -146,9 +146,9 @@
 
         <!-- Right Panel: Script Editor (Col-8) -->
         <div
-            class="col-span-12 md:col-span-8 flex flex-col min-h-0 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+            class="col-span-12 md:col-span-8 flex flex-col min-h-0 bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
             <div
-                class="flex items-center justify-between p-2 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                class="flex items-center justify-between p-2 border-b border-gray-100 dark:border-gray-700 bg-[#000106]/50">
                 <h3 class="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
                     {{ t('script_input_title') }}
                     <span class="font-normal text-gray-400">|</span>
@@ -165,7 +165,7 @@
                 placeholder="{{ t('script_input_placeholder') }}"></textarea>
 
             <div
-                class="p-1 px-3 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-700 text-[10px] text-gray-400 flex justify-between">
+                class="p-1 px-3 bg-[#000106]/50 border-t border-gray-100 dark:border-gray-700 text-[10px] text-gray-400 flex justify-between">
                 <span>{{ t('est_time_label') }}: <span id="estTime">0:00</span></span>
                 <span>{{ t('newline_hint') }}</span>
             </div>
@@ -496,7 +496,7 @@
         sortedChars.forEach(char => {
             const savedVoice = characterVoiceMap[char] || '';
             const row = document.createElement('div');
-            row.className = 'flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 p-1.5 rounded border border-gray-100 dark:border-gray-600 gap-2';
+            row.className = 'flex items-center justify-between bg-[#000106]/50/50 p-1.5 rounded border border-gray-100 dark:border-gray-600 gap-2';
 
             let options = availableVoices.length > 0 ? availableVoices.map(v =>
                 `<option value="${v.id}" ${v.id === savedVoice ? 'selected' : ''}>${v.name}</option>`
@@ -506,7 +506,7 @@
 
             row.innerHTML = `
                 <span class="text-xs font-bold text-gray-700 dark:text-gray-300 w-16 truncate" title="${char}">${char}</span>
-                <select class="text-[10px] border-gray-200 dark:border-gray-600 rounded py-1 pl-1 pr-6 flex-1 bg-white dark:bg-gray-800 dark:text-white" onchange="updateCharVoice('${safeChar}', this.value)">
+                <select class="text-[10px] border-gray-200 dark:border-gray-600 rounded py-1 pl-1 pr-6 flex-1 bg-[#000106] dark:text-white" onchange="updateCharVoice('${safeChar}', this.value)">
                     <option value="">-- {{ t('label_default_voice') }} --</option>
                     ${options}
                 </select>

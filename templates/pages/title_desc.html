@@ -4,14 +4,14 @@
 <div class="h-[calc(100vh-140px)] flex flex-col gap-3 p-2">
     <!-- 1. 상단 컨트롤 바 (높이 최소화) -->
     <div
-        class="flex items-center gap-3 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 shrink-0">
+        class="flex items-center gap-3 p-2 bg-[#000106] rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 shrink-0">
 
 
         <div class="flex-1 flex items-center gap-2">
             <span class="text-sm font-bold text-gray-700 dark:text-gray-300 whitespace-nowrap">🎯 {{
                 t('label_target_keyword') }}</span>
             <input type="text" id="targetKeyword"
-                class="text-xs flex-1 border-gray-300 dark:border-gray-600 rounded-md py-1.5 px-3 focus:ring-primary focus:border-primary bg-gray-50 dark:bg-gray-700 dark:text-white"
+                class="text-xs flex-1 border-gray-300 dark:border-gray-600 rounded-md py-1.5 px-3 focus:ring-primary focus:border-primary bg-[#000106]/50 dark:text-white"
                 placeholder="{{ t('placeholder_target_keyword') }}">
 
             <!-- [NEW] Project Title Display -->
@@ -41,7 +41,7 @@
     <div id="resultSection" class="hidden grid grid-cols-12 gap-3 flex-1 min-h-0">
         <!-- 왼쪽 패널: 추천 제목 (Col-5) -->
         <div
-            class="col-span-12 md:col-span-5 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex flex-col overflow-hidden shadow-sm">
+            class="col-span-12 md:col-span-5 bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex flex-col overflow-hidden shadow-sm">
             <h3 class="text-sm font-bold text-gray-800 dark:text-white mb-2 flex items-center gap-2">
                 🏷️ {{ t('recommend_titles') }} <span class="text-xs font-normal text-gray-500 dark:text-gray-400">{{ t('copy_hint')
                     }}</span>
@@ -55,7 +55,7 @@
         <div class="col-span-12 md:col-span-7 flex flex-col gap-3 min-h-0">
             <!-- 설명 영역 -->
             <div
-                class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex-1 flex flex-col shadow-sm min-h-0">
+                class="bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex-1 flex flex-col shadow-sm min-h-0">
                 <div class="flex items-center justify-between mb-2">
                     <h3 class="text-sm font-bold text-gray-800 dark:text-white">📄 {{ t('video_desc_title') }}</h3>
                     <button onclick="copyDescription()"
@@ -64,32 +64,32 @@
                     </button>
                 </div>
                 <textarea id="descriptionText"
-                    class="flex-1 w-full text-xs p-3 border border-gray-200 dark:border-gray-700 rounded-md resize-none focus:ring-primary focus:border-primary bg-gray-50 dark:bg-gray-900 dark:text-gray-300 leading-relaxed custom-scrollbar"></textarea>
+                    class="flex-1 w-full text-xs p-3 border border-gray-200 dark:border-gray-700 rounded-md resize-none focus:ring-primary focus:border-primary bg-[#000106] dark:text-gray-300 leading-relaxed custom-scrollbar"></textarea>
             </div>
 
             <!-- 태그 & 해시태그 영역 (Grid) -->
             <div class="grid grid-cols-2 gap-3 shrink-0 h-32">
                 <!-- 태그 -->
                 <div
-                    class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex flex-col shadow-sm">
+                    class="bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex flex-col shadow-sm">
                     <div class="flex items-center justify-between mb-1">
                         <h3 class="text-xs font-bold text-gray-800 dark:text-white">#️⃣ {{ t('status_image') }}</h3>
                         <button onclick="copyTags()" class="text-[10px] text-gray-500 hover:text-primary dark:text-gray-400">📋</button>
                     </div>
                     <textarea id="tagsText"
-                        class="flex-1 w-full text-xs p-2 border border-gray-200 dark:border-gray-700 rounded resize-none focus:ring-primary focus:border-primary bg-gray-50 dark:bg-gray-900 dark:text-gray-300 custom-scrollbar"
+                        class="flex-1 w-full text-xs p-2 border border-gray-200 dark:border-gray-700 rounded resize-none focus:ring-primary focus:border-primary bg-[#000106] dark:text-gray-300 custom-scrollbar"
                         placeholder="{{ t('placeholder_tags') }}"></textarea>
                 </div>
                 <!-- 해시태그 -->
                 <div
-                    class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex flex-col shadow-sm">
+                    class="bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex flex-col shadow-sm">
                     <div class="flex items-center justify-between mb-1">
                         <h3 class="text-xs font-bold text-gray-800 dark:text-white"># {{ t('nav_shorts') }}</h3>
                         <button onclick="copyHashtags()"
                             class="text-[10px] text-gray-500 hover:text-primary dark:text-gray-400">📋</button>
                     </div>
                     <textarea id="hashtagsText"
-                        class="flex-1 w-full text-xs p-2 border border-gray-200 dark:border-gray-700 rounded resize-none focus:ring-primary focus:border-primary bg-gray-50 dark:bg-gray-900 text-blue-500 font-medium custom-scrollbar"
+                        class="flex-1 w-full text-xs p-2 border border-gray-200 dark:border-gray-700 rounded resize-none focus:ring-primary focus:border-primary bg-[#000106] text-blue-500 font-medium custom-scrollbar"
                         placeholder="{{ t('placeholder_hashtags') }}"></textarea>
                 </div>
             </div>
@@ -98,7 +98,7 @@
 
     <!-- 초기 안내 화면 -->
     <div id="initialState"
-        class="flex-1 flex flex-col items-center justify-center text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700">
+        class="flex-1 flex flex-col items-center justify-center text-gray-400 bg-[#000106]/50 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700">
         <div class="text-4xl mb-3">📝</div>
         <p class="text-sm">{{ t('initial_meta_desc') | safe }}</p>
     </div>
@@ -349,9 +349,9 @@ ${i18n.prompt_only_json}.`;
         if (!metaData) return;
 
         document.getElementById('titlesList').innerHTML = (metaData.titles || []).map((title, i) => `
-            <div class="group flex items-center justify-between p-2.5 bg-gray-50 dark:bg-gray-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded border border-transparent hover:border-blue-200 dark:hover:border-blue-800 transition-all cursor-pointer" onclick="copyTitle(${i})">
+            <div class="group flex items-center justify-between p-2.5 bg-[#000106]/50/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded border border-transparent hover:border-blue-200 dark:hover:border-blue-800 transition-all cursor-pointer" onclick="copyTitle(${i})">
                 <span class="text-xs text-gray-700 dark:text-gray-200 group-hover:text-blue-700 dark:group-hover:text-blue-300 font-medium">${title}</span>
-                <span class="opacity-0 group-hover:opacity-100 text-[10px] text-blue-500 bg-white dark:bg-gray-800 px-1.5 py-0.5 rounded border border-blue-100 dark:border-blue-900">{{ t('btn_copy') }}</span>
+                <span class="opacity-0 group-hover:opacity-100 text-[10px] text-blue-500 bg-[#000106] px-1.5 py-0.5 rounded border border-blue-100 dark:border-blue-900">{{ t('btn_copy') }}</span>
             </div>
         `).join('');
 

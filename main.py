@@ -1,6 +1,7 @@
 """
 PICADIRI STUDIO - FastAPI 메인 서버
 YouTube 영상 자동화 제작 플랫폼 (Python 기반)
+[RELOAD TRIGGER] 2026-04-17 v3 (HTML Response)
 """
 import sys
 import os
