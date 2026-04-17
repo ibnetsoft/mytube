@@ -84,7 +84,7 @@
 }
 
 .dark .card {
-    background: #05060a;
+    background: #000106;
 }
 
 .card-compact {
@@ -166,7 +166,8 @@
 }
 
 .dark .btn-secondary {
-    background: #1e293b;
+    background: #000106;
+    border: 1px solid #1e293b;
     color: #ffffff;
 }
 
@@ -175,7 +176,7 @@
 }
 
 .dark .btn-secondary:hover:not(:disabled) {
-    background: #334155;
+    background: #0a0f1d;
 }
 
 .btn-secondary:disabled {
@@ -257,16 +258,17 @@
 }
 
 .dark .input-field {
-    background: #05060a;
+    background: #000106;
     border-color: #1e293b;
     color: white;
 }
 
-/* ===== Select & Option Dark Theme ===== */
-select.bg-gray-900 option,
-select.bg-gray-800 option {
-    background-color: #05060a;
-    color: #ffffff;
+/* Global Select & Option Dark Theme */
+select.dark,
+.dark select,
+.dark select option {
+    background-color: #000106 !important;
+    color: #ffffff !important;
 }
 
 .input-field:focus {
@@ -315,10 +317,11 @@ textarea.input-field {
 }
 
 .dark .sidebar-item.active {
-    background-color: rgba(37, 99, 235, 0.2);
-    color: #60A5FA; /* blue-400 - same as 16.9s */
+    background-color: #000106;
+    color: #60A5FA;
     font-weight: 800;
-    box-shadow: inset 2px 0 0 #3B82F6;
+    box-shadow: inset 3px 0 0 #3B82F6;
+    border: 1px solid rgba(59, 130, 246, 0.2);
 }
 
 /* ===== Loading States ===== */
@@ -376,7 +379,7 @@ textarea.input-field {
 }
 
 .dark .video-card {
-    background: #05060a;
+    background: #000106;
 }
 
 .video-card:hover {
@@ -503,7 +506,8 @@ textarea.input-field {
 }
 
 .dark .progress-bar {
-    background: #1e293b;
+    background: #000106;
+    border: 1px solid #1e293b;
 }
 
 .progress-bar-fill {

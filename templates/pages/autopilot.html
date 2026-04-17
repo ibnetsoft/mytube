@@ -28,7 +28,7 @@
         <div class="flex items-center gap-3">
             <span class="text-gray-400 text-xs font-medium">✨ {{ t('label_preset') }}</span>
             <select id="presetSelect" onchange="loadPreset(this.value)"
-                class="bg-[#000106] border-gray-700 text-white text-xs rounded-lg pr-8 focus:ring-purple-500 focus:border-purple-500 block w-48 p-1.5">
+                class="bg-[#000106] border-gray-700 text-white text-xs rounded-lg pr-8 focus:ring-purple-500 focus:border-purple-500 block w-48 p-1.5 bg-[#000106] text-white">
                 <option value="">{{ t('opt_user_setting') }}</option>
             </select>
             <button onclick="deleteCurrentPreset()" id="btnDeletePreset"
@@ -78,7 +78,7 @@
                         </div>
 
                         <!-- [NEW] Aspect Ratio Selector (Integrated between Topic and Mode) -->
-                        <div class="mb-4 bg-[#000106]/20 p-2.5 rounded-xl border border-purple-500/20">
+                        <div class="mb-4 bg-[#000106] p-2.5 rounded-xl border border-purple-500/20">
                             <label class="block text-[10px] font-bold text-gray-400 mb-2 px-1">📏 {{ t('label_aspect_ratio') }}</label>
                             <div class="flex gap-2" id="aspectRatioGroup">
                                 <button type="button" onclick="setAspectRatio('9:16')" data-ratio="9:16"
@@ -158,7 +158,7 @@
                                     <label
                                         class="block text-[10px] font-medium text-gray-500 mb-1 dark:text-gray-400">{{ t('label_script_style') }}</label>
                                     <select id="scriptStyleSelect"
-                                        class="w-full bg-[#000106] border-gray-700 text-white rounded-lg px-2 py-1.5 text-xs">
+                                        class="w-full bg-[#000106] border-gray-700 text-white rounded-lg px-2 py-1.5 text-xs bg-[#000106] text-white">
                                         <option value="default" selected>{{ t('opt_style_default') }}</option>
                                         <option value="news">{{ t('opt_style_news') }}</option>
                                         <option value="story">{{ t('opt_style_story') }}</option>
@@ -183,7 +183,7 @@
                                     <label
                                         class="block text-[10px] font-medium text-gray-500 mb-1 dark:text-gray-400">{{ t('label_tts_engine') }}</label>
                                     <select id="providerSelect"
-                                        class="w-full bg-[#000106] border-gray-700 text-white rounded-lg px-2 py-1.5 text-xs">
+                                        class="w-full bg-[#000106] border-gray-700 text-white rounded-lg px-2 py-1.5 text-xs bg-[#000106] text-white">
                                         <option value="gemini">Gemini</option>
                                         <option value="elevenlabs" selected>ElevenLabs</option>
                                         <option value="google_cloud">Google</option>
@@ -194,7 +194,7 @@
                                     <label
                                         class="block text-[10px] font-medium text-gray-500 mb-1 dark:text-gray-400">{{ t('label_voice_select') }}</label>
                                     <select id="voiceSelect"
-                                        class="w-full bg-[#000106] border-gray-700 text-white rounded-lg px-2 py-1.5 text-xs">
+                                        class="w-full bg-[#000106] border-gray-700 text-white rounded-lg px-2 py-1.5 text-xs bg-[#000106] text-white">
                                         <option value="">{{ t('opt_loading') }}</option>
                                     </select>
                                 </div>
@@ -215,12 +215,12 @@
                             <div class="flex items-center gap-2">
                                 <span class="text-[9px] text-gray-500">{{ t('label_preset') }}:</span>
                                 <select id="subtitlePresetSelect" 
-                                    class="bg-[#000106] border border-gray-700 text-white text-[11px] rounded-lg px-2 py-1 focus:ring-1 focus:ring-teal-500/50 outline-none min-w-[140px] hover:bg-gray-700 transition-colors">
+                                    class="bg-[#000106] border border-gray-700 text-white text-[11px] rounded-lg px-2 py-1 focus:ring-1 focus:ring-teal-500/50 outline-none min-w-[140px] hover:bg-[#0a0f1d] transition-colors bg-[#000106] text-white">
                                     <option value="" class="bg-[#000106] text-white">-- {{ t('preset_custom') }} --</option>
                                 </select>
                             </div>
                         </div>
-                        <div class="grid grid-cols-2 gap-2 text-[11px] text-gray-400 bg-[#000106]/20 p-2 rounded-lg"
+                        <div class="grid grid-cols-2 gap-2 text-[11px] text-gray-400 bg-[#000106] p-2 rounded-lg"
                             id="subtitlePreviewPanel">
                             <div class="col-span-2 text-center py-2 italic">{{ t('opt_loading') }}</div>
                         </div>
@@ -266,9 +266,9 @@
                         </div>
 
                         <!-- [NEW] Ethnicity Dropdown for Autopilot -->
-                        <div class="mb-3 bg-[#000106]/20 p-2 rounded-lg border border-gray-800">
+                        <div class="mb-3 bg-[#000106] p-2 rounded-lg border border-gray-800">
                             <label class="block text-[10px] font-bold text-gray-300 mb-1">🌍 {{ t('label_ethnicity_setting') }}</label>
-                            <select id="charEthnicity" class="w-full bg-[#000106] border-gray-700 text-white rounded-lg px-2 py-1.5 text-[11px] focus:ring-1 focus:ring-pink-500 outline-none">
+                            <select id="charEthnicity" class="w-full bg-[#000106] border-gray-700 text-white rounded-lg px-2 py-1.5 text-[11px] focus:ring-1 focus:ring-pink-500 outline-none bg-[#000106] text-white">
                                 <option value="East Asian heritage, Polished porcelain skin">1. {{ t('eth_east_asian') }}</option>
                                 <option value="Southeast Asian features, Golden tan complexion">2. {{ t('eth_sea') }}</option>
                                 <option value="South Asian descent, Desi features, Deep almond eyes">3. {{ t('eth_south_asian') }}</option>
@@ -289,7 +289,7 @@
                         <div class="pt-3 border-t border-gray-800/60">
                             <!-- Video Generation Engine Selection -->
                             <div
-                                class="flex items-center justify-between mb-2 bg-[#000106]/20 p-1.5 rounded-lg border border-gray-800">
+                                class="flex items-center justify-between mb-2 bg-[#000106] p-1.5 rounded-lg border border-gray-800">
                                 <span class="text-[10px] text-gray-400 ml-1 font-medium">{{ t('label_video_engine') }}</span>
                                 <div class="flex gap-1" id="videoEngineGroup">
                                     <button type="button" data-value="wan" onclick="setVideoEngine('wan')"
@@ -306,7 +306,7 @@
 
                             <!-- Video Generation Method Selection -->
                             <div
-                                class="flex items-center justify-between mb-3 bg-[#000106]/20 p-1.5 rounded-lg border border-gray-800">
+                                class="flex items-center justify-between mb-3 bg-[#000106] p-1.5 rounded-lg border border-gray-800">
                                 <span class="text-[10px] text-gray-400 ml-1 font-medium">{{ t('label_generation_method') }}</span>
                                 <div class="flex gap-1" id="motionMethodGroup">
                                     <button type="button" data-value="standard" onclick="setMotionMethod('standard')"
@@ -349,7 +349,7 @@
                             <!-- [NEW] My Design Templates Selector -->
                             <div class="flex flex-col gap-1">
                                 <select id="shortsTemplatePreset" 
-                                    class="bg-[#000106] border-none text-white text-[9px] rounded-md px-2 py-1 focus:ring-1 focus:ring-orange-500 outline-none min-w-[120px]">
+                                    class="bg-[#000106] border-none text-white text-[9px] rounded-md px-2 py-1 focus:ring-1 focus:ring-orange-500 outline-none min-w-[120px] bg-[#000106] text-white">
                                     <option value="">-- {{ t('opt_no_template') or '디자인 템플릿 없음' }} --</option>
                                 </select>
                             </div>
@@ -399,7 +399,7 @@
                             </button>
 
                             <button onclick="addToQueue()" id="btnAddToQueue"
-                                class="group w-full flex items-center justify-center gap-2 bg-[#000106] hover:bg-gray-700 text-gray-300 font-bold py-3 px-6 rounded-xl border border-gray-700 transition-all hover:border-purple-500/50">
+                                class="group w-full flex items-center justify-center gap-2 bg-[#000106] hover:bg-[#0a0f1d] text-gray-300 font-bold py-3 px-6 rounded-xl border border-gray-700 transition-all hover:border-purple-500/50">
                                 <span>{{ t('btn_add_to_queue') }}</span>
                                 <span class="group-hover:translate-y-0.5 transition-transform text-xs">📥</span>
                             </button>
@@ -424,7 +424,7 @@
                             <div>
                                 <label class="block text-[10px] text-gray-500 mb-1 dark:text-gray-400">{{ t('label_channel_select') }}</label>
                                 <select id="youtubeChannelId"
-                                    class="w-full bg-[#000106] border border-gray-700 rounded-lg px-2 py-1.5 text-[11px] text-white focus:ring-1 focus:ring-red-500/50 outline-none">
+                                    class="w-full bg-[#000106] border border-gray-700 rounded-lg px-2 py-1.5 text-[11px] text-white focus:ring-1 focus:ring-red-500/50 outline-none bg-[#000106] text-white">
                                     <option value="">{{ t('opt_default_channel') }}</option>
                                     <!-- Dynamic Channels -->
                                 </select>
@@ -432,7 +432,7 @@
                             <div>
                                 <label class="block text-[10px] text-gray-500 mb-1 dark:text-gray-400">{{ t('label_privacy') }}</label>
                                 <select id="uploadPrivacy" onchange="toggleScheduleInput()"
-                                    class="w-full bg-[#000106] border border-gray-700 rounded-lg px-2 py-1.5 text-[11px] text-white focus:ring-1 focus:ring-red-500/50 outline-none">
+                                    class="w-full bg-[#000106] border border-gray-700 rounded-lg px-2 py-1.5 text-[11px] text-white focus:ring-1 focus:ring-red-500/50 outline-none bg-[#000106] text-white">
                                     <option value="private" selected>{{ t('opt_private') }}</option>
                                     <option value="public">{{ t('opt_public') }}</option>
                                     <option value="unlisted">{{ t('opt_unlisted') }}</option>
@@ -474,7 +474,7 @@
                     </div>
                     <div class="flex items-center gap-2">
                         <button onclick="refreshQueue()"
-                            class="p-2.5 bg-[#000106] hover:bg-gray-700 rounded-xl text-white transition-all">🔄</button>
+                            class="p-2.5 bg-[#000106] hover:bg-[#0a0f1d] rounded-xl text-white transition-all">🔄</button>
                         <button onclick="startBatch()" id="btnStartBatch"
                             class="px-6 py-2.5 bg-[#000106] text-black font-black rounded-xl hover:bg-purple-100 transition-all disabled:opacity-30 text-xs shadow-lg dark:text-gray-100 bg-[#000106]">
                             {{ t('btn_batch_start') }} ▶️
@@ -542,7 +542,7 @@
         </div>
 
         <!-- Progress Area -->
-        <div class="px-6 py-6 bg-[#000106]/20">
+        <div class="px-6 py-6 bg-[#000106]">
             <div class="flex justify-between items-end mb-2.5">
                 <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
                     <span class="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse"></span>

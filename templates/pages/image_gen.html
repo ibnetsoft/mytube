@@ -62,7 +62,7 @@
                     <span class="hidden sm:inline">{{ t('btn_analyze_scenes') }}</span>
                 </button>
                 <span id="sceneCountBadge"
-                    class="hidden text-xs font-bold bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-3 py-2 rounded-lg">
+                    class="hidden text-xs font-bold bg-blue-100 dark:bg-[#000106] text-blue-800 dark:text-blue-200 px-3 py-2 rounded-lg">
                     {{ t('label_scenes_count', count=0) }}
                 </span>
 
@@ -74,7 +74,7 @@
                 </button>
 
                 <!-- 사람 제외 체크박스 -->
-                <label class="flex items-center gap-1.5 cursor-pointer select-none px-3 py-2 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors text-xs" title="{{ t('label_no_human_tooltip') }}">
+                <label class="flex items-center gap-1.5 cursor-pointer select-none px-3 py-2 rounded-lg border border-gray-800 bg-[#000106] hover:bg-gray-800 transition-colors text-xs" title="{{ t('label_no_human_tooltip') }}">
                     <input type="checkbox" id="noHumanToggle" class="w-3.5 h-3.5 accent-red-500">
                     <span class="text-red-600 dark:text-red-400 font-bold">{{ t('label_no_human') }}</span>
                 </label>
@@ -118,7 +118,7 @@
 
                             <!-- Use Thumbnail Checkbox -->
                             <label
-                                class="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-[#000106] dark:hover:bg-gray-700 transition-colors">
+                                class="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-[#000106] dark:hover:bg-[#0a0f1d] transition-colors">
                                 <input type="checkbox" id="useThumbnailCheck"
                                     class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700"
                                     onchange="localStorage.setItem('useThumbnailCheck', this.checked)">
@@ -164,13 +164,13 @@
                 <div class="flex-[6] min-w-0 flex flex-col">
                     <label class="block text-sm font-medium text-gray-700 dark:text-white mb-1">{{ t('label_global_prompt') }}</label>
                     <textarea id="globalPrompt"
-                        class="input-field w-full flex-1 text-sm p-3 min-h-[80px] bg-yellow-50 dark:bg-yellow-900/10 border-yellow-200 dark:border-yellow-800 focus:border-yellow-400 focus:ring-yellow-400"
+                        class="input-field w-full flex-1 text-sm p-3 min-h-[80px] bg-[#000106] border-gray-800 focus:border-indigo-500 focus:ring-indigo-500"
                         placeholder="{{ t('placeholder_global_prompt') }}"></textarea>
                 </div>
-                <div class="flex-[4] bg-indigo-50 bg-[#000106] p-4 rounded-lg border border-indigo-100 dark:border-gray-700">
+                <div class="flex-[4] bg-[#000106] p-4 rounded-lg border border-gray-800">
                     <label class="block text-sm font-bold text-gray-800 dark:text-white mb-1">{{ t('label_ethnicity') }}</label>
                     <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">{{ t('helper_ethnicity') }}</p>
-                    <select id="charEthnicity" class="input-field w-full p-2.5 text-sm bg-[#000106] border border-gray-300 dark:border-gray-600 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-gray-800 dark:text-gray-200">
+                    <select id="charEthnicity" class="input-field w-full p-2.5 text-sm bg-[#000106] border border-gray-300 dark:border-gray-600 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-gray-800 dark:text-gray-200 bg-[#000106] text-white">
                         <option value="East Asian heritage, Polished porcelain skin">{{ t('eth_east_asian') }}</option>
                         <option value="Southeast Asian features, Golden tan complexion">{{ t('eth_southeast_asian') }}</option>
                         <option value="South Asian descent, Desi features, Deep almond eyes">{{ t('eth_south_asian') }}</option>
@@ -211,7 +211,7 @@
                     <span>➕</span> {{ t('btn_add_manual') }}
                 </button>
                 <button onclick="resetAllCharacters()"
-                    class="flex-1 sm:flex-none btn-secondary text-[10px] py-1.5 px-3 flex items-center justify-center gap-1 text-red-500 border-red-200 hover:bg-red-50">
+                    class="flex-1 sm:flex-none btn-secondary text-[10px] py-1.5 px-3 flex items-center justify-center gap-1 text-red-500 border-red-200 hover:bg-[#000106]">
                     <span>🗑️</span> {{ t('btn_reset_all') }}
                 </button>
                 <button onclick="saveCharactersToProject()" id="saveCharsBtn"
@@ -256,7 +256,7 @@
 
                 <!-- [NEW] Manual Save Button -->
                 <button onclick="manualSavePrompts()" id="manualSaveBtn"
-                    class="btn-secondary text-sm px-4 flex items-center gap-2 bg-blue-50 text-blue-600 border-blue-200">
+                    class="btn-secondary text-sm px-4 flex items-center gap-2 bg-[#000106] text-blue-400 border-gray-800">
                     <span>💾</span> {{ t('btn_save_all') }}
                 </button>
 
@@ -291,7 +291,7 @@
                 <!-- 미리보기 정보 -->
                 <div class="flex gap-4 text-xs text-gray-500 dark:text-gray-400">
                     <span id="blogSceneCount" class="bg-[#000106]/50 px-3 py-1 rounded-full">{{ t('blog_scene_count') }}</span>
-                    <span id="blogImageCount" class="bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 px-3 py-1 rounded-full">{{ t('blog_image_count') }}</span>
+                    <span id="blogImageCount" class="bg-green-100 dark:bg-[#000106] text-green-700 dark:text-green-300 px-3 py-1 rounded-full">{{ t('blog_image_count') }}</span>
                 </div>
                 <!-- 플랫폼 선택 -->
                 <div>
@@ -309,7 +309,7 @@
                 </div>
                 <!-- 포착된 이미지 (Google ImageFX 무료 생성) -->
                 <div class="border border-green-200 dark:border-green-700 rounded-lg overflow-hidden">
-                    <div class="bg-green-50 dark:bg-green-900/30 p-3 flex items-center justify-between">
+                    <div class="bg-[#000106] dark:bg-[#000106] p-3 flex items-center justify-between">
                         <div class="flex items-center gap-2">
                             <span class="text-green-600 dark:text-green-400 font-bold text-sm">{{ t('blog_captured_images_title') }}</span>
                             <span id="extStatusBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-gray-200 bg-[#000106]/50 text-gray-500">{{ t('status_checking_extension') }}</span>
@@ -335,7 +335,7 @@
                         </div>
                     </div>
                     <!-- 선택된 이미지 목록 -->
-                    <div id="selectedBlogImagesSection" class="hidden border-t border-green-200 dark:border-green-700 p-3 bg-green-50/50 dark:bg-green-900/20">
+                    <div id="selectedBlogImagesSection" class="hidden border-t border-green-200 dark:border-green-700 p-3 bg-[#000106] dark:bg-[#000106]">
                         <div class="flex items-center justify-between mb-2">
                             <span class="text-xs font-bold text-green-700 dark:text-green-300">{{ t('blog_selected_images_label') }}</span>
                             <button onclick="clearSelectedBlogImages()" class="text-[10px] text-red-500 hover:text-red-700">{{ t('blog_clear_selected') }}</button>
@@ -351,7 +351,7 @@
                         <span>🚀</span> {{ t('btn_post_to_blog') }}
                     </button>
                     <button onclick="previewBlogHtml()"
-                        class="py-3 px-4 rounded-lg font-bold text-gray-600 dark:text-gray-300 bg-[#000106]/50 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all">
+                        class="py-3 px-4 rounded-lg font-bold text-gray-600 dark:text-gray-300 bg-[#000106]/50 hover:bg-[#0a0f1d] dark:hover:bg-gray-600 transition-all">
                         {{ t('btn_preview_blog') }}
                     </button>
                 </div>
@@ -677,7 +677,7 @@
                         onchange="updateCharLocal(${index}, 'name', this.value)">
                     
                     <select onchange="updateCharLocal(${index}, 'role', this.value)"
-                        class="text-[10px] px-2 py-0.5 rounded-full ${roleBadgeColor} font-medium border-none focus:ring-1 focus:ring-indigo-300 cursor-pointer bg-[#000106]/50 bg-[#000106]/50 whitespace-nowrap">
+                        class="text-[10px] px-2 py-0.5 rounded-full ${roleBadgeColor} font-medium border-none focus:ring-1 focus:ring-indigo-300 cursor-pointer bg-[#000106]/50 bg-[#000106]/50 whitespace-nowrap bg-[#000106] text-white">
                         <option value="주인공" ${char.role === '주인공' ? 'selected' : ''}>{{ t('role_main') }}</option>
                         <option value="조연" ${char.role === '조연' ? 'selected' : ''}>{{ t('role_sub') }}</option>
                         <option value="배경인물" ${char.role === '배경인물' ? 'selected' : ''}>{{ t('role_bg') }}</option>
@@ -710,17 +710,17 @@
 
                 <div class="flex gap-2 mt-3 pt-2 border-t border-gray-100 dark:border-gray-700">
                     <button onclick="applyCharacter(${index})" 
-                        class="flex-1 btn-secondary text-[10px] py-1.5 flex items-center justify-center gap-1 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200">
+                        class="flex-1 btn-secondary text-[10px] py-1.5 flex items-center justify-center gap-1 hover:bg-[#000106] hover:text-blue-600 hover:border-blue-200">
                         <span>⬇️</span> ${i18n.btn_apply}
                     </button>
                     
                     <button id="regen-btn-${index}" onclick="regenerateCharacter(${index})" 
-                        class="px-2 py-1.5 border border-gray-200 dark:border-gray-700 rounded text-gray-500 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 transition-colors dark:text-gray-400" title="${i18n.btn_regen_prompt}">
+                        class="px-2 py-1.5 border border-gray-200 dark:border-gray-700 rounded text-gray-500 hover:bg-[#000106] dark:hover:bg-green-900/20 hover:text-green-600 transition-colors dark:text-gray-400" title="${i18n.btn_regen_prompt}">
                         🔄
                     </button>
                     
                     <button onclick="deleteCharacter(${index})" 
-                        class="px-2 py-1.5 border border-gray-200 dark:border-gray-700 rounded text-gray-500 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 transition-colors dark:text-gray-400" title="${i18n.btn_delete}">
+                        class="px-2 py-1.5 border border-gray-200 dark:border-gray-700 rounded text-gray-500 hover:bg-[#000106] dark:hover:bg-red-900/20 hover:text-red-600 transition-colors dark:text-gray-400" title="${i18n.btn_delete}">
                         🗑️
                     </button>
                 </div>
@@ -1227,7 +1227,7 @@
                                     <span class="text-2xl mb-2">🖼️</span>
                                     <span class="text-xs">No Asset</span>
                                     <button onclick="document.getElementById('scene-upload-${i}').click()" 
-                                            class="mt-2 text-[10px] text-blue-500 hover:text-blue-600 border border-blue-200 px-2 py-1 rounded bg-blue-50 dark:bg-blue-900/40 dark:border-blue-800 transition-colors">
+                                            class="mt-2 text-[10px] text-blue-500 hover:text-blue-600 border border-gray-800 px-2 py-1 rounded bg-[#000106] transition-colors">
                                         📁 ${i18n.btn_upload}
                                     </button>
                                 </div>
@@ -1258,13 +1258,13 @@
                             <div class="col-span-3 flex flex-col gap-1">
                                 <label class="text-[10px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">🎨 Visual Description</label>
                                 <div class="flex items-center gap-1">
-                                    <button onclick="toggleFullPrompt(${i})" id="toggle-p-btn-${i}" class="text-indigo-500 hover:text-indigo-600 text-[9px] bg-indigo-50 dark:bg-indigo-900/30 px-1.5 py-0.5 rounded transition-colors font-bold whitespace-nowrap">${i18n.btn_expand_view}</button>
+                                    <button onclick="toggleFullPrompt(${i})" id="toggle-p-btn-${i}" class="text-indigo-500 hover:text-indigo-600 text-[9px] bg-[#000106] px-1.5 py-0.5 rounded border border-gray-800 transition-colors font-bold whitespace-nowrap">${i18n.btn_expand_view}</button>
                                     ${window.userMembership !== 'std' ? `<button onclick="generateSingleImage(${i})" class="text-blue-500 hover:text-blue-600 text-[9px] whitespace-nowrap">↻ Regen</button>` : ''}
                                 </div>
                             </div>
                             <div class="col-span-9 relative">
                                 <!-- Dynamic Summary View -->
-                                <div id="prompt-summary-${i}" class="p-1 px-2 rounded border border-blue-100 dark:border-blue-900/40 bg-blue-50/20 dark:bg-blue-900/10 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors group/summary h-8 flex items-center" onclick="toggleFullPrompt(${i})">
+                                <div id="prompt-summary-${i}" class="p-1 px-2 rounded border border-gray-800 bg-[#000106] cursor-pointer hover:bg-gray-800 transition-colors group/summary h-8 flex items-center" onclick="toggleFullPrompt(${i})">
                                     <p class="text-[11px] text-gray-700 dark:text-gray-200 italic line-clamp-1 w-full leading-tight font-serif">${extractDynamicPart(p.prompt_en)}</p>
                                 </div>
                                 <!-- Full Editable Textarea -->
@@ -1281,13 +1281,13 @@
                         </div>
 
                         <!-- 🌊 Google Flow Optimized Prompt -->
-                        <div class="grid grid-cols-12 gap-2 items-start bg-blue-50/30 dark:bg-blue-900/10 p-2 rounded border border-blue-50 dark:border-blue-900/30">
+                        <div class="grid grid-cols-12 gap-2 items-start bg-[#000106] p-2 rounded border border-gray-800">
                             <div class="col-span-3 flex flex-col gap-1">
                                 <label class="text-[10px] font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">🌊 Google Flow</label>
                                 <div class="flex items-center gap-1">
                                     <button onclick="copyFlowPrompt(${i})" class="text-[8px] bg-blue-600 text-white px-2 py-0.5 rounded hover:bg-blue-700 transition-colors">📋 Copy</button>
                                     <button onclick="toggleFlowEditor(${i})" class="text-[8px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">Edit</button>
-                                    ${window.userMembership !== 'std' ? `<button onclick="regenFlowPrompt(${i})" id="regen-flow-btn-${i}" class="text-[8px] text-blue-500 hover:text-blue-700 border border-blue-200 dark:border-blue-800 px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 transition-colors whitespace-nowrap">↻ AI</button>` : ''}
+                                    ${window.userMembership !== 'std' ? `<button onclick="regenFlowPrompt(${i})" id="regen-flow-btn-${i}" class="text-[8px] text-blue-500 hover:text-blue-700 border border-blue-200 dark:border-blue-800 px-1.5 py-0.5 rounded bg-[#000106] dark:bg-[#000106] transition-colors whitespace-nowrap">↻ AI</button>` : ''}
                                 </div>
                             </div>
                             <div class="col-span-9 flex flex-col gap-0.5">
@@ -1316,7 +1316,7 @@
                                     <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
                                         ${p.visual_analysis.map(item => `
                                         <tr>
-                                            <td class="px-2 py-1.5 text-[10px] font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap bg-[#000106]/50 bg-[#000106]/20">${item.category}</td>
+                                            <td class="px-2 py-1.5 text-[10px] font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap bg-[#000106]/50 bg-[#000106]">${item.category}</td>
                                             <td class="px-2 py-1.5 text-[10px] text-gray-700 dark:text-gray-300 min-w-[120px] leading-relaxed">${item.extracted_info}</td>
                                             <td class="px-2 py-1.5 text-[10px] text-blue-600 dark:text-blue-400 font-mono italic border-l border-gray-100 dark:border-gray-800">${item.visual_keywords}</td>
                                         </tr>
@@ -1347,9 +1347,9 @@
                             </button>
                             <div class="flex bg-gray-200 bg-[#000106] rounded p-0.5 gap-0.5 shrink-0">
                                 <button class="hidden px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'wan' ? 'bg-[#000106] dark:bg-gray-600 shadow text-blue-600 dark:text-white font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'wan')" title="Wan 2.1">Wan</button>
-                                <button class="hidden px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'seedance' ? 'bg-green-100 dark:bg-green-900 shadow text-green-700 dark:text-green-300 font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'seedance')" title="Seedance">🌱 Seed</button>
+                                <button class="hidden px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'seedance' ? 'bg-green-100 dark:bg-[#000106] shadow text-green-700 dark:text-green-300 font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'seedance')" title="Seedance">🌱 Seed</button>
                                 <button class="hidden px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'akool' ? 'bg-[#000106] dark:bg-gray-600 shadow text-blue-600 dark:text-white font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'akool')" title="LipSync">Lip</button>
-                                <button class="px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'veo' ? 'bg-blue-100 dark:bg-blue-900 shadow text-blue-700 dark:text-blue-300 font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'veo')" title="Veo">Veo</button>
+                                <button class="px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'veo' ? 'bg-blue-100 dark:bg-[#000106] shadow text-blue-700 dark:text-blue-300 font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'veo')" title="Veo">Veo</button>
                             </div>
                         </div>` : ''}
                     </div>
@@ -2685,13 +2685,13 @@
         }
 
         if (hasScript) {
-            badge.className = "text-[10px] items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 font-normal hidden md:flex";
+            badge.className = "text-[10px] items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 dark:bg-[#000106] text-green-600 dark:text-green-400 font-normal hidden md:flex";
             // [Modified] Add topic text
             const label = "{{ t('script_ready') }}";
             const text = topicText ? `[${topicText}] ${label}` : label;
             badge.innerHTML = `<span>✅</span> ${text}`;
         } else {
-            badge.className = "text-[10px] items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-normal hidden md:flex";
+            badge.className = "text-[10px] items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 dark:bg-[#000106] text-red-600 dark:text-red-400 font-normal hidden md:flex";
             const label = "{{ t('no_script') }}";
             const text = topicText ? `[${topicText}] ${label}` : label;
             badge.innerHTML = `<span>🚫</span> ${text}`;
@@ -3614,11 +3614,11 @@
             }
 
             if (result.status === 'ok') {
-                resultDiv.className = 'mt-3 p-3 rounded-lg text-sm bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300 border border-green-200 dark:border-green-700';
+                resultDiv.className = 'mt-3 p-3 rounded-lg text-sm bg-[#000106] dark:bg-[#000106] text-green-800 dark:text-green-300 border border-green-200 dark:border-green-700';
                 resultDiv.innerHTML = `<strong>게시 완료!</strong><br>${urls.join(' | ')}`;
                 Utils.showToast(i18n.msg_blog_post_done, 'success');
             } else {
-                resultDiv.className = 'mt-3 p-3 rounded-lg text-sm bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-700';
+                resultDiv.className = 'mt-3 p-3 rounded-lg text-sm bg-[#000106] dark:bg-[#000106] text-red-800 dark:text-red-300 border border-red-200 dark:border-red-700';
                 resultDiv.innerHTML = messages.join('<br>');
                 Utils.showToast(messages.join(' | '), 'warning');
             }

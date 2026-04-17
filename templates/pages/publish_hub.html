@@ -12,7 +12,7 @@
             <p class="text-gray-500 dark:text-gray-400 mt-1 font-medium">{{ t('publish_hub_desc') }}</p>
         </div>
         <div class="flex items-center gap-3">
-            <button onclick="showSessionList()" class="px-4 py-2 bg-[#000106] text-gray-700 dark:text-gray-300 rounded-xl font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+            <button onclick="showSessionList()" class="px-4 py-2 bg-[#000106] text-gray-700 dark:text-gray-300 rounded-xl font-bold hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d] transition-colors">
                 {{ t('btn_my_session_list') }}
             </button>
             <button onclick="createNewSession()" class="btn-primary flex items-center gap-2 px-6 py-2.5 rounded-xl shadow-lg shadow-blue-500/20">
@@ -61,7 +61,7 @@
                     <span class="p-2 bg-indigo-500/10 text-indigo-500 rounded-lg text-lg">📂</span>
                     <h2 class="text-lg font-bold text-gray-800 dark:text-white">{{ t('label_from_existing_project') }}</h2>
                 </div>
-                <select id="projectSelect" class="input-field w-full mb-3" onchange="onProjectSelect()">
+                <select id="projectSelect" class="input-field w-full mb-3 bg-[#000106] text-white" onchange="onProjectSelect()">
                     <option value="">{{ t('option_select_project') }}</option>
                 </select>
                 <button onclick="loadFromProject()" class="w-full py-2 bg-indigo-500 text-white rounded-xl font-bold hover:bg-indigo-600 transition-colors">{{ t('btn_load_script') }}</button>
@@ -174,12 +174,12 @@
                     </div>
 
                     <div class="space-y-3">
-                        <label class="flex items-center gap-3 p-3 border-2 rounded-xl cursor-pointer transition-all border-blue-500 bg-blue-50/50 dark:bg-blue-500/10">
+                        <label class="flex items-center gap-3 p-3 border-2 rounded-xl cursor-pointer transition-all border-blue-500 bg-[#000106] dark:bg-blue-500/10">
                             <input type="checkbox" id="chkWordpress" checked class="w-4 h-4 accent-blue-500">
                             <span class="text-2xl">🇼</span>
                             <span class="font-bold text-sm">WordPress</span>
                         </label>
-                        <label class="flex items-center gap-3 p-3 border-2 rounded-xl cursor-pointer transition-all border-orange-500 bg-orange-50/50 dark:bg-orange-500/10">
+                        <label class="flex items-center gap-3 p-3 border-2 rounded-xl cursor-pointer transition-all border-orange-500 bg-[#000106] dark:bg-orange-500/10">
                             <input type="checkbox" id="chkBlogger" checked class="w-4 h-4 accent-orange-500">
                             <span class="text-2xl">📝</span>
                             <span class="font-bold text-sm">Google Blogger</span>
@@ -264,15 +264,15 @@
             <p class="text-gray-500 mb-6">{{ t('youtube_upload_desc') }}</p>
 
             <div id="publishSummary" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div class="bg-blue-50 dark:bg-blue-500/10 rounded-xl p-4">
+                <div class="bg-[#000106] dark:bg-blue-500/10 rounded-xl p-4">
                     <div class="font-bold text-blue-600 dark:text-blue-400 mb-1">WordPress</div>
                     <span id="summaryWp" class="text-sm text-gray-600 dark:text-gray-400">-</span>
                 </div>
-                <div class="bg-orange-50 dark:bg-orange-500/10 rounded-xl p-4">
+                <div class="bg-[#000106] dark:bg-orange-500/10 rounded-xl p-4">
                     <div class="font-bold text-orange-600 dark:text-orange-400 mb-1">Blogger</div>
                     <span id="summaryBlogger" class="text-sm text-gray-600 dark:text-gray-400">-</span>
                 </div>
-                <div class="bg-red-50 dark:bg-red-500/10 rounded-xl p-4">
+                <div class="bg-[#000106] dark:bg-red-500/10 rounded-xl p-4">
                     <div class="font-bold text-red-600 dark:text-red-400 mb-1">YouTube</div>
                     <span id="summaryYoutube" class="text-sm text-gray-600 dark:text-gray-400">-</span>
                 </div>
@@ -289,7 +289,7 @@
         <div class="bg-[#000106] rounded-2xl p-6 shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-xl font-bold text-gray-800 dark:text-white">{{ t('label_publish_session_list') }}</h2>
-                <button onclick="closeSessionList()" class="p-2 hover:bg-[#000106] dark:hover:bg-gray-700 rounded-lg">&times;</button>
+                <button onclick="closeSessionList()" class="p-2 hover:bg-[#000106] dark:hover:bg-[#0a0f1d] rounded-lg">&times;</button>
             </div>
             <div id="sessionListContent"></div>
         </div>
@@ -510,7 +510,7 @@ function renderImagePoints() {
         const hasImage = !!img.image_url;
         if (hasImage) filled++;
         return `
-        <div class="p-3 border-2 rounded-xl transition-all cursor-pointer ${selectedImageIdx === i ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-500/10' : (hasImage ? 'border-green-300 bg-green-50/50 dark:bg-green-500/5' : 'border-gray-200 dark:border-gray-700')}"
+        <div class="p-3 border-2 rounded-xl transition-all cursor-pointer ${selectedImageIdx === i ? 'border-blue-500 bg-[#000106] dark:bg-blue-500/10' : (hasImage ? 'border-green-300 bg-[#000106] dark:bg-green-500/5' : 'border-gray-200 dark:border-gray-700')}"
              onclick="selectImagePoint(${i})">
             <div class="flex items-center justify-between mb-2">
                 <span class="text-xs font-bold ${hasImage ? 'text-green-500' : 'text-gray-400'}">#${img.position || i+1} ${hasImage ? '✓' : '○'}</span>
@@ -698,12 +698,12 @@ async function postToBlogs() {
 
         for (const [platform, result] of Object.entries(results)) {
             if (result.status === 'ok') {
-                html += `<div class="p-3 bg-green-50 dark:bg-green-500/10 rounded-lg mb-2">
+                html += `<div class="p-3 bg-[#000106] dark:bg-green-500/10 rounded-lg mb-2">
                     <span class="font-bold text-green-600">${platform}</span>: ${i18n.status_post_done}
                     ${result.url ? `<a href="${result.url}" target="_blank" class="text-blue-500 ml-2 text-sm">${i18n.status_go_preview} →</a>` : ''}
                 </div>`;
             } else {
-                html += `<div class="p-3 bg-red-50 dark:bg-red-500/10 rounded-lg mb-2">
+                html += `<div class="p-3 bg-[#000106] dark:bg-red-500/10 rounded-lg mb-2">
                     <span class="font-bold text-red-600">${platform}</span>: ${result.error || i18n.status_failed}
                 </div>`;
             }
@@ -775,7 +775,7 @@ async function showSessionList() {
         }
 
         el.innerHTML = sessions.map(s => `
-            <div class="flex items-center justify-between p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-[#000106] dark:hover:bg-gray-700/50 cursor-pointer" onclick="loadSession(${s.id})">
+            <div class="flex items-center justify-between p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-[#000106] dark:hover:bg-[#0a0f1d]/50 cursor-pointer" onclick="loadSession(${s.id})">
                 <div>
                     <div class="font-bold text-gray-800 dark:text-white">${s.title || i18n.label_untitled}</div>
                     <div class="text-xs text-gray-400">${s.step || 'script'} | ${s.created_at || ''}</div>

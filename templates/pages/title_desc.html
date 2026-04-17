@@ -16,7 +16,7 @@
 
             <!-- [NEW] Project Title Display -->
             <div
-                class="hidden md:flex items-center gap-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 rounded border border-indigo-100 dark:border-indigo-800 ml-2 max-w-[200px] shrink-0">
+                class="hidden md:flex items-center gap-2 px-3 py-1.5 bg-[#000106] rounded border border-gray-800 ml-2 max-w-[200px] shrink-0">
                 <span class="text-xs font-bold text-indigo-700 dark:text-indigo-300 whitespace-nowrap">{{
                     t('label_title_prefix') }}</span>
                 <span id="projectTitleDisplay" class="text-xs text-gray-600 dark:text-gray-300 truncate cursor-help"
@@ -349,9 +349,9 @@ ${i18n.prompt_only_json}.`;
         if (!metaData) return;
 
         document.getElementById('titlesList').innerHTML = (metaData.titles || []).map((title, i) => `
-            <div class="group flex items-center justify-between p-2.5 bg-[#000106]/50/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded border border-transparent hover:border-blue-200 dark:hover:border-blue-800 transition-all cursor-pointer" onclick="copyTitle(${i})">
+            <div class="group flex items-center justify-between p-2.5 bg-[#000106] hover:bg-blue-900/20 rounded border border-transparent hover:border-blue-800 transition-all cursor-pointer" onclick="copyTitle(${i})">
                 <span class="text-xs text-gray-700 dark:text-gray-200 group-hover:text-blue-700 dark:group-hover:text-blue-300 font-medium">${title}</span>
-                <span class="opacity-0 group-hover:opacity-100 text-[10px] text-blue-500 bg-[#000106] px-1.5 py-0.5 rounded border border-blue-100 dark:border-blue-900">{{ t('btn_copy') }}</span>
+                <span class="opacity-0 group-hover:opacity-100 text-[10px] text-blue-500 bg-[#000106] px-1.5 py-0.5 rounded border border-gray-800">{{ t('btn_copy') }}</span>
             </div>
         `).join('');
 

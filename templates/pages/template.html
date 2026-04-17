@@ -113,9 +113,9 @@
                     </div>
                     <div class="flex bg-[#000106] rounded-lg p-1 border border-gray-200 dark:border-gray-700">
                         <button type="button" onclick="setAspectRatio('16:9')" id="ratio169Btn"
-                            class="px-2 py-1 text-[10px] rounded transition-all hover:bg-gray-200 dark:hover:bg-gray-700">📺 16:9</button>
+                            class="px-2 py-1 text-[10px] rounded transition-all hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d]">📺 16:9</button>
                         <button type="button" onclick="setAspectRatio('9:16')" id="ratio916Btn"
-                            class="px-2 py-1 text-[10px] rounded transition-all hover:bg-gray-200 dark:hover:bg-gray-700">📱 9:16</button>
+                            class="px-2 py-1 text-[10px] rounded transition-all hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d]">📱 9:16</button>
                     </div>
                 </div>
                 
@@ -176,7 +176,7 @@
                 <div class="space-y-3">
                     <div class="flex items-center gap-1.5">
                         <select id="shortsTemplateSelect" onchange="loadShortsTemplatePreset(this.value)"
-                            class="flex-1 bg-[#000106] border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-[11px] rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-purple-500/30">
+                            class="flex-1 bg-[#000106] border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-[11px] rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-purple-500/30 bg-[#000106] text-white">
                             <option value="">{{ t('opt_select_template') }}</option>
                         </select>
                         <button onclick="deleteShortsTemplatePreset()" id="btnDeleteShortsPreset"
@@ -244,7 +244,7 @@
                     {{ t('btn_regen') }}
                 </button>
             </div>
-            <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+            <div class="bg-[#000106] dark:bg-[#000106] rounded-lg p-4">
                 <h4 class="font-medium text-blue-800 dark:text-blue-300 mb-2">💡 {{ t('title_tip') }}</h4>
                 <ul class="text-sm text-blue-700 dark:text-blue-400 space-y-1">
                     <li>• {{ t('tip_text_length') }}</li>
@@ -564,7 +564,7 @@
                     if (textCandidates) {
                         textCandidates.innerHTML = hookTexts.map((text, i) => `
                             <button onclick="applyHookText('${text.replace(/'/g, "\\'")}', ${i})"
-                                class="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:bg-blue-200 rounded-full hover:bg-blue-200 dark:hover:bg-blue-800 transition">
+                                class="px-2 py-1 text-xs bg-blue-100 dark:bg-[#000106] text-blue-800 dark:bg-blue-200 rounded-full hover:bg-blue-200 dark:hover:bg-blue-800 transition">
                                 ${text}
                             </button>
                         `).join('');
@@ -1069,7 +1069,7 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
         if (!thumbnailData || !thumbnailData.ideas) return;
         const container = document.getElementById('ideasList');
         container.innerHTML = thumbnailData.ideas.map((idea, i) => `
-            <div class="bg-[#000106]/50 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-primary transition ${i === selectedIdeaIndex ? 'ring-2 ring-primary bg-blue-50 dark:bg-gray-600' : ''}" onclick="selectIdea(${i})">
+            <div class="bg-[#000106]/50 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-primary transition ${i === selectedIdeaIndex ? 'ring-2 ring-primary bg-[#000106] dark:bg-gray-600' : ''}" onclick="selectIdea(${i})">
                 <div class="flex items-center justify-between mb-2">
                     <span class="font-medium text-gray-800 dark:text-white">${i18n.label_idea_prefix} ${i + 1}</span>
                     <button onclick="event.stopPropagation(); selectIdea(${i})" class="btn-primary text-xs">${i === selectedIdeaIndex ? i18n.btn_selected_state : i18n.btn_select_state}</button>
@@ -1257,7 +1257,7 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
                     <!-- Font -->
                     <div class="flex-1 min-w-[100px]">
                         <label class="block text-[9px] text-gray-500 mb-1 dark:text-gray-400">${i18n.label_font_header}</label>
-                        <select onchange="updateLayer(${i}, 'font_family', this.value)" class="input-field py-1 text-xs w-full h-8">
+                        <select onchange="updateLayer(${i}, 'font_family', this.value)" class="input-field py-1 text-xs w-full h-8 bg-[#000106] text-white">
                             <option value="Recipekorea" ${layer.font_family === 'Recipekorea' ? 'selected' : ''}>Recipekorea</option>
                             <option value="GmarketSansBold" ${layer.font_family === 'GmarketSansBold' ? 'selected' : ''}>Gmarket Bold</option>
                             <option value="malgun" ${layer.font_family === 'malgun' ? 'selected' : ''}>Malgun Gothic</option>
@@ -1307,7 +1307,7 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
                                    class="absolute -top-2 -left-2 w-12 h-12 p-0 border-none cursor-pointer">
                              </div>
                         </div>
-                        <button onclick="toggleLayerBg(${i})" class="h-8 btn-secondary text-[10px] px-2 whitespace-nowrap ${layer.bg_color ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : ''}">
+                        <button onclick="toggleLayerBg(${i})" class="h-8 btn-secondary text-[10px] px-2 whitespace-nowrap ${layer.bg_color ? 'bg-[#000106] text-indigo-600 border-indigo-200' : ''}">
                             ${layer.bg_color ? 'ON' : 'OFF'}
                         </button>
                     </div>
@@ -1374,7 +1374,7 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
     function renderShapeLayers() {
         const container = document.getElementById('shapeLayersContainer');
         container.innerHTML = shapeLayers.map((shape, i) => `
-            <div class="p-3 rounded-lg border relative transition ${i === selectedShapeIndex ? 'bg-blue-100 border-blue-400 dark:bg-blue-900/40 dark:border-blue-500 ring-1 ring-blue-400' : 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800'}"
+            <div class="p-3 rounded-lg border relative transition ${i === selectedShapeIndex ? 'bg-blue-100 border-blue-400 dark:bg-[#000106] dark:border-blue-500 ring-1 ring-blue-400' : 'bg-[#000106] border-blue-200 dark:bg-[#000106] dark:border-blue-800'}"
                  onclick="selectShapeLayer(${i})">
                 <div class="flex items-center justify-between mb-2">
                     <span class="text-[10px] font-bold text-blue-500">${i18n.label_shape_prefix} ${i + 1}</span>
@@ -1418,7 +1418,7 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
                 
                 <div class="mt-2 flex justify-end gap-1">
                      <button onclick="flipShapeGradient(${i}); event.stopPropagation();" class="text-xs p-1 px-2 rounded border bg-[#000106]/50 dark:border-gray-600 hover:bg-blue-100 dark:hover:bg-blue-900/40">${i18n.btn_flip_gradient}</button>
-                     <select onchange="updateShapeLayer(${i}, 'gradient_direction', this.value)" class="text-xs p-1 rounded border bg-[#000106]/50 dark:border-gray-600">
+                     <select onchange="updateShapeLayer(${i}, 'gradient_direction', this.value)" class="text-xs p-1 rounded border bg-[#000106]/50 dark:border-gray-600 bg-[#000106] text-white">
                         <option value="horizontal" ${shape.gradient_direction === 'horizontal' ? 'selected' : ''}>${i18n.opt_direction_h}</option>
                         <option value="vertical" ${shape.gradient_direction === 'vertical' ? 'selected' : ''}>${i18n.opt_direction_v}</option>
                      </select>
@@ -2630,7 +2630,7 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
                 if (thumbnailData && thumbnailData.texts) {
                     const textContainer = document.getElementById('textCandidates');
                     textContainer.innerHTML = thumbnailData.texts.map(text => `
-                        <button onclick="addTextToActiveLayer('${text.replace(/'/g, "\\'")}')" class="px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 rounded-lg hover:bg-yellow-200 transition text-sm">
+                        <button onclick="addTextToActiveLayer('${text.replace(/'/g, "\\'")}')" class="px-3 py-1 bg-yellow-100 dark:bg-[#000106] text-yellow-800 dark:text-yellow-300 rounded-lg hover:bg-yellow-200 transition text-sm">
                             ${text}
                         </button>
                     `).join('');

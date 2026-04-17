@@ -6,7 +6,7 @@
 <div class="h-[calc(100vh-80px)] overflow-y-auto p-4 custom-scrollbar">
     <!-- Header with Actions -->
     <div
-        class="flex justify-between items-center mb-4 sticky top-0 bg-[#000106] z-10 py-2 border-b border-gray-200 dark:border-gray-700">
+        class="flex justify-between items-center mb-4 sticky top-0 bg-[#000106] z-10 py-2 border-b border-gray-200 dark:border-gray-800">
         <h2 class="text-lg font-bold flex items-center gap-2">
             <span>⚙️ {{ t('nav_settings') }}</span>
         </h2>
@@ -54,9 +54,9 @@
         <!-- API Settings Tab (Now License Info) -->
         <div id="tab-content-api" class="tab-content active">
             <div class="max-w-4xl mx-auto space-y-6 py-4">
-                <div class="card p-6 shadow-lg border border-gray-200 dark:border-gray-700 bg-[#000106]">
+                <div class="card p-6 shadow-lg border border-gray-200 dark:border-gray-800 bg-[#000106]">
                     <div class="flex items-center gap-4 mb-6">
-                        <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/40 rounded-2xl flex items-center justify-center text-2xl">
+                        <div class="w-12 h-12 bg-blue-100 dark:bg-[#000106] rounded-2xl flex items-center justify-center text-2xl">
                             🎫
                         </div>
                         <div>
@@ -69,7 +69,7 @@
                         <!-- License Key View -->
                         <div class="space-y-2">
                             <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest">현재 라이선스 키</label>
-                            <div class="flex items-center gap-2 bg-[#000106]/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700">
+                            <div class="flex items-center gap-2 bg-[#000106]/50 p-3 rounded-xl border border-gray-100 dark:border-gray-800">
                                 <span class="text-sm font-mono font-bold text-blue-600 dark:text-blue-400">
                                     {% if get_license_key() %}
                                         {{ get_license_key()[:4] }}****{{ get_license_key()[-4:] if get_license_key()|length > 8 else '' }}
@@ -133,7 +133,7 @@
                     </h3>
 
                     <!-- Channel Info Sub-Banner (Relocated) -->
-                    <div class="mb-6 p-3 rounded-xl border {% if youtube_channel %}border-blue-100 dark:border-blue-900/30 bg-blue-50/20 dark:bg-blue-900/10{% else %}border-dashed border-gray-200 dark:border-gray-700 bg-[#000106]/50 bg-[#000106]/20{% endif %} flex items-center justify-between transition-all">
+                    <div class="mb-6 p-3 rounded-xl border {% if youtube_channel %}border-blue-100 dark:border-blue-900/30 bg-[#000106] dark:bg-[#000106]{% else %}border-dashed border-gray-200 dark:border-gray-700 bg-[#000106]/50 bg-[#000106]{% endif %} flex items-center justify-between transition-all">
                         <div class="flex items-center gap-3">
                             <div class="w-8 h-8 rounded-full {% if youtube_channel %}bg-red-500 text-white shadow-lg shadow-red-500/20{% else %}bg-gray-200 bg-[#000106]/50 text-gray-400{% endif %} flex items-center justify-center">
                                 <i class="fab fa-youtube text-sm"></i>
@@ -195,8 +195,8 @@
                             <label class="text-xs font-bold text-gray-700 dark:text-white mb-2 block">{{ t('label_default_voice') }}
                                 (Gemini)</label>
                             <div class="grid grid-cols-2 gap-2 mb-2">
-                                <select id="geminiVoice" class="input-field text-xs h-8"></select>
-                                <select id="geminiLanguage" class="input-field text-xs h-8"></select>
+                                <select id="geminiVoice" class="input-field text-xs h-8 bg-[#000106] text-white"></select>
+                                <select id="geminiLanguage" class="input-field text-xs h-8 bg-[#000106] text-white"></select>
                             </div>
                             <textarea id="geminiStylePrompt" rows="2" class="input-field w-full text-xs"
                                 placeholder="{{ t('placeholder_voice_style') }}"></textarea>
@@ -206,7 +206,7 @@
                         <div class="space-y-4">
                             <!-- [NEW] Main Script Writing Prompt -->
                             <div
-                                class="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 border border-purple-200 dark:border-purple-800">
+                                class="bg-[#000106] dark:bg-[#000106] rounded-lg p-3 border border-purple-200 dark:border-purple-800">
                                 <label
                                     class="text-xs font-bold text-purple-700 dark:text-purple-300 mb-2 flex items-center gap-2">
                                     <span>{{ t('label_script_master_prompt') }}</span>
@@ -254,7 +254,7 @@
 
                 <!-- [NEW] Add Custom Style Form -->
                 <div
-                    class="bg-blue-50 dark:bg-blue-900/10 p-4 rounded-xl border border-blue-100 dark:border-blue-800 mb-6 shadow-sm">
+                    class="bg-[#000106] dark:bg-[#000106] p-4 rounded-xl border border-blue-100 dark:border-blue-800 mb-6 shadow-sm">
                     <div class="flex items-center justify-between mb-3">
                         <h4 class="text-sm font-bold text-blue-700 dark:text-blue-300 flex items-center gap-2">
                             <span>{{ t('btn_add_custom_style') }}</span>
@@ -278,7 +278,7 @@
                                     </div>
                                     <div>
                                         <label class="text-[10px] font-bold text-gray-500 mb-1 block">사용 위치</label>
-                                        <select id="customStyleMode" class="input-field w-full text-xs">
+                                        <select id="customStyleMode" class="input-field w-full text-xs bg-[#000106] text-white">
                                             <option value="image">{{ t('label_image_gen_only') }}</option>
                                             <option value="all">🌐 전체 공통</option>
                                         </select>
@@ -364,7 +364,7 @@
 
                 <!-- [NEW] Add Custom Thumbnail Style -->
                 <div
-                    class="mb-4 p-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-lg border border-blue-100 dark:border-blue-800">
+                    class="mb-4 p-3 bg-[#000106] dark:bg-[#000106] rounded-lg border border-blue-100 dark:border-blue-800">
                     <h4 class="text-xs font-bold text-blue-800 dark:text-blue-300 mb-2">{{ t('btn_add_custom_thumb_style') }}</h4>
                     <div class="space-y-2">
                         <div class="flex gap-2">
@@ -416,7 +416,7 @@
                     <button onclick="exportData()" class="flex-1 btn-secondary py-1.5 text-xs">📤 백업
                         (JSON)</button>
                     <button onclick="clearData()"
-                        class="flex-1 btn-secondary text-red-600 bg-red-50 hover:bg-red-100 border-red-200 py-1.5 text-xs">🗑️
+                        class="flex-1 btn-secondary text-red-600 bg-[#000106] hover:bg-red-100 border-red-200 py-1.5 text-xs">🗑️
                         {{ t('btn_reset_short') }}</button>
                 </div>
             </div>
@@ -489,7 +489,7 @@
                 </div>
 
                 <!-- Veo 버전 선택 (Veo 선택 시에만 표시) -->
-                <div id="veo-version-panel" class="card p-4 shadow-sm border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 hidden">
+                <div id="veo-version-panel" class="card p-4 shadow-sm border border-blue-200 dark:border-blue-800 bg-[#000106] dark:bg-[#000106] hidden">
                     <h3 class="font-bold text-sm text-blue-800 dark:text-blue-300 mb-3 flex items-center gap-2">
                         🤖 Google Veo 버전 선택
                     </h3>
@@ -1042,7 +1042,7 @@
             list.innerHTML = channels.map(ch => {
                 const isAuthenticated = !!ch.credentials_path;
                 const statusBadge = isAuthenticated
-                    ? `<span class="text-green-600 border border-green-200 bg-green-50 px-2 py-0.5 rounded text-xs">${i18n.label_connected}</span>`
+                    ? `<span class="text-green-600 border border-green-200 bg-[#000106] px-2 py-0.5 rounded text-xs">${i18n.label_connected}</span>`
                     : `<span class="text-gray-500 border border-gray-200 bg-[#000106] px-2 py-0.5 rounded text-xs dark:text-gray-400 bg-[#000106] dark:border-gray-700">${i18n.label_disconnected}</span>`;
 
                 const authBtn = isAuthenticated
@@ -1213,7 +1213,7 @@
                             <div class="flex gap-1.5">
                                 <button onclick="toggleEditStylePreset('${key}')" id="edit_btn_${key}" class="text-[10px] bg-[#000106] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 px-2 py-1.5 rounded-lg hover:bg-[#000106] transition-colors">✏️ ${i18n.btn_edit}</button>
                                 <button onclick="saveOneStylePreset('${key}')" id="save_btn_${key}" class="hidden text-[10px] bg-blue-600 text-white px-3 py-1.5 rounded-lg shadow-sm">💾 ${i18n.btn_save_short}</button>
-                                <button onclick="deleteStylePreset('${key}')" class="text-[10px] bg-red-50 text-red-500 border border-red-100 px-2 py-1.5 rounded-lg hover:bg-red-100 transition-colors">🗑️</button>
+                                <button onclick="deleteStylePreset('${key}')" class="text-[10px] bg-[#000106] text-red-500 border border-red-100 px-2 py-1.5 rounded-lg hover:bg-red-100 transition-colors">🗑️</button>
                             </div>
                         </div>
                         <div class="space-y-2">
@@ -1226,7 +1226,7 @@
                                     <span>🤖 Gemini Grounding Instruction</span>
                                     ${hasInstruction ? ' <i class="fas fa-check-circle text-[8px]"></i>' : ''}
                                 </label>
-                                <textarea id="ginst_${key}" class="input-field w-full text-[11px] font-mono ${hasInstruction ? 'bg-purple-50/30 dark:bg-purple-900/10 border-purple-100 dark:border-purple-900/30' : 'bg-[#000106]'} " rows="${hasInstruction ? 5 : 2}" readonly placeholder="${i18n.placeholder_no_instruction}">${geminiInstruction}</textarea>
+                                <textarea id="ginst_${key}" class="input-field w-full text-[11px] font-mono ${hasInstruction ? 'bg-[#000106] dark:bg-[#000106] border-purple-100 dark:border-purple-900/30' : 'bg-[#000106]'} " rows="${hasInstruction ? 5 : 2}" readonly placeholder="${i18n.placeholder_no_instruction}">${geminiInstruction}</textarea>
                             </div>
                         </div>
                     </div>
@@ -1635,7 +1635,7 @@
                                 <button onclick="toggleEditThumbnailStylePreset('${key}')" id="thumb_edit_btn_${key}" class="text-[10px] bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600 transition-colors">✏️ ${i18n.btn_edit}</button>
                                 <button onclick="saveOneThumbnailStylePreset('${key}')" id="thumb_save_btn_${key}" class="hidden text-[10px] bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition-colors">💾 ${i18n.btn_save_short}</button>
                                 ${!isDefault ?
-                        `<button onclick="deleteThumbnailStylePreset('${key}')" class="text-[10px] bg-red-50 text-red-500 border border-red-200 px-2 py-1 rounded hover:bg-red-100 transition-colors" title="삭제">🗑️</button>`
+                        `<button onclick="deleteThumbnailStylePreset('${key}')" class="text-[10px] bg-[#000106] text-red-500 border border-red-200 px-2 py-1 rounded hover:bg-red-100 transition-colors" title="삭제">🗑️</button>`
                         : ''
                     }
                             </div>
@@ -2186,7 +2186,7 @@
                 tbody.innerHTML = data.rules.map(rule => `
                     <tr class="bg-[#000106] border-b bg-[#000106] dark:border-gray-700 hover:bg-[#000106] dark:hover:bg-gray-600">
                         <td class="px-4 py-2 font-medium text-gray-900 dark:text-white">${rule.condition_type} / <span class="text-blue-500">${rule.condition_value}</span></td>
-                        <td class="px-4 py-2"><span class="bg-blue-100 text-blue-800 text-[10px] font-semibold px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">${rule.action_type}</span></td>
+                        <td class="px-4 py-2"><span class="bg-blue-100 text-blue-800 text-[10px] font-semibold px-2.5 py-0.5 rounded dark:bg-[#000106] dark:text-blue-300">${rule.action_type}</span></td>
                         <td class="px-4 py-2">${rule.description || ''}</td>
                         <td class="px-4 py-2 text-right">
                             <button onclick="deleteWebtoonRule(${rule.id})" class="text-xs text-red-500 hover:underline">${i18n.btn_delete_short}</button>

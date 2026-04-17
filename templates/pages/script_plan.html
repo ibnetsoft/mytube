@@ -4,12 +4,12 @@
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet"/>
 <style>
     :root {
-        --atl-deep:    #060e20;
-        --atl-base:    #0b1326;
-        --atl-low:     #131b2e;
-        --atl-mid:     #171f33;
-        --atl-high:    #222a3d;
-        --atl-highest: #2d3449;
+        --atl-deep:    #000106;
+        --atl-base:    #000106;
+        --atl-low:     #000106;
+        --atl-mid:     #000106;
+        --atl-high:    #000106;
+        --atl-highest: #000106;
         --atl-primary: #b6c4ff;
         --atl-primary-end: #004adf;
         --atl-tertiary: #00daf3;
@@ -22,7 +22,7 @@
     .atl-scrollbar::-webkit-scrollbar-track { background: transparent; }
     .atl-scrollbar::-webkit-scrollbar-thumb { background: var(--atl-outline); border-radius: 10px; }
     .atl-glass {
-        background: rgba(45,52,73,0.55);
+        background: rgba(0, 1, 6, 0.7);
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
     }
@@ -32,20 +32,29 @@
     .atl-input {
         background: var(--atl-deep);
         color: var(--atl-text);
-        border: none;
+        border: 1px solid var(--atl-outline);
+        border-radius: 0.5rem;
+        padding: 0.75rem 1rem;
         outline: none;
-        transition: background 0.2s;
+        transition: all 0.2s;
     }
-    .atl-input:focus { background: var(--atl-high); }
+    .atl-input:focus { background: var(--atl-high); border-color: var(--atl-primary); }
     .atl-input::placeholder { color: var(--atl-outline); }
     .atl-select {
         background: var(--atl-deep);
         color: var(--atl-text);
-        border: none;
+        border: 1px solid var(--atl-outline);
+        border-radius: 0.5rem;
+        padding: 0.5rem 2rem 0.5rem 0.75rem;
         outline: none;
         appearance: none;
         -webkit-appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23454652'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.75rem center;
+        background-size: 1rem;
     }
+    .atl-select:focus { border-color: var(--atl-primary); }
     .atl-section-label {
         font-family: 'Manrope', sans-serif;
         font-size: 9px;
@@ -63,10 +72,11 @@
     }
     .atl-card {
         background: var(--atl-mid);
+        border: 1px solid var(--atl-outline-dim);
         border-radius: 1rem;
     }
     .atl-source-item {
-        background: rgba(34,42,61,0.5);
+        background: rgba(8, 12, 24, 0.5);
         border-radius: 0.875rem;
         border: 1px solid var(--atl-outline-dim);
         transition: background 0.15s;
@@ -171,7 +181,7 @@
                         <label class="atl-field-label block">{{ t('plan_style_label') }}</label>
                         <div class="relative">
                             <select id="scriptStyleSelect"
-                                class="atl-select w-full rounded-xl px-3 py-2.5 text-xs pr-7"
+                                class="atl-select w-full rounded-xl px-3 py-2.5 text-xs pr-7 bg-[#000106] text-white"
                                 style="background: var(--atl-deep);">
                                 <optgroup label="📹 {{ t('style_basic') }}">
                                     <option value="default" selected>{{ t('style_default') }}</option>
@@ -389,7 +399,7 @@
                 <!-- Empty State Placeholder -->
                 <div id="resultPlaceholder" class="h-[68vh] flex flex-col items-center justify-center space-y-8 text-center">
                     <div class="w-24 h-24 rounded-[2rem] flex items-center justify-center text-5xl shadow-inner"
-                         style="background: var(--atl-high); border: 1px solid var(--atl-outline-dim);">
+                         style="background: #000106; border: 1px solid var(--atl-outline-dim);">
                         ✍️
                     </div>
                     <div class="max-w-sm space-y-3">
@@ -788,7 +798,7 @@
         let html = `
             <div class="space-y-4">
                 <!-- 원본 영상 정보 -->
-                <div class="flex gap-4 p-3 bg-[#000106]/50 rounded-lg border border-gray-100 dark:border-gray-700">
+                <div class="flex gap-4 p-3 bg-[#000106] rounded-lg border border-gray-800">
                     <img src="${analysis.thumbnail_url}" class="w-28 h-16 object-cover rounded shadow-sm">
                     <div class="min-w-0">
                         <p class="font-bold text-sm text-gray-800 dark:text-white line-clamp-1">${analysis.video_title || i18n.label_structure_analysis}</p>
@@ -803,7 +813,7 @@
                 <!-- AI 심층 분석 결과 -->
                 <div class="space-y-3">
                     ${analysisResult.summary ? `
-                        <div class="p-3 bg-blue-50 dark:bg-blue-900/10 rounded-lg border border-blue-100 dark:border-blue-800">
+                        <div class="p-3 bg-[#000106] rounded-lg border border-blue-900/30">
                             <h5 class="text-xs font-bold text-blue-600 dark:text-blue-400 mb-1 flex items-center gap-1">
                                 <span>📝</span> ${i18n.label_ai_analysis_summary}
                             </h5>
@@ -844,7 +854,7 @@
                     ` : ''}
                     
                     ${analysisResult.script_analysis ? `
-                        <div class="pt-2 border-t border-gray-100 dark:border-gray-700 mt-2">
+                        <div class="pt-2 border-t border-gray-800 mt-2">
                             <h5 class="text-xs font-bold text-indigo-600 dark:text-indigo-400 mb-2 flex items-center gap-1">
                                 <span>🏗️</span> ${i18n.label_structure_analysis}
                             </h5>
@@ -1070,7 +1080,7 @@
 
         // 1. Hook
         html += `
-            <div class="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-100 dark:border-red-900/50">
+            <div class="p-4 bg-[#000106] rounded-lg border border-gray-800">
                 <h4 class="font-bold text-red-600 dark:text-red-400 mb-2">${i18n.hook_label}</h4>
                 <div id="editHook" contenteditable="true" class="text-gray-800 dark:text-gray-200 text-lg font-medium outline-none focus:ring-2 focus:ring-red-200 rounded p-1">${data.hook || ''}</div>
             </div>
@@ -1100,7 +1110,7 @@
 
         // 3. CTA
         html += `
-            <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-900/50">
+            <div class="p-4 bg-[#000106] rounded-lg border border-gray-800">
                 <h4 class="font-bold text-blue-600 dark:text-blue-400 mb-2">${i18n.cta_label}</h4>
                 <div id="editCTA" contenteditable="true" class="text-gray-800 dark:text-gray-200 outline-none focus:ring-2 focus:ring-blue-200 rounded p-1">${data.cta || ''}</div>
             </div>
@@ -1314,10 +1324,10 @@
         const bestTitle = titles[0];
 
         container.innerHTML = `
-            <div class="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl mb-2">
+            <div class="p-4 bg-[#000106] border border-gray-800 rounded-xl mb-2">
                 <p class="text-xs text-blue-500 mb-2 font-bold text-center">✨ ${i18n.label_ai_best_title}</p>
                 <textarea id="recommendedTitleInput"
-                    class="w-full text-base font-bold text-gray-800 dark:text-white bg-[#000106]/50 border border-blue-300 dark:border-blue-600 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-400 mb-2"
+                    class="w-full text-base font-bold text-gray-800 dark:text-white bg-[#000106] border border-gray-800 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"
                     rows="2"
                     oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
                 >${bestTitle}</textarea>
@@ -1667,7 +1677,7 @@
 
                 filtered.forEach(proj => {
                     const btn = document.createElement('button');
-                    btn.className = 'w-full flex items-center justify-between p-4 bg-[#000106]/50/50 hover:bg-purple-50 dark:hover:bg-purple-900/30 border border-gray-100 dark:border-gray-600 rounded-xl transition-all group mb-2';
+                    btn.className = 'w-full flex items-center justify-between p-4 bg-[#000106] hover:bg-[#000106] dark:hover:bg-purple-900/30 border border-gray-100 dark:border-gray-600 rounded-xl transition-all group mb-2';
                     btn.onclick = () => cloneSourcesFrom(proj.id, proj.name);
                     btn.innerHTML = `
                         <div class="text-left">

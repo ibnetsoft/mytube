@@ -117,7 +117,7 @@
     }
 
     .subtitle-row.active {
-        @apply bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700;
+        @apply bg-[#000106] dark:bg-[#000106] border-blue-200 dark:border-blue-700;
     }
 
     /* Font specific previews in dropdown */
@@ -200,7 +200,7 @@
                 <!-- Template -->
                 <div class="flex items-center gap-1 shrink-0">
                     <select id="shortsTemplateSelect" onchange="applyShortsTemplate(this.value)"
-                        class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-[#000106]/50 border border-indigo-200 dark:border-indigo-900 rounded-md py-1 px-2 w-28 focus:ring-1 focus:ring-indigo-500 focus:outline-none cursor-pointer">
+                        class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-[#000106]/50 border border-indigo-200 dark:border-indigo-900 rounded-md py-1 px-2 w-28 focus:ring-1 focus:ring-indigo-500 focus:outline-none cursor-pointer bg-[#000106] text-white">
                         <option value="">-- {{ t('opt_select_template') }} --</option>
                     </select>
                     <button onclick="refreshShortsTemplatePresets()" class="p-1 text-gray-400 hover:text-indigo-500" title="새로고침">
@@ -215,7 +215,7 @@
                 <!-- Preset -->
                 <div class="flex items-center gap-1 shrink-0">
                     <select id="subtitlePresetSelect" onchange="applySubtitlePreset(this.value)"
-                        class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-[#000106]/50 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-24 focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer">
+                        class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-[#000106]/50 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-24 focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer bg-[#000106] text-white">
                         <option value="">{{ t('opt_select') }}</option>
                     </select>
                     <button onclick="deleteCurrentSubtitlePreset()" class="p-1 text-gray-400 hover:text-red-500 transition-colors" title="{{ t('title_delete_preset') }}">
@@ -233,7 +233,7 @@
                 <!-- Font -->
                 <div class="flex items-center gap-1.5 shrink-0">
                     <select id="fontFamilySelect"
-                        class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-[#000106]/50 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-28 focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer">
+                        class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-[#000106]/50 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-28 focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer bg-[#000106] text-white">
                         <option value="GmarketSansBold" selected>{{ t('font_gmarket') }}</option>
                         <option value="TmonMonsori">{{ t('font_tmon') }}</option>
                         <option value="Jalnan">{{ t('font_jalnan') }}</option>
@@ -344,7 +344,7 @@
                         🎬 <span class="hidden sm:inline">{{ t('btn_render') }}</span>
                     </button>
                     <button id="renderQueueBtn" onclick="addToRenderQueue()" title="{{ t('btn_render_queue') }}"
-                        class="text-[10px] font-semibold px-2 py-1.5 rounded-md transition-all flex items-center gap-1 bg-gray-600 hover:bg-gray-700 text-white shadow-sm disabled:opacity-50">
+                        class="text-[10px] font-semibold px-2 py-1.5 rounded-md transition-all flex items-center gap-1 bg-gray-600 hover:bg-[#0a0f1d] text-white shadow-sm disabled:opacity-50">
                         ➕ <span class="hidden sm:inline">{{ t('btn_render_queue') }}</span>
                     </button>
                 </div>
@@ -357,7 +357,7 @@
             class="flex-1 flex flex-col bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden min-h-0">
             <!-- List Header -->
             <div
-                class="p-2 bg-[#000106]/50/50 border-b border-gray-200 dark:border-gray-600 flex justify-between items-center shrink-0">
+                class="p-2 bg-[#000106] border-b border-gray-200 dark:border-gray-600 flex justify-between items-center shrink-0">
                 <h3 class="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
                     {{ t('subtitle_list_title') }}
                     <span id="debug-info" class="text-[10px] text-red-500 font-mono hidden"></span>
@@ -375,7 +375,7 @@
 
             <!-- 선택삭제 액션바 (선택 모드에서만 표시) -->
             <div id="deleteActionBar"
-                class="hidden items-center justify-between px-3 py-1.5 bg-red-50 dark:bg-red-900/30 border-b border-red-200 dark:border-red-700 shrink-0">
+                class="hidden items-center justify-between px-3 py-1.5 bg-[#000106] dark:bg-[#000106] border-b border-red-200 dark:border-red-700 shrink-0">
                 <span id="deleteActionCount" class="text-[11px] text-red-600 dark:text-red-400 font-medium">0{{ t('items_selected') }}</span>
                 <div class="flex gap-2">
                     <button onclick="selectAllRows()"
@@ -487,7 +487,7 @@
 
                 <div class="flex items-center gap-3 pl-1 mb-0.5 mt-1">
                     <button id="customPlayBtn" onclick="handlePlayBtn()"
-                        class="text-gray-400 hover:text-[#1daaaa] transition-colors focus:outline-none flex items-center justify-center p-1 rounded hover:bg-gray-700">
+                        class="text-gray-400 hover:text-[#1daaaa] transition-colors focus:outline-none flex items-center justify-center p-1 rounded hover:bg-[#0a0f1d]">
                         <svg id="iconPlay" class="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M4 4l12 6-12 6V4z"></path>
                         </svg>
@@ -519,9 +519,9 @@
                         <h3 class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('edit_selected_title') }}</h3>
                         <div class="flex gap-1">
                             <button onclick="adjustTime(-0.1)"
-                                class="px-2 py-0.5 bg-[#000106]/50 rounded border border-gray-300 dark:border-gray-600 text-[10px] font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">-0.1s</button>
+                                class="px-2 py-0.5 bg-[#000106]/50 rounded border border-gray-300 dark:border-gray-600 text-[10px] font-bold hover:bg-[#0a0f1d] dark:hover:bg-gray-600 transition-colors">-0.1s</button>
                             <button onclick="adjustTime(0.1)"
-                                class="px-2 py-0.5 bg-[#000106]/50 rounded border border-gray-300 dark:border-gray-600 text-[10px] font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">+0.1s</button>
+                                class="px-2 py-0.5 bg-[#000106]/50 rounded border border-gray-300 dark:border-gray-600 text-[10px] font-bold hover:bg-[#0a0f1d] dark:hover:bg-gray-600 transition-colors">+0.1s</button>
                             <!-- [NEW] Contextual Save Button -->
                             <button onclick="saveSubtitles(this)"
                                 class="px-2 py-0.5 bg-green-500 text-white rounded font-bold text-[10px] shadow-sm hover:bg-green-600 transition-colors"
@@ -538,7 +538,7 @@
 
                     <!-- [NEW] Image Timing Control -->
                     <div
-                        class="flex justify-between items-center bg-blue-50 bg-[#000106]/50/50 p-1 rounded mb-1 border border-blue-100 dark:border-gray-600">
+                        class="flex justify-between items-center bg-[#000106] p-1 rounded mb-1 border border-blue-100 dark:border-gray-600">
                         <span class="text-[10px] font-bold text-blue-600 dark:text-blue-400">{{ t('label_start_time') }}</span>
                         <div class="flex items-center gap-2">
                             <span id="currentImageTime"
@@ -553,7 +553,7 @@
                     </div>
                     <!-- [NEW] Image End Time Control -->
                     <div
-                        class="flex justify-between items-center bg-orange-50 dark:bg-orange-900/20 p-1 rounded mb-1 border border-orange-100 dark:border-orange-800">
+                        class="flex justify-between items-center bg-[#000106] dark:bg-[#000106] p-1 rounded mb-1 border border-orange-100 dark:border-orange-800">
                         <span class="text-[10px] font-bold text-orange-600 dark:text-orange-400">{{ t('label_end_time') }}</span>
                         <div class="flex items-center gap-2">
                             <span id="currentImageEndTime"
@@ -569,7 +569,7 @@
                 </div>
 
                 <textarea id="currentSubtitleText"
-                    class="w-full flex-1 min-h-[100px] text-sm p-3 border border-blue-200 dark:border-blue-800 rounded bg-blue-50/50 bg-[#000106] focus:ring-1 focus:ring-blue-400 outline-none resize-none disabled:opacity-50 CustomScroll text-gray-700 dark:text-gray-200 transition-colors"
+                    class="w-full flex-1 min-h-[100px] text-sm p-3 border border-blue-200 dark:border-blue-800 rounded bg-[#000106] focus:ring-1 focus:ring-blue-400 outline-none resize-none disabled:opacity-50 CustomScroll text-gray-700 dark:text-gray-200 transition-colors"
                     placeholder="{{ t('placeholder_select_subtitle') }}"></textarea>
 
                 <!-- DEBUG OVERLAY -->
@@ -612,15 +612,15 @@
                     <!-- BGM 소스 방법 탭 -->
                     <div class="flex gap-1 mb-2">
                         <button onclick="setBgmInputMode('upload')" id="bgmTabUpload"
-                            class="flex-1 text-[9px] py-0.5 rounded border bg-purple-100 dark:bg-purple-900 border-purple-300 text-purple-700 dark:text-purple-300 font-bold">
+                            class="flex-1 text-[9px] py-0.5 rounded border bg-purple-100 dark:bg-[#000106] border-purple-300 text-purple-700 dark:text-purple-300 font-bold">
                             {{ t('bgm_tab_upload') }}
                         </button>
                         <button onclick="setBgmInputMode('url')" id="bgmTabUrl"
-                            class="flex-1 text-[9px] py-0.5 rounded border border-gray-300 dark:border-gray-600 text-gray-500 hover:bg-[#000106] dark:hover:bg-gray-700 dark:text-gray-400">
+                            class="flex-1 text-[9px] py-0.5 rounded border border-gray-300 dark:border-gray-600 text-gray-500 hover:bg-[#000106] dark:hover:bg-[#0a0f1d] dark:text-gray-400">
                             {{ t('bgm_tab_url') }}
                         </button>
                         <button onclick="setBgmInputMode('generated')" id="bgmTabGenerated"
-                            class="flex-1 text-[9px] py-0.5 rounded border border-gray-300 dark:border-gray-600 text-gray-500 hover:bg-[#000106] dark:hover:bg-gray-700 dark:text-gray-400">
+                            class="flex-1 text-[9px] py-0.5 rounded border border-gray-300 dark:border-gray-600 text-gray-500 hover:bg-[#000106] dark:hover:bg-[#0a0f1d] dark:text-gray-400">
                             {{ t('bgm_tab_generated') }}
                         </button>
                     </div>
@@ -628,7 +628,7 @@
                     <!-- 파일 업로드 모드 -->
                     <div id="bgmInputUpload" class="bgm-input-panel">
                         <label
-                            class="flex items-center justify-center gap-1 w-full py-1.5 border-2 border-dashed border-purple-300 dark:border-purple-700 rounded cursor-pointer hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition text-[9px] text-purple-600 dark:text-purple-400">
+                            class="flex items-center justify-center gap-1 w-full py-1.5 border-2 border-dashed border-purple-300 dark:border-purple-700 rounded cursor-pointer hover:border-purple-500 hover:bg-[#000106] dark:hover:bg-purple-900/30 transition text-[9px] text-purple-600 dark:text-purple-400">
                             <span>{{ t('bgm_upload_label') }}</span>
                             <input type="file" class="hidden" accept="audio/*" onchange="handleBgmUpload(this)">
                         </label>
@@ -648,7 +648,7 @@
                     <!-- 생성된 BGM 목록 모드 -->
                     <div id="bgmInputGenerated" class="bgm-input-panel hidden">
                         <button onclick="loadGeneratedBgmList()"
-                            class="w-full text-[9px] py-1 bg-[#000106]/50 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300">
+                            class="w-full text-[9px] py-1 bg-[#000106]/50 rounded hover:bg-[#0a0f1d] dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300">
                             {{ t('btn_load_generated') }}
                         </button>
                         <div id="generatedBgmList" class="mt-1 space-y-1 max-h-20 overflow-y-auto"></div>
@@ -667,7 +667,7 @@
                     </div>
                     <div id="sfxPanel" class="hidden">
                         <label
-                            class="flex items-center justify-center gap-1 w-full py-1.5 border-2 border-dashed border-blue-300 dark:border-blue-700 rounded cursor-pointer hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition text-[9px] text-blue-600 dark:text-blue-400">
+                            class="flex items-center justify-center gap-1 w-full py-1.5 border-2 border-dashed border-blue-300 dark:border-blue-700 rounded cursor-pointer hover:border-blue-500 hover:bg-[#000106] dark:hover:bg-blue-900/30 transition text-[9px] text-blue-600 dark:text-blue-400">
                             <span>📂 {{ t('helper_select_sfx') }}</span>
                             <input type="file" class="hidden" accept="audio/*" onchange="handleSfxUpload(this)">
                         </label>
@@ -677,7 +677,7 @@
 
                 <!-- 렌더링 참고 안내 -->
                 <div
-                    class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded p-1.5">
+                    class="bg-[#000106] dark:bg-[#000106] border border-amber-200 dark:border-amber-800 rounded p-1.5">
                     <p class="text-[9px] text-amber-700 dark:text-amber-400">
                         💡 {{ t('bgm_rendering_hint') }}
                     </p>
@@ -1072,8 +1072,8 @@
         const html = subtitles.map((sub, index) => {
             const isChecked = selectedRows.has(index);
             const isActive = isSelectMode
-                ? (isChecked ? 'ring-2 ring-red-400 bg-red-50 dark:bg-red-900/20' : 'hover:bg-red-50/50 dark:hover:bg-[#000106]')
-                : (index === selectedIndex ? 'ring-2 ring-blue-500 bg-blue-50 bg-[#000106]' : 'hover:bg-[#000106] dark:hover:bg-[#000106]');
+                ? (isChecked ? 'ring-2 ring-red-400 bg-[#000106] dark:bg-[#000106]' : 'hover:bg-[#000106] dark:hover:bg-[#000106]')
+                : (index === selectedIndex ? 'ring-2 ring-blue-500 bg-[#000106]' : 'hover:bg-[#000106] dark:hover:bg-[#000106]');
             const imgIdx = assignments[index];
             const prevImgIdx = index > 0 ? assignments[index - 1] : -1;
             const isTransition = (imgIdx !== -1 && imgIdx !== prevImgIdx); // Image actually changes here
@@ -1127,7 +1127,7 @@
                     <!-- [NEW] Effect Selector (Hidden for Shorts/Vertical) -->
                     ${!isShorts ? `
                     <select onchange="event.stopPropagation(); updateImageEffect(${actualIndex}, this.value)" 
-                            class="mt-1 w-full text-[9px] p-0 border-gray-300 rounded bg-[#000106]/50 dark:text-white dark:border-gray-600 focus:ring-0 focus:border-blue-500 h-4 leading-none text-center"
+                            class="mt-1 w-full text-[9px] p-0 border-gray-300 rounded bg-[#000106]/50 dark:text-white dark:border-gray-600 focus:ring-0 focus:border-blue-500 h-4 leading-none text-center bg-[#000106] text-white"
                             title="이미지 효과 선택">
                         <option value="random" ${imageEffects[actualIndex] === 'random' ? 'selected' : ''}>Random</option>
                         <option value="zoom_in" ${imageEffects[actualIndex] === 'zoom_in' ? 'selected' : ''}>Zoom In</option>
@@ -2307,7 +2307,7 @@
             bar.classList.add('flex');
         } else {
             btn.textContent = '☑ ' + i18n.btn_select_delete;
-            btn.className = 'text-[10px] bg-red-50 text-red-500 px-2 py-1 rounded hover:bg-red-100 border border-red-200';
+            btn.className = 'text-[10px] bg-[#000106] text-red-500 px-2 py-1 rounded hover:bg-red-100 border border-red-200';
             bar.classList.add('hidden');
             bar.classList.remove('flex');
         }
@@ -2328,9 +2328,9 @@
             const cb = row.querySelector('.select-cb');
             if (cb) cb.checked = selectedRows.has(index);
             if (selectedRows.has(index)) {
-                row.classList.add('ring-2', 'ring-red-400', 'bg-red-50', 'dark:bg-red-900/20');
+                row.classList.add('ring-2', 'ring-red-400', 'bg-[#000106]', 'dark:bg-[#000106]');
             } else {
-                row.classList.remove('ring-2', 'ring-red-400', 'bg-red-50', 'dark:bg-red-900/20');
+                row.classList.remove('ring-2', 'ring-red-400', 'bg-[#000106]', 'dark:bg-[#000106]');
             }
         }
     }
@@ -2417,7 +2417,7 @@
         selectedRows.clear();
         const btn = document.getElementById('btnSelectMode');
         const bar = document.getElementById('deleteActionBar');
-        if (btn) { btn.textContent = '☑ ' + i18n.btn_select_delete; btn.className = 'text-[10px] bg-red-50 text-red-500 px-2 py-1 rounded hover:bg-red-100 border border-red-200'; }
+        if (btn) { btn.textContent = '☑ ' + i18n.btn_select_delete; btn.className = 'text-[10px] bg-[#000106] text-red-500 px-2 py-1 rounded hover:bg-red-100 border border-red-200'; }
         if (bar) { bar.classList.add('hidden'); bar.classList.remove('flex'); }
 
         renderSubtitles();
@@ -3731,7 +3731,7 @@
         ['bgmTabUpload', 'bgmTabUrl', 'bgmTabGenerated'].forEach(id => {
             const el = document.getElementById(id);
             if (el) {
-                el.className = 'flex-1 text-[9px] py-0.5 rounded border border-gray-300 dark:border-gray-600 text-gray-500 hover:bg-[#000106] dark:hover:bg-gray-700';
+                el.className = 'flex-1 text-[9px] py-0.5 rounded border border-gray-300 dark:border-gray-600 text-gray-500 hover:bg-[#000106] dark:hover:bg-[#0a0f1d]';
             }
         });
 
@@ -3742,7 +3742,7 @@
         const panel = document.getElementById(panelMap[mode]);
         const tab = document.getElementById(tabMap[mode]);
         if (panel) panel.classList.remove('hidden');
-        if (tab) tab.className = 'flex-1 text-[9px] py-0.5 rounded border bg-purple-100 dark:bg-purple-900 border-purple-300 text-purple-700 dark:text-purple-300 font-bold';
+        if (tab) tab.className = 'flex-1 text-[9px] py-0.5 rounded border bg-purple-100 dark:bg-[#000106] border-purple-300 text-purple-700 dark:text-purple-300 font-bold';
     }
 
     function updateBgmVolume(val) {
@@ -3871,7 +3871,7 @@
             }
 
             listEl.innerHTML = bgmList.map((item, i) => `
-                <div class="flex items-center gap-1 p-1 bg-[#000106] rounded border border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                <div class="flex items-center gap-1 p-1 bg-[#000106] rounded border border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-[#000106] dark:hover:bg-purple-900/20"
                      onclick="setBgmSource('${item.url}', '${item.name}')">
                     <span class="text-[9px] text-gray-500 w-4 dark:text-gray-400">${i + 1}</span>
                     <span class="text-[9px] text-gray-700 dark:text-gray-300 flex-1 truncate">🎶 ${item.name}</span>

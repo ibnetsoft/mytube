@@ -18,7 +18,7 @@
         <div class="flex items-center gap-2">
             <span class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('label_service') }}</span>
             <select id="providerSelect"
-                class="text-xs border-gray-300 dark:border-gray-600 rounded-md py-1 px-2 focus:ring-primary focus:border-primary bg-[#000106]/50 dark:text-white">
+                class="text-xs border-gray-300 dark:border-gray-600 rounded-md py-1 px-2 focus:ring-primary focus:border-primary bg-[#000106]/50 dark:text-white bg-[#000106] text-white">
                 <option value="gemini">Gemini ({{ t('label_free') }})</option>
                 <option value="openai">OpenAI ({{ t('label_paid') }})</option>
                 <option value="elevenlabs" selected>ElevenLabs</option>
@@ -32,7 +32,7 @@
         <div class="flex items-center gap-2" id="singleVoiceControls">
             <span class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('label_voice') }}</span>
             <select id="voiceSelect"
-                class="text-xs border-gray-300 dark:border-gray-600 rounded-md py-1 px-2 focus:ring-primary focus:border-primary bg-[#000106]/50 dark:text-white w-40">
+                class="text-xs border-gray-300 dark:border-gray-600 rounded-md py-1 px-2 focus:ring-primary focus:border-primary bg-[#000106]/50 dark:text-white w-40 bg-[#000106] text-white">
                 <option value="">{{ t('status_loading') }}</option>
             </select>
         </div>
@@ -119,7 +119,7 @@
                         class="text-[10px] text-blue-500 hover:text-blue-700">🔄 {{ t('btn_refresh') }}</button>
                 </div>
 
-                <div class="text-[10px] text-gray-500 mb-2 bg-blue-50 dark:bg-blue-900/20 p-2 rounded dark:text-gray-400">
+                <div class="text-[10px] text-gray-500 mb-2 bg-[#000106] dark:bg-[#000106] p-2 rounded dark:text-gray-400">
                     {{ t('multivoice_helper') | safe }}
                 </div>
 
@@ -282,10 +282,10 @@
         }
 
         if (hasScript) {
-            badge.className = "text-[10px] flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 font-normal";
+            badge.className = "text-[10px] flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 dark:bg-[#000106] text-green-600 dark:text-green-400 font-normal";
             badge.innerHTML = "<span>✅</span> {{ t('script_ready') }}";
         } else {
-            badge.className = "text-[10px] flex items-center gap-1 px-2 py-1 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-normal";
+            badge.className = "text-[10px] flex items-center gap-1 px-2 py-1 rounded-full bg-red-100 dark:bg-[#000106] text-red-600 dark:text-red-400 font-normal";
             badge.innerHTML = "<span>🚫</span> {{ t('no_script') }}";
         }
     }
@@ -496,7 +496,7 @@
         sortedChars.forEach(char => {
             const savedVoice = characterVoiceMap[char] || '';
             const row = document.createElement('div');
-            row.className = 'flex items-center justify-between bg-[#000106]/50/50 p-1.5 rounded border border-gray-100 dark:border-gray-600 gap-2';
+            row.className = 'flex items-center justify-between bg-[#000106] p-1.5 rounded border border-gray-100 dark:border-gray-600 gap-2';
 
             let options = availableVoices.length > 0 ? availableVoices.map(v =>
                 `<option value="${v.id}" ${v.id === savedVoice ? 'selected' : ''}>${v.name}</option>`
@@ -506,7 +506,7 @@
 
             row.innerHTML = `
                 <span class="text-xs font-bold text-gray-700 dark:text-gray-300 w-16 truncate" title="${char}">${char}</span>
-                <select class="text-[10px] border-gray-200 dark:border-gray-600 rounded py-1 pl-1 pr-6 flex-1 bg-[#000106] dark:text-white" onchange="updateCharVoice('${safeChar}', this.value)">
+                <select class="text-[10px] border-gray-200 dark:border-gray-600 rounded py-1 pl-1 pr-6 flex-1 bg-[#000106] dark:text-white bg-[#000106] text-white" onchange="updateCharVoice('${safeChar}', this.value)">
                     <option value="">-- {{ t('label_default_voice') }} --</option>
                     ${options}
                 </select>
