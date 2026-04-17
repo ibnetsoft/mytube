@@ -73,6 +73,9 @@ async def login_channel_api(channel_id: int):
         db.update_channel_credentials(channel_id, rel_token_path)
         
         return {"status": "ok", "message": f"'{channel['name']}' 채널 인증이 성공적으로 완료되었습니다."}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
 @router.get("/login-by-info")
 @router.post("/login-by-info")
 async def login_by_info_api(
