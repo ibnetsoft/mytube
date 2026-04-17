@@ -101,9 +101,6 @@ class ThumbnailGenerateRequest(BaseModel):
 @router.post("/api/image/generate-prompts")
 async def generate_image_prompts_api(req: PromptsGenerateRequest):
     """대본 기반 이미지 프롬프트 생성 (Unified API)"""
-    from services.auth_service import auth_service
-    if not auth_service.check_credits(500):
-        return {"status": "error", "error": "AI 토큰이 부족합니다. (프롬프트 생성 최소 500 TK 필요)"}
 
     try:
         # 1. Project Context & Duration Estimation
@@ -1011,6 +1008,36 @@ async def generate_motion_from_image(
             "errors": errors
         }
 
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return {"status": "error", "error": str(e)}
+
+
+@router.post("/api/image/generate-flow-prompt")
+async def generate_flow_prompt_api(
+    project_id: int = Body(...),
+    scene_number: int = Body(...),
+    scene_text: str = Body(""),
+    prompt_en: str = Body(""),
+    style_key: str = Body(""),
+):
+    """단일 씬의 flow_prompt를 5-Layer Cinematic Framework로 재생성"""
+    try:
+        result = await gemini_service.generate_flow_prompt(
+            scene_text=scene_text,
+            prompt_en=prompt_en,
+            style_key=style_key,
+            project_id=project_id,
+        )
+        # DB 저장
+        conn = db.get_db()
+        conn.execute(
+            "UPDATE image_prompts SET flow_prompt = ? WHERE project_id = ? AND scene_number = ?",
+            (result, project_id, scene_number)
+        )
+        conn.commit()
+        conn.close()
+        return {"status": "ok", "flow_prompt": result}
     except Exception as e:
         import traceback; traceback.print_exc()
         return {"status": "error", "error": str(e)}

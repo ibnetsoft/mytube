@@ -36,6 +36,11 @@ class GlobalSettings(BaseModel):
     wp_url: Optional[str] = None
     wp_username: Optional[str] = None
     wp_password: Optional[str] = None
+    # [NEW] User Info
+    user_name: Optional[str] = None
+    user_nationality: Optional[str] = None
+    user_phone: Optional[str] = None
+    user_email: Optional[str] = None
     # [NEW] API Keys
     youtube_api_key: Optional[str] = None
     gemini_api_key: Optional[str] = None
@@ -72,7 +77,12 @@ async def get_global_settings_api():
         # [NEW] WordPress
         "wp_url": db.get_global_setting("wp_url", ""),
         "wp_username": db.get_global_setting("wp_username", ""),
-        "wp_password": db.get_global_setting("wp_password", "")
+        "wp_password": db.get_global_setting("wp_password", ""),
+        # [NEW] User Info
+        "user_name": db.get_global_setting("user_name", ""),
+        "user_nationality": db.get_global_setting("user_nationality", ""),
+        "user_phone": db.get_global_setting("user_phone", ""),
+        "user_email": db.get_global_setting("user_email", "")
     }
     
     # 2. Load Default Settings (stored in Project 1 by convention)
@@ -113,6 +123,11 @@ async def get_global_settings_api():
     merged["wp_url"] = global_conf["wp_url"]
     merged["wp_username"] = global_conf["wp_username"]
     merged["wp_password"] = global_conf["wp_password"]
+    from services.auth_service import auth_service
+    merged["user_name"] = auth_service.get_user_name() or global_conf["user_name"]
+    merged["user_nationality"] = auth_service.get_user_nationality() or global_conf["user_nationality"]
+    merged["user_phone"] = auth_service.get_user_contact() or global_conf["user_phone"]
+    merged["user_email"] = auth_service.get_user_email() or global_conf["user_email"]
     
     # [NEW] Add Current API Keys Status
     api_status = config.get_api_keys_status()
@@ -171,6 +186,23 @@ async def save_global_settings_api(settings: GlobalSettings):
         db.save_global_setting("wp_username", settings.wp_username)
     if settings.wp_password is not None:
         db.save_global_setting("wp_password", settings.wp_password)
+    # [NEW] User Info
+    if settings.user_name is not None:
+        db.save_global_setting("user_name", settings.user_name)
+    if settings.user_nationality is not None:
+        db.save_global_setting("user_nationality", settings.user_nationality)
+    if settings.user_phone is not None:
+        db.save_global_setting("user_phone", settings.user_phone)
+    if settings.user_email is not None:
+        db.save_global_setting("user_email", settings.user_email)
+    
+    # [NEW] Sync to SaaS server
+    from services.auth_service import auth_service
+    auth_service.sync_profile(
+        name=settings.user_name or "",
+        nationality=settings.user_nationality or "",
+        contact=settings.user_phone or ""
+    )
     
     # [NEW] Update API Keys in config/env
     if settings.youtube_api_key is not None:

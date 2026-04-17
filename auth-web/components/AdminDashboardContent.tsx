@@ -218,7 +218,15 @@ export default function AdminDashboardContent() {
         }
     }
 
-    const rechargeTokens = async (userId: string, amount: number) => {
+    const rechargeTokens = async (userId: string) => {
+        const amountStr = prompt("충전할 토큰 양을 입력하세요 (숫자만)", "1000000")
+        if (!amountStr) return
+        const amount = parseInt(amountStr)
+        if (isNaN(amount) || amount <= 0) {
+            alert("올바른 금액을 입력해주세요.")
+            return
+        }
+
         const description = prompt("충전 사유를 입력하세요 (예: 보상 지급, 정기 구독 등)", "관리자 충전")
         if (description === null) return; // Cancel
 
@@ -765,35 +773,52 @@ export default function AdminDashboardContent() {
                             <table className="w-full text-left text-sm">
                                 <thead className="bg-black/40 text-gray-500 font-black h-16 uppercase text-[10px] tracking-widest">
                                     <tr>
-                                        <th className="px-10 py-3">{t.emailId}</th>
-                                        <th className="px-10 py-3">{t.joinDate}</th>
-                                        <th className="px-10 py-3 text-center">보유 토큰</th>
-                                        <th className="px-10 py-3 text-center">{t.membership}</th>
-                                        <th className="px-10 py-3 text-center">{t.manage}</th>
+                                        <th className="px-6 py-3">{t.emailId}</th>
+                                        <th className="px-6 py-3">{t.fullName}</th>
+                                        <th className="px-6 py-3">{t.nationality}</th>
+                                        <th className="px-6 py-3">{t.contact}</th>
+                                        <th className="px-6 py-3">{t.joinDate}</th>
+                                        <th className="px-6 py-3">{t.lastLogin}</th>
+                                        <th className="px-6 py-3 text-center">보유 토큰</th>
+                                        <th className="px-6 py-3 text-center">{t.membership}</th>
+                                        <th className="px-6 py-3 text-center">{t.manage}</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5 font-medium">
                                     {users.map((user) => (
                                         <tr key={user.id} className="hover:bg-white/5 transition-all h-24 cursor-pointer" onClick={() => openUserPanel(user)}>
-                                            <td className="px-10 py-4">
-                                                <div className="font-bold text-white text-base tracking-tight">{user.email}</div>
-                                                <div className="text-[10px] text-gray-600 font-mono mt-1 opacity-70 tracking-tighter truncate max-w-[200px]">{user.id}</div>
+                                            <td className="px-6 py-4">
+                                                <div className="font-bold text-white text-sm tracking-tight">{user.email}</div>
+                                                <div className="text-[9px] text-gray-600 font-mono mt-0.5 opacity-70 tracking-tighter truncate max-w-[150px]">{user.id}</div>
                                             </td>
-                                            <td className="px-10 py-4 text-gray-400">
+                                            <td className="px-6 py-4 text-gray-300 text-xs font-bold">
+                                                {user.user_metadata?.full_name || '-'}
+                                            </td>
+                                            <td className="px-6 py-4 text-gray-400 text-xs">
+                                                {user.user_metadata?.nationality || '-'}
+                                            </td>
+                                            <td className="px-6 py-4 text-gray-400 text-xs">
+                                                {user.user_metadata?.contact || '-'}
+                                            </td>
+                                            <td className="px-6 py-4 text-gray-400 text-xs">
                                                 {formatDate(user.created_at)}
                                             </td>
-                                            <td className="px-10 py-4 text-center">
-                                                <div className="flex flex-col items-center gap-1 group/token">
-                                                    <span className="text-white font-black text-base">{user.profile?.token_balance?.toLocaleString() || 0}</span>
+                                            <td className="px-6 py-4 text-gray-400 text-xs">
+                                                {formatDate(user.last_sign_in_at)}
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <div className="flex flex-col items-center gap-1 group/token bg-white/[0.03] p-3 rounded-2xl border border-white/5 hover:border-blue-500/30 transition-all">
+                                                    <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-0.5">CURRENT BALANCE</div>
+                                                    <span className="text-white font-black text-lg tracking-tight">{user.profile?.token_balance?.toLocaleString() || 0}</span>
                                                     <button 
-                                                        onClick={(e) => { e.stopPropagation(); rechargeTokens(user.id, 1000000); }}
-                                                        className="text-[8px] font-black text-blue-500 opacity-0 group-hover/token:opacity-100 transition-all hover:underline"
+                                                        onClick={(e) => { e.stopPropagation(); rechargeTokens(user.id); }}
+                                                        className="mt-1 px-3 py-1 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white text-[10px] font-black rounded-lg transition-all border border-blue-600/20 uppercase tracking-tighter"
                                                     >
-                                                        +1M RECHARGE
+                                                        ⚡ RECHARGE
                                                     </button>
                                                 </div>
                                             </td>
-                                            <td className="px-10 py-4 text-center">
+                                            <td className="px-6 py-4 text-center">
                                                 <div className="flex flex-col items-center gap-1">
                                                     <button
                                                         onClick={() => toggleMembership(user.id, user.app_metadata?.membership || 'standard')}
@@ -808,7 +833,7 @@ export default function AdminDashboardContent() {
                                                     </button>
                                                 </div>
                                             </td>
-                                            <td className="px-10 py-4 text-center">
+                                            <td className="px-6 py-4 text-center">
                                                 <div className="flex justify-center gap-2">
                                                     <button
                                                         onClick={(e) => openLogViewer(user, 1, e)}

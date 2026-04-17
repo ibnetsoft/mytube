@@ -67,6 +67,16 @@ export interface Translation {
     to_be_published?: string;
     noRequests: string;
     viewVideo: string;
+    fullName: string;
+    nationality: string;
+    contact: string;
+    password: string;
+    passwordConfirm: string;
+    referrer: string;
+    signup: string;
+    signin: string;
+    alreadyHaveAccount: string;
+    dontHaveAccount: string;
 }
 
 export const translations: Record<Language, Translation> = {
@@ -126,7 +136,17 @@ export const translations: Record<Language, Translation> = {
         published: "게시 완료",
         to_be_published: "게시 중...",
         noRequests: "대기 중인 발행 요청이 없습니다.",
-        viewVideo: "영상 보기"
+        viewVideo: "영상 보기",
+        fullName: "이름",
+        nationality: "국적",
+        contact: "연락처",
+        password: "비밀번호",
+        passwordConfirm: "비밀번호 확인",
+        referrer: "추천인코드 (선택)",
+        signup: "회원가입",
+        signin: "로그인",
+        alreadyHaveAccount: "이미 계정이 있으신가요? 로그인",
+        dontHaveAccount: "계정이 없으신가요? 회원가입"
     },
     en: {
         loading: "Loading...",
@@ -184,7 +204,17 @@ export const translations: Record<Language, Translation> = {
         published: "Published",
         to_be_published: "Publishing...",
         noRequests: "No pending publishing requests.",
-        viewVideo: "View Video"
+        viewVideo: "View Video",
+        fullName: "Full Name",
+        nationality: "Nationality",
+        contact: "Contact",
+        password: "Password",
+        passwordConfirm: "Confirm Password",
+        referrer: "Referrer Code (Optional)",
+        signup: "Sign Up",
+        signin: "Sign In",
+        alreadyHaveAccount: "Already have an account? Sign In",
+        dontHaveAccount: "Don't have an account? Sign Up"
     },
     vi: {
         loading: "Đang tải...",
@@ -237,7 +267,17 @@ export const translations: Record<Language, Translation> = {
         rejected: "Rejected",
         published: "Published",
         noRequests: "No pending publishing requests.",
-        viewVideo: "View Video"
+        viewVideo: "View Video",
+        fullName: "Full Name",
+        nationality: "Nationality",
+        contact: "Contact",
+        password: "Password",
+        passwordConfirm: "Confirm Password",
+        referrer: "Referrer Code (Optional)",
+        signup: "Sign Up",
+        signin: "Sign In",
+        alreadyHaveAccount: "Already have an account? Sign In",
+        dontHaveAccount: "Don't have an account? Sign Up"
     },
     es: {
         loading: "Cargando...",
@@ -290,7 +330,17 @@ export const translations: Record<Language, Translation> = {
         rejected: "Rejected",
         published: "Published",
         noRequests: "No pending publishing requests.",
-        viewVideo: "View Video"
+        viewVideo: "View Video",
+        fullName: "Full Name",
+        nationality: "Nationality",
+        contact: "Contact",
+        password: "Password",
+        passwordConfirm: "Confirm Password",
+        referrer: "Referrer Code (Optional)",
+        signup: "Sign Up",
+        signin: "Sign In",
+        alreadyHaveAccount: "Already have an account? Sign In",
+        dontHaveAccount: "Don't have an account? Sign Up"
     },
     th: {
         loading: "กำลังโหลด...",
@@ -343,7 +393,17 @@ export const translations: Record<Language, Translation> = {
         rejected: "Rejected",
         published: "Published",
         noRequests: "No pending publishing requests.",
-        viewVideo: "View Video"
+        viewVideo: "View Video",
+        fullName: "Full Name",
+        nationality: "Nationality",
+        contact: "Contact",
+        password: "Password",
+        passwordConfirm: "Confirm Password",
+        referrer: "Referrer Code (Optional)",
+        signup: "Sign Up",
+        signin: "Sign In",
+        alreadyHaveAccount: "Already have an account? Sign In",
+        dontHaveAccount: "Don't have an account? Sign Up"
     },
     id: {
         loading: "Memuat...",
@@ -396,7 +456,17 @@ export const translations: Record<Language, Translation> = {
         rejected: "Rejected",
         published: "Published",
         noRequests: "No pending publishing requests.",
-        viewVideo: "View Video"
+        viewVideo: "View Video",
+        fullName: "Full Name",
+        nationality: "Nationality",
+        contact: "Contact",
+        password: "Password",
+        passwordConfirm: "Confirm Password",
+        referrer: "Referrer Code (Optional)",
+        signup: "Sign Up",
+        signin: "Sign In",
+        alreadyHaveAccount: "Already have an account? Sign In",
+        dontHaveAccount: "Don't have an account? Sign Up"
     },
     fr: {
         loading: "Chargement...",
@@ -449,7 +519,17 @@ export const translations: Record<Language, Translation> = {
         rejected: "Rejected",
         published: "Published",
         noRequests: "No pending publishing requests.",
-        viewVideo: "View Video"
+        viewVideo: "View Video",
+        fullName: "Full Name",
+        nationality: "Nationality",
+        contact: "Contact",
+        password: "Password",
+        passwordConfirm: "Confirm Password",
+        referrer: "Referrer Code (Optional)",
+        signup: "Sign Up",
+        signin: "Sign In",
+        alreadyHaveAccount: "Already have an account? Sign In",
+        dontHaveAccount: "Don't have an account? Sign Up"
     },
     ru: {
         loading: "Загрузка...",
@@ -502,7 +582,17 @@ export const translations: Record<Language, Translation> = {
         rejected: "Rejected",
         published: "Published",
         noRequests: "No pending publishing requests.",
-        viewVideo: "View Video"
+        viewVideo: "View Video",
+        fullName: "Full Name",
+        nationality: "Nationality",
+        contact: "Contact",
+        password: "Password",
+        passwordConfirm: "Confirm Password",
+        referrer: "Referrer Code (Optional)",
+        signup: "Sign Up",
+        signin: "Sign In",
+        alreadyHaveAccount: "Already have an account? Sign In",
+        dontHaveAccount: "Don't have an account? Sign Up"
     },
     pt: {
         loading: "Carregando...",
@@ -555,6 +645,16 @@ export const translations: Record<Language, Translation> = {
         rejected: "Rejected",
         published: "Published",
         noRequests: "No pending publishing requests.",
-        viewVideo: "View Video"
+        viewVideo: "View Video",
+        fullName: "Full Name",
+        nationality: "Nationality",
+        contact: "Contact",
+        password: "Password",
+        passwordConfirm: "Confirm Password",
+        referrer: "Referrer Code (Optional)",
+        signup: "Sign Up",
+        signin: "Sign In",
+        alreadyHaveAccount: "Already have an account? Sign In",
+        dontHaveAccount: "Don't have an account? Sign Up"
     }
 };

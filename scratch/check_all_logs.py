@@ -3,7 +3,6 @@ import os
 import requests
 from dotenv import load_dotenv
 
-# Load from subfolder
 dotenv_path = os.path.join(os.getcwd(), 'auth-web', '.env.local')
 load_dotenv(dotenv_path=dotenv_path)
 
@@ -11,18 +10,10 @@ url = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
 key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
 if not url or not key:
-    # Try alternate names
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-
-if not url or not key:
-    print(f"Error: Missing credentials in {dotenv_path}")
-    print(f"URL exists: {bool(url)}, Key exists: {bool(key)}")
+    print(f"Error: Missing credentials")
     exit(1)
 
-user_id = "ba2f2a43-c6ea-4fe2-a6a3-0f861d93afc6"
-
-print(f"Checking logs for user_id: {user_id}")
+print("Fetching latest 5 logs from ai_logs to see the data structure...")
 
 headers = {
     "apikey": key,
@@ -30,15 +21,17 @@ headers = {
     "Content-Type": "application/json"
 }
 
-endpoint = f"{url}/rest/v1/ai_logs?user_id=eq.{user_id}&order=created_at.desc&limit=10"
+endpoint = f"{url}/rest/v1/ai_logs?select=user_id,created_at,task_type&order=created_at.desc&limit=10"
 
 try:
     response = requests.get(endpoint, headers=headers)
     if response.status_code == 200:
         logs = response.json()
-        print(f"Found {len(logs)} logs")
+        print(f"Total across all users: {len(logs)}")
         for log in logs:
-            print(f"- {log.get('created_at')} | {log.get('task_type')} | {log.get('status')} | {log.get('model_id')}")
+            uid = log.get('user_id')
+            print(f"- {log.get('created_at')} | UserID: {uid} | Task: {log.get('task_type')}")
+            
     else:
         print(f"Error: {response.status_code} - {response.text}")
 except Exception as e:

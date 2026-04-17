@@ -75,6 +75,21 @@ app = FastAPI(
     version="2.0.0"
 )
 
+# [NEW] 실시간 등급/토큰 동기화 API
+@app.post("/api/auth/sync")
+async def sync_auth():
+    try:
+        success = auth_service.verify_license()
+        if success:
+            return {
+                "success": True, 
+                "membership": auth_service.get_membership(),
+                "token_balance": auth_service.get_token_balance()
+            }
+        return {"success": False, "error": "Verification failed"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 # CORS 설정 (로컬 앱 전용)
 _cors_origins = [
     "http://localhost:8000",

@@ -53,8 +53,11 @@ export async function POST(req: Request) {
 
         return NextResponse.json({
             success: true,
-            membership: user.app_metadata?.membership || 'standard',
+            membership: user.app_metadata?.membership || 'std',
             email: user.email,
+            full_name: meta.full_name || '',
+            nationality: meta.nationality || '',
+            contact: meta.contact || '',
             youtube_channel: meta.youtube_channel || '',
             youtube_handle: meta.youtube_handle || '',
             token_balance: profile?.token_balance || 0,

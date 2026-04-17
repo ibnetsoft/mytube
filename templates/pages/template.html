@@ -115,7 +115,7 @@
                         <button type="button" onclick="setAspectRatio('16:9')" id="ratio169Btn"
                             class="px-2 py-1 text-[10px] rounded transition-all hover:bg-gray-200 dark:hover:bg-gray-700">📺 16:9</button>
                         <button type="button" onclick="setAspectRatio('9:16')" id="ratio916Btn"
-                            class="px-2 py-1 text-[10px] rounded transition-all hover:bg-gray-200 dark:hover:bg-gray-700 font-bold">📱 9:16</button>
+                            class="px-2 py-1 text-[10px] rounded transition-all hover:bg-gray-200 dark:hover:bg-gray-700">📱 9:16</button>
                     </div>
                 </div>
                 
@@ -209,7 +209,7 @@
                 </div>
             </div>
             
-            <div id="shapeLayersContainer" class="max-h-[140px] overflow-y-auto space-y-2 pr-1 custom-scrollbar mb-3">
+            <div id="shapeLayersContainer" class="space-y-2 mb-3">
                 <!-- 도형 레이어가 여기에 생성됨 -->
             </div>
             
@@ -376,7 +376,7 @@
     let generatedHistory = [];
     let currentBackgroundPath = null; // 생성된 배경 이미지 경로 (백엔드용)
     let currentBackgroundUrl = null; // 생성된 배경 이미지 URL (프론트엔드용)
-    let currentAspectRatio = '9:16'; // Default: 세로 모드
+    let currentAspectRatio = (appMode === 'shorts') ? '9:16' : '16:9'; // 롱폼: 가로, 숏츠: 세로
 
     // 텍스트 레이어 상태 (동적 관리) — text는 빈 문자열로 초기화하여 캔버스 공백 유지
     let textLayers = [
@@ -407,8 +407,8 @@
 
     // 프로젝트 데이터 로드
     document.addEventListener('DOMContentLoaded', async () => {
-        // [FIX] 기본값 세로(9:16) — appMode 무관하게 항상 세로 모드로 시작
-        setAspectRatio('9:16', false);
+        // 롱폼 모드는 16:9, 숏츠 모드는 9:16 기본값
+        setAspectRatio(appMode === 'shorts' ? '9:16' : '16:9', false);
 
         const projectId = getCurrentProject();
         initCanvasEvents(); // 캔버스 이벤트 초기화

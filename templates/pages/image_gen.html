@@ -260,51 +260,13 @@
                     <span>💾</span> {{ t('btn_save_all') }}
                 </button>
 
-                <!-- [NEW] 선택씬 이미지 분석 → 모션 생성 버튼 -->
-                <button onclick="generateMotionFromSelectedImages()" id="imageMotionBtn"
-                    class="btn-secondary text-sm px-4 flex items-center gap-2 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-300 border-teal-200 dark:border-teal-700 hover:bg-teal-100">
-                    <span>🔍</span> {{ t('btn_scene_motion_analysis') }}
-                </button>
-
-                <!-- [NEW] Motion 일괄 자동생성 버튼 -->
-                <button onclick="showMotionGenModal()" id="bulkMotionBtn"
-                    class="btn-secondary text-sm px-4 flex items-center gap-2 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 border-purple-200 dark:border-purple-700 hover:bg-purple-100">
-                    <span>🎬</span> {{ t('motion_gen_title') }}
-                </button>
-
+                {% if membership != 'std' %}
                 <button onclick="generateSelectedImages()" id="autoGenBtn"
                     class="btn-primary text-sm px-4 flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled>
                     <span>🚀</span> {{ t('btn_bulk_gen_images') }}
                 </button>
-            </div>
-        </div>
-
-        <!-- [NEW] Motion 자동생성 모달 -->
-        <div id="motionGenModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-80">
-                <h4 class="font-bold text-gray-800 dark:text-white mb-3">🎬 {{ t('motion_gen_title') }}</h4>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
-                    {{ t('motion_gen_desc') }}
-                </p>
-                <div class="mb-4">
-                    <label class="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-1">{{ t('motion_gen_range') }}</label>
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs text-gray-500">{{ t('motion_gen_from') }}</span>
-                        <input type="number" id="motionGenMaxScene" value="5" min="1" max="50"
-                            class="w-16 text-center text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-800 dark:text-white">
-                        <span class="text-xs text-gray-500">{{ t('motion_gen_to') }}</span>
-                    </div>
-                </div>
-                <div class="flex gap-2">
-                    <button onclick="closeMotionGenModal()"
-                        class="flex-1 py-2 text-sm rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50">{{ t('btn_cancel') }}</button>
-                    <button onclick="bulkGenerateMotion()" id="motionGenConfirmBtn"
-                        class="flex-1 py-2 text-sm rounded bg-purple-600 text-white font-bold hover:bg-purple-700">
-                        {{ t('btn_start_gen') }}
-                    </button>
-                </div>
-                <div id="motionGenProgress" class="hidden mt-3 text-xs text-center text-purple-500"></div>
+                {% endif %}
             </div>
         </div>
 
@@ -407,6 +369,7 @@
 <script>
     let prompts = [];
     window.defaultVideoEngine = 'veo'; // Global default, overridden by settings
+    window.userMembership = "{{ membership }}"; // 'std' | 'pro'
 
     // 사람 제외 토글 상태 반환
     function isNoHumanEnabled() {
@@ -448,20 +411,43 @@
         if (!full || !summary) return;
 
         if (full.classList.contains('hidden')) {
+            // 다른 열려 있는 패널 먼저 닫기
+            document.querySelectorAll('[id^="prompt-full-"]').forEach(el => {
+                if (el !== full && !el.classList.contains('hidden')) {
+                    const idx = el.id.replace('prompt-full-', '');
+                    const s = document.getElementById(`prompt-summary-${idx}`);
+                    const b = document.getElementById(`toggle-p-btn-${idx}`);
+                    el.classList.add('hidden');
+                    if (s) s.classList.remove('hidden');
+                    if (b) b.innerHTML = i18n.btn_expand_view;
+                }
+            });
+
             full.classList.remove('hidden');
             summary.classList.add('hidden');
-            if (btn) btn.innerHTML = `${i18n.btn_shrink_view}`;
+            if (btn) btn.innerHTML = i18n.btn_shrink_view;
 
             // 펼쳐질 때 높이 자동 조절
             const ta = document.getElementById(`prompt-json-${index}`);
-            if (ta) {
-                ta.style.height = 'auto';
-                ta.style.height = ta.scrollHeight + 'px';
-            }
+            if (ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
+
+            // 바깥 클릭 시 닫힘 (setTimeout으로 현재 클릭 이벤트와 분리)
+            setTimeout(() => {
+                function _outsideClick(e) {
+                    if (!full.contains(e.target)) {
+                        full.classList.add('hidden');
+                        summary.classList.remove('hidden');
+                        if (btn) btn.innerHTML = i18n.btn_expand_view;
+                        document.removeEventListener('click', _outsideClick, true);
+                    }
+                }
+                document.addEventListener('click', _outsideClick, true);
+            }, 0);
+
         } else {
             full.classList.add('hidden');
             summary.classList.remove('hidden');
-            if (btn) btn.innerHTML = `${i18n.btn_expand_view}`;
+            if (btn) btn.innerHTML = i18n.btn_expand_view;
         }
     }
 
@@ -1079,15 +1065,22 @@
             // [Modified] Pass global prompt separately for intelligent application
             const result = await API.image.generatePrompts(script, styleVal, parseInt(count), globalPrompt, getCurrentProject());
 
+            if (result.status === 'error' || result.error) {
+                Utils.showToast(result.error || i18n.err_gen_fail, 'error');
+                return;
+            }
+
             if (result.prompts) {
                 prompts = result.prompts;
                 drawPromptsUI(prompts);
                 document.getElementById('resultSection').classList.remove('hidden');
 
-                // 활성화
+                // 활성화 (std 유저는 버튼 없음)
                 const autoBtn = document.getElementById('autoGenBtn');
-                autoBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                autoBtn.disabled = false;
+                if (autoBtn) {
+                    autoBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    autoBtn.disabled = false;
+                }
 
                 Utils.storage.set('imagePrompts', prompts);
 
@@ -1254,22 +1247,6 @@
                             ` : ''}
                         </div>
 
-                        <!-- Compact Generation Controls -->
-                        <div class="bg-gray-50 dark:bg-gray-900 rounded-lg p-1.5 border border-gray-200 dark:border-gray-700">
-                            <div class="flex items-center justify-between gap-1.5">
-                                <button onclick="generateSingleVideo(${i})" id="gen-vid-btn-${i}"
-                                    class="flex-1 py-1.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold rounded text-[10px] shadow-sm transition-all flex items-center justify-center gap-1"
-                                    ${!p.image_url ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>
-                                    <span>⚡</span> Generate
-                                </button>
-                                <div class="flex bg-gray-200 dark:bg-gray-800 rounded p-0.5 gap-0.5 shrink-0">
-                                    <button class="hidden px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'wan' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-white font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'wan')" title="Wan 2.1">Wan</button>
-                                    <button class="hidden px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'seedance' ? 'bg-green-100 dark:bg-green-900 shadow text-green-700 dark:text-green-300 font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'seedance')" title="Seedance">🌱 Seed</button>
-                                    <button class="hidden px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'akool' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-white font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'akool')" title="LipSync">Lip</button>
-                                    <button class="px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'veo' ? 'bg-blue-100 dark:bg-blue-900 shadow text-blue-700 dark:text-blue-300 font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'veo')" title="Veo">Veo</button>
-                                </div>
-                            </div>
-                        </div>
                     </div>
 
                     <!-- Right Column: Prompt Editors -->
@@ -1282,7 +1259,7 @@
                                 <label class="text-[10px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">🎨 Visual Description</label>
                                 <div class="flex items-center gap-1">
                                     <button onclick="toggleFullPrompt(${i})" id="toggle-p-btn-${i}" class="text-indigo-500 hover:text-indigo-600 text-[9px] bg-indigo-50 dark:bg-indigo-900/30 px-1.5 py-0.5 rounded transition-colors font-bold whitespace-nowrap">${i18n.btn_expand_view}</button>
-                                    <button onclick="generateSingleImage(${i})" class="text-blue-500 hover:text-blue-600 text-[9px] whitespace-nowrap">↻ Regen</button>
+                                    ${window.userMembership !== 'std' ? `<button onclick="generateSingleImage(${i})" class="text-blue-500 hover:text-blue-600 text-[9px] whitespace-nowrap">↻ Regen</button>` : ''}
                                 </div>
                             </div>
                             <div class="col-span-9 relative">
@@ -1291,32 +1268,15 @@
                                     <p class="text-[11px] text-gray-700 dark:text-gray-200 italic line-clamp-1 w-full leading-tight font-serif">${extractDynamicPart(p.prompt_en)}</p>
                                 </div>
                                 <!-- Full Editable Textarea -->
-                                <div id="prompt-full-${i}" class="hidden absolute top-0 left-0 right-0 z-10 bg-white dark:bg-gray-800 shadow-xl p-2 rounded border dark:border-gray-700 animate-in fade-in zoom-in duration-200">
+                                <div id="prompt-full-${i}" class="hidden absolute top-0 left-0 right-0 z-20 bg-white dark:bg-gray-800 shadow-xl p-2 rounded border dark:border-gray-700 animate-in fade-in zoom-in duration-200">
+                                    <div class="flex justify-between items-center mb-1.5">
+                                        <p class="text-[8px] text-gray-400">* Full data incl. style</p>
+                                        <button onclick="toggleFullPrompt(${i})" class="w-5 h-5 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-red-100 dark:hover:bg-red-900/40 text-gray-500 hover:text-red-500 transition-colors text-[11px] font-bold leading-none">✕</button>
+                                    </div>
                                     <textarea id="prompt-json-${i}"
                                         class="w-full h-32 text-[11px] p-2 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-blue-500 font-mono scrollbar-thin"
                                         onchange="updatePromptData(${i}, this.value)">${p.prompt_en || ''}</textarea>
-                                    <div class="flex justify-between items-center mt-1">
-                                        <p class="text-[8px] text-gray-400">* Full data incl. style</p>
-                                        <button onclick="toggleFullPrompt(${i})" class="text-[9px] text-indigo-500 hover:underline">${i18n.close}</button>
-                                    </div>
                                 </div>
-                            </div>
-                        </div>
-
-                        <!-- 🎬 Motion Instruction (Video) -->
-                        <div class="grid grid-cols-12 gap-2 items-center">
-                            <div class="col-span-3 flex items-center gap-2">
-                                <label class="text-[10px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">🎬 Motion</label>
-                                <button onclick="generateSingleMotion(${i})" id="gen-motion-btn-${i}"
-                                    class="text-[8px] text-purple-500 hover:text-purple-600 border border-purple-200 dark:border-purple-800 px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-900/30 transition-colors">
-                                    ✨ AI
-                                </button>
-                            </div>
-                            <div class="col-span-9">
-                                <textarea id="motion-prompt-${i}"
-                                    class="w-full h-8 text-[11px] p-1.5 rounded border border-purple-200 dark:border-purple-900 bg-purple-50 dark:bg-gray-900/50 text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-purple-500 scrollbar-thin overflow-y-auto resize-none"
-                                    placeholder="예: slow zoom in..."
-                                    onchange="updateMotionPrompt(${i}, this.value)">${p.motion_desc || ''}</textarea>
                             </div>
                         </div>
 
@@ -1326,7 +1286,8 @@
                                 <label class="text-[10px] font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">🌊 Google Flow</label>
                                 <div class="flex items-center gap-1">
                                     <button onclick="copyFlowPrompt(${i})" class="text-[8px] bg-blue-600 text-white px-2 py-0.5 rounded hover:bg-blue-700 transition-colors">📋 Copy</button>
-                                    <button onclick="toggleFlowEditor(${i})" class="text-[8px] text-gray-400 hover:text-gray-600">Edit</button>
+                                    <button onclick="toggleFlowEditor(${i})" class="text-[8px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">Edit</button>
+                                    ${window.userMembership !== 'std' ? `<button onclick="regenFlowPrompt(${i})" id="regen-flow-btn-${i}" class="text-[8px] text-blue-500 hover:text-blue-700 border border-blue-200 dark:border-blue-800 px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 transition-colors whitespace-nowrap">↻ AI</button>` : ''}
                                 </div>
                             </div>
                             <div class="col-span-9 flex flex-col gap-0.5">
@@ -1375,6 +1336,22 @@
                                 </p>
                              </div>
                         </div>
+
+                        <!-- ⚡ Generate + Veo Controls -->
+                        ${window.userMembership !== 'std' ? `
+                        <div class="flex items-center gap-1.5 mt-1 pt-1.5 border-t border-gray-100 dark:border-gray-800">
+                            <button onclick="generateSingleVideo(${i})" id="gen-vid-btn-${i}"
+                                class="px-4 py-1 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold rounded text-[10px] shadow-sm transition-all flex items-center gap-1 whitespace-nowrap"
+                                ${!p.image_url ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>
+                                <span>⚡</span> Generate
+                            </button>
+                            <div class="flex bg-gray-200 dark:bg-gray-800 rounded p-0.5 gap-0.5 shrink-0">
+                                <button class="hidden px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'wan' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-white font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'wan')" title="Wan 2.1">Wan</button>
+                                <button class="hidden px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'seedance' ? 'bg-green-100 dark:bg-green-900 shadow text-green-700 dark:text-green-300 font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'seedance')" title="Seedance">🌱 Seed</button>
+                                <button class="hidden px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'akool' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-white font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'akool')" title="LipSync">Lip</button>
+                                <button class="px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'veo' ? 'bg-blue-100 dark:bg-blue-900 shadow text-blue-700 dark:text-blue-300 font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'veo')" title="Veo">Veo</button>
+                            </div>
+                        </div>` : ''}
                     </div>
                 </div>
                 
@@ -1796,7 +1773,7 @@
         }
 
         const btn = document.getElementById('autoGenBtn');
-        Utils.setLoading(btn, true, i18n.status_generating);
+        if (btn) Utils.setLoading(btn, true, i18n.status_generating);
 
         let processedCount = 0;
 
@@ -1934,12 +1911,14 @@
         const anySelected = Array.from(checkboxes).some(cb => cb.checked);
         const btn = document.getElementById('autoGenBtn');
 
-        if (anySelected) {
-            btn.disabled = false;
-            btn.classList.remove('opacity-50', 'cursor-not-allowed');
-        } else {
-            btn.disabled = true;
-            btn.classList.add('opacity-50', 'cursor-not-allowed');
+        if (btn) {
+            if (anySelected) {
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                btn.disabled = true;
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+            }
         }
 
         // Update select-all button icon
@@ -2049,6 +2028,50 @@
         navigator.clipboard.writeText(prompts[index].flow_prompt).then(() => {
             Toast.show(i18n.msg_flow_prompt_copied.replace('{n}', index + 1), 'success');
         });
+    }
+
+    async function regenFlowPrompt(index) {
+        const p = prompts[index];
+        if (!p) return;
+        const projectId = getCurrentProject();
+        if (!projectId) { Toast.show('프로젝트를 먼저 선택하세요.', 'error'); return; }
+
+        const btn = document.getElementById(`regen-flow-btn-${index}`);
+        const viewEl = document.getElementById(`flow-prompt-view-${index}`);
+        const editEl = document.getElementById(`flow-prompt-edit-${index}`);
+
+        if (btn) { btn.disabled = true; btn.textContent = '...'; }
+        if (viewEl) viewEl.textContent = '⏳ 생성 중...';
+
+        try {
+            const styleKey = document.querySelector('select[name="imageStyle"], #imageStyleSelect')?.value || '';
+            const res = await fetch('/api/image/generate-flow-prompt', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    project_id: parseInt(projectId),
+                    scene_number: p.scene_number ?? (index + 1),
+                    scene_text: p.scene_text || '',
+                    prompt_en: p.prompt_en || '',
+                    style_key: styleKey,
+                })
+            });
+            const data = await res.json();
+            if (data.status === 'ok' && data.flow_prompt) {
+                prompts[index].flow_prompt = data.flow_prompt;
+                if (viewEl) viewEl.textContent = data.flow_prompt;
+                if (editEl) editEl.value = data.flow_prompt;
+                Toast.show(`Scene ${index + 1} Flow prompt 재생성 완료`, 'success');
+            } else {
+                Toast.show(data.error || 'Flow prompt 생성 실패', 'error');
+                if (viewEl) viewEl.textContent = p.flow_prompt || '';
+            }
+        } catch (e) {
+            Toast.show('네트워크 오류: ' + e.message, 'error');
+            if (viewEl) viewEl.textContent = p.flow_prompt || '';
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = '↻ AI'; }
+        }
     }
 
     // ── 선택씬 이미지 분석 → 모션 생성 ─────────────────────────────────
@@ -2480,27 +2503,47 @@
         return style && /wimpy|stick|졸라맨/i.test(style);
     }
 
-    function selectStyle(style, element) {
+    let _styleSaveTimer = null;
+
+    function selectStyle(style, element, skipAutoSave = false) {
         // 1. Update Hidden Input
         document.getElementById('imageStyle').value = style;
 
         // 2. Visual Update
-        // Reset all cards
         document.querySelectorAll('.style-card').forEach(card => {
             card.classList.remove('border-blue-600', 'ring-2', 'ring-blue-100');
             card.classList.add('border-transparent');
-
             const checkIcon = card.querySelector('.check-icon');
             if (checkIcon) checkIcon.classList.add('opacity-0');
         });
 
-        // Highlight selected
         if (element) {
             element.classList.remove('border-transparent');
             element.classList.add('border-blue-600', 'ring-2', 'ring-blue-100');
-
             const checkIcon = element.querySelector('.check-icon');
             if (checkIcon) checkIcon.classList.remove('opacity-0');
+        }
+
+        // 3. Auto-save to DB (debounced 500ms) — 복원 시에는 스킵
+        if (!skipAutoSave) {
+            const projectId = getCurrentProject();
+            if (projectId) {
+                // localStorage에 즉시 백업 (DB 저장 전 새로고침 방어)
+                Utils.storage.set(`imageStyle_${projectId}`, style);
+
+                clearTimeout(_styleSaveTimer);
+                _styleSaveTimer = setTimeout(async () => {
+                    try {
+                        await API.project.saveSettings(projectId, {
+                            image_style: style,
+                            image_style_prompt: style,
+                        });
+                        console.log(`[Style] Auto-saved style: ${style}`);
+                    } catch (e) {
+                        console.warn('[Style] Auto-save failed:', e);
+                    }
+                }, 500);
+            }
         }
     }
 
@@ -2561,10 +2604,11 @@
                     if (charArea) { charArea.classList.remove('hidden'); charArea.classList.add('flex'); }
                 }
             }
-            if (data.settings.image_style_prompt) {
-                const styleId = data.settings.image_style_prompt;
-                const element = document.querySelector(`.style-card[data-value="${styleId}"]`);
-                if (element) selectStyle(styleId, element);
+            const savedStyle = data.settings.image_style_prompt
+                || Utils.storage.get(`imageStyle_${getCurrentProject()}`);
+            if (savedStyle) {
+                const element = document.querySelector(`.style-card[data-value="${savedStyle}"]`);
+                if (element) selectStyle(savedStyle, element, true);
             }
         }
 
@@ -2729,9 +2773,7 @@
                     if (fullData.settings.image_style_prompt) {
                         const styleId = fullData.settings.image_style_prompt;
                         const element = document.querySelector(`.style-card[data-value="${styleId}"]`);
-                        if (element) {
-                            selectStyle(styleId, element);
-                        }
+                        if (element) selectStyle(styleId, element, true);
                     }
                     if (fullData.settings.character_ethnicity) {
                         const ethnicityEl = document.getElementById('charEthnicity');

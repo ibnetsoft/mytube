@@ -94,35 +94,27 @@
                     </div>
 
                     <div class="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
-                        <div class="bg-blue-50 dark:bg-blue-900/10 rounded-2xl p-5 border border-blue-100 dark:border-blue-900/30">
-                            <h4 class="text-sm font-bold text-blue-800 dark:text-blue-300 mb-2 flex items-center gap-2">
-                                🌐 API 및 서비스 통합 관리
-                            </h4>
-                            <p class="text-xs text-blue-700/70 dark:text-blue-400/70 leading-relaxed mb-4">
-                                파이썬 앱 내의 모든 API 설정(Gemini, OpenAI, YouTube 등)은 이제 **관리자 웹 대시보드**에서 원격으로 관리됩니다. 
-                                보안을 위해 로컬에서의 직접 수정은 비활성화되었습니다.
-                            </p>
-                            <a href="{{ AUTH_SERVER_URL }}/dashboard" target="_blank" 
-                               class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-xs font-black transition-all shadow-md shadow-blue-500/20 active:scale-[0.98]">
-                                어드민 대시보드 바로가기 ↗
-                            </a>
+                        <h4 class="text-sm font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
+                            👤 사용자 정보
+                        </h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-[10px] font-bold text-gray-500 mb-1 block">이름</label>
+                                <input type="text" id="userName" class="input-field w-full text-xs" placeholder="이름을 입력하세요">
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-bold text-gray-500 mb-1 block">국적</label>
+                                <input type="text" id="userNationality" class="input-field w-full text-xs" placeholder="국가를 입력하세요 (예: 대한민국)">
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-bold text-gray-500 mb-1 block">연락처</label>
+                                <input type="text" id="userPhone" class="input-field w-full text-xs" placeholder="010-0000-0000">
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-bold text-gray-500 mb-1 block">이메일</label>
+                                <input type="email" id="userEmail" class="input-field w-full text-xs" placeholder="example@email.com" readonly>
+                            </div>
                         </div>
-                    </div>
-                </div>
-
-                <!-- Usage Stats Summary (Simple) -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="card p-4 border border-gray-100 dark:border-gray-800 shadow-sm">
-                        <p class="text-[10px] font-bold text-gray-400 uppercase mb-1">이번 달 생성 영상</p>
-                        <p class="text-xl font-black text-gray-800 dark:text-gray-100">12 / <span class="text-gray-400">50</span></p>
-                    </div>
-                    <div class="card p-4 border border-gray-100 dark:border-gray-800 shadow-sm">
-                        <p class="text-[10px] font-bold text-gray-400 uppercase mb-1">사용 가능한 엔진</p>
-                        <p class="text-xs font-bold text-blue-500">Gemini, OpenAI, Pexels</p>
-                    </div>
-                    <div class="card p-4 border border-gray-100 dark:border-gray-800 shadow-sm">
-                        <p class="text-[10px] font-bold text-gray-400 uppercase mb-1">최근 로그인</p>
-                        <p class="text-xs font-bold text-gray-500">{{ now.strftime('%Y-%m-%d') if now else '2026-04-14' }}</p>
                     </div>
                 </div>
             </div>
@@ -2105,7 +2097,11 @@
                 // [NEW] WordPress Settings
                 wp_url: safeVal('wpUrl'),
                 wp_username: safeVal('wpUsername'),
-                wp_password: safeVal('wpPassword')
+                wp_password: safeVal('wpPassword'),
+                user_name: safeVal('userName'),
+                user_nationality: safeVal('userNationality'),
+                user_phone: safeVal('userPhone'),
+                user_email: safeVal('userEmail')
             };
 
             const res = await fetch('/api/settings', {
@@ -2146,6 +2142,12 @@
             // Base Settings
             if (data.app_mode) setAppMode(data.app_mode);
             if (data.template_image_url) updateTemplatePreview(data.template_image_url);
+
+            // User Info
+            if (document.getElementById('userName')) document.getElementById('userName').value = data.user_name || '';
+            if (document.getElementById('userNationality')) document.getElementById('userNationality').value = data.user_nationality || '';
+            if (document.getElementById('userPhone')) document.getElementById('userPhone').value = data.user_phone || '';
+            if (document.getElementById('userEmail')) document.getElementById('userEmail').value = data.user_email || '';
 
             // Gemini TTS
             if (data.gemini_tts) {

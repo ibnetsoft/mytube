@@ -188,6 +188,7 @@ const Utils = {
 
     // 로딩 상태 표시
     setLoading(button, loading, loadingText = '처리 중...') {
+        if (!button) return;
         if (loading) {
             button.disabled = true;
             if (!button.dataset.originalText) {

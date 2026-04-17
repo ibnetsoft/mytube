@@ -219,14 +219,13 @@ JSON만 반환하세요."""
 - prompt_en은 영어로, 이미지 생성 AI에 바로 사용할 수 있는 형식으로 작성하세요.
 - JSON만 반환하세요."""
 
-    GEMINI_IMAGE_PROMPTS = """당신은 세계적인 영화 감독이자 촬영 감독(Cinematographer)입니다.
-아래 대본을 심층 분석하여, 최고의 시각적 스토리텔링을 위한 장면(Scene) 리스트를 작성해주세요.
+    GEMINI_IMAGE_PROMPTS = """당신은 세계 최고의 영화 감독이자 촬영 감독(Cinematographer)입니다. 넷플릭스 수준의 영상미와 픽사·ILM급 비주얼을 구현하는 전문가로서, 아래 대본을 심층 분석하여 최고의 시각적 스토리텔링을 위한 장면(Scene) 리스트를 작성해주세요.
 
 [대본]
 {script}
 
 [핵심 미션: 6개 카테고리 비주얼 분석 및 연출]
-모근 장면(Scene) 구상 시, 대본을 바탕으로 아래 6가지 카테고리 기획 단계를 반드시 거쳐야 합니다:
+모든 장면(Scene) 구상 시, 대본을 바탕으로 아래 6가지 카테고리 기획 단계를 반드시 거쳐야 합니다:
 
 1. **전체 스타일 (Overall Style)**: 이미 선택된 스타일 지침("{style_prefix}")을 최우선으로 따르며, 일관된 톤앤매너를 유지합니다.
 2. **캐릭터 (Character)**: 대본 내 캐릭터의 외형(표정, 의상, 특징)을 추출합니다. 지정된 캐릭터 가이드가 있다면(예: 졸라맨 등) 반드시 준수하세요.
@@ -240,8 +239,12 @@ JSON만 반환하세요."""
 {ethnicity_instruction}
 {limit_instruction}
 
-2. **연출 가이드**:
-   - 대본의 감정선(Emotion)과 전후 맥락(Context)을 파악하여 카메라 무빙과 샷 사이즈를 결정하세요. (Slow Zoom, Pan, Tilt, Rack Focus 등 활용)
+[연출 가이드]
+- 대본의 감정선(Emotion)과 전후 맥락(Context)을 파악하여 카메라 무빙과 샷 사이즈를 결정하세요.
+- 감정이 고조되는 장면: ECU(extreme close-up) + slow push-in
+- 웅장한 배경 공개: EWS(extreme wide shot) + crane up 또는 pull-back
+- 대화/설명 장면: MCU(medium close-up) + subtle dolly
+- 액션/전환 장면: handheld tracking + quick pan
 
 {style_instruction}
 {character_instruction}
@@ -291,16 +294,54 @@ JSON만 반환하세요."""
             "estimated_seconds": 15,
             "visual_reasoning": "위 6가지 분석 내용을 어떻게 조합하여 장면을 구성했는지 설명",
             "prompt_ko": "이미지 묘사 (한글)",
-            "prompt_en": "{style_prefix}, [Detailed Visual Description synthesized from 6-category analysis], [Camera Angle & Movement], [Lighting & Atmosphere]",
-            "flow_prompt": "A single comprehensive descriptive paragraph for Google Flow (Veo 3.1). Combine the visual scene and motion instructions into a cohesive story-driven prompt.",
+            "prompt_en": "{style_prefix}, [Detailed Visual Description synthesized from 6-category analysis], [Camera Angle & Shot Size], [Lighting & Color Temperature], [Atmosphere & Mood], (exactly two arms:1.5), (exactly two hands:1.5), (five fingers per hand:1.4), (anatomically correct hands:1.4), correct anatomy, no extra limbs, no text, no words, no watermarks",
+            "flow_prompt": "[Google Veo용 고품질 영상 프롬프트 - 아래 flow_prompt 작성 규칙 필수 준수]",
             "scene_type": "(졸라맨 스타일 전용) character_main | character_support | infographic"
         }}
     ]
 }}
 
+[flow_prompt 작성 규칙 - Google Veo 최고 품질 출력을 위한 필수 지침]
+
+`flow_prompt`는 Google Veo 영상 생성 AI에 직접 입력되는 핵심 프롬프트입니다. 아래 5단계 구조를 반드시 모두 포함한 3~5문장의 영어 단락으로 작성하세요.
+
+**구조 (5-Layer Cinematic Framework):**
+
+1. **[OPENING FRAME]** 샷 타입과 첫 프레임 구성을 명시하세요.
+   - 샷 사이즈: ECU (extreme close-up) / CU (close-up) / MCU (medium close-up) / MS (medium shot) / FS (full shot) / WS (wide shot) / EWS (extreme wide shot)
+   - 예: "Opening on a tight close-up of..." / "A sweeping wide establishing shot reveals..."
+
+2. **[CAMERA MOVEMENT]** 정확히 하나의 카메라 무빙을 명시적으로 서술하세요. 반드시 아래 목록 중 장면 감정에 맞는 것을 선택:
+   - 고조/집중: `slow push-in` / `gradual dolly-in` / `creeping zoom`
+   - 공개/해방: `smooth pull-back` / `crane up revealing` / `wide arc reveal`
+   - 추적/동행: `steady tracking shot following` / `handheld walking alongside`
+   - 감시/관찰: `static locked-off shot` / `subtle floating drift`
+   - 회전/강조: `slow 360-degree orbit` / `gentle tilt-up` / `graceful pan across`
+   - 전환: `whip pan to` / `rack focus shifting from [A] to [B]`
+
+3. **[SUBJECT MOTION]** 클립 재생 동안 피사체(캐릭터/사물)가 어떻게 움직이는지 구체적으로 서술하세요.
+   - 표정 변화, 신체 동작, 오브젝트 움직임을 묘사
+   - 동작의 속도와 리듬도 포함 (slowly, abruptly, gracefully 등)
+
+4. **[AMBIENT LIFE]** 배경에 생동감을 주는 보조 움직임을 추가하세요.
+   - 자연 요소: swirling dust particles, drifting smoke, rippling water, swaying foliage, falling leaves
+   - 빛 요소: shifting light beams, flickering candlelight, pulsing glow, golden hour rays
+   - 도시 요소: distant traffic blurs, floating bokeh, steam rising
+
+5. **[CINEMATIC FINISH]** 라이팅, 색감, 감정적 톤으로 마무리하세요.
+   - 조명: soft diffused side-light / harsh rim-light / warm golden backlight / cool moonlit glow / dramatic chiaroscuro
+   - 색온도: warm amber tones / desaturated cool palette / rich jewel tones / high-contrast noir
+   - 전체 무드: cinematic, dreamlike, tense, whimsical, melancholic, triumphant 등
+   - 렌더링 스타일 포함 (예: "rendered in Pixar-style 3D animation with subsurface scattering" / "Studio Ghibli hand-painted watercolor style")
+
+**flow_prompt 작성 예시:**
+- 나쁜 예: "A character stands in a kitchen. Pixar style."
+- 좋은 예: "A tight medium close-up frames a plump, pristine onion character standing proudly on a sun-drenched kitchen counter, its white papery skin gleaming under warm morning light. The camera executes a slow push-in, gradually tightening toward the onion's smug, upward-tilted face as it surveys the kitchen with exaggerated confidence. Beside it, a grumpy misshapen carrot visibly slumps its shoulders and looks away, subtle fidgeting conveying deep envy. Golden dust motes float lazily through shafts of sunlight streaming through the window behind them, and steam gently rises from a nearby pot. The scene is rendered in lush Pixar-style 3D animation with rich subsurface scattering on the vegetable skin, warm amber-orange color grading, and a triumphant, comedic tone — as if the onion has just won an Oscar."
+
 [작성 규칙 - Strict Rules]
 - **Analysis Driven**: 모든 장면마다 위에 정의된 6가지 카테고리에 대한 분석 결과를 `visual_analysis` 리스트에 포함하고, 그 분석 정보가 `prompt_en`에 누락 없이 반영되어야 합니다.
 - **Language Integration**: `extracted_info`는 대본의 언어(한글 등)로 작성하여 사용자가 이해할 수 있게 하고, `visual_keywords`와 `prompt_en`은 이미지 생성 AI용 영어로 작성하세요.
+- **flow_prompt는 반드시 영어**로 작성하고, 위의 5-Layer 구조를 모두 포함한 풍부하고 생동감 있는 문단이어야 합니다. 단순한 장면 묘사에 그치지 말고 카메라 움직임, 피사체 동작, 주변 생동감을 반드시 포함하세요.
 - **No Text Exception**: 명시적 요청이 없는 한 이미지 내 텍스트(글자)는 절대 금지하며, 대본상 명시된 경우에만 정확히 해당 텍스트를 프롬프트에 포함하세요.
 - **Anatomy Rules**: 팔 2개, 손 2개 규칙(Exactly two arms/hands)을 엄격히 준수하세요.
 - **Natural Segmentation (Korean)**: `scene_text`를 나눌 때 한국어의 자연스러운 호흡과 문맥을 최우선으로 고려하세요. 마침표, 쉼표, 또는 의미가 끝나는 어미 단위로 장면을 분할해야 합니다. 특히 관형어와 체언 사이(예: "새" + "드레싱")를 절대 끊지 마세요. TTS 성우가 자연스럽게 읽을 수 있는 의미 단위(Sense group)로 문장을 나누십시오.

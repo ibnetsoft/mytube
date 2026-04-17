@@ -1,6 +1,7 @@
 # database.py - SQLite 로컬 데이터베이스
 import sqlite3
 import json
+import os
 import threading
 import time as _time
 from datetime import datetime
@@ -3061,31 +3062,57 @@ def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status:
     def _push_remote():
         try:
             import requests as _req, os as _os
-            license_path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "license.key")
-            if not _os.path.exists(license_path):
+            from pathlib import Path
+            # database.py 위치 기준으로 부모 디렉토리의 license.key 찾기
+            base_dir = Path(__file__).parent
+            license_path = base_dir / "license.key"
+            
+            if not license_path.exists():
+                print(f"⚠️ [Sync] license.key not found at {license_path}")
                 return
+                
             with open(license_path) as f:
                 user_id = f.read().strip()
+                
             if not user_id:
+                print("⚠️ [Sync] user_id is empty in license.key")
                 return
-            _req.post(
-                "https://mytube-ashy-seven.vercel.app/api/logs",
-                json={
-                    "userId": user_id,
-                    "task_type": task_type,
-                    "model_id": model_id,
-                    "provider": provider,
-                    "status": status,
-                    "prompt_summary": prompt_summary,
-                    "error_msg": error_msg,
-                    "elapsed_time": elapsed_time,
-                    "input_tokens": input_tokens,
-                    "output_tokens": output_tokens
-                },
-                timeout=5
-            )
-        except Exception:
-            pass  # 원격 실패는 무시 (로컬 로그는 이미 저장됨)
+
+            # DASHBOARD_URL 환경변수 사용
+            base_url = _os.getenv("DASHBOARD_URL", "https://mytube-ashy-seven.vercel.app")
+            
+            # 로컬 배포 환경 자동 감지 (localhost:3000 우선)
+            if _os.getenv("DEBUG") == "true" or _os.path.exists(_os.path.join(base_dir, ".env.local")):
+                try:
+                    # 로컬 대시보드가 응답하는지 확인
+                    check_resp = _req.get("http://localhost:3000/api/health", timeout=0.5)
+                    if check_resp.status_code == 200:
+                        base_url = "http://localhost:3000"
+                except Exception:
+                    pass
+
+            payload = {
+                "userId": user_id,
+                "task_type": task_type,
+                "model_id": model_id,
+                "provider": provider,
+                "status": status,
+                "prompt_summary": prompt_summary,
+                "error_msg": error_msg,
+                "elapsed_time": elapsed_time,
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens
+            }
+            
+            resp = _req.post(f"{base_url}/api/logs", json=payload, timeout=10)
+            if resp.status_code != 200:
+                print(f"❌ [Sync] Failed to push log to {base_url}: {resp.status_code} {resp.text}")
+            else:
+                print(f"✅ [Sync] Successfully pushed {task_type} log to remote.")
+                
+        except Exception as e:
+            print(f"❌ [Sync] Error during remote push: {e}")
+            
     threading.Thread(target=_push_remote, daemon=True).start()
 
 

@@ -9,9 +9,13 @@ from datetime import datetime
 class AuthService:
     def __init__(self):
         self.license_file = "license.key"
-        self.verify_url = "https://mytube-ashy-seven.vercel.app/api/verify"
-        self._membership = "standard" # Default
+        self.verify_url = "http://localhost:3000/api/verify" # [LOCAL TEST]
+        self.update_profile_url = "http://localhost:3000/api/user/update-profile"
+        self._membership = "std" # Default
         self._user_email = ""
+        self._user_name = ""
+        self._user_nationality = ""
+        self._user_contact = ""
         self._youtube_channel = ""
         self._youtube_handle = ""
         self._verified = False
@@ -69,8 +73,14 @@ class AuthService:
             if response.status_code == 200:
                 data = response.json()
                 if data.get("success"):
-                    self._membership = data.get("membership", "standard")
+                    raw = data.get("membership", "std")
+                    # 서버 값 정규화: "standard" → "std", "independent" → "pro"
+                    _norm = {"standard": "std", "independent": "pro"}
+                    self._membership = _norm.get(raw, raw)
                     self._user_email = data.get("email", "")
+                    self._user_name = data.get("full_name", "")
+                    self._user_nationality = data.get("nationality", "")
+                    self._user_contact = data.get("contact", "")
                     self._youtube_channel = data.get("youtube_channel", "")
                     self._youtube_handle = data.get("youtube_handle", "")
                     
@@ -84,6 +94,18 @@ class AuthService:
                         self._verified = True
                         self._last_verified = datetime.now()
                         self._token_balance = data.get("token_balance", 0)
+                        
+                        # [FIX] Update Jinja2 Globals for immediate visibility
+                        try:
+                            from .app_state import get_templates
+                            templates = get_templates()
+                            if templates:
+                                templates.env.globals['membership'] = self._membership
+                                templates.env.globals['token_balance'] = self._token_balance
+                                templates.env.globals['is_independent'] = self.is_independent()
+                                print(f"[Auth] Updated Template Globals: {self._membership}")
+                        except Exception as e:
+                            print(f"[Auth] Template sync error: {e}")
                     
                     # Supabase 원격 API 키 → 메모리 전용 로드 (로컬 저장 없음)
                     api_keys = data.get("api_keys", {})
@@ -112,8 +134,8 @@ class AuthService:
 
         def _monitor_loop():
             while not self._stop_event.is_set():
-                # Wait 10 minutes between checks
-                for _ in range(600): # Check stop event every second
+                # Wait 30 seconds between checks (faster sync for testing)
+                for _ in range(30): # Check stop event every second
                     if self._stop_event.is_set(): return
                     time.sleep(1)
                 
@@ -122,7 +144,7 @@ class AuthService:
 
         self._monitor_thread = threading.Thread(target=_monitor_loop, daemon=True)
         self._monitor_thread.start()
-        self.logger.info("Admin Monitoring Service started (10m interval)")
+        self.logger.info("Admin Monitoring Service started (30s interval)")
 
     def is_verified(self):
         return self._verified and not self._is_restricted
@@ -130,8 +152,46 @@ class AuthService:
     def is_restricted(self):
         return self._is_restricted
 
+    def sync_profile(self, name: str, nationality: str, contact: str):
+        """Sync local user profile info to the SaaS server"""
+        if not os.path.exists(self.license_file):
+            return False
+
+        try:
+            with open(self.license_file, "r") as f:
+                user_id = f.read().strip()
+
+            if not user_id:
+                return False
+
+            response = requests.post(
+                self.update_profile_url,
+                json={
+                    "userId": user_id,
+                    "full_name": name,
+                    "nationality": nationality,
+                    "contact": contact
+                },
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                print(f"[Sync] SaaS Profile Sync Success: {name}")
+                # Update local cache too
+                self._user_name = name
+                self._user_nationality = nationality
+                self._user_contact = contact
+                return True
+            else:
+                print(f"[Sync] SaaS Profile Sync Failed ({response.status_code}): {response.text}")
+                return False
+        except Exception as e:
+            print(f"[Sync] Error syncing profile to SaaS: {e}")
+            self.logger.error(f"Error syncing profile to SaaS: {e}")
+            return False
+
     def is_independent(self):
-        return self._membership == "independent"
+        return self._membership in ("independent", "pro")
 
     def get_membership(self):
         return self._membership
@@ -144,6 +204,15 @@ class AuthService:
 
     def get_youtube_handle(self):
         return self._youtube_handle
+
+    def get_user_name(self):
+        return self._user_name
+
+    def get_user_nationality(self):
+        return self._user_nationality
+
+    def get_user_contact(self):
+        return self._user_contact
 
     def remote_keys_loaded(self):
         """이번 세션에서 Supabase 원격 키를 성공적으로 받았는지 여부"""

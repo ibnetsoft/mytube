@@ -192,15 +192,15 @@
     <div class="col-span-12 xl:col-span-8 lg:col-span-7 flex flex-col gap-2 min-h-0 overflow-hidden">
 
         <!-- 1. Top Control Bar (Style & Actions) — 2줄 구조 -->
-        <div class="flex flex-col gap-1 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 shrink-0">
+        <div class="flex flex-col gap-1.5 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 shrink-0">
 
-            <!-- Row 1: Template / Preset / Font / Color -->
-            <div class="flex items-center gap-2 flex-nowrap overflow-x-auto overflow-y-hidden">
+            <!-- Row 1: Template / Preset / Font / Color — flex-wrap으로 언어 무관하게 줄바꿈 -->
+            <div class="flex items-center gap-x-3 gap-y-1.5 flex-wrap">
 
-                <!-- Shorts Template Section -->
-                <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3 ml-1 flex-shrink-0">
+                <!-- Template -->
+                <div class="flex items-center gap-1 shrink-0">
                     <select id="shortsTemplateSelect" onchange="applyShortsTemplate(this.value)"
-                        class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-indigo-200 dark:border-indigo-900 rounded-md py-1 px-2 w-32 focus:ring-1 focus:ring-indigo-500 focus:outline-none cursor-pointer">
+                        class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-indigo-200 dark:border-indigo-900 rounded-md py-1 px-2 w-28 focus:ring-1 focus:ring-indigo-500 focus:outline-none cursor-pointer">
                         <option value="">-- {{ t('opt_select_template') }} --</option>
                     </select>
                     <button onclick="refreshShortsTemplatePresets()" class="p-1 text-gray-400 hover:text-indigo-500" title="새로고침">
@@ -210,36 +210,28 @@
                     </button>
                 </div>
 
-                <!-- Pre-existing Presets Section -->
-                <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3 flex-shrink-0">
-                    <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_preset') }}</span>
-                    <div class="flex items-center gap-1">
-                        <select id="subtitlePresetSelect" onchange="applySubtitlePreset(this.value)"
-                            class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-28 focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer">
-                            <option value="">{{ t('opt_select') }}</option>
-                        </select>
-                        <button onclick="deleteCurrentSubtitlePreset()"
-                            class="p-1 text-gray-400 hover:text-red-500 transition-colors" title="{{ t('title_delete_preset') }}">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
-                                </path>
-                            </svg>
-                        </button>
-                    </div>
-                    <div class="flex items-center gap-1 ml-1 border-l border-gray-200 dark:border-gray-600 pl-2">
-                        <input type="text" id="newPresetName" placeholder="{{ t('placeholder_new_preset') }}"
-                            class="text-[11px] bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded px-1.5 py-1 w-20 focus:outline-none focus:ring-1 focus:ring-blue-500">
-                        <button onclick="saveCurrentAsPreset()"
-                            class="text-[11px] bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded transition-colors whitespace-nowrap font-bold">
-                            {{ t('btn_save') }}
-                        </button>
-                    </div>
+                <div class="w-px h-5 bg-gray-200 dark:bg-gray-600 shrink-0"></div>
+
+                <!-- Preset -->
+                <div class="flex items-center gap-1 shrink-0">
+                    <select id="subtitlePresetSelect" onchange="applySubtitlePreset(this.value)"
+                        class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-24 focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer">
+                        <option value="">{{ t('opt_select') }}</option>
+                    </select>
+                    <button onclick="deleteCurrentSubtitlePreset()" class="p-1 text-gray-400 hover:text-red-500 transition-colors" title="{{ t('title_delete_preset') }}">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    </button>
+                    <input type="text" id="newPresetName" placeholder="{{ t('placeholder_new_preset') }}"
+                        class="text-[11px] bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded px-1.5 py-1 w-20 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                    <button onclick="saveCurrentAsPreset()" class="text-[11px] bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded transition-colors font-bold">
+                        {{ t('btn_save') }}
+                    </button>
                 </div>
 
-                <!-- Font Settings -->
-                <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3 flex-shrink-0">
-                    <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_font') }}</span>
+                <div class="w-px h-5 bg-gray-200 dark:bg-gray-600 shrink-0"></div>
+
+                <!-- Font -->
+                <div class="flex items-center gap-1.5 shrink-0">
                     <select id="fontFamilySelect"
                         class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-28 focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer">
                         <option value="GmarketSansBold" selected>{{ t('font_gmarket') }}</option>
@@ -260,122 +252,102 @@
                         <option value="NanumMyeongjo">{{ t('font_nanummyeongjo') }}</option>
                         <option value="Malgun Gothic">{{ t('font_malgun') }}</option>
                     </select>
-                    <!-- 폰트 크기 -->
-                    <div class="flex items-center gap-1">
-                        <span class="text-[11px] text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_size_percent') }}</span>
-                        <input type="number" id="fontSizeSlider" value="5.4" min="1" max="20" step="0.1"
-                            class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-14 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                            title="{{ t('label_size_percent') }} (%)">
-                        <span class="text-[11px] text-gray-400">%</span>
-                        <span id="fontSizeValue" class="hidden">5.4%</span>
-                    </div>
-                    <!-- 줄간격 -->
-                    <div class="flex items-center gap-1">
-                        <span class="text-[11px] text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_line_spacing') }}</span>
-                        <input type="number" id="lineSpacingInput" value="0.1" min="-0.5" max="1.5" step="0.05"
-                            class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-14 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                            title="{{ t('label_line_spacing_ratio') }}">
-                    </div>
+                    <input type="number" id="fontSizeSlider" value="5.4" min="1" max="20" step="0.1"
+                        class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-1 w-12 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                        title="{{ t('label_size_percent') }} (%)">
+                    <span class="text-[11px] text-gray-400">%</span>
+                    <span id="fontSizeValue" class="hidden">5.4%</span>
+                    <input type="number" id="lineSpacingInput" value="0.1" min="-0.5" max="1.5" step="0.05"
+                        class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-1 w-12 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                        title="{{ t('label_line_spacing_ratio') }}">
                 </div>
 
-                <!-- Color Settings -->
-                <div class="flex items-center gap-2 flex-shrink-0">
+                <div class="w-px h-5 bg-gray-200 dark:bg-gray-600 shrink-0"></div>
+
+                <!-- Colors -->
+                <div class="flex items-center gap-2 shrink-0">
                     <div class="flex flex-col items-center gap-0.5">
-                        <input type="color" id="textColorInput" value="#ffffff"
-                            class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer"
-                            title="{{ t('label_text_color') }}">
-                        <span class="text-[9px] text-gray-400">{{ t('label_text_color') }}</span>
+                        <input type="color" id="textColorInput" value="#ffffff" class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer" title="{{ t('label_text_color') }}">
+                        <span class="text-[9px] text-gray-400">T</span>
                     </div>
                     <div class="flex flex-col items-center gap-0.5">
-                        <input type="color" id="strokeColorInput" value="#000000"
-                            class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer"
-                            title="{{ t('label_stroke_color') }}">
-                        <span class="text-[9px] text-gray-400">{{ t('label_stroke_color') }}</span>
+                        <input type="color" id="strokeColorInput" value="#000000" class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer" title="{{ t('label_stroke_color') }}">
+                        <span class="text-[9px] text-gray-400">S</span>
                     </div>
                 </div>
-
             </div>
 
-            <!-- Row 2: 테두리 / 배경띠 / Action Buttons -->
-            <div class="flex items-center gap-2 flex-nowrap overflow-x-auto overflow-y-hidden py-0.5 border-t border-gray-100 dark:border-gray-700 pt-1">
+            <!-- Row 2: Stroke / BG Strip / Action Buttons — flex-wrap -->
+            <div class="flex items-center gap-x-2 gap-y-1.5 flex-wrap pt-1.5 border-t border-gray-100 dark:border-gray-700">
 
-                <div class="flex items-center gap-1.5 border-r border-gray-200 dark:border-gray-600 pr-3 flex-shrink-0">
-                    <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_stroke') }}</span>
+                <!-- Stroke + Y position -->
+                <div class="flex items-center gap-1 shrink-0">
+                    <span class="text-[10px] font-bold text-gray-400 dark:text-gray-500">{{ t('label_stroke') }}</span>
                     <input type="number" id="strokeWidthInput" value="0" min="0" max="15" step="0.5"
-                        class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-12 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                        title="테두리 두께 (px)">
-                    <span class="text-[11px] text-gray-400">px</span>
-                    <!-- 자막 세로 위치 조절 스피너 -->
-                    <div class="flex flex-col items-center gap-0.5">
-                        <button onclick="adjustSubtitlePosY(-1)"
-                            class="w-6 h-4 flex items-center justify-center rounded-sm bg-gray-500 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-500 text-white text-[10px] leading-none">▲</button>
-                        <span id="posYDisplay" class="text-[10px] text-gray-500 dark:text-gray-400 font-mono w-6 text-center leading-none">5</span>
-                        <button onclick="adjustSubtitlePosY(1)"
-                            class="w-6 h-4 flex items-center justify-center rounded-sm bg-gray-500 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-500 text-white text-[10px] leading-none">▼</button>
+                        class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-1 w-10 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                    <span class="text-[10px] text-gray-400">px</span>
+                    <div class="flex flex-col items-center gap-0.5 ml-1">
+                        <button onclick="adjustSubtitlePosY(-1)" class="w-5 h-3.5 flex items-center justify-center rounded-sm bg-gray-400 hover:bg-gray-500 dark:bg-gray-600 text-white text-[9px] leading-none">▲</button>
+                        <span id="posYDisplay" class="text-[9px] text-gray-500 font-mono w-5 text-center leading-none">5</span>
+                        <button onclick="adjustSubtitlePosY(1)" class="w-5 h-3.5 flex items-center justify-center rounded-sm bg-gray-400 hover:bg-gray-500 dark:bg-gray-600 text-white text-[9px] leading-none">▼</button>
                     </div>
                 </div>
 
-                <!-- Background Strip Settings -->
-                <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3 flex-shrink-0">
-                    <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('label_bg_strip') }}</span>
+                <div class="w-px h-5 bg-gray-200 dark:bg-gray-600 shrink-0"></div>
+
+                <!-- BG Strip -->
+                <div class="flex items-center gap-1.5 shrink-0">
+                    <span class="text-[10px] font-bold text-gray-400 dark:text-gray-500">{{ t('label_bg_strip') }}</span>
                     <label class="relative inline-flex items-center cursor-pointer">
                         <input type="checkbox" id="bgStripToggle" class="sr-only peer" onchange="updateBgStrip(this)">
-                        <div
-                            class="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600">
-                        </div>
+                        <div class="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
                     </label>
                     <div class="flex flex-col items-center gap-0.5">
-                        <input type="color" id="bgColorInput" value="#000000"
-                            class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer"
-                            title="{{ t('label_bg_color') }}">
-                        <span class="text-[9px] text-gray-400">{{ t('label_bg_color') }}</span>
+                        <input type="color" id="bgColorInput" value="#000000" class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer" title="{{ t('label_bg_color') }}">
+                        <span class="text-[9px] text-gray-400">BG</span>
                     </div>
-                    <div class="flex items-center gap-1">
-                        <span class="text-[11px] text-gray-500 dark:text-gray-400">{{ t('label_opacity') }}</span>
-                        <input type="number" id="bgOpacityInput" value="0.5" min="0" max="1" step="0.1"
-                            class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-12 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                            title="{{ t('label_opacity') }} (0~1)">
-                    </div>
-                    <div
-                        class="flex items-center gap-1 bg-gray-50 dark:bg-gray-800 px-1 rounded-md border border-gray-200 dark:border-gray-700">
-                        <span class="text-[10px] text-gray-400" title="배경띠 위아래 미세 위치 조정">↕</span>
-                        <input type="number" id="bgVOffsetInput" value="0" step="1"
-                            class="text-[11px] text-gray-800 dark:text-gray-100 bg-transparent border-0 p-0 w-8 text-center focus:ring-0"
-                            title="배경띠 미세 위치 (px)">
+                    <input type="number" id="bgOpacityInput" value="0.5" min="0" max="1" step="0.1"
+                        class="text-[11px] text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-1 w-10 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                        title="{{ t('label_opacity') }}">
+                    <div class="flex items-center gap-0.5 bg-gray-50 dark:bg-gray-800 px-1 rounded border border-gray-200 dark:border-gray-700">
+                        <span class="text-[10px] text-gray-400">↕</span>
+                        <input type="number" id="bgVOffsetInput" value="0" step="1" class="text-[11px] bg-transparent border-0 p-0 w-7 text-center focus:ring-0 text-gray-800 dark:text-gray-100">
                     </div>
                 </div>
 
-                <!-- 구분선 -->
-                <div class="h-5 w-px bg-gray-300 dark:bg-gray-600 flex-shrink-0"></div>
-                <button onclick="resetAndReload(this)"
-                    class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-gray-500 hover:bg-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 text-white disabled:opacity-50 flex-shrink-0">
-                    {{ t('btn_reset_reload') }}
-                </button>
-                <button onclick="distributeImages(this)"
-                    class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-blue-500 hover:bg-blue-600 text-white shadow-sm shadow-blue-500/30 disabled:opacity-50 flex-shrink-0">
-                    {{ t('btn_ai_sync') }}
-                </button>
-                <button onclick="splitAllSubtitles(this)"
-                    class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-slate-500 hover:bg-slate-600 text-white disabled:opacity-50 flex-shrink-0">
-                    {{ t('btn_split_2lines') }}
-                </button>
-                <button onclick="regenerateSubtitles(this)"
-                    class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-indigo-500 hover:bg-indigo-600 text-white disabled:opacity-50 flex-shrink-0">
-                    {{ t('btn_regen_all') }}
-                </button>
-                <button id="saveBtn" onclick="saveSubtitles(this)"
-                    class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white shadow-sm shadow-green-600/30 disabled:opacity-50 flex-shrink-0"
-                    title="{{ t('tooltip_save_sync') }}">
-                    {{ t('btn_save') }}
-                </button>
-                <button id="renderBtn" onclick="renderVideoInPlace()"
-                    class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-purple-600 hover:bg-purple-700 text-white shadow-sm shadow-purple-600/30 animate-pulse-slow disabled:opacity-50 flex-shrink-0">
-                    {{ t('btn_render') }}
-                </button>
-                <button id="renderQueueBtn" onclick="addToRenderQueue()"
-                    class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-gray-600 hover:bg-gray-700 text-white shadow-sm disabled:opacity-50 flex-shrink-0">
-                    {{ t('btn_render_queue') }}
-                </button>
+                <div class="w-px h-5 bg-gray-200 dark:bg-gray-600 shrink-0"></div>
+
+                <!-- Action Buttons: 아이콘 + 짧은 텍스트, tooltip으로 전체 번역 표시 -->
+                <div class="flex items-center gap-1 flex-wrap">
+                    <button onclick="resetAndReload(this)" title="{{ t('btn_reset_reload') }}"
+                        class="text-[10px] font-semibold px-2 py-1.5 rounded-md transition-all flex items-center gap-1 bg-gray-500 hover:bg-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 text-white disabled:opacity-50">
+                        🔄 <span class="hidden sm:inline">{{ t('btn_reset_reload') }}</span>
+                    </button>
+                    <button onclick="distributeImages(this)" title="{{ t('btn_ai_sync') }}"
+                        class="text-[10px] font-semibold px-2 py-1.5 rounded-md transition-all flex items-center gap-1 bg-blue-500 hover:bg-blue-600 text-white shadow-sm shadow-blue-500/30 disabled:opacity-50">
+                        🖼️ <span class="hidden sm:inline">{{ t('btn_ai_sync') }}</span>
+                    </button>
+                    <button onclick="splitAllSubtitles(this)" title="{{ t('btn_split_2lines') }}"
+                        class="text-[10px] font-semibold px-2 py-1.5 rounded-md transition-all flex items-center gap-1 bg-slate-500 hover:bg-slate-600 text-white disabled:opacity-50">
+                        ✂️ <span class="hidden sm:inline">{{ t('btn_split_2lines') }}</span>
+                    </button>
+                    <button onclick="regenerateSubtitles(this)" title="{{ t('btn_regen_all') }}"
+                        class="text-[10px] font-semibold px-2 py-1.5 rounded-md transition-all flex items-center gap-1 bg-indigo-500 hover:bg-indigo-600 text-white disabled:opacity-50">
+                        ✨ <span class="hidden sm:inline">{{ t('btn_regen_all') }}</span>
+                    </button>
+                    <button id="saveBtn" onclick="saveSubtitles(this)" title="{{ t('tooltip_save_sync') }}"
+                        class="text-[10px] font-semibold px-2 py-1.5 rounded-md transition-all flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white shadow-sm shadow-green-600/30 disabled:opacity-50">
+                        💾 <span class="hidden sm:inline">{{ t('btn_save') }}</span>
+                    </button>
+                    <button id="renderBtn" onclick="renderVideoInPlace()" title="{{ t('btn_render') }}"
+                        class="text-[10px] font-semibold px-2 py-1.5 rounded-md transition-all flex items-center gap-1 bg-purple-600 hover:bg-purple-700 text-white shadow-sm shadow-purple-600/30 animate-pulse-slow disabled:opacity-50">
+                        🎬 <span class="hidden sm:inline">{{ t('btn_render') }}</span>
+                    </button>
+                    <button id="renderQueueBtn" onclick="addToRenderQueue()" title="{{ t('btn_render_queue') }}"
+                        class="text-[10px] font-semibold px-2 py-1.5 rounded-md transition-all flex items-center gap-1 bg-gray-600 hover:bg-gray-700 text-white shadow-sm disabled:opacity-50">
+                        ➕ <span class="hidden sm:inline">{{ t('btn_render_queue') }}</span>
+                    </button>
+                </div>
             </div>
 
         </div>
