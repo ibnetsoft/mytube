@@ -6,7 +6,7 @@
 
 <!-- 트렌드 키워드 버블 차트 -->
 <div
-    class="card mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-[#000106] dark:to-[#000106] border-none shadow-lg overflow-hidden relative">
+    class="card mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-[#000106] dark:to-[#000106] border border-gray-100 dark:border-blue-900/20 shadow-lg overflow-hidden relative">
     <div class="relative z-10">
         <div class="flex items-center justify-between mb-4">
             <h3 class="font-bold text-xl text-gray-800 dark:text-white flex items-center gap-3">
@@ -17,27 +17,26 @@
                 </div>
                 <!-- [NEW] 수동 로딩 버튼 -->
                 <button onclick="loadTrendKeywords()"
-                    class="btn-secondary py-1.5 px-4 text-xs flex items-center gap-2 bg-[#000106] hover:shadow-md transition-all active:scale-95">
-                    <span>🔄</span>
-                    <span>{{ t('title_refresh') }}</span>
+                    class="px-3 py-1.5 text-xs font-bold border border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white rounded transition-all active:scale-95">
+                    {{ t('title_refresh') }}
                 </button>
             </h3>
 
             <!-- 필터 그룹 (언어 / 기간 / 연령) -->
             <div class="flex flex-wrap items-center gap-3">
                 <!-- [NEW] 국가 선택 -->
-                <div class="flex bg-[#000106] p-1 rounded-lg">
+                <div class="flex bg-[#000106] p-1 rounded-lg border border-gray-700">
                     <button id="btn-ko" onclick="changeTrendLanguage('ko')" 
-                        class="lang-btn px-4 py-2 text-sm font-bold rounded-md transition-all active:scale-95 bg-indigo-500 text-white shadow-md">
-                        🇰🇷 {{ t('lang_ko') }}
+                        class="lang-btn px-4 py-2 text-sm font-bold rounded-md transition-all active:scale-95 bg-[#0a0f1d] border border-gray-500 text-white shadow-md">
+                        {{ t('lang_ko') }}
                     </button>
                     <button id="btn-ja" onclick="changeTrendLanguage('ja')" 
-                        class="lang-btn px-4 py-2 text-sm font-bold rounded-md transition-all active:scale-95 text-gray-500 hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d]">
-                        🇯🇵 {{ t('lang_ja') }}
+                        class="lang-btn px-4 py-2 text-sm font-bold rounded-md transition-all active:scale-95 text-gray-500 hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d] border border-transparent">
+                        {{ t('lang_ja') }}
                     </button>
                     <button id="btn-en" onclick="changeTrendLanguage('en')" 
-                        class="lang-btn px-4 py-2 text-sm font-bold rounded-md transition-all active:scale-95 text-gray-500 hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d]">
-                        🇺🇸 {{ t('lang_en') }}
+                        class="lang-btn px-4 py-2 text-sm font-bold rounded-md transition-all active:scale-95 text-gray-500 hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d] border border-transparent">
+                        {{ t('lang_en') }}
                     </button>
                 </div>
 
@@ -74,7 +73,7 @@
                 <div id="bubblePlaceholder" class="flex flex-col items-center gap-3">
                     <div class="text-6xl opacity-50">🌍</div>
                     <p class="text-sm">{{ t('hint_trend_keywords') }}</p>
-                    <button onclick="loadTrendKeywords()" class="btn-primary py-2 px-6 rounded-full scale-110">{{ t('btn_trend_analysis_start') }}</button>
+                    <button onclick="loadTrendKeywords()" class="px-6 py-2.5 rounded-full border border-gray-400 dark:border-gray-500 bg-transparent text-white font-bold hover:bg-[#0a0f1d] transition-all scale-110">{{ t('btn_trend_analysis_start') }}</button>
                 </div>
             </div>
         </div>
@@ -215,17 +214,17 @@
                         </div>
                     </th>
                     <th scope="col" class="px-2 py-3">{{ t('th_thumbnail') }}</th>
-                    <th scope="col" class="px-2 py-3 cursor-pointer hover:bg-[#000106] dark:hover:bg-gray-600"
+                    <th scope="col" class="px-2 py-3 cursor-pointer hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d]"
                         onclick="sortVideos('channel')">{{ t('th_channel') }}</th>
                     <th scope="col" class="px-2 py-3 w-[30%]">{{ t('th_video_title') }}</th>
-                    <th scope="col" class="px-2 py-3 cursor-pointer hover:bg-[#000106] dark:hover:bg-gray-600"
+                    <th scope="col" class="px-2 py-3 cursor-pointer hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d]"
                         onclick="sortVideos('date')">{{ t('th_upload') }}</th>
                     <th scope="col" class="px-2 py-3 text-right">{{ t('th_subscribers') }}</th>
-                    <th scope="col" class="px-2 py-3 text-right cursor-pointer hover:bg-[#000106] dark:hover:bg-gray-600"
+                    <th scope="col" class="px-2 py-3 text-right cursor-pointer hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d]"
                         onclick="sortVideos('views')">{{ t('th_views') }}</th>
                     <th scope="col" class="px-2 py-3 text-center">{{ t('th_channel_contribution') }}</th>
                     <th scope="col"
-                        class="px-2 py-3 text-center cursor-pointer hover:bg-[#000106] dark:hover:bg-gray-600"
+                        class="px-2 py-3 text-center cursor-pointer hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d]"
                         onclick="sortVideos('performance')">{{ t('th_performance') }}</th>
                     <th scope="col" class="px-2 py-3 text-right">{{ t('th_likes') }}</th>
                     <th scope="col" class="px-2 py-3 text-center">{{ t('th_actions') }}</th>
@@ -499,7 +498,7 @@
             const thumbUrl = video.snippet.thumbnails.default?.url || video.snippet.thumbnails.medium?.url;
 
             return `
-                <tr class="bg-[#000106] border-b bg-[#000106] dark:border-gray-700 hover:bg-[#000106] dark:hover:bg-gray-600 transition">
+                <tr class="bg-[#000106] border-b dark:border-gray-800 hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d] transition">
                     <td class="w-4 p-4">
                         <div class="flex items-center">
                             <input id="checkbox-table-${index}" type="checkbox" data-video-id="${video.id}" class="video-checkbox w-4 h-4 text-blue-600 bg-[#000106] border-gray-300 rounded focus:ring-blue-500 dark:border-gray-700">

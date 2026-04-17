@@ -8,26 +8,32 @@
         --atl-base:    #000106;
         --atl-low:     #000106;
         --atl-mid:     #000106;
-        --atl-high:    #000106;
-        --atl-highest: #000106;
+        --atl-high:    #0a0f1d;
+        --atl-highest: #121829;
         --atl-primary: #b6c4ff;
         --atl-primary-end: #004adf;
         --atl-tertiary: #00daf3;
         --atl-text:    #dae2fd;
         --atl-sub:     #c5c5d4;
         --atl-outline: #454652;
-        --atl-outline-dim: rgba(69,70,82,0.18);
+        --atl-outline-dim: rgba(182,196,255,0.08);
     }
     .atl-scrollbar::-webkit-scrollbar { width: 4px; }
     .atl-scrollbar::-webkit-scrollbar-track { background: transparent; }
-    .atl-scrollbar::-webkit-scrollbar-thumb { background: var(--atl-outline); border-radius: 10px; }
+    .atl-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
     .atl-glass {
         background: rgba(0, 1, 6, 0.7);
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
     }
     .atl-grad-btn {
-        background: linear-gradient(135deg, var(--atl-primary) 0%, var(--atl-primary-end) 100%);
+        background: transparent;
+        border: 1px solid var(--atl-outline);
+        color: var(--atl-text) !important;
+    }
+    .atl-grad-btn:hover {
+        background: var(--atl-high);
+        border-color: var(--atl-primary);
     }
     .atl-input {
         background: var(--atl-deep);
@@ -134,22 +140,22 @@
                     <label class="atl-field-label block">{{ t('label_trend_market') if t('label_trend_market') != 'label_trend_market' else 'Trend Market' }}</label>
                     <div class="grid grid-cols-3 gap-2">
                         <button onclick="setGenerationLanguage('ko')" 
-                                class="py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all hover:scale-105 active:scale-95 border-2 border-transparent"
-                                style="background: rgba(182,196,255,0.05); color: var(--atl-primary); font-size: 10px; font-weight: 800; border-color: rgba(182,196,255,0.2);"
+                                class="py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all hover:scale-105 active:scale-95 border border-gray-600 bg-transparent text-white"
+                                style="font-size: 10px; font-weight: 800;"
                                 id="langBtn-ko">
-                            <span>🇰🇷</span> {{ t('plan_kr_trend').split(' ')[1] if t('plan_kr_trend') and ' ' in t('plan_kr_trend') else 'KOREAN' }}
+                            {{ t('plan_kr_trend').split(' ')[1] if t('plan_kr_trend') and ' ' in t('plan_kr_trend') else 'KOREAN' }}
                         </button>
                         <button onclick="setGenerationLanguage('ja')" 
-                                class="py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all hover:scale-105 active:scale-95 border-2 border-transparent"
-                                style="background: rgba(255,182,182,0.05); color: #ffb6b6; font-size: 10px; font-weight: 800;"
+                                class="py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all hover:scale-105 active:scale-95 border border-gray-600 bg-transparent text-white"
+                                style="font-size: 10px; font-weight: 800;"
                                 id="langBtn-ja">
-                            <span>🇯🇵</span> {{ t('plan_jp_trend').split(' ')[1] if t('plan_jp_trend') and ' ' in t('plan_jp_trend') else 'JAPANESE' }}
+                            {{ t('plan_jp_trend').split(' ')[1] if t('plan_jp_trend') and ' ' in t('plan_jp_trend') else 'JAPANESE' }}
                         </button>
                         <button onclick="setGenerationLanguage('en')" 
-                                class="py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all hover:scale-105 active:scale-95 border-2 border-transparent"
-                                style="background: rgba(182,255,182,0.05); color: #b6ffb6; font-size: 10px; font-weight: 800;"
+                                class="py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all hover:scale-105 active:scale-95 border border-gray-600 bg-transparent text-white"
+                                style="font-size: 10px; font-weight: 800;"
                                 id="langBtn-en">
-                            <span>🇺🇸</span> {{ t('plan_us_trend').split(' ')[1] if t('plan_us_trend') and ' ' in t('plan_us_trend') else 'ENGLISH' }}
+                            {{ t('plan_us_trend').split(' ')[1] if t('plan_us_trend') and ' ' in t('plan_us_trend') else 'ENGLISH' }}
                         </button>
                     </div>
                 </div>
@@ -241,9 +247,8 @@
             <!-- ── 2. ACTION CONSOLE ── -->
             <div class="space-y-3">
                 <button onclick="generateStructure()" id="generateBtn"
-                    class="w-full atl-grad-btn font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2.5 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg"
-                    style="color: #001550; font-family: 'Manrope', sans-serif; font-size: 0.85rem; letter-spacing: 0.05em;">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    class="w-full atl-grad-btn font-bold py-3.5 rounded-2xl flex items-center justify-center transition-all shadow-lg"
+                    style="font-family: 'Manrope', sans-serif; font-size: 0.85rem; letter-spacing: 0.05em;">
                     {{ t('gen_structure') }}
                 </button>
                 <div class="grid grid-cols-2 gap-2.5">
@@ -1677,7 +1682,7 @@
 
                 filtered.forEach(proj => {
                     const btn = document.createElement('button');
-                    btn.className = 'w-full flex items-center justify-between p-4 bg-[#000106] hover:bg-[#000106] dark:hover:bg-purple-900/30 border border-gray-100 dark:border-gray-600 rounded-xl transition-all group mb-2';
+                    btn.className = 'w-full flex items-center justify-between p-4 bg-[#000106] hover:bg-[#0a0f1d] dark:hover:bg-purple-900/30 border border-gray-100 dark:border-gray-600 rounded-xl transition-all group mb-2';
                     btn.onclick = () => cloneSourcesFrom(proj.id, proj.name);
                     btn.innerHTML = `
                         <div class="text-left">

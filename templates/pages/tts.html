@@ -61,12 +61,12 @@
 
         <!-- Generate Button -->
         <button onclick="saveTTSSettings(this)"
-            class="px-3 py-1.5 text-xs bg-green-600 hover:bg-green-700 text-white rounded shadow transition flex items-center gap-1">
-            <span>💾 {{ t('btn_save_settings_only') }}</span>
+            class="px-3 py-1.5 text-xs border border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white rounded font-bold transition-all">
+            {{ t('btn_save_settings_only') }}
         </button>
         <button onclick="generateTTS()" id="generateBtn"
-            class="btn-primary py-1.5 px-4 text-sm font-medium rounded-md shadow-sm hover:shadow active:scale-95 transition-all flex items-center gap-2 whitespace-nowrap">
-            <span>🔊 {{ t('btn_generate') }}</span>
+            class="px-4 py-1.5 text-sm font-bold border border-gray-200 dark:border-gray-500 bg-transparent hover:bg-[#0a0f1d] text-white rounded-md transition-all active:scale-95 shadow-lg">
+            {{ t('btn_generate') }}
         </button>
 
         <!-- Divider -->
@@ -77,8 +77,8 @@
             <input type="file" id="audioUploadInput" accept="audio/*" class="hidden"
                 onchange="uploadExternalAudio(this)">
             <button onclick="document.getElementById('audioUploadInput').click()"
-                class="btn-secondary py-1.5 px-3 flex items-center justify-center gap-2 text-xs font-bold shadow-sm whitespace-nowrap">
-                <span>📁 {{ t('btn_upload_ext_audio') }}</span>
+                class="px-3 py-1.5 text-xs font-bold border border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white rounded transition-all whitespace-nowrap">
+                {{ t('btn_upload_ext_audio') }}
             </button>
         </div>
     </div>
@@ -116,7 +116,7 @@
                 <div class="flex items-center justify-between mb-2 shrink-0">
                     <h4 class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('character_voice_title') }}</h4>
                     <button onclick="analyzeScriptForCharacters()"
-                        class="text-[10px] text-blue-500 hover:text-blue-700">🔄 {{ t('btn_refresh') }}</button>
+                        class="text-[10px] text-gray-400 font-bold border border-gray-700 px-2 rounded hover:bg-[#0a0f1d] hover:text-white transition-all">{{ t('btn_refresh') }}</button>
                 </div>
 
                 <div class="text-[10px] text-gray-500 mb-2 bg-[#000106] dark:bg-[#000106] p-2 rounded dark:text-gray-400">
@@ -134,11 +134,11 @@
                 <h4 class="text-xs font-bold text-gray-800 dark:text-white mb-2">{{ t('gen_result_title') }}</h4>
                 <audio id="audioPlayer" controls class="w-full h-8 mb-2"></audio>
                 <div class="flex gap-2">
-                    <a id="downloadLink" href="#" download class="flex-1 btn-secondary py-1 text-xs text-center">💾
+                    <a id="downloadLink" href="#" download class="flex-1 py-1 text-xs text-center border border-gray-600 hover:bg-[#0a0f1d] text-white font-bold rounded transition-all">
                         {{ t('btn_download') }}</a>
                     <a href="/subtitle-gen"
                         onclick="(function(e){ const pid = window.currentProjectId || localStorage.getItem('currentProjectId'); if(pid){ e.preventDefault(); window.location.href='/subtitle-gen?project_id='+pid; } })(event)"
-                        class="flex-1 btn-primary py-1 text-xs text-center bg-blue-600 hover:bg-blue-700">{{
+                        class="flex-1 py-1 text-xs text-center border border-gray-400 dark:border-gray-500 hover:bg-[#0a0f1d] text-white font-bold rounded transition-all">{{
                         t('btn_go_subtitle') }}</a>
                 </div>
             </div>

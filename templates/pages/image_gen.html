@@ -21,13 +21,13 @@
                     <label class="cursor-pointer" id="ratio-16-9">
                         <input type="radio" name="aspectRatio" value="16:9" checked class="peer sr-only">
                         <div
-                            class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-white transition-all">
+                            class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-[#0a0f1d] peer-checked:text-white text-gray-400 transition-all border border-transparent peer-checked:border-gray-600 hover:bg-[#0a0f1d]/50">
                             16:9</div>
                     </label>
                     <label class="cursor-pointer" id="ratio-9-16">
                         <input type="radio" name="aspectRatio" value="9:16" class="peer sr-only">
                         <div
-                            class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-white transition-all">
+                            class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-[#0a0f1d] peer-checked:text-white text-gray-400 transition-all border border-transparent peer-checked:border-gray-600 hover:bg-[#0a0f1d]/50">
                             9:16</div>
                     </label>
                 </div>
@@ -36,30 +36,28 @@
                 <div id="shortsRatioContainer" class="hidden flex bg-[#000106]/50 p-1 rounded-lg shadow-inner">
                     <label class="cursor-pointer">
                         <input type="radio" name="aspectRatio" value="3:4" class="peer sr-only">
-                        <div class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-white transition-all">3:4</div>
+                        <div class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-[#0a0f1d] peer-checked:text-white text-gray-400 transition-all border border-transparent peer-checked:border-gray-600 hover:bg-[#0a0f1d]/50">3:4</div>
                     </label>
                     <label class="cursor-pointer">
                         <input type="radio" name="aspectRatio" value="1:1" class="peer sr-only">
-                        <div class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-white transition-all">1:1</div>
+                        <div class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-[#0a0f1d] peer-checked:text-white text-gray-400 transition-all border border-transparent peer-checked:border-gray-600 hover:bg-[#0a0f1d]/50">1:1</div>
                     </label>
                     <label class="cursor-pointer">
                         <input type="radio" name="aspectRatio" value="9:16" class="peer sr-only" id="shorts-ratio-916">
-                        <div class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-blue-600 peer-checked:text-white text-gray-600 dark:text-white transition-all">9:16</div>
+                        <div class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-[#0a0f1d] peer-checked:text-white text-gray-400 transition-all border border-transparent peer-checked:border-gray-600 hover:bg-[#0a0f1d]/50">9:16</div>
                     </label>
                 </div>
 
                 <!-- Character Analysis Button (Moved here) -->
                 <button onclick="analyzeCharacters()" id="analyzeCharacterBtn"
-                    class="btn-secondary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-sm hover:scale-105 transition-transform bg-[#000106] border border-gray-300 bg-[#000106]/50 dark:border-gray-600">
-                    <span>🧙‍♂️</span>
-                    <span class="hidden sm:inline">{{ t('btn_analyze_characters') }}</span>
+                    class="py-2 px-4 flex items-center justify-center rounded-lg text-xs font-bold border border-gray-600 bg-transparent text-white hover:bg-[#0a0f1d] transition-all">
+                    {{ t('btn_analyze_characters') }}
                 </button>
 
                 <!-- Scene Analysis Button -->
                 <button onclick="analyzeScenes()" id="analyzeSceneBtn"
-                    class="btn-secondary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-sm hover:scale-105 transition-transform bg-[#000106] border border-gray-300 bg-[#000106]/50 dark:border-gray-600">
-                    <span>🔍</span>
-                    <span class="hidden sm:inline">{{ t('btn_analyze_scenes') }}</span>
+                    class="py-2 px-4 flex items-center justify-center rounded-lg text-xs font-bold border border-gray-600 bg-transparent text-white hover:bg-[#0a0f1d] transition-all">
+                    {{ t('btn_analyze_scenes') }}
                 </button>
                 <span id="sceneCountBadge"
                     class="hidden text-xs font-bold bg-blue-100 dark:bg-[#000106] text-blue-800 dark:text-blue-200 px-3 py-2 rounded-lg">
@@ -68,9 +66,8 @@
 
                 <!-- Save Settings Button -->
                 <button onclick="saveImageSettings(this)" id="saveSettingsBtn"
-                    class="btn-secondary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-sm hover:scale-105 transition-transform bg-[#000106] border border-gray-300 bg-[#000106]/50 dark:border-gray-600">
-                    <span>💾</span>
-                    <span>{{ t('btn_save_settings') }}</span>
+                    class="py-2 px-4 flex items-center justify-center rounded-lg text-xs font-bold border border-gray-600 bg-transparent text-white hover:bg-[#0a0f1d] transition-all">
+                    {{ t('btn_save_settings') }}
                 </button>
 
                 <!-- 사람 제외 체크박스 -->
@@ -81,16 +78,14 @@
 
                 <!-- Generate Prompt Button -->
                 <button onclick="generatePrompts()" id="generateBtn"
-                    class="btn-primary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-md hover:scale-105 transition-transform bg-gradient-to-r from-blue-600 to-indigo-600">
-                    <span>🪄</span>
-                    <span>{{ t('btn_gen_prompts') }}</span>
+                    class="py-2 px-4 flex items-center justify-center rounded-lg text-xs font-bold bg-transparent border border-gray-400 dark:border-gray-500 text-white hover:bg-[#0a0f1d] transition-all">
+                    {{ t('btn_gen_prompts') }}
                 </button>
 
                 <!-- [NEW] Random Cooking Video (Shorts) - Hidden by default, shown only in shorts mode -->
                 <button onclick="generateRandomCooking()" id="cookingBtn"
-                    class="hidden btn-primary py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold shadow-md hover:scale-105 transition-transform bg-gradient-to-r from-orange-500 to-red-600 border-none">
-                    <span>🍳</span>
-                    <span>{{ t('btn_random_cooking') }}</span>
+                    class="hidden py-2 px-4 flex items-center justify-center rounded-lg text-xs font-bold bg-transparent border border-gray-400 dark:border-gray-500 text-white hover:bg-[#0a0f1d] transition-all">
+                    {{ t('btn_random_cooking') }}
                 </button>
             </div>
         </div>
@@ -118,7 +113,7 @@
 
                             <!-- Use Thumbnail Checkbox -->
                             <label
-                                class="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-[#000106] dark:hover:bg-[#0a0f1d] transition-colors">
+                                class="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d] transition-colors">
                                 <input type="checkbox" id="useThumbnailCheck"
                                     class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700"
                                     onchange="localStorage.setItem('useThumbnailCheck', this.checked)">
@@ -211,7 +206,7 @@
                     <span>➕</span> {{ t('btn_add_manual') }}
                 </button>
                 <button onclick="resetAllCharacters()"
-                    class="flex-1 sm:flex-none btn-secondary text-[10px] py-1.5 px-3 flex items-center justify-center gap-1 text-red-500 border-red-200 hover:bg-[#000106]">
+                    class="flex-1 sm:flex-none btn-secondary text-[10px] py-1.5 px-3 flex items-center justify-center gap-1 text-red-500 border-red-200 hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d]">
                     <span>🗑️</span> {{ t('btn_reset_all') }}
                 </button>
                 <button onclick="saveCharactersToProject()" id="saveCharsBtn"
@@ -663,7 +658,7 @@
 
         characters.forEach((char, index) => {
             const card = document.createElement('div');
-            card.className = "bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm hover:shadow-md transition-shadow relative group";
+            card.className = "bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm hover:shadow-md hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d] transition-all relative group";
 
             // 역할에 따른 배지 색상
             let roleBadgeColor = "bg-[#000106] text-gray-600";
@@ -710,17 +705,17 @@
 
                 <div class="flex gap-2 mt-3 pt-2 border-t border-gray-100 dark:border-gray-700">
                     <button onclick="applyCharacter(${index})" 
-                        class="flex-1 btn-secondary text-[10px] py-1.5 flex items-center justify-center gap-1 hover:bg-[#000106] hover:text-blue-600 hover:border-blue-200">
+                        class="flex-1 btn-secondary text-[10px] py-1.5 flex items-center justify-center gap-1 hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d] hover:text-blue-600 hover:border-blue-200">
                         <span>⬇️</span> ${i18n.btn_apply}
                     </button>
                     
                     <button id="regen-btn-${index}" onclick="regenerateCharacter(${index})" 
-                        class="px-2 py-1.5 border border-gray-200 dark:border-gray-700 rounded text-gray-500 hover:bg-[#000106] dark:hover:bg-green-900/20 hover:text-green-600 transition-colors dark:text-gray-400" title="${i18n.btn_regen_prompt}">
+                        class="px-2 py-1.5 border border-gray-200 dark:border-gray-700 rounded text-gray-500 hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d] hover:text-green-600 transition-colors dark:text-gray-400" title="${i18n.btn_regen_prompt}">
                         🔄
                     </button>
                     
                     <button onclick="deleteCharacter(${index})" 
-                        class="px-2 py-1.5 border border-gray-200 dark:border-gray-700 rounded text-gray-500 hover:bg-[#000106] dark:hover:bg-red-900/20 hover:text-red-600 transition-colors dark:text-gray-400" title="${i18n.btn_delete}">
+                        class="px-2 py-1.5 border border-gray-200 dark:border-gray-700 rounded text-gray-500 hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d] hover:text-red-600 transition-colors dark:text-gray-400" title="${i18n.btn_delete}">
                         🗑️
                     </button>
                 </div>

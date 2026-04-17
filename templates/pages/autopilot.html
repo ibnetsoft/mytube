@@ -2,44 +2,46 @@
 
 {% block content %}
 <div class="h-screen flex flex-col overflow-hidden px-4 py-4">
-    <!-- Header Section (Compact) -->
-    <div class="flex items-center justify-between mb-4 shrink-0">
-        <div>
-            <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-500">
-                {{ t('title_director_mode') }}</span>
+    <!-- Unified Header & Control Bar (Ultra Compact) -->
+    <div class="flex items-center gap-4 mb-3 bg-[#000106]/40 border border-gray-800 p-2 rounded-xl shrink-0">
+        <!-- 1. Title -->
+        <div class="shrink-0 pl-2">
+            <h1 class="text-sm font-black bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-500 uppercase tracking-tighter">
+                {{ t('title_director_mode') }}
             </h1>
-            <p class="text-gray-500 text-xs mt-0.5 dark:text-gray-400">{{ t('subtitle_director_mode') }}</p>
         </div>
 
-        <!-- Tabs (Integrated) -->
-        <div class="flex bg-[#000106]/50 border border-gray-700 p-1 rounded-xl">
+        <div class="h-4 w-px bg-gray-800"></div>
+
+        <!-- 2. Presets Selector -->
+        <div class="flex items-center gap-2 flex-1">
+            <span class="text-gray-500 text-[9px] font-bold uppercase tracking-widest whitespace-nowrap">✨ PRESET</span>
+            <select id="presetSelect" onchange="loadPreset(this.value)"
+                class="bg-black/50 border-gray-800 text-white text-[11px] rounded-lg px-2 py-1 focus:ring-1 focus:ring-purple-500 outline-none w-40">
+                <option value="">{{ t('opt_user_setting') }}</option>
+            </select>
+            <input type="text" id="newPresetName" placeholder="{{ t('placeholder_preset_name') }}"
+                class="bg-black/50 border-gray-800 text-white text-[11px] rounded-lg px-2 py-1 w-24">
+            <button onclick="saveCurrentPreset()"
+                class="bg-purple-600/80 hover:bg-purple-600 text-white px-3 py-1 rounded-lg text-[10px] font-bold transition-all active:scale-95 shadow-lg shadow-purple-900/20">
+                💾 {{ t('btn_save') }}
+            </button>
+            <button onclick="deleteCurrentPreset()" id="btnDeletePreset"
+                class="text-red-500/50 hover:text-red-400 text-[10px] hidden whitespace-nowrap">🗑️</button>
+        </div>
+
+        <div class="h-4 w-px bg-gray-800"></div>
+
+        <!-- 3. Navigation Tabs -->
+        <div class="flex bg-black/50 border border-gray-800 p-0.5 rounded-lg shrink-0">
+            <button onclick="switchTab('single')" id="tabSingle"
+                class="px-3 py-1 text-[10px] font-bold rounded-md transition-all bg-purple-600 text-white shadow-sm">
                 🚀 {{ t('tab_single_production') }}
             </button>
             <button onclick="switchTab('batch')" id="tabBatch"
-                class="px-4 py-1.5 text-xs font-medium rounded-lg transition-all text-gray-400 hover:text-white flex items-center gap-1.5">
-                <span>📥</span> {{ t('tab_batch_queue') }}
-                <span id="queueBadge" class="bg-gray-700 text-[10px] px-1.5 py-0.5 rounded-full hidden">0</span>
-            </button>
-        </div>
-    </div>
-
-    <!-- Presets Toolbar (More Compact) -->
-    <div class="mb-4 bg-[#000106]/40 border border-gray-800 rounded-xl p-3 flex items-center justify-between shrink-0">
-        <div class="flex items-center gap-3">
-            <span class="text-gray-400 text-xs font-medium">✨ {{ t('label_preset') }}</span>
-            <select id="presetSelect" onchange="loadPreset(this.value)"
-                class="bg-[#000106] border-gray-700 text-white text-xs rounded-lg pr-8 focus:ring-purple-500 focus:border-purple-500 block w-48 p-1.5 bg-[#000106] text-white">
-                <option value="">{{ t('opt_user_setting') }}</option>
-            </select>
-            <button onclick="deleteCurrentPreset()" id="btnDeletePreset"
-                class="text-red-400 hover:text-red-300 text-[10px] hidden underline">{{ t('btn_delete') }}</button>
-        </div>
-        <div class="flex items-center gap-2">
-            <input type="text" id="newPresetName" placeholder="{{ t('placeholder_preset_name') }}"
-                class="bg-[#000106] border-gray-700 text-white text-xs rounded-lg px-2 py-1.5 w-32">
-            <button onclick="saveCurrentPreset()"
-                class="bg-purple-600/80 hover:bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">
-                <span>💾</span> {{ t('btn_save') }}
+                class="px-3 py-1 text-[10px] font-bold rounded-md transition-all text-gray-400 hover:text-white flex items-center gap-1">
+                📥 {{ t('tab_batch_queue') }}
+                <span id="queueBadge" class="bg-gray-800 text-[8px] px-1 rounded-full hidden">0</span>
             </button>
         </div>
     </div>
@@ -64,12 +66,12 @@
                             <!-- [NEW] Mode Switch - Enhanced Visibility -->
                             <div
                                 class="flex bg-[#000106]/90 rounded-xl p-1 border border-purple-500/30 shadow-lg shadow-purple-500/5">
-                                <button type="button" onclick="setMode('longform')" id="modeLongform"
-                                    class="mode-btn px-3 py-1.5 text-[10px] rounded-lg bg-purple-600 text-white font-bold transition-all flex items-center gap-1">
+                                <button type="button" onclick="setMode('longform')"
+                                    class="mode-btn-header px-3 py-1.5 text-[10px] rounded-lg bg-purple-600 text-white font-bold transition-all flex items-center gap-1">
                                     📺 {{ t('mode_longform') }}
                                 </button>
-                                <button type="button" onclick="setMode('shorts')" id="modeShorts"
-                                    class="mode-btn px-3 py-1.5 text-[10px] rounded-lg text-gray-400 hover:text-white transition-all flex items-center gap-1">
+                                <button type="button" onclick="setMode('shorts')"
+                                    class="mode-btn-header px-3 py-1.5 text-[10px] rounded-lg text-gray-400 hover:text-white transition-all flex items-center gap-1">
                                     📱 {{ t('mode_shorts') }}
                                 </button>
                                 <input type="hidden" id="appMode" value="longform">
@@ -77,33 +79,24 @@
                             </div>
                         </div>
 
-                        <!-- [NEW] Aspect Ratio Selector (Integrated between Topic and Mode) -->
-                        <div class="mb-4 bg-[#000106] p-2.5 rounded-xl border border-purple-500/20">
-                            <label class="block text-[10px] font-bold text-gray-400 mb-2 px-1">📏 {{ t('label_aspect_ratio') }}</label>
-                            <div class="flex gap-2" id="aspectRatioGroup">
-                                <button type="button" onclick="setAspectRatio('9:16')" data-ratio="9:16"
-                                    class="ratio-btn flex-1 py-1.5 text-[10px] rounded-lg bg-[#000106] text-gray-400 hover:text-white transition-all border border-gray-700 flex flex-col items-center gap-1">
-                                    <span class="text-xs">📱</span>
-                                    <span>9:16</span>
-                                </button>
-                                <button type="button" onclick="setAspectRatio('3:4')" data-ratio="3:4"
-                                    class="ratio-btn flex-1 py-1.5 text-[10px] rounded-lg bg-[#000106] text-gray-400 hover:text-white transition-all border border-gray-700 flex flex-col items-center gap-1">
-                                    <span class="text-xs">📸</span>
-                                    <span>3:4</span>
-                                </button>
-                                <button type="button" onclick="setAspectRatio('1:1')" data-ratio="1:1"
-                                    class="ratio-btn flex-1 py-1.5 text-[10px] rounded-lg bg-[#000106] text-gray-400 hover:text-white transition-all border border-gray-700 flex flex-col items-center gap-1">
-                                    <span class="text-xs">⬛</span>
-                                    <span>1:1</span>
-                                </button>
-                                <button type="button" onclick="setAspectRatio('16:9')" data-ratio="16:9"
-                                    class="ratio-btn flex-1 py-1.5 text-[10px] rounded-lg bg-[#000106] text-gray-400 hover:text-white transition-all border border-gray-700 flex flex-col items-center gap-1">
-                                    <span class="text-xs">📺</span>
-                                    <span>16:9</span>
-                                </button>
+                        <!-- Theme & Aspect Ratio (Compressed) -->
+                         <div class="flex gap-2 mb-3">
+                            <div class="flex-1 bg-black/30 p-2 rounded-xl border border-purple-500/10">
+                                <label class="block text-[9px] font-bold text-gray-500 mb-1 uppercase tracking-tighter">{{ t('label_aspect_ratio') }}</label>
+                                <div class="flex gap-1" id="aspectRatioGroup">
+                                    <button type="button" onclick="setAspectRatio('9:16')" data-ratio="9:16" class="ratio-btn flex-1 py-1 text-[10px] rounded-lg bg-black/50 border border-gray-800 text-gray-500 hover:text-white transition-all">📱 9:16</button>
+                                    <button type="button" onclick="setAspectRatio('16:9')" data-ratio="16:9" class="ratio-btn flex-1 py-1 text-[10px] rounded-lg bg-purple-600 text-white transition-all">📺 16:9</button>
+                                </div>
+                                <input type="hidden" id="aspectRatio" value="16:9">
                             </div>
-                            <input type="hidden" id="aspectRatio" value="16:9">
-                        </div>
+                            <div class="bg-black/30 p-2 rounded-xl border border-purple-500/10 min-w-[100px]">
+                                <label class="block text-[9px] font-bold text-gray-500 mb-1 uppercase tracking-tighter">THEME</label>
+                                <div class="flex bg-black/50 rounded-lg p-0.5 border border-gray-800">
+                                    <button type="button" onclick="setMode('longform')" id="modeLongform" class="mode-btn px-2 py-1 text-[9px] rounded-md bg-purple-600 text-white font-bold transition-all">LONG</button>
+                                    <button type="button" onclick="setMode('shorts')" id="modeShorts" class="mode-btn px-2 py-1 text-[9px] rounded-md text-gray-400 transition-all">SHORT</button>
+                                </div>
+                            </div>
+                         </div>
 
                         <!-- [NEW] Creation Mode Toggle (Only for Shorts) - More prominent -->
                         <div id="commerceModeToggle"
@@ -152,53 +145,40 @@
                         </div>
 
                         <div class="space-y-4">
-                            <!-- Rows for Audio Settings -->
-                            <div class="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label
-                                        class="block text-[10px] font-medium text-gray-500 mb-1 dark:text-gray-400">{{ t('label_script_style') }}</label>
-                                    <select id="scriptStyleSelect"
-                                        class="w-full bg-[#000106] border-gray-700 text-white rounded-lg px-2 py-1.5 text-xs bg-[#000106] text-white">
-                                        <option value="default" selected>{{ t('opt_style_default') }}</option>
-                                        <option value="news">{{ t('opt_style_news') }}</option>
-                                        <option value="story">{{ t('opt_style_story') }}</option>
-                                        <option value="senior_story">{{ t('opt_style_senior') }}</option>
-                                        <option value="modern_drama">{{ t('opt_style_trendy') }}</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label
-                                        class="block text-[10px] font-medium text-gray-500 mb-1 dark:text-gray-400">{{ t('label_target_duration') }}</label>
-                                    <div class="relative">
-                                        <input type="number" id="targetDuration" min="1" max="180" value="10"
-                                            class="w-full bg-[#000106]/40 border-gray-700 text-white rounded-lg px-2 py-1.5 text-xs pr-6 font-mono">
-                                        <span
-                                            class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500 pointer-events-none dark:text-gray-400">{{ t('unit_minute') }}</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label
-                                        class="block text-[10px] font-medium text-gray-500 mb-1 dark:text-gray-400">{{ t('label_tts_engine') }}</label>
-                                    <select id="providerSelect"
-                                        class="w-full bg-[#000106] border-gray-700 text-white rounded-lg px-2 py-1.5 text-xs bg-[#000106] text-white">
-                                        <option value="gemini">Gemini</option>
-                                        <option value="elevenlabs" selected>ElevenLabs</option>
-                                        <option value="google_cloud">Google</option>
-                                        <option value="openai">OpenAI</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label
-                                        class="block text-[10px] font-medium text-gray-500 mb-1 dark:text-gray-400">{{ t('label_voice_select') }}</label>
-                                    <select id="voiceSelect"
-                                        class="w-full bg-[#000106] border-gray-700 text-white rounded-lg px-2 py-1.5 text-xs bg-[#000106] text-white">
-                                        <option value="">{{ t('opt_loading') }}</option>
-                                    </select>
-                                </div>
-                            </div>
+                             <div class="grid grid-cols-4 gap-2">
+                             <div>
+                                 <label class="block text-[9px] font-medium text-gray-500 mb-1">{{ t('label_script_style') }}</label>
+                                 <select id="scriptStyleSelect" class="w-full bg-[#000106] border-gray-800 text-white rounded-lg px-2 py-1 text-[10px] outline-none">
+                                     <option value="default" selected>{{ t('opt_style_default') }}</option>
+                                     <option value="news">{{ t('opt_style_news') }}</option>
+                                     <option value="story">{{ t('opt_style_story') }}</option>
+                                     <option value="senior_story">{{ t('opt_style_senior') }}</option>
+                                     <option value="modern_drama">{{ t('opt_style_trendy') }}</option>
+                                 </select>
+                             </div>
+                             <div>
+                                 <label class="block text-[9px] font-medium text-gray-500 mb-1">{{ t('label_target_duration') }}</label>
+                                 <div class="relative">
+                                     <input type="number" id="targetDuration" min="1" max="180" value="10" class="w-full bg-black/30 border-gray-800 text-white rounded-lg px-2 py-1 text-[10px] font-mono outline-none">
+                                     <span class="absolute right-2 top-1/2 -translate-y-1/2 text-[8px] text-gray-500">{{ t('unit_minute') }}</span>
+                                 </div>
+                             </div>
+                             <div>
+                                 <label class="block text-[9px] font-medium text-gray-500 mb-1">{{ t('label_tts_engine') }}</label>
+                                 <select id="providerSelect" class="w-full bg-[#000106] border-gray-800 text-white rounded-lg px-2 py-1 text-[10px] outline-none">
+                                     <option value="gemini">Gemini</option>
+                                     <option value="elevenlabs" selected>ElevenLabs</option>
+                                     <option value="google_cloud">Google</option>
+                                     <option value="openai">OpenAI</option>
+                                 </select>
+                             </div>
+                             <div>
+                                 <label class="block text-[9px] font-medium text-gray-500 mb-1">{{ t('label_voice_select') }}</label>
+                                 <select id="voiceSelect" class="w-full bg-[#000106] border-gray-800 text-white rounded-lg px-2 py-1 text-[10px] outline-none">
+                                     <option value="">{{ t('opt_loading') }}</option>
+                                 </select>
+                             </div>
+                         </div>
                         </div>
                     </div>
 

@@ -775,7 +775,7 @@ async function showSessionList() {
         }
 
         el.innerHTML = sessions.map(s => `
-            <div class="flex items-center justify-between p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-[#000106] dark:hover:bg-[#0a0f1d]/50 cursor-pointer" onclick="loadSession(${s.id})">
+            <div class="flex items-center justify-between p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d] cursor-pointer" onclick="loadSession(${s.id})">
                 <div>
                     <div class="font-bold text-gray-800 dark:text-white">${s.title || i18n.label_untitled}</div>
                     <div class="text-xs text-gray-400">${s.step || 'script'} | ${s.created_at || ''}</div>

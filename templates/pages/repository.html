@@ -26,11 +26,11 @@
             </div>
             <div id="actionButtons" class="hidden gap-2">
                 <button onclick="createPlanFromSelection()"
-                    class="btn-primary text-sm flex items-center gap-1 bg-purple-600 hover:bg-purple-700">
-                    <span>✨</span> {{ t('btn_script_plan') }}
+                    class="px-3 py-1.5 text-xs font-bold border border-gray-400 dark:border-gray-500 bg-transparent hover:bg-[#0a0f1d] text-white rounded transition-all">
+                    {{ t('btn_script_plan') }}
                 </button>
-                <button onclick="downloadCurrentSheet()" class="btn-secondary text-sm flex items-center gap-1">
-                    <span>⬇️</span> {{ t('btn_excel_download') }}
+                <button onclick="downloadCurrentSheet()" class="px-3 py-1.5 text-xs font-bold border border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white rounded transition-all">
+                    {{ t('btn_excel_download') }}
                 </button>
             </div>
         </div>
@@ -68,7 +68,8 @@
         time_approx_10_20s: "{{ t('time_approx_10_20s') }}",
         toast_plan_created_moving: "{{ t('toast_plan_created_moving') }}",
         err_occurred: "{{ t('err_occurred') }}",
-        toast_excel_download_info: "{{ t('toast_excel_download_info') }}"
+        toast_excel_download_info: "{{ t('toast_excel_download_info') }}",
+        watch_video_link: "{{ t('watch_video_link') }}"
     };
 
     // 1. Load Folder List
@@ -87,7 +88,7 @@
 
             data.folders.forEach(folder => {
                 const item = document.createElement('div');
-                item.className = 'p-3 rounded-lg cursor-pointer hover:bg-[#000106] dark:hover:bg-[#0a0f1d] transition flex items-center gap-2 group';
+                item.className = 'p-3 rounded-lg cursor-pointer hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d] transition flex items-center gap-2 group';
                 item.onclick = () => loadFolderContent(folder.name);
 
                 item.innerHTML = `
@@ -121,7 +122,7 @@
             if (child.textContent.includes(folderName)) {
                 child.classList.add('bg-[#000106]', 'dark:bg-[#000106]', 'border', 'border-blue-200', 'dark:border-blue-800');
             } else {
-                child.className = 'p-3 rounded-lg cursor-pointer hover:bg-[#000106] dark:hover:bg-[#0a0f1d] transition flex items-center gap-2 group';
+                child.className = 'p-3 rounded-lg cursor-pointer hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d] transition flex items-center gap-2 group';
             }
         });
 
@@ -161,9 +162,9 @@
                             <th class="px-6 py-3 text-left w-10">
                                 <input type="checkbox" onclick="toggleAllRepoCheckboxes(this)" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700">
                             </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-16">No</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-1/4">Video Info</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Analysis Result</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-16">{{ t('th_no') }}</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-1/4">{{ t('th_video_info') }}</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">{{ t('th_analysis_result') }}</th>
                         </tr>
                     </thead>
                     <tbody class="bg-[#000106] divide-y divide-gray-200 dark:divide-gray-700">
@@ -176,7 +177,7 @@
             const safeFactor = (row['Success Factor'] || "").replace(/"/g, '&quot;');
 
             html += `
-                <tr class="hover:bg-[#000106] dark:hover:bg-[#0a0f1d] transition bg-[#000106]">
+                <tr class="hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d] transition bg-[#000106]">
                     <td class="px-6 py-4">
                         <input type="checkbox" class="repo-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700"
                             data-title="${safeTitle}"
@@ -193,7 +194,7 @@
                             <span>•</span>
                             <span>${row['Upload Date']}</span>
                         </div>
-                        <a href="https://www.youtube.com/watch?v=${row['Video ID']}" target="_blank" class="text-xs text-blue-500 hover:underline mt-1 inline-block">Watch Video ↗</a>
+                        <a href="https://www.youtube.com/watch?v=${row['Video ID']}" target="_blank" class="text-xs text-blue-500 hover:underline mt-1 inline-block">${i18n.watch_video_link} ↗</a>
                     </td>
                     <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-300 align-top">
                         <div class="mb-3">

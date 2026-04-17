@@ -327,7 +327,7 @@
                     // Render Card
                     const container = document.getElementById('videoResultsList');
                     if (container) {
-                        const label = isIntroUpload ? "Uploaded" : (fullData.settings && fullData.settings.video_path && videoPath === fullData.settings.video_path ? "Rendered" : "Selected");
+                        const label = isIntroUpload ? i18n.label_uploaded : (fullData.settings && fullData.settings.video_path && videoPath === fullData.settings.video_path ? i18n.label_rendered : i18n.label_selected);
                         container.innerHTML = `
                             <div class="group relative rounded-lg overflow-hidden border border-blue-500 shadow-md bg-black cursor-pointer">
                                 <div class="aspect-video relative flex items-center justify-center bg-[#000106]">

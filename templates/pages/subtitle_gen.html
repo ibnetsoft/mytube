@@ -203,10 +203,8 @@
                         class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-[#000106]/50 border border-indigo-200 dark:border-indigo-900 rounded-md py-1 px-2 w-28 focus:ring-1 focus:ring-indigo-500 focus:outline-none cursor-pointer bg-[#000106] text-white">
                         <option value="">-- {{ t('opt_select_template') }} --</option>
                     </select>
-                    <button onclick="refreshShortsTemplatePresets()" class="p-1 text-gray-400 hover:text-indigo-500" title="새로고침">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                        </svg>
+                    <button onclick="refreshShortsTemplatePresets()" class="text-[10px] font-bold px-1.5 py-1 text-gray-400 hover:text-white border border-gray-700 hover:bg-[#0a0f1d] rounded transition-all" title="새로고침">
+                        {{ t('btn_refresh') }}
                     </button>
                 </div>
 
@@ -218,12 +216,12 @@
                         class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-[#000106]/50 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-24 focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer bg-[#000106] text-white">
                         <option value="">{{ t('opt_select') }}</option>
                     </select>
-                    <button onclick="deleteCurrentSubtitlePreset()" class="p-1 text-gray-400 hover:text-red-500 transition-colors" title="{{ t('title_delete_preset') }}">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    <button onclick="deleteCurrentSubtitlePreset()" class="text-[10px] font-bold px-1.5 py-1 text-red-500 hover:text-white border border-red-900/50 hover:bg-red-900 rounded transition-all" title="{{ t('title_delete_preset') }}">
+                        {{ t('btn_delete') }}
                     </button>
                     <input type="text" id="newPresetName" placeholder="{{ t('placeholder_new_preset') }}"
                         class="text-[11px] bg-[#000106] border border-gray-200 dark:border-gray-700 rounded px-1.5 py-1 w-20 focus:outline-none focus:ring-1 focus:ring-blue-500">
-                    <button onclick="saveCurrentAsPreset()" class="text-[11px] bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded transition-colors font-bold">
+                    <button onclick="saveCurrentAsPreset()" class="text-[11px] border border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white px-2 py-1 rounded transition-all font-bold">
                         {{ t('btn_save') }}
                     </button>
                 </div>
@@ -320,32 +318,32 @@
                 <!-- Action Buttons: 아이콘 + 짧은 텍스트, tooltip으로 전체 번역 표시 -->
                 <div class="flex items-center gap-1 flex-wrap">
                     <button onclick="resetAndReload(this)" title="{{ t('btn_reset_reload') }}"
-                        class="text-[10px] font-semibold px-2 py-1.5 rounded-md transition-all flex items-center gap-1 bg-[#000106]0 hover:bg-gray-600 bg-[#000106]/50 dark:hover:bg-gray-600 text-white disabled:opacity-50">
-                        🔄 <span class="hidden sm:inline">{{ t('btn_reset_reload') }}</span>
+                        class="text-[10px] font-bold px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white transition-all disabled:opacity-50">
+                        {{ t('btn_reset_reload') }}
                     </button>
                     <button onclick="distributeImages(this)" title="{{ t('btn_ai_sync') }}"
-                        class="text-[10px] font-semibold px-2 py-1.5 rounded-md transition-all flex items-center gap-1 bg-blue-500 hover:bg-blue-600 text-white shadow-sm shadow-blue-500/30 disabled:opacity-50">
-                        🖼️ <span class="hidden sm:inline">{{ t('btn_ai_sync') }}</span>
+                        class="text-[10px] font-bold px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white transition-all disabled:opacity-50">
+                        {{ t('btn_ai_sync') }}
                     </button>
                     <button onclick="splitAllSubtitles(this)" title="{{ t('btn_split_2lines') }}"
-                        class="text-[10px] font-semibold px-2 py-1.5 rounded-md transition-all flex items-center gap-1 bg-slate-500 hover:bg-slate-600 text-white disabled:opacity-50">
-                        ✂️ <span class="hidden sm:inline">{{ t('btn_split_2lines') }}</span>
+                        class="text-[10px] font-bold px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white transition-all disabled:opacity-50">
+                        {{ t('btn_split_2lines') }}
                     </button>
                     <button onclick="regenerateSubtitles(this)" title="{{ t('btn_regen_all') }}"
-                        class="text-[10px] font-semibold px-2 py-1.5 rounded-md transition-all flex items-center gap-1 bg-indigo-500 hover:bg-indigo-600 text-white disabled:opacity-50">
-                        ✨ <span class="hidden sm:inline">{{ t('btn_regen_all') }}</span>
+                        class="text-[10px] font-bold px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white transition-all disabled:opacity-50">
+                        {{ t('btn_regen_all') }}
                     </button>
                     <button id="saveBtn" onclick="saveSubtitles(this)" title="{{ t('tooltip_save_sync') }}"
-                        class="text-[10px] font-semibold px-2 py-1.5 rounded-md transition-all flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white shadow-sm shadow-green-600/30 disabled:opacity-50">
-                        💾 <span class="hidden sm:inline">{{ t('btn_save') }}</span>
+                        class="text-[10px] font-bold px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white transition-all disabled:opacity-50">
+                        {{ t('btn_save') }}
                     </button>
                     <button id="renderBtn" onclick="renderVideoInPlace()" title="{{ t('btn_render') }}"
-                        class="text-[10px] font-semibold px-2 py-1.5 rounded-md transition-all flex items-center gap-1 bg-purple-600 hover:bg-purple-700 text-white shadow-sm shadow-purple-600/30 animate-pulse-slow disabled:opacity-50">
-                        🎬 <span class="hidden sm:inline">{{ t('btn_render') }}</span>
+                        class="text-[10px] font-bold px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white transition-all disabled:opacity-50">
+                        {{ t('btn_render') }}
                     </button>
                     <button id="renderQueueBtn" onclick="addToRenderQueue()" title="{{ t('btn_render_queue') }}"
-                        class="text-[10px] font-semibold px-2 py-1.5 rounded-md transition-all flex items-center gap-1 bg-gray-600 hover:bg-[#0a0f1d] text-white shadow-sm disabled:opacity-50">
-                        ➕ <span class="hidden sm:inline">{{ t('btn_render_queue') }}</span>
+                        class="text-[10px] font-bold px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white transition-all disabled:opacity-50">
+                        {{ t('btn_render_queue') }}
                     </button>
                 </div>
             </div>
@@ -364,10 +362,10 @@
                 </h3>
                 <div class="flex gap-1 items-center">
                     <button onclick="addSubtitleRow()"
-                        class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-[#000106]0 hover:bg-gray-600 bg-[#000106]/50 dark:hover:bg-gray-600 text-white disabled:opacity-50 flex-shrink-0">
+                        class="text-[11px] font-bold px-2.5 py-1.5 rounded-md border border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white transition-all disabled:opacity-50">
                         {{ t('btn_add') }}</button>
                     <button id="btnSelectMode" onclick="toggleSelectMode()"
-                        class="text-[11px] font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1 bg-[#000106]0 hover:bg-gray-600 bg-[#000106]/50 dark:hover:bg-gray-600 text-white disabled:opacity-50 flex-shrink-0">
+                        class="text-[11px] font-bold px-2.5 py-1.5 rounded-md border border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white transition-all disabled:opacity-50">
                         {{ t('btn_select_delete') }}
                     </button>
                 </div>
@@ -379,9 +377,9 @@
                 <span id="deleteActionCount" class="text-[11px] text-red-600 dark:text-red-400 font-medium">0{{ t('items_selected') }}</span>
                 <div class="flex gap-2">
                     <button onclick="selectAllRows()"
-                        class="text-[10px] bg-[#000106] text-gray-600 px-2 py-1 rounded border border-gray-300 hover:bg-[#000106]">{{ t('btn_select_all') }}</button>
+                        class="text-[10px] bg-transparent text-white px-2 py-1 rounded border border-gray-600 hover:bg-[#0a0f1d] font-bold transition-all">{{ t('btn_select_all') }}</button>
                     <button onclick="deleteSelectedRows()"
-                        class="text-[10px] bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 font-bold">{{ t('btn_delete_selected') }}</button>
+                        class="text-[10px] bg-transparent text-red-500 px-3 py-1 rounded border border-red-900/50 hover:bg-red-900 hover:text-white font-bold transition-all">{{ t('btn_delete_selected') }}</button>
                 </div>
             </div>
 

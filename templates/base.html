@@ -82,10 +82,10 @@
                 <div class="flex items-center justify-between mb-1">
                     <span class="text-[10px] font-medium text-gray-500 dark:text-gray-400">{{ t('label_current_project') }}</span>
                     <button onclick="openProjectModal()"
-                        class="text-[10px] text-blue-500 hover:text-blue-600 font-bold">{{ t('new_project_btn') }}</button>
+                        class="px-2 py-0.5 border border-gray-600 rounded text-[10px] text-gray-400 hover:text-white hover:bg-[#0a0f1d] transition-all font-bold">{{ t('new_project_btn') }}</button>
                 </div>
                 <select id="projectSelect" onchange="onProjectChange(this.value)"
-                    class="w-full text-xs p-1.5 bg-[#000106] dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-800 dark:text-white bg-[#000106] text-white">
+                    class="w-full text-xs p-1.5 bg-[#000106] border border-gray-200 dark:border-gray-700 rounded-lg text-white cursor-pointer">
                     <option value="">{{ t('select_project_placeholder') }}</option>
                 </select>
                 <div id="currentProjectInfo" class="mt-1 text-[10px] text-gray-500 hidden dark:text-gray-400">
@@ -292,6 +292,7 @@
 
             <!-- Top Fixed Header (Project Progress) -->
             <header id="projectProgressHeader"
+                style="{% if page == 'autopilot' %}display: none !important;{% endif %}"
                 class="hidden shrink-0 bg-[#000106] border-b border-blue-900/10 z-30 transition-all duration-300">
                 <div class="px-6 py-3">
                     <!-- Top Row: Title & Actions -->
@@ -767,7 +768,38 @@
             ethnicity_5: "{{ t('ethnicity_5') }}",
             ethnicity_6: "{{ t('ethnicity_6') }}",
             ethnicity_7: "{{ t('ethnicity_7') }}",
-            ethnicity_8: "{{ t('ethnicity_8') }}"
+            ethnicity_8: "{{ t('ethnicity_8') }}",
+
+            // --- Missing Global Keys ---
+            label_uploaded: "{{ t('label_uploaded') }}",
+            label_rendered: "{{ t('label_rendered') }}",
+            label_selected: "{{ t('label_selected') }}",
+            status_videos_found: "{{ t('status_videos_found') }}",
+            status_searching: "{{ t('status_searching') }}",
+            status_enter_search_query: "{{ t('status_enter_search_query') }}",
+            status_failed_search: "{{ t('status_failed_search') }}",
+            status_failed_search_err: "{{ t('status_failed_search_err') }}",
+            err_no_script: "{{ t('err_no_script') }}",
+            status_video_selected: "{{ t('status_video_selected') }}",
+            status_failed_save: "{{ t('status_failed_save') }}",
+            status_select_project_first: "{{ t('status_select_project_first') }}",
+            status_uploading: "{{ t('status_uploading') }}",
+            status_intro_uploaded: "{{ t('status_intro_uploaded') }}",
+            status_done: "{{ t('status_done') }}",
+            status_failed_upload: "{{ t('status_failed_upload') }}",
+            status_failed_upload_err: "{{ t('status_failed_upload_err') }}",
+            unit_minute: "{{ t('unit_minute') }}",
+            opt_loading: "{{ t('opt_loading') }}",
+            status_reserving_yt: "{{ t('status_reserving_yt') }}",
+            err_yt_upload_fail: "{{ t('err_yt_upload_fail') }}",
+            status_cloud_uploading: "{{ t('status_cloud_uploading') }}",
+            status_submitting_record: "{{ t('status_submitting_record') }}",
+            toast_upload_success_prefix: "{{ t('toast_upload_success_prefix') }}",
+            toast_upload_success_suffix: "{{ t('toast_upload_success_suffix') }}",
+            status_loading_video: "{{ t('status_loading_video') }}",
+            PREV: "{{ t('PREV') }}",
+            NEXT: "{{ t('NEXT') }}",
+            selected_count_suffix: "{{ t('selected_count_suffix') }}",
         });
 
         // 프로젝트 목록 로드

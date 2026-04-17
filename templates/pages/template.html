@@ -148,22 +148,19 @@
                         <span>{{ t('label_bg_settings') }}</span>
                     </h4>
                     <div class="grid grid-cols-3 gap-1.5 mb-4">
-                        <button onclick="clearBackground()" class="flex flex-col items-center justify-center p-2 rounded-lg bg-[#000106] border border-gray-200 dark:border-gray-700 hover:border-blue-500 transition-all group" title="{{ t('label_transparent') }}">
-                            <span class="text-lg group-hover:scale-110 transition-transform">✖️</span>
-                            <span class="text-[9px] mt-1 text-gray-500">{{ t('label_transparent') }}</span>
+                        <button onclick="clearBackground()" class="flex flex-col items-center justify-center p-2 rounded-lg border border-gray-600 bg-transparent text-white hover:bg-[#0a0f1d] transition-all" title="{{ t('label_transparent') }}">
+                            <span class="text-[10px] font-bold">{{ t('label_transparent') }}</span>
                         </button>
-                        <button onclick="document.getElementById('bgUploadInput').click()" class="flex flex-col items-center justify-center p-2 rounded-lg bg-[#000106] border border-gray-200 dark:border-gray-700 hover:border-blue-500 transition-all group">
-                            <span class="text-lg group-hover:scale-110 transition-transform">📁</span>
-                            <span class="text-[9px] mt-1 text-gray-500">{{ t('label_upload') }}</span>
+                        <button onclick="document.getElementById('bgUploadInput').click()" class="flex flex-col items-center justify-center p-2 rounded-lg border border-gray-600 bg-transparent text-white hover:bg-[#0a0f1d] transition-all">
+                            <span class="text-[10px] font-bold">{{ t('label_upload') }}</span>
                         </button>
-                        <button onclick="generateBackground()" id="bgBtn" class="flex flex-col items-center justify-center p-2 rounded-lg bg-[#000106] border border-gray-200 dark:border-gray-700 hover:border-blue-500 transition-all group">
-                            <span class="text-lg group-hover:scale-110 transition-transform">🤖</span>
-                            <span class="text-[9px] mt-1 text-gray-500">{{ t('label_ai_gen') }}</span>
+                        <button onclick="generateBackground()" id="bgBtn" class="flex flex-col items-center justify-center p-2 rounded-lg border border-gray-600 bg-transparent text-white hover:bg-[#0a0f1d] transition-all">
+                            <span class="text-[10px] font-bold">{{ t('label_ai_gen') }}</span>
                         </button>
                     </div>
                     <input type="file" id="bgUploadInput" class="hidden" accept="image/*" onchange="uploadBackgroundImage(this)">
                 </div>
-                <button onclick="generateFinalThumbnail()" id="generateBtn" class="w-full btn-primary py-3.5 text-xs font-bold shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2">
+                <button onclick="generateFinalThumbnail()" id="generateBtn" class="w-full py-3.5 text-xs font-bold rounded-lg border border-gray-200 dark:border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white transition-all shadow-lg">
                     {{ t('btn_finalize_save') }}
                 </button>
             </div>
@@ -180,8 +177,8 @@
                             <option value="">{{ t('opt_select_template') }}</option>
                         </select>
                         <button onclick="deleteShortsTemplatePreset()" id="btnDeleteShortsPreset"
-                            class="p-2.5 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-lg transition-all hidden">
-                            🗑️
+                            class="px-2.5 py-1.5 border border-red-900 bg-transparent text-red-500 hover:bg-red-900 hover:text-white rounded-lg transition-all hidden font-bold text-xs">
+                            DEL
                         </button>
                     </div>
                     <div class="flex flex-col gap-2 pt-1">
@@ -189,7 +186,7 @@
                             placeholder="{{ t('placeholder_new_template_name') }}"
                             class="w-full bg-[#000106] border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-[11px] rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-purple-500/30">
                         <button onclick="saveShortsTemplatePreset(event)"
-                            class="w-full bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-lg py-3 transition-all shadow-lg shadow-purple-500/20 flex items-center justify-center gap-2">
+                            class="w-full border border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white text-xs font-bold rounded-lg py-3 transition-all shadow-lg">
                             {{ t('btn_save_preset') }}
                         </button>
                     </div>
@@ -204,8 +201,8 @@
                     <span>{{ t('label_shape_mgmt') }}</span>
                 </h4>
                 <div class="flex gap-1">
-                    <button onclick="saveAsDefaultStyle()" class="px-2 py-1 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-600 dark:text-yellow-500 border border-yellow-500/20 rounded text-[9px] font-bold transition-all">{{ t('btn_save_db') }}</button>
-                    <button id="btnLoadDefault" onclick="loadDefaultStyleFromDB()" class="px-2 py-1 bg-[#000106]0/10 hover:bg-[#000106]0/20 text-gray-600 dark:text-gray-400 border border-gray-500/20 rounded text-[9px] font-bold transition-all">{{ t('btn_load_db') }}</button>
+                    <button onclick="saveAsDefaultStyle()" class="px-2 py-1 border border-gray-600 hover:bg-[#0a0f1d] text-white rounded text-[9px] font-bold transition-all">{{ t('btn_save_db') }}</button>
+                    <button id="btnLoadDefault" onclick="loadDefaultStyleFromDB()" class="px-2 py-1 border border-gray-600 hover:bg-[#0a0f1d] text-white rounded text-[9px] font-bold transition-all">{{ t('btn_load_db') }}</button>
                 </div>
             </div>
             
@@ -213,7 +210,7 @@
                 <!-- 도형 레이어가 여기에 생성됨 -->
             </div>
             
-            <button onclick="addShapeLayer()" class="w-full py-2.5 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 text-xs font-bold hover:border-blue-500/50 hover:text-blue-500 transition-all">
+            <button onclick="addShapeLayer()" class="w-full py-2.5 rounded-lg border border-gray-600 bg-transparent text-white text-xs font-bold hover:bg-[#0a0f1d] transition-all">
                 {{ t('btn_add_shape') }}
             </button>
         </div>
@@ -237,10 +234,10 @@
                 <p class="text-sm text-gray-600 dark:text-gray-400">{{ t('label_format') }}: PNG</p>
             </div>
             <div class="flex gap-2">
-                <a id="downloadLink" href="" download="thumbnail.png" class="flex-1 btn-primary text-center">
+                <a id="downloadLink" href="" download="thumbnail.png" class="flex-1 border border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white text-center py-2.5 rounded-lg font-bold text-xs transition-all">
                     {{ t('btn_download') }}
                 </a>
-                <button onclick="regenerate()" class="btn-secondary">
+                <button onclick="regenerate()" class="px-4 border border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white rounded-lg font-bold text-xs transition-all">
                     {{ t('btn_regen') }}
                 </button>
             </div>

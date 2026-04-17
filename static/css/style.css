@@ -302,26 +302,26 @@ textarea.input-field {
 }
 
 .sidebar-item:hover {
-    background-color: #F3F4F6;
+    background-color: #0a0f1d;
 }
 
 .dark .sidebar-item:hover {
-    background-color: rgba(59, 130, 246, 0.1);
-    color: #60A5FA; /* blue-400 */
+    background-color: #0a0f1d;
+    color: #ffffff;
 }
 
 .sidebar-item.active {
-    background-color: #DBEAFE;
+    background-color: #0a0f1d;
     color: #2563EB;
     font-weight: 600;
 }
 
 .dark .sidebar-item.active {
-    background-color: #000106;
-    color: #60A5FA;
+    background-color: #0a0f1d;
+    color: #ffffff;
     font-weight: 800;
-    box-shadow: inset 3px 0 0 #3B82F6;
-    border: 1px solid rgba(59, 130, 246, 0.2);
+    box-shadow: inset 2px 0 0 #3B82F6;
+    border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
 /* ===== Loading States ===== */
@@ -613,4 +613,43 @@ textarea.input-field {
     .card {
         padding: var(--spacing-sm);
     }
+}
+
+/* ===== Global Scrollbar Styling ===== */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(43, 56, 91, 0.4);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(59, 130, 246, 0.5);
+}
+
+/* Custom Scrollbar Utility */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #1e293b;
+    border-radius: 10px;
+}
+
+/* Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #1e293b transparent;
 }

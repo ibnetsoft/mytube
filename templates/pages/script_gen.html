@@ -108,7 +108,7 @@
                 <!-- AI Data Preview (Collapsed) -->
                 <details class="bg-[#000106] rounded-lg p-2 border border-gray-700 mb-4">
                     <summary class="text-xs text-blue-400 cursor-pointer">{{ t('label_ai_data_check') }}</summary>
-                    <pre id="aiDataPreview" class="mt-2 text-[10px] text-gray-400 font-mono whitespace-pre-wrap max-h-40 overflow-auto">{{ t('hint_data_loading') }}</pre>
+                    <pre id="aiDataPreview" class="mt-2 text-[10px] text-gray-400 font-mono whitespace-pre-wrap">{{ t('hint_data_loading') }}</pre>
                 </details>
             </div>
 
@@ -117,7 +117,7 @@
                 <div class="bg-[#000106] border border-gray-700 rounded-lg p-4 mb-4">
                     <h3 class="text-sm font-bold text-white mb-2">{{ t('label_paste_script') }}</h3>
                     <p class="text-xs text-gray-400 mb-3">{{ t('hint_paste_script') }}</p>
-                    <textarea id="manualScriptInput" class="input-field font-mono text-sm" rows="10"
+                    <textarea id="manualScriptInput" class="input-field font-mono text-sm" style="min-height: 400px;"
                         placeholder="{{ t('placeholder_paste_script') }}"></textarea>
                 </div>
                 <div class="flex justify-end">
@@ -152,26 +152,26 @@
                         <span id="readTime" class="bg-[#000106] border border-gray-800 px-2 py-0.5 rounded">{{ t('label_read_time') }}0 {{ t('unit_minute') }}</span>
                     </div>
 
-                    <textarea id="scriptContent" class="input-field font-mono text-sm focus:border-blue-500/50 transition-all" rows="15" style="background-color: #000106; border-color: #1e293b;"></textarea>
+                    <textarea id="scriptContent" class="input-field font-mono text-sm focus:border-blue-500/50 transition-all w-full leading-relaxed" style="background-color: transparent; border-color: #1e293b; min-height: 800px; resize: none; overflow: hidden;"></textarea>
 
                     <div class="flex justify-center gap-3 mt-4 pt-4 border-t border-gray-800">
                         <!-- [NEW] Autopilot Continue Button -->
                         <button onclick="continueWithAutopilot()" id="autopilotBtn"
-                            class="py-2 px-6 font-bold shadow-md hover:shadow-xl transition-all rounded-lg flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white border-0">
-                            <span>🚀</span>
-                            <span>{{ t('btn_continue_autopilot') }}</span>
+                            class="text-xs font-bold px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white transition-all">
+                            {{ t('btn_continue_autopilot') }}
                         </button>
 
                         <button onclick="addToQueue()" id="queueBtn"
-                            class="py-2 px-6 font-bold shadow-md hover:shadow-xl transition-all rounded-lg flex items-center gap-2 bg-gradient-to-r from-green-600 to-teal-600 text-white border-0">
-                            <span>📥</span>
-                            <span>{{ t('btn_add_to_que') }}</span>
+                            class="text-xs font-bold px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white transition-all">
+                            {{ t('btn_add_to_que') }}
                         </button>
 
-                        <button onclick="goToImageGen()" class="btn-primary py-2 px-4 rounded-lg text-sm">
+                        <button onclick="goToImageGen()" 
+                            class="text-xs font-bold px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white transition-all">
                             {{ t('btn_generate_image') }}
                         </button>
-                        <button onclick="goToTTS()" class="btn-secondary py-2 px-4 rounded-lg text-sm">
+                        <button onclick="goToTTS()" 
+                            class="text-xs font-bold px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white transition-all">
                             {{ t('btn_generate_voice') }}
                         </button>
                         {% if app_mode == 'blog' %}
@@ -493,6 +493,7 @@
             }
 
             updateStats();
+            setTimeout(autoResizeTextarea, 50);
 
             // Update structure data if exists
             if (full && full.script_structure) {
@@ -1181,5 +1182,18 @@ ${modeInstruction}
             btn.innerHTML = originalText;
         }
     }
+    // Auto-resize textarea
+    function autoResizeTextarea() {
+        const textarea = document.getElementById('scriptContent');
+        if (!textarea) return;
+        textarea.style.height = 'auto';
+        textarea.style.height = (textarea.scrollHeight + 50) + 'px';
+    }
+
+    document.getElementById('scriptContent')?.addEventListener('input', autoResizeTextarea);
+
+    // Initial call after some delay or content load
+    setTimeout(autoResizeTextarea, 1000);
+
 </script>
 {% endblock %}
