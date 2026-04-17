@@ -18,7 +18,20 @@ interface UserProfile {
     }
 }
 
-const ADMIN_EMAIL = 'ejsh0519@naver.com'
+interface PublishingRequest {
+    id: string
+    user_id: string
+    video_url: string
+    status: 'pending' | 'to_be_published' | 'published' | 'failed' | 'rejected'
+    metadata: any
+    created_at: string
+    profiles?: {
+        email: string
+        membership_tier: string
+    }
+}
+
+const SUPER_ADMIN_EMAIL = 'ejsh0519@naver.com'
 
 const typeMap: Record<string, string> = {
     'video': '영상 생성',
@@ -70,6 +83,7 @@ export default function DashboardContent() {
     const [user, setUser] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [users, setUsers] = useState<UserProfile[]>([])
+    const [publishingRequests, setPublishingRequests] = useState<PublishingRequest[]>([])
     const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'api'>('overview')
     const [overviewSubTab, setOverviewSubTab] = useState<'video' | 'log'>('video')
     
@@ -88,7 +102,11 @@ export default function DashboardContent() {
     const [globalStats, setGlobalStats] = useState({ total: 0, successRate: 0, avgLatency: 0, totalTokens: 0, breakdown: {} as any })
     const [globalLoading, setGlobalLoading] = useState(false)
 
-    // Business Logic
+    // Auth & Access
+    const isSuperAdmin = user?.email === SUPER_ADMIN_EMAIL;
+    const isAdmin = user?.app_metadata?.is_admin || isSuperAdmin;
+
+    // Derived Stats
     const memberCount = useMemo(() => (users || []).length, [users]);
     const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
     const newToday = useMemo(() => (users || []).filter((u: any) => u.created_at?.startsWith(todayStr)).length, [users, todayStr]);
@@ -155,9 +173,7 @@ export default function DashboardContent() {
             } else {
                 alert("적용 실패");
             }
-        } catch (e) {
-            alert("오류 발생");
-        }
+        } catch (e) { alert("오류 발생"); }
     }
 
     const handleRoleChange = async (userId: string, currentRole: string) => {
@@ -173,38 +189,59 @@ export default function DashboardContent() {
         } catch (e) { alert('Error'); }
     }
 
+    const handleAdminRoleToggle = async (userId: string, currentIsAdmin: boolean) => {
+        if (!isSuperAdmin) return;
+        const action = currentIsAdmin ? '해제' : '지정';
+        if (!confirm(`해당 유저를 부관리자로 ${action}하시겠습니까?`)) return;
+        try {
+            const res = await fetch('/api/admin/users/admin-role', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, isAdmin: !currentIsAdmin })
+            });
+            if (res.ok) { alert('완료되었습니다.'); fetchUsers(); }
+        } catch (e) { alert('오류가 발생했습니다.'); }
+    }
+
+    const handlePublishVideo = async (requestId: string) => {
+        if (!confirm(isKor ? '이 영상을 유튜브에서 공개(Public)로 전환하시겠습니까?' : 'Would you like to switch this video to Public on YouTube?')) return;
+        try {
+            const res = await fetch('/api/admin/publishing', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ requestId, status: 'to_be_published' })
+            });
+            if (res.ok) {
+                alert(isKor ? '전환 요청 완료! 잠시 후 유튜브에 반영됩니다.' : 'Request Complete! Will reflect on YouTube shortly.');
+                fetchPublishingRequests();
+            } else {
+                alert('요청 실패');
+            }
+        } catch (e) { alert('오류 발생'); }
+    }
+
     const calcGeneralStats = (logs: any[], days: number) => {
         const coreTasks = ['video', 'image', 'script', 'text_gen', 'vision_gen', 'test_after_fix'];
         const breakdown: any = {};
         coreTasks.forEach(task => {
-            breakdown[task] = { 
-                tokens: 0, 
-                count: 0, 
-                buckets: new Array(days === 1 ? 24 : days).fill(0).map(() => ({ tokens: 0, count: 0 })) 
-            };
+            breakdown[task] = { tokens: 0, count: 0, buckets: new Array(days === 1 ? 24 : days).fill(0).map(() => ({ tokens: 0, count: 0 })) };
         });
-
         if (!logs || !logs.length) return { total: 0, successRate: 0, avgLatency: 0, totalTokens: 0, breakdown };
-        
         const total = logs.length;
         const successes = logs.filter(l => (l.status || '').toLowerCase() === 'success' || (l.status || '').toLowerCase() === 'done').length;
         const tokens = logs.reduce((acc, l) => acc + (l.input_tokens || 0) + (l.output_tokens || 0), 0);
-        
         logs.forEach(l => {
             const stage = (l.task_type || 'unknown').toLowerCase();
-            if (!breakdown[stage]) {
-                breakdown[stage] = { tokens: 0, count: 0, buckets: new Array(days === 1 ? 24 : days).fill(0).map(() => ({ tokens: 0, count: 0 })) };
-            }
+            if (!breakdown[stage]) breakdown[stage] = { tokens: 0, count: 0, buckets: new Array(days === 1 ? 24 : days).fill(0).map(() => ({ tokens: 0, count: 0 })) };
             const t = (l.input_tokens || 0) + (l.output_tokens || 0);
             breakdown[stage].tokens += t;
             breakdown[stage].count += 1;
         });
-        
         return { total, successRate: total > 0 ? Math.round((successes / total)*100) : 0, avgLatency: 7.3, totalTokens: tokens, breakdown };
     }
 
     const fetchGlobalStats = useCallback(async (days: number) => {
-        if (user?.email !== ADMIN_EMAIL) return;
+        if (!isAdmin) return;
         setGlobalLoading(true);
         try {
             const res = await fetch(`/api/admin/logs?days=${days}&t=${Date.now()}`);
@@ -212,7 +249,16 @@ export default function DashboardContent() {
             setGlobalLogs(data.logs || []);
             setGlobalStats(calcGeneralStats(data.logs || [], days));
         } finally { setGlobalLoading(false); }
-    }, [user]);
+    }, [isAdmin]);
+
+    const fetchPublishingRequests = useCallback(async () => {
+        if (!isAdmin) return;
+        try {
+            const res = await fetch(`/api/admin/publishing?t=${Date.now()}`);
+            const data = await res.json();
+            if (data.requests) setPublishingRequests(data.requests);
+        } catch (e) {}
+    }, [isAdmin]);
 
     const fetchUserLogs = async (userId: string, days: number) => {
         setLogsLoading(true);
@@ -225,13 +271,13 @@ export default function DashboardContent() {
     }
 
     const fetchUsers = useCallback(async () => {
-        if (user?.email?.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) return;
+        if (!isAdmin) return;
         try {
             const res = await fetch(`/api/admin/users?t=${Date.now()}`);
             const data = await res.json();
             if (data.users) setUsers(data.users);
         } catch (e) { console.error("FetchUsers Error:", e); }
-    }, [user]);
+    }, [isAdmin]);
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -241,14 +287,24 @@ export default function DashboardContent() {
         });
     }, [router]);
 
+    // 초기 데이터 로딩용 단일 Effect
     useEffect(() => {
-        if (user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
-            if (activeTab === 'overview') fetchGlobalStats(globalPeriod);
-            if (activeTab === 'users' || activeTab === 'overview') fetchUsers();
+        if (isAdmin && !loading) {
+            fetchUsers();
+            fetchGlobalStats(globalPeriod);
+            fetchPublishingRequests();
         }
-    }, [user, activeTab, globalPeriod, fetchGlobalStats, fetchUsers]);
+    }, [isAdmin, loading]);
 
-    if (loading) return <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center font-black animate-pulse uppercase tracking-[0.5em]">시스템 주입중...</div>;
+    // 기간 변경 시에만 별도 호출
+    useEffect(() => {
+        if (isAdmin && !loading) {
+            fetchGlobalStats(globalPeriod);
+        }
+    }, [globalPeriod]);
+
+    if (loading) return <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center font-black animate-pulse uppercase tracking-[0.5em]">관리자 인증 중...</div>;
+    if (!isAdmin) return <div className="min-h-screen bg-[#050505] text-red-500 flex items-center justify-center font-black">접근 권한이 없습니다.</div>;
 
     function formatDate(d: string | null) {
         if (!d) return '-';
@@ -261,38 +317,16 @@ export default function DashboardContent() {
             <div className="flex-1 grid grid-cols-6 gap-3">
                 {topTasks.map((task: any) => (
                     <div key={task.name} className="bg-[#0f172a]/60 border border-white/5 p-5 rounded-2xl flex flex-col justify-between min-h-[170px] hover:border-blue-500/30 transition-all">
-                        <div className="flex justify-between items-start">
-                             <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{typeMap[task.name] || task.name}</div>
-                             <span className="text-sm">{typeIcons[task.name] || '📦'}</span>
-                        </div>
+                        <div className="flex justify-between items-start"><div className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{typeMap[task.name] || task.name}</div><span className="text-sm">{typeIcons[task.name] || '📦'}</span></div>
                         <div className="text-sm font-black text-white mt-1">{task.count} <span className="text-gray-600 text-[10px]">건</span></div>
-                        <div className="h-16 w-full mt-4 flex items-end bg-white/[0.02] rounded-lg p-2 gap-[2px]">
-                             <div className="w-1.5 bg-blue-500/20 rounded-full h-full relative overflow-hidden">
-                                  <div className="absolute bottom-0 w-full bg-blue-500 rounded-full transition-all duration-1000" style={{ height: `${Math.min(100, (task.count / 10) * 100)}%` }} />
-                             </div>
-                             <div className="flex-1 italic text-[9px] text-gray-600 self-center ml-2">DATA_POINT</div>
-                        </div>
+                        <div className="h-16 w-full mt-4 flex items-end bg-white/[0.02] rounded-lg p-2 gap-[2px]"><div className="w-1.5 bg-blue-500/20 rounded-full h-full relative overflow-hidden"><div className="absolute bottom-0 w-full bg-blue-500 rounded-full transition-all duration-1000" style={{ height: `${Math.min(100, (task.count / 10) * 100)}%` }} /></div><div className="flex-1 italic text-[9px] text-gray-600 self-center ml-2">DATA_POINT</div></div>
                         <div className="text-[12px] font-black text-blue-500 mt-2">{task.tokens.toLocaleString()}<span className="text-[8px] text-gray-600 ml-1">TK</span></div>
                     </div>
                 ))}
             </div>
             <div className="w-full lg:w-[320px] bg-[#0f172a]/60 border border-white/5 rounded-2xl p-6 flex flex-col items-center justify-center">
-                <div className="relative w-32 h-32 rounded-full mb-4 flex items-center justify-center" style={{ 
-                    background: `conic-gradient(${
-                        Object.entries(stats.breakdown || {}).map(([stage, data]: [string, any], idx) => {
-                            const colors: any = { video: '#3b82f6', image: '#f97316', script: '#22c55e', vision_gen: '#8b5cf6', test_after_fix: '#06b6d4', test_local: '#64748b' };
-                            const total = Object.values(stats.breakdown || {}).reduce((a: any, b: any) => a + (b.tokens || 0), 0) as number;
-                            const prevTotal = Object.values(stats.breakdown || {}).slice(0, idx).reduce((a: any, b: any) => a + (b.tokens || 0), 0) as number;
-                            const start = (prevTotal / (total || 1)) * 100;
-                            const end = start + (data.tokens / (total || 1)) * 100;
-                            return `${colors[stage] || '#1e293b'} ${start}% ${end}%`;
-                        }).join(', ') || '#1e293b'
-                    })`
-                }}>
-                    <div className="absolute inset-6 bg-[#0f172a] rounded-full flex flex-col items-center justify-center overflow-hidden">
-                         <span className="text-[10px] font-black text-gray-500 uppercase tracking-tighter">USAGE</span>
-                         <span className="text-[8px] text-blue-500 font-bold">TOKENS</span>
-                    </div>
+                <div className="relative w-32 h-32 rounded-full mb-4 flex items-center justify-center" style={{ background: `conic-gradient(${Object.entries(stats.breakdown || {}).map(([stage, data]: [string, any], idx) => { const colors: any = { video: '#3b82f6', image: '#f97316', script: '#22c55e', vision_gen: '#8b5cf6', test_after_fix: '#06b6d4', test_local: '#64748b' }; const total = Object.values(stats.breakdown || {}).reduce((a: any, b: any) => a + (b.tokens || 0), 0) as number; const prevTotal = Object.values(stats.breakdown || {}).slice(0, idx).reduce((a: any, b: any) => a + (b.tokens || 0), 0) as number; const start = (prevTotal / (total || 1)) * 100; const end = start + (data.tokens / (total || 1)) * 100; return `${colors[stage] || '#1e293b'} ${start}% ${end}%`; }).join(', ') || '#1e293b'})` }}>
+                    <div className="absolute inset-6 bg-[#0f172a] rounded-full flex flex-col items-center justify-center overflow-hidden"><span className="text-[10px] font-black text-gray-500 uppercase tracking-tighter">USAGE</span><span className="text-[8px] text-blue-500 font-bold">TOKENS</span></div>
                 </div>
                 <div className="w-full space-y-1 mt-2">
                     {Object.entries(stats.breakdown || {}).sort((a:any,b:any)=>b[1].tokens - a[1].tokens).slice(0, 4).map(([stage, data]: [string, any]) => {
@@ -344,7 +378,7 @@ export default function DashboardContent() {
                     <div className="flex gap-6 items-center">
                         <LanguageSelector />
                         <div className="text-right">
-                            <span className="block text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-none">관리자 계정</span>
+                            <span className="block text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-none">{isSuperAdmin ? '최고 관리자' : '부관리자'}</span>
                             <span className="text-sm font-black text-blue-400">{user?.email}</span>
                         </div>
                         <button onClick={() => supabase.auth.signOut().then(() => router.push('/'))} className="px-6 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">로그아웃</button>
@@ -370,82 +404,94 @@ export default function DashboardContent() {
                             <div className="flex-1 flex gap-2">
                                 <div className="flex-1 bg-blue-600 border border-white/10 px-6 py-3 rounded-2xl flex items-center justify-between group shadow-lg shadow-blue-900/20 text-white transition-transform hover:scale-[1.02]">
                                     <span className="text-[10px] font-black uppercase tracking-widest">전체 인원</span>
-                                    <div className="flex items-baseline gap-1">
-                                        <span className="text-xl font-black italic">{memberCount.toLocaleString()}</span>
-                                        <span className="text-[9px] font-bold uppercase">명</span>
-                                    </div>
+                                    <div className="flex items-baseline gap-1"><span className="text-xl font-black italic">{memberCount.toLocaleString()}</span><span className="text-[9px] font-bold uppercase">명</span></div>
                                 </div>
                                 <div className="flex-1 bg-[#0f172a]/80 border border-white/5 px-6 py-3 rounded-2xl flex items-center justify-between transition-transform hover:scale-[1.02]">
                                     <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">오늘 활성</span>
-                                    <div className="flex items-baseline gap-1">
-                                        <span className="text-xl font-black tabular-nums">{activeToday.toLocaleString()}</span>
-                                        <span className="text-[9px] font-bold text-green-500 uppercase">+{newToday}</span>
-                                    </div>
+                                    <div className="flex items-baseline gap-1"><span className="text-xl font-black tabular-nums">{activeToday.toLocaleString()}</span><span className="text-[9px] font-bold text-green-500 uppercase">+{newToday}</span></div>
                                 </div>
                                 <div className="flex-1 bg-[#0f172a]/80 border border-white/5 px-6 py-3 rounded-2xl flex items-center justify-between transition-transform hover:scale-[1.02]">
                                     <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">총 유포 토큰</span>
-                                    <div className="flex items-baseline gap-1">
-                                        <span className="text-xl font-black text-orange-500 tabular-nums">{totalTokens.toLocaleString()}</span>
-                                        <span className="text-[9px] font-bold text-orange-500/50 uppercase">TK</span>
-                                    </div>
+                                    <div className="flex items-baseline gap-1"><span className="text-xl font-black text-orange-500 tabular-nums">{totalTokens.toLocaleString()}</span><span className="text-[9px] font-bold text-orange-500/50 uppercase">TK</span></div>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 p-1 bg-white/5 rounded-2xl border border-white/5">
-                                <div className="flex gap-1">
-                                    {[1, 7, 30].map(d => (
-                                        <button key={d} onClick={() => setGlobalPeriod(d)} className={`px-4 py-2 text-[10px] font-black rounded-xl transition-all ${globalPeriod === d ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}>
-                                            {d === 1 ? '일간' : d === 7 ? '주간' : '월간'}
-                                        </button>
-                                    ))}
-                                </div>
+                                <div className="flex gap-1">{[1, 7, 30].map(d => (
+                                    <button key={d} onClick={() => setGlobalPeriod(d)} className={`px-4 py-2 text-[10px] font-black rounded-xl transition-all ${globalPeriod === d ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}>{d === 1 ? '일간' : d === 7 ? '주간' : '월간'}</button>
+                                ))}</div>
                                 <div className="w-[1px] h-4 bg-white/10 mx-1"></div>
                                 <button onClick={() => fetchGlobalStats(globalPeriod)} className="px-5 py-2 hover:bg-white/5 rounded-xl text-[10px] font-black text-blue-500 transition-all">새로고침</button>
                             </div>
                         </div>
-
                         <div className="grid grid-cols-4 gap-4">
                             <StatCard label="TOTAL TASKS" value={globalStats.total} unit="UNITS" color="white" />
                             <StatCard label="SUCCESS RATE" value={globalStats.successRate + '%'} unit="GLOBAL" color="green" />
                             <StatCard label="AVG LATENCY" value={globalStats.avgLatency + 's'} unit="PER TASK" color="blue" />
                             <StatCard label="DAILY TOKEN USAGE" value={globalStats.totalTokens.toLocaleString()} unit="TOKENS" color="orange" />
                         </div>
-
                         {renderChartRow(globalStats, globalTopTasks)}
-
                         <div className="flex items-center gap-4 py-2">
-                             <div className="text-[11px] font-black text-gray-500 uppercase tracking-[0.4em] flex items-center gap-4">
-                                  <div className="w-2 h-2 rounded-full bg-blue-500" /> GENERATION HISTORY
-                             </div>
+                             <div className="text-[11px] font-black text-gray-500 uppercase tracking-[0.4em] flex items-center gap-4"><div className="w-2 h-2 rounded-full bg-blue-500" /> GENERATION HISTORY</div>
                              <div className="h-[1px] flex-1 bg-white/5"></div>
                              <div className="flex gap-1 p-1 bg-white/5 rounded-xl border border-white/5">
-                                <button onClick={() => setOverviewSubTab('video')} className={`px-8 py-1.5 rounded-lg text-[10px] font-black transition-all ${overviewSubTab === 'video' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}>채널</button>
+                                <button onClick={() => setOverviewSubTab('video')} className={`px-8 py-1.5 rounded-lg text-[10px] font-black transition-all ${overviewSubTab === 'video' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}>채널 (영상 관리)</button>
                                 <button onClick={() => setOverviewSubTab('log')} className={`px-8 py-1.5 rounded-lg text-[10px] font-black transition-all ${overviewSubTab === 'log' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}>로그</button>
                              </div>
                         </div>
-
                         {overviewSubTab === 'video' ? (
-                            <div className="bg-[#0b0f19] border border-white/5 rounded-[2.5rem] overflow-hidden shadow-2xl">
-                                <table className="w-full text-left">
-                                    <thead className="bg-black/30 border-b border-white/5 text-[10px] font-black text-gray-500 uppercase tracking-widest">
-                                        <tr><th className="px-10 py-6">채널명 / 계정</th><th className="px-10 py-6 text-center">생성된 영상수</th><th className="px-10 py-6 text-center">최근 동기화</th><th className="px-10 py-6 text-right">상태</th></tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-white/5">
-                                        {users.slice(0, 15).map(u => {
-                                            const userVideos = globalLogs.filter(l => l.user_id === u.id && (l.task_type || '').toLowerCase() === 'video').length;
-                                            return (
-                                                <tr key={u.id} className="hover:bg-white/[0.03] transition-colors group">
-                                                    <td className="px-10 py-6">
-                                                        <div className="font-black text-white text-base group-hover:text-blue-400 transition-colors uppercase tracking-tight">{u.email}</div>
-                                                        <div className="text-[11px] text-gray-600 font-bold mt-1 uppercase italic tracking-tighter">{u.user_metadata?.full_name || '연동된 채널'}</div>
-                                                    </td>
-                                                    <td className="px-10 py-6 text-center font-black text-white text-xl tabular-nums">{userVideos}</td>
-                                                    <td className="px-10 py-6 text-center text-[12px] font-black text-gray-500">{formatDate(u.last_sign_in_at)}</td>
-                                                    <td className="px-10 py-6 text-right"><span className="px-3 py-1 bg-green-500/10 text-green-500 text-[9px] font-black rounded-full border border-green-500/20 uppercase">정상연결</span></td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
+                            <div className="space-y-12">
+                                <div className="bg-[#0b0f19] border border-white/5 rounded-[2.5rem] overflow-hidden shadow-2xl">
+                                    <div className="px-10 py-6 border-b border-white/5 bg-black/20 flex justify-between items-center">
+                                        <h3 className="text-[10px] font-black text-blue-500 uppercase tracking-[0.4em]">승인 대기 및 등록된 영상</h3>
+                                    </div>
+                                    <table className="w-full text-left">
+                                        <thead className="bg-black/30 border-b border-white/5 text-[10px] font-black text-gray-500 uppercase tracking-widest">
+                                            <tr><th className="px-10 py-6">영상 정보 / 소유자</th><th className="px-10 py-6 text-center">유튜브 ID</th><th className="px-10 py-6 text-center">등록일시</th><th className="px-10 py-6 text-center">상태</th><th className="px-10 py-6 text-right">관리</th></tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/5">
+                                            {publishingRequests.length === 0 ? (
+                                                <tr><td colSpan={5} className="px-10 py-20 text-center text-gray-600 font-bold uppercase tracking-widest italic">등록된 영상이 없습니다.</td></tr>
+                                            ) : (
+                                                publishingRequests.map(req => {
+                                                    const owner = users?.find(u => u.id === req.user_id);
+                                                    return (
+                                                        <tr key={req.id} className="hover:bg-white/[0.03] transition-colors group">
+                                                            <td className="px-10 py-6">
+                                                                <div className="font-black text-white text-base group-hover:text-blue-400 transition-colors uppercase tracking-tight">{req.metadata?.title || 'Untitled Video'}</div>
+                                                                <div className="text-[11px] text-gray-600 font-bold mt-1 uppercase italic tracking-tighter">{owner?.email || req.user_id || 'Unknown User'}</div>
+                                                            </td>
+                                                            <td className="px-10 py-6 text-center"><a href={`https://youtu.be/${req.metadata?.videoId}`} target="_blank" className="text-[11px] font-black text-blue-500 hover:underline">{req.metadata?.videoId || '-'}</a></td>
+                                                            <td className="px-10 py-6 text-center text-[12px] font-black text-gray-500">{new Date(req.created_at).toLocaleString()}</td>
+                                                            <td className="px-10 py-6 text-center"><span className={`px-3 py-1 text-[9px] font-black rounded-full border uppercase tracking-widest ${req.status === 'published' ? 'bg-green-500/10 text-green-500 border-green-500/20' : req.status === 'pending' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' : req.status === 'to_be_published' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>{req.status === 'pending' ? '대기 중 (비공개)' : req.status === 'to_be_published' ? '공개 전환 중' : req.status.toUpperCase()}</span></td>
+                                                            <td className="px-10 py-6 text-right">{req.status === 'pending' && (<button onClick={() => handlePublishVideo(req.id)} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black rounded-2xl shadow-lg transition-all uppercase tracking-widest">공개로 전환</button>)}{req.status === 'published' && req.metadata?.driveLink && (<a href={req.metadata.driveLink} target="_blank" className="px-6 py-2.5 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white text-[10px] font-black rounded-2xl border border-white/10 transition-all uppercase tracking-widest inline-block">백업 확인</a>)}</td>
+                                                        </tr>
+                                                    );
+                                                })
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div className="bg-[#0b0f19] border border-white/5 rounded-[2.5rem] overflow-hidden shadow-2xl opacity-70">
+                                    <div className="px-10 py-6 border-b border-white/5 bg-black/20"><h3 className="text-[9px] font-black text-gray-500 uppercase tracking-[0.4em]">활성 유저 채널 요약</h3></div>
+                                    <table className="w-full text-left">
+                                        <thead className="bg-black/30 border-b border-white/5 text-[10px] font-black text-gray-500 uppercase tracking-widest">
+                                            <tr><th className="px-10 py-6">채널명 / 계정</th><th className="px-10 py-6 text-center">생성된 영상수</th><th className="px-10 py-6 text-center">최근 동기화</th><th className="px-10 py-6 text-right">상태</th></tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/5">
+                                            {users.slice(0, 5).map(u => {
+                                                const userVideos = globalLogs.filter(l => l.user_id === u.id && (l.task_type || '').toLowerCase() === 'video').length;
+                                                return (
+                                                    <tr key={u.id} className="hover:bg-white/[0.03] transition-colors group">
+                                                        <td className="px-10 py-6"><div className="font-black text-white text-base group-hover:text-blue-400 transition-colors uppercase tracking-tight">{u.email}</div><div className="text-[11px] text-gray-600 font-bold mt-1 uppercase italic tracking-tighter">{u.user_metadata?.full_name || '연동된 채널'}</div></td>
+                                                        <td className="px-10 py-6 text-center font-black text-white text-xl tabular-nums">{userVideos}</td>
+                                                        <td className="px-10 py-6 text-center text-[12px] font-black text-gray-500">{formatDate(u.last_sign_in_at)}</td>
+                                                        <td className="px-10 py-6 text-right"><span className="px-3 py-1 bg-green-500/10 text-green-500 text-[9px] font-black rounded-full border border-green-500/20 uppercase">정상연결</span></td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         ) : renderLogTable(globalLogs)}
                     </div>
@@ -465,7 +511,11 @@ export default function DashboardContent() {
                                 {users.map(u => (
                                     <tr key={u.id} className="hover:bg-white/[0.03] transition-colors group">
                                         <td className="px-10 py-7">
-                                            <div className="font-black text-white text-base group-hover:text-blue-400 transition-colors uppercase tracking-tight">{u.email}</div>
+                                            <div className="flex items-center gap-3">
+                                                <div className="font-black text-white text-base group-hover:text-blue-400 transition-colors uppercase tracking-tight">{u.email}</div>
+                                                {u.email === SUPER_ADMIN_EMAIL && <span className="px-2 py-0.5 bg-blue-600 text-[8px] font-black rounded-md text-white">최고관리자</span>}
+                                                {u.app_metadata?.is_admin && u.email !== SUPER_ADMIN_EMAIL && <span className="px-2 py-0.5 bg-indigo-500 text-[8px] font-black rounded-md text-white">부관리자</span>}
+                                            </div>
                                             <div className="text-[11px] text-gray-600 font-bold mt-1 uppercase italic tracking-tighter">{u.user_metadata?.full_name || '이름 없음'}</div>
                                         </td>
                                         <td className="px-10 py-7 text-center font-black text-white text-xl tabular-nums">{u.profile?.token_balance?.toLocaleString() || 0}</td>
@@ -474,6 +524,9 @@ export default function DashboardContent() {
                                         <td className="px-10 py-7 text-center text-[12px] font-black text-gray-500">{formatDate(u.last_sign_in_at)}</td>
                                         <td className="px-10 py-7 text-right">
                                             <div className="flex gap-2 justify-end">
+                                                {isSuperAdmin && u.email !== SUPER_ADMIN_EMAIL && (
+                                                    <button onClick={() => handleAdminRoleToggle(u.id, !!u.app_metadata?.is_admin)} className={`px-6 py-2.5 rounded-2xl text-[10px] font-black border transition-all uppercase tracking-widest ${u.app_metadata?.is_admin ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/30' : 'bg-white/5 text-gray-600 border-white/10'}`}>권한관리</button>
+                                                )}
                                                 <button onClick={() => handleRecharge(u.id)} className="px-6 py-2.5 bg-green-600/10 hover:bg-green-600 text-green-500 hover:text-white text-[10px] font-black rounded-2xl border border-green-500/20 transition-all uppercase tracking-widest">토큰충전</button>
                                                 <button onClick={() => { setLogViewUser(u); setLogPeriod(1); fetchUserLogs(u.id, 1); }} className="px-6 py-2.5 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-[10px] font-black rounded-2xl border border-blue-500/20 transition-all uppercase tracking-widest">로그조회</button>
                                                 <button onClick={() => { setApiViewUser(u); setTempApiKeys(u.app_metadata?.custom_api_keys || { openai: '', gemini: '', pexels: '', replicate: '' }); }} className="px-6 py-2.5 bg-indigo-600/10 hover:bg-indigo-600 text-indigo-500 hover:text-white text-[10px] font-black rounded-2xl border border-indigo-500/20 transition-all uppercase tracking-widest">API</button>
@@ -487,45 +540,27 @@ export default function DashboardContent() {
                 )}
             </main>
 
-            {/* POPUP: USER LOG VIEW (PLATFORM CLONE) */}
             {logViewUser && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-12 animate-in fade-in duration-300">
                     <div className="absolute inset-0 bg-black/95 backdrop-blur-3xl" onClick={() => setLogViewUser(null)} />
                     <div className="relative w-full max-w-[1600px] bg-[#070707] border border-white/10 rounded-[3rem] p-12 flex flex-col max-h-[94vh] overflow-hidden shadow-2xl">
                         <div className="flex justify-between items-center mb-10">
-                             <div className="flex items-center gap-6">
-                                  <h3 className="text-3xl font-black text-blue-500 uppercase italic italic tracking-tighter">사용자 작업 로그</h3>
-                                  <div className="px-4 py-1.5 bg-blue-600/10 border border-blue-500/20 rounded-full text-[10px] font-black text-blue-400 uppercase tracking-widest">{logViewUser.email}</div>
-                             </div>
+                             <div className="flex items-center gap-6"><h3 className="text-3xl font-black text-blue-500 uppercase italic tracking-tighter">사용자 작업 로그</h3><div className="px-4 py-1.5 bg-blue-600/10 border border-blue-500/20 rounded-full text-[10px] font-black text-blue-400 uppercase tracking-widest">{logViewUser.email}</div></div>
                              <div className="flex items-center gap-4">
-                                  <div className="flex gap-1 p-1 bg-white/5 rounded-xl border border-white/5">
-                                      {[1, 7, 30].map(d => (
-                                          <button key={d} onClick={() => { setLogPeriod(d); fetchUserLogs(logViewUser.id, d); }} className={`px-6 py-2 text-[10px] font-black rounded-lg transition-all ${logPeriod === d ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}>
-                                              {d === 1 ? '일간' : d === 7 ? '주간' : '월간'}
-                                          </button>
-                                      ))}
-                                  </div>
+                                  <div className="flex gap-1 p-1 bg-white/5 rounded-xl border border-white/5">{[1, 7, 30].map(d => (
+                                      <button key={d} onClick={() => { setLogPeriod(d); fetchUserLogs(logViewUser.id, d); }} className={`px-6 py-2 text-[10px] font-black rounded-lg transition-all ${logPeriod === d ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}>{d === 1 ? '일간' : d === 7 ? '주간' : '월간'}</button>
+                                  ))}</div>
                                   <button onClick={() => setLogViewUser(null)} className="w-12 h-12 flex items-center justify-center rounded-xl bg-white/5 text-gray-500 hover:text-white transition-all text-xl font-black">X</button>
                              </div>
                         </div>
-
                         <div className="overflow-y-auto flex-1 pr-4 custom-scrollbar space-y-8">
                              <div className="grid grid-cols-4 gap-4">
                                 <StatCard label="TOTAL TASKS" value={logStats.total} unit="UNITS" color="white" />
                                 <StatCard label="SUCCESS RATE" value={logStats.successRate + '%'} unit="GLOBAL" color="green" />
                                 <StatCard label="AVG LATENCY" value={logStats.avgLatency + 's'} unit="PER TASK" color="blue" />
-                                <StatCard label="USER TOKEN USAGE" value={logStats.totalTokens.toLocaleString()} unit="TOKENS" color="orange" />
+                                <StatCard label="TOKEN USAGE" value={logStats.totalTokens.toLocaleString()} unit="TOKENS" color="orange" />
                              </div>
-
                              {renderChartRow(logStats, userTopTasks)}
-
-                             <div className="flex items-center gap-4 pt-4 pb-2">
-                                  <div className="text-[11px] font-black text-gray-500 uppercase tracking-[0.4em] flex items-center gap-4">
-                                       <div className="w-2 h-2 rounded-full bg-blue-500" /> GENERATION HISTORY
-                                  </div>
-                                  <div className="h-[1px] flex-1 bg-white/5"></div>
-                             </div>
-
                              {renderLogTable(userLogs)}
                         </div>
                     </div>
@@ -538,19 +573,14 @@ export default function DashboardContent() {
                     <div className="relative w-full max-w-[800px] bg-[#0b0f19] border border-white/10 rounded-[3rem] p-16 flex flex-col shadow-2xl animate-in zoom-in-95 duration-300">
                         <button onClick={() => setApiViewUser(null)} className="absolute top-12 right-12 w-12 h-12 flex items-center justify-center rounded-xl bg-white/5 text-gray-500 hover:text-white transition-all">X</button>
                         <div className="space-y-10">
-                            <div>
-                                <h3 className="text-3xl font-black uppercase italic tracking-tighter text-blue-500">유저 전용 API 설정</h3>
-                                <p className="text-sm text-gray-500 mt-2 uppercase tracking-widest font-black italic">{apiViewUser.email}</p>
-                            </div>
-                            <div className="space-y-6">
-                                {['openai', 'gemini', 'pexels', 'replicate'].map(key => (
-                                    <div key={key} className="space-y-2">
-                                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-4">{key.toUpperCase()} API 키</label>
-                                        <input type="text" placeholder={`이 유저의 ${key} 키를 입력하세요...`} value={tempApiKeys[key] || ''} onChange={(e) => setTempApiKeys({...tempApiKeys, [key]: e.target.value})} className="w-full bg-black/40 border border-white/5 rounded-2xl px-8 py-5 text-sm font-black text-white focus:outline-none focus:border-blue-500/50 transition-all" />
-                                    </div>
-                                ))}
-                            </div>
-                            <button onClick={handleUpdateApiKeys} className="w-full py-6 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-[2rem] shadow-xl shadow-blue-500/20 transition-all active:scale-95 uppercase tracking-widest text-sm">변경사항 저장 및 적용</button>
+                            <div><h3 className="text-3xl font-black uppercase italic tracking-tighter text-blue-500">유저 전용 API 설정</h3><p className="text-sm text-gray-500 mt-2 uppercase tracking-widest font-black italic">{apiViewUser.email}</p></div>
+                            <div className="space-y-6">{['openai', 'gemini', 'pexels', 'replicate'].map(key => (
+                                <div key={key} className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-4">{key.toUpperCase()} API 키</label>
+                                    <input type="text" placeholder={`입력하세요...`} value={tempApiKeys[key] || ''} onChange={(e) => setTempApiKeys({...tempApiKeys, [key]: e.target.value})} className="w-full bg-black/40 border border-white/5 rounded-2xl px-8 py-5 text-sm font-black text-white focus:outline-none focus:border-blue-500/50 transition-all" />
+                                </div>
+                            ))}</div>
+                            <button onClick={handleUpdateApiKeys} className="w-full py-6 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-[2rem] shadow-xl shadow-blue-500/20 transition-all active:scale-95 uppercase tracking-widest text-sm">저장 및 적용</button>
                         </div>
                     </div>
                 </div>
