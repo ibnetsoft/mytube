@@ -186,7 +186,7 @@
     }
 </style>
 
-<div class="h-[calc(100vh-140px)] p-2 grid grid-cols-12 gap-3">
+<div class="h-[calc(100vh-110px)] p-2 grid grid-cols-12 gap-3">
 
     <!-- LEFT COLUMN WRAPPER -->
     <div class="col-span-12 xl:col-span-8 lg:col-span-7 flex flex-col gap-2 min-h-0 overflow-hidden">
@@ -266,11 +266,11 @@
                 <div class="flex items-center gap-2 shrink-0">
                     <div class="flex flex-col items-center gap-0.5">
                         <input type="color" id="textColorInput" value="#ffffff" class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer" title="{{ t('label_text_color') }}">
-                        <span class="text-[9px] text-gray-400">T</span>
+                        <span class="text-[9px] text-gray-400">글자</span>
                     </div>
                     <div class="flex flex-col items-center gap-0.5">
                         <input type="color" id="strokeColorInput" value="#000000" class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer" title="{{ t('label_stroke_color') }}">
-                        <span class="text-[9px] text-gray-400">S</span>
+                        <span class="text-[9px] text-gray-400">테두리</span>
                     </div>
                 </div>
             </div>
@@ -302,7 +302,7 @@
                     </label>
                     <div class="flex flex-col items-center gap-0.5">
                         <input type="color" id="bgColorInput" value="#000000" class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer" title="{{ t('label_bg_color') }}">
-                        <span class="text-[9px] text-gray-400">BG</span>
+                        <span class="text-[9px] text-gray-400">배경</span>
                     </div>
                     <input type="number" id="bgOpacityInput" value="0.5" min="0" max="1" step="0.1"
                         class="text-[11px] text-gray-800 dark:text-gray-100 bg-[#000106]/50 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-1 w-10 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
@@ -579,7 +579,7 @@
 
         <!-- BGM / SFX Area (Tab 2: BGM) -->
         <div id="tabContent-bgm"
-            class="hidden w-full flex-1 bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm flex flex-col min-h-0 overflow-y-auto">
+            class="hidden w-full flex-1 bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm flex flex-col min-h-0">
             <div id="bgmSectionBody" class="flex flex-col gap-2 flex-1">
                 <!-- BGM 설정 -->
                 <div class="bg-[#000106] rounded p-2 border border-gray-200 dark:border-gray-700">
@@ -637,7 +637,7 @@
                         <div class="flex gap-1">
                             <input type="text" id="bgmUrlInput"
                                 class="flex-1 text-[9px] p-1 bg-[#000106] border border-gray-300 dark:border-gray-600 rounded"
-                                placeholder="https://... (MP3 URL)">
+                                placeholder="https://... (MP3 URL 입력)">
                             <button onclick="applyBgmUrl()"
                                 class="px-2 text-[9px] bg-purple-600 text-white rounded hover:bg-purple-700">{{ t('apply_url') }}</button>
                         </div>
@@ -649,7 +649,7 @@
                             class="w-full text-[9px] py-1 bg-[#000106]/50 rounded hover:bg-[#0a0f1d] dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300">
                             {{ t('btn_load_generated') }}
                         </button>
-                        <div id="generatedBgmList" class="mt-1 space-y-1 max-h-20 overflow-y-auto"></div>
+                        <div id="generatedBgmList" class="mt-1 space-y-1 max-h-48 overflow-y-auto"></div>
                     </div>
                 </div>
 
