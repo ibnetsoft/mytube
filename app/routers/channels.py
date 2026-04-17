@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, Query
 from typing import List, Optional
 import database as db
 from app.models.channel import ChannelCreate, ChannelResponse
