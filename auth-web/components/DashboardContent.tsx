@@ -229,15 +229,25 @@ export default function DashboardContent() {
 
     const handleRoleChange = async (userId: string, currentRole: string) => {
         const newRole = currentRole === 'pro' ? 'std' : 'pro';
-        if (!confirm(isKor ? `등급을 ${newRole.toUpperCase()}(으)로 변경하시겠습니까?` : `Change membership to ${newRole.toUpperCase()}?`)) return;
+        if (!confirm(isKor ? `등급을 ${newRole === 'pro' ? '프로' : '스탠다드'}(으)로 변경하시겠습니까?` : `Change membership to ${newRole === 'pro' ? 'PRO' : 'STANDARD'}?`)) return;
         try {
             const res = await fetch('/api/admin/users/role', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId, membership: newRole })
             });
-            if (res.ok) { alert(isKor ? '변경 완료' : 'Role Updated'); fetchUsers(); }
-        } catch (e) { alert('Error'); }
+            const data = await res.json();
+            if (res.ok && data.success) {
+                // 낙관적 업데이트: Supabase listUsers() 캐시 지연 없이 즉시 반영
+                setUsers(prev => prev.map(u =>
+                    u.id === userId ? { ...u, app_metadata: { ...u.app_metadata, membership: newRole } } : u
+                ));
+                alert(isKor ? `${newRole === 'pro' ? '💎 프로' : '👤 스탠다드'}로 변경되었습니다.` : 'Role Updated');
+                fetchUsers(); // 백그라운드 새로고침
+            } else {
+                alert('변경 실패: ' + (data.error || '서버 오류'));
+            }
+        } catch (e) { alert('서버 통신 오류'); }
     }
 
     const handleAdminRoleToggle = async (userId: string, currentIsAdmin: boolean) => {
