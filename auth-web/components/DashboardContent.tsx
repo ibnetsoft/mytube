@@ -328,7 +328,7 @@ export default function DashboardContent() {
             breakdown[stage].tokens += t;
             breakdown[stage].count += 1;
         });
-        const avgLat = total > 0 ? (logs.reduce((acc, l) => acc + (l.elapsed_time || 0), 0) / total).toFixed(1) : '0.0';
+        const avgLat = total > 0 ? parseFloat((logs.reduce((acc, l) => acc + (l.elapsed_time || 0), 0) / total).toFixed(1)) : 0;
         return { total, successRate: total > 0 ? Math.round((successes / total)*100) : 0, avgLatency: avgLat, totalTokens: tokens, breakdown };
     }
 
@@ -624,19 +624,19 @@ export default function DashboardContent() {
                             <button onClick={fetchUsers} className="px-6 py-2 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-[10px] font-black rounded-xl border border-blue-500/20 transition-all uppercase tracking-widest">새로고침</button>
                         </div>
                         <table className="w-full text-left">
-                            <thead className="bg-black/30 border-b border-white/20 text-sm font-black text-gray-400 uppercase tracking-widest">
+                            <thead className="bg-black/30 border-b border-white/20 text-xs font-black text-gray-400 uppercase tracking-widest">
                                 <tr>
-                                    <th className="px-1 py-4 whitespace-nowrap">이름</th>
-                                    <th className="px-1 py-4 whitespace-nowrap">이메일 / 등급</th>
-                                    <th className="px-1 py-4 whitespace-nowrap">연락처</th>
-                                    <th className="px-1 py-4 whitespace-nowrap">국적</th>
-                                    <th className="px-1 py-4 whitespace-nowrap">추천인</th>
-                                    <th className="px-1 py-4 whitespace-nowrap">채널명</th>
-                                    <th className="px-1 py-4 text-center whitespace-nowrap">토큰</th>
-                                    <th className="px-1 py-4 text-center whitespace-nowrap">멤버십</th>
-                                    <th className="px-1 py-4 text-center whitespace-nowrap">가입일</th>
-                                    <th className="px-1 py-4 text-center whitespace-nowrap">최근접속</th>
-                                    <th className="px-1 py-4 text-center whitespace-nowrap">관리</th>
+                                    <th className="px-0 py-4 whitespace-nowrap">이름</th>
+                                    <th className="px-0 py-4 whitespace-nowrap">이메일 / 등급</th>
+                                    <th className="px-0 py-4 whitespace-nowrap">연락처</th>
+                                    <th className="px-0 py-4 whitespace-nowrap">국적</th>
+                                    <th className="px-0 py-4 whitespace-nowrap">추천인</th>
+                                    <th className="px-0 py-4 whitespace-nowrap">채널명</th>
+                                    <th className="px-0 py-4 text-center whitespace-nowrap">토큰</th>
+                                    <th className="px-0 py-4 text-center whitespace-nowrap">멤버십</th>
+                                    <th className="px-0 py-4 text-center whitespace-nowrap">가입일</th>
+                                    <th className="px-0 py-4 text-center whitespace-nowrap">최근접속</th>
+                                    <th className="px-0 py-4 text-center whitespace-nowrap">관리</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/20">
