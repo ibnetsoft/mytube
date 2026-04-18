@@ -147,16 +147,20 @@ export default function AdminDashboardContent() {
             const res = await fetch('/api/admin/users/role', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId, role: nextRole })
+                body: JSON.stringify({ userId, membership: nextRole })
             })
             const data = await res.json()
             if (data.success) {
-                setUsers(users.map(u =>
+                setUsers(prev => prev.map(u =>
                     u.id === userId ? { ...u, app_metadata: { ...u.app_metadata, membership: nextRole } } : u
                 ))
+                alert(nextRole === 'independent' ? '💎 프로로 변경되었습니다.' : '👤 스탠다드로 변경되었습니다.')
+            } else {
+                alert('변경 실패: ' + (data.error || '서버 오류'))
             }
         } catch (e) {
             console.error("등급 변경 실패", e)
+            alert('서버 통신 오류가 발생했습니다.')
         }
     }
 

@@ -18,10 +18,14 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Missing userId or membership' }, { status: 400 })
         }
 
-        // 1. Auth Metadata 업데이트 (Python 앱에서 참조)
+        // 1. 기존 app_metadata 조회 후 membership만 업데이트 (다른 필드 보존)
+        const { data: { user: existingUser }, error: fetchError } = await supabaseAdmin.auth.admin.getUserById(userId)
+        if (fetchError) throw fetchError
+        const mergedMeta = { ...(existingUser?.app_metadata || {}), membership }
+
         const { data: authData, error: authError } = await supabaseAdmin.auth.admin.updateUserById(
             userId,
-            { app_metadata: { membership: membership } }
+            { app_metadata: mergedMeta }
         )
         if (authError) throw authError
 
