@@ -238,12 +238,11 @@ export default function DashboardContent() {
             });
             const data = await res.json();
             if (res.ok && data.success) {
-                // 낙관적 업데이트: Supabase listUsers() 캐시 지연 없이 즉시 반영
+                // 낙관적 업데이트만 사용 (fetchUsers 시 Supabase 캐시로 인해 역행됨)
                 setUsers(prev => prev.map(u =>
                     u.id === userId ? { ...u, app_metadata: { ...u.app_metadata, membership: newRole } } : u
                 ));
                 alert(isKor ? `${newRole === 'pro' ? '💎 프로' : '👤 스탠다드'}로 변경되었습니다.` : 'Role Updated');
-                fetchUsers(); // 백그라운드 새로고침
             } else {
                 alert('변경 실패: ' + (data.error || '서버 오류'));
             }

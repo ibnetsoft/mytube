@@ -43,15 +43,17 @@ export async function POST(req: Request) {
 
         if (!userId) return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
 
-        const metaUpdate: Record<string, string> = {}
-        if (gemini !== undefined)      metaUpdate.gemini_api_key     = gemini
-        if (youtube !== undefined)     metaUpdate.youtube_api_key    = youtube
-        if (elevenlabs !== undefined)  metaUpdate.elevenlabs_api_key = elevenlabs
-        if (topview !== undefined)     metaUpdate.topview_api_key    = topview
-        if (topview_uid !== undefined) metaUpdate.topview_uid        = topview_uid
+        // 기존 user_metadata 조회 후 병합 (full_name, nationality, contact 등 보존)
+        const { data: { user: existingUser } } = await getAdmin().auth.admin.getUserById(userId)
+        const merged = { ...(existingUser?.user_metadata || {}) }
+        if (gemini !== undefined)      merged.gemini_api_key     = gemini
+        if (youtube !== undefined)     merged.youtube_api_key    = youtube
+        if (elevenlabs !== undefined)  merged.elevenlabs_api_key = elevenlabs
+        if (topview !== undefined)     merged.topview_api_key    = topview
+        if (topview_uid !== undefined) merged.topview_uid        = topview_uid
 
         const { error } = await getAdmin().auth.admin.updateUserById(userId, {
-            user_metadata: metaUpdate
+            user_metadata: merged
         })
 
         if (error) throw error

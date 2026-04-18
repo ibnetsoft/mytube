@@ -11,9 +11,11 @@ export async function POST(req: Request) {
     const { userId, apiKeys } = await req.json()
     if (!userId || !apiKeys) return NextResponse.json({ error: 'Missing data' }, { status: 400 })
 
+    const { data: { user: existingUser } } = await supabaseAdmin.auth.admin.getUserById(userId)
     const { data, error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-      app_metadata: { 
-        custom_api_keys: apiKeys 
+      app_metadata: {
+        ...(existingUser?.app_metadata || {}),
+        custom_api_keys: apiKeys
       }
     })
 

@@ -37,17 +37,19 @@ export async function POST(req: Request, { params }: { params: { id: string } })
             process.env.SUPABASE_SERVICE_ROLE_KEY!
         )
 
-        const metaUpdate: Record<string, string> = {}
-        if (gemini !== undefined)      metaUpdate.gemini_api_key = gemini
-        if (youtube !== undefined)     metaUpdate.youtube_api_key = youtube
-        if (elevenlabs !== undefined)  metaUpdate.elevenlabs_api_key = elevenlabs
-        if (topview !== undefined)     metaUpdate.topview_api_key = topview
-        if (topview_uid !== undefined) metaUpdate.topview_uid = topview_uid
-        if (youtube_channel !== undefined) metaUpdate.youtube_channel = youtube_channel
-        if (youtube_handle !== undefined)  metaUpdate.youtube_handle = youtube_handle
+        // 기존 user_metadata 조회 후 병합 (full_name, nationality, contact 등 보존)
+        const { data: { user: existingUser } } = await supabaseAdmin.auth.admin.getUserById(userId)
+        const merged = { ...(existingUser?.user_metadata || {}) }
+        if (gemini !== undefined)      merged.gemini_api_key = gemini
+        if (youtube !== undefined)     merged.youtube_api_key = youtube
+        if (elevenlabs !== undefined)  merged.elevenlabs_api_key = elevenlabs
+        if (topview !== undefined)     merged.topview_api_key = topview
+        if (topview_uid !== undefined) merged.topview_uid = topview_uid
+        if (youtube_channel !== undefined) merged.youtube_channel = youtube_channel
+        if (youtube_handle !== undefined)  merged.youtube_handle = youtube_handle
 
         const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-            user_metadata: metaUpdate
+            user_metadata: merged
         })
 
         if (error) throw error
