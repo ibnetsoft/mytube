@@ -30,59 +30,62 @@
         </div>
     </div>
 
-    <!-- Stats Overview -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div class="card p-5 bg-[#000106]/40 bg-[#000106]/40 backdrop-blur-xl border border-white/20 dark:border-white/5 rounded-[2rem] shadow-sm group hover:border-blue-500/30 transition-all">
-            <p class="text-[10px] font-black text-gray-400 mb-1 uppercase tracking-widest">TOTAL TASKS</p>
-            <div class="flex items-baseline gap-2">
-                <span id="stat-total" class="text-3xl font-black text-gray-800 dark:text-white group-hover:scale-110 transition-transform inline-block">0</span>
-                <span class="text-[10px] text-gray-400 font-bold">UNITS</span>
+    <!-- Stats & Distribution Overview -->
+    <div class="flex flex-col lg:flex-row gap-4 mb-6">
+        <!-- Stats Cards -->
+        <div class="flex-1 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="card p-5 bg-[#000106]/60 backdrop-blur-xl border border-white/20 rounded-[2rem] shadow-sm group hover:border-blue-500/40 transition-all">
+                <p class="text-[10px] font-black text-gray-400 mb-1 uppercase tracking-widest">TOTAL TASKS</p>
+                <div class="flex items-baseline gap-2">
+                    <span id="stat-total" class="text-3xl font-black text-white group-hover:scale-110 transition-transform inline-block">0</span>
+                    <span class="text-[10px] text-gray-400 font-bold">UNITS</span>
+                </div>
+            </div>
+            <div class="card p-5 bg-[#000106]/60 backdrop-blur-xl border border-white/20 rounded-[2rem] shadow-sm group hover:border-green-500/40 transition-all">
+                <p class="text-[10px] font-black text-green-500/70 mb-1 uppercase tracking-widest">SUCCESS RATE</p>
+                <div class="flex items-baseline gap-2">
+                    <span id="stat-success" class="text-3xl font-black text-green-400">0%</span>
+                    <span class="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">GLOBAL</span>
+                </div>
+            </div>
+            <div class="card p-5 bg-[#000106]/60 backdrop-blur-xl border border-white/20 rounded-[2rem] shadow-sm group hover:border-blue-400/40 transition-all">
+                <p class="text-[10px] font-black text-blue-500/70 mb-1 uppercase tracking-widest">AVG LATENCY</p>
+                <div class="flex items-baseline gap-2">
+                    <span id="stat-latency" class="text-3xl font-black text-blue-400">0.0s</span>
+                    <span class="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">PER TASK</span>
+                </div>
+            </div>
+            <div class="card p-5 bg-gradient-to-br from-orange-500/10 to-transparent backdrop-blur-xl border border-white/20 rounded-[2rem] shadow shadow-orange-500/5 group hover:border-orange-500/50 transition-all overflow-hidden relative">
+                <div class="absolute -right-4 -bottom-4 text-6xl opacity-5 group-hover:rotate-12 transition-transform">🪙</div>
+                <p id="token-stat-label" class="text-[10px] font-black text-orange-500/80 mb-1 uppercase tracking-widest relative z-10">DAILY TOKEN USAGE</p>
+                <div class="flex items-baseline gap-2 relative z-10">
+                    <span id="stat-tokens" class="text-3xl font-black text-orange-400">0</span>
+                    <span class="text-[10px] text-orange-500 font-black">TOKENS</span>
+                </div>
             </div>
         </div>
-        <div class="card p-5 bg-[#000106]/40 bg-[#000106]/40 backdrop-blur-xl border border-white/20 dark:border-white/5 rounded-[2rem] shadow-sm group hover:border-green-500/30 transition-all">
-            <p class="text-[10px] font-black text-green-500/70 mb-1 uppercase tracking-widest">SUCCESS RATE</p>
-            <div class="flex items-baseline gap-2">
-                <span id="stat-success" class="text-3xl font-black text-green-600 dark:text-green-400">0%</span>
-                <span class="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">GLOBAL</span>
-            </div>
-        </div>
-        <div class="card p-5 bg-[#000106]/40 bg-[#000106]/40 backdrop-blur-xl border border-white/20 dark:border-white/5 rounded-[2rem] shadow-sm group hover:border-blue-400/30 transition-all">
-            <p class="text-[10px] font-black text-blue-500/70 mb-1 uppercase tracking-widest">AVG LATENCY</p>
-            <div class="flex items-baseline gap-2">
-                <span id="stat-latency" class="text-3xl font-black text-blue-600 dark:text-blue-400">0.0s</span>
-                <span class="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">PER TASK</span>
-            </div>
-        </div>
-        <div class="card p-5 bg-gradient-to-br from-orange-500/10 to-transparent backdrop-blur-xl border border-orange-500/20 rounded-[2rem] shadow shadow-orange-500/5 group hover:border-orange-500/50 transition-all overflow-hidden relative">
-            <div class="absolute -right-4 -bottom-4 text-6xl opacity-5 group-hover:rotate-12 transition-transform">🪙</div>
-            <p id="token-stat-label" class="text-[10px] font-black text-orange-500/80 mb-1 uppercase tracking-widest relative z-10">DAILY TOKEN USAGE</p>
-            <div class="flex items-baseline gap-2 relative z-10">
-                <span id="stat-tokens" class="text-3xl font-black text-orange-600 dark:text-orange-400">0</span>
-                <span class="text-[10px] text-orange-500 font-black">TOKENS</span>
+
+        <!-- Distribution Donut (Right of Stats) -->
+        <div id="token-distribution-card" class="w-full lg:w-[320px] lg:flex card p-5 bg-[#000106]/60 backdrop-blur-xl border border-white/20 rounded-[2rem] shadow-sm hidden flex-col items-center justify-center transition-all hover:border-blue-500/40">
+            <p class="text-[10px] font-black text-gray-500 mb-3 uppercase tracking-widest text-center">Expenditure</p>
+            <div class="flex items-center gap-6 w-full">
+                <div id="pie-chart" class="relative w-24 h-24 rounded-full shadow-2xl flex-shrink-0" style="background: conic-gradient(#3b82f6 0% 100%); transition: all 0.5s ease;">
+                    <div class="absolute inset-4 bg-[#050505] rounded-full flex flex-col items-center justify-center overflow-hidden">
+                        <span class="text-[7px] font-black text-gray-500 tracking-tighter">TOTAL</span>
+                        <span class="text-[8px] font-black text-blue-500">TOKENS</span>
+                    </div>
+                </div>
+                <div id="pie-legend" class="flex-1 space-y-1 text-[9px] font-black">
+                    <!-- populated via JS -->
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Stage Breakdown & Pie Chart [NEW] -->
-    <div class="flex flex-col lg:flex-row gap-4 mb-6">
-        <!-- Stages Grid (Left) -->
-        <div id="stage-breakdown" class="flex-1 grid grid-cols-2 md:grid-cols-6 gap-3 hidden">
+    <!-- Stage Breakdown -->
+    <div class="mb-6">
+        <div id="stage-breakdown" class="grid grid-cols-2 md:grid-cols-7 gap-3 hidden">
             <!-- populated via JS -->
-        </div>
-
-        <!-- Distribution Donut (Right) -->
-        <div id="token-distribution-card" class="w-full lg:w-64 card p-4 bg-[#000106]/50 bg-[#000106]/50 backdrop-blur border border-white/20 dark:border-gray-800 rounded-2xl shadow-sm hidden flex-col items-center justify-center min-h-[140px]">
-            <p class="text-[9px] font-bold text-gray-400 mb-2 uppercase tracking-tight text-center">Token Expenditure</p>
-            <div class="flex items-center gap-4">
-                <div id="pie-chart" class="relative w-24 h-24 rounded-full shadow-lg" style="background: conic-gradient(#3b82f6 0% 100%);">
-                    <div class="absolute inset-4 bg-[#000106] dark:bg-[#0b0f19] rounded-full flex items-center justify-center">
-                        <span class="text-[9px] font-black text-blue-500">USAGE</span>
-                    </div>
-                </div>
-                <div id="pie-legend" class="flex-1 space-y-1 text-[9px] font-bold">
-                    <!-- populated via JS -->
-                </div>
-            </div>
         </div>
     </div>
 
@@ -363,15 +366,16 @@
         const breakdownEl = document.getElementById('stage-breakdown');
         breakdownEl.classList.remove('hidden');
         document.getElementById('token-distribution-card').classList.remove('hidden');
+        document.getElementById('token-distribution-card').style.display = 'flex';
         
-        const order = ['video', 'image', 'script', 'analysis', 'planning', 'vision_analysis', 'vision_gen'];
+        const order = ['video', 'image', 'script', 'vision_gen', 'motion_guide', 'text_gen', 'character_extraction'];
         const activeStages = Object.keys(breakdown).sort((a, b) => {
             let idxA = order.indexOf(a);
             let idxB = order.indexOf(b);
             if (idxA === -1) idxA = 99;
             if (idxB === -1) idxB = 99;
             return idxA - idxB;
-        });
+        }).slice(0, 7);
 
         const totalTokens = Object.values(breakdown).reduce((acc, d) => acc + d.tokens, 0);
         
@@ -382,17 +386,25 @@
         breakdownEl.innerHTML = activeStages.map(stage => {
             const data = breakdown[stage];
             const icon = {
-                'image': '🎨', 'video': '📹', 'script': '📝', 'analysis': '🔍', 'planning': '🗺️', 'vision_analysis': '👁️', 'vision_gen': '👁️'
+                'image': '🎨', 
+                'video': '📹', 
+                'script': '📝', 
+                'vision_gen': '👁️', 
+                'motion_guide': '⚙️', 
+                'text_gen': '✍️', 
+                'character_extraction': '👤'
             }[stage] || '⚙️';
 
             const colorMap = {
-                'video': 'bg-orange-400 dark:bg-orange-500',
-                'image': 'bg-blue-400 dark:bg-blue-500',
-                'script': 'bg-green-400 dark:bg-green-500',
-                'analysis': 'bg-purple-400 dark:bg-purple-500',
-                'planning': 'bg-indigo-400 dark:bg-indigo-500'
+                'video': 'bg-orange-500',
+                'image': 'bg-blue-500',
+                'script': 'bg-green-500',
+                'vision_gen': 'bg-purple-500',
+                'motion_guide': 'bg-indigo-500',
+                'text_gen': 'bg-cyan-500',
+                'character_extraction': 'bg-slate-500'
             };
-            const barColorClass = colorMap[stage] || 'bg-gray-400 dark:bg-[#000106]0';
+            const barColorClass = colorMap[stage] || 'bg-gray-500';
             
             // Generate Mini Bar Chart HTML (based on Tokens or Count if tokens 0)
             const maxTokensInBucket = Math.max(...(data.buckets || [{tokens:1}]).map(b => b.tokens), 1);
@@ -415,20 +427,20 @@
             }).join('');
 
             return `
-                <div class="px-3 py-2 bg-[#000106] dark:bg-[#000106] border border-blue-100/50 dark:border-blue-800/30 rounded-xl shadow-sm flex flex-col justify-between">
+                <div class="px-5 py-4 bg-[#000106]/60 backdrop-blur-xl border border-white/20 rounded-[2rem] shadow-sm flex flex-col justify-between group hover:border-blue-500/40 transition-all min-h-[160px]">
                     <div>
-                        <p class="text-[9px] font-bold text-gray-400 uppercase truncate mb-1">${stage}</p>
-                        <div class="flex items-center justify-between mb-1">
-                            <span class="text-xs">${icon} <span class="text-[10px] font-black text-gray-700 dark:text-gray-200">${data.count}</span> <span class="text-[8px] text-gray-400 uppercase">건</span></span>
+                        <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 group-hover:text-blue-300 transition-colors">${stage}</p>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm">${icon} <span class="text-lg font-black text-white tabular-nums">${data.count}</span> <span class="text-[10px] text-gray-600 font-bold uppercase">건</span></span>
                         </div>
                     </div>
                     
-                    <div class="flex items-end gap-[1px] h-6 w-full px-0.5 mt-2 mb-1">
+                    <div class="flex items-end gap-[1.5px] h-10 w-full px-1 mt-3 mb-2 bg-white/[0.02] rounded-lg p-1.5 overflow-hidden">
                         ${barsHtml}
                     </div>
 
-                    <div class="text-[10px] font-black text-blue-600 dark:text-blue-400 mt-1">
-                        ${data.tokens > 0 ? data.tokens.toLocaleString() + ' <span class="text-[8px] font-normal opacity-70">TK</span>' : '-'}
+                    <div class="text-[11px] font-black text-blue-400 mt-1 tracking-tight">
+                        ${data.tokens > 0 ? data.tokens.toLocaleString() + ' <span class="text-[8px] text-gray-600 font-bold">TK</span>' : '-'}
                     </div>
                 </div>
             `;
@@ -436,13 +448,13 @@
 
         // Generate Pie Chart
         const hexColorMap = {
-            'video': '#f97316',   // orange-500
-            'image': '#3b82f6',   // blue-500
-            'script': '#22c55e',  // green-500
-            'analysis': '#a855f7', // purple-500
-            'planning': '#6366f1', // indigo-500
-            'vision_analysis': '#06b6d4', // cyan-500
-            'vision_gen': '#06b6d4'
+            'video': '#f97316',   
+            'image': '#3b82f6',   
+            'script': '#22c55e',  
+            'vision_gen': '#a855f7', 
+            'motion_guide': '#6366f1', 
+            'text_gen': '#06b6d4', 
+            'character_extraction': '#64748b'
         };
         
         let currentAngle = 0;

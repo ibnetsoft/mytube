@@ -251,12 +251,9 @@
             <!-- Video Engine Selection -->
             <div
                 class="mt-6 mb-4 p-4 bg-[#000106] border border-gray-200 dark:border-gray-700 rounded-lg">
-                <label class="block text-sm font-bold mb-3 flex items-center gap-2">
-                    <span>🎬 {{ t('label_select_engine') }}</span>
-                </label>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="grid grid-cols-1 gap-4">
                     <label
-                        class="relative flex items-start p-3 border border-gray-200 dark:border-gray-700 bg-[#000106] rounded-lg cursor-pointer hover:border-blue-500 transition-all group has-[:checked]:border-blue-500 has-[:checked]:ring-1 has-[:checked]:ring-blue-500">
+                        class="relative flex items-start p-3 border-2 border-blue-500 dark:border-blue-600 bg-blue-50/10 dark:bg-blue-900/10 rounded-lg cursor-pointer hover:border-blue-500 transition-all group shadow-sm">
                         <input type="radio" name="video_engine" value="topview" checked
                             class="mt-1 text-blue-600 focus:ring-blue-500">
                         <div class="ml-3">
@@ -265,25 +262,8 @@
                             <span class="block text-[10px] text-gray-500 dark:text-gray-400 mt-1">{{ t('engine_topview_desc') }}</span>
                         </div>
                     </label>
-
-                    <label
-                        class="relative flex items-start p-3 border border-gray-200 dark:border-gray-700 bg-[#000106] rounded-lg cursor-pointer hover:border-purple-500 transition-all group has-[:checked]:border-purple-500 has-[:checked]:ring-1 has-[:checked]:ring-purple-500">
-                        <input type="radio" name="video_engine" value="akool"
-                            class="mt-1 text-purple-600 focus:ring-purple-500">
-                        <div class="ml-3">
-                            <span class="block text-sm font-bold text-purple-700 dark:text-purple-400">Akool
-                                Avatar</span>
-                            <span class="block text-[10px] text-gray-500 dark:text-gray-400 mt-1">{{ t('engine_akool_desc') }}</span>
-                        </div>
-                    </label>
-
-                    <label
-                        class="relative flex items-start p-3 border border-gray-200 dark:border-gray-700 bg-[#000106] rounded-lg cursor-pointer hover:border-pink-500 transition-all group has-[:checked]:border-pink-500 has-[:checked]:ring-1 has-[:checked]:ring-pink-500">
-                        <input type="radio" name="video_engine" value="akool_i2v"
-                            class="mt-1 text-pink-600 focus:ring-pink-500">
-                        <div class="ml-3">
-                            <span class="block text-sm font-bold text-pink-700 dark:text-pink-400">Akool Premium</span>
-                            <span class="block text-[10px] text-gray-500 dark:text-gray-400 mt-1">{{ t('engine_akool_premium_desc') }}</span>
+                </div>
+-[10px] text-gray-500 dark:text-gray-400 mt-1">{{ t('engine_akool_premium_desc') }}</span>
                         </div>
                     </label>
                 </div>
@@ -785,7 +765,7 @@
             if (data.status === 'success') {
                 document.getElementById('generation-status').innerHTML = `
                     <p class="text-green-600 font-medium">✅ ${data.message}</p>
-                    <p class="text-xs text-gray-500 mt-1 dark:text-gray-400">${i18n.label_engine}: ${videoEngine === 'akool' ? 'Akool Avatar' : 'TopView AI'}</p>
+                    <p class="text-xs text-gray-500 mt-1 dark:text-gray-400">${i18n.label_engine}: ${videoEngine === 'topview' ? 'TopView AI' : videoEngine}</p>
                     <p class="mt-2 text-xs text-gray-400">${i18n.label_task_id}: ${data.task_id || '-'}</p>
                 `;
  

@@ -26,7 +26,7 @@ class GlobalSettings(BaseModel):
     webtoon_motion_pan: Optional[str] = None
     webtoon_motion_zoom: Optional[str] = None
     webtoon_motion_action: Optional[str] = None
-    video_engine: Optional[str] = None # 'wan' or 'akool'
+    video_engine: Optional[str] = None # 'veo' or 'replicate'
     veo_model_version: Optional[str] = None
     # [NEW] Blog Settings
     blog_client_id: Optional[str] = None
@@ -68,8 +68,8 @@ async def get_global_settings_api():
         "webtoon_motion_pan": db.get_global_setting("webtoon_motion_pan", ""),
         "webtoon_motion_zoom": db.get_global_setting("webtoon_motion_zoom", ""),
         "webtoon_motion_action": db.get_global_setting("webtoon_motion_action", ""),
-        "video_engine": db.get_global_setting("video_engine", "wan"),
-        "veo_model_version": db.get_global_setting("veo_model_version", "veo-2.0-generate-001"),
+        "video_engine": db.get_global_setting("video_engine", "veo"),
+        "veo_model_version": db.get_global_setting("veo_model_version", "veo-3.1-fast-generate-preview"),
         # [NEW] Blog
         "blog_client_id": db.get_global_setting("blog_client_id", ""),
         "blog_client_secret": db.get_global_setting("blog_client_secret", ""),

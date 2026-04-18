@@ -264,12 +264,14 @@ async def generate_single_video(project_id: int, req: SingleVideoGenRequest):
         video_url = ""
         
         # ── 영상용 프롬프트 빌더 ──────────────────────────────────────────
+        from services.gemini_service import gemini_service
         # 영상 AI(Seedance/Wan/Veo)는 정적 이미지 묘사보다 모션/액션 설명을 우선함.
         # style_prefix (스타일) + motion_desc(모션) + prompt_en 요약(시각 컨텍스트)
         def _build_video_prompt(p_en: str, m_desc: str, s_prefix: str = "", max_chars: int = 800) -> str:
             m = (m_desc or "").strip()
             v = (p_en or "").strip()
-            s = (s_prefix or "").strip()
+            # [FIX] style_prefix에 포함된 템플릿 변수(${SUBJECT} 등) 제거
+            s = gemini_service._cleanup_prompt(s_prefix or "")
             
             # 1. 시각 컨텍스트 요약 (스타일이 있을 경우 조금 더 길게 허용)
             v_short = v[:300].rstrip(', ') if v else ""
@@ -282,9 +284,8 @@ async def generate_single_video(project_id: int, req: SingleVideoGenRequest):
             if v_short: parts.append(v_short)
             
             combined = ", ".join(parts)
-            # 불필요한 공백 및 콤마 정리
-            combined = _re.sub(r',\s*,', ',', combined)
-            combined = combined.strip(', ')
+            # [FIX] 최종 프롬프트 한 번 더 클린업 (중복 쉼표 등)
+            combined = gemini_service._cleanup_prompt(combined)
             return combined[:max_chars]
         # ─────────────────────────────────────────────────────────────────
 

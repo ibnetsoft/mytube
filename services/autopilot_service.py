@@ -23,7 +23,6 @@ def print(*args, **kwargs):
 import database as db
 from services.gemini_service import gemini_service
 from services.replicate_service import replicate_service
-from services.akool_service import akool_service
 from services.prompts import prompts
 from services.tts_service import tts_service
 from services.video_service import video_service
@@ -330,7 +329,7 @@ class AutoPilotService:
                         detailed_style = style_data.get('prompt_value', style_prefix)
                         full_prompt = f"{char['prompt_en']}, {detailed_style}"
                         
-                        # Portrait aspect ratio 1:1 (Gemini (Primary) -> Replicate -> Akool Strategy)
+                        # Portrait aspect ratio 1:1 (Gemini (Primary) -> Replicate)
                         images_bytes = None
                         
                         # 1. Gemini (Primary)
@@ -351,14 +350,6 @@ class AutoPilotService:
                                 images_bytes = await replicate_service.generate_image(prompt=full_prompt, aspect_ratio="1:1")
                             except Exception as e:
                                 print(f"⚠️ [Auto-Pilot Char] Replicate failed: {e}")
-
-                        # 3. Akool Fallback
-                        if not images_bytes:
-                            try:
-                                print(f"🎨 [Auto-Pilot Char] Attempting AKOOL (Final Fallback)...")
-                                images_bytes = await akool_service.generate_image(prompt=full_prompt, aspect_ratio="1:1")
-                            except Exception as e:
-                                print(f"⚠️ [Auto-Pilot Char] Akool failed: {e}")
                         
                         if images_bytes:
                             now = config.get_kst_time()
@@ -691,16 +682,6 @@ JSON만 출력하세요:
                                 used_backend = "Replicate"
                         except Exception as e:
                             print(f"⚠️ [Scene {scene_num}] Replicate failed: {e}")
-
-                    # 3. Akool Fallback
-                    if not images:
-                        try:
-                            print(f"🎨 [Auto-Pilot] Attempting AKOOL (Final Fallback)...")
-                            images = await akool_service.generate_image(prompt=prompt_en, aspect_ratio=aspect_ratio)
-                            if images:
-                                used_backend = "Akool"
-                        except Exception as e:
-                            print(f"⚠️ [Scene {scene_num}] Akool failed: {e}")
 
                     print(f"🎨 [Scene {scene_num}] Image generated via {used_backend}")
 

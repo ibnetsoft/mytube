@@ -19,10 +19,6 @@ class Config:
     GOOGLE_APPLICATION_CREDENTIALS: str = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
     PEXELS_API_KEY: str = os.getenv("PEXELS_API_KEY", "") # Pexels Stock Video
     REPLICATE_API_TOKEN: str = os.getenv("REPLICATE_API_TOKEN", "") # Replicate AI Video
-    AKOOL_CLIENT_ID: str = os.getenv("AKOOL_CLIENT_ID", "") # Akool Client ID
-    AKOOL_CLIENT_SECRET: str = os.getenv("AKOOL_CLIENT_SECRET", "") # Akool Client Secret
-    AKOOL_API_KEY: str = os.getenv("AKOOL_API_KEY", "") # Akool v4 Seedance API Key
-    AKOOL_TOKEN: str = os.getenv("AKOOL_TOKEN", "") # Legacy or direct access token
     TOPVIEW_API_KEY: str = os.getenv("TOPVIEW_API_KEY", "") # TopView AI
     TOPVIEW_UID: str = os.getenv("TOPVIEW_UID", "") # TopView AI UID
 
@@ -121,8 +117,7 @@ class Config:
         valid_keys = [
             'YOUTUBE_API_KEY', 'GEMINI_API_KEY', 'ELEVENLABS_API_KEY', 'TYPECAST_API_KEY', 
             'GOOGLE_APPLICATION_CREDENTIALS', 'OPENAI_API_KEY', 'PEXELS_API_KEY', 
-            'REPLICATE_API_TOKEN', 'TOPVIEW_API_KEY', 'TOPVIEW_UID', 'AKOOL_TOKEN', 
-            'AKOOL_CLIENT_ID', 'AKOOL_CLIENT_SECRET', 'AKOOL_API_KEY',
+            'REPLICATE_API_TOKEN', 'TOPVIEW_API_KEY', 'TOPVIEW_UID',
             'BLOG_CLIENT_ID', 'BLOG_CLIENT_SECRET', 'BLOG_ID',
             'WP_URL', 'WP_USERNAME', 'WP_PASSWORD'
         ]
@@ -184,10 +179,7 @@ class Config:
             "openai": {"set": bool(cls.OPENAI_API_KEY), "masked": cls.mask_key(cls.OPENAI_API_KEY), "value": cls.OPENAI_API_KEY},
             "replicate": {"set": bool(cls.REPLICATE_API_TOKEN), "masked": cls.mask_key(cls.REPLICATE_API_TOKEN), "value": cls.REPLICATE_API_TOKEN},
             "topview": {"set": bool(cls.TOPVIEW_API_KEY), "masked": cls.mask_key(cls.TOPVIEW_API_KEY), "value": cls.TOPVIEW_API_KEY},
-            "topview_uid": {"set": bool(cls.TOPVIEW_UID), "masked": cls.mask_key(cls.TOPVIEW_UID), "value": cls.TOPVIEW_UID},
-            "akool_id": {"set": bool(cls.AKOOL_CLIENT_ID), "masked": cls.mask_key(cls.AKOOL_CLIENT_ID), "value": cls.AKOOL_CLIENT_ID},
-            "akool_secret": {"set": bool(cls.AKOOL_CLIENT_SECRET), "masked": cls.mask_key(cls.AKOOL_CLIENT_SECRET), "value": cls.AKOOL_CLIENT_SECRET},
-            "akool_api_key": {"set": bool(cls.AKOOL_API_KEY), "masked": cls.mask_key(cls.AKOOL_API_KEY), "value": cls.AKOOL_API_KEY}
+            "topview_uid": {"set": bool(cls.TOPVIEW_UID), "masked": cls.mask_key(cls.TOPVIEW_UID), "value": cls.TOPVIEW_UID}
         }
 
 

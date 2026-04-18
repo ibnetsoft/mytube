@@ -20,22 +20,9 @@
             }
         }
 
-        // 초기 테마 설정 (기본값: Dark)
-        if (localStorage.theme === 'light') {
-            document.documentElement.classList.remove('dark');
-        } else {
-            document.documentElement.classList.add('dark');
-        }
-
-        function toggleTheme() {
-            if (document.documentElement.classList.contains('dark')) {
-                document.documentElement.classList.remove('dark');
-                localStorage.theme = 'light';
-            } else {
-                document.documentElement.classList.add('dark');
-                localStorage.theme = 'dark';
-            }
-        }
+        // 초기 테마 설정 (기본값: Dark 고정)
+        document.documentElement.classList.add('dark');
+        localStorage.theme = 'dark';
     </script>
     {% block extra_head %}{% endblock %}
 </head>
@@ -263,19 +250,10 @@
                     </li>
                 </ul>
             </nav>
-
-            <!-- Bottom Area (Theme + API Status) - Fixed at bottom of flex column -->
+ 
+            <!-- Bottom Area (API Status) -->
             <div class="shrink-0 bg-[#000106] border-t border-blue-900/10">
-                <div class="px-3 py-2">
-                    <button onclick="toggleTheme()"
-                        class="w-full flex items-center justify-center gap-2 p-1 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-[10px] font-medium">
-                        <span class="dark:hidden">{{ t('label_light_mode') }}</span>
-                        <span class="hidden dark:inline">{{ t('label_dark_mode') }}</span>
-                    </button>
-                </div>
-
-                <!-- API 상태 -->
-                <div class="px-4 pb-4 pt-1">
+                <div class="px-4 pb-4 pt-4">
                     <div id="apiStatus" class="text-xs text-gray-500 dark:text-gray-400">
                         <div class="flex items-center gap-2 mb-1">
                             <span id="statusDot" class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>

@@ -7,10 +7,10 @@ import logging
 from typing import Dict, Any, Optional
 
 from services.topview_service import topview_service
-from services.akool_service import akool_service
 from services.tts_service import tts_service
 from config import config
 import database as db
+import os
 
 
 logger = logging.getLogger(__name__)
@@ -168,18 +168,11 @@ class CommerceService:
         engine = video_data.get('engine', 'topview').lower()
         
         try:
-            # 1. DB에 레코드 생성 (pending 상태)
             video_id = db.create_commerce_video({
                 **video_data,
                 'status': 'pending',
                 'engine': engine
             })
-            
-            if engine == 'akool':
-                return await self._create_akool_video(video_id, video_data)
-            
-            if engine == 'akool_i2v':
-                return await self._create_akool_i2v_video(video_id, video_data)
 
             # 2. TopView API 호출 시도
             try:
@@ -201,6 +194,9 @@ class CommerceService:
                     'status': 'processing'
                 })
                 
+                # [NEW] Start background polling
+                asyncio.create_task(self.poll_video_status(video_id, task_id))
+
                 return {
                     "status": "success",
                     "video_id": video_id,
@@ -220,136 +216,10 @@ class CommerceService:
                     "video_id": video_id,
                     "message": "TopView API 호출에 실패했습니다."
                 }
-                
         except Exception as e:
             self.logger.error(f"Video creation error: {e}")
             raise
 
-    async def _create_akool_video(self, video_id: int, video_data: dict) -> Dict[str, Any]:
-        """Akool Talking Avatar 영상 생성 흐름"""
-        try:
-            # 1. Script
-            script = video_data.get('message', '')
-            if not script:
-                script = f"안녕하세요! {video_data.get('product_name', '이 제품')}을 소개합니다. 정말 좋은 제품이니 꼭 확인해보세요!"
-
-            # 2. TTS Generation (Local File)
-            voice_name = "ko-KR-Standard-A" 
-            temp_audio_filename = f"akool_tts_{video_id}.mp3"
-            temp_audio_path = os.path.join(config.OUTPUT_DIR, temp_audio_filename)
-            
-            await tts_service.generate_audio(script, temp_audio_path)
-            
-            # 3. Upload Audio to Public URL
-            audio_url = await akool_service._upload_temp_file(temp_audio_path)
-            if not audio_url:
-                raise Exception("Failed to upload audio for Akool")
-
-            # 4. Avatar Image
-            avatar_url = "https://img.freepik.com/free-photo/young-woman-with-round-glasses-yellow-sweater_273609-7091.jpg"
-            
-            # 5. Call Akool API
-            task_id = await akool_service.create_talking_photo(avatar_url, audio_url)
-            
-            # 6. Update DB
-            db.update_commerce_video(video_id, {
-                'topview_task_id': task_id,
-                'status': 'processing',
-                'engine': 'akool'
-            })
-            
-            return {
-                "status": "success",
-                "video_id": video_id,
-                "task_id": task_id,
-                "engine": "akool",
-                "message": "Akool Avatar 영상 생성이 시작되었습니다."
-            }
-            
-        except Exception as e:
-            self.logger.error(f"Akool creation error: {e}")
-            db.update_commerce_video(video_id, {
-                'status': 'failed',
-                'error_message': f"Akool Error: {str(e)}"
-            })
-            return {
-                "status": "error",
-                "video_id": video_id,
-                "message": f"Akool 생성 실패: {str(e)}"
-            }
-
-    async def _create_akool_i2v_video(self, video_id: int, video_data: dict) -> Dict[str, Any]:
-        """Akool Premium I2V (Wan 2.5) 영상 생성 흐름"""
-        try:
-            from services.akool_service import akool_service
-            import urllib.request
-            
-            # 1. Image URL 확보
-            img_url = video_data.get('image_url')
-            if not img_url:
-                # 분석 데이터에서 첫 번째 이미지 사용 시도
-                images = video_data.get('product_images', [])
-                if images: img_url = images[0]
-            
-            if not img_url:
-                raise Exception("No image_url found for Akool I2V")
-            
-            # 2. 로컬에 이미지 다운로드
-            temp_img_path = os.path.join(config.OUTPUT_DIR, f"akool_i2v_src_{video_id}.jpg")
-            urllib.request.urlretrieve(img_url, temp_img_path)
-            
-            # 3. Prompt 생성
-            prompt = video_data.get('message', '')
-            if not prompt:
-                prompt = f"Cinematic showcase of {video_data.get('product_name', 'this product')}, professional lighting, deep depth of field, high quality masterpiece."
-            else:
-                prompt = f"Cinematic motion for {video_data.get('product_name', 'product')}: {prompt}, high quality studio photography style."
-            
-            # 4. Akool Premium I2V 호출 (Wan 2.5)
-            # generate_akool_video_v4는 bytes를 반환함
-            video_bytes = await akool_service.generate_akool_video_v4(
-                local_image_path=temp_img_path,
-                prompt=prompt,
-                duration=5,
-                resolution="720p"
-            )
-            
-            if not video_bytes:
-                raise Exception("Akool I2V returned no data")
-                
-            # 5. 결과 파일 저장
-            final_filename = f"commerce_akool_{video_id}.mp4"
-            final_path = os.path.join(config.OUTPUT_DIR, final_filename)
-            with open(final_path, "wb") as f:
-                f.write(video_bytes)
-            
-            # 6. DB 업데이트 (완료 상태로 즉시 변경 - akool_v4는 폴링이 끝날 때까지 대기하므로)
-            db.update_commerce_video(video_id, {
-                'status': 'done',
-                'video_url': f"/output/{final_filename}",
-                'engine': 'akool_i2v'
-            })
-            
-            return {
-                "status": "success",
-                "video_id": video_id,
-                "video_url": f"/output/{final_filename}",
-                "engine": "akool_i2v",
-                "message": "Akool Premium I2V 영상이 생성되었습니다."
-            }
-            
-        except Exception as e:
-            self.logger.error(f"Akool I2V error: {e}")
-            db.update_commerce_video(video_id, {
-                'status': 'failed',
-                'error_message': f"Akool I2V Error: {str(e)}"
-            })
-            return {
-                "status": "error",
-                "video_id": video_id,
-                "message": f"Akool I2V 생성 실패: {str(e)}"
-            }
-    
     # ============ 상태 폴링 ============
     
     async def poll_video_status(self, video_id: int, task_id: str, max_attempts: int = 60):
@@ -371,38 +241,11 @@ class CommerceService:
                     
                 engine = video.get('engine', 'topview')
                 
-                if engine == 'akool':
-                    # Akool Polling
-                    try:
-                        akool_status, akool_url = await akool_service.get_job_status(task_id)
-                        # akool_service returns ('success'/'processing'/'failed', url)
-                        if akool_status == 'success':
-                            db.update_commerce_video(video_id, {
-                                'status': 'completed',
-                                'video_url': akool_url,
-                                'thumbnail_url': akool_url # Akool doesn't give separate thumb usually, use video or avatar
-                            })
-                            self.logger.info(f"Akool Video {video_id} completed")
-                            break
-                        elif akool_status == 'failed':
-                            db.update_commerce_video(video_id, {'status': 'failed', 'error_message': 'Akool Processing Failed'})
-                            break
-                        else:
-                            # processing
-                            attempt += 1
-                            continue
-                            
-                    except Exception as e:
-                        self.logger.error(f"Akool Polling Error: {e}")
-                        attempt += 1
-                        continue
-
-                else:
-                    # TopView Logic (Avatar Marketing Video)
-                    status_result = await topview_service.query_task_status(task_id)
-                    if not status_result:
-                        attempt += 1
-                        continue
+                # TopView Logic (Avatar Marketing Video)
+                status_result = await topview_service.query_task_status(task_id)
+                if not status_result:
+                    attempt += 1
+                    continue
                         
                     # TopView M2V uses status: 0(wait), 1(ing), 2(success), 3(fail) usually
                     # Check strings as well just in case

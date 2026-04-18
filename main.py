@@ -51,7 +51,6 @@ import database as db
 from app.routers import settings  # [NEW]
 from services.gemini_service import gemini_service
 from services.replicate_service import replicate_service
-from services.akool_service import akool_service
 from services.auth_service import auth_service
 from services.storage_service import storage_service
 from services.thumbnail_service import thumbnail_service
@@ -638,9 +637,9 @@ async def animate_scene(project_id: int, req: AnimateRequest):
         motion_prompt = f"{req.prompt}, {target_scene.get('prompt_en', '')}"
         video_bytes = None
 
-        # 1순위: Replicate Wan
+        # 1순위: Replicate
         try:
-            print(f"[Animate] Trying Replicate Wan...")
+            print(f"[Animate] Trying Replicate...")
             video_bytes = await replicate_service.generate_video_from_image(
                 image_path=image_abs_path,
                 prompt=motion_prompt[:1000],
@@ -649,23 +648,10 @@ async def animate_scene(project_id: int, req: AnimateRequest):
             )
             print(f"[Animate] Replicate OK")
         except Exception as e:
-            print(f"[Animate] Replicate failed ({str(e)[:80]}) -> AKOOL fallback")
-
-        # 2순위: AKOOL v4
-        if not video_bytes:
-            try:
-                print(f"[Animate] Trying AKOOL v4...")
-                video_bytes = await akool_service.generate_akool_video_v4(
-                    local_image_path=image_abs_path,
-                    prompt=motion_prompt[:500],
-                    duration=req.duration if req.duration else 5
-                )
-                print(f"[Animate] AKOOL v4 OK")
-            except Exception as e:
-                print(f"[Animate] AKOOL v4 failed: {e}")
+            print(f"[Animate] Replicate failed ({str(e)[:80]})")
 
         if not video_bytes:
-            return JSONResponse(status_code=500, content={"error": "Replicate 크레딧 부족 + AKOOL도 실패. AKOOL API 키 및 크레딧을 확인하세요."})
+            return JSONResponse(status_code=500, content={"error": "Replicate 영상 생성 실패. 크레딧이나 API 키를 확인하세요."})
 
         # 저장
         output_dir, web_dir = get_project_output_dir(project_id)
@@ -905,9 +891,6 @@ class ApiKeySave(BaseModel):
     replicate: Optional[str] = None
     topview: Optional[str] = None
     topview_uid: Optional[str] = None
-    akool_id: Optional[str] = None
-    akool_secret: Optional[str] = None
-    akool_api_key: Optional[str] = None
     blog_client_id: Optional[str] = None
     blog_client_secret: Optional[str] = None
     blog_id: Optional[str] = None
@@ -933,9 +916,6 @@ async def save_api_keys(req: ApiKeySave):
         'replicate': 'REPLICATE_API_TOKEN',
         'topview': 'TOPVIEW_API_KEY',
         'topview_uid': 'TOPVIEW_UID',
-        'akool_id': 'AKOOL_CLIENT_ID',
-        'akool_secret': 'AKOOL_CLIENT_SECRET',
-        'akool_api_key': 'AKOOL_API_KEY',
         'blog_client_id': 'BLOG_CLIENT_ID',
         'blog_client_secret': 'BLOG_CLIENT_SECRET',
         'blog_id': 'BLOG_ID',
@@ -1437,7 +1417,7 @@ async def tts_generate(req: TTSRequest):
                             
                             if clips:
                                 final_clip = concatenate_audioclips(clips)
-                                final_clip.write_audiofile(result_filename, verbose=False, logger=None)
+                                final_clip.write_audiofile(result_filename, codec='libmp3lame', verbose=False, logger=None)
                                 final_clip.close()
                                 for clip in clips: clip.close()
                                 output_path = result_filename
@@ -2234,7 +2214,7 @@ class AutoPilotStartRequest(BaseModel):
     thumbnail_style: Optional[str] = "face"
     video_scene_count: Optional[int] = 0
     all_video: Optional[bool] = False
-    video_engine: Optional[str] = "wan"
+    video_engine: Optional[str] = "veo"
     motion_method: Optional[str] = "standard"
     char_ethnicity: Optional[str] = None
     narrative_style: str = "informative"

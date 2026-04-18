@@ -437,51 +437,27 @@
                         <span class="text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded border border-purple-200">중요</span>
                     </h3>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                        <!-- Wan 2.1 -->
-                        <label class="flex items-start gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-[#000106] dark:hover:bg-[#000106] cursor-pointer transition-colors bg-[#000106]">
-                            <input type="radio" name="ws_video_engine" value="wan" class="mt-1" checked onchange="onVideoEngineChange()">
-                            <div>
-                                <div class="font-bold text-sm text-gray-800 dark:text-gray-200">Replicate (Wan 2.1)</div>
-                                <div class="text-xs text-gray-500 mt-1 dark:text-gray-400">
-                                    {{ t('msg_wan21_quality') }}<br>
-                                    {{ t('msg_wan21_desc') }}
-                                </div>
-                            </div>
-                        </label>
-
-                        <!-- Akool -->
-                        <label class="flex items-start gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-[#000106] dark:hover:bg-[#000106] cursor-pointer transition-colors bg-[#000106]">
-                            <input type="radio" name="ws_video_engine" value="akool" class="mt-1" onchange="onVideoEngineChange()">
-                            <div>
-                                <div class="font-bold text-sm text-gray-800 dark:text-gray-200">Akool</div>
-                                <div class="text-xs text-gray-500 mt-1 dark:text-gray-400">
-                                    🔄 대안 엔진<br>
-                                    {{ t('msg_replicate_fallback') }}
-                                </div>
-                            </div>
-                        </label>
-
-                        <!-- Seedance -->
-                        <label class="flex items-start gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-[#000106] dark:hover:bg-[#000106] cursor-pointer transition-colors bg-[#000106]">
-                            <input type="radio" name="ws_video_engine" value="seedance" class="mt-1" onchange="onVideoEngineChange()">
-                            <div>
-                                <div class="font-bold text-sm text-gray-800 dark:text-gray-200">🌱 Seedance 1.5 Pro</div>
-                                <div class="text-xs text-gray-500 mt-1 dark:text-gray-400">
-                                    {{ t('msg_akool_cost') }}<br>
-                                    {{ t('msg_akool_desc') }}
-                                </div>
-                            </div>
-                        </label>
-
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <!-- Google Veo -->
-                        <label class="flex items-start gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-[#000106] dark:hover:bg-[#000106] cursor-pointer transition-colors bg-[#000106]">
-                            <input type="radio" name="ws_video_engine" value="veo" class="mt-1" onchange="onVideoEngineChange()">
+                        <label class="flex items-start gap-2 p-3 rounded-lg border-2 border-blue-500 dark:border-blue-600 hover:bg-[#000106] dark:hover:bg-[#000106] cursor-pointer transition-colors bg-blue-50/10 dark:bg-blue-900/10">
+                            <input type="radio" name="ws_video_engine" value="veo" class="mt-1" checked onchange="onVideoEngineChange()">
                             <div>
-                                <div class="font-bold text-sm text-gray-800 dark:text-gray-200">Google Veo</div>
+                                <div class="font-bold text-sm text-gray-800 dark:text-gray-200">Google Veo (Primary)</div>
                                 <div class="text-xs text-gray-500 mt-1 dark:text-gray-400">
-                                    🤖 AI 영상 생성<br>
-                                    Gemini API 키로 사용
+                                    🤖 최신 고품질 AI 영상 생성 파이프라인<br>
+                                    Gemini 3.1 & Veo 기반의 하이엔드 영상 제작
+                                </div>
+                            </div>
+                        </label>
+
+                        <!-- Replicate Fallback -->
+                        <label class="flex items-start gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-[#000106] dark:hover:bg-[#000106] cursor-pointer transition-colors bg-[#000106]">
+                            <input type="radio" name="ws_video_engine" value="replicate" class="mt-1" onchange="onVideoEngineChange()">
+                            <div>
+                                <div class="font-bold text-sm text-gray-800 dark:text-gray-200">Replicate (Fallback)</div>
+                                <div class="text-xs text-gray-500 mt-1 dark:text-gray-400">
+                                    🔄 보조 영상 생성 엔진 (폴백용)<br>
+                                    대기 시간이 짧고 안정적인 처리 지원
                                 </div>
                             </div>
                         </label>
@@ -1853,7 +1829,7 @@
     2. **bgm_style**: Recommend BGM style in Korean.
     3. **scene_specifications**: For each scene, generate:
        - **scene_number**: The number from input.
-       - **engine**: "akool" (PRIMARY - Seedance AI video), "wan" (fallback), or "image" (2D still). ALWAYS use "akool" as default. Only use "wan" if explicitly requested.
+       - **engine**: "veo" (PRIMARY - High-quality AI video), or "image" (2D still). ALWAYS use "veo" as default.
        - **effect**: MUST NOT BE 'static'! ALWAYS pick "pan_left", "pan_right", "pan_up", "pan_down", "zoom_in", or "zoom_out". 
          * If image is wide (Type 2 or character face), strongly prefer "pan_left" or "pan_right" to explore the scene.
        - **motion**: FULL CINEMATIC PROMPT in English. 
@@ -1869,7 +1845,7 @@
         "scene_specifications": [
             {
                 "scene_number": 1,
-                "engine": "akool | wan | image",
+                "engine": "veo | image",
                 "effect": "zoom_in | pan_down | pan_left | pan_right | pan_up | zoom_out",
                 "motion": "Detailed cinematic prompt in English focusing heavily on CAMERA PANNING and CHARACTER MOTION (e.g., lip quivering).",
                 "rationale": "Reason (Korean)",
@@ -1921,7 +1897,7 @@
             if (actionEl) actionEl.value = data.webtoon_motion_action || DEFAULT_WEBTOON_MOTION_ACTION;
 
             // [NEW] Video Engine
-            const engine = data.video_engine || "wan";
+            const engine = data.video_engine || "veo";
             const radio = document.querySelector(`input[name="ws_video_engine"][value="${engine}"]`);
             if (radio) { radio.checked = true; onVideoEngineChange(); }
 
@@ -2089,8 +2065,8 @@
                 webtoon_motion_pan: safeVal('ws_motion_pan'),
                 webtoon_motion_zoom: safeVal('ws_motion_zoom'),
                 webtoon_motion_action: safeVal('ws_motion_action'),
-                video_engine: document.querySelector('input[name="ws_video_engine"]:checked')?.value || "wan",
-                veo_model_version: document.querySelector('input[name="veo_model_version"]:checked')?.value || "veo-2.0-generate-001",
+                video_engine: document.querySelector('input[name="ws_video_engine"]:checked')?.value || "veo",
+                veo_model_version: document.querySelector('input[name="veo_model_version"]:checked')?.value || "veo-3.1-fast-generate-preview",
                 blog_client_id: safeVal('blogClientId'),
                 blog_client_secret: safeVal('blogClientSecret'),
                 blog_id: safeVal('blogId'),
