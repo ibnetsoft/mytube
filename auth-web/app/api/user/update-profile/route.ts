@@ -29,11 +29,12 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: fetchError.message }, { status: 500 })
         }
 
+        // 빈 문자열은 무시 — 기존 값을 덮어쓰지 않음
         const mergedMeta = {
             ...(existingUser?.user_metadata || {}),
-            ...(full_name !== undefined && { full_name }),
-            ...(nationality !== undefined && { nationality }),
-            ...(contact !== undefined && { contact }),
+            ...(full_name  ? { full_name }  : {}),
+            ...(nationality ? { nationality } : {}),
+            ...(contact    ? { contact }    : {}),
         }
 
         const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {

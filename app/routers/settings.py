@@ -196,13 +196,14 @@ async def save_global_settings_api(settings: GlobalSettings):
     if settings.user_email is not None:
         db.save_global_setting("user_email", settings.user_email)
     
-    # [NEW] Sync to SaaS server
+    # [NEW] Sync to SaaS server (값이 있을 때만 전송)
     from services.auth_service import auth_service
-    auth_service.sync_profile(
-        name=settings.user_name or "",
-        nationality=settings.user_nationality or "",
-        contact=settings.user_phone or ""
-    )
+    if settings.user_name is not None or settings.user_nationality is not None or settings.user_phone is not None:
+        auth_service.sync_profile(
+            name=settings.user_name or "",
+            nationality=settings.user_nationality or "",
+            contact=settings.user_phone or ""
+        )
     
     # [NEW] Update API Keys in config/env
     if settings.youtube_api_key is not None:
