@@ -503,7 +503,7 @@ export default function DashboardContent() {
                 </div>
             </nav>
 
-            <main className="max-w-[1600px] mx-auto p-12 space-y-12">
+            <main className="max-w-[1600px] mx-auto px-6 py-8 space-y-12">
                 <div className="flex items-center justify-between">
                     <h2 className="text-4xl font-black uppercase tracking-tighter">관리자 대시보드</h2>
                     <div className="flex gap-2 p-1.5 bg-white/5 rounded-2xl border border-white/5 shadow-2xl">
@@ -623,90 +623,89 @@ export default function DashboardContent() {
                             <h3 className="text-sm font-black text-gray-400 uppercase tracking-[0.2em]">회원 관리 리스트</h3>
                             <button onClick={fetchUsers} className="px-6 py-2 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-[10px] font-black rounded-xl border border-blue-500/20 transition-all uppercase tracking-widest">새로고침</button>
                         </div>
-                        <div className="overflow-x-auto">
-                        <table className="text-left" style={{minWidth:'1600px'}}>
+                        <table className="w-full text-left">
                             <thead className="bg-black/30 border-b border-white/5 text-[9px] font-black text-gray-500 uppercase tracking-widest">
                                 <tr>
-                                    <th className="px-4 py-5 whitespace-nowrap">이름</th>
-                                    <th className="px-4 py-5 whitespace-nowrap">이메일 / 등급</th>
-                                    <th className="px-4 py-5 whitespace-nowrap">연락처</th>
-                                    <th className="px-4 py-5 whitespace-nowrap">국적</th>
-                                    <th className="px-4 py-5 whitespace-nowrap">추천인</th>
-                                    <th className="px-4 py-5 whitespace-nowrap">채널명</th>
-                                    <th className="px-4 py-5 text-center whitespace-nowrap">보유 토큰</th>
-                                    <th className="px-4 py-5 text-center whitespace-nowrap">멤버십</th>
-                                    <th className="px-4 py-5 text-center whitespace-nowrap">가입일</th>
-                                    <th className="px-4 py-5 text-center whitespace-nowrap">최근접속</th>
-                                    <th className="px-4 py-5 text-center whitespace-nowrap">관리 메뉴</th>
+                                    <th className="px-2 py-4 whitespace-nowrap">이름</th>
+                                    <th className="px-2 py-4 whitespace-nowrap">이메일 / 등급</th>
+                                    <th className="px-2 py-4 whitespace-nowrap">연락처</th>
+                                    <th className="px-2 py-4 whitespace-nowrap">국적</th>
+                                    <th className="px-2 py-4 whitespace-nowrap">추천인</th>
+                                    <th className="px-2 py-4 whitespace-nowrap">채널명</th>
+                                    <th className="px-2 py-4 text-center whitespace-nowrap">토큰</th>
+                                    <th className="px-2 py-4 text-center whitespace-nowrap">멤버십</th>
+                                    <th className="px-2 py-4 text-center whitespace-nowrap">가입일</th>
+                                    <th className="px-2 py-4 text-center whitespace-nowrap">최근접속</th>
+                                    <th className="px-2 py-4 text-center whitespace-nowrap">관리</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5">
                                 {users.map(u => (
                                     <tr key={u.id} className="hover:bg-white/[0.03] transition-colors group">
                                         {/* 이름 */}
-                                        <td className="px-4 py-5">
-                                            <div className="font-black text-white text-sm whitespace-nowrap">{u.user_metadata?.full_name || <span className="text-gray-600 italic">없음</span>}</div>
+                                        <td className="px-2 py-4">
+                                            <div className="font-black text-white text-xs whitespace-nowrap">{u.user_metadata?.full_name || <span className="text-gray-600 italic">없음</span>}</div>
                                         </td>
                                         {/* 이메일 / 관리자 등급 */}
-                                        <td className="px-4 py-5">
-                                            <div className="font-bold text-blue-400 text-xs tracking-tight">{u.email?.toLowerCase()}</div>
-                                            <div className="flex gap-1 mt-1 flex-wrap">
-                                                {u.email === SUPER_ADMIN_EMAIL && <span className="px-1.5 py-0.5 bg-blue-600 text-[7px] font-black rounded text-white">최고관리자</span>}
-                                                {u.app_metadata?.is_admin && u.email !== SUPER_ADMIN_EMAIL && <span className="px-1.5 py-0.5 bg-indigo-500 text-[7px] font-black rounded text-white">부관리자</span>}
+                                        <td className="px-2 py-4 max-w-[160px]">
+                                            <div className="font-bold text-blue-400 text-[10px] tracking-tight truncate">{u.email?.toLowerCase()}</div>
+                                            <div className="flex gap-1 mt-0.5 flex-wrap">
+                                                {u.email === SUPER_ADMIN_EMAIL && <span className="px-1 py-0.5 bg-blue-600 text-[7px] font-black rounded text-white">최고관리자</span>}
+                                                {u.app_metadata?.is_admin && u.email !== SUPER_ADMIN_EMAIL && <span className="px-1 py-0.5 bg-indigo-500 text-[7px] font-black rounded text-white">부관리자</span>}
                                             </div>
                                         </td>
                                         {/* 연락처 */}
-                                        <td className="px-4 py-5 text-xs text-gray-300 font-bold whitespace-nowrap">
+                                        <td className="px-2 py-4 text-[10px] text-gray-300 font-bold whitespace-nowrap">
                                             {u.user_metadata?.contact || <span className="text-gray-700">-</span>}
                                         </td>
                                         {/* 국적 */}
-                                        <td className="px-4 py-5 text-xs text-gray-300 font-bold whitespace-nowrap">
+                                        <td className="px-2 py-4 text-[10px] text-gray-300 font-bold whitespace-nowrap">
                                             {u.user_metadata?.nationality || <span className="text-gray-700">-</span>}
                                         </td>
                                         {/* 추천인 */}
-                                        <td className="px-4 py-5 text-xs whitespace-nowrap">
+                                        <td className="px-2 py-4 text-[10px] whitespace-nowrap">
                                             {u.user_metadata?.referrer
                                                 ? <span className="text-yellow-400 font-bold">{u.user_metadata.referrer}</span>
                                                 : <span className="text-gray-700">-</span>}
                                         </td>
                                         {/* 채널명 */}
-                                        <td className="px-4 py-5">
+                                        <td className="px-2 py-4 max-w-[110px]">
                                             {u.user_metadata?.youtube_channel
-                                                ? <span className="flex items-center gap-1 text-red-400 text-xs font-black whitespace-nowrap"><span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse inline-block"></span>{u.user_metadata.youtube_channel}</span>
+                                                ? <span className="flex items-center gap-1 text-red-400 text-[10px] font-black truncate"><span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse shrink-0 inline-block"></span>{u.user_metadata.youtube_channel}</span>
                                                 : <span className="text-gray-700 text-xs">-</span>}
                                         </td>
                                         {/* 보유 토큰 */}
-                                        <td className="px-4 py-5 text-center font-black text-white text-base tabular-nums whitespace-nowrap">
+                                        <td className="px-2 py-4 text-center font-black text-white text-sm tabular-nums whitespace-nowrap">
                                             {u.profile?.token_balance?.toLocaleString() || 0}
                                         </td>
                                         {/* 멤버십 */}
-                                        <td className="px-4 py-5 text-center">
-                                            <button onClick={() => handleRoleChange(u.id, u.app_metadata?.membership)} className={`px-3 py-1.5 rounded-xl text-[9px] font-black border uppercase tracking-widest transition-all whitespace-nowrap ${u.app_metadata?.membership === 'pro' ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg' : 'bg-white/5 text-gray-500 border-white/10 hover:border-white/30'}`}>
+                                        <td className="px-2 py-4 text-center">
+                                            <button onClick={() => handleRoleChange(u.id, u.app_metadata?.membership)} className={`px-2 py-1 rounded-lg text-[8px] font-black border uppercase tracking-widest transition-all whitespace-nowrap ${u.app_metadata?.membership === 'pro' ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg' : 'bg-white/5 text-gray-500 border-white/10 hover:border-white/30'}`}>
                                                 {u.app_metadata?.membership?.toUpperCase() === 'PRO' ? '💎 프로' : '👤 스탠다드'}
                                             </button>
                                         </td>
                                         {/* 가입일 */}
-                                        <td className="px-4 py-5 text-center text-[11px] font-bold text-gray-500 whitespace-nowrap">{formatDate(u.created_at)}</td>
+                                        <td className="px-2 py-4 text-center text-[10px] font-bold text-gray-500 whitespace-nowrap">{formatDate(u.created_at)}</td>
                                         {/* 최근접속 */}
-                                        <td className="px-4 py-5 text-center text-[11px] font-bold text-gray-500 whitespace-nowrap">{formatDate(u.last_sign_in_at)}</td>
-                                        {/* 관리 메뉴 */}
-                                        <td className="px-4 py-5">
-                                            <div className="flex gap-1 flex-wrap justify-center">
-                                                {isSuperAdmin && u.email !== SUPER_ADMIN_EMAIL && (
-                                                    <button onClick={() => handleAdminRoleToggle(u.id, !!u.app_metadata?.is_admin)} className={`px-2 py-1.5 rounded-lg text-[8px] font-black border transition-all whitespace-nowrap ${u.app_metadata?.is_admin ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/30' : 'bg-white/5 text-gray-600 border-white/10'}`}>권한관리</button>
-                                                )}
-                                                <button onClick={() => handleRecharge(u.id)} className="px-2 py-1.5 bg-green-600/10 hover:bg-green-600 text-green-500 hover:text-white text-[8px] font-black rounded-lg border border-green-500/20 transition-all whitespace-nowrap">토큰충전</button>
-                                                <button onClick={() => { setEditInfoUser(u); setEditInfoForm({ full_name: u.user_metadata?.full_name || '', nationality: u.user_metadata?.nationality || '', contact: u.user_metadata?.contact || '' }); }} className="px-2 py-1.5 bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white text-[8px] font-black rounded-lg border border-yellow-500/20 transition-all whitespace-nowrap">정보수정</button>
-                                                <button onClick={() => { setLogViewUser(u); setLogPeriod(1); fetchUserLogs(u.id, 1); }} className="px-2 py-1.5 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-[8px] font-black rounded-lg border border-blue-500/20 transition-all whitespace-nowrap">로그조회</button>
-                                                <button onClick={() => { setChannelViewUser(u); setTempChannelInfo({ name: u.user_metadata?.youtube_channel || '', id: u.user_metadata?.youtube_channel_id || '' }); }} className="px-2 py-1.5 bg-purple-600/10 hover:bg-purple-600 text-purple-500 hover:text-white text-[8px] font-black rounded-lg border border-purple-500/20 transition-all whitespace-nowrap">채널ID</button>
-                                                <button onClick={() => { setApiViewUser(u); setTempApiKeys(u.app_metadata?.custom_api_keys || { openai: '', gemini: '', pexels: '', replicate: '' }); }} className="px-2 py-1.5 bg-indigo-600/10 hover:bg-indigo-600 text-indigo-500 hover:text-white text-[8px] font-black rounded-lg border border-indigo-500/20 transition-all whitespace-nowrap">API</button>
+                                        <td className="px-2 py-4 text-center text-[10px] font-bold text-gray-500 whitespace-nowrap">{formatDate(u.last_sign_in_at)}</td>
+                                        {/* 관리 메뉴 — 3x2 그리드로 좁게 배치 */}
+                                        <td className="px-2 py-4">
+                                            <div className="grid grid-cols-3 gap-1">
+                                                {isSuperAdmin && u.email !== SUPER_ADMIN_EMAIL
+                                                    ? <button onClick={() => handleAdminRoleToggle(u.id, !!u.app_metadata?.is_admin)} className={`px-1.5 py-1 rounded text-[7px] font-black border transition-all whitespace-nowrap ${u.app_metadata?.is_admin ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/30' : 'bg-white/5 text-gray-600 border-white/10'}`}>권한관리</button>
+                                                    : <span />
+                                                }
+                                                <button onClick={() => handleRecharge(u.id)} className="px-1.5 py-1 bg-green-600/10 hover:bg-green-600 text-green-500 hover:text-white text-[7px] font-black rounded border border-green-500/20 transition-all whitespace-nowrap">토큰충전</button>
+                                                <button onClick={() => { setEditInfoUser(u); setEditInfoForm({ full_name: u.user_metadata?.full_name || '', nationality: u.user_metadata?.nationality || '', contact: u.user_metadata?.contact || '' }); }} className="px-1.5 py-1 bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white text-[7px] font-black rounded border border-yellow-500/20 transition-all whitespace-nowrap">정보수정</button>
+                                                <button onClick={() => { setLogViewUser(u); setLogPeriod(1); fetchUserLogs(u.id, 1); }} className="px-1.5 py-1 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-[7px] font-black rounded border border-blue-500/20 transition-all whitespace-nowrap">로그조회</button>
+                                                <button onClick={() => { setChannelViewUser(u); setTempChannelInfo({ name: u.user_metadata?.youtube_channel || '', id: u.user_metadata?.youtube_channel_id || '' }); }} className="px-1.5 py-1 bg-purple-600/10 hover:bg-purple-600 text-purple-500 hover:text-white text-[7px] font-black rounded border border-purple-500/20 transition-all whitespace-nowrap">채널ID</button>
+                                                <button onClick={() => { setApiViewUser(u); setTempApiKeys(u.app_metadata?.custom_api_keys || { openai: '', gemini: '', pexels: '', replicate: '' }); }} className="px-1.5 py-1 bg-indigo-600/10 hover:bg-indigo-600 text-indigo-500 hover:text-white text-[7px] font-black rounded border border-indigo-500/20 transition-all whitespace-nowrap">API</button>
                                             </div>
                                         </td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
-                        </div>
                     </div>
                 )}
             </main>
