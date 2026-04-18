@@ -97,6 +97,8 @@ export default function DashboardContent() {
     const [channelViewUser, setChannelViewUser] = useState<any>(null);
     const [tempApiKeys, setTempApiKeys] = useState<any>({ openai: '', gemini: '', pexels: '', replicate: '' });
     const [tempChannelInfo, setTempChannelInfo] = useState<any>({ name: '', id: '' });
+    const [editInfoUser, setEditInfoUser] = useState<any>(null);
+    const [editInfoForm, setEditInfoForm] = useState({ full_name: '', nationality: '', contact: '' });
     
     // Data Stats State
     const [globalLogs, setGlobalLogs] = useState<any[]>([])
@@ -248,6 +250,35 @@ export default function DashboardContent() {
             }
         } catch (e) { alert('서버 통신 오류'); }
     }
+
+    const handleSaveUserInfo = async () => {
+        if (!editInfoUser) return;
+        try {
+            const res = await fetch('/api/admin/users/update-metadata', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: editInfoUser.id,
+                    metadata: {
+                        ...(editInfoForm.full_name  && { full_name:   editInfoForm.full_name }),
+                        ...(editInfoForm.nationality && { nationality: editInfoForm.nationality }),
+                        ...(editInfoForm.contact    && { contact:     editInfoForm.contact }),
+                    }
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setUsers(prev => prev.map(u => u.id === editInfoUser.id
+                    ? { ...u, user_metadata: { ...u.user_metadata, ...editInfoForm } }
+                    : u
+                ));
+                setEditInfoUser(null);
+                alert('저장되었습니다.');
+            } else {
+                alert('저장 실패: ' + (data.error || '서버 오류'));
+            }
+        } catch (e) { alert('서버 오류'); }
+    };
 
     const handleAdminRoleToggle = async (userId: string, currentIsAdmin: boolean) => {
         if (!isSuperAdmin) return;
@@ -628,6 +659,7 @@ export default function DashboardContent() {
                                                     <button onClick={() => handleAdminRoleToggle(u.id, !!u.app_metadata?.is_admin)} className={`px-3 py-2 rounded-xl text-[9px] font-black border transition-all uppercase tracking-tight whitespace-nowrap ${u.app_metadata?.is_admin ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/30' : 'bg-white/5 text-gray-600 border-white/10'}`}>권한관리</button>
                                                 )}
                                                 <button onClick={() => handleRecharge(u.id)} className="px-3 py-2 bg-green-600/10 hover:bg-green-600 text-green-500 hover:text-white text-[9px] font-black rounded-xl border border-green-500/20 transition-all uppercase tracking-tight whitespace-nowrap">토큰충전</button>
+                                                <button onClick={() => { setEditInfoUser(u); setEditInfoForm({ full_name: u.user_metadata?.full_name || '', nationality: u.user_metadata?.nationality || '', contact: u.user_metadata?.contact || '' }); }} className="px-3 py-2 bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white text-[9px] font-black rounded-xl border border-yellow-500/20 transition-all uppercase tracking-tight whitespace-nowrap">정보수정</button>
                                                 <button onClick={() => { setLogViewUser(u); setLogPeriod(1); fetchUserLogs(u.id, 1); }} className="px-3 py-2 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-[9px] font-black rounded-xl border border-blue-500/20 transition-all uppercase tracking-tight whitespace-nowrap">로그조회</button>
                                                 <button onClick={() => { 
                                                     setChannelViewUser(u);
@@ -646,6 +678,37 @@ export default function DashboardContent() {
                     </div>
                 )}
             </main>
+
+            {/* 사용자 정보 직접 수정 모달 */}
+            {editInfoUser && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setEditInfoUser(null)}>
+                    <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl p-8 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">사용자 정보 수정</div>
+                        <div className="text-white font-black text-lg mb-6">{editInfoUser.email?.toLowerCase()}</div>
+                        <div className="flex flex-col gap-4">
+                            <div>
+                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">이름</label>
+                                <input value={editInfoForm.full_name} onChange={e => setEditInfoForm(p => ({ ...p, full_name: e.target.value }))}
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-yellow-500/50" placeholder="이름 입력" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">국적</label>
+                                <input value={editInfoForm.nationality} onChange={e => setEditInfoForm(p => ({ ...p, nationality: e.target.value }))}
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-yellow-500/50" placeholder="국적 입력 (예: 한국)" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">연락처</label>
+                                <input value={editInfoForm.contact} onChange={e => setEditInfoForm(p => ({ ...p, contact: e.target.value }))}
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-yellow-500/50" placeholder="연락처 입력" />
+                            </div>
+                        </div>
+                        <div className="flex gap-3 mt-6">
+                            <button onClick={handleSaveUserInfo} className="flex-1 py-3 bg-yellow-500 hover:bg-yellow-400 text-black text-[11px] font-black rounded-xl transition-all uppercase tracking-widest">저장</button>
+                            <button onClick={() => setEditInfoUser(null)} className="px-6 py-3 bg-white/5 hover:bg-white/10 text-gray-400 text-[11px] font-black rounded-xl transition-all">취소</button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {logViewUser && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-12 animate-in fade-in duration-300">

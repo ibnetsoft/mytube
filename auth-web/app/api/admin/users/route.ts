@@ -16,34 +16,28 @@ export async function GET() {
     })
 
     try {
-        const { data: { users }, error: authError } = await supabaseAdmin.auth.admin.listUsers()
+        // 전체 유저 조회 (페이지네이션 명시)
+        const { data: { users }, error: authError } = await supabaseAdmin.auth.admin.listUsers({
+            page: 1, perPage: 1000
+        })
         if (authError) throw authError
 
-        const { data: profiles, error: profileError } = await supabaseAdmin
-            .from('profiles')
-            .select('*')
-        
+        const { data: profiles } = await supabaseAdmin.from('profiles').select('*')
+
         const enrichedUsers = (users || []).map(user => {
-            const profile = (profiles || []).find(p => p.id === user.id) || {}
-            const membership = profile.membership || profile.membership_tier || (user.app_metadata?.membership || 'standard')
-            
-            // [DEBUG] Check if youtube_channel is present
-            if (user.user_metadata?.youtube_channel) {
-                console.log(`[Users API] User ${user.email} has channel: ${user.user_metadata.youtube_channel}`);
-            }
-            
+            const profile = (profiles || []).find((p: any) => p.id === user.id) || {}
+            const membership = (profile as any).membership || (profile as any).membership_tier || (user.app_metadata?.membership || 'standard')
+            console.log(`[Users API] ${user.email} | full_name=${user.user_metadata?.full_name} | nationality=${user.user_metadata?.nationality} | contact=${user.user_metadata?.contact}`)
             return {
                 ...user,
                 profile: {
-                    token_balance: profile.token_balance || 0,
+                    token_balance: (profile as any).token_balance || 0,
                     membership_tier: membership,
-                    video_limit: profile.video_limit || 50,
-                    current_usage: profile.current_usage || 0
                 }
             }
-        });
-        
-        console.log(`[Users API] Returning ${enrichedUsers.length} users`);
+        })
+
+        console.log(`[Users API] Returning ${enrichedUsers.length} users`)
         return NextResponse.json({ users: enrichedUsers })
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 })
