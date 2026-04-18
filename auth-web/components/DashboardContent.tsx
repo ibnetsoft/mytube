@@ -34,16 +34,18 @@ interface PublishingRequest {
 const SUPER_ADMIN_EMAIL = 'ejsh0519@naver.com'
 
 const typeMap: Record<string, string> = {
-    'video': '영상 생성',
-    'image': '이미지 생성',
-    'script': '대본 생성',
-    'text_gen': '텍스트 기술',
-    'vision_gen': '비전 분석',
-    'test_after_fix': '자막 교정',
-    'test_local': '로컬 테스트',
-    'test_verbose': '상세 분석',
-    'unknown': '기타',
-    'prompt': '프롬프트 최적화'
+    'video': 'VIDEO',
+    'image': 'IMAGE',
+    'script': 'SCRIPT',
+    'text_gen': 'TEXT_GEN',
+    'vision_gen': 'VISION_GEN',
+    'motion_guide': 'MOTION_GUIDE',
+    'character_extraction': 'CHARACTER_EXTRACTION',
+    'test_after_fix': 'SUBTITLE_FIX',
+    'test_local': 'LOCAL_TEST',
+    'test_verbose': 'VERBOSE',
+    'unknown': 'OTHER',
+    'prompt': 'PROMPT_OPT'
 };
 
 const typeIcons: Record<string, string> = {
@@ -52,6 +54,8 @@ const typeIcons: Record<string, string> = {
     'script': '📝',
     'text_gen': '✍️',
     'vision_gen': '👁️',
+    'motion_guide': '⚙️',
+    'character_extraction': '👤',
     'test_after_fix': '🛠️',
     'test_local': '💻',
     'test_verbose': '🔍',
@@ -60,10 +64,10 @@ const typeIcons: Record<string, string> = {
 };
 
 function StatCard({ label, value, unit, color, subLabel }: { label: string; value: string | number; unit: string; color: string; subLabel?: string }) {
-    const textColor = color === 'green' ? 'text-[#22c55e]' : color === 'orange' ? 'text-[#f97316]' : color === 'blue' ? 'text-blue-500' : 'text-white';
+    const textColor = color === 'green' ? 'text-[#22c55e]' : color === 'orange' ? 'text-[#f97316]' : color === 'blue' ? 'text-blue-400' : 'text-white';
     return (
-        <div className="bg-[#0f172a]/40 border border-white/5 p-6 rounded-2xl flex flex-col justify-center min-h-[110px] relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+        <div className="bg-[#0f172a]/60 border border-white/20 p-6 rounded-2xl flex flex-col justify-center min-h-[110px] relative overflow-hidden group hover:border-blue-500/40 transition-all shadow-lg">
+            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
                 <div className={`w-12 h-12 rounded-full ${color === 'green' ? 'bg-green-500' : color === 'orange' ? 'bg-orange-500' : 'bg-blue-500'}`} />
             </div>
             <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">{label}</span>
@@ -116,7 +120,7 @@ export default function DashboardContent() {
     const totalTokens = useMemo(() => (users || []).reduce((acc: number, u: any) => acc + (u.profile?.token_balance || 0), 0), [users]);
 
     const getTopTasks = (breakdown: any) => {
-        const priority = ['video', 'image', 'script', 'text_gen', 'vision_gen', 'test_after_fix'];
+        const priority = ['video', 'image', 'script', 'vision_gen', 'motion_guide', 'text_gen', 'character_extraction', 'test_after_fix'];
         const entries = Object.entries(breakdown || {})
             .map(([key, val]: [string, any]) => ({ name: key, ...val }));
             
@@ -127,7 +131,7 @@ export default function DashboardContent() {
             if (aPri !== -1) return -1;
             if (bPri !== -1) return 1;
             return b.count - a.count;
-        }).slice(0, 6);
+        }).slice(0, 7);
     };
 
     const globalTopTasks = useMemo(() => getTopTasks(globalStats.breakdown), [globalStats.breakdown]);
@@ -284,7 +288,8 @@ export default function DashboardContent() {
             breakdown[stage].tokens += t;
             breakdown[stage].count += 1;
         });
-        return { total, successRate: total > 0 ? Math.round((successes / total)*100) : 0, avgLatency: 7.3, totalTokens: tokens, breakdown };
+        const avgLat = total > 0 ? (logs.reduce((acc, l) => acc + (l.elapsed_time || 0), 0) / total).toFixed(1) : '0.0';
+        return { total, successRate: total > 0 ? Math.round((successes / total)*100) : 0, avgLatency: avgLat, totalTokens: tokens, breakdown };
     }
 
     const fetchGlobalStats = useCallback(async (days: number) => {
@@ -359,36 +364,61 @@ export default function DashboardContent() {
         return `${date.getFullYear()}.${String(date.getMonth()+1).padStart(2,'0')}.${String(date.getDate()).padStart(2,'0')}`;
     }
 
+    const renderDonutChart = (stats: any) => (
+        <div className="w-full lg:w-[320px] bg-[#0f172a]/60 border border-white/20 rounded-2xl p-6 flex flex-col items-center justify-center shadow-lg transition-all hover:border-blue-500/40">
+            <div className="relative w-28 h-28 rounded-full mb-4 flex items-center justify-center" 
+                style={{ background: `conic-gradient(${Object.entries(stats.breakdown || {}).sort((a:any, b:any) => {
+                    const priority = ['video', 'image', 'script', 'vision_gen', 'motion_guide', 'text_gen', 'character_extraction'];
+                    return priority.indexOf(a[0]) - priority.indexOf(b[0]);
+                }).map(([stage, data]: [string, any], idx, arr) => { 
+                    const colors: any = { video: '#f97316', image: '#3b82f6', script: '#22c55e', vision_gen: '#a855f7', motion_guide: '#6366f1', text_gen: '#06b6d4', character_extraction: '#94a3b8' }; 
+                    const total = Object.values(stats.breakdown || {}).reduce((a: any, b: any) => a + (b.tokens || 0), 0) as number; 
+                    const prevTotal = arr.slice(0, idx).reduce((a: any, b: any) => a + (b[1].tokens || 0), 0) as number; 
+                    const start = (prevTotal / (total || 1)) * 100; 
+                    const end = start + (data.tokens / (total || 1)) * 100; 
+                    return `${colors[stage] || '#334155'} ${start}% ${end}%`; 
+                }).join(', ') || '#1e293b'})` }}>
+                <div className="absolute inset-5 bg-[#0f172a] rounded-full flex flex-col items-center justify-center overflow-hidden">
+                    <span className="text-[9px] font-black text-gray-500 uppercase tracking-tighter">EXPEND</span>
+                    <span className="text-[7px] text-blue-500 font-bold">TOKENS</span>
+                </div>
+            </div>
+            <div className="w-full space-y-0.5 mt-1">
+                {Object.entries(stats.breakdown || {}).sort((a:any,b:any)=>b[1].tokens - a[1].tokens).slice(0, 5).map(([stage, data]: [string, any]) => {
+                    const total = Object.values(stats.breakdown || {}).reduce((a: any, b: any) => a + (b.tokens || 0), 0) as number;
+                    const pct = Math.round((data.tokens / (total || 1)) * 100);
+                    const colors: any = { video: '#f97316', image: '#3b82f6', script: '#22c55e', vision_gen: '#a855f7', motion_guide: '#6366f1', text_gen: '#06b6d4', character_extraction: '#94a3b8' };
+                    return (
+                        <div key={stage} className="flex justify-between items-center text-[9px] font-bold text-gray-400">
+                            <div className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: colors[stage] || '#334155' }}/><span className="truncate uppercase text-[8px]">{typeMap[stage] || stage}</span></div>
+                            <span className="text-white">{pct}%</span>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+
     const renderChartRow = (stats: any, topTasks: any[]) => (
-        <div className="flex flex-col lg:flex-row gap-4">
-            <div className="flex-1 grid grid-cols-6 gap-3">
-                {topTasks.map((task: any) => (
-                    <div key={task.name} className="bg-[#0f172a]/60 border border-white/5 p-5 rounded-2xl flex flex-col justify-between min-h-[170px] hover:border-blue-500/30 transition-all">
-                        <div className="flex justify-between items-start"><div className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{typeMap[task.name] || task.name}</div><span className="text-sm">{typeIcons[task.name] || '📦'}</span></div>
-                        <div className="text-sm font-black text-white mt-1">{task.count} <span className="text-gray-600 text-[10px]">건</span></div>
-                        <div className="h-16 w-full mt-4 flex items-end bg-white/[0.02] rounded-lg p-2 gap-[2px]"><div className="w-1.5 bg-blue-500/20 rounded-full h-full relative overflow-hidden"><div className="absolute bottom-0 w-full bg-blue-500 rounded-full transition-all duration-1000" style={{ height: `${Math.min(100, (task.count / 10) * 100)}%` }} /></div><div className="flex-1 italic text-[9px] text-gray-600 self-center ml-2">DATA_POINT</div></div>
-                        <div className="text-[12px] font-black text-blue-500 mt-2">{task.tokens.toLocaleString()}<span className="text-[8px] text-gray-600 ml-1">TK</span></div>
+        <div className="grid grid-cols-7 gap-3">
+            {topTasks.map((task: any) => (
+                <div key={task.name} className="bg-[#0f172a]/60 border border-white/20 p-5 rounded-2xl flex flex-col justify-between min-h-[170px] hover:border-blue-500/40 transition-all shadow-lg group">
+                    <div className="flex justify-between items-start">
+                        <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest group-hover:text-blue-300 transition-colors">{typeMap[task.name] || task.name}</div>
+                        <span className="text-sm group-hover:scale-110 transition-transform">{typeIcons[task.name] || '📦'}</span>
                     </div>
-                ))}
-            </div>
-            <div className="w-full lg:w-[320px] bg-[#0f172a]/60 border border-white/5 rounded-2xl p-6 flex flex-col items-center justify-center">
-                <div className="relative w-32 h-32 rounded-full mb-4 flex items-center justify-center" style={{ background: `conic-gradient(${Object.entries(stats.breakdown || {}).map(([stage, data]: [string, any], idx) => { const colors: any = { video: '#3b82f6', image: '#f97316', script: '#22c55e', vision_gen: '#8b5cf6', test_after_fix: '#06b6d4', test_local: '#64748b' }; const total = Object.values(stats.breakdown || {}).reduce((a: any, b: any) => a + (b.tokens || 0), 0) as number; const prevTotal = Object.values(stats.breakdown || {}).slice(0, idx).reduce((a: any, b: any) => a + (b.tokens || 0), 0) as number; const start = (prevTotal / (total || 1)) * 100; const end = start + (data.tokens / (total || 1)) * 100; return `${colors[stage] || '#1e293b'} ${start}% ${end}%`; }).join(', ') || '#1e293b'})` }}>
-                    <div className="absolute inset-6 bg-[#0f172a] rounded-full flex flex-col items-center justify-center overflow-hidden"><span className="text-[10px] font-black text-gray-500 uppercase tracking-tighter">USAGE</span><span className="text-[8px] text-blue-500 font-bold">TOKENS</span></div>
-                </div>
-                <div className="w-full space-y-1 mt-2">
-                    {Object.entries(stats.breakdown || {}).sort((a:any,b:any)=>b[1].tokens - a[1].tokens).slice(0, 4).map(([stage, data]: [string, any]) => {
-                        const total = Object.values(stats.breakdown || {}).reduce((a: any, b: any) => a + (b.tokens || 0), 0) as number;
-                        const pct = Math.round((data.tokens / (total || 1)) * 100);
-                        const colors: any = { video: '#3b82f6', image: '#f97316', script: '#22c55e', vision_gen: '#8b5cf6', test_after_fix: '#06b6d4', test_local: '#64748b' };
-                        return (
-                            <div key={stage} className="flex justify-between items-center text-[10px] font-bold text-gray-400">
-                                <div className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: colors[stage] || '#334155' }}/><span className="truncate uppercase">{typeMap[stage] || stage}</span></div>
-                                <span className="text-white">{pct}%</span>
+                    <div>
+                        <div className="text-lg font-black text-white mt-1 tabular-nums">{task.count} <span className="text-gray-600 text-[10px]">건</span></div>
+                        <div className="h-14 w-full mt-3 flex items-end bg-white/[0.02] rounded-lg p-2 gap-[2px] overflow-hidden">
+                            <div className={`w-1.5 rounded-full h-full relative overflow-hidden ${task.name === 'video' ? 'bg-orange-500/10' : 'bg-blue-500/10'}`}>
+                                <div className={`absolute bottom-0 w-full rounded-full transition-all duration-1000 ${task.name === 'video' ? 'bg-orange-500' : 'bg-blue-500'}`} style={{ height: `${Math.min(100, (task.count / 15) * 100)}%` }} />
                             </div>
-                        );
-                    })}
+                            <div className="flex-1 italic text-[8px] text-gray-600 self-center ml-2 truncate">ACTIVITY_STREAM</div>
+                        </div>
+                        <div className="text-[11px] font-black text-blue-400 mt-2 tracking-tight">{task.tokens.toLocaleString()}<span className="text-[8px] text-gray-600 ml-1 font-bold">TK</span></div>
+                    </div>
                 </div>
-            </div>
+            ))}
         </div>
     );
 
@@ -470,11 +500,14 @@ export default function DashboardContent() {
                                 <button onClick={() => fetchGlobalStats(globalPeriod)} className="px-5 py-2 hover:bg-white/5 rounded-xl text-[10px] font-black text-blue-500 transition-all">새로고침</button>
                             </div>
                         </div>
-                        <div className="grid grid-cols-4 gap-4">
-                            <StatCard label="TOTAL TASKS" value={globalStats.total} unit="UNITS" color="white" />
-                            <StatCard label="SUCCESS RATE" value={globalStats.successRate + '%'} unit="GLOBAL" color="green" />
-                            <StatCard label="AVG LATENCY" value={globalStats.avgLatency + 's'} unit="PER TASK" color="blue" />
-                            <StatCard label="DAILY TOKEN USAGE" value={globalStats.totalTokens.toLocaleString()} unit="TOKENS" color="orange" />
+                        <div className="flex flex-col lg:flex-row gap-4">
+                            <div className="flex-1 grid grid-cols-4 gap-4">
+                                <StatCard label="TOTAL TASKS" value={globalStats.total} unit="UNITS" color="white" />
+                                <StatCard label="SUCCESS RATE" value={globalStats.successRate + '%'} unit="GLOBAL" color="green" />
+                                <StatCard label="AVG LATENCY" value={globalStats.avgLatency + 's'} unit="PER TASK" color="blue" />
+                                <StatCard label="DAILY TOKEN USAGE" value={globalStats.totalTokens.toLocaleString()} unit="TOKENS" color="orange" />
+                            </div>
+                            {renderDonutChart(globalStats)}
                         </div>
                         {renderChartRow(globalStats, globalTopTasks)}
                         <div className="flex items-center gap-4 py-2">
@@ -559,7 +592,7 @@ export default function DashboardContent() {
                                     <tr key={u.id} className="hover:bg-white/[0.03] transition-colors group">
                                         <td className="px-10 py-7">
                                             <div className="flex items-center gap-3">
-                                                <div className="font-black text-white text-base group-hover:text-blue-400 transition-colors uppercase tracking-tight">{u.email}</div>
+                                                <div className="font-black text-white text-base group-hover:text-blue-400 transition-colors tracking-tight">{u.email?.toLowerCase()}</div>
                                                 {u.email === SUPER_ADMIN_EMAIL && <span className="px-2 py-0.5 bg-blue-600 text-[8px] font-black rounded-md text-white">최고관리자</span>}
                                                 {u.app_metadata?.is_admin && u.email !== SUPER_ADMIN_EMAIL && <span className="px-2 py-0.5 bg-indigo-500 text-[8px] font-black rounded-md text-white">부관리자</span>}
                                                 {u.user_metadata?.youtube_channel && (
@@ -569,7 +602,12 @@ export default function DashboardContent() {
                                                     </span>
                                                 )}
                                             </div>
-                                            <div className="text-[11px] text-gray-600 font-bold mt-1 uppercase italic tracking-tighter">{u.user_metadata?.full_name || '이름 없음'}</div>
+                                            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1">
+                                                <span className="text-[11px] text-gray-500 font-bold italic tracking-tighter">{u.user_metadata?.full_name || '이름 없음'}</span>
+                                                {u.user_metadata?.nationality && <span className="text-[10px] text-gray-600 font-bold">🌐 {u.user_metadata.nationality}</span>}
+                                                {u.user_metadata?.contact && <span className="text-[10px] text-gray-600 font-bold">📞 {u.user_metadata.contact}</span>}
+                                                {u.user_metadata?.referrer && <span className="text-[10px] text-yellow-600 font-bold">👥 추천: {u.user_metadata.referrer}</span>}
+                                            </div>
                                         </td>
                                         <td className="px-10 py-7 text-center font-black text-white text-xl tabular-nums">{u.profile?.token_balance?.toLocaleString() || 0}</td>
                                         <td className="px-10 py-7 text-center"><button onClick={() => handleRoleChange(u.id, u.app_metadata?.membership)} className={`px-5 py-2.5 rounded-2xl text-[10px] font-black border uppercase tracking-widest transition-all ${u.app_metadata?.membership === 'pro' ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg' : 'bg-white/5 text-gray-500 border-white/10 hover:border-white/30'}`}>{u.app_metadata?.membership?.toUpperCase() === 'PRO' ? '프로' : '스탠다드'}</button></td>
@@ -614,11 +652,14 @@ export default function DashboardContent() {
                              </div>
                         </div>
                         <div className="overflow-y-auto flex-1 pr-4 custom-scrollbar space-y-8">
-                             <div className="grid grid-cols-4 gap-4">
-                                <StatCard label="TOTAL TASKS" value={logStats.total} unit="UNITS" color="white" />
-                                <StatCard label="SUCCESS RATE" value={logStats.successRate + '%'} unit="GLOBAL" color="green" />
-                                <StatCard label="AVG LATENCY" value={logStats.avgLatency + 's'} unit="PER TASK" color="blue" />
-                                <StatCard label="TOKEN USAGE" value={logStats.totalTokens.toLocaleString()} unit="TOKENS" color="orange" />
+                             <div className="flex flex-col lg:flex-row gap-4">
+                                <div className="flex-1 grid grid-cols-4 gap-4">
+                                    <StatCard label="TOTAL TASKS" value={logStats.total} unit="UNITS" color="white" />
+                                    <StatCard label="SUCCESS RATE" value={logStats.successRate + '%'} unit="GLOBAL" color="green" />
+                                    <StatCard label="AVG LATENCY" value={logStats.avgLatency + 's'} unit="PER TASK" color="blue" />
+                                    <StatCard label="TOKEN USAGE" value={logStats.totalTokens.toLocaleString()} unit="TOKENS" color="orange" />
+                                </div>
+                                {renderDonutChart(logStats)}
                              </div>
                              {renderChartRow(logStats, userTopTasks)}
                              {renderLogTable(userLogs)}

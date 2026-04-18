@@ -870,8 +870,14 @@ export default function AdminDashboardContent() {
                                     {users.map((user) => (
                                         <tr key={user.id} className="hover:bg-white/5 transition-all h-24 cursor-pointer" onClick={() => openUserPanel(user)}>
                                             <td className="px-6 py-4">
-                                                <div className="font-bold text-white text-sm tracking-tight">{user.email}</div>
+                                                <div className="font-bold text-white text-sm tracking-tight">{user.email?.toLowerCase()}</div>
                                                 <div className="text-[9px] text-gray-600 font-mono mt-0.5 opacity-70 tracking-tighter truncate max-w-[150px]">{user.id}</div>
+                                                {user.user_metadata?.referrer && (
+                                                    <div className="mt-1 flex items-center gap-1">
+                                                        <span className="text-[9px] text-yellow-500/70 font-bold uppercase tracking-widest">추천:</span>
+                                                        <span className="text-[9px] text-yellow-400 font-bold">{user.user_metadata.referrer}</span>
+                                                    </div>
+                                                )}
                                             </td>
                                             <td className="px-6 py-4 text-gray-300 text-xs font-bold">
                                                 {user.user_metadata?.full_name || '-'}

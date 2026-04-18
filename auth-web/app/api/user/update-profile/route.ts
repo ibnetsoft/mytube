@@ -22,13 +22,22 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
         }
 
-        // Update user metadata using Admin API
+        // 기존 user_metadata 조회 후 병합 (youtube_channel, referrer 등 기존 필드 보존)
+        const { data: { user: existingUser }, error: fetchError } = await supabaseAdmin.auth.admin.getUserById(userId)
+        if (fetchError) {
+            console.error('User fetch error:', fetchError)
+            return NextResponse.json({ error: fetchError.message }, { status: 500 })
+        }
+
+        const mergedMeta = {
+            ...(existingUser?.user_metadata || {}),
+            ...(full_name !== undefined && { full_name }),
+            ...(nationality !== undefined && { nationality }),
+            ...(contact !== undefined && { contact }),
+        }
+
         const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-            user_metadata: {
-                full_name,
-                nationality,
-                contact
-            }
+            user_metadata: mergedMeta
         })
 
         if (error) {
