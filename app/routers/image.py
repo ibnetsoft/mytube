@@ -3,6 +3,7 @@
 /api/image/* 엔드포인트
 """
 import os
+import uuid
 import datetime
 import aiofiles
 from fastapi import APIRouter, Body, File, Form, UploadFile, HTTPException
@@ -25,7 +26,6 @@ from app.utils import (
 )
 from services.gemini_service import gemini_service
 from services.replicate_service import replicate_service
-from services.akool_service import akool_service
 
 router = APIRouter(tags=["Image"])
 
@@ -1110,9 +1110,6 @@ async def bulk_generate_motion(
 
 
 @router.post("/api/image/generate")
-
-
-@router.post("/api/image/generate")
 async def generate_image(
     prompt: str = Body(...),
     project_id: int = Body(...),
@@ -1175,39 +1172,20 @@ async def generate_image(
             effective_prompt = prompt
 
 
-        if not images_bytes:
-            print(f"🎨 [Image Gen] Attempting Gemini (Primary)...")
-            try:
-                images_bytes = await gemini_service.generate_image(
-                    prompt=effective_prompt,
-                    num_images=1,
-                    aspect_ratio=aspect_ratio
-                )
-            except Exception as e:
-                print(f"⚠️ [Image Gen] Gemini failed: {e}")
-
-        # Fallback 1: Replicate
-        if not images_bytes:
-            try:
-                print(f"🎨 [Image Gen] Attempting Replicate (Fallback 1)...")
-                images_bytes = await replicate_service.generate_image(
-                    prompt=effective_prompt,
-                    aspect_ratio=aspect_ratio,
-                    negative_prompt=no_human_negative
-                )
-            except Exception as e:
-                print(f"⚠️ [Image Gen] Replicate failed: {e}")
-
-        # 최종 폴백: AKOOL
-        if not images_bytes:
-            try:
-                print(f"🎨 [Image Gen] Attempting AKOOL (Final Fallback)...")
-                images_bytes = await akool_service.generate_image(prompt=effective_prompt, aspect_ratio=aspect_ratio)
-            except Exception as e:
-                print(f"⚠️ [Image Gen] AKOOL failed: {e}")
+        # Nano Banana 2.0 (Gemini) — 단일 서비스
+        try:
+            print(f"🎨 [Image Gen] Attempting Nano Banana 2.0 (Gemini)...")
+            images_bytes = await gemini_service.generate_image(
+                prompt=effective_prompt,
+                num_images=1,
+                aspect_ratio=aspect_ratio
+            )
+        except Exception as e:
+            print(f"⚠️ [Image Gen] Gemini failed: {e}")
+            return {"status": "error", "error": f"이미지 생성 실패: {e}"}
 
         if not images_bytes:
-            return {"status": "error", "error": "모든 이미지 생성 서비스가 실패했습니다."}
+            return {"status": "error", "error": "이미지 생성 실패: 결과가 비어있습니다."}
         
         print(f"✅ [Image Generation] Successfully generated image, size: {len(images_bytes[0])} bytes")
         

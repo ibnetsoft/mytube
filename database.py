@@ -345,6 +345,8 @@ def init_db():
             description_ko TEXT,
             prompt_en TEXT,
             image_url TEXT,
+            dna_yaml TEXT,
+            seed INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (project_id) REFERENCES projects(id)
         )
@@ -1035,6 +1037,18 @@ scene_type별 구조:
             print(f"[Migration] Added {col} to project_settings")
         except sqlite3.OperationalError:
             pass
+
+    # [NEW] Character DNA Migration
+    cursor.execute("PRAGMA table_info(project_characters)")
+    char_columns = [info[1] for info in cursor.fetchall()]
+    if 'dna_yaml' not in char_columns:
+        print("[Migration] Adding dna_yaml to project_characters...")
+        try: cursor.execute("ALTER TABLE project_characters ADD COLUMN dna_yaml TEXT")
+        except Exception: pass
+    if 'seed' not in char_columns:
+        print("[Migration] Adding seed to project_characters...")
+        try: cursor.execute("ALTER TABLE project_characters ADD COLUMN seed INTEGER")
+        except Exception: pass
 
     conn.commit()
     print("[DB] Migration completed")
@@ -1977,17 +1991,21 @@ def save_project_characters(project_id: int, characters: List[Dict]):
         for char in characters:
             # 기존 이미지 URL 보존 시도
             img_url = char.get('image_url') or existing_chars.get(char.get('name', ''), '')
+            dna_yaml = char.get('dna_yaml') or ''
+            seed = char.get('seed')
             
             cursor.execute("""
-                INSERT INTO project_characters (project_id, name, role, description_ko, prompt_en, image_url)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO project_characters (project_id, name, role, description_ko, prompt_en, image_url, dna_yaml, seed)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 project_id, 
                 char.get('name', ''), 
                 char.get('role', ''), 
                 char.get('description_ko', ''), 
                 char.get('prompt_en', ''), 
-                img_url
+                img_url,
+                dna_yaml,
+                seed
             ))
         conn.commit()
     except Exception as e:
@@ -3044,6 +3062,10 @@ def get_recent_projects(limit: int = 10) -> List[Dict]:
 
 def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status: str, prompt_summary: str = "", error_msg: str = "", elapsed_time: float = 0.0, input_tokens: int = 0, output_tokens: int = 0):
     """AI 생성 로그 추가 (로컬 DB + Supabase 원격 동기화)"""
+    # 실패한 작업은 토큰 사용량 0으로 처리
+    if status == 'failed':
+        input_tokens = 0
+        output_tokens = 0
     conn = get_db()
     cursor = conn.cursor()
     try:

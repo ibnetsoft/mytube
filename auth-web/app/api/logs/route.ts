@@ -38,11 +38,16 @@ export async function POST(req: Request) {
         // [Credit System] 작업 성공 시 토큰 차감 진행
         const totalTokens = (input_tokens || 0) + (output_tokens || 0)
         if (totalTokens > 0 && (status === 'success' || status === 'done')) {
-            await getAdmin().rpc('deduct_tokens', {
+            const { data: deductResult, error: deductError } = await getAdmin().rpc('deduct_tokens', {
                 p_user_id: userId,
                 p_amount: totalTokens,
                 p_description: `${task_type} (${model_id})`
             })
+            if (deductError) {
+                console.error(`[Logs] Token deduction failed for ${userId}: ${deductError.message}`)
+            } else {
+                console.log(`[Logs] Deducted ${totalTokens} tokens from ${userId}, result:`, deductResult)
+            }
         }
 
         return NextResponse.json({ success: true })

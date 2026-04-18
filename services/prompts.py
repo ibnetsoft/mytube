@@ -170,85 +170,82 @@ JSON만 반환하세요."""
         RETURN ONLY THE JSON LIST. NO MARKDOWN.
     """
 
-    GEMINI_CHARACTER_PROMPTS = """당신은 영상 캐릭터 디자인 전문가입니다.
-아래 대본을 분석하여 등장인물(캐릭터)을 추출하고, 각 캐릭터별로 이미지 생성에 사용할 수 있는 상세한 외형 프롬프트를 작성해주세요.
+    GEMINI_CHARACTER_PROMPTS = """당신은 영상 캐릭터 디자인 전문가이자 일관성 관리 전문가입니다.
+아래 대본을 분석하여 등장인물(캐릭터)을 추출하고, 피카디리 [캐릭터 일관성(Character Consistency) 지침]에 따라 각 캐릭터의 영구적인 DNA 스키마를 작성해주세요.
 
 [대본]
 {script}
 
-[비주얼 스타일 및 배격 지침 - 최우선 순위]
-현재 영상의 프로젝트 스타일은 **"{visual_style}"** 입니다. 
-이 스타일은 캐릭터의 외형뿐만 아니라 선의 굵기, 색상 표현 방식, 질감 등 모든 시각적 요소에 적용되어야 합니다.
+[비주얼 스타일 및 배경 지침]
+현재 프로젝트 스타일은 **"{visual_style}"** 입니다. 모든 캐릭터 디자인은 이 스타일의 세계관 안에서 정의되어야 합니다.
 
-[STRICT STYLE RULE]
-- 선택된 스타일이 실사(Photorealistic)가 아닌 경우(예: Cartoon, Anime, Sketch 등), 'realistic', 'photorealistic', 'hyper-detailed', '8k', 'cinematic lighting', 'depth of field'와 같은 키워드를 **절대** 사용하지 마세요.
-- 대신 해당 스타일에 맞는 매체(Medium) 키워드를 사용하세요 (예: 'hand-drawn line art', 'flat colors', 'brush strokes', 'ink doodle').
-- 캐릭터의 외형 묘사는 반드시 이 "{visual_style}" 세계관 안에서 자연스럽게 보여야 합니다.
-
-{ethnicity_instruction}
-
-**분석 지침:**
-1. 대본에 언급되거나 암시된 모든 등장인물을 식별하세요.
-2. 각 캐릭터의 역할(주인공/조연/배경인물)을 파악하세요.
-3. 대본의 맥락 및 지정된 스타일에 유추할 수 있는 외형적 특징을 상세히 묘사하세요.
-4. 이미지 생성 AI가 이해할 수 있는 구체적인 영어 프롬프트를 작성하세요.
-
-**외형 묘사 포함 요소:**
-- 성별, 예상 연령대
-- 얼굴 특징 (이목구비, 표정) - 스타일에 맞게 묘사 (예: 실사면 구체적으로, 만화면 단순하게)
-- 헤어스타일 및 색상
-- 체형 - 지정된 스타일에 맞게 적용 (예: 윔피키드 스타일이면 stick figure, simple line body 같이 묘사)
-- 의상 및 액세서리
-- 전체적인 분위기/인상
+[📐 지침 1. 캐릭터 일관성 (Character Consistency) 적용]
+1. **불변 속성 (Immutable)**: 연령, 인종, 얼굴형, 눈/코/입 형태, 헤어스타일 등 최소 11개 항목을 영어로 상세히 서술하세요. "젊은 여성" 같은 모호한 표현 대신 "25-year-old East Asian female"과 같은 구체적 정보를 사용하세요.
+2. **고유 마커 (Distinctive Marks)**: 점, 흉터, 주근깨 등 캐릭터를 구분할 수 있는 고유 마커를 1~2개 반드시 포함하세요.
+3. **가변 속성 (Mutable)**: 대본의 맥락에 맞는 의상 세트(Wardrobe sets)를 정의하세요.
+4. **실명 및 브랜드 금지**: 이미지 AI 보안 필터를 피하기 위해 실존 유명인이나 브랜드명은 절대 사용하지 마세요.
 
 다음 JSON 형식으로 출력해주세요:
 {{
     "characters": [
         {{
-            "name": "캐릭터 이름 또는 역할",
-            "role": "주인공/조연/배경인물",
-            "description_ko": "지정된 스타일에 맞는 외형 묘사 (한글, 2-3문장)",
-            "prompt_en": "Detailed English prompt for image generation. CRITICAL: 1. You MUST include keywords reflecting the '{visual_style}' style. 2. Focus on permanent physical identity adapted to this style (e.g. if cartoon, describe as cartoon character). 3. DO NOT include background, environment, or specific poses. Describe them in a neutral portrait way for a Character Sheet."
+            "character_id": "고유ID (영문)",
+            "display_name": "캐릭터 이름",
+            "dna_yaml": "아래 구조의 YAML 문자열:
+                immutable:
+                  age: ...
+                  gender: ...
+                  ethnicity: ...
+                  face_shape: ...
+                  skin: ...
+                  eyes: ...
+                  eyebrows: ...
+                  nose: ...
+                  mouth: ...
+                  hair: ...
+                  build: ...
+                  distinctive_marks: ...
+                wardrobe_sets:
+                  - set_id: default
+                    context: ...
+                    top: ...
+                    bottom: ...
+                demeanor:
+                  default_expression: ...
+                  posture: ...",
+            "description_ko": "지정된 스타일에 맞는 외형 묘사 (한글 요약)",
+            "prompt_en": "Detailed English prompt for Character Sheet. Focusing on permanent physical identity."
         }}
     ]
 }}
+JSON만 반환하세요."""
 
-- 최대 5명의 주요 캐릭터만 추출하세요.
-- **실명 및 브랜드 사용 금지 (CRITICAL)**: prompt_en에는 실존 유명인, 가수, 특정 그룹명 등을 절대 넣지 말고 일반적인 외형 묘사(예: 'a Japanese J-pop duo')로 대체하세요. 이는 AI 보안 필터 차단을 피하기 위함입니다.
-- **배경 묘사 금지**: prompt_en에는 'in a room', 'outdoor', 'background' 등의 환경 묘사를 절대 포함하지 마세요. 캐릭터 자체의 외형만 묘사하세요.
-- prompt_en은 영어로, 이미지 생성 AI에 바로 사용할 수 있는 형식으로 작성하세요.
-- JSON만 반환하세요."""
-
-    GEMINI_IMAGE_PROMPTS = """당신은 세계 최고의 영화 감독이자 촬영 감독(Cinematographer)입니다. 넷플릭스 수준의 영상미와 픽사·ILM급 비주얼을 구현하는 전문가로서, 아래 대본을 심층 분석하여 최고의 시각적 스토리텔링을 위한 장면(Scene) 리스트를 작성해주세요.
+    GEMINI_IMAGE_PROMPTS = """당신은 세계 최고의 영화 감독이자 프롬프트 엔지니어입니다.
+[피카디리 프롬프트 지침 보강안]에 따라, 대본을 분석하여 '6블록 조립 원칙'과 '4층 레이어 네거티브'가 적용된 장면 리스트를 작성해주세요.
 
 [대본]
 {script}
-
-[핵심 미션: 6개 카테고리 비주얼 분석 및 연출]
-모든 장면(Scene) 구상 시, 대본을 바탕으로 아래 6가지 카테고리 기획 단계를 반드시 거쳐야 합니다:
-
-1. **전체 스타일 (Overall Style)**: 이미 선택된 스타일 지침("{style_prefix}")을 최우선으로 따르며, 일관된 톤앤매너를 유지합니다.
-2. **캐릭터 (Character)**: 대본 내 캐릭터의 외형(표정, 의상, 특징)을 추출합니다. 지정된 캐릭터 가이드가 있다면(예: 졸라맨 등) 반드시 준수하세요.
-3. **배경 (Background)**: 장소, 시간대, 날씨 등을 구체적으로 분석하여 풍성하게 묘사합니다.
-4. **소품/구조물 (Props/Structures)**: 상황 설명에 필요한 핵심 사물이나 건축물 요소를 추출합니다.
-5. **행동/사건 (Action/Events)**: 캐릭터의 동작이나 시각적인 변화(폭발, 빛 등)를 추출합니다.
-6. **텍스트 (Text)**: **기본적으로 이미지 내 텍스트 포함은 금지**합니다. 단, 대본에 "간판에 'EXIT'라고 적혀 있다"와 같이 **특정 텍스트를 특정 위치에 쓰라는 명시적인 요청이 있는 경우에만** 허용합니다.
 
 {style_instruction}
 {character_instruction}
 {ethnicity_instruction}
 {limit_instruction}
 
-[연출 가이드]
-- 대본의 감정선(Emotion)과 전후 맥락(Context)을 파악하여 카메라 무빙과 샷 사이즈를 결정하세요.
-- 감정이 고조되는 장면: ECU(extreme close-up) + slow push-in
-- 웅장한 배경 공개: EWS(extreme wide shot) + crane up 또는 pull-back
-- 대화/설명 장면: MCU(medium close-up) + subtle dolly
-- 액션/전환 장면: handheld tracking + quick pan
+[📐 지침 1. 씬별 프롬프트 조립 순서 (Block 1~6)]
+모든 `prompt_en`은 반드시 아래 순서로 조립되어야 합니다:
+- [BLOCK 1] STYLE: {style_prefix} + 매체 키워드
+- [BLOCK 2] CHARACTER DNA: 제공된 캐릭터의 DNA 정보 (Immutable + Wardrobe)
+- [BLOCK 3] SCENE CONTEXT: action, expression, location, time, weather, props
+- [BLOCK 4] CINEMATIC FINISH: lighting, camera angle, quality tags
+- [BLOCK 5] NEGATIVE: 아래 4층 레이어 구조 적용
+- [BLOCK 6] TECHNICAL: aspect ratio, seed (자동 주입용 예약어)
 
-{style_instruction}
-{character_instruction}
-{limit_instruction}
+[🚫 지침 2. 네거티브 프롬프트 (Negative Prompt) 레이어]
+각 장면의 `negative_prompt`는 아래 4개 레이어를 병합하여 작성하세요:
+1. Layer 1 (BASE): 해부학적 오류, 품질 저하 방지 (extra limbs, bad anatomy, blurry 등)
+2. Layer 2 (SAFETY): 저작권, 유명인, 브랜드 로직 차단
+3. Layer 3 (SCENE TYPE): 씬 성격(Portrait/Wide/Action)에 따른 품질 보강 토큰
+4. Layer 4 (STYLE EXCLUSION): 현재 스타일과 반대되는 톤 배제 (예: 실사면 cartoon 배제)
 
 [출력 형식 (JSON)]
 {{
@@ -256,97 +253,35 @@ JSON만 반환하세요."""
         {{
             "scene_number": 1,
             "scene_title": "장면 요약",
-            "scene_text": "해당 씬 구간의 원본 대본 내용 (요약 없이 원문 그대로)",
-            "visual_analysis": [
-                {{
-                    "category": "전체 스타일",
-                    "extracted_info": "대본에서 추출한 스타일 정보",
-                    "visual_keywords": "스타일 관련 영어 키워드"
-                }},
-                {{
-                    "category": "캐릭터",
-                    "extracted_info": "대본 내 캐릭터 묘사/상태",
-                    "visual_keywords": "캐릭터 관련 영어 키워드"
-                }},
-                {{
-                    "category": "배경",
-                    "extracted_info": "장소/시간/날씨 등",
-                    "visual_keywords": "배경 관련 영어 키워드"
-                }},
-                {{
-                    "category": "소품/구조물",
-                    "extracted_info": "방 안의 가구, 거리의 자동차 등",
-                    "visual_keywords": "소품 관련 영어 키워드"
-                }},
-                {{
-                    "category": "행동/사건",
-                    "extracted_info": "캐릭터의 동작이나 주변 변화",
-                    "visual_keywords": "동작 관련 영어 키워드"
-                }},
-                {{
-                    "category": "텍스트",
-                    "extracted_info": "명시된 텍스트 요청 내용 (없으면 '해당 없음')",
-                    "visual_keywords": "텍스트 관련 영어 키워드 (없으면 'no text')"
-                }}
-            ],
-            "script_start": "첫 어절",
-            "script_end": "끝 어절",
-            "estimated_seconds": 15,
-            "visual_reasoning": "위 6가지 분석 내용을 어떻게 조합하여 장면을 구성했는지 설명",
+            "scene_text": "원본 대본 내용 (원문 그대로)",
+            "visual_analysis": {{
+                "scene_type": "Portrait | Environment | Action",
+                "character_dna_applied": "적용된 캐릭터 ID (없으면 null)",
+                "wardrobe_id": "의상 세트 ID (DNA에 정의된 세트, 없으면 null)",
+                "action": "주요 행동 (영어)",
+                "expression": "표정/감정 (영어)",
+                "location": "장소 (영어)",
+                "time": "시간대 (영어)",
+                "weather": "날씨/분위기 (영어)",
+                "props": "주요 소품 (영어)",
+                "cinematic_tags": "lighting, camera angle, quality tags (영어)"
+            }},
             "prompt_ko": "이미지 묘사 (한글)",
-            "prompt_en": "{style_prefix}, [Detailed Visual Description synthesized from 6-category analysis], [Camera Angle & Shot Size], [Lighting & Color Temperature], [Atmosphere & Mood], (exactly two arms:1.5), (exactly two hands:1.5), (five fingers per hand:1.4), (anatomically correct hands:1.4), correct anatomy, no extra limbs, no text, no words, no watermarks",
-            "flow_prompt": "[Google Veo용 고품질 영상 프롬프트 - 아래 flow_prompt 작성 규칙 필수 준수]",
-            "scene_type": "(졸라맨 스타일 전용) character_main | character_support | infographic"
+            "prompt_en": "Gemini가 작성한 기본 영어 프롬프트 (참고용)",
+            "negative_prompt": "Gemini가 작성한 기본 네거티브 프롬프트 (참고용)",
+            "flow_prompt": "[Google Veo용 5-Layer Cinematic Framework 적용 영어 단락]",
+            "estimated_seconds": 15
         }}
     ]
 }}
 
-[flow_prompt 작성 규칙 - Google Veo 최고 품질 출력을 위한 필수 지침]
+[flow_prompt 작성 규칙 - 5-Layer Framework]
+1. [OPENING FRAME], 2. [CAMERA MOVEMENT], 3. [SUBJECT MOTION], 4. [AMBIENT LIFE], 5. [CINEMATIC FINISH] 구조를 따르는 3-5문장의 영문 단락.
 
-`flow_prompt`는 Google Veo 영상 생성 AI에 직접 입력되는 핵심 프롬프트입니다. 아래 5단계 구조를 반드시 모두 포함한 3~5문장의 영어 단락으로 작성하세요.
-
-**구조 (5-Layer Cinematic Framework):**
-
-1. **[OPENING FRAME]** 샷 타입과 첫 프레임 구성을 명시하세요.
-   - 샷 사이즈: ECU (extreme close-up) / CU (close-up) / MCU (medium close-up) / MS (medium shot) / FS (full shot) / WS (wide shot) / EWS (extreme wide shot)
-   - 예: "Opening on a tight close-up of..." / "A sweeping wide establishing shot reveals..."
-
-2. **[CAMERA MOVEMENT]** 정확히 하나의 카메라 무빙을 명시적으로 서술하세요. 반드시 아래 목록 중 장면 감정에 맞는 것을 선택:
-   - 고조/집중: `slow push-in` / `gradual dolly-in` / `creeping zoom`
-   - 공개/해방: `smooth pull-back` / `crane up revealing` / `wide arc reveal`
-   - 추적/동행: `steady tracking shot following` / `handheld walking alongside`
-   - 감시/관찰: `static locked-off shot` / `subtle floating drift`
-   - 회전/강조: `slow 360-degree orbit` / `gentle tilt-up` / `graceful pan across`
-   - 전환: `whip pan to` / `rack focus shifting from [A] to [B]`
-
-3. **[SUBJECT MOTION]** 클립 재생 동안 피사체(캐릭터/사물)가 어떻게 움직이는지 구체적으로 서술하세요.
-   - 표정 변화, 신체 동작, 오브젝트 움직임을 묘사
-   - 동작의 속도와 리듬도 포함 (slowly, abruptly, gracefully 등)
-
-4. **[AMBIENT LIFE]** 배경에 생동감을 주는 보조 움직임을 추가하세요.
-   - 자연 요소: swirling dust particles, drifting smoke, rippling water, swaying foliage, falling leaves
-   - 빛 요소: shifting light beams, flickering candlelight, pulsing glow, golden hour rays
-   - 도시 요소: distant traffic blurs, floating bokeh, steam rising
-
-5. **[CINEMATIC FINISH]** 라이팅, 색감, 감정적 톤으로 마무리하세요.
-   - 조명: soft diffused side-light / harsh rim-light / warm golden backlight / cool moonlit glow / dramatic chiaroscuro
-   - 색온도: warm amber tones / desaturated cool palette / rich jewel tones / high-contrast noir
-   - 전체 무드: cinematic, dreamlike, tense, whimsical, melancholic, triumphant 등
-   - 렌더링 스타일 포함 (예: "rendered in Pixar-style 3D animation with subsurface scattering" / "Studio Ghibli hand-painted watercolor style")
-
-**flow_prompt 작성 예시:**
-- 나쁜 예: "A character stands in a kitchen. Pixar style."
-- 좋은 예: "A tight medium close-up frames a plump, pristine onion character standing proudly on a sun-drenched kitchen counter, its white papery skin gleaming under warm morning light. The camera executes a slow push-in, gradually tightening toward the onion's smug, upward-tilted face as it surveys the kitchen with exaggerated confidence. Beside it, a grumpy misshapen carrot visibly slumps its shoulders and looks away, subtle fidgeting conveying deep envy. Golden dust motes float lazily through shafts of sunlight streaming through the window behind them, and steam gently rises from a nearby pot. The scene is rendered in lush Pixar-style 3D animation with rich subsurface scattering on the vegetable skin, warm amber-orange color grading, and a triumphant, comedic tone — as if the onion has just won an Oscar."
-
-[작성 규칙 - Strict Rules]
-- **Analysis Driven**: 모든 장면마다 위에 정의된 6가지 카테고리에 대한 분석 결과를 `visual_analysis` 리스트에 포함하고, 그 분석 정보가 `prompt_en`에 누락 없이 반영되어야 합니다.
-- **Language Integration**: `extracted_info`는 대본의 언어(한글 등)로 작성하여 사용자가 이해할 수 있게 하고, `visual_keywords`와 `prompt_en`은 이미지 생성 AI용 영어로 작성하세요.
-- **flow_prompt는 반드시 영어**로 작성하고, 위의 5-Layer 구조를 모두 포함한 풍부하고 생동감 있는 문단이어야 합니다. 단순한 장면 묘사에 그치지 말고 카메라 움직임, 피사체 동작, 주변 생동감을 반드시 포함하세요.
-- **No Text Exception**: 명시적 요청이 없는 한 이미지 내 텍스트(글자)는 절대 금지하며, 대본상 명시된 경우에만 정확히 해당 텍스트를 프롬프트에 포함하세요.
-- **Anatomy Rules**: 팔 2개, 손 2개 규칙(Exactly two arms/hands)을 엄격히 준수하세요.
-- **Natural Segmentation (Korean)**: `scene_text`를 나눌 때 한국어의 자연스러운 호흡과 문맥을 최우선으로 고려하세요. 마침표, 쉼표, 또는 의미가 끝나는 어미 단위로 장면을 분할해야 합니다. 특히 관형어와 체언 사이(예: "새" + "드레싱")를 절대 끊지 마세요. TTS 성우가 자연스럽게 읽을 수 있는 의미 단위(Sense group)로 문장을 나누십시오.
-- **Subtitles Layout Preference**: 자막을 억지로 2줄로 길게 구성하지 마세요. 한 레이아웃에 한 줄(공백 포함 약 15~22자 내외)이 들어가는 것이 가장 깔끔하며, 호흡상 무리가 없다면 적극적으로 한 줄 단위의 장면 구성을 지향하십시오.
-- **JSON Only**: 설명 없이 오직 JSON 데이터만 반환하세요.
+[주의사항]
+- **No Text**: 명시적 요청이 없는 한 이미지 내 텍스트 포함은 절대 금지.
+- **Natural Segmentation**: 한국어의 자연스러운 호흡 단위(Sense group)로 장면을 분절.
+- **JSON Only**: 설명 없이 오직 JSON 데이터만 반환.
 """
 
     GEMINI_SUCCESS_ANALYSIS = """당신은 유튜브 콘텐츠 및 바이럴 마케팅 전문가입니다.
@@ -668,6 +603,24 @@ JSON만 반환하세요."""
         ]
     }}
     JSON만 반환하세요."""
+
+    # --- [NEW] Negative Prompt Definitions (for system Use) ---
+    NEGATIVE_LAYERS = {
+        "BASE": "deformed, disfigured, mutated, poorly drawn, bad anatomy, wrong anatomy, extra limbs, missing limbs, floating limbs, disconnected limbs, malformed hands, extra fingers, missing fingers, fused fingers, too many fingers, mutated hands, poorly drawn hands, extra arms, three arms, extra legs, three legs, asymmetric eyes, crossed eyes, misaligned eyes, extra eyes, poorly drawn face, distorted face, duplicate face, blurry, out of focus, low resolution, pixelated, jpeg artifacts, watermark, signature, username, logo, text artifacts, copyright mark, trademark symbol, duplicate characters, cloned face, multiple identical subjects, frame, border, cropped awkwardly",
+        "SAFETY": "celebrity face, real person likeness, recognizable public figure, famous actor, famous singer, famous athlete, branded logo, corporate logo, trademark symbol, sports team logo, product label with brand name, copyrighted character, cartoon franchise character, mascot of existing brand, nudity, explicit content, suggestive pose, revealing clothing inappropriate to context, graphic violence, gore, blood splatter, graphic injury, weapons pointed at camera, political symbols, religious symbols used inappropriately, offensive gestures, hate symbols, propaganda imagery",
+        "SCENE_TYPE": {
+            "Portrait": "uneven skin texture, plastic skin, waxy skin, unnatural skin smoothing, airbrushed, oversaturated skin, lazy eye, wall-eyed, pupils of different sizes, crooked teeth, yellow teeth, missing teeth, extra teeth, unnatural facial proportions, elongated face, squashed face, hair clipping through face, unnatural hairline, asymmetric earrings, mismatched accessories, unnatural neck length, floating head",
+            "Environment": "warped perspective, impossible architecture, floating objects, objects clipping through walls, repeating patterns tiled obviously, visible seams, unnatural lighting direction, multiple inconsistent light sources, overly busy composition, cluttered foreground blocking subject, depth inconsistency, flat lighting in outdoor scene, unnatural horizon line, distorted scale",
+            "Action": "static pose, stiff posture, mannequin pose, frozen motion without context, physics-defying movement, broken joints, dislocated limbs, awkward hand gesture, unnatural grip, motion blur on wrong elements, objects held incorrectly, floating props instead of held, unnatural weight distribution, impossible balance"
+        },
+        "STYLE_EXCLUSION": {
+            "Cinematic": "cartoon, anime, manga, illustration, painting, drawing, sketch, cel-shaded, flat colors, hard outlines, hand-drawn, watercolor, oil painting style, stylized, exaggerated features, chibi proportions, 2d flat shading",
+            "Anime": "photorealistic, photograph, realistic skin pores, real skin texture, 3d render, cgi, octane render, hyperrealistic, DSLR, film grain, realistic shadows, skin imperfections, stock photo aesthetic",
+            "Webtoon": "photorealistic, 3d render, realistic lighting, film grain, DSLR photo, hyperdetailed skin, western comic style, manga screen tone, grayscale, heavy shading",
+            "3DRender": "flat 2d, hand-drawn, sketch, watercolor, oil painting, ink wash, cel-shaded anime, manga style, photographic grain, film aesthetic",
+            "Sketch": "photorealistic, 3d render, cgi, digital smooth shading, airbrushed, stock photo, film photography, hyperdetailed texture"
+        }
+    }
 
 
 prompts = Prompts()

@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 export async function POST(req: Request) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    
+
     if (!supabaseServiceKey) {
         return NextResponse.json({ success: false, error: 'SERVICE_ROLE_KEY is missing' }, { status: 500 })
     }
@@ -15,48 +15,90 @@ export async function POST(req: Request) {
 
     try {
         const { userId, amount, description } = await req.json()
-        
+
         if (!userId || !amount) {
             return NextResponse.json({ success: false, error: 'Missing parameters' }, { status: 400 })
         }
 
-        console.log(`[Recharge] Starting recharge for ${userId}, amount: ${amount}`);
+        const numAmount = Number(amount)
+        if (isNaN(numAmount) || numAmount <= 0) {
+            return NextResponse.json({ success: false, error: 'Invalid amount' }, { status: 400 })
+        }
 
-        // 1. 프로필 존재 여부 확인 및 자동 생성 (UPSERT 전략)
-        const { data: profile, error: checkError } = await supabaseAdmin
+        console.log(`[Recharge] user=${userId}, amount=${numAmount}`)
+
+        // 1. 현재 잔액 조회 (없으면 null)
+        const { data: existingProfile, error: fetchError } = await supabaseAdmin
             .from('profiles')
-            .select('id')
+            .select('token_balance')
             .eq('id', userId)
-            .single()
+            .maybeSingle()
 
-        if (checkError || !profile) {
-            console.log(`[Recharge] Profile not found for ${userId}, creating initial profile...`);
+        if (fetchError) {
+            console.error('[Recharge] Fetch error:', fetchError)
+            return NextResponse.json({ success: false, error: `Fetch error: ${fetchError.message}` }, { status: 500 })
+        }
+
+        const currentBalance = existingProfile?.token_balance ?? 0
+        const newBalance = currentBalance + numAmount
+        console.log(`[Recharge] balance: ${currentBalance} → ${newBalance}`)
+
+        if (existingProfile) {
+            // 2a. 프로필 있음 → UPDATE (select()로 실제 반영 여부 확인)
+            const { data: updatedRows, error: updateError } = await supabaseAdmin
+                .from('profiles')
+                .update({ token_balance: newBalance })
+                .eq('id', userId)
+                .select('id, token_balance')
+
+            if (updateError) {
+                console.error('[Recharge] Update error:', updateError)
+                return NextResponse.json({ success: false, error: `Update error: ${updateError.message}` }, { status: 500 })
+            }
+
+            console.log(`[Recharge] Updated rows:`, updatedRows)
+
+            if (!updatedRows || updatedRows.length === 0) {
+                console.error('[Recharge] UPDATE matched 0 rows — trying INSERT fallback')
+                const { error: insertFallbackError } = await supabaseAdmin
+                    .from('profiles')
+                    .insert({ id: userId, token_balance: newBalance, membership: 'standard' })
+                if (insertFallbackError) {
+                    console.error('[Recharge] Insert fallback error:', insertFallbackError)
+                    return NextResponse.json({ success: false, error: `Insert fallback error: ${insertFallbackError.message}` }, { status: 500 })
+                }
+            }
+        } else {
+            // 2b. 프로필 없음 → INSERT
             const { error: insertError } = await supabaseAdmin
                 .from('profiles')
-                .insert({ id: userId, token_balance: 0, membership_tier: 'standard' })
-            
+                .insert({ id: userId, token_balance: newBalance, membership: 'standard' })
+
             if (insertError) {
-                console.error("[Recharge] Profile creation failed:", insertError);
-                // Continue anyway, RPC might handle it or fail safely
+                console.error('[Recharge] Insert error:', insertError)
+                return NextResponse.json({ success: false, error: `Insert error: ${insertError.message}` }, { status: 500 })
             }
         }
 
-        // 2. rpc 호출 (token_balance 업데이트 및 트랜잭션 기록)
-        const { data, error } = await supabaseAdmin.rpc('recharge_tokens', {
-            p_user_id: userId,
-            p_amount: amount,
-            p_description: description || '관리자 충전'
-        })
+        // 3. 트랜잭션 기록 (실패해도 충전은 성공)
+        const { error: txError } = await supabaseAdmin
+            .from('token_transactions')
+            .insert({
+                user_id: userId,
+                amount: numAmount,
+                transaction_type: 'RECHARGE',
+                description: description || '관리자 충전'
+            })
 
-        if (error) {
-            console.error('[Recharge] RPC Error:', error);
-            throw error
+        if (txError) {
+            console.warn('[Recharge] TX log failed (non-fatal):', txError.message)
         }
 
-        console.log(`[Recharge] Successfully recharged user ${userId}`);
-        return NextResponse.json({ success: true, data })
+        console.log(`[Recharge] Done: user=${userId}, new_balance=${newBalance}`)
+        return NextResponse.json({ success: true, new_balance: newBalance })
+
     } catch (error: any) {
-        console.error('[Recharge] Final Error:', error)
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+        console.error('[Recharge] Unexpected error:', error)
+        return NextResponse.json({ success: false, error: error.message || String(error) }, { status: 500 })
     }
 }

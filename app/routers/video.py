@@ -1347,7 +1347,7 @@ async def render_project_video(
                                         _trimmed = _ac.subclipped(t_start, t_end)
                                     else:
                                         _trimmed = _ac.subclip(t_start, t_end)
-                                    _trimmed.write_audiofile(_trim_path, logger=None)
+                                    _trimmed.write_audiofile(_trim_path, codec='libmp3lame', logger=None)
                                     audio_duration = _trimmed.duration
                                 effective_audio_path = _trim_path
                                 _trim_done = True

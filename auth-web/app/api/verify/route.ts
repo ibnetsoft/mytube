@@ -45,13 +45,18 @@ export async function POST(req: Request) {
         }
 
         // Get user profile (token balance)
-        const { data: profile } = await supabaseAdmin
+        const { data: profile, error: profileError } = await supabaseAdmin
             .from('profiles')
             .select('token_balance')
             .eq('id', userId)
-            .single()
+            .maybeSingle()
 
-        console.log(`Verify SUCCESS for user ${userId}: channel=${meta.youtube_channel}`);
+        if (profileError) {
+            console.warn(`[Verify] Profile fetch error for ${userId}:`, profileError.message)
+        }
+
+        const tokenBalance = profile?.token_balance ?? 0
+        console.log(`Verify SUCCESS for user ${userId}: channel=${meta.youtube_channel}, token_balance=${tokenBalance}`);
         return NextResponse.json({
             success: true,
             membership: user.app_metadata?.membership || 'std',
@@ -61,7 +66,7 @@ export async function POST(req: Request) {
             contact: meta.contact || '',
             youtube_channel: meta.youtube_channel || '',
             youtube_handle: meta.youtube_handle || '',
-            token_balance: profile?.token_balance || 0,
+            token_balance: tokenBalance,
             api_keys,              // 메모리 전용 로드 — 로컬 저장 안 함
         })
     } catch (error: any) {

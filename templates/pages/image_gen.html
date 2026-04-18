@@ -121,10 +121,6 @@
                             </label>
 
                             <!-- Analyze Button (moved to top row) -->
-                            <button onclick="analyzeAndSetConsistency()" id="analyzeBtn"
-                                class="btn-primary text-xs py-2 px-4 bg-indigo-600 hover:bg-indigo-700 flex items-center gap-1">
-                                {{ t('btn_ai_vision') }}
-                            </button>
                         </div>
 
                         <!-- Preview (Upload) - 다중 이미지 지원 -->
@@ -448,6 +444,7 @@
 
     var i18n = {
         err_no_script: "{{ t('err_no_script') }}",
+        btn_dna: "🧬 DNA",
         status_analyzing: "{{ t('status_analyzing') }}",
         char_not_found: "{{ t('char_not_found') }}",
         img_not_generated: "{{ t('img_not_generated') }}",
@@ -573,9 +570,25 @@
 
         if (scriptData && typeof scriptData === 'object') {
             // 만약 객체라면 텍스트 필드를 찾거나 전체를 문자열화
-            script = scriptData.content || scriptData.text || scriptData.script || JSON.stringify(scriptData);
+            script = scriptData.full_script || scriptData.content || scriptData.text || scriptData.script || JSON.stringify(scriptData);
         } else {
             script = String(scriptData || "");
+        }
+
+        // DB fallback: localStorage에 없으면 DB에서 가져오기
+        if (!script || script === "null" || script.length < 10) {
+            const projectId = getCurrentProject();
+            if (projectId) {
+                try {
+                    const result = await API.project.getScript(projectId);
+                    if (result && result.full_script) {
+                        script = result.full_script;
+                        Utils.storage.set('fullScript', { full_script: result.full_script });
+                    }
+                } catch (e) {
+                    console.error("analyzeCharacters: Failed to fetch script from DB:", e);
+                }
+            }
         }
 
         if (!script || script === "null" || script.length < 10) {
@@ -670,13 +683,19 @@
                     <input type="text" value="${char.name || i18n.char_name_unknown}" 
                         class="font-bold text-gray-800 dark:text-white bg-transparent border-none focus:ring-1 focus:ring-indigo-300 rounded px-1 w-full text-sm"
                         onchange="updateCharLocal(${index}, 'name', this.value)">
-                    
                     <select onchange="updateCharLocal(${index}, 'role', this.value)"
-                        class="text-[10px] px-2 py-0.5 rounded-full ${roleBadgeColor} font-medium border-none focus:ring-1 focus:ring-indigo-300 cursor-pointer bg-[#000106]/50 bg-[#000106]/50 whitespace-nowrap bg-[#000106] text-white">
+                        class="text-[10px] px-2 py-0.5 rounded-full ${roleBadgeColor} font-medium border-none focus:ring-1 focus:ring-indigo-300 cursor-pointer bg-[#000106]/50 whitespace-nowrap bg-[#000106] text-white">
                         <option value="주인공" ${char.role === '주인공' ? 'selected' : ''}>{{ t('role_main') }}</option>
                         <option value="조연" ${char.role === '조연' ? 'selected' : ''}>{{ t('role_sub') }}</option>
                         <option value="배경인물" ${char.role === '배경인물' ? 'selected' : ''}>{{ t('role_bg') }}</option>
                     </select>
+                </div>
+                
+                <div class="absolute top-10 right-3">
+                    <button onclick="openCharacterDnaModal(${index})" 
+                        class="text-[9px] px-2 py-0.5 rounded bg-[#000106]/80 text-blue-400 border border-blue-900/30 hover:bg-blue-900/20 transition-all font-bold">
+                        ${i18n.btn_dna}
+                    </button>
                 </div>
                 
                 <!-- Character Image Preview -->
@@ -1009,7 +1028,7 @@
 
         if (scriptData) {
             if (typeof scriptData === 'object') {
-                script = scriptData.content || scriptData.text || scriptData.script || JSON.stringify(scriptData);
+                script = scriptData.full_script || scriptData.content || scriptData.text || scriptData.script || JSON.stringify(scriptData);
             } else {
                 script = String(scriptData);
             }
@@ -1170,7 +1189,7 @@
         container.innerHTML = data.map((p, i) => {
             // [FIX] 엔진 결정: 사용자가 직접 바꾼 씬(_engine_overridden)은 p.engine 유지,
             //       그 외에는 항상 글로벌 설정(window.defaultVideoEngine) 사용
-            const effectiveEngine = p._engine_overridden ? (p.engine || window.defaultVideoEngine || 'wan') : (window.defaultVideoEngine || 'veo');
+            const effectiveEngine = p._engine_overridden ? (p.engine || window.defaultVideoEngine || 'veo') : (window.defaultVideoEngine || 'veo');
 
             // [Fix] 키 값 호환성 처리 (scene vs scene_text, prompt vs prompt_en)
             // 대본 텍스트를 최대한 찾아내기 위해 prompt_ko와 scene_title까지 확인
@@ -1341,10 +1360,7 @@
                                 <span>⚡</span> Generate
                             </button>
                             <div class="flex bg-gray-200 bg-[#000106] rounded p-0.5 gap-0.5 shrink-0">
-                                <button class="hidden px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'wan' ? 'bg-[#000106] dark:bg-gray-600 shadow text-blue-600 dark:text-white font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'wan')" title="Wan 2.1">Wan</button>
-                                <button class="hidden px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'seedance' ? 'bg-green-100 dark:bg-[#000106] shadow text-green-700 dark:text-green-300 font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'seedance')" title="Seedance">🌱 Seed</button>
-                                <button class="hidden px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'akool' ? 'bg-[#000106] dark:bg-gray-600 shadow text-blue-600 dark:text-white font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'akool')" title="LipSync">Lip</button>
-                                <button class="px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'veo' ? 'bg-blue-100 dark:bg-[#000106] shadow text-blue-700 dark:text-blue-300 font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'veo')" title="Veo">Veo</button>
+                                <button class="px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'veo' ? 'bg-blue-100 dark:bg-gray-600 shadow text-blue-700 dark:text-blue-300 font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'veo')" title="Veo">Veo</button>
                             </div>
                         </div>` : ''}
                     </div>
@@ -2271,7 +2287,7 @@
         }
     }
 
-    // [NEW] Generate Motion Video (Replicate Wan 2.1)
+    // [NEW] Generate Motion Video (Google Veo)
     async function generateMotion(index) {
         const projectId = getCurrentProject();
         if (!projectId) return Utils.showToast('Project ID not found', 'error');
@@ -2330,7 +2346,7 @@
 
         const p = prompts[index];
         // [FIX] drawPromptsUI와 동일한 엔진 결정 로직 사용 (ui상 보이는 파란 버튼과 실 요청 엔진 일치시키기)
-        const engine = p._engine_overridden ? (p.engine || window.defaultVideoEngine || 'wan') : (window.defaultVideoEngine || 'veo');
+        const engine = p._engine_overridden ? (p.engine || window.defaultVideoEngine || 'veo') : (window.defaultVideoEngine || 'veo');
 
         if (!p.image_url) return Utils.showToast(i18n.err_gen_image_first, 'warning');
 
@@ -2339,12 +2355,8 @@
         const statusDiv = card.querySelector('.status-indicator');
 
         // 엔진별 안내 메시지
-        const engineLabel = engine === 'seedance' ? '🌱 Seedance 1.5 Pro (Akool)' :
-            engine === 'akool' ? 'Akool LipSync' :
-            engine === 'veo' ? '🎬 Google Veo' : 'Wan 2.1 (Replicate)';
-        const engineTime = engine === 'seedance' ? '약 2~3분 소요' :
-            engine === 'akool' ? '약 3~5분 소요' :
-            engine === 'veo' ? '약 3~5분 소요' : '약 1~2분 소요';
+        const engineLabel = engine === 'veo' ? '🎬 Google Veo' : 'Replicate (Video)';
+        const engineTime = engine === 'veo' ? '약 3~5분 소요' : '약 1~2분 소요';
 
         // UI Loading State
         if (btn) {
@@ -2664,14 +2676,15 @@
 
                 // Check Local Storage for script
                 const localData = Utils.storage.get('fullScript');
-                if (localData && localData.script) {
+                const localScript = localData && (localData.full_script || localData.script || localData.content || localData.text);
+                if (localScript) {
                     hasScript = true;
                 } else {
                     // Check DB for script
                     const result = await API.project.getScript(projectId);
                     if (result && result.full_script) {
                         hasScript = true;
-                        Utils.storage.set('fullScript', { script: result.full_script });
+                        Utils.storage.set('fullScript', { full_script: result.full_script });
                     }
                 }
             } catch (e) {
@@ -3625,5 +3638,84 @@
             btn.innerHTML = originalText;
         }
     }
+
+    // [NEW] Character DNA Modal Logic
+    let currentDnaIndex = null;
+    function openCharacterDnaModal(index) {
+        currentDnaIndex = index;
+        const chars = Utils.storage.get('characterPrompts') || [];
+        const char = chars[index];
+        if (!char) return;
+
+        document.getElementById('dnaModalTitle').textContent = `${char.name || 'Character'} DNA`;
+        document.getElementById('dnaYamlEditor').value = char.dna_yaml || '';
+        document.getElementById('dnaSeedInput').value = char.seed || '';
+        
+        document.getElementById('characterDnaModal').classList.remove('hidden');
+        document.body.style.overflow = 'hidden'; 
+    }
+
+    function closeCharacterDnaModal() {
+        document.getElementById('characterDnaModal').classList.add('hidden');
+        document.body.style.overflow = '';
+        currentDnaIndex = null;
+    }
+
+    async function saveCharacterDna() {
+        if (currentDnaIndex === null) return;
+        
+        const yaml = document.getElementById('dnaYamlEditor').value;
+        const seedValue = document.getElementById('dnaSeedInput').value;
+        
+        let chars = Utils.storage.get('characterPrompts') || [];
+        if (chars[currentDnaIndex]) {
+            chars[currentDnaIndex].dna_yaml = yaml;
+            chars[currentDnaIndex].seed = seedValue ? parseInt(seedValue) : null;
+            
+            Utils.storage.set('characterPrompts', chars);
+            
+            // Sync to server
+            await saveCharactersToProject();
+            
+            Utils.showToast('DNA Saved Successfully', 'success');
+            closeCharacterDnaModal();
+            renderCharacters(chars);
+        }
+    }
+
 </script>
+
+<!-- [NEW] Character DNA Modal -->
+<div id="characterDnaModal" class="modal-overlay hidden">
+    <div class="modal-content max-w-2xl bg-[#000106] border border-blue-900/40 shadow-2xl">
+        <div class="p-4 border-b border-gray-800 flex justify-between items-center">
+            <h3 id="dnaModalTitle" class="text-lg font-black text-white flex items-center gap-2">
+                <span>🧬</span> Character DNA
+            </h3>
+            <button onclick="closeCharacterDnaModal()" class="text-gray-400 hover:text-white transition-colors">&times;</button>
+        </div>
+        <div class="p-6">
+            <div class="mb-4">
+                <label class="block text-xs font-bold text-blue-400 uppercase tracking-widest mb-2">Seed Value (Consistency Anchor)</label>
+                <input type="number" id="dnaSeedInput" class="input-field w-full dark:bg-[#000106] dark:border-gray-800 text-sm font-mono" placeholder="Enter seed number...">
+            </div>
+            <div class="mb-4">
+                <div class="flex justify-between items-end mb-2">
+                    <label class="block text-xs font-bold text-blue-400 uppercase tracking-widest">DNA Structure (YAML)</label>
+                    <span class="text-[9px] text-gray-500 italic">Immutable properties & wardrobe sets</span>
+                </div>
+                <textarea id="dnaYamlEditor" class="input-field w-full min-h-[400px] text-[12px] font-mono leading-relaxed bg-[#000106] border-gray-800 text-gray-300 focus:ring-1 focus:ring-blue-500/50"
+                          placeholder="immutable:\n  age: ...\n  gender: ..."></textarea>
+            </div>
+            <div class="flex gap-3 pt-4 border-t border-gray-800">
+                <button onclick="saveCharacterDna()" class="flex-1 py-3 rounded-lg font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:scale-[1.02] active:scale-95 transition-all shadow-lg flex items-center justify-center gap-2">
+                    <span>💾</span> {{ t('btn_save_settings') }}
+                </button>
+                <button onclick="closeCharacterDnaModal()" class="px-6 py-3 rounded-lg font-bold text-gray-400 border border-gray-800 hover:bg-gray-800 transition-all">
+                    {{ t('btn_cancel') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

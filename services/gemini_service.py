@@ -1,7 +1,7 @@
 """
 Gemini API 서비스
-- 텍스트 생성 (gemini-2.0-flash)
-- 이미지 생성 (gemini-2.0-flash-preview-image-generation / 나노바나나 2.0)
+- 텍스트 생성 (gemini-3.1-flash-preview)
+- 이미지 생성 (gemini-3.1-flash-image-preview / 나노바나나 2.0)
 - 영상 생성 (Veo)
 """
 import httpx
@@ -16,6 +16,7 @@ import database as db
 import google.generativeai as genai
 from config import config
 from services.prompts import prompts
+from services.prompt_assembler import prompt_assembler
 
 from google import genai
 from google.genai import types
@@ -51,7 +52,29 @@ class GeminiService:
         except Exception:
             pass
 
-    async def generate_text(self, prompt: str, temperature: float = 0.7, max_tokens: int = 8192, project_id: int = None, task_type: str = "text_gen", model: str = "gemini-2.0-flash") -> str:
+    def _cleanup_prompt(self, text: str) -> str:
+        """프롬프트에서 템플릿 아티팩트(${VAR}, **[Header]**, 중복 쉼표 등) 제거"""
+        if not text: return ""
+        
+        # 1. 템플릿 변수 제거: ${SUBJECT}, ${[...]}, $[VAR] 등
+        # \$\{.*?\} : ${any} 형태 포괄
+        text = re.sub(r'\$\{.*?\}', '', text)
+        text = re.sub(r'\$\[.*?\]', '', text)
+        
+        # 2. 마크다운 헤더 제거: **[Header]** or [Header] at start of line
+        text = re.sub(r'\*\*\[[^\]]+\]\*\*\s*', '', text)
+        text = re.sub(r'\[[^\]]+\]\s*:', '', text) # "Subject: ..." 형태
+        
+        # 3. 불필요한 따옴표 및 이스케이프 문자
+        text = text.replace('\\"', '"').replace('\"', '')
+        
+        # 4. 공백 및 쉼표 정제
+        text = re.sub(r',\s*,', ',', text)
+        text = re.sub(r'\s{2,}', ' ', text)
+        
+        return text.strip().strip(',').strip()
+
+    async def generate_text(self, prompt: str, temperature: float = 0.7, max_tokens: int = 8192, project_id: int = None, task_type: str = "text_gen", model: str = "gemini-3.1-flash-preview") -> str:
         """텍스트 생성"""
         if not self.api_key:
             raise Exception("Gemini API 키가 설정되지 않았습니다. 어드민 웹에서 키를 저장한 후 앱을 재시작하세요.")
@@ -67,6 +90,7 @@ class GeminiService:
 
         start_time = _time.time()
         try:
+            self.log_debug(f"💬 [Gemini Text] Starting generation (model={model}, prompt={prompt[:100]}...)")
             async with httpx.AsyncClient(timeout=180.0) as client:
                 response = await client.post(url, json=payload)
                 result = response.json()
@@ -80,31 +104,32 @@ class GeminiService:
                     out_tokens = usage.get('candidatesTokenCount', 0)
                     elapsed = _time.time() - start_time
                     
-                    print(f"[Gemini] finishReason={finish_reason}, outputTokens={out_tokens}, inputTokens={in_tokens}, elapsed={elapsed:.1f}s")
+                    self.log_debug(f"✅ [Gemini Text] Success ({elapsed:.1f}s, finish={finish_reason})")
                     
                     # Always log, even if project_id is None
                     db.add_ai_log(project_id, task_type, model, 'google', 'success', 
                                  prompt_summary=prompt[:100], input_tokens=in_tokens, output_tokens=out_tokens, elapsed_time=elapsed)
                     
-                    if finish_reason == "MAX_TOKENS":
-                        print(f"[Gemini] WARNING: Output truncated by token limit!")
                     return text
                 else:
                     elapsed = _time.time() - start_time
                     error_detail = result.get('error', {})
                     error_msg = error_detail.get('message', str(result)) if isinstance(error_detail, dict) else str(result)
+                    
+                    self.log_debug(f"❌ [Gemini Text] Failed: {error_msg}")
                     db.add_ai_log(project_id, task_type, model, 'google', 'failed', 
                                  prompt_summary=prompt[:100], error_msg=error_msg, elapsed_time=elapsed)
                     raise Exception(f"Gemini API 오류: {error_msg}")
         except Exception as e:
             elapsed = _time.time() - start_time
+            self.log_debug(f"❌ [Gemini Text] Exception: {e}")
             db.add_ai_log(project_id, task_type, model, 'google', 'failed', 
                          prompt_summary=prompt[:100], error_msg=str(e), elapsed_time=elapsed)
             raise e
 
     async def generate_text_from_image(self, prompt: str, image_bytes: bytes, mime_type: str = "image/png", project_id: int = None, task_type: str = "vision_gen") -> str:
         """이미지 + 텍스트 생성 (Vision)"""
-        url = f"{self.base_url}/models/gemini-2.0-flash:generateContent?key={self.api_key}"
+        url = f"{self.base_url}/models/gemini-3.1-flash-preview:generateContent?key={self.api_key}"
 
         encoded_image = base64.b64encode(image_bytes).decode("utf-8")
 
@@ -128,6 +153,7 @@ class GeminiService:
 
         start_time = _time.time()
         try:
+            self.log_debug(f"👁️ [Gemini Vision] Starting analysis (prompt={prompt[:100]}...)")
             async with httpx.AsyncClient(timeout=120.0) as client:
                 response = await client.post(url, json=payload)
                 result = response.json()
@@ -140,18 +166,21 @@ class GeminiService:
                     out_tokens = usage.get('candidatesTokenCount', 0)
                     elapsed = _time.time() - start_time
                     
-                    db.add_ai_log(project_id, task_type, 'gemini-2.0-flash', 'google', 'success', 
+                    self.log_debug(f"✅ [Gemini Vision] Success ({elapsed:.1f}s)")
+                    db.add_ai_log(project_id, task_type, 'gemini-3.1-flash-preview', 'google', 'success', 
                                  prompt_summary=prompt[:100], input_tokens=in_tokens, output_tokens=out_tokens, elapsed_time=elapsed)
                     return text
                 else:
                     elapsed = _time.time() - start_time
                     error_msg = result.get('error', {}).get('message', str(result)) if isinstance(result.get('error'), dict) else str(result)
-                    db.add_ai_log(project_id, task_type, 'gemini-2.0-flash', 'google', 'failed', 
+                    
+                    self.log_debug(f"❌ [Gemini Vision] Failed: {error_msg}")
+                    db.add_ai_log(project_id, task_type, 'gemini-3.1-flash-preview', 'google', 'failed', 
                                  prompt_summary=prompt[:100], error_msg=error_msg, elapsed_time=elapsed)
                     raise Exception(f"Gemini Vision API 오류: {error_msg}")
         except Exception as e:
             elapsed = _time.time() - start_time
-            db.add_ai_log(project_id, task_type, 'gemini-2.0-flash', 'google', 'failed', 
+            db.add_ai_log(project_id, task_type, 'gemini-3.1-flash-preview', 'google', 'failed', 
                          prompt_summary=prompt[:100], error_msg=str(e), elapsed_time=elapsed)
             raise e
 
@@ -163,7 +192,7 @@ class GeminiService:
             context_inst = f"\n{context}\n"
 
         prompt = f"""
-        Analyze this webtoon panel image for High-End AI Video Generation (Wan 2.1).
+        Analyze this webtoon panel image for High-End AI Video Generation.
         {context_inst}
 
         [CORE PRODUCTION RULES (MUST FOLLOW)]
@@ -197,7 +226,7 @@ class GeminiService:
             "dialogue": "Korean text",
             "character": "speaker name",
             "visual_desc": "brief visual description in English",
-            "motion_desc": "FULL PRODUCTION PROMPT: [Base Master Settings] + [Cut-Specific Motion Guide] + [Scene Action Details]. Make it a single, fluid cinematic prompt in English for Wan 2.1 Video AI.",
+            "motion_desc": "FULL PRODUCTION PROMPT: [Base Master Settings] + [Cut-Specific Motion Guide] + [Scene Action Details]. Make it a single, fluid cinematic prompt in English for Video AI.",
             "focal_point_y": 0.5,
             "atmosphere": "mood",
             "sound_effects": "comma separated sfx",
@@ -345,7 +374,7 @@ class GeminiService:
     2. **bgm_style**: Recommend BGM style in Korean.
     3. **scene_specifications**: For each scene, generate:
        - **scene_number**: The number from input.
-       - **engine**: "akool" (PRIMARY - Seedance AI video), "wan" (fallback), or "image" (2D still). ALWAYS use "akool" as default.
+       - **engine**: "veo" (PRIMARY - High-quality AI video), or "image" (2D still). ALWAYS use "veo" as default.
        - **effect**: MUST NOT BE 'static'! ALWAYS pick "pan_left", "pan_right", "pan_up", "pan_down", "zoom_in", or "zoom_out". 
          * If image is wide (Type 2 or character face), strongly prefer "pan_left" or "pan_right" to explore the scene.
        - **motion**: FULL CINEMATIC PROMPT in English. 
@@ -361,7 +390,7 @@ class GeminiService:
         "scene_specifications": [
             {
                 "scene_number": 1,
-                "engine": "akool",
+                "engine": "veo",
                 "effect": "pan_right | pan_left | pan_down | pan_up | zoom_in | zoom_out",
                 "motion": "Detailed cinematic prompt in English focusing heavily on CAMERA PANNING and CHARACTER MOTION.",
                 "motion_ko": "위 영어 프롬프트의 자연스러운 한글 번역",
@@ -480,50 +509,59 @@ class GeminiService:
             final_prompt += ", flat 2D vector illustration, strictly minimal, no shadows, no gradients, hand-drawn sketch style"
 
 
-        # 나노바나나 2.0 (Gemini 3.1 Flash Image Preview) — 폴백 없음
-        start_time = _time.time()
-        try:
-            self.log_debug(f"🎨 [Gemini Image] Trying Nano Banana 2.0 (gemini-2.0-flash-preview-image-generation)")
+        # --- IMAGE GENERATION PIPELINE ---
+        models_to_try = [
+            # Primary Nano Banana 2.0 model specified by User
+            "gemini-3.1-flash-image-preview"
+        ]
 
-            response = await self.client.aio.models.generate_content(
-                model="gemini-2.0-flash-preview-image-generation",
-                contents=final_prompt,
-                config=types.GenerateContentConfig(
-                    response_modalities=["IMAGE"],
-                    candidate_count=num_images,
-                    image_config=types.ImageConfig(
-                        aspect_ratio=aspect_ratio if aspect_ratio in ["1:1", "16:9", "9:16", "3:4", "4:3"] else "16:9"
+        last_error = "No models tried"
+        
+        for model_name in models_to_try:
+            start_time = _time.time()
+            try:
+                self.log_debug(f"🎨 [Gemini Image] Trying model: {model_name}")
+                
+                # Gemini 2.x Native Image Generation style
+                response = await self.client.aio.models.generate_content(
+                    model=model_name,
+                    contents=final_prompt,
+                    config=types.GenerateContentConfig(
+                        response_modalities=["IMAGE"],
+                        candidate_count=num_images,
+                        image_config=types.ImageConfig(
+                            aspect_ratio=aspect_ratio if aspect_ratio in ["1:1", "16:9", "9:16", "3:4", "4:3"] else "16:9"
+                        )
                     )
                 )
-            )
+                
+                images = []
+                if response.candidates:
+                    for candidate in response.candidates:
+                        for part in candidate.content.parts:
+                            if part.inline_data:
+                                images.append(part.inline_data.data)
+                
+                if not images:
+                    raise Exception(f"{model_name} returned no image data")
 
-            elapsed = _time.time() - start_time
-            images = []
-            if response.candidates:
-                for candidate in response.candidates:
-                    for part in candidate.content.parts:
-                        if part.inline_data:
-                            images.append(part.inline_data.data)
+                elapsed = _time.time() - start_time
+                self.log_debug(f"✅ [Gemini Image] {model_name} succeeded, {len(images)} image(s)")
+                db.add_ai_log(project_id, 'image', model_name, 'google', 'success', 
+                             prompt_summary=prompt[:100], elapsed_time=elapsed, 
+                             input_tokens=1000, output_tokens=2000 * len(images))
+                return images
 
-            if not images:
-                raise Exception("Nano Banana 2.0 returned no image data")
-
-            # 토킹 추정 및 기록 (이미지당 1000토큰으로 가정하거나 usage_metadata 사용)
-            usage = getattr(response, 'usage_metadata', None)
-            in_tokens = usage.prompt_token_count if usage else 1000
-            out_tokens = (usage.candidates_token_count if usage else 2000) * len(images) # 갯수 곱하기
-            
-            self.log_debug(f"✅ [Gemini Image] Nano Banana 2.0 succeeded, {len(images)} image(s)")
-            db.add_ai_log(project_id, 'image', 'gemini-2.0-flash-preview-image-generation', 'google', 'success', 
-                         prompt_summary=prompt[:100], elapsed_time=elapsed, 
-                         input_tokens=in_tokens, output_tokens=out_tokens)
-            return images
-
-        except Exception as e:
-            elapsed = _time.time() - start_time
-            self.log_debug(f"❌ [Gemini Image] Nano Banana 2.0 failed: {e}")
-            db.add_ai_log(None, 'image', 'gemini-2.0-flash-preview-image-generation', 'google', 'failed', prompt_summary=prompt[:100], error_msg=str(e), elapsed_time=elapsed)
-            raise Exception(f"이미지 생성 실패 (Nano Banana 2.0): {e}")
+            except Exception as e:
+                elapsed = _time.time() - start_time
+                self.log_debug(f"⚠️ [Gemini Image] {model_name} failed: {e}")
+                last_error = str(e)
+                continue # Try next
+        
+        # If all fail
+        db.add_ai_log(None, 'image', 'pipeline-failure', 'google', 'failed', 
+                     prompt_summary=prompt[:100], error_msg=last_error)
+        raise Exception(f"모든 이미지 생성 모델 시도 실패. 최종 오류: {last_error}")
 
     async def generate_video(
         self,
@@ -1089,13 +1127,19 @@ class GeminiService:
                 data = json.loads(json_match.group())
                 chars = data.get("characters", [])
                 
-                # [ETHNICITY ENFORCEMENT]
-                if char_ethnicity and chars:
-                    eth_key = char_ethnicity.split(",")[0].strip().lower()
-                    for char in chars:
+                # [NEW] Seed generation for persistence & DNA handling
+                import random
+                for char in chars:
+                    if not char.get("seed"):
+                        char["seed"] = random.randint(1, 2147483647)
+                    
+                    # [ETHNICITY ENFORCEMENT]
+                    if char_ethnicity:
+                        eth_key = char_ethnicity.split(",")[0].strip().lower()
                         pen = char.get("prompt_en", "")
                         if pen and eth_key not in pen.lower():
                             char["prompt_en"] = f"{char_ethnicity}, {pen}"
+                            
                 return chars
             except Exception as e:
                 print(f"Character prompt JSON parse error: {e}")
@@ -1226,7 +1270,7 @@ Write the flow_prompt now:"""
     async def generate_motion_desc(self, scene_text: str, prompt_en: str = "", project_id: int = None) -> str:
         """씬 내용을 기반으로 영상 모션 프롬프트 생성 (300자 이내 영어, 씬 맥락 반영)"""
         visual_hint = prompt_en[:500] if prompt_en else ""
-        prompt = f"""You are a cinematic video director creating a motion prompt for an AI video generator (Wan 2.1 / Seedance).
+        prompt = f"""You are a cinematic video director creating a motion prompt for an AI video generator (Google Veo).
 The motion prompt will animate a still illustration into a short video clip.
 
 Scene narrative (Korean): {scene_text}
@@ -1297,7 +1341,7 @@ Now write the motion prompt for THIS scene:"""
 
         context_hint = f"\nScene narrative (Korean): {scene_text[:300]}" if scene_text else ""
 
-        prompt = f"""You are a cinematic video director. Analyze this illustration and create a motion prompt to animate it into a short AI video clip (Wan 2.1 / Seedance).{context_hint}
+        prompt = f"""You are a cinematic video director. Analyze this illustration and create a motion prompt to animate it into a short AI video clip (Google Veo).{context_hint}
 
 Look at the image carefully and determine:
 1. What are the main subjects and their positions?
@@ -1575,31 +1619,28 @@ Motion prompt for this image:"""
             return [c for c in chunks if c]
 
         style_prefix_val = style_prompt or 'High quality illustration'
-
+        # [PHASE 5] Piccadilly Prompt Assembler Integration
         def _safe_format(template: str, **kwargs) -> str:
             """format() safe version: replaces {key} placeholders, then converts {{ }} escapes to { }"""
             result = template
             for k, v in kwargs.items():
                 result = result.replace('{' + k + '}', str(v))
-            # Convert Python format escapes {{ → { and }} → } (same as str.format())
             result = result.replace('{{', '{').replace('}}', '}')
             return result
 
-        # ── 레퍼런스 이미지 로딩 (스타일 프리셋 썸네일) ──────────────────
+        # ── 레퍼런스 이미지 로딩 ──────────────────
         _ref_image_bytes: bytes | None = None
         _ref_mime: str = "image/jpeg"
         if reference_image_url and reference_image_url.strip():
             try:
                 import httpx as _httpx
                 _ref_url = reference_image_url.strip()
-                # 로컬 경로(/static/...) 처리
                 if _ref_url.startswith("/"):
                     import os as _os
                     _base = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
                     _local = _os.path.join(_base, _ref_url.lstrip("/"))
                     if _os.path.exists(_local):
-                        with open(_local, "rb") as _f:
-                            _ref_image_bytes = _f.read()
+                        with open(_local, "rb") as _f: _ref_image_bytes = _f.read()
                         _ext = _os.path.splitext(_local)[1].lower()
                         _ref_mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "webp": "image/webp"}.get(_ext.lstrip("."), "image/jpeg")
                 else:
@@ -1610,16 +1651,12 @@ Motion prompt for this image:"""
                             _ct = _resp.headers.get("content-type", "")
                             if "png" in _ct: _ref_mime = "image/png"
                             elif "webp" in _ct: _ref_mime = "image/webp"
-                if _ref_image_bytes:
-                    print(f"[RefImage] Loaded style reference image ({len(_ref_image_bytes)} bytes, {_ref_mime})")
             except Exception as _e:
-                print(f"[RefImage] Failed to load reference image: {_e}")
-                _ref_image_bytes = None
+                print(f"[RefImage] Error: {_e}")
 
         async def _gen_text_or_vision(prompt_text: str) -> str:
-            """레퍼런스 이미지가 있으면 Vision(멀티모달), 없으면 텍스트 전용 호출"""
             if _ref_image_bytes:
-                ref_hint = "\n\n[STYLE REFERENCE IMAGE ATTACHED]\nThe attached image shows the exact visual style, character design, and art direction to follow. Use it as the primary visual reference when writing image prompts."
+                ref_hint = "\n\n[STYLE REFERENCE IMAGE ATTACHED]"
                 return await self.generate_text_from_image(prompt_text + ref_hint, _ref_image_bytes, _ref_mime)
             return await self.generate_text(prompt_text, temperature=0.7)
 
@@ -1701,138 +1738,117 @@ Motion prompt for this image:"""
             text = await _gen_text_or_vision(prompt)
             scenes = _parse_text_to_scenes(text)
 
+        # [PHASE 5] Piccadilly Prompt Assembler Integration
         try:
-            # [STYLE ENFORCEMENT] Gemini가 생성한 prompt_en에 스타일 접두사가 빠진 경우 자동 주입
-            if style_prompt:
-                # 스타일 키워드 중 핵심 단어 추출 (첫 3단어 정도)
-                style_check_words = style_prompt.lower().split(",")[0].strip().split()[:3]
-                style_check_key = " ".join(style_check_words) if style_check_words else ""
+            char_map = {c.get('name', '').lower(): c for c in (characters or [])}
+            for c in (characters or []):
+                if c.get('character_id'):
+                    char_map[str(c['character_id']).lower()] = c
 
-                enforced_count = 0
-                for scene in scenes:
-                    pen = scene.get("prompt_en", "")
-                    if pen and style_check_key and style_check_key not in pen.lower():
-                        scene["prompt_en"] = f"{style_prompt}, {pen}"
-                        enforced_count += 1
-                if enforced_count > 0:
-                    print(f"[StyleEnforce] Injected style prefix into {enforced_count}/{len(scenes)} scenes")
-
-            # [TEMPLATE VAR CLEANUP] Gemini가 ${VARIABLE} 구문이나 **[Header]** 마크다운을 prompt_en에 복사하는 버그 제거
-            _tvar_re = re.compile(r'\$\{[A-Z_]+\}')
-            _hdr_re  = re.compile(r'\*\*\[[^\]]+\]\*\*\s*')   # **[Character Concept]** 등 제거
-            _cleanup_count = 0
+            assembled_scenes = []
             for scene in scenes:
-                for field in ('prompt_en', 'flow_prompt'):
-                    val = scene.get(field, '')
-                    if not val:
-                        continue
-                    original = val
-                    val = _hdr_re.sub('', val)       # **[Header]** 제거
-                    val = _tvar_re.sub('', val)       # ${VARIABLE} 제거
-                    val = re.sub(r'\s{2,}', ' ', val) # 이중 공백 정리
-                    val = val.strip().strip(',').strip()
-                    if val != original:
-                        scene[field] = val
-                        _cleanup_count += 1
-            if _cleanup_count:
-                print(f"[TemplateCleanup] Removed template artifacts from {_cleanup_count} field(s)")
+                v_analysis = scene.get("visual_analysis", {})
+                if not v_analysis:
+                    assembled_scenes.append(scene)
+                    continue
 
-            # [ETHNICITY ENFORCEMENT]
-            if char_ethnicity:
-                # Get the first part of the ethnicity description (e.g., "East Asian")
-                eth_key = char_ethnicity.split(",")[0].strip().lower()
-                eth_enforced_count = 0
-                for scene in scenes:
-                    pen = scene.get("prompt_en", "")
-                    if pen and eth_key not in pen.lower():
-                        # Inject after style if style exists, else at front
-                        if style_prompt and style_prompt.lower() in pen.lower():
-                            # Find end of style
-                            scene["prompt_en"] = pen.replace(style_prompt, f"{style_prompt}, {char_ethnicity}")
-                        else:
-                            scene["prompt_en"] = f"{char_ethnicity}, {pen}"
-                        eth_enforced_count += 1
-                if eth_enforced_count > 0:
-                    print(f"[EthnicityEnforce] Injected ethnicity into {eth_enforced_count}/{len(scenes)} scenes")
+                applied_char_id = v_analysis.get("character_dna_applied")
+                scene_chars = []
+                if applied_char_id and str(applied_char_id).lower() != 'null':
+                    potential_names = [n.strip().lower() for n in str(applied_char_id).split(",")]
+                    for p_name in potential_names:
+                        if p_name in char_map:
+                            scene_chars.append(char_map[p_name])
 
+                c_tags = v_analysis.get("cinematic_tags") or "cinematic lighting, high resolution, 8k"
+                result = prompt_assembler.assemble_scene_prompt(
+                    style_prefix=style_prefix_val,
+                    character_dnas=scene_chars,
+                    scene_context=v_analysis,
+                    cinematic_tags=c_tags,
+                    aspect_ratio="9:16",
+                    seed=scene_chars[0].get('seed', -1) if scene_chars else -1,
+                    global_ethnicity=char_ethnicity
+                )
 
-            # [FIX] target_scene_count가 지정된 경우 씬 분리 없이 그대로 반환
-            # (씬 분리 로직이 사용자 지정 씬 수를 초과하게 만들 수 있으므로)
-            if target_scene_count and target_scene_count > 0:
-                # Renumber scenes sequentially
-                for idx, scene in enumerate(scenes):
-                    scene["scene_number"] = idx + 1
-                print(f"[Gemini] Returning {len(scenes)} scenes (target={target_scene_count})")
-                return scenes
+                scene["prompt_en"] = result["prompt_en"]
+                scene["negative_prompt"] = result["negative_prompt"]
+                assembled_scenes.append(scene)
 
-            # [NEW] Hybrid Approach: Time-based correction (자동 계산 모드에서만 사용)
-            # Split scenes that are too long (>20 seconds) into sub-images
-            corrected_scenes = []
-            MAX_SCENE_SECONDS = 30  # Maximum seconds per image (30초로 상향 → 불필요한 분할 감소)
-
-            # 서브씬 분할 시 카메라 각도 변형 (동일 이미지 반복 방지)
-            _SUB_ANGLE_VARIANTS = [
-                "",  # 첫 번째는 원본
-                ", close-up shot, tight framing on subject",
-                ", wide establishing shot, zoom out to reveal environment",
-                ", medium shot from side angle",
-                ", overhead bird's eye angle",
-            ]
-            _SUB_BG_VARIANTS = [
-                "",
-                ", foreground detail emphasized",
-                ", wide view with full environment visible",
-                ", background elements in focus",
-                ", different perspective angle",
-            ]
-
-            for scene in scenes:
-                estimated_sec = scene.get("estimated_seconds", 15)
-
-                # If estimated_seconds is missing, calculate from text length
-                if not estimated_sec or estimated_sec <= 0:
-                    scene_text_len = scene.get("scene_text", "")
-                    estimated_sec = max(5, len(scene_text_len) / 6)  # ~6 chars/sec for Korean
-
-                if estimated_sec <= MAX_SCENE_SECONDS:
-                    # Scene is fine, keep as is
-                    scene["estimated_seconds"] = estimated_sec
-                    corrected_scenes.append(scene)
-                else:
-                    # Scene is too long, split into sub-images
-                    num_splits = min(int(estimated_sec / MAX_SCENE_SECONDS) + 1, 4)  # 최대 4분할
-                    sub_duration = estimated_sec / num_splits
-
-                    scene_text = scene.get("scene_text", "")
-                    text_parts = self._split_text_evenly(scene_text, num_splits)
-
-                    for i in range(num_splits):
-                        sub_scene = scene.copy()
-                        sub_scene["scene_number"] = len(corrected_scenes) + 1
-                        sub_scene["scene_title"] = f"{scene.get('scene_title', '')} ({i+1}/{num_splits})"
-                        sub_scene["scene_text"] = text_parts[i] if i < len(text_parts) else scene_text
-                        sub_scene["estimated_seconds"] = sub_duration
-                        if i > 0:
-                            # 단순 "variation N" 대신 카메라 각도/구도 변형으로 시각 다양성 확보
-                            angle_mod = _SUB_ANGLE_VARIANTS[i % len(_SUB_ANGLE_VARIANTS)]
-                            sub_scene["prompt_en"] = scene.get("prompt_en", "") + angle_mod
-                            bg_mod = _SUB_BG_VARIANTS[i % len(_SUB_BG_VARIANTS)]
-                            if sub_scene.get("prompt_bg"):
-                                sub_scene["prompt_bg"] = scene.get("prompt_bg", "") + bg_mod
-                        corrected_scenes.append(sub_scene)
-
-            # Renumber scenes sequentially
-            for idx, scene in enumerate(corrected_scenes):
-                scene["scene_number"] = idx + 1
-
-            print(f"[Hybrid] Original: {len(scenes)} scenes → Corrected: {len(corrected_scenes)} scenes")
-            return corrected_scenes
-            
+            scenes = assembled_scenes
+            print(f"[Assembler] Re-assembled {len(scenes)} scenes using 6-block logic.")
         except Exception as e:
-            print(f"JSON Parse Error in generate_image_prompts: {e}")
-            pass
-            
-        return []
+            print(f"[Assembler] Failed: {e}")
+
+        # [TEMPLATE VAR CLEANUP] - assembler 성공/실패 모두 실행
+        for scene in scenes:
+            for field in ('prompt_en', 'flow_prompt'):
+                val = scene.get(field, '')
+                if val:
+                    scene[field] = self._cleanup_prompt(val)
+
+        # [FIX] target_scene_count가 지정된 경우 씬 분리 없이 그대로 반환
+        if target_scene_count and target_scene_count > 0:
+            for idx, scene in enumerate(scenes):
+                scene["scene_number"] = idx + 1
+            print(f"[Gemini] Returning {len(scenes)} scenes (target={target_scene_count})")
+            return scenes
+
+        # [NEW] Hybrid Approach: Time-based correction
+        corrected_scenes = []
+        MAX_SCENE_SECONDS = 30
+
+        _SUB_ANGLE_VARIANTS = [
+            "",
+            ", close-up shot, tight framing on subject",
+            ", wide establishing shot, zoom out to reveal environment",
+            ", medium shot from side angle",
+            ", overhead bird's eye angle",
+        ]
+        _SUB_BG_VARIANTS = [
+            "",
+            ", foreground detail emphasized",
+            ", wide view with full environment visible",
+            ", background elements in focus",
+            ", different perspective angle",
+        ]
+
+        for scene in scenes:
+            estimated_sec = scene.get("estimated_seconds", 15)
+
+            if not estimated_sec or estimated_sec <= 0:
+                scene_text_len = scene.get("scene_text", "")
+                estimated_sec = max(5, len(scene_text_len) / 6)
+
+            if estimated_sec <= MAX_SCENE_SECONDS:
+                scene["estimated_seconds"] = estimated_sec
+                corrected_scenes.append(scene)
+            else:
+                num_splits = min(int(estimated_sec / MAX_SCENE_SECONDS) + 1, 4)
+                sub_duration = estimated_sec / num_splits
+
+                scene_text = scene.get("scene_text", "")
+                text_parts = self._split_text_evenly(scene_text, num_splits)
+
+                for i in range(num_splits):
+                    sub_scene = scene.copy()
+                    sub_scene["scene_number"] = len(corrected_scenes) + 1
+                    sub_scene["scene_title"] = f"{scene.get('scene_title', '')} ({i+1}/{num_splits})"
+                    sub_scene["scene_text"] = text_parts[i] if i < len(text_parts) else scene_text
+                    sub_scene["estimated_seconds"] = sub_duration
+                    if i > 0:
+                        angle_mod = _SUB_ANGLE_VARIANTS[i % len(_SUB_ANGLE_VARIANTS)]
+                        sub_scene["prompt_en"] = scene.get("prompt_en", "") + angle_mod
+                        bg_mod = _SUB_BG_VARIANTS[i % len(_SUB_BG_VARIANTS)]
+                        if sub_scene.get("prompt_bg"):
+                            sub_scene["prompt_bg"] = scene.get("prompt_bg", "") + bg_mod
+                    corrected_scenes.append(sub_scene)
+
+        for idx, scene in enumerate(corrected_scenes):
+            scene["scene_number"] = idx + 1
+
+        print(f"[Hybrid] Original: {len(scenes)} scenes → Corrected: {len(corrected_scenes)} scenes")
+        return corrected_scenes
     
     def _split_text_evenly(self, text: str, num_parts: int) -> list:
         """텍스트를 균등하게 분할 (문장 경계 우선)"""

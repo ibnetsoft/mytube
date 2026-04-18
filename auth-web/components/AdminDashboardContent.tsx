@@ -63,11 +63,16 @@ export default function AdminDashboardContent() {
     const [logs, setLogs] = useState<AiLog[]>([])
     const [logsLoading, setLogsLoading] = useState(false)
     const [currentPeriod, setCurrentPeriod] = useState(1) // Default to Daily
-    
+
     // Pagination & Sorting for Logs
     const [logSortOrder, setLogSortOrder] = useState<'newest' | 'oldest'>('newest')
     const [logPageSize, setLogPageSize] = useState(20)
     const [logCurrentPage, setLogCurrentPage] = useState(1)
+
+    // 토큰 내역
+    const [txUser, setTxUser] = useState<any | null>(null)
+    const [transactions, setTransactions] = useState<any[]>([])
+    const [txLoading, setTxLoading] = useState(false)
 
     useEffect(() => {
         const handleAuth = (session: any) => {
@@ -269,6 +274,22 @@ export default function AdminDashboardContent() {
         }
     }
 
+    const openTxViewer = async (user: any, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation()
+        setTxUser(user)
+        setTransactions([])
+        setTxLoading(true)
+        try {
+            const res = await fetch(`/api/admin/users/${user.id}/transactions?limit=50`)
+            const data = await res.json()
+            setTransactions(data.transactions || [])
+        } catch (e) {
+            console.error('토큰 내역 로딩 실패', e)
+        } finally {
+            setTxLoading(false)
+        }
+    }
+
     const formatDate = (dateStr: string | null) => {
         if (!dateStr) return '-'
         const d = new Date(dateStr)
@@ -300,6 +321,63 @@ export default function AdminDashboardContent() {
 
     return (
         <div className="min-h-screen bg-gray-950 text-white p-8 font-sans">
+            {/* Token Transaction Modal */}
+            {txUser && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setTxUser(null)} />
+                    <div className="relative w-full max-w-2xl bg-gray-900 border border-white/10 rounded-[2.5rem] shadow-2xl flex flex-col max-h-[80vh] overflow-hidden">
+                        {/* Header */}
+                        <div className="p-6 border-b border-white/5 flex justify-between items-center flex-shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-gradient-to-br from-yellow-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg">
+                                    <span className="text-lg">💰</span>
+                                </div>
+                                <div>
+                                    <h3 className="font-black text-lg text-white tracking-tight">TOKEN HISTORY</h3>
+                                    <p className="text-[11px] text-gray-400">{txUser.email}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setTxUser(null)} className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 hover:bg-red-500/20 hover:text-red-500 border border-white/5 transition-all text-lg">✕</button>
+                        </div>
+                        {/* Body */}
+                        <div className="overflow-y-auto flex-1 p-4">
+                            {txLoading ? (
+                                <div className="text-center text-gray-400 py-10 text-sm">로딩 중...</div>
+                            ) : transactions.length === 0 ? (
+                                <div className="text-center text-gray-500 py-10 text-sm">토큰 내역이 없습니다.</div>
+                            ) : (
+                                <table className="w-full text-xs">
+                                    <thead>
+                                        <tr className="text-[10px] font-black text-gray-500 uppercase tracking-widest border-b border-white/5">
+                                            <th className="py-2 text-left">일시</th>
+                                            <th className="py-2 text-center">구분</th>
+                                            <th className="py-2 text-right">토큰</th>
+                                            <th className="py-2 text-left pl-4">내용</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {transactions.map((tx: any) => (
+                                            <tr key={tx.id} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
+                                                <td className="py-2 text-gray-400">{new Date(tx.created_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
+                                                <td className="py-2 text-center">
+                                                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${tx.transaction_type === 'RECHARGE' ? 'bg-blue-500/20 text-blue-400' : tx.transaction_type === 'USAGE' ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
+                                                        {tx.transaction_type === 'RECHARGE' ? '충전' : tx.transaction_type === 'USAGE' ? '차감' : tx.transaction_type}
+                                                    </span>
+                                                </td>
+                                                <td className={`py-2 text-right font-black ${tx.amount > 0 ? 'text-blue-400' : 'text-red-400'}`}>
+                                                    {tx.amount > 0 ? '+' : ''}{tx.amount.toLocaleString()}
+                                                </td>
+                                                <td className="py-2 pl-4 text-gray-400 truncate max-w-[160px]">{tx.description || '-'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Log Viewer Modal */}
             {logUser && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -810,12 +888,20 @@ export default function AdminDashboardContent() {
                                                 <div className="flex flex-col items-center gap-1 group/token bg-white/[0.03] p-3 rounded-2xl border border-white/5 hover:border-blue-500/30 transition-all">
                                                     <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-0.5">CURRENT BALANCE</div>
                                                     <span className="text-white font-black text-lg tracking-tight">{user.profile?.token_balance?.toLocaleString() || 0}</span>
-                                                    <button 
-                                                        onClick={(e) => { e.stopPropagation(); rechargeTokens(user.id); }}
-                                                        className="mt-1 px-3 py-1 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white text-[10px] font-black rounded-lg transition-all border border-blue-600/20 uppercase tracking-tighter"
-                                                    >
-                                                        ⚡ RECHARGE
-                                                    </button>
+                                                    <div className="flex gap-1 mt-1">
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); rechargeTokens(user.id); }}
+                                                            className="px-3 py-1 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white text-[10px] font-black rounded-lg transition-all border border-blue-600/20 uppercase tracking-tighter"
+                                                        >
+                                                            ⚡ RECHARGE
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => openTxViewer(user, e)}
+                                                            className="px-3 py-1 bg-gray-700/40 hover:bg-gray-600 text-gray-400 hover:text-white text-[10px] font-black rounded-lg transition-all border border-gray-600/20 uppercase tracking-tighter"
+                                                        >
+                                                            📋 내역
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 text-center">
