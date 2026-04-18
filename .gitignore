@@ -21,3 +21,6 @@ token.pickle
 license.key
 
 logs/
+# Next.js API 라우트는 예외 처리
+!auth-web/app/api/admin/logs/
+!auth-web/app/api/admin/logs/route.ts
