@@ -28,9 +28,9 @@ export async function POST(req: Request) {
         // 2. Profiles 테이블 업데이트 (DB 쿼리/대시보드에서 참조)
         const { error: profileError } = await supabaseAdmin
             .from('profiles')
-            .update({ membership_tier: membership })
+            .update({ membership: membership })
             .eq('id', userId)
-        
+
         if (profileError) {
             console.error("Profile update error:", profileError)
         }
