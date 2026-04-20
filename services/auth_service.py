@@ -9,8 +9,21 @@ from datetime import datetime
 class AuthService:
     def __init__(self):
         self.license_file = "license.key"
-        self.verify_url = "http://localhost:3000/api/verify" # [LOCAL TEST]
-        self.update_profile_url = "http://localhost:3000/api/user/update-profile"
+        # 전역 환경변수 또는 프로덕션 URL 사용
+        base_url = os.getenv("DASHBOARD_URL", "https://mytube-ashy-seven.vercel.app")
+        
+        # 로컬 개발 환경 감지 (auth-web 폴더 존재 시 localhost 사용 가능성 높음)
+        if os.path.exists("auth-web") and os.getenv("DEBUG") == "true":
+            try:
+                import requests as _req
+                check = _req.get("http://localhost:3000/api/health", timeout=0.5)
+                if check.status_code == 200:
+                    base_url = "http://localhost:3000"
+            except:
+                pass
+
+        self.verify_url = f"{base_url}/api/verify"
+        self.update_profile_url = f"{base_url}/api/user/update-profile"
         self._membership = "std" # Default
         self._user_email = ""
         self._user_name = ""
