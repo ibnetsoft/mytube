@@ -1929,7 +1929,7 @@ async def generate_veo_video(request: dict = Body(...)):
     Google Veo Video Generation API
     """
     prompt = request.get("prompt")
-    model = request.get("model", "veo-3.1-generate-preview")
+    model = request.get("model", "veo-3.1-fast-generate-preview")
     
     if not prompt:
         raise HTTPException(400, "Prompt is required")

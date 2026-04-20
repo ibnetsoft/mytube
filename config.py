@@ -29,7 +29,7 @@ class Config:
 
     # API URLs
     YOUTUBE_BASE_URL = "https://www.googleapis.com/youtube/v3"
-    GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash:generateContent"
+    GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-preview:generateContent"
     PEXELS_BASE_URL = "https://api.pexels.com/videos"
 
     # 경로 설정

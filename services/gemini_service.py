@@ -2,7 +2,7 @@
 Gemini API 서비스
 - 텍스트 생성 (gemini-3.1-flash-preview)
 - 이미지 생성 (gemini-3.1-flash-image-preview / 나노바나나 2.0)
-- 영상 생성 (Veo)
+- 영상 생성 (veo-3.1-fast-generate-preview)
 """
 import httpx
 from typing import Optional, List
@@ -511,8 +511,8 @@ class GeminiService:
 
         # --- IMAGE GENERATION PIPELINE ---
         models_to_try = [
-            # Primary Nano Banana 2.0 model specified by User
-            "gemini-3.1-flash-image-preview"
+            model if model else "gemini-3.1-flash-image-preview",
+            "gemini-3.1-flash-preview"
         ]
 
         last_error = "No models tried"
@@ -800,11 +800,11 @@ class GeminiService:
                     return res
                 except Exception:
                     pass
-            db.add_ai_log(None, 'script', 'gemini-2.0-flash', 'google', 'failed', prompt_summary=topic_keyword, error_msg="JSON parse failed", elapsed_time=elapsed)
+            db.add_ai_log(None, 'script', 'gemini-3.1-flash-preview', 'google', 'failed', prompt_summary=topic_keyword, error_msg="JSON parse failed", elapsed_time=elapsed)
             return {"error": "구조 생성 실패", "raw": text}
         except Exception as e:
             elapsed = _time.time() - start_time
-            db.add_ai_log(None, 'script', 'gemini-2.0-flash', 'google', 'failed', prompt_summary=topic_keyword, error_msg=str(e), elapsed_time=elapsed)
+            db.add_ai_log(None, 'script', 'gemini-3.1-flash-preview', 'google', 'failed', prompt_summary=topic_keyword, error_msg=str(e), elapsed_time=elapsed)
             print(f"Script Structure Gen Error: {e}")
             return {"error": f"구조 생성 실패: {str(e)}"}
     async def generate_nursery_rhyme_ideas(self) -> List[dict]:
@@ -983,7 +983,7 @@ class GeminiService:
         )
         
         try:
-            text = await self.generate_text(prompt, temperature=0.9, model="gemini-flash-latest")
+            text = await self.generate_text(prompt, temperature=0.9, model="gemini-3.1-flash-preview")
             
             import json
             import re
@@ -2424,7 +2424,7 @@ Motion prompt for this image:"""
         
         return {"error": "대본 생성 실패", "raw": text}
 
-    async def create_batch_job(self, input_file_path: str, model: str = "gemini-2.0-flash", display_name: str = "batch-job") -> dict:
+    async def create_batch_job(self, input_file_path: str, model: str = "gemini-3.1-flash-preview", display_name: str = "batch-job") -> dict:
         """
         [새로운 기능] Gemini Batch API - 대규모 백그라운드 처리를 위한 일괄 작업 예약 (비용 50% 절감)
         JSONL 파일을 업로드하고 비동기 배치 작업을 생성합니다.

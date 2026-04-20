@@ -413,7 +413,7 @@ async def generate_single_video(project_id: int, req: SingleVideoGenRequest):
             final_prompt = _build_video_prompt(prompt_en, motion_part, style_prefix, max_chars=1000)
 
             from services.gemini_service import gemini_service
-            veo_model = db.get_global_setting("veo_model_version", "veo-3.1-generate-preview")
+            veo_model = db.get_global_setting("veo_model_version", "veo-3.1-fast-generate-preview")
             print(f"🎬 [Veo] Generating for Scene {req.scene_number}, model={veo_model}, prompt: {final_prompt[:80]}...")
 
             video_bytes = await gemini_service.generate_video(
