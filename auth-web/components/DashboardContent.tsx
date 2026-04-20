@@ -319,9 +319,10 @@ export default function DashboardContent() {
         });
         if (!logs || !logs.length) return { total: 0, successRate: 0, avgLatency: 0, totalTokens: 0, breakdown };
         const total = logs.length;
-        const successes = logs.filter(l => (l.status || '').toLowerCase() === 'success' || (l.status || '').toLowerCase() === 'done').length;
-        const tokens = logs.reduce((acc, l) => acc + (l.input_tokens || 0) + (l.output_tokens || 0), 0);
+        const successes = logs.filter(l => (l.task_type !== 'RECHARGE' && ((l.status || '').toLowerCase() === 'success' || (l.status || '').toLowerCase() === 'done'))).length;
+        const tokens = logs.reduce((acc, l) => acc + (l.task_type === 'RECHARGE' ? 0 : (l.input_tokens || 0) + (l.output_tokens || 0)), 0);
         logs.forEach(l => {
+            if (l.task_type === 'RECHARGE') return;
             const stage = (l.task_type || 'unknown').toLowerCase();
             if (!breakdown[stage]) breakdown[stage] = { tokens: 0, count: 0, buckets: new Array(days === 1 ? 24 : days).fill(0).map(() => ({ tokens: 0, count: 0 })) };
             const t = (l.input_tokens || 0) + (l.output_tokens || 0);
@@ -466,7 +467,15 @@ export default function DashboardContent() {
         <div className="bg-[#0f172a]/40 border border-white/5 rounded-[2rem] overflow-hidden overflow-x-auto shadow-2xl">
             <table className="w-full text-left min-w-[1000px]">
                 <thead className="bg-black/20 border-b border-white/5 text-[10px] font-black text-gray-500 uppercase tracking-widest">
-                    <tr><th className="px-10 py-5">TIME</th><th className="px-10 py-5">TASK</th><th className="px-10 py-5">MODEL & PROVIDER</th><th className="px-10 py-5">PROMPT SUMMARY</th><th className="px-10 py-5 text-right">TOKENS (IN/OUT)</th><th className="px-10 py-5 text-center">STATUS</th></tr>
+                    <tr>
+                        <th className="px-10 py-5">TIME</th>
+                        <th className="px-10 py-5">TASK</th>
+                        <th className="px-10 py-5">MODEL & PROVIDER</th>
+                        <th className="px-10 py-5">PROMPT SUMMARY</th>
+                        <th className="px-10 py-5 text-right text-orange-500">AI 토큰 소모량</th>
+                        <th className="px-10 py-5 text-right text-blue-500">남은 토큰 총량</th>
+                        <th className="px-10 py-5 text-center">STATUS</th>
+                    </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
                     {(logs || []).map((log: any) => (
@@ -478,7 +487,16 @@ export default function DashboardContent() {
                             <td className="px-10 py-5"><div className="flex items-center gap-3"><div className={`w-1.5 h-1.5 rounded-full ${log.status === 'success' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-red-500'}`} /><span className="text-[11px] font-black text-white uppercase tracking-widest">{typeMap[log.task_type] || log.task_type}</span></div></td>
                             <td className="px-10 py-5"><div className="text-[10px] font-black text-white uppercase italic">{log.model_id}</div><div className="text-[8px] text-gray-600 font-bold uppercase">{log.provider || 'AI_ENGINE'}</div></td>
                             <td className="px-10 py-5 max-w-[400px] text-gray-500 italic text-[11px] truncate group-hover:text-gray-300 transition-colors">"{log.prompt_summary || 'No summary available'}"</td>
-                            <td className="px-10 py-5 text-right font-black text-white text-[12px]">{(log.input_tokens+log.output_tokens).toLocaleString()} <span className="text-gray-600 text-[10px]">TK</span></td>
+                            <td className="px-10 py-5 text-right font-black text-[12px]">
+                                <div className="flex flex-col items-end">
+                                    <span className={log.task_type === 'RECHARGE' ? 'text-green-500' : 'text-white'}>
+                                        {log.task_type === 'RECHARGE' ? '+' : ''}{((log.input_tokens || 0) + (log.output_tokens || 0)).toLocaleString()} <span className="text-gray-600 text-[10px]">TK</span>
+                                    </span>
+                                </div>
+                            </td>
+                            <td className="px-10 py-5 text-right font-black text-blue-500 text-[12px] tabular-nums">
+                                {log.balance_after ? log.balance_after.toLocaleString() : '-'}
+                            </td>
                             <td className="px-10 py-5 text-center"><span className={`px-3 py-1 rounded-full text-[9px] font-black border uppercase tracking-widest ${log.status?.toLowerCase() === 'success' || log.status?.toLowerCase() === 'done' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>{log.status?.toUpperCase() === 'SUCCESS' ? 'SUCCESS' : (log.status?.toUpperCase() || 'FAILED')}</span></td>
                         </tr>
                     ))}

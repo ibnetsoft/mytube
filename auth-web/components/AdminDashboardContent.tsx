@@ -669,7 +669,8 @@ export default function AdminDashboardContent() {
                                                 <th className="px-10 py-6">TIMESTAMP</th>
                                                 <th className="px-10 py-6">CATEGORY</th>
                                                 <th className="px-10 py-6">INFRASTRUCTURE</th>
-                                                <th className="px-10 py-6">TOKEN PAYLOAD</th>
+                                                <th className="px-10 py-6 text-orange-500">AI 토큰 소모량</th>
+                                                <th className="px-10 py-6 text-blue-500">남은 토큰 총량</th>
                                                 <th className="px-10 py-6 text-center">STATUS</th>
                                             </tr>
                                         </thead>
@@ -709,16 +710,23 @@ export default function AdminDashboardContent() {
                                                                 <div className="text-[10px] text-gray-600 font-black uppercase mt-1 tracking-widest">{log.provider}</div>
                                                             </td>
                                                             <td className="px-10 py-6">
-                                                                <div className="flex flex-col gap-1.5">
+                                                                <div className="flex flex-col gap-1.5 items-start">
                                                                     <div className="flex items-center gap-2">
-                                                                         <div className="px-2 py-0.5 bg-blue-500/10 rounded border border-blue-500/20">
-                                                                            <span className="text-[11px] font-black text-blue-400 tracking-tight">{((log.input_tokens || 0) + (log.output_tokens || 0)).toLocaleString()}</span>
+                                                                         <div className={`px-2 py-0.5 rounded border ${log.task_type === 'RECHARGE' ? 'bg-green-500/10 border-green-500/20' : 'bg-blue-500/10 border-blue-500/20'}`}>
+                                                                            <span className={`text-[11px] font-black tracking-tight ${log.task_type === 'RECHARGE' ? 'text-green-500' : 'text-blue-400'}`}>
+                                                                                {log.task_type === 'RECHARGE' ? '+' : ''}{((log.input_tokens || 0) + (log.output_tokens || 0)).toLocaleString()}
+                                                                            </span>
                                                                          </div>
                                                                          <span className="text-[10px] text-gray-600 font-black tracking-tighter">TOKENS</span>
                                                                     </div>
                                                                     <div className="text-[10px] text-gray-500 line-clamp-1 italic max-w-sm group-hover:text-gray-300 transition-colors" title={log.prompt_summary}>
                                                                         "{log.prompt_summary || 'No prompt info'}"
                                                                     </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-10 py-6">
+                                                                <div className="text-[12px] font-black text-blue-500 tabular-nums">
+                                                                    {log.balance_after ? log.balance_after.toLocaleString() : '-'}
                                                                 </div>
                                                             </td>
                                                             <td className="px-10 py-6 text-center">

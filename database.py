@@ -3136,7 +3136,8 @@ def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status:
                 "error_msg": error_msg,
                 "elapsed_time": elapsed_time,
                 "input_tokens": input_tokens,
-                "output_tokens": output_tokens
+                "output_tokens": output_tokens,
+                "balance_after": balance_after
             }
             
             resp = _req.post(f"{base_url}/api/logs", json=payload, timeout=10)

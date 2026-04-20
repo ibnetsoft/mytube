@@ -10,7 +10,7 @@ const getAdmin = () => createClient(
 export async function POST(req: Request) {
     try {
         const body = await req.json()
-        const { userId, task_type, model_id, provider, status, prompt_summary, error_msg, elapsed_time, input_tokens, output_tokens } = body
+        const { userId, task_type, model_id, provider, status, prompt_summary, error_msg, elapsed_time, input_tokens, output_tokens, balance_after } = body
 
         if (!userId) return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
 
@@ -31,6 +31,7 @@ export async function POST(req: Request) {
                 elapsed_time: elapsed_time || 0,
                 input_tokens: input_tokens || 0,
                 output_tokens: output_tokens || 0,
+                balance_after: balance_after
             })
 
         if (error) throw error
