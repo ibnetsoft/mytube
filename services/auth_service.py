@@ -64,6 +64,7 @@ class AuthService:
             if not user_id:
                 return False
 
+            hwid = self.get_hwid()
             print(f"[Auth] Attempting verification at: {self.verify_url} (User: {user_id})")
             response = requests.post(
                 self.verify_url,
