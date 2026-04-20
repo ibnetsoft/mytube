@@ -26,12 +26,47 @@ class AuthService:
         self._verified = False
         self._last_verified = None
         self._is_restricted = False
-        self._token_balance = 0
+        self._token_balance = self._load_persisted_balance()  # 재시작 시 마지막 잔액 복원
         self._remote_keys_loaded = False
         self.logger = logging.getLogger(__name__)
         self._monitor_thread = None
         self._stop_event = threading.Event()
         self._verify_lock = threading.Lock()
+
+    def _load_persisted_balance(self) -> int:
+        """재시작 시 마지막 잔액 복원 — .token_balance 파일 우선, 없으면 로컬 DB에서 조회"""
+        try:
+            import sqlite3, os
+            base_dir = os.path.dirname(os.path.dirname(__file__))
+            # 1순위: 빠른 파일 캐시
+            balance_file = os.path.join(base_dir, ".token_balance")
+            if os.path.exists(balance_file):
+                with open(balance_file) as f:
+                    val = int(f.read().strip())
+                    if val > 0:
+                        return val
+            # 2순위: 로컬 DB 최신 balance_after
+            db_path = os.path.join(base_dir, "app_data.db")
+            if os.path.exists(db_path):
+                conn = sqlite3.connect(db_path)
+                row = conn.execute(
+                    "SELECT balance_after FROM ai_generation_logs WHERE balance_after IS NOT NULL ORDER BY id DESC LIMIT 1"
+                ).fetchone()
+                conn.close()
+                if row:
+                    return int(row[0])
+        except Exception:
+            pass
+        return 0
+
+    def _save_persisted_balance(self, balance: int):
+        """잔액을 별도 파일에 저장 (DB 없이도 복원 가능하도록 백업)"""
+        try:
+            balance_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".token_balance")
+            with open(balance_file, "w") as f:
+                f.write(str(balance))
+        except Exception:
+            pass
 
     def get_hwid(self):
         """Retrieve unique Hardware ID for Windows (UUID) or MAC address fallback"""
@@ -135,6 +170,7 @@ class AuthService:
                                     print(f"[Auth] Failed to log recharge: {le}")
 
                         self._token_balance = new_balance
+                        self._save_persisted_balance(new_balance)
                         print(f"[Auth] Sync Success. Balance: {new_balance}")
                         
                         # [FIX] Update Jinja2 Globals for immediate visibility
