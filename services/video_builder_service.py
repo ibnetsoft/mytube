@@ -70,7 +70,7 @@ async def analyze_scenes_for_director(
     감독 연출 기획서 JSON 반환.
     """
     api_key = config.GEMINI_API_KEY
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-preview:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={api_key}"
 
     safe_context = script_context.strip() if script_context else "대본 없음"
     total_scenes = len(png_paths)
