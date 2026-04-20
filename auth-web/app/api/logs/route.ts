@@ -36,9 +36,10 @@ export async function POST(req: Request) {
 
         if (error) throw error
 
-        // [Credit System] 작업 성공 시 토큰 차감 진행
+        // [Credit System] 작업 성공 시 토큰 차감 (RECHARGE/BILLING 유형은 차감 제외)
+        const NO_DEDUCT_TYPES = ['RECHARGE', 'BILLING']
         const totalTokens = (input_tokens || 0) + (output_tokens || 0)
-        if (totalTokens > 0 && (status === 'success' || status === 'done')) {
+        if (totalTokens > 0 && (status === 'success' || status === 'done') && !NO_DEDUCT_TYPES.includes((task_type || '').toUpperCase())) {
             const { data: deductResult, error: deductError } = await getAdmin().rpc('deduct_tokens', {
                 p_user_id: userId,
                 p_amount: totalTokens,
