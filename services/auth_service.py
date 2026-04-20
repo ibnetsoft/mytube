@@ -9,21 +9,13 @@ from datetime import datetime
 class AuthService:
     def __init__(self):
         self.license_file = "license.key"
-        # 전역 환경변수 또는 프로덕션 URL 사용
-        base_url = os.getenv("DASHBOARD_URL", "https://mytube-ashy-seven.vercel.app")
+        # [FORCE] 실서비스(Vercel) 주소를 기본으로 사용 (로컬 개발 시에도 실서버 잔액 확인을 위함)
+        custom_url = os.getenv("DASHBOARD_URL")
+        base_url = custom_url if custom_url else "https://mytube-ashy-seven.vercel.app"
         
-        # 로컬 개발 환경 감지 (auth-web 폴더 존재 시 localhost 사용 가능성 높음)
-        if os.path.exists("auth-web") and os.getenv("DEBUG") == "true":
-            try:
-                import requests as _req
-                check = _req.get("http://localhost:3000/api/health", timeout=0.5)
-                if check.status_code == 200:
-                    base_url = "http://localhost:3000"
-            except:
-                pass
-
-        self.verify_url = f"{base_url}/api/verify"
-        self.update_profile_url = f"{base_url}/api/user/update-profile"
+        # 주소가 유효한 엔드포인트를 포함하도록 강제
+        self.verify_url = f"{base_url.rstrip('/')}/api/verify"
+        self.update_profile_url = f"{base_url.rstrip('/')}/api/user/update-profile"
         self._membership = "std" # Default
         self._user_email = ""
         self._user_name = ""
@@ -72,8 +64,7 @@ class AuthService:
             if not user_id:
                 return False
 
-            hwid = self.get_hwid()
-            
+            print(f"[Auth] Attempting verification at: {self.verify_url} (User: {user_id})")
             response = requests.post(
                 self.verify_url,
                 json={
@@ -132,6 +123,7 @@ class AuthService:
                                     print(f"[Auth] Failed to log recharge: {le}")
 
                         self._token_balance = new_balance
+                        print(f"[Auth] Sync Success. Balance: {new_balance}")
                         
                         # [FIX] Update Jinja2 Globals for immediate visibility
                         try:
