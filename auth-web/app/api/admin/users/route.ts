@@ -38,7 +38,9 @@ export async function GET() {
         })
 
         console.log(`[Users API] Returning ${enrichedUsers.length} users`)
-        return NextResponse.json({ users: enrichedUsers })
+        return NextResponse.json({ users: enrichedUsers }, {
+            headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' }
+        })
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 })
     }
