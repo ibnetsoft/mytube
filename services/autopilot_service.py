@@ -176,7 +176,7 @@ class AutoPilotService:
                 self.set_step(project_id, "유튜브 소재 검색 중...")
                 video = await self._find_best_material(keyword)
                 self.set_step(project_id, "유튜브 영상 AI 분석 중...")
-                analysis_result = await self._analyze_video(video)
+                analysis_result = await self._analyze_video(video, project_id=project_id)
                 db.save_analysis(project_id, video, analysis_result)
                 db.update_project(project_id, status="analyzed")
                 current_status = "analyzed"
@@ -402,7 +402,7 @@ class AutoPilotService:
             data = response.json()
             return data["items"][0] if "items" in data and data["items"] else None
 
-    async def _analyze_video(self, video_data: dict):
+    async def _analyze_video(self, video_data: dict, project_id: int = None):
         video_id = video_data['id']['videoId']
         title = video_data['snippet']['title']
         description = video_data['snippet']['description']
@@ -425,7 +425,7 @@ class AutoPilotService:
         }}
         JSON만 출력하세요.
         """
-        result_text = await gemini_service.generate_text(prompt, temperature=0.7, project_id=db.get_project_id_by_video_id(video_id) or None, task_type="analysis")
+        result_text = await gemini_service.generate_text(prompt, temperature=0.7, project_id=project_id, task_type="analysis")
         try:
             import re
             json_match = re.search(r'\{[\s\S]*\}', result_text)
