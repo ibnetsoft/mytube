@@ -403,6 +403,7 @@ def init_db():
             error_msg TEXT,
             input_tokens INTEGER DEFAULT 0,
             output_tokens INTEGER DEFAULT 0,
+            balance_after INTEGER,
             elapsed_time REAL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -796,6 +797,9 @@ scene_type별 구조:
     # [NEW] Upload options
     try:
         cursor.execute("ALTER TABLE project_settings ADD COLUMN upload_privacy TEXT DEFAULT 'private'")
+    except sqlite3.OperationalError: pass
+    try:
+        cursor.execute("ALTER TABLE ai_generation_logs ADD COLUMN balance_after INTEGER")
     except sqlite3.OperationalError: pass
     try:
         cursor.execute("ALTER TABLE project_settings ADD COLUMN upload_schedule_at TEXT")
@@ -3060,19 +3064,28 @@ def get_recent_projects(limit: int = 10) -> List[Dict]:
     return [dict(r) for r in rows]
 
 
-def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status: str, prompt_summary: str = "", error_msg: str = "", elapsed_time: float = 0.0, input_tokens: int = 0, output_tokens: int = 0):
+def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status: str, prompt_summary: str = "", error_msg: str = "", elapsed_time: float = 0.0, input_tokens: int = 0, output_tokens: int = 0, balance_after: int = None):
     """AI 생성 로그 추가 (로컬 DB + Supabase 원격 동기화)"""
     # 실패한 작업은 토큰 사용량 0으로 처리
     if status == 'failed':
         input_tokens = 0
         output_tokens = 0
+    
+    # balance_after가 없으면 현재 auth_service에서 가져옴
+    if balance_after is None:
+        try:
+            from services.auth_service import auth_service
+            balance_after = auth_service.get_token_balance()
+        except:
+            pass
+
     conn = get_db()
     cursor = conn.cursor()
     try:
         cursor.execute("""
-            INSERT INTO ai_generation_logs (project_id, task_type, model_id, provider, status, prompt_summary, error_msg, elapsed_time, input_tokens, output_tokens)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (project_id, task_type, model_id, provider, status, prompt_summary, error_msg, elapsed_time, input_tokens, output_tokens))
+            INSERT INTO ai_generation_logs (project_id, task_type, model_id, provider, status, prompt_summary, error_msg, elapsed_time, input_tokens, output_tokens, balance_after)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (project_id, task_type, model_id, provider, status, prompt_summary, error_msg, elapsed_time, input_tokens, output_tokens, balance_after))
         conn.commit()
     except Exception as e:
         print(f"[DB] Failed to add AI log: {e}")
@@ -3167,7 +3180,7 @@ def get_ai_logs(limit: int = 100, days: int = None) -> List[Dict[str, Any]]:
     cursor = conn.cursor()
     try:
         query = """
-            SELECT id, project_id, task_type, model_id, provider, status, prompt_summary, error_msg, elapsed_time, input_tokens, output_tokens, created_at
+            SELECT id, project_id, task_type, model_id, provider, status, prompt_summary, error_msg, elapsed_time, input_tokens, output_tokens, balance_after, created_at
             FROM ai_generation_logs
         """
         params = []

@@ -93,7 +93,32 @@ class AuthService:
                         self._is_restricted = False
                         self._verified = True
                         self._last_verified = datetime.now()
-                        self._token_balance = data.get("token_balance", 0)
+                        # [RECHARGE DETECTION] Check if balance increased without recent spent
+                        old_balance = self._token_balance
+                        new_balance = data.get("token_balance", 0)
+                        
+                        if self._verified and new_balance > old_balance:
+                            recharge_amount = new_balance - old_balance
+                            # If increased significantly, record a RECHARGE log
+                            if recharge_amount >= 10: # Minimum 10 units to be considered a recharge
+                                try:
+                                    from database import add_ai_log
+                                    add_ai_log(
+                                        project_id=None,
+                                        task_type="RECHARGE",
+                                        model_id="BILLING",
+                                        provider="PICADIRI",
+                                        status="success",
+                                        prompt_summary=f"Token recharge: +{recharge_amount:,}",
+                                        input_tokens=recharge_amount, # Show recharge amount in tokens col
+                                        output_tokens=0,
+                                        balance_after=new_balance
+                                    )
+                                    print(f"[Auth] Recharge detected and logged: +{recharge_amount}")
+                                except Exception as le:
+                                    print(f"[Auth] Failed to log recharge: {le}")
+
+                        self._token_balance = new_balance
                         
                         # [FIX] Update Jinja2 Globals for immediate visibility
                         try:
@@ -103,7 +128,7 @@ class AuthService:
                                 templates.env.globals['membership'] = self._membership
                                 templates.env.globals['token_balance'] = self._token_balance
                                 templates.env.globals['is_independent'] = self.is_independent()
-                                print(f"[Auth] Updated Template Globals: {self._membership}")
+                                print(f"[Auth] Updated Template Globals: {self._membership} (Balance: {self._token_balance})")
                         except Exception as e:
                             print(f"[Auth] Template sync error: {e}")
                     
