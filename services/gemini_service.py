@@ -74,7 +74,7 @@ class GeminiService:
         
         return text.strip().strip(',').strip()
 
-    async def generate_text(self, prompt: str, temperature: float = 0.7, max_tokens: int = 8192, project_id: int = None, task_type: str = "text_gen", model: str = "gemini-flash-latest") -> str:
+    async def generate_text(self, prompt: str, temperature: float = 0.7, max_tokens: int = 8192, project_id: int = None, task_type: str = "text_gen", model: str = "gemini-3.1-pro-preview") -> str:
         """텍스트 생성"""
         if not self.api_key:
             raise Exception("Gemini API 키가 설정되지 않았습니다. 어드민 웹에서 키를 저장한 후 앱을 재시작하세요.")
@@ -165,22 +165,20 @@ class GeminiService:
                     in_tokens = usage.get('promptTokenCount', 0)
                     out_tokens = usage.get('candidatesTokenCount', 0)
                     elapsed = _time.time() - start_time
-                    
                     self.log_debug(f"✅ [Gemini Vision] Success ({elapsed:.1f}s)")
-                    db.add_ai_log(project_id, task_type, 'gemini-flash-latest', 'google', 'success', 
+                    db.add_ai_log(project_id, task_type, 'gemini-flash-latest', 'google', 'success',
                                  prompt_summary=prompt[:100], input_tokens=in_tokens, output_tokens=out_tokens, elapsed_time=elapsed)
                     return text
                 else:
                     elapsed = _time.time() - start_time
                     error_msg = result.get('error', {}).get('message', str(result)) if isinstance(result.get('error'), dict) else str(result)
-                    
                     self.log_debug(f"❌ [Gemini Vision] Failed: {error_msg}")
-                    db.add_ai_log(project_id, task_type, 'gemini-flash-latest', 'google', 'failed', 
+                    db.add_ai_log(project_id, task_type, 'gemini-flash-latest', 'google', 'failed',
                                  prompt_summary=prompt[:100], error_msg=error_msg, elapsed_time=elapsed)
                     raise Exception(f"Gemini Vision API 오류: {error_msg}")
         except Exception as e:
             elapsed = _time.time() - start_time
-            db.add_ai_log(project_id, task_type, 'gemini-flash-latest', 'google', 'failed', 
+            db.add_ai_log(project_id, task_type, 'gemini-flash-latest', 'google', 'failed',
                          prompt_summary=prompt[:100], error_msg=str(e), elapsed_time=elapsed)
             raise e
 
@@ -512,7 +510,7 @@ class GeminiService:
         # --- IMAGE GENERATION PIPELINE ---
         models_to_try = [
             model if model else "gemini-3.1-flash-image-preview",
-            "gemini-flash-latest"
+            "gemini-3.1-pro-preview"
         ]
 
         last_error = "No models tried"
@@ -800,11 +798,11 @@ class GeminiService:
                     return res
                 except Exception:
                     pass
-            db.add_ai_log(None, 'script', 'gemini-flash-latest', 'google', 'failed', prompt_summary=topic_keyword, error_msg="JSON parse failed", elapsed_time=elapsed)
+            db.add_ai_log(None, 'script', 'gemini-3.1-pro-preview', 'google', 'failed', prompt_summary=topic_keyword, error_msg="JSON parse failed", elapsed_time=elapsed)
             return {"error": "구조 생성 실패", "raw": text}
         except Exception as e:
             elapsed = _time.time() - start_time
-            db.add_ai_log(None, 'script', 'gemini-flash-latest', 'google', 'failed', prompt_summary=topic_keyword, error_msg=str(e), elapsed_time=elapsed)
+            db.add_ai_log(None, 'script', 'gemini-3.1-pro-preview', 'google', 'failed', prompt_summary=topic_keyword, error_msg=str(e), elapsed_time=elapsed)
             print(f"Script Structure Gen Error: {e}")
             return {"error": f"구조 생성 실패: {str(e)}"}
     async def generate_nursery_rhyme_ideas(self) -> List[dict]:
@@ -983,7 +981,7 @@ class GeminiService:
         )
         
         try:
-            text = await self.generate_text(prompt, temperature=0.9, model="gemini-flash-latest")
+            text = await self.generate_text(prompt, temperature=0.9, model="gemini-3.1-pro-preview")
             
             import json
             import re
@@ -2424,7 +2422,7 @@ Motion prompt for this image:"""
         
         return {"error": "대본 생성 실패", "raw": text}
 
-    async def create_batch_job(self, input_file_path: str, model: str = "gemini-flash-latest", display_name: str = "batch-job") -> dict:
+    async def create_batch_job(self, input_file_path: str, model: str = "gemini-3.1-pro-preview", display_name: str = "batch-job") -> dict:
         """
         [새로운 기능] Gemini Batch API - 대규모 백그라운드 처리를 위한 일괄 작업 예약 (비용 50% 절감)
         JSONL 파일을 업로드하고 비동기 배치 작업을 생성합니다.
