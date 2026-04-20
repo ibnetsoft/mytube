@@ -157,7 +157,11 @@ export default function DashboardContent() {
             const data = await res.json();
             if (res.ok && data.success) {
                 alert(isKor ? `충전 완료! ${parsedAmount.toLocaleString()} 토큰 추가됨` : `Recharge Success! +${parsedAmount.toLocaleString()} tokens`);
-                fetchUsers();
+                // 낙관적 업데이트 — fetchUsers() 사용 시 Supabase 캐시로 stale 반환
+                setUsers(prev => prev.map(u => u.id === userId
+                    ? { ...u, profile: { ...u.profile, token_balance: (u.profile?.token_balance || 0) + parsedAmount } }
+                    : u
+                ));
             } else {
                 alert((isKor ? '충전 실패: ' : 'Recharge Failed: ') + (data.error || `HTTP ${res.status}`));
             }

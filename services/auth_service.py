@@ -27,10 +27,11 @@ class AuthService:
         self._last_verified = None
         self._is_restricted = False
         self._token_balance = 0
-        self._remote_keys_loaded = False 
+        self._remote_keys_loaded = False
         self.logger = logging.getLogger(__name__)
         self._monitor_thread = None
         self._stop_event = threading.Event()
+        self._verify_lock = threading.Lock()
 
     def get_hwid(self):
         """Retrieve unique Hardware ID for Windows (UUID) or MAC address fallback"""
@@ -52,6 +53,16 @@ class AuthService:
                 return "UNKNOWN_HWID"
 
     def verify_license(self):
+        # 동시 호출 방지 — startup + JS sync 동시 실행 시 RECHARGE 중복 감지 차단
+        if not self._verify_lock.acquire(blocking=False):
+            return self._verified
+
+        try:
+            return self._do_verify()
+        finally:
+            self._verify_lock.release()
+
+    def _do_verify(self):
         if not os.path.exists(self.license_file):
             self.logger.warning("License file not found")
             self._verified = False
