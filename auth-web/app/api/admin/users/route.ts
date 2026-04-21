@@ -27,7 +27,9 @@ export async function GET() {
         const enrichedUsers = (users || []).map(user => {
             const profile = (profiles || []).find((p: any) => p.id === user.id) || {}
             const profileData = profile as any;
-            const membership = profileData.membership_tier || profileData.membership || (user.app_metadata?.membership || 'standard')
+            const normMembership = (v: string) => ({ standard: 'std', independent: 'pro' })[v] ?? v
+            const rawMembership = profileData.membership_tier || profileData.membership || (user.app_metadata?.membership || 'std')
+            const membership = normMembership(rawMembership)
             
             console.log(`[Users API] ${user.email} | membership=${membership} | full_name=${user.user_metadata?.full_name}`)
             return {
