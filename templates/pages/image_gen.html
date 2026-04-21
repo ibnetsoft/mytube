@@ -1129,6 +1129,12 @@
         container.className = 'space-y-4';
 
         container.innerHTML = data.map((p, i) => {
+            // [FIX] Resilience: if image_url contains a video file (due to previous bug), swap it to video_url
+            if (p.image_url && (p.image_url.toLowerCase().endsWith('.mp4') || p.image_url.toLowerCase().endsWith('.mov')) && !p.video_url) {
+                p.video_url = p.image_url;
+                p.image_url = null;
+            }
+
             // [FIX] 엔진 결정: 사용자가 직접 바꾼 씬(_engine_overridden)은 p.engine 유지,
             //       그 외에는 항상 글로벌 설정(window.defaultVideoEngine) 사용
             const effectiveEngine = p._engine_overridden ? (p.engine || window.defaultVideoEngine || 'veo') : (window.defaultVideoEngine || 'veo');
@@ -1455,18 +1461,18 @@
             const result = await response.json();
 
             if (result.status === 'ok') {
-                // Update prompts array based on type
-                if (result.video_url) {
-                    prompts[index].video_url = result.video_url;
+                // [FIX] Backend returns 'url' and 'is_video', not 'video_url'
+                if (result.is_video) {
+                    prompts[index].video_url = result.url;
                     prompts[index].image_url = null;
                 } else {
-                    prompts[index].image_url = result.image_url || result.url;
+                    prompts[index].image_url = result.url;
                     prompts[index].video_url = null;
                 }
 
-                // Save to Storage & DB to persist
+                // Save to Storage & DB — await so projectStateRestored can't race with stale data
                 Utils.storage.set('imagePrompts', prompts);
-                API.project.saveImagePrompts(projectId, prompts); // Async save
+                await API.project.saveImagePrompts(projectId, prompts);
 
                 // Refresh UI (Keep scroll position)
                 const scrollY = window.scrollY;
@@ -2564,7 +2570,15 @@
 
         // [RESTORE] Image Prompts - 데이터가 있을 때만 업데이트 (없으면 기존 유지)
         if (data && data.image_prompts && data.image_prompts.length > 0) {
-            prompts = data.image_prompts;
+            // 현재 세션의 video_url 보존 (DB 저장 전 race condition 방지)
+            const dbPrompts = data.image_prompts;
+            prompts = dbPrompts.map((p, i) => {
+                const current = prompts[i];
+                if (current && current.video_url && !p.video_url) {
+                    return { ...p, video_url: current.video_url, image_url: current.image_url };
+                }
+                return p;
+            });
             if (prompts[0] && !prompts[0].scene_title) {
                 prompts = prompts.map(p => ({
                     ...p,
