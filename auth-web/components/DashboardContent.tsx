@@ -110,6 +110,11 @@ export default function DashboardContent() {
     const [globalStats, setGlobalStats] = useState({ total: 0, successRate: 0, avgLatency: 0, totalTokens: 0, breakdown: {} as any })
     const [globalLoading, setGlobalLoading] = useState(false)
 
+    // 시스템 전역 API 키
+    const [sysKeys, setSysKeys] = useState({ gemini: '', youtube: '', elevenlabs: '', topview: '', topview_uid: '' })
+    const [sysKeysSaving, setSysKeysSaving] = useState(false)
+    const [sysKeysSaved, setSysKeysSaved] = useState(false)
+
     // Auth & Access
     const isSuperAdmin = user?.email === SUPER_ADMIN_EMAIL;
     const isAdmin = user?.app_metadata?.is_admin || isSuperAdmin;
@@ -376,6 +381,24 @@ export default function DashboardContent() {
         } catch (e) { console.error("FetchUsers Error:", e); }
     }, [isAdmin]);
 
+    const fetchSysKeys = useCallback(async () => {
+        try {
+            const res = await fetch('/api/admin/settings/global');
+            if (!res.ok) return;
+            const data = await res.json();
+            setSysKeys({ gemini: data.gemini || '', youtube: data.youtube || '', elevenlabs: data.elevenlabs || '', topview: data.topview || '', topview_uid: data.topview_uid || '' });
+        } catch (e) { console.error('fetchSysKeys error:', e); }
+    }, []);
+
+    const saveSysKeys = async () => {
+        setSysKeysSaving(true); setSysKeysSaved(false);
+        try {
+            const res = await fetch('/api/admin/settings/global', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sysKeys) });
+            if (res.ok) setSysKeysSaved(true);
+        } catch (e) { console.error('saveSysKeys error:', e); }
+        finally { setSysKeysSaving(false); }
+    };
+
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
             if (!session) router.push('/');
@@ -390,6 +413,7 @@ export default function DashboardContent() {
             fetchUsers();
             fetchGlobalStats(globalPeriod);
             fetchPublishingRequests();
+            fetchSysKeys();
         }
     }, [isAdmin, loading]);
 
@@ -728,6 +752,45 @@ export default function DashboardContent() {
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+                )}
+
+                {activeTab === 'api' && (
+                    <div className="bg-[#0f172a]/20 border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-2xl mx-auto">
+                        <div className="px-10 py-6 border-b border-white/5 bg-black/20">
+                            <h3 className="text-sm font-black text-gray-400 uppercase tracking-[0.2em]">시스템 전역 API 키</h3>
+                            <p className="text-[10px] text-gray-600 mt-1">서버 공용 키 — 개인 키가 없는 유저에게 적용됩니다.</p>
+                        </div>
+                        <div className="p-10 space-y-6">
+                            {([
+                                { key: 'gemini', label: '✨ Gemini API Key' },
+                                { key: 'youtube', label: '▶️ YouTube Data API Key' },
+                                { key: 'elevenlabs', label: '🎙️ ElevenLabs API Key' },
+                                { key: 'topview', label: '🛒 TopView API Key' },
+                                { key: 'topview_uid', label: '🛒 TopView UID' },
+                            ] as { key: keyof typeof sysKeys; label: string }[]).map(({ key, label }) => (
+                                <div key={key}>
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">{label}</label>
+                                    <input
+                                        type="password"
+                                        value={sysKeys[key]}
+                                        onChange={e => setSysKeys(prev => ({ ...prev, [key]: e.target.value }))}
+                                        onFocus={e => (e.target as HTMLInputElement).type = 'text'}
+                                        onBlur={e => (e.target as HTMLInputElement).type = 'password'}
+                                        placeholder={sysKeys[key] ? '••••••••••••' : '(미설정)'}
+                                        className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300 placeholder:text-gray-700"
+                                    />
+                                </div>
+                            ))}
+                            {sysKeysSaved && <p className="text-xs text-green-400 font-bold text-center">✅ 저장 완료</p>}
+                            <button
+                                onClick={saveSysKeys}
+                                disabled={sysKeysSaving}
+                                className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-black rounded-2xl transition-all text-sm mt-4"
+                            >
+                                {sysKeysSaving ? '저장 중...' : '💾 키 저장하기'}
+                            </button>
+                        </div>
                     </div>
                 )}
             </main>
