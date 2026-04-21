@@ -26,13 +26,16 @@ export async function GET() {
 
         const enrichedUsers = (users || []).map(user => {
             const profile = (profiles || []).find((p: any) => p.id === user.id) || {}
-            const membership = (profile as any).membership || (profile as any).membership_tier || (user.app_metadata?.membership || 'standard')
-            console.log(`[Users API] ${user.email} | full_name=${user.user_metadata?.full_name} | nationality=${user.user_metadata?.nationality} | contact=${user.user_metadata?.contact}`)
+            const profileData = profile as any;
+            const membership = profileData.membership_tier || profileData.membership || (user.app_metadata?.membership || 'standard')
+            
+            console.log(`[Users API] ${user.email} | membership=${membership} | full_name=${user.user_metadata?.full_name}`)
             return {
                 ...user,
                 profile: {
-                    token_balance: (profile as any).token_balance || 0,
+                    token_balance: profileData.token_balance || 0,
                     membership_tier: membership,
+                    membership: membership,
                 }
             }
         })

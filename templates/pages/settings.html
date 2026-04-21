@@ -246,82 +246,106 @@
         <!-- Image Styles Tab -->
         <div id="tab-content-image-styles" class="tab-content">
             <div class="card p-3 shadow-sm border border-gray-200 dark:border-gray-700">
-                <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-3 flex items-center justify-between">
-                    <span>🎨 이미지 스타일 프롬프트 설정</span>
-                    <button onclick="loadStylePresets()" class="text-[10px] text-blue-500 hover:underline">🔄 서버
-                        동기화</button>
+                <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-4 flex items-center justify-between">
+                    <span>🎨 이미지 스타일 및 캐릭터 관리</span>
+                    <button onclick="loadStylePresets()" class="text-[10px] text-blue-500 hover:underline">🔄 서버 동기화</button>
                 </h3>
 
                 <!-- [NEW] Add Custom Style Form -->
-                <div
-                    class="bg-[#000106] dark:bg-[#000106] p-4 rounded-xl border border-blue-100 dark:border-blue-800 mb-6 shadow-sm">
-                    <div class="flex items-center justify-between mb-3">
+                <div class="bg-[#000106] dark:bg-[#000106] p-4 rounded-xl border border-blue-100 dark:border-blue-800 mb-6 shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
                         <h4 class="text-sm font-bold text-blue-700 dark:text-blue-300 flex items-center gap-2">
-                            <span>{{ t('btn_add_custom_style') }}</span>
-                            <span class="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">GROUNDING</span>
+                            <span>✨ {{ t('btn_add_custom_style') }}</span>
+                            <span class="text-[9px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-bold uppercase">Character Kit</span>
                         </h4>
-                        <div class="flex items-center gap-1">
-                            <span class="text-[10px] text-gray-400">NotebookLM 지침 연동 가능</span>
-                            <button onclick="Utils.showToast('NotebookLM의 노트 가이드 내용을 복사해서 아래 지침 칸에 붙여넣으세요.', 'info')" class="text-xs text-blue-500 hover:text-blue-700">익히기 ⓘ</button>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] text-gray-400">일관성 유지를 위한 주인공/화풍 등록</span>
                         </div>
                     </div>
                     
-                    <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
-                        <!-- Left: Info & Base Prompt (7/12) -->
-                        <div class="md:col-span-12 space-y-3">
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
-                                <div class="md:col-span-1 space-y-2">
-                                    <div>
-                                        <label class="text-[10px] font-bold text-gray-500 mb-1 block">{{ t('label_style_code') }}</label>
-                                        <input type="text" id="customStyleName" class="input-field w-full text-xs"
-                                            placeholder="예: ghibli_studio, cyberpunk_2049">
-                                    </div>
-                                    <div>
-                                        <label class="text-[10px] font-bold text-gray-500 mb-1 block">사용 위치</label>
-                                        <select id="customStyleMode" class="input-field w-full text-xs bg-[#000106] text-white">
-                                            <option value="image">{{ t('label_image_gen_only') }}</option>
-                                            <option value="all">🌐 전체 공통</option>
-                                        </select>
-                                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-5">
+                        <!-- Left: Dual Image Reference Section (5/12) -->
+                        <div class="md:col-span-4 space-y-4 border-r border-gray-100 dark:border-gray-800 pr-5 border-dashed">
+                             <div class="grid grid-cols-2 gap-3">
+                                 <!-- Slot 1: Art Style -->
+                                 <div>
+                                     <label class="text-[9px] font-bold text-blue-500 mb-1 block flex items-center gap-1 truncate">
+                                         <span>🎨</span> 화풍 (Style)
+                                     </label>
+                                     <div class="relative group aspect-square bg-[#0a0f1d] rounded-lg overflow-hidden border border-dashed border-gray-100 dark:border-gray-800 flex items-center justify-center cursor-pointer hover:border-blue-400 transition-all" onclick="document.getElementById('customStyleImageStyle').click()">
+                                         <img id="customStyleImgPreviewStyle" src="" class="hidden w-full h-full object-cover" alt="Style Preview">
+                                         <div id="customStyleImgPlaceholderStyle" class="flex flex-col items-center gap-1 text-gray-400 scale-75">
+                                             <span class="text-lg">🖼️</span>
+                                             <span class="text-[8px] whitespace-nowrap">업로드</span>
+                                         </div>
+                                     </div>
+                                     <input type="file" id="customStyleImageStyle" accept="image/*" class="hidden" onchange="handleStyleImageSelect(this, 'style')">
+                                 </div>
+
+                                 <!-- Slot 2: Character Identity -->
+                                 <div>
+                                     <label class="text-[9px] font-bold text-purple-500 mb-1 block flex items-center gap-1 truncate">
+                                         <span>👤</span> 캐릭터 (Char)
+                                     </label>
+                                     <div class="relative group aspect-square bg-[#0a0f1d] rounded-lg overflow-hidden border border-dashed border-gray-100 dark:border-gray-800 flex items-center justify-center cursor-pointer hover:border-purple-400 transition-all" onclick="document.getElementById('customStyleImageChar').click()">
+                                         <img id="customStyleImgPreviewChar" src="" class="hidden w-full h-full object-cover" alt="Char Preview">
+                                         <div id="customStyleImgPlaceholderChar" class="flex flex-col items-center gap-1 text-gray-400 scale-75">
+                                             <span class="text-lg">📸</span>
+                                             <span class="text-[8px] whitespace-nowrap">업로드</span>
+                                         </div>
+                                     </div>
+                                     <input type="file" id="customStyleImageChar" accept="image/*" class="hidden" onchange="handleStyleImageSelect(this, 'char')">
+                                 </div>
+                             </div>
+                             
+                             <button id="analyzeStyleBtn" onclick="analyzeStyleImage()" 
+                                 class="w-full py-2.5 bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 text-white rounded-lg text-xs font-bold shadow-lg shadow-purple-500/20 hover:scale-[1.02] transition-all disabled:opacity-50 flex items-center justify-center gap-2 mt-2">
+                                 <span>✨</span> AI 통합 분석 가이드 생성
+                             </button>
+                             <p class="text-[9px] text-gray-400 text-center">두 이미지를 분석해 최적의 화풍+캐릭터 지침을 생성합니다.</p>
+                        </div>
+
+                        <!-- Right: Details Section (7/12) -->
+                        <div class="md:col-span-8 space-y-4">
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">{{ t('label_style_code') }}</label>
+                                    <input type="text" id="customStyleName" class="input-field w-full text-xs" placeholder="예: hero_kim, ghibli_studio">
                                 </div>
-                                <div class="md:col-span-2">
-                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">{{ t('label_base_image_sample') }}</label>
-                                    <div class="flex gap-2">
-                                        <button onclick="document.getElementById('customStyleImage').click()"
-                                            class="btn-secondary flex-1 py-1.5 text-xs whitespace-nowrap border-dashed h-8">
-                                            {{ t('btn_sample_image_upload') }}
-                                        </button>
-                                        <input type="file" id="customStyleImage" accept="image/*" class="hidden"
-                                            onchange="document.getElementById('customStyleImgName').textContent = this.files[0]?.name || ''">
-                                        <div id="customStyleImgName" class="text-[10px] text-gray-400 flex items-center truncate max-w-[100px]"></div>
-                                    </div>
+                                <div>
+                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">사용 위치</label>
+                                    <select id="customStyleMode" class="input-field w-full text-xs bg-[#000106] text-white">
+                                        <option value="image">{{ t('label_image_gen_only') }}</option>
+                                        <option value="all">🌐 전체 공통</option>
+                                    </select>
                                 </div>
                             </div>
 
                             <div>
                                 <label class="text-[10px] font-bold text-gray-500 mb-1 block">{{ t('label_base_style_prompt') }}</label>
-                                <textarea id="customStylePrompt" class="input-field w-full text-xs h-12 font-mono"
-                                    placeholder="예: Studio Ghibli official art style, hand-painted watercolor background..."></textarea>
+                                <textarea id="customStylePrompt" class="input-field w-full text-xs h-10 font-mono"
+                                    placeholder="예: A portrait of a character, Studio Ghibli style..."></textarea>
                             </div>
 
-                            <div class="bg-[#000106]/50 bg-[#000106]/50 p-3 rounded-lg border border-blue-100 dark:border-blue-900/50">
+                            <div>
                                 <label class="text-[10px] font-bold text-purple-600 dark:text-purple-400 mb-1 block flex justify-between items-center">
-                                    <span>{{ t('label_ai_grounding') }}</span>
-                                    <span class="text-[9px] font-normal text-gray-400">{{ t('helper_ai_grounding') }}</span>
+                                    <span>🤖 Gemini Grounding Instruction (캐릭터/화풍 지침)</span>
+                                    <span class="text-[9px] font-normal text-gray-400">AI 분석 버튼 클릭 시 자동 입력됩니다.</span>
                                 </label>
-                                <textarea id="customStyleInstruction" class="input-field w-full text-xs h-24 font-mono border-purple-100 focus:ring-purple-200"
-                                    placeholder="{{ t('placeholder_notebooklm') }}"></textarea>
+                                <textarea id="customStyleInstruction" class="input-field w-full text-xs h-32 font-mono border-purple-100 focus:ring-purple-200"
+                                    placeholder="AI 분석 결과가 여기에 표시됩니다..."></textarea>
                             </div>
 
-                            <div class="flex justify-end">
+                            <div class="flex justify-end pt-2">
                                 <button onclick="addCustomStylePreset()"
-                                    class="btn-primary px-6 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 shadow-md">
+                                    class="btn-primary px-8 py-2.5 text-xs font-bold bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-500/10 rounded-xl">
                                     {{ t('btn_register_style') }}
                                 </button>
                             </div>
                         </div>
                     </div>
                 </div>
+
                 <div id="stylePresetList" class="space-y-3">
                     <!-- Loaded via JS -->
                     <div class="text-center py-4 text-gray-400 text-xs">{{ t('msg_loading_styles') }}</div>
@@ -333,6 +357,7 @@
             </div>
         </div>
         <!-- End Image Styles Tab -->
+
 
         <!-- Script Styles Tab -->
         <div id="tab-content-script-styles" class="tab-content">
@@ -445,7 +470,7 @@
                                 <div class="font-bold text-sm text-gray-800 dark:text-gray-200">Google Veo (Primary)</div>
                                 <div class="text-xs text-gray-500 mt-1 dark:text-gray-400">
                                     🤖 최신 고품질 AI 영상 생성 파이프라인<br>
-                                    Gemini 3.1 & Veo 기반의 하이엔드 영상 제작
+                                    Gemini 2.x & Veo 기반의 하이엔드 영상 제작
                                 </div>
                             </div>
                         </label>
@@ -552,7 +577,6 @@
         <!-- End Video AI Engine Tab -->
 
     </div>
-</div>
 </div>
 {% endblock %}
 
@@ -727,8 +751,18 @@
         err_voice_load_fail: "{{ t('err_voice_load_fail') }}",
         toast_settings_mode_switched: "{{ t('toast_settings_mode_switched') }}",
         label_img_upload_click: "{{ t('label_img_upload_click') }}",
-        placeholder_no_instruction: "{{ t('placeholder_no_instruction') }}"
+        placeholder_no_instruction: "{{ t('placeholder_no_instruction') }}",
+        style_display_ghibli: "지브리 스튜디오",
+        style_display_minimal: "미니멀리즘",
+        style_display_nursery: "유아용/동요",
+        style_display_2d_webtoon: "2D 웹툰",
+        style_display_black_cartoon: "블랙 카툰",
+        style_display_object_char: "사물 캐릭터",
+        style_display_philosophical: "역사/철학 다큐",
+        style_display_bald_hoodie: "후드티 민머리"
     };
+
+    const DEFAULT_STYLE_KEYS = ['realistic', 'ghibli', 'anime', 'cinematic', 'cartoon', 'oil_painting', 'watercolor', 'sketch', 'pixel_art', '3d', 'k_webtoon', 'k_manhwa', 'minimal', 'nursery_rhyme', '2d웹', '블랙카툰', '사물캐릭터', '역사/동양철/다큐', '후드티민머리'];
 
     // Tab switching
     function switchTab(tabName) {
@@ -1136,7 +1170,6 @@
     }
 
     // [NEW] 이미지 스타일 프리셋 관리 (최종 통합 버전)
-    const DEFAULT_STYLE_KEYS = ['realistic', 'anime', 'cinematic', 'cartoon', 'oil_painting', 'watercolor', 'sketch', 'pixel_art', '3d', 'k_webtoon', 'k_manhwa'];
 
     async function loadStylePresets() {
         const list = document.getElementById('stylePresetList');
@@ -1156,7 +1189,11 @@
                     'realistic': i18n.sname_realistic, 'anime': i18n.sname_anime, 'cinematic': i18n.sname_cinematic,
                     'cartoon': i18n.sname_cartoon, 'oil_painting': i18n.sname_oil_painting, 'watercolor': i18n.sname_watercolor,
                     'sketch': i18n.sname_sketch, 'pixel_art': i18n.sname_pixel_art, '3d': i18n.sname_3d,
-                    'k_webtoon': i18n.sname_k_webtoon, 'k_manhwa': i18n.sname_k_manhwa
+                    'k_webtoon': i18n.sname_k_webtoon, 'k_manhwa': i18n.sname_k_manhwa,
+                    'ghibli': i18n.style_display_ghibli, 'minimal': i18n.style_display_minimal, 
+                    'nursery_rhyme': i18n.style_display_nursery, '2d웹': i18n.style_display_2d_webtoon,
+                    '블랙카툰': i18n.style_display_black_cartoon, '사물캐릭터': i18n.style_display_object_char,
+                    '역사/동양철/다큐': i18n.style_display_philosophical, '후드티민머리': i18n.style_display_bald_hoodie
                 }[key] || key;
 
                 const isDefault = DEFAULT_STYLE_KEYS.includes(key);
@@ -1338,13 +1375,76 @@
                 }
                 editBtn.classList.remove('hidden');
                 saveBtn.classList.add('hidden');
-            } else {
-                const err = await res.json().catch(() => {});
-                Utils.showToast(err.detail || i18n.err_save_fail, 'error');
             }
         } catch (e) {
             console.error(e);
             Utils.showToast(i18n.err_occurred, 'error');
+        }
+    }
+
+    // [NEW] Style Image Preview Handler
+    function handleStyleImageSelect(input, type) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const previewId = type === 'char' ? 'customStyleImgPreviewChar' : 'customStyleImgPreviewStyle';
+                const placeholderId = type === 'char' ? 'customStyleImgPlaceholderChar' : 'customStyleImgPlaceholderStyle';
+                
+                const preview = document.getElementById(previewId);
+                const placeholder = document.getElementById(placeholderId);
+                
+                preview.src = e.target.result;
+                preview.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    // [NEW] AI Style/Character Analysis (Dual Image)
+    async function analyzeStyleImage() {
+        const styleInput = document.getElementById('customStyleImageStyle');
+        const charInput = document.getElementById('customStyleImageChar');
+        const instructionInput = document.getElementById('customStyleInstruction');
+        const analyzeBtn = document.getElementById('analyzeStyleBtn');
+
+        const styleFile = styleInput.files[0];
+        const charFile = charInput.files[0];
+
+        if (!styleFile && !charFile) {
+            Utils.showToast('분석할 이미지를 하나 이상 선택하세요.', 'warning');
+            return;
+        }
+
+        analyzeBtn.disabled = true;
+        const originalText = analyzeBtn.innerHTML;
+        analyzeBtn.innerHTML = '<span>⏳</span> 통합 분석 중...';
+        Utils.showToast('AI가 화풍과 캐릭터를 정밀 분석하고 있습니다...', 'info');
+
+        try {
+            const formData = new FormData();
+            if (styleFile) formData.append('style_file', styleFile);
+            if (charFile) formData.append('char_file', charFile);
+
+            const res = await fetch('/api/settings/style-presets/analyze', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                instructionInput.value = data.description;
+                Utils.showToast('화풍과 캐릭터가 결합된 지침이 생성되었습니다.', 'success');
+            } else {
+                const err = await res.json();
+                Utils.showToast(err.detail || '분석 실패', 'error');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('서버 오류가 발생했습니다.', 'error');
+        } finally {
+            analyzeBtn.disabled = false;
+            analyzeBtn.innerHTML = originalText;
         }
     }
 
@@ -1353,13 +1453,15 @@
         const nameInput = document.getElementById('customStyleName');
         const promptInput = document.getElementById('customStylePrompt');
         const instructionInput = document.getElementById('customStyleInstruction');
-        const fileInput = document.getElementById('customStyleImage');
+        const styleFileInput = document.getElementById('customStyleImageStyle');
+        const charFileInput = document.getElementById('customStyleImageChar');
         const modeSelect = document.getElementById('customStyleMode');
 
         const name = nameInput.value.trim();
         const prompt = promptInput.value.trim();
         const instruction = instructionInput.value.trim();
-        const file = fileInput.files[0];
+        const styleFile = styleFileInput.files[0];
+        const charFile = charFileInput.files[0];
         const mode = modeSelect ? modeSelect.value : 'image';
 
         if (!name || !prompt) {
@@ -1371,12 +1473,15 @@
 
         try {
             let imageUrl = null;
-            if (file) {
-                // 1. Image Upload
+            // 썸네일로 사용할 이미지를 결정 (화풍 이미지를 우선순위로 사용하거나 둘 중 있는 것 사용)
+            const uploadFile = styleFile || charFile;
+
+            if (uploadFile) {
+                // 1. Image Upload (Thumbnail)
                 const formData = new FormData();
                 formData.append('style_key', name);
                 formData.append('prompt_value', prompt);
-                formData.append('file', file);
+                formData.append('file', uploadFile);
                 
                 const uploadRes = await fetch('/api/settings/style-presets/custom', {
                     method: 'POST',
@@ -1386,7 +1491,7 @@
                 imageUrl = uploadData.image_url;
             }
 
-            // 2. Save JSON fields (Prompt + Instruction + Mode)
+            // 2. Save JSON fields
             const saveRes = await fetch('/api/settings/style-presets', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1394,7 +1499,7 @@
                     style_key: name,
                     prompt_value: prompt,
                     gemini_instruction: instruction,
-                    image_url: imageUrl, // Keep null if not uploaded, backend might preserve existing
+                    image_url: imageUrl,
                     mode: mode
                 })
             });
@@ -1405,8 +1510,17 @@
                 nameInput.value = '';
                 promptInput.value = '';
                 instructionInput.value = '';
-                fileInput.value = '';
-                document.getElementById('customStyleImgName').textContent = '';
+                styleFileInput.value = '';
+                charFileInput.value = '';
+                
+                document.getElementById('customStyleImgPreviewStyle').src = '';
+                document.getElementById('customStyleImgPreviewStyle').classList.add('hidden');
+                document.getElementById('customStyleImgPlaceholderStyle').classList.remove('hidden');
+                
+                document.getElementById('customStyleImgPreviewChar').src = '';
+                document.getElementById('customStyleImgPreviewChar').classList.add('hidden');
+                document.getElementById('customStyleImgPlaceholderChar').classList.remove('hidden');
+
                 // Reload list
                 loadStylePresets();
             } else {

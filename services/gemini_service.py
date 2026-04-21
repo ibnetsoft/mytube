@@ -1,6 +1,6 @@
 """
 Gemini API 서비스
-- 텍스트 생성 (gemini-3.1-flash-preview)
+- 텍스트 생성 (gemini-3.1-flash-image-preview)
 - 이미지 생성 (gemini-3.1-flash-image-preview / 나노바나나 2.0)
 - 영상 생성 (veo-3.1-fast-generate-preview)
 """
@@ -129,7 +129,7 @@ class GeminiService:
 
     async def generate_text_from_image(self, prompt: str, image_bytes: bytes, mime_type: str = "image/png", project_id: int = None, task_type: str = "vision_gen") -> str:
         """이미지 + 텍스트 생성 (Vision)"""
-        url = f"{self.base_url}/models/gemini-3.1-flash-preview:generateContent?key={self.api_key}"
+        url = f"{self.base_url}/models/gemini-3.1-flash-image-preview:generateContent?key={self.api_key}"
 
         encoded_image = base64.b64encode(image_bytes).decode("utf-8")
 
@@ -166,19 +166,19 @@ class GeminiService:
                     out_tokens = usage.get('candidatesTokenCount', 0)
                     elapsed = _time.time() - start_time
                     self.log_debug(f"✅ [Gemini Vision] Success ({elapsed:.1f}s)")
-                    db.add_ai_log(project_id, task_type, 'gemini-3.1-flash-preview', 'google', 'success',
+                    db.add_ai_log(project_id, task_type, 'gemini-3.1-flash-image-preview', 'google', 'success',
                                  prompt_summary=prompt[:100], input_tokens=in_tokens, output_tokens=out_tokens, elapsed_time=elapsed)
                     return text
                 else:
                     elapsed = _time.time() - start_time
                     error_msg = result.get('error', {}).get('message', str(result)) if isinstance(result.get('error'), dict) else str(result)
                     self.log_debug(f"❌ [Gemini Vision] Failed: {error_msg}")
-                    db.add_ai_log(project_id, task_type, 'gemini-3.1-flash-preview', 'google', 'failed',
+                    db.add_ai_log(project_id, task_type, 'gemini-3.1-flash-image-preview', 'google', 'failed',
                                  prompt_summary=prompt[:100], error_msg=error_msg, elapsed_time=elapsed)
                     raise Exception(f"Gemini Vision API 오류: {error_msg}")
         except Exception as e:
             elapsed = _time.time() - start_time
-            db.add_ai_log(project_id, task_type, 'gemini-3.1-flash-preview', 'google', 'failed',
+            db.add_ai_log(project_id, task_type, 'gemini-3.1-flash-image-preview', 'google', 'failed',
                          prompt_summary=prompt[:100], error_msg=str(e), elapsed_time=elapsed)
             raise e
 
@@ -456,7 +456,8 @@ class GeminiService:
         prompt: str,
         aspect_ratio: str = "16:9",
         num_images: int = 1,
-        project_id: int = None
+        project_id: int = None,
+        model: str = None
     ) -> List[bytes]:
         """이미지 생성 (Imagen 폴백 체인: imagen-4 → imagen-3 → imagen-3-fast)"""
 

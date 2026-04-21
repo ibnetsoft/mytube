@@ -248,7 +248,8 @@ async def get_style_presets_api(mode: Optional[str] = None):
     # DB가 완전 비어있을 때만 기본 스타일 초기화 (삭제한 스타일은 재추가 안 함)
     if not presets:
         default_styles = {
-            "realistic": "photorealistic, 8k uhd, high quality, detailed",
+            "realistic": "**[Subject & Atmosphere]**\nA cinematic photorealistic shot of [SUBJECT] in [LOCATION]. The lighting is [LIGHTING_DETAILS] with a [ATMOSPHERE] mood.\n\n**[Environment & Details]**\nDetailed environment featuring [ENVIRONMENT_DETAILS]. High-end textures and sharp details.\n\n**[Camera & Quality]**\n[CAMERA_ANGLE], shot on 35mm lens, f/1.8, 8k resolution, cinematic color grading, ray-traced shadows.",
+            "ghibli": "**[Subject & Illustration]**\nA beautiful Studio Ghibli style illustration of [SUBJECT]. They are [ACTION] with detailed expressions.\n\n**[Background & Colors]**\nA scenic background of [LOCATION] during [TIME]. [ARTISTIC_DETAILS], vibrant yet soft color palette, hand-painted aesthetic.\n\n**[Composition & Quality]**\n[CAMERA_ANGLE], clean linework, cinematic anime composition, 4k, crisp focus.",
             "anime": "anime style, vibrant colors, studio ghibli inspired",
             "cinematic": "cinematic lighting, dramatic, movie still, bokeh",
             "cartoon": "cartoon style, cel shading, vibrant, playful",
@@ -259,6 +260,13 @@ async def get_style_presets_api(mode: Optional[str] = None):
             "3d": "3d render, pixar style, 3d animation, cute, vibrant lighting",
             "k_webtoon": "Modern K-webtoon manhwa style, high-quality digital illustration, sharp line art, vibrant colors, expressive character, modern manhwa aesthetic, professional digital art, no text, no speech bubbles",
             "k_manhwa": "Korean manhwa webtoon illustration style, bold black outlines, cel-shading, vibrant flat colors, anime-inspired character design, dynamic composition, professional digital art, modern Korean comic aesthetic. ABSOLUTELY NO TEXT.",
+            "minimal": "Minimalist vector illustration, clean lines, simple shapes, limited color palette, modern aesthetic, professional design.",
+            "nursery_rhyme": "Cute 3D animation style, Pixar/Disney inspired, vibrant colors, child-friendly environment, no text.",
+            "2d웹": "Classic 2D western comic style, bold ink lines, vibrant colors, simplified character design.",
+            "블랙카툰": "High contrast black and white cartoon style, bold ink strokes, noir comic aesthetic.",
+            "사물캐릭터": "Anthropomorphic object character, personified inanimate object with expressive face, cute and creative.",
+            "역사/동양철/다큐": "Traditional oriental painting style, ink wash, philosophical atmosphere, historical documentary aesthetic.",
+            "후드티민머리": "Wimpy stick figure style, minimalist character design, teal-blue hoodie, bold black outlines, white background."
         }
         for key, val in default_styles.items():
             db.save_style_preset(key, val)
@@ -355,6 +363,62 @@ async def save_custom_style_preset(
 
     db.save_style_preset(style_key, prompt_value, image_url)
     return {"status": "ok", "image_url": image_url}
+
+@router.post("/style-presets/analyze")
+async def analyze_style_image(
+    style_file: Optional[UploadFile] = File(None),
+    char_file: Optional[UploadFile] = File(None)
+):
+    """화풍 및 캐릭터 레퍼런스 이미지 통합 분석 (Settings 전용)"""
+    from services.auth_service import auth_service
+    if not auth_service.check_credits(500):
+        # 듀얼 분석은 토큰 소모를 조금 더 높게 잡을 수도 있지만 현재는 동일하게 500 TK
+        raise HTTPException(403, "AI 토큰이 부족합니다. (분석 최소 500 TK 필요)")
+    
+    if not style_file and not char_file:
+        raise HTTPException(400, "분석할 이미지를 하나 이상 선택하세요.")
+
+    try:
+        from services.gemini_service import gemini_service
+        
+        prompt = """
+        Analyze these two reference images and create a unified visual description for AI image generation.
+        
+        1. IMAGE A (Style Reference): Analyze the artistic style, color palette, lighting, and texture.
+        2. IMAGE B (Character Reference): Analyze the person's identity, face, hair, and unique features.
+        
+        Task: 
+        Generate a "Character Kit Instruction" that tells the image generator to:
+        - Maintain the specific identity and appearance from Image B.
+        - Apply the exact art style and vibe from Image A.
+        - Ensure global consistency for this specific character in this specific style.
+        
+        Output ONLY the description text. Start with "(Character Kit Guide) ...".
+        If only one image is provided, focus on that one.
+        """
+        
+        image_list = []
+        if style_file:
+            style_bytes = await style_file.read()
+            image_list.append(style_bytes)
+        if char_file:
+            char_bytes = await char_file.read()
+            image_list.append(char_bytes)
+
+        # generate_text_from_image가 리스트를 지원하도록 gemini_service에서 처리하거나 여기서 반복문
+        # 현재 gemini_service.generate_text_from_image는 단일 이미지만 지원하므로 
+        # 여러 이미지를 보낼 수 있는 통합 메서드를 사용하거나 프롬프트에 이미지들을 담아 보냅니다.
+        
+        # gemini_service.generate_text_from_image를 개선하여 리스트를 받게 하거나, 
+        # 직접 모델 호출 (간단하게 하기 위해 gemini_service에 멀티 이미지 지원용 메서드가 있는지 확인 필요)
+        # 만약 없다면 gemini_service를 수정하거나 여기서 직접 구현합니다.
+        
+        description = await gemini_service.generate_text_from_images(prompt, image_list)
+        return {"description": description.strip()}
+        
+    except Exception as e:
+        print(f"Analyze dual style image failed: {e}")
+        raise HTTPException(500, str(e))
 
 @router.delete("/style-presets/{style_key}")
 async def delete_style_preset(style_key: str):

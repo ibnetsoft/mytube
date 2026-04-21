@@ -318,9 +318,6 @@ async def generate_random_cooking_video(project_id: int):
         return {"status": "error", "error": str(e) + f" (gemini_service path: {module_path})"}
 
 
-@router.post("/api/projects/{project_id}/image-prompts/auto")
-
-
 @router.post("/api/image/generate-thumbnail-background")
 async def generate_thumbnail_background(req: ThumbnailBackgroundRequest):
     """썸네일 배경 이미지만 생성 (텍스트 없음)"""
@@ -332,7 +329,7 @@ async def generate_thumbnail_background(req: ThumbnailBackgroundRequest):
         raise HTTPException(400, "Gemini API 키가 설정되지 않았습니다")
 
     try:
-        # 1. gemini-3.1-fast-image-preview로 배경 이미지 생성
+        # 1. gemini-2.0-flash로 배경 이미지 생성
         clean_prompt = req.prompt
         
         # [NEW] Style Inheritance architecture
@@ -407,7 +404,7 @@ async def generate_thumbnail_background(req: ThumbnailBackgroundRequest):
             f"High quality, 8k, YouTube thumbnail background, no watermark. DO NOT INCLUDE: {negative_constraints}."
         )
 
-        # 이미지 생성 (전략: gemini_service (gemini-3.1-fast-image-preview))
+        # 이미지 생성 (전략: gemini_service (gemini-2.0-flash))
         images_bytes = None
         
         try:
@@ -444,9 +441,6 @@ async def generate_thumbnail_background(req: ThumbnailBackgroundRequest):
     except Exception as e:
         print(f"Error generating background: {e}")
         return {"status": "error", "error": str(e)}
-
-@router.post("/api/projects/{project_id}/thumbnail/save")
-
 
 @router.post("/api/image/generate-thumbnail")
 async def generate_thumbnail(req: ThumbnailGenerateRequest):
@@ -781,10 +775,7 @@ class CharacterPromptRequest(BaseModel):
     style: Optional[str] = "realistic"
 
 
-@router.post("/api/image/character-prompts")
 
-
-@router.post("/api/image/character-prompts")
 async def generate_character_prompts(req: CharacterPromptRequest):
     """대본 기반 캐릭터 프롬프트 생성"""
     try:
@@ -853,10 +844,6 @@ async def get_characters(project_id: int):
         return {"status": "error", "error": str(e)}
 
 
-# duplicate endpoint removed
-@router.post("/api/image/generate-character")
-
-
 @router.post("/api/image/generate-character")
 async def generate_character_image(
     prompt: str = Body(...),
@@ -881,7 +868,7 @@ async def generate_character_image(
         # 이미지 생성 (전략: Gemini (Primary) -> Replicate -> AKOOL Fallback)
         images_bytes = None
         
-        # 1차 시도: Gemini (gemini-3.1-fast-image-preview)
+        # 1차 시도: Gemini (gemini-2.0-flash)
         try:
             print(f"🎨 [Char Generation] Attempting Gemini (Primary)...")
             images_bytes = await gemini_service.generate_image(
@@ -934,9 +921,6 @@ async def generate_character_image(
         print(f"❌ [Char Generation] Error: {e}")
         return {"status": "error", "error": str(e)}
 
-
-
-@router.post("/api/image/generate-motion-from-image")
 
 
 @router.post("/api/image/generate-motion-from-image")
@@ -1041,9 +1025,6 @@ async def generate_flow_prompt_api(
     except Exception as e:
         import traceback; traceback.print_exc()
         return {"status": "error", "error": str(e)}
-
-
-@router.post("/api/image/bulk-generate-motion")
 
 
 @router.post("/api/image/bulk-generate-motion")

@@ -79,7 +79,8 @@ function displayHookTexts(texts, reasoning) {
         return;
     }
 
-    section.classList.remove('hidden');
+    // [REQUESTED] 사용자 요청으로 섹션 자동 표시 차단
+    // section.classList.remove('hidden');
 
     // 문구 버튼 생성
     list.innerHTML = texts.map((text, i) => `

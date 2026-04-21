@@ -48,9 +48,9 @@
                     </label>
                 </div>
 
-                <!-- Character Analysis Button (Moved here) -->
+                <!-- Character Analysis Button (Moved to Settings -> Style Registration) -->
                 <button onclick="analyzeCharacters()" id="analyzeCharacterBtn"
-                    class="py-2 px-4 flex items-center justify-center rounded-lg text-xs font-bold border border-gray-600 bg-transparent text-white hover:bg-[#0a0f1d] transition-all">
+                    class="hidden py-2 px-4 items-center justify-center rounded-lg text-xs font-bold border border-gray-600 bg-transparent text-white hover:bg-[#0a0f1d] transition-all">
                     {{ t('btn_analyze_characters') }}
                 </button>
 
@@ -90,67 +90,9 @@
             </div>
         </div>
 
-        <!-- Character Consistency Input -->
-        <div class="w-full mt-4 bg-[#000106] p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-            <div class="flex flex-col md:flex-row gap-6">
-                <!-- Left: Controls -->
-                <div class="flex-1">
-                    <label class="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-3">{{ t('label_char_consistency') }}</label>
 
-                    <div class="flex flex-col gap-3">
-                        <div class="flex items-center flex-wrap gap-4">
-                            <!-- Upload Button -->
-                            <div class="flex items-center gap-2">
-                                <button onclick="document.getElementById('charUploadInput').click()"
-                                    class="btn-secondary text-xs py-2 px-3 flex items-center gap-1">
-                                    <span>📂</span> {{ t('btn_upload_image') }}
-                                </button>
-                                <input type="file" id="charUploadInput" class="hidden" accept="image/*" multiple
-                                    onchange="previewCharImage(this)">
-                            </div>
-
-                            <span class="text-xs text-gray-400">{{ t('label_or') }}</span>
-
-                            <!-- Use Thumbnail Checkbox -->
-                            <label
-                                class="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d] transition-colors">
-                                <input type="checkbox" id="useThumbnailCheck"
-                                    class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700"
-                                    onchange="localStorage.setItem('useThumbnailCheck', this.checked)">
-                                <span class="text-xs font-medium text-gray-700 dark:text-white">{{ t('label_use_thumbnail') }}</span>
-                            </label>
-
-                            <!-- Analyze Button (moved to top row) -->
-                        </div>
-
-                        <!-- Preview (Upload) - 다중 이미지 지원 -->
-                        <div id="charPreviewArea"
-                            class="hidden flex-wrap items-center gap-2 bg-[#000106] p-2 rounded border border-gray-200 dark:border-gray-700">
-                            <div id="charPreviewList" class="flex flex-wrap gap-2"></div>
-                            <button onclick="clearCharImage()"
-                                class="text-red-500 hover:text-red-700 text-xs ml-1">{{ t('btn_clear_all') }}</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Right: Thumbnail Reference Display -->
-                <div
-                    class="w-full md:w-1/3 flex flex-col items-center justify-center border-l border-gray-200 dark:border-gray-600 pl-0 md:pl-6 pt-4 md:pt-0 border-dashed">
-                    <div id="thumbnailReferenceContainer"
-                        class="relative w-[30%] aspect-video bg-[#000106] rounded-lg overflow-hidden shadow-sm group border border-gray-200 dark:border-gray-700">
-                        <img id="currentProjectThumbnail" src=""
-                            class="w-full h-full object-contain opacity-50 transition-opacity duration-300"
-                            alt="Thumbnail" onerror="this.style.opacity=0">
-                        <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <span class="text-xs text-gray-400" id="thumbPlaceholder">{{ t('label_no_thumbnail') }}</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 가로 배치: globalPrompt + Ethnicity side by side -->
-        <div class="w-full mt-3">
+        <!-- 가로 배치: globalPrompt + Ethnicity side by side (Hidden as per User Request) -->
+        <div class="hidden w-full mt-3">
             <div class="flex gap-4 items-stretch">
                 <div class="flex-[6] min-w-0 flex flex-col">
                     <label class="block text-sm font-medium text-gray-700 dark:text-white mb-1">{{ t('label_global_prompt') }}</label>
@@ -3165,7 +3107,9 @@
             };
 
             grid.innerHTML = Object.entries(presets).map(([key, data]) => {
-                const imageUrl = (typeof data === 'object' && data.image_url) ? data.image_url : `/static/img/styles/style_${key}.png`;
+                // 이미지 우선순위: 1. DB에 저장된 전용 image_url  2. static 내부의 기본 이미지  3. 없는 경우 대비용 텍스트 아이콘
+                let imageUrl = (typeof data === 'object' && data.image_url) ? data.image_url : `/static/img/styles/style_${key}.png`;
+                if (!data.image_url && (key === 'nursery_rhyme' || key === 'nursery')) imageUrl = '/static/img/styles/style_nursery.png';
                 const displayName = displayNames[key] || key;
                 const [krName, enName] = displayName.includes('\n') ? displayName.split('\n') : [displayName, key];
 

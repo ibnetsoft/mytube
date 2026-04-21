@@ -47,7 +47,7 @@ export async function POST(req: Request) {
         // Get user profile (token balance)
         const { data: profile, error: profileError } = await supabaseAdmin
             .from('profiles')
-            .select('token_balance')
+            .select('token_balance, membership')
             .eq('id', userId)
             .maybeSingle()
 
@@ -59,7 +59,7 @@ export async function POST(req: Request) {
         console.log(`Verify SUCCESS for user ${userId}: channel=${meta.youtube_channel}, token_balance=${tokenBalance}`);
         return NextResponse.json({
             success: true,
-            membership: user.app_metadata?.membership || 'std',
+            membership: profile?.membership || user.app_metadata?.membership || 'std',
             email: user.email,
             full_name: meta.full_name || '',
             nationality: meta.nationality || '',

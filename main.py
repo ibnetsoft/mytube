@@ -1,5 +1,5 @@
 """
-PICADIRI STUDIO - FastAPI 메인 서버
+PICADILLY STUDIO - FastAPI 메인 서버
 YouTube 영상 자동화 제작 플랫폼 (Python 기반)
 [RELOAD TRIGGER] 2026-04-17 v3 (HTML Response)
 """
@@ -70,7 +70,7 @@ from app.utils import (
 
 # FastAPI 앱 생성
 app = FastAPI(
-    title="피카디리스튜디오",
+    title="피카딜리스튜디오",
     description="AI 기반 YouTube 영상 자동화 제작 플랫폼",
     version="2.0.0"
 )
@@ -2816,7 +2816,7 @@ async def create_plan_from_repository(req: RepositoryPlanRequest):
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("PICADIRI STUDIO v2.0")
+    print("PICADILLY STUDIO v2.0")
     print("-" * 50)
 
     config.validate()

@@ -158,7 +158,7 @@ class AuthService:
                                         project_id=None,
                                         task_type="RECHARGE",
                                         model_id="BILLING",
-                                        provider="PICADIRI",
+                                        provider="PICADILLY",
                                         status="success",
                                         prompt_summary=f"Token recharge: +{recharge_amount:,}",
                                         input_tokens=recharge_amount, # Show recharge amount in tokens col

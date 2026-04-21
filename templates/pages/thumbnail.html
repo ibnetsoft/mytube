@@ -434,9 +434,7 @@
     ];
 
     // 도형 레이어 상태
-    let shapeLayers = [
-        { x: -4, y: 485, width: 1287, height: 235, color_start: '#000000', color_end: '#000001', opacity: 0.2, opacity_end: 0.8, gradient_direction: 'vertical' }
-    ];
+    let shapeLayers = [];
 
     // 드래그 상태 변수
     let isDragging = false;
@@ -584,6 +582,7 @@
             try {
                 const hookTexts = typeof hookTextsRaw === 'string' ? JSON.parse(hookTextsRaw) : hookTextsRaw;
                 if (Array.isArray(hookTexts) && hookTexts.length > 0) {
+                    /* [REQUESTED] AI 추천 후킹 문구 섹션 숨김 (UI는 유지하되 자동 노출 안함)
                     // hookTextsSection 표시
                     const hookSection = document.getElementById('hookTextsSection');
                     const hookList = document.getElementById('hookTextsList');
@@ -603,11 +602,13 @@
                         const reasoningEl = document.getElementById('hookReasoning');
                         if (reasoningEl) reasoningEl.textContent = reasoning;
                     }
+                    */
 
-                    // thumbnailData 복원 (다른 함수들이 참조)
+                    // thumbnailData 복원 (데이터는 유지하되 UI만 숨김)
                     if (!thumbnailData) thumbnailData = {};
                     thumbnailData.texts = hookTexts;
 
+                    /* 텍스트 후보 영역도 숨길 경우 주석 처리
                     // textCandidates 영역에도 표시
                     const textCandidates = document.getElementById('textCandidates');
                     if (textCandidates) {
@@ -618,9 +619,10 @@
                             </button>
                         `).join('');
                     }
+                    */
 
                     restored = true;
-                    console.log(`[Autopilot] 후킹 문구 ${hookTexts.length}개 복원`);
+                    console.log(`[Autopilot] 후킹 문구 ${hookTexts.length}개 복원 (UI 숨김)`);
                 }
             } catch (e) {
                 console.warn('[Autopilot] 후킹 문구 파싱 실패:', e);
@@ -1228,12 +1230,13 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
             ];
             if (typeof renderShapeLayers === 'function') renderShapeLayers();
 
+            /* [REQUESTED] AI 추천 후킹 문구 섹션 숨김 고도화 (사용자 요청 반영)
             // 상단 'AI 추천 후킹 문구' 섹션 연동
             const hookSection = document.getElementById('hookTextsSection');
             const hookList = document.getElementById('hookTextsList');
             if (hookSection && hookList) {
                 // [RESTORED] AI 후킹 문구 섹션 표시
-                hookSection.classList.remove('hidden');
+                hookSection.classList.add('hidden'); // Force hidden
                 hookList.innerHTML = thumbnailData.texts.map((text, i) => `
                     <button onclick="applyHookText('${text.replace(/'/g, "\\'")}', ${i})" 
                         class="px-3 py-2 bg-[#000106]/50 border-2 border-blue-300 dark:border-blue-600 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-800 transition text-sm font-bold text-gray-800 dark:text-white shadow-sm hover:shadow-md">
@@ -1241,6 +1244,7 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
                     </button>
                 `).join('');
             }
+            */
         }
 
         // 텍스트 섹션 표시
@@ -1827,7 +1831,7 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
 
             if (result.status === 'ok') {
                 currentBackgroundPath = result.path;
-                currentBackgroundUrl = result.url;
+                currentBackgroundUrl = `${result.url}?v=${Date.now()}`;
                 bgImage = null; // Reset any manually uploaded image so we load the new URL
 
                 Utils.showToast(i18n.toast_bg_gen_success, 'success');
@@ -1870,10 +1874,9 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
 
-        // 1. Clear & Draw Checkerboard for Transparency
+        // 1. 기본 배경 (체커보드 + 어두운 오버레이)
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        // Draw Checkerboard
         const size = 20;
         for (let y = 0; y < canvas.height; y += size) {
             for (let x = 0; x < canvas.width; x += size) {
@@ -1882,40 +1885,36 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
             }
         }
         
-        // Dark Overlay for Contrast
         ctx.fillStyle = 'rgba(31, 41, 55, 0.4)';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // 2. 배경 그리기
+        // 2. 배경 이미지 처리
         if (bgImage) {
-            // If we have a prepared image object (from upload or cached URL), use it
+            // 캐시된 이미지 객체가 있으면 즉시 그리기
             ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
-            drawShapeLayers(ctx);
-            drawTextOverlays(ctx);
-
-            // Hide placeholder
+            
+            // 플레이스홀더 숨김
             const placeholder = document.getElementById('previewPlaceholder');
             if (placeholder) placeholder.classList.add('hidden');
         } else if (currentBackgroundUrl) {
-            // If we have a URL but no object yet, load it
-            const tempImg = new Image();
+            // URL은 있으나 이미지가 아직 로드되지 않은 경우 로드 시작
+            const tempImg = new window.Image();
             tempImg.crossOrigin = "anonymous";
             tempImg.onload = () => {
-                bgImage = tempImg; // [Fix] Cache the image
-                ctx.drawImage(tempImg, 0, 0, canvas.width, canvas.height);
-                drawShapeLayers(ctx);
-                drawTextOverlays(ctx);
-
-                // Hide placeholder
-                const placeholder = document.getElementById('previewPlaceholder');
-                if (placeholder) placeholder.classList.add('hidden');
+                bgImage = tempImg; // 로드 완료 시 캐싱
+                drawPreview(); // 재귀 호출하여 이미지와 함께 다시 그리기
+            };
+            tempImg.onerror = (e) => {
+                console.error("배경 이미지 로드 실패:", currentBackgroundUrl, e);
+                // 로드 실패 시 무한 루프 방지를 위해 URL 또는 상태 초기화 고려
+                // currentBackgroundUrl = null; 
             };
             tempImg.src = currentBackgroundUrl;
-        } else {
-            // No background yet
-            drawShapeLayers(ctx);
-            drawTextOverlays(ctx);
         }
+
+        // 3. 오버레이 레이어 (도형 및 텍스트) - 배경 로드 여부와 상관없이 항상 그림
+        drawShapeLayers(ctx);
+        drawTextOverlays(ctx);
     }
 
     function drawShapeLayers(ctx) {
@@ -2676,6 +2675,7 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
                 textLayers = state.textLayers.slice(0, 2);
                 
                 document.getElementById('textSection').classList.remove('hidden');
+                /* [REQUESTED] 텍스트 후보 영역 숨김 (노란색 상단 문구 안나오게)
                 // 텍스트 후보 표시 복구
                 if (thumbnailData && thumbnailData.texts) {
                     const textContainer = document.getElementById('textCandidates');
@@ -2685,6 +2685,7 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
                         </button>
                     `).join('');
                 }
+                */
             }
             if (state.shapeLayers) shapeLayers = state.shapeLayers;
 

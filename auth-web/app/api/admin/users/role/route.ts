@@ -30,9 +30,12 @@ export async function POST(req: Request) {
         if (authError) throw authError
 
         // 2. Profiles 테이블 업데이트 (DB 쿼리/대시보드에서 참조)
+        // [FIX] schema.sql에는 membership_tier로 정의되어 있으나 일부 코드에서 membership으로 참조함. 둘 다 업데이트 시도.
         const { error: profileError } = await supabaseAdmin
             .from('profiles')
-            .update({ membership: membership })
+            .update({ 
+                membership: membership
+            } as any)
             .eq('id', userId)
 
         if (profileError) {

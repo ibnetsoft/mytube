@@ -1,5 +1,5 @@
 
-# Multi-language translations for PICADIRI STUDIO Desktop Platform
+# Multi-language translations for PICADILLY STUDIO Desktop Platform
 
 PLATFORM_TRANSLATIONS = {
     'ko': {
@@ -11,7 +11,7 @@ PLATFORM_TRANSLATIONS = {
         'pos_middle': '중앙(Middle)',
         'pos_bottom': '하단(Bottom)',
         'hint_subtitle_auto': '자막 수정 시 자동으로 새 디자인이 적용됩니다.',
-        'app_name': 'PICADIRI STUDIO',
+        'app_name': 'PICADILLY STUDIO',
         'label_new': 'New',
         'label_beta': 'Beta',
         'label_active_project': '활성 프로젝트:',
@@ -1359,7 +1359,7 @@ PLATFORM_TRANSLATIONS = {
         'add_queue': '제작 대기열에 담기',
 
         # Nav & Sidebar
-        'app_name': '피카디리스튜디오',
+        'app_name': '피카딜리스튜디오',
         'cur_project_label': '현재 프로젝트',
         'new_project_btn': '+ New',
         'select_project_placeholder': '프로젝트 선택...',
@@ -3437,7 +3437,7 @@ PLATFORM_TRANSLATIONS = {
         'refine': 'Refine',
         'add_queue': 'Add to Queue',
 
-        'app_name': 'PICADIRI STUDIO',
+        'app_name': 'PICADILLY STUDIO',
         'cur_project_label': 'Current Project',
         'new_project_btn': '+ New',
         'select_project_placeholder': 'Select Project...',
@@ -5368,7 +5368,7 @@ PLATFORM_TRANSLATIONS = {
         'refine': 'Tinh chỉnh',
         'add_queue': 'Thêm vào hàng đợi',
 
-        'app_name': 'PICADIRI STUDIO',
+        'app_name': 'PICADILLY STUDIO',
         'label_new': 'Mới',
         'label_beta': 'Beta',
         'label_active_project': 'Dự án đang hoạt động:',
@@ -6636,7 +6636,7 @@ PLATFORM_TRANSLATIONS = {
         'err_import_fail_prefix': 'Không thể nhập tài liệu',
     },
     'es': {
-        'app_name': 'PICADIRI STUDIO',
+        'app_name': 'PICADILLY STUDIO',
         'cur_project_label': 'Proyecto Actual',
         'new_project_btn': '+ Nuevo',
         'select_project_placeholder': 'Seleccionar...',
@@ -6863,7 +6863,7 @@ PLATFORM_TRANSLATIONS = {
         'toast_ext_audio_registered': 'Audio externo registrado.',
     },
     'th': {
-        'app_name': 'PICADIRI STUDIO',
+        'app_name': 'PICADILLY STUDIO',
         'cur_project_label': 'โปรเจกต์ปัจจุบัน',
         'new_project_btn': '+ ใหม่',
         'select_project_placeholder': 'เลือกโปรเจกต์...',
@@ -7060,7 +7060,7 @@ PLATFORM_TRANSLATIONS = {
         'msg_scenes_analyzed': 'วิเคราะห์ฉากได้ทั้งหมด {count} ฉาก'
     },
     'id': {
-        'app_name': 'PICADIRI STUDIO',
+        'app_name': 'PICADILLY STUDIO',
         'cur_project_label': 'Proyek Saat Ini',
         'new_project_btn': '+ Baru',
         'select_project_placeholder': 'Pilih Proyek...',
@@ -7257,7 +7257,7 @@ PLATFORM_TRANSLATIONS = {
         'msg_scenes_analyzed': 'Total {count} adegan dianalisis.'
     },
     'fr': {
-        'app_name': 'PICADIRI STUDIO',
+        'app_name': 'PICADILLY STUDIO',
         'cur_project_label': 'Projet Actuel',
         'new_project_btn': '+ Nouveau',
         'select_project_placeholder': 'Choisir...',
@@ -7455,7 +7455,7 @@ PLATFORM_TRANSLATIONS = {
         'msg_scenes_analyzed': '{count} scènes analysées.'
     },
     'ru': {
-        'app_name': 'PICADIRI STUDIO',
+        'app_name': 'PICADILLY STUDIO',
         'cur_project_label': 'Текущий проект',
         'new_project_btn': '+ Новый',
         'select_project_placeholder': 'Выбрать...',
@@ -7652,7 +7652,7 @@ PLATFORM_TRANSLATIONS = {
         'msg_scenes_analyzed': 'Всего проанализировано сцен: {count}'
     },
     'pt': {
-        'app_name': 'PICADIRI STUDIO',
+        'app_name': 'PICADILLY STUDIO',
         'cur_project_label': 'Projeto Atual',
         'new_project_btn': '+ Novo',
         'select_project_placeholder': 'Selecionar...',
