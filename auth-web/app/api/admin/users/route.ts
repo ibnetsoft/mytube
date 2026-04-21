@@ -24,13 +24,15 @@ export async function GET() {
 
         const { data: profiles } = await supabaseAdmin.from('profiles').select('*')
 
+        const normMembership = (v: string) => ({ standard: 'std', independent: 'pro' })[v] ?? v
+        const authUserIds = new Set((users || []).map(u => u.id))
+
         const enrichedUsers = (users || []).map(user => {
             const profile = (profiles || []).find((p: any) => p.id === user.id) || {}
             const profileData = profile as any;
-            const normMembership = (v: string) => ({ standard: 'std', independent: 'pro' })[v] ?? v
             const rawMembership = profileData.membership_tier || profileData.membership || (user.app_metadata?.membership || 'std')
             const membership = normMembership(rawMembership)
-            
+
             console.log(`[Users API] ${user.email} | membership=${membership} | full_name=${user.user_metadata?.full_name}`)
             return {
                 ...user,
@@ -42,7 +44,28 @@ export async function GET() {
             }
         })
 
-        console.log(`[Users API] Returning ${enrichedUsers.length} users`)
+        // profiles에만 있고 auth.users에 없는 유저도 포함
+        const orphanProfiles = (profiles || []).filter((p: any) => !authUserIds.has(p.id))
+        for (const p of orphanProfiles) {
+            const membership = normMembership(p.membership_tier || p.membership || 'std')
+            console.log(`[Users API] orphan profile ${p.email || p.id} | membership=${membership}`)
+            enrichedUsers.push({
+                id: p.id,
+                email: p.email || '',
+                created_at: p.created_at || '',
+                email_confirmed_at: null,
+                last_sign_in_at: null,
+                app_metadata: {},
+                user_metadata: { full_name: p.full_name || '' },
+                profile: {
+                    token_balance: p.token_balance || 0,
+                    membership_tier: membership,
+                    membership: membership,
+                }
+            } as any)
+        }
+
+        console.log(`[Users API] Returning ${enrichedUsers.length} users (auth=${users?.length ?? 0}, orphan=${orphanProfiles.length})`)
         return NextResponse.json({ users: enrichedUsers }, {
             headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' }
         })
