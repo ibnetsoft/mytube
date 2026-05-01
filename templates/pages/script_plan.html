@@ -1021,7 +1021,7 @@
             if (result.status === 'ok') {
                 const structureData = result.structure;
                 // [NEW] 기획 단계에서 선택한 스타일을 구조 데이터에 포함하여 다음 단계로 전달
-                structureData.script_style = scriptStyle;
+                structureData.script_style = planStyle;
 
                 currentStructure = structureData;
                 renderStructure(structureData);
@@ -1041,7 +1041,7 @@
                 if (projectId) {
                     try {
                         // 1. 프로젝트 주제 & 스타일 업데이트
-                        await API.project.update(projectId, { topic: topic, script_style: scriptStyle });
+                        await API.project.update(projectId, { topic: topic, script_style: planStyle });
 
                         // 2. 구조 저장
                         await API.project.saveScriptStructure(projectId, {

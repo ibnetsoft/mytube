@@ -26,3 +26,12 @@ logs/
 !auth-web/app/api/admin/logs/route.ts
 !auth-web/app/api/logs/
 !auth-web/app/api/logs/route.ts
+
+# Large Files
+*.zip
+*.rar
+*.7z
+*.mp4
+*.mov
+*.avi
+*.mkv

@@ -97,9 +97,23 @@ class AuthService:
         finally:
             self._verify_lock.release()
 
-    def _do_verify(self):
-        if not os.path.exists(self.license_file):
-            self.logger.warning("License file not found")
+    async def _do_verify(self, force=False):
+        """실제 라이선스 검증 수행"""
+        from config import Config
+        # DEBUG 모드일 때 license.key가 없거나 'debug'이면 성공으로 처리
+        if Config.DEBUG:
+            if not os.path.exists(self.key_file):
+                return True, "debug_mode"
+            try:
+                with open(self.key_file, 'r') as f:
+                    content = f.read().strip().lower()
+                    if content == 'debug':
+                        return True, "debug_mode"
+            except:
+                pass
+
+        if not os.path.exists(self.key_file):
+            return False, "License file not found"
             self._verified = False
             return False
 

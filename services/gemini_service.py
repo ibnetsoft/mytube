@@ -1415,7 +1415,7 @@ Motion prompt for this image:"""
 [이미지 품질 규칙 - 모든 스타일 공통 필수 준수]
 1. **NO TEXT IN IMAGE (절대 금지)**: 생성되는 이미지 안에 어떤 언어(영어/한국어/일본어 등)의 텍스트, 단어, 레이블, 자막, 워터마크, 로고, 말풍선도 절대 포함하지 마세요.
    - 해부도, 다이어그램, 차트, 포스터, 간판 등 원래 텍스트가 있는 소재를 묘사할 때도 글자 없이 시각적 요소만 묘사하세요.
-   - "4k", "8k", "HD", "4K", "UHD" 등 해상도 키워드를 prompt_en에 절대 포함하지 마세요 — 이미지에 텍스트 워터마크로 나타납니다.
+   - "4k", "8k", "HD", "UHD", "aspect ratio", "9:16", "16:9" 등 기술적 스펙 키워드를 prompt_en에 절대 포함하지 마세요 — 이미지에 텍스트 워터마크로 나타날 수 있습니다.
    - 모든 prompt_en 끝에 반드시 추가: "no text, no words, no letters, no labels, no watermarks, no captions"
 2. **CRITICAL: CORRECT ANATOMY — EXACTLY TWO ARMS AND TWO HANDS (해부학적 정확성 - 절대 최우선)**:
    - 인물·캐릭터의 팔은 반드시 정확히 **2개**, 손도 반드시 정확히 **2개**, 손가락은 각 손당 **5개**입니다.
@@ -1429,12 +1429,15 @@ Motion prompt for this image:"""
         custom_instruction = ""
         if gemini_instruction and gemini_instruction.strip():
             import re as _re
-            # ${VARIABLE} 템플릿 변수를 자연어 지시로 교체 (Gemini가 그대로 복사하는 버그 방지)
+            # [SUBJECT], ${VARIABLE} 템플릿 변수를 자연어 지시로 교체 (Gemini가 그대로 복사하는 버그 방지)
             _var_map = {
-                r'\$\{OBJECT\}':      'the specific subject/character from this scene',
-                r'\$\{EXPRESSION\}':  'the character\'s emotional expression in this scene',
-                r'\$\{ACTION\}':      'the specific action happening in this scene',
-                r'\$\{ENVIRONMENT\}': 'the specific background environment of this scene',
+                r'(\$\{OBJECT\}|\[SUBJECT\])':      'the specific subject/character from this scene',
+                r'(\$\{EXPRESSION\}|\[EXPRESSION\])':  'the character\'s emotional expression in this scene',
+                r'(\$\{ACTION\}|\[ACTION\])':      'the specific action happening in this scene',
+                r'(\$\{ENVIRONMENT\}|\[LOCATION\]|\[ENVIRONMENT\])': 'the specific background environment of this scene',
+                r'\[STYLE_SPECIFIC_DETAILS\]': 'rich visual details matching the chosen style',
+                r'\[ATMOSPHERE\]': 'the emotional mood of this scene',
+                r'\[CAMERA_ANGLE\]': 'specific cinematic camera angle',
             }
             cleaned_instruction = gemini_instruction.strip()
             for pattern, replacement in _var_map.items():
@@ -1443,11 +1446,13 @@ Motion prompt for this image:"""
 [커스텀 스타일 지침 - 필수 준수]
 {cleaned_instruction}
 
-⚠️ CRITICAL OUTPUT RULE: The above is a STYLE GUIDE only — NOT a template to copy.
-- NEVER output `${{OBJECT}}`, `${{ACTION}}`, `${{EXPRESSION}}`, `${{ENVIRONMENT}}` or any `${{...}}` syntax in JSON fields.
-- NEVER copy instruction headers like **[Character Concept]** or **[Background]** into prompt_en.
-- Every `prompt_en` must contain ONLY actual scene-specific English descriptions derived from the script.
-- Replace every conceptual placeholder with the REAL content from the current scene's script.
+⚠️ CRITICAL OUTPUT RULE: The above is a DYNAMIC TEMPLATE/GUIDE.
+- Every `prompt_en` MUST be a single, coherent English paragraph.
+- You MUST fill in all placeholders like `[SUBJECT]`, `[ACTION]`, `[LOCATION]`, `[ATMOSPHERE]`, `${{OBJECT}}`, etc., with specific details from the current scene's script.
+- NEVER output the literal placeholders (e.g., do not output "[SUBJECT]"). Replace them with real descriptions.
+- DO NOT just append keywords at the end. Integrate them into a cinematic sentence structure.
+- NEVER copy instruction headers like **[Main Subject]** or **[Camera & Quality]** into the final prompt.
+- The final output for `prompt_en` should be ready to use in a high-end image generator like Midjourney or Google Imagen.
 """
 
         style_instruction = f"""
