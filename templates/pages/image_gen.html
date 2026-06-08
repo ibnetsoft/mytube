@@ -8,7 +8,7 @@
         <h3 class="font-bold text-gray-800 dark:text-white shrink-0 flex items-center gap-2">
             <span>{{ t('title_image_gen_settings') }}</span>
             <span id="scriptStatusBadge"
-                class="text-[10px] items-center gap-1 px-2 py-0.5 rounded-full bg-[#000106] text-gray-400 font-normal hidden md:flex">
+                class="text-[10px] items-center gap-1 px-2 py-0.5 rounded-full bg-[#1c2027] text-gray-400 font-normal hidden md:flex">
                 <span>🔄</span> {{ t('status_checking_script') }}
             </span>
         </h3>
@@ -17,74 +17,74 @@
             <!-- Image Options -->
             <div id="imageOptions" class="flex flex-wrap items-center gap-4">
                 <!-- Aspect Ratio (롱폼: 16:9 / 9:16) -->
-                <div id="longformRatioContainer" class="flex bg-[#000106]/50 p-1 rounded-lg shadow-inner">
+                <div id="longformRatioContainer" class="flex bg-[#1c2027]/50 p-1 rounded-lg shadow-inner">
                     <label class="cursor-pointer" id="ratio-16-9">
                         <input type="radio" name="aspectRatio" value="16:9" checked class="peer sr-only">
                         <div
-                            class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-[#0a0f1d] peer-checked:text-white text-gray-400 transition-all border border-transparent peer-checked:border-gray-600 hover:bg-[#0a0f1d]/50">
+                            class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-[#232832] peer-checked:text-white text-gray-400 transition-all border border-transparent peer-checked:border-white/10 hover:bg-[#232832]/50">
                             16:9</div>
                     </label>
                     <label class="cursor-pointer" id="ratio-9-16">
                         <input type="radio" name="aspectRatio" value="9:16" class="peer sr-only">
                         <div
-                            class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-[#0a0f1d] peer-checked:text-white text-gray-400 transition-all border border-transparent peer-checked:border-gray-600 hover:bg-[#0a0f1d]/50">
+                            class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-[#232832] peer-checked:text-white text-gray-400 transition-all border border-transparent peer-checked:border-white/10 hover:bg-[#232832]/50">
                             9:16</div>
                     </label>
                 </div>
 
                 <!-- Aspect Ratio (숏폼 전용: 3:4 / 1:1 / 9:16) -->
-                <div id="shortsRatioContainer" class="hidden flex bg-[#000106]/50 p-1 rounded-lg shadow-inner">
+                <div id="shortsRatioContainer" class="hidden flex bg-[#1c2027]/50 p-1 rounded-lg shadow-inner">
                     <label class="cursor-pointer">
                         <input type="radio" name="aspectRatio" value="3:4" class="peer sr-only">
-                        <div class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-[#0a0f1d] peer-checked:text-white text-gray-400 transition-all border border-transparent peer-checked:border-gray-600 hover:bg-[#0a0f1d]/50">3:4</div>
+                        <div class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-[#232832] peer-checked:text-white text-gray-400 transition-all border border-transparent peer-checked:border-white/10 hover:bg-[#232832]/50">3:4</div>
                     </label>
                     <label class="cursor-pointer">
                         <input type="radio" name="aspectRatio" value="1:1" class="peer sr-only">
-                        <div class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-[#0a0f1d] peer-checked:text-white text-gray-400 transition-all border border-transparent peer-checked:border-gray-600 hover:bg-[#0a0f1d]/50">1:1</div>
+                        <div class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-[#232832] peer-checked:text-white text-gray-400 transition-all border border-transparent peer-checked:border-white/10 hover:bg-[#232832]/50">1:1</div>
                     </label>
                     <label class="cursor-pointer">
                         <input type="radio" name="aspectRatio" value="9:16" class="peer sr-only" id="shorts-ratio-916">
-                        <div class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-[#0a0f1d] peer-checked:text-white text-gray-400 transition-all border border-transparent peer-checked:border-gray-600 hover:bg-[#0a0f1d]/50">9:16</div>
+                        <div class="px-4 py-1.5 rounded-md text-xs font-bold peer-checked:bg-[#232832] peer-checked:text-white text-gray-400 transition-all border border-transparent peer-checked:border-white/10 hover:bg-[#232832]/50">9:16</div>
                     </label>
                 </div>
 
                 <!-- Character Analysis Button (Moved to Settings -> Style Registration) -->
                 <button onclick="analyzeCharacters()" id="analyzeCharacterBtn"
-                    class="hidden py-2 px-4 items-center justify-center rounded-lg text-xs font-bold border border-gray-600 bg-transparent text-white hover:bg-[#0a0f1d] transition-all">
+                    class="hidden py-2 px-4 items-center justify-center rounded-lg text-xs font-bold border border-white/10 bg-transparent text-white hover:bg-[#232832] transition-all">
                     {{ t('btn_analyze_characters') }}
                 </button>
 
                 <!-- Scene Analysis Button -->
                 <button onclick="analyzeScenes()" id="analyzeSceneBtn"
-                    class="py-2 px-4 flex items-center justify-center rounded-lg text-xs font-bold border border-gray-600 bg-transparent text-white hover:bg-[#0a0f1d] transition-all">
+                    class="py-2 px-4 flex items-center justify-center rounded-lg text-xs font-bold border border-white/10 bg-transparent text-white hover:bg-[#232832] transition-all">
                     {{ t('btn_analyze_scenes') }}
                 </button>
                 <span id="sceneCountBadge"
-                    class="hidden text-xs font-bold bg-blue-100 dark:bg-[#000106] text-blue-800 dark:text-blue-200 px-3 py-2 rounded-lg">
+                    class="hidden text-xs font-bold bg-[#1c2027] text-blue-200 px-3 py-2 rounded-lg">
                     {{ t('label_scenes_count', count=0) }}
                 </span>
 
                 <!-- Save Settings Button -->
                 <button onclick="saveImageSettings(this)" id="saveSettingsBtn"
-                    class="py-2 px-4 flex items-center justify-center rounded-lg text-xs font-bold border border-gray-600 bg-transparent text-white hover:bg-[#0a0f1d] transition-all">
+                    class="py-2 px-4 flex items-center justify-center rounded-lg text-xs font-bold border border-white/10 bg-transparent text-white hover:bg-[#232832] transition-all">
                     {{ t('btn_save_settings') }}
                 </button>
 
                 <!-- 사람 제외 체크박스 -->
-                <label class="flex items-center gap-1.5 cursor-pointer select-none px-3 py-2 rounded-lg border border-gray-800 bg-[#000106] hover:bg-gray-800 transition-colors text-xs" title="{{ t('label_no_human_tooltip') }}">
+                <label class="flex items-center gap-1.5 cursor-pointer select-none px-3 py-2 rounded-lg border border-white/5 bg-[#1c2027] hover:bg-white/5 transition-colors text-xs" title="{{ t('label_no_human_tooltip') }}">
                     <input type="checkbox" id="noHumanToggle" class="w-3.5 h-3.5 accent-red-500">
                     <span class="text-red-600 dark:text-red-400 font-bold">{{ t('label_no_human') }}</span>
                 </label>
 
                 <!-- Generate Prompt Button -->
                 <button onclick="generatePrompts()" id="generateBtn"
-                    class="py-2 px-4 flex items-center justify-center rounded-lg text-xs font-bold bg-transparent border border-gray-400 dark:border-gray-500 text-white hover:bg-[#0a0f1d] transition-all">
+                    class="py-2 px-4 flex items-center justify-center rounded-lg text-xs font-bold bg-transparent border border-white/20 text-white hover:bg-[#232832] transition-all">
                     {{ t('btn_gen_prompts') }}
                 </button>
 
                 <!-- [NEW] Random Cooking Video (Shorts) - Hidden by default, shown only in shorts mode -->
                 <button onclick="generateRandomCooking()" id="cookingBtn"
-                    class="hidden py-2 px-4 flex items-center justify-center rounded-lg text-xs font-bold bg-transparent border border-gray-400 dark:border-gray-500 text-white hover:bg-[#0a0f1d] transition-all">
+                    class="hidden py-2 px-4 flex items-center justify-center rounded-lg text-xs font-bold bg-transparent border border-white/20 text-white hover:bg-[#2b323b] transition-all">
                     {{ t('btn_random_cooking') }}
                 </button>
             </div>
@@ -97,13 +97,13 @@
                 <div class="flex-[6] min-w-0 flex flex-col">
                     <label class="block text-sm font-medium text-gray-700 dark:text-white mb-1">{{ t('label_global_prompt') }}</label>
                     <textarea id="globalPrompt"
-                        class="input-field w-full flex-1 text-sm p-3 min-h-[80px] bg-[#000106] border-gray-800 focus:border-indigo-500 focus:ring-indigo-500"
+                        class="input-field w-full flex-1 text-sm p-3 min-h-[80px] bg-[#1c2027] border-white/5 focus:border-indigo-500 focus:ring-indigo-500"
                         placeholder="{{ t('placeholder_global_prompt') }}"></textarea>
                 </div>
-                <div class="flex-[4] bg-[#000106] p-4 rounded-lg border border-gray-800">
+                <div class="flex-[4] bg-[#1c2027] p-4 rounded-lg border border-white/5">
                     <label class="block text-sm font-bold text-gray-800 dark:text-white mb-1">{{ t('label_ethnicity') }}</label>
                     <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">{{ t('helper_ethnicity') }}</p>
-                    <select id="charEthnicity" class="input-field w-full p-2.5 text-sm bg-[#000106] border border-gray-300 dark:border-gray-600 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-gray-800 dark:text-gray-200 bg-[#000106] text-white">
+                    <select id="charEthnicity" class="input-field w-full p-2.5 text-sm bg-[#1c2027] border border-white/10 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-gray-800 dark:text-gray-200 bg-[#1c2027] text-white">
                         <option value="East Asian heritage, Polished porcelain skin">{{ t('eth_east_asian') }}</option>
                         <option value="Southeast Asian features, Golden tan complexion">{{ t('eth_southeast_asian') }}</option>
                         <option value="South Asian descent, Desi features, Deep almond eyes">{{ t('eth_south_asian') }}</option>
@@ -131,10 +131,10 @@
 
     <!-- [MOVED] 캐릭터 분석 결과 -->
     <div id="characterResultContainer"
-        class="hidden mt-4 bg-[#000106] p-4 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+        class="hidden mt-4 bg-[#232832] p-4 rounded-lg border border-white/5 shadow-sm">
 
         <div
-            class="flex flex-col sm:flex-row items-center justify-between mb-4 pb-2 border-b border-gray-100 dark:border-gray-700 gap-3">
+            class="flex flex-col sm:flex-row items-center justify-between mb-4 pb-2 border-b border-white/5 gap-3">
             <h4 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
                 <span>👥</span> {{ t('title_char_analysis_result') }}
             </h4>
@@ -144,7 +144,7 @@
                     <span>➕</span> {{ t('btn_add_manual') }}
                 </button>
                 <button onclick="resetAllCharacters()"
-                    class="flex-1 sm:flex-none btn-secondary text-[10px] py-1.5 px-3 flex items-center justify-center gap-1 text-red-500 border-red-200 hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d]">
+                    class="flex-1 sm:flex-none btn-secondary text-[10px] py-1.5 px-3 flex items-center justify-center gap-1 text-red-500 border-red-500/20 hover:bg-[#232832] dark:hover:bg-[#232832]">
                     <span>🗑️</span> {{ t('btn_reset_all') }}
                 </button>
                 <button onclick="saveCharactersToProject()" id="saveCharsBtn"
@@ -173,7 +173,7 @@
 
 <div id="resultSection" class="hidden">
     <div class="card">
-        <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-100 dark:border-gray-700">
+        <div class="flex items-center justify-between mb-6 pb-4 border-b border-white/5">
             <h3 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
                 <span>🎨</span> {{ t('title_generated_prompts') }}
             </h3>
@@ -189,9 +189,16 @@
 
                 <!-- [NEW] Manual Save Button -->
                 <button onclick="manualSavePrompts()" id="manualSaveBtn"
-                    class="btn-secondary text-sm px-4 flex items-center gap-2 bg-[#000106] text-blue-400 border-gray-800">
+                    class="btn-secondary text-sm px-4 flex items-center gap-2 bg-[#232832] text-blue-400 border-white/5">
                     <span>💾</span> {{ t('btn_save_all') }}
                 </button>
+
+                <!-- [NEW] Grid Prompt Generate Button -->
+                <button onclick="showGridPromptsModal()" id="gridGenBtn"
+                    class="btn-primary text-sm px-4 flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 shadow-md border-none">
+                    <span>🖼️</span> 2x2 격자판 프롬프트 추출
+                </button>
+
 
                 {% if membership != 'std' %}
                 <button onclick="generateSelectedImages()" id="autoGenBtn"
@@ -208,7 +215,7 @@
         <div id="nextStepSection" class="hidden"></div>
 
         <!-- 블로그 게시 패널 -->
-        <div id="blogPostPanel" class="hidden mt-6 bg-[#000106] rounded-xl border-2 border-amber-300 dark:border-amber-700 shadow-lg overflow-hidden">
+        <div id="blogPostPanel" class="hidden mt-6 bg-[#232832] rounded-xl border-2 border-amber-500/30 shadow-lg overflow-hidden">
             <div class="bg-gradient-to-r from-amber-500 to-orange-500 p-4">
                 <div class="flex items-center justify-between">
                     <h4 class="font-bold text-white flex items-center gap-2"><span>📝</span> {{ t('blog_panel_title') }}</h4>
@@ -223,29 +230,29 @@
                 </div>
                 <!-- 미리보기 정보 -->
                 <div class="flex gap-4 text-xs text-gray-500 dark:text-gray-400">
-                    <span id="blogSceneCount" class="bg-[#000106]/50 px-3 py-1 rounded-full">{{ t('blog_scene_count') }}</span>
-                    <span id="blogImageCount" class="bg-green-100 dark:bg-[#000106] text-green-700 dark:text-green-300 px-3 py-1 rounded-full">{{ t('blog_image_count') }}</span>
+                    <span id="blogSceneCount" class="bg-[#1c2027] px-3 py-1 rounded-full">{{ t('blog_scene_count') }}</span>
+                    <span id="blogImageCount" class="bg-[#1c2027] text-green-300 px-3 py-1 rounded-full">{{ t('blog_image_count') }}</span>
                 </div>
                 <!-- 플랫폼 선택 -->
                 <div>
                     <label class="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-2">{{ t('blog_platform_label') }}</label>
                     <div class="flex gap-3">
-                        <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-400 transition-colors">
+                        <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg border border-white/5 hover:border-blue-400 transition-colors">
                             <input type="checkbox" id="blogPlatformWP" checked class="rounded border-gray-300 text-blue-600">
                             <span class="text-sm">{{ t('blog_platform_wp') }}</span>
                         </label>
-                        <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-orange-400 transition-colors">
+                        <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg border border-white/5 hover:border-orange-400 transition-colors">
                             <input type="checkbox" id="blogPlatformBlogger" class="rounded border-gray-300 text-orange-600">
                             <span class="text-sm">{{ t('blog_platform_blogger') }}</span>
                         </label>
                     </div>
                 </div>
                 <!-- 포착된 이미지 (Google ImageFX 무료 생성) -->
-                <div class="border border-green-200 dark:border-green-700 rounded-lg overflow-hidden">
-                    <div class="bg-[#000106] dark:bg-[#000106] p-3 flex items-center justify-between">
+                <div class="border border-green-500/20 rounded-lg overflow-hidden">
+                    <div class="bg-[#232832] p-3 flex items-center justify-between">
                         <div class="flex items-center gap-2">
-                            <span class="text-green-600 dark:text-green-400 font-bold text-sm">{{ t('blog_captured_images_title') }}</span>
-                            <span id="extStatusBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-gray-200 bg-[#000106]/50 text-gray-500">{{ t('status_checking_extension') }}</span>
+                            <span class="text-green-400 font-bold text-sm">{{ t('blog_captured_images_title') }}</span>
+                            <span id="extStatusBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-[#1c2027] text-gray-500">{{ t('status_checking_extension') }}</span>
                         </div>
                         <div class="flex gap-2">
                             <button onclick="refreshCapturedBlogImages()" class="text-xs bg-green-500 text-white px-3 py-1 rounded-lg font-bold hover:bg-green-600 transition-colors">
@@ -268,7 +275,7 @@
                         </div>
                     </div>
                     <!-- 선택된 이미지 목록 -->
-                    <div id="selectedBlogImagesSection" class="hidden border-t border-green-200 dark:border-green-700 p-3 bg-[#000106] dark:bg-[#000106]">
+                    <div id="selectedBlogImagesSection" class="hidden border-t border-white/5 p-3 bg-[#1c2027]">
                         <div class="flex items-center justify-between mb-2">
                             <span class="text-xs font-bold text-green-700 dark:text-green-300">{{ t('blog_selected_images_label') }}</span>
                             <button onclick="clearSelectedBlogImages()" class="text-[10px] text-red-500 hover:text-red-700">{{ t('blog_clear_selected') }}</button>
@@ -284,7 +291,7 @@
                         <span>🚀</span> {{ t('btn_post_to_blog') }}
                     </button>
                     <button onclick="previewBlogHtml()"
-                        class="py-3 px-4 rounded-lg font-bold text-gray-600 dark:text-gray-300 bg-[#000106]/50 hover:bg-[#0a0f1d] dark:hover:bg-gray-600 transition-all">
+                        class="py-3 px-4 rounded-lg font-bold text-gray-300 bg-[#1c2027] hover:bg-[#232832] transition-all">
                         {{ t('btn_preview_blog') }}
                     </button>
                 </div>
@@ -334,6 +341,126 @@
 
         let snippet = (end === -1) ? fullPrompt.substring(start) : fullPrompt.substring(start, end);
         return snippet.trim() || i18n.msg_no_motion_desc;
+    }
+
+    function switchDualTab(index, tab) {
+        const startTab = document.getElementById(`tab-start-${index}`);
+        const endTab = document.getElementById(`tab-end-${index}`);
+        const startPanel = document.getElementById(`panel-start-${index}`);
+        const endPanel = document.getElementById(`panel-end-${index}`);
+        
+        // [NEW] Prompt textareas toggle
+        const startPromptGroup = document.getElementById(`prompt-group-start-${index}`);
+        const endPromptGroup = document.getElementById(`prompt-group-end-${index}`);
+        const mainPromptGroup = document.getElementById(`prompt-group-main-${index}`);
+
+        if (tab === 'start') {
+            if (startTab) startTab.classList.add('active');
+            if (endTab) endTab.classList.remove('active');
+            if (startPanel) startPanel.classList.remove('hidden');
+            if (endPanel) endPanel.classList.add('hidden');
+            
+            if (startPromptGroup) startPromptGroup.classList.remove('hidden');
+            if (endPromptGroup) endPromptGroup.classList.add('hidden');
+            if (mainPromptGroup) mainPromptGroup.classList.add('hidden');
+            
+            // Set active frame for generation logic
+            if (prompts[index]) prompts[index]._active_frame = 'start';
+        } else {
+            if (startTab) startTab.classList.remove('active');
+            if (endTab) endTab.classList.add('active');
+            if (startPanel) startPanel.classList.add('hidden');
+            if (endPanel) endPanel.classList.remove('hidden');
+
+            if (startPromptGroup) startPromptGroup.classList.add('hidden');
+            if (endPromptGroup) endPromptGroup.classList.remove('hidden');
+            if (mainPromptGroup) mainPromptGroup.classList.add('hidden');
+
+            // Set active frame for generation logic
+            if (prompts[index]) prompts[index]._active_frame = 'end';
+        }
+    }
+
+    function updateDualFrameField(index, frameType, field, value) {
+        if (!prompts[index]) return;
+        if (frameType === 'start') {
+            if (!prompts[index].start_frame) prompts[index].start_frame = {};
+            prompts[index].start_frame[field] = value;
+        } else {
+            if (!prompts[index].end_frame) prompts[index].end_frame = {};
+            prompts[index].end_frame[field] = value;
+        }
+    }
+
+    function toggleDual(index, enabled) {
+        if (!prompts[index]) return;
+        prompts[index].is_dual = enabled;
+        const controls = document.getElementById(`dual-controls-${index}`);
+        const mainPromptGroup = document.getElementById(`prompt-group-main-${index}`);
+        const startPromptGroup = document.getElementById(`prompt-group-start-${index}`);
+        const endPromptGroup = document.getElementById(`prompt-group-end-${index}`);
+
+        if (enabled) {
+            if (controls) controls.classList.remove('hidden');
+            if (mainPromptGroup) mainPromptGroup.classList.add('hidden');
+            // Default to start tab
+            switchDualTab(index, 'start');
+        } else {
+            if (controls) controls.classList.add('hidden');
+            if (mainPromptGroup) mainPromptGroup.classList.remove('hidden');
+            if (startPromptGroup) startPromptGroup.classList.add('hidden');
+            if (endPromptGroup) endPromptGroup.classList.add('hidden');
+            prompts[index]._active_frame = null;
+        }
+    }
+
+    async function regenDualPrompts(index) {
+        if (!prompts[index]) return;
+        const p = prompts[index];
+        const btn = document.getElementById(`regen-dual-btn-${index}`);
+        const projectId = getCurrentProject();
+        
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="animate-spin inline-block mr-1">↻</span> 작성 중...';
+        }
+
+        try {
+            const response = await fetch('/api/image/generate-dual-prompts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    project_id: projectId,
+                    scene: p
+                })
+            });
+            const data = await response.json();
+            if (data.status === 'ok') {
+                p.prompt_en_start = data.prompt_en_start;
+                p.prompt_en_end = data.prompt_en_end;
+                
+                // 스토리지 저장 및 UI 갱신
+                Utils.storage.set('imagePrompts', prompts);
+                
+                // 현재 활성화된 프레임 텍스트 영역 즉시 업데이트
+                const startArea = document.getElementById(`prompt-en-start-${index}`);
+                const endArea = document.getElementById(`prompt-en-end-${index}`);
+                if (startArea) startArea.value = p.prompt_en_start;
+                if (endArea) endArea.value = p.prompt_en_end;
+                
+                Utils.showToast("Dual Prompts Updated!", 'success');
+            } else {
+                alert("Error: " + data.error);
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Failed to generate dual prompts.");
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '↻ AI 프롬프트 자동 작성 (Start/End)';
+            }
+        }
     }
 
     function toggleFullPrompt(index) {
@@ -613,12 +740,12 @@
 
         characters.forEach((char, index) => {
             const card = document.createElement('div');
-            card.className = "bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm hover:shadow-md hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d] transition-all relative group";
+            card.className = "bg-[#232832] rounded-lg border border-white/5 p-3 shadow-sm hover:shadow-md hover:bg-[#2a303b] transition-all relative group";
 
             // 역할에 따른 배지 색상
-            let roleBadgeColor = "bg-[#000106] text-gray-600";
-            if (char.role && char.role.includes("주인공")) roleBadgeColor = "bg-blue-100 text-blue-700 border border-blue-200";
-            else if (char.role && char.role.includes("조연")) roleBadgeColor = "bg-green-100 text-green-700 border border-green-200";
+            let roleBadgeColor = "bg-[#1c2027] text-gray-400";
+            if (char.role && char.role.includes("주인공")) roleBadgeColor = "bg-blue-500/10 text-blue-400 border border-blue-500/20";
+            else if (char.role && char.role.includes("조연")) roleBadgeColor = "bg-green-500/10 text-green-400 border border-green-500/20";
 
             card.innerHTML = `
                 <div class="flex justify-between items-start mb-2 gap-2">
@@ -626,7 +753,7 @@
                         class="font-bold text-gray-800 dark:text-white bg-transparent border-none focus:ring-1 focus:ring-indigo-300 rounded px-1 w-full text-sm"
                         onchange="updateCharLocal(${index}, 'name', this.value)">
                     <select onchange="updateCharLocal(${index}, 'role', this.value)"
-                        class="text-[10px] px-2 py-0.5 rounded-full ${roleBadgeColor} font-medium border-none focus:ring-1 focus:ring-indigo-300 cursor-pointer bg-[#000106]/50 whitespace-nowrap bg-[#000106] text-white">
+                        class="text-[10px] px-2 py-0.5 rounded-full ${roleBadgeColor} font-medium border-none focus:ring-1 focus:ring-indigo-300 cursor-pointer bg-[#1c2027] whitespace-nowrap text-white">
                         <option value="주인공" ${char.role === '주인공' ? 'selected' : ''}>{{ t('role_main') }}</option>
                         <option value="조연" ${char.role === '조연' ? 'selected' : ''}>{{ t('role_sub') }}</option>
                         <option value="배경인물" ${char.role === '배경인물' ? 'selected' : ''}>{{ t('role_bg') }}</option>
@@ -635,17 +762,17 @@
                 
                 <div class="absolute top-10 right-3">
                     <button onclick="openCharacterDnaModal(${index})" 
-                        class="text-[9px] px-2 py-0.5 rounded bg-[#000106]/80 text-blue-400 border border-blue-900/30 hover:bg-blue-900/20 transition-all font-bold">
+                        class="text-[9px] px-2 py-0.5 rounded bg-[#1c2027]/80 text-blue-400 border border-blue-900/30 hover:bg-blue-900/20 transition-all font-bold">
                         ${i18n.btn_dna}
                     </button>
                 </div>
                 
                 <!-- Character Image Preview -->
-                <div class="mb-3 aspect-square bg-[#000106] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 flex items-center justify-center relative group/char">
+                <div class="mb-3 aspect-square bg-[#1c2027] rounded-lg overflow-hidden border border-white/5 flex items-center justify-center relative group/char">
                     <img id="char-img-${index}" src="${char.image_url || ''}" class="w-full h-full object-cover ${char.image_url ? '' : 'hidden'}" alt="${char.name}">
                     <div id="char-placeholder-${index}" class="text-gray-400 text-[10px] ${char.image_url ? 'hidden' : ''}">${i18n.img_not_generated}</div>
                     
-                    <div class="absolute inset-0 bg-[#000106]/40 opacity-0 group-hover/char:opacity-100 transition-opacity flex items-center justify-center">
+                    <div class="absolute inset-0 bg-[#1c2027]/40 opacity-0 group-hover/char:opacity-100 transition-opacity flex items-center justify-center">
                          <button onclick="generateCharacterImage(${index})" class="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold py-1.5 px-3 rounded-full shadow-lg transform hover:scale-105 transition-all">
                              ${i18n.btn_ai_gen}
                          </button>
@@ -654,29 +781,29 @@
 
                 <div class="mb-2">
                     <label class="text-[9px] text-gray-400 block mb-1">{{ t('label_appearance_desc') }}</label>
-                    <textarea class="w-full text-[11px] text-gray-600 dark:text-gray-300 bg-[#000106]/50 bg-[#000106]/30 border border-gray-100 dark:border-gray-700 rounded p-1.5 focus:ring-1 focus:ring-indigo-300 outline-none"
+                    <textarea class="w-full text-[11px] text-gray-300 bg-[#1c2027] border border-white/5 rounded p-1.5 focus:ring-1 focus:ring-indigo-300 outline-none"
                         rows="2" onchange="updateCharLocal(${index}, 'description_ko', this.value)">${char.description_ko || ''}</textarea>
                 </div>
 
                 <div>
                     <label class="text-[9px] text-gray-400 block mb-1">{{ t('label_ai_prompt') }}</label>
-                    <textarea class="w-full text-[10px] text-gray-500 dark:text-gray-400 font-mono bg-[#000106]/50 border border-gray-100 dark:border-gray-700 rounded p-1.5 min-h-[60px] focus:ring-1 focus:ring-indigo-300 outline-none scrollbar-thin"
+                    <textarea class="w-full text-[10px] text-gray-400 font-mono bg-[#1c2027] border border-white/5 rounded p-1.5 min-h-[60px] focus:ring-1 focus:ring-indigo-300 outline-none scrollbar-thin"
                         onchange="updateCharLocal(${index}, 'prompt_en', this.value)">${char.prompt_en || ''}</textarea>
                 </div>
 
-                <div class="flex gap-2 mt-3 pt-2 border-t border-gray-100 dark:border-gray-700">
+                <div class="flex gap-2 mt-3 pt-2 border-t border-white/5">
                     <button onclick="applyCharacter(${index})" 
-                        class="flex-1 btn-secondary text-[10px] py-1.5 flex items-center justify-center gap-1 hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d] hover:text-blue-600 hover:border-blue-200">
+                        class="flex-1 btn-secondary text-[10px] py-1.5 flex items-center justify-center gap-1 hover:bg-[#232832] hover:text-blue-400 hover:border-blue-500/30">
                         <span>⬇️</span> ${i18n.btn_apply}
                     </button>
                     
                     <button id="regen-btn-${index}" onclick="regenerateCharacter(${index})" 
-                        class="px-2 py-1.5 border border-gray-200 dark:border-gray-700 rounded text-gray-500 hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d] hover:text-green-600 transition-colors dark:text-gray-400" title="${i18n.btn_regen_prompt}">
+                        class="px-2 py-1.5 border border-white/5 rounded text-gray-400 hover:bg-[#232832] hover:text-green-400 transition-colors" title="${i18n.btn_regen_prompt}">
                         🔄
                     </button>
                     
                     <button onclick="deleteCharacter(${index})" 
-                        class="px-2 py-1.5 border border-gray-200 dark:border-gray-700 rounded text-gray-500 hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d] hover:text-red-600 transition-colors dark:text-gray-400" title="${i18n.btn_delete}">
+                        class="px-2 py-1.5 border border-white/5 rounded text-gray-400 hover:bg-[#232832] hover:text-red-400 transition-colors" title="${i18n.btn_delete}">
                         🗑️
                     </button>
                 </div>
@@ -1162,9 +1289,20 @@
             };
             const jsonString = JSON.stringify(jsonData, null, 2);
 
+            // [DUAL KEYFRAME LOGIC]
+            const isDual = p.is_dual === true || p.is_dual === 'true' || p.is_dual === 1 || p.is_dual === '1';
+            if (typeof p.start_frame === 'string' && p.start_frame.startsWith('{')) {
+                try { p.start_frame = JSON.parse(p.start_frame); } catch(e){}
+            }
+            if (typeof p.end_frame === 'string' && p.end_frame.startsWith('{')) {
+                try { p.end_frame = JSON.parse(p.end_frame); } catch(e){}
+            }
+            const startF = p.start_frame || {};
+            const endF = p.end_frame || {};
+
             return `
-            <div id="prompt-card-${i}" class="bg-[#000106] rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-                <div class="flex items-center justify-between px-4 py-3 bg-[#000106] border-b border-gray-200 dark:border-gray-700">
+            <div id="prompt-card-${i}" class="bg-[#1c2027] rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                <div class="flex items-center justify-between px-4 py-3 bg-[#1c2027] border-b border-gray-200 dark:border-gray-700">
                     <div class="flex items-center gap-3">
                         <input type="checkbox" id="scene-checkbox-${i}" class="scene-checkbox w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 cursor-pointer" onchange="handleSceneSelection()">
                         <span class="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-sm">${i + 1}</span>
@@ -1173,10 +1311,17 @@
                             <span class="text-xs text-gray-500 dark:text-gray-400 ml-2 hidden sm:inline-block truncate max-w-[200px] align-bottom">🎬 ${firstText || i18n.no_script_desc}</span>
                         </div>
                     </div>
+                    <div class="flex items-center gap-2">
+                        <label class="flex items-center gap-2 cursor-pointer bg-gray-100 dark:bg-[#1c2128] px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-700">
+                            <span class="text-[10px] font-bold text-gray-500">Dual Frame</span>
+                            <input type="checkbox" class="sr-only peer" ${isDual ? 'checked' : ''} onchange="toggleDual(${i}, this.checked)">
+                            <div class="relative w-7 h-4 bg-gray-300 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                        </label>
+                    </div>
                 </div>
                 <div class="p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
                     <div class="${getImageColClass()} flex flex-col gap-2">
-                        <div class="image-container relative w-full bg-[#000106] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 group" style="${getContainerStyle()}">
+                        <div class="image-container relative w-full bg-[#1c2027] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 group" style="${getContainerStyle()}">
                             ${p.video_url ? `
                                 <video src="${p.video_url}" class="absolute inset-0 w-full h-full object-cover" controls autoplay loop muted></video>
                                 <div class="absolute top-2 right-2 bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm">
@@ -1189,87 +1334,155 @@
                                     <span class="text-2xl mb-2">🖼️</span>
                                     <span class="text-xs">No Asset</span>
                                     <button onclick="document.getElementById('scene-upload-${i}').click()" 
-                                            class="mt-2 text-[10px] text-blue-500 hover:text-blue-600 border border-gray-800 px-2 py-1 rounded bg-[#000106] transition-colors">
+                                             class="mt-2 text-[10px] text-blue-500 hover:text-blue-600 border border-white/5 px-2 py-1 rounded bg-[#1c2027] transition-colors">
                                         📁 ${i18n.btn_upload}
                                     </button>
                                 </div>
                             `}
                             <input type="file" id="scene-upload-${i}" class="hidden" accept="image/*,video/*" onchange="uploadSceneImage(${i}, this)">
                             ${(p.image_url || p.video_url) ? `
-                                <div class="absolute inset-0 bg-[#000106]/30 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-4">
+                                <div class="absolute inset-0 bg-[#1c2027]/30 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-4">
                                     <button onclick="openAssetLibrary(${i})" 
-                                            class="w-3/4 bg-[#000106]/95 bg-[#000106]/95 text-[10px] font-bold py-1.5 px-3 rounded-full shadow-lg border border-gray-200 dark:border-gray-700 hover:scale-105 transition-all text-gray-700 dark:text-gray-200 flex items-center justify-center gap-1.5">
+                                             class="w-3/4 bg-[#1c2027]/95 text-[10px] font-bold py-1.5 px-3 rounded-full shadow-lg border border-gray-200 dark:border-gray-700 hover:scale-105 transition-all text-gray-700 dark:text-gray-200 flex items-center justify-center gap-1.5">
                                         ${i18n.btn_library}
                                     </button>
                                     <button onclick="document.getElementById('scene-upload-${i}').click()" 
-                                            class="w-3/4 bg-indigo-600/90 text-white text-[10px] font-bold py-1.5 px-3 rounded-full shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-1.5">
+                                             class="w-3/4 bg-indigo-600/90 text-white text-[10px] font-bold py-1.5 px-3 rounded-full shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-1.5">
                                         ${i18n.btn_upload_new}
                                     </button>
                                 </div>
                             ` : ''}
                         </div>
 
+                        <!-- [NEW] Dual Keyframe Controls (Expanded) -->
+                        <div id="dual-controls-${i}" class="${isDual ? '' : 'hidden'} mt-2 space-y-2 animate-in fade-in slide-in-from-top-1 duration-300">
+                            <div class="tabs flex gap-1 p-1 bg-gray-100 dark:bg-[#1c2128] rounded-lg border border-gray-200 dark:border-gray-700">
+                                <button id="tab-start-${i}" onclick="switchDualTab(${i}, 'start')" class="tab flex-1 text-[9px] font-bold py-1 rounded-md transition-all ${isDual ? 'active' : ''}">Start Frame</button>
+                                <button id="tab-end-${i}" onclick="switchDualTab(${i}, 'end')" class="tab flex-1 text-[9px] font-bold py-1 rounded-md transition-all">End Frame</button>
+                            </div>
+                            
+                            <div id="panel-start-${i}" class="space-y-1.5 p-2 bg-gray-50 dark:bg-[#1c2128]/50 rounded-lg border border-gray-100 dark:border-gray-800">
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="text-[8px] font-bold text-gray-400 uppercase">Action</label>
+                                        <input type="text" value="${startF.action || ''}" onchange="updateDualFrameField(${i}, 'start', 'action', this.value)" 
+                                            class="w-full text-[10px] bg-[#1c2027] border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5 text-white">
+                                    </div>
+                                    <div>
+                                        <label class="text-[8px] font-bold text-gray-400 uppercase">Expression</label>
+                                        <input type="text" value="${startF.expression || ''}" onchange="updateDualFrameField(${i}, 'start', 'expression', this.value)" 
+                                            class="w-full text-[10px] bg-[#1c2027] border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5 text-white">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="text-[8px] font-bold text-gray-400 uppercase">Location</label>
+                                    <input type="text" value="${startF.location || ''}" onchange="updateDualFrameField(${i}, 'start', 'location', this.value)" 
+                                        class="w-full text-[10px] bg-[#1c2027] border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5 text-white">
+                                </div>
+                            </div>
+
+                            <div id="panel-end-${i}" class="hidden space-y-1.5 p-2 bg-gray-50 dark:bg-[#1c2128]/50 rounded-lg border border-gray-100 dark:border-gray-800">
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="text-[8px] font-bold text-gray-400 uppercase">Action</label>
+                                        <input type="text" value="${endF.action || ''}" onchange="updateDualFrameField(${i}, 'end', 'action', this.value)" 
+                                            class="w-full text-[10px] bg-[#1c2027] border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5 text-white">
+                                    </div>
+                                    <div>
+                                        <label class="text-[8px] font-bold text-gray-400 uppercase">Expression</label>
+                                        <input type="text" value="${endF.expression || ''}" onchange="updateDualFrameField(${i}, 'end', 'expression', this.value)" 
+                                            class="w-full text-[10px] bg-[#1c2027] border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5 text-white">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="text-[8px] font-bold text-gray-400 uppercase">Location</label>
+                                    <input type="text" value="${endF.location || ''}" onchange="updateDualFrameField(${i}, 'end', 'location', this.value)" 
+                                        class="w-full text-[10px] bg-[#1c2027] border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5 text-white">
+                                </div>
+                            </div>
+                            
+                            <!-- [NEW] Dual Prompt Regen Button -->
+                            <div class="mt-2 text-left">
+                                <button id="regen-dual-btn-${i}" onclick="regenDualPrompts(${i})" 
+                                    class="text-[10px] text-blue-500 hover:text-blue-600 font-bold flex items-center gap-1 transition-all">
+                                    ↻ AI 프롬프트 자동 작성 (Start/End)
+                                </button>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Right Column: Prompt Editors -->
                     <div class="${getContentColClass()} flex flex-col gap-3">
-
+                        <!-- Script Context -->
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold text-gray-500 dark:text-gray-400">📝 Script Context</label>
+                            <div class="p-2.5 bg-gray-50 dark:bg-[#1c2128]/50 rounded-lg border border-gray-100 dark:border-gray-800">
+                                <p class="text-[11px] text-gray-700 dark:text-gray-300 leading-relaxed font-medium">${rawSceneText || i18n.no_script_desc}</p>
+                            </div>
+                        </div>
 
                         <!-- 🎨 Visual Description (Image) -->
                         <div class="grid grid-cols-12 gap-2 items-start">
                             <div class="col-span-3 flex flex-col gap-1">
                                 <label class="text-[10px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">🎨 Visual Description</label>
                                 <div class="flex items-center gap-1">
-                                    <button onclick="toggleFullPrompt(${i})" id="toggle-p-btn-${i}" class="text-indigo-500 hover:text-indigo-600 text-[9px] bg-[#000106] px-1.5 py-0.5 rounded border border-gray-800 transition-colors font-bold whitespace-nowrap">${i18n.btn_expand_view}</button>
+                                    <button onclick="toggleFullPrompt(${i})" id="toggle-p-btn-${i}" class="text-indigo-500 hover:text-indigo-600 text-[9px] bg-[#1c2027] px-1.5 py-0.5 rounded border border-white/5 transition-colors font-bold whitespace-nowrap">${i18n.btn_expand_view}</button>
                                     ${window.userMembership !== 'std' ? `<button onclick="generateSingleImage(${i})" class="text-blue-500 hover:text-blue-600 text-[9px] whitespace-nowrap">↻ Regen</button>` : ''}
                                 </div>
                             </div>
                             <div class="col-span-9 relative">
-                                <!-- Dynamic Summary View -->
-                                <div id="prompt-summary-${i}" class="p-1 px-2 rounded border border-gray-800 bg-[#000106] cursor-pointer hover:bg-gray-800 transition-colors group/summary h-8 flex items-center" onclick="toggleFullPrompt(${i})">
-                                    <p class="text-[11px] text-gray-700 dark:text-gray-200 italic line-clamp-1 w-full leading-tight font-serif">${extractDynamicPart(p.prompt_en)}</p>
-                                </div>
-                                <!-- Full Editable Textarea -->
-                                <div id="prompt-full-${i}" class="hidden absolute top-0 left-0 right-0 z-20 bg-[#000106] shadow-xl p-2 rounded border dark:border-gray-700 animate-in fade-in zoom-in duration-200">
-                                    <div class="flex justify-between items-center mb-1.5">
-                                        <p class="text-[8px] text-gray-400">* Full data incl. style</p>
-                                        <button onclick="toggleFullPrompt(${i})" class="w-5 h-5 flex items-center justify-center rounded-full bg-[#000106]/50 hover:bg-red-100 dark:hover:bg-red-900/40 text-gray-500 hover:text-red-500 transition-colors text-[11px] font-bold leading-none">✕</button>
+                                <!-- Main Prompt (Standard) -->
+                                <div id="prompt-group-main-${i}" class="${isDual ? 'hidden' : ''}">
+                                    <div id="prompt-summary-${i}" class="p-1 px-2 rounded border border-white/5 bg-[#1c2027] cursor-pointer hover:bg-gray-800 transition-colors group/summary h-8 flex items-center" onclick="toggleFullPrompt(${i})">
+                                        <p class="text-[11px] text-gray-700 dark:text-gray-200 italic line-clamp-1 w-full leading-tight font-serif">${extractDynamicPart(p.prompt_en)}</p>
                                     </div>
-                                    <textarea id="prompt-json-${i}"
-                                        class="w-full h-32 text-[11px] p-2 rounded border border-gray-200 dark:border-gray-700 bg-[#000106] text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-blue-500 font-mono scrollbar-thin"
-                                        onchange="updatePromptData(${i}, this.value)">${p.prompt_en || ''}</textarea>
+                                    <div id="prompt-full-${i}" class="hidden absolute top-0 left-0 right-0 z-20 bg-[#1c2027] shadow-xl p-2 rounded border dark:border-gray-700 animate-in fade-in zoom-in duration-200">
+                                        <div class="flex justify-between items-center mb-1.5">
+                                            <p class="text-[8px] text-gray-400">* Full data incl. style</p>
+                                            <button onclick="toggleFullPrompt(${i})" class="w-5 h-5 flex items-center justify-center rounded-full bg-[#1c2027]/50 hover:bg-red-100 dark:hover:bg-red-900/40 text-gray-500 hover:text-red-500 transition-colors text-[11px] font-bold leading-none">✕</button>
+                                        </div>
+                                        <textarea id="prompt-en-${i}" class="w-full h-32 text-[11px] p-2 rounded border border-gray-200 dark:border-gray-700 bg-[#1c2027] text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-blue-500 font-mono scrollbar-thin" onchange="updatePromptData(${i}, 'prompt_en', this.value)">${p.prompt_en || ''}</textarea>
+                                    </div>
+                                </div>
+                                <!-- Start Prompt (Dual only) -->
+                                <div id="prompt-group-start-${i}" class="${isDual ? '' : 'hidden'}">
+                                    <textarea id="prompt-en-start-${i}" class="w-full h-10 text-[11px] p-1.5 rounded border border-green-500/30 bg-[#1c2027] text-gray-200 focus:ring-1 focus:ring-green-500 font-mono scrollbar-thin" placeholder="Start Frame Prompt" onchange="updatePromptData(${i}, 'prompt_en_start', this.value)">${p.prompt_en_start || ''}</textarea>
+                                </div>
+                                <!-- End Prompt (Dual only) -->
+                                <div id="prompt-group-end-${i}" class="hidden">
+                                    <textarea id="prompt-en-end-${i}" class="w-full h-10 text-[11px] p-1.5 rounded border border-blue-500/30 bg-[#1c2027] text-gray-200 focus:ring-1 focus:ring-blue-500 font-mono scrollbar-thin" placeholder="End Frame Prompt" onchange="updatePromptData(${i}, 'prompt_en_end', this.value)">${p.prompt_en_end || ''}</textarea>
                                 </div>
                             </div>
                         </div>
 
                         <!-- 🌊 Google Flow Optimized Prompt -->
-                        <div class="grid grid-cols-12 gap-2 items-start bg-[#000106] p-2 rounded border border-gray-800">
+                        <div class="grid grid-cols-12 gap-2 items-start bg-[#1c2027] p-2 rounded border border-white/5">
                             <div class="col-span-3 flex flex-col gap-1">
                                 <label class="text-[10px] font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">🌊 Google Flow</label>
                                 <div class="flex items-center gap-1">
                                     <button onclick="copyFlowPrompt(${i})" class="text-[8px] bg-blue-600 text-white px-2 py-0.5 rounded hover:bg-blue-700 transition-colors">📋 Copy</button>
                                     <button onclick="toggleFlowEditor(${i})" class="text-[8px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">Edit</button>
-                                    ${window.userMembership !== 'std' ? `<button onclick="regenFlowPrompt(${i})" id="regen-flow-btn-${i}" class="text-[8px] text-blue-500 hover:text-blue-700 border border-blue-200 dark:border-blue-800 px-1.5 py-0.5 rounded bg-[#000106] dark:bg-[#000106] transition-colors whitespace-nowrap">↻ AI</button>` : ''}
+                                    ${window.userMembership !== 'std' ? `<button onclick="regenFlowPrompt(${i})" id="regen-flow-btn-${i}" class="text-[8px] text-blue-500 hover:text-blue-700 border border-blue-200 dark:border-blue-800 px-1.5 py-0.5 rounded bg-[#1c2027] dark:bg-[#1c2027] transition-colors whitespace-nowrap">↻ AI</button>` : ''}
                                 </div>
                             </div>
                             <div class="col-span-9 flex flex-col gap-0.5">
                                 <p class="text-[11px] text-gray-700 dark:text-gray-200 line-clamp-1 h-8 flex items-center overflow-hidden" id="flow-prompt-view-${i}">${p.flow_prompt || i18n.status_generating}</p>
-                                <textarea id="flow-prompt-edit-${i}" class="hidden w-full h-8 text-[11px] p-1.5 rounded border border-blue-200 dark:border-blue-900 bg-[#000106] text-gray-700 dark:text-gray-300 scrollbar-thin overflow-y-auto resize-none" onchange="updateFlowPrompt(${i}, this.value)">${p.flow_prompt || ''}</textarea>
+                                <textarea id="flow-prompt-edit-${i}" class="hidden w-full h-8 text-[11px] p-1.5 rounded border border-blue-200 dark:border-blue-900 bg-[#1c2027] text-gray-700 dark:text-gray-300 scrollbar-thin overflow-y-auto resize-none" onchange="updateFlowPrompt(${i}, this.value)">${p.flow_prompt || ''}</textarea>
                             </div>
                         </div>
 
                         <!-- 🔍 Visual Analysis (3-step logic) -->
                         ${p.visual_analysis && p.visual_analysis.length > 0 ? `
-                        <div class="mt-1 border-t border-gray-100 dark:border-gray-800 pt-2">
+                        <div class="mt-1 border-t border-gray-100 dark:border-white/5 pt-2">
                             <button onclick="document.getElementById('analysis-details-${i}').classList.toggle('hidden')" 
                                     class="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 hover:text-indigo-500 transition-colors">
                                 <span>🔍 시각 요소 분석 (Visual Analysis)</span>
                                 <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7"></path></svg>
                             </button>
-                            <div id="analysis-details-${i}" class="hidden mt-2 overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800 bg-[#000106]/50 bg-[#000106]/30">
+                            <div id="analysis-details-${i}" class="hidden mt-2 overflow-x-auto rounded-lg border border-gray-100 dark:border-white/5 bg-[#1c2027]/50 bg-[#1c2027]/30">
                                 <table class="w-full text-left border-collapse">
                                     <thead>
-                                        <tr class="bg-[#000106]">
+                                        <tr class="bg-[#1c2027]">
                                             <th class="px-2 py-1.5 text-[9px] font-bold text-gray-500 uppercase">${i18n.label_analysis_category}</th>
                                             <th class="px-2 py-1.5 text-[9px] font-bold text-gray-500 uppercase">${i18n.label_script_extract_info}</th>
                                             <th class="px-2 py-1.5 text-[9px] font-bold text-gray-500 uppercase border-l border-gray-200 dark:border-gray-700">${i18n.label_visual_keywords}</th>
@@ -1278,9 +1491,9 @@
                                     <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
                                         ${p.visual_analysis.map(item => `
                                         <tr>
-                                            <td class="px-2 py-1.5 text-[10px] font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap bg-[#000106]/50 bg-[#000106]">${item.category}</td>
+                                            <td class="px-2 py-1.5 text-[10px] font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap bg-[#1c2027]/50 bg-[#1c2027]">${item.category}</td>
                                             <td class="px-2 py-1.5 text-[10px] text-gray-700 dark:text-gray-300 min-w-[120px] leading-relaxed">${item.extracted_info}</td>
-                                            <td class="px-2 py-1.5 text-[10px] text-blue-600 dark:text-blue-400 font-mono italic border-l border-gray-100 dark:border-gray-800">${item.visual_keywords}</td>
+                                            <td class="px-2 py-1.5 text-[10px] text-blue-600 dark:text-blue-400 font-mono italic border-l border-gray-100 dark:border-white/5">${item.visual_keywords}</td>
                                         </tr>
                                         `).join('')}
                                     </tbody>
@@ -1289,25 +1502,17 @@
                         </div>
                         ` : ''}
 
-                        <!-- 💬 Dialogue / Script -->
-                        <div class="grid grid-cols-12 gap-2 items-center mt-1 border-t border-gray-100 dark:border-gray-800 pt-1.5">
-                             <p class="col-span-3 text-[10px] text-gray-400 font-bold dark:text-gray-500 whitespace-nowrap">💬 Script</p>
-                             <div class="col-span-9">
-                                <p class="text-[11px] text-gray-600 dark:text-gray-400 italic line-clamp-1 overflow-hidden h-6 flex items-center">
-                                    "${p.scene_text || rawSceneText || 'No Dialogue'}"
-                                </p>
-                             </div>
-                        </div>
+
 
                         <!-- ⚡ Generate + Veo Controls -->
                         ${window.userMembership !== 'std' ? `
-                        <div class="flex items-center gap-1.5 mt-1 pt-1.5 border-t border-gray-100 dark:border-gray-800">
+                        <div class="flex items-center gap-1.5 mt-1 pt-1.5 border-t border-gray-100 dark:border-white/5">
                             <button onclick="generateSingleVideo(${i})" id="gen-vid-btn-${i}"
                                 class="px-4 py-1 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold rounded text-[10px] shadow-sm transition-all flex items-center gap-1 whitespace-nowrap"
                                 ${!p.image_url ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>
                                 <span>⚡</span> Generate
                             </button>
-                            <div class="flex bg-gray-200 bg-[#000106] rounded p-0.5 gap-0.5 shrink-0">
+                            <div class="flex bg-gray-200 bg-[#1c2027] rounded p-0.5 gap-0.5 shrink-0">
                                 <button class="px-1.5 py-0.5 text-[9px] rounded ${effectiveEngine === 'veo' ? 'bg-blue-100 dark:bg-gray-600 shadow text-blue-700 dark:text-blue-300 font-bold' : 'text-gray-500'}" onclick="setEngine(${i}, 'veo')" title="Veo">Veo</button>
                             </div>
                         </div>` : ''}
@@ -1315,7 +1520,7 @@
                 </div>
                 
                 <!-- Status Bar -->
-                <div class="status-indicator hidden px-4 py-2 bg-[#000106] border-t border-gray-200 dark:border-gray-700 text-xs font-mono text-gray-600 dark:text-gray-400"></div>
+                <div class="status-indicator hidden px-4 py-2 bg-[#1c2027] border-t border-gray-200 dark:border-gray-700 text-xs font-mono text-gray-600 dark:text-gray-400"></div>
             </div>
             `;
         }).join('');
@@ -1325,21 +1530,21 @@
 
     // [NEW] Update prompt data from editor & Sync
     let promptSaveTimeout;
-    async function updatePromptData(index, value) {
+    async function updatePromptData(index, field, value) {
         if (!prompts[index]) return;
 
         const p = prompts[index];
-        // If it looks like JSON, try to parse it for bulk update
-        if (value.trim().startsWith('{')) {
-            try {
+        
+        // Handle field update
+        if (field === 'prompt_en' && value.trim().startsWith('{')) {
+             try {
                 const newData = JSON.parse(value);
                 if (newData.prompt_en) p.prompt_en = newData.prompt_en;
                 if (newData.prompt_ko) p.prompt_ko = newData.prompt_ko;
                 if (newData.scene_text) p.scene_text = newData.scene_text;
             } catch (e) { }
         } else {
-            // Otherwise treat as raw English prompt
-            p.prompt_en = value;
+            p[field] = value;
         }
 
         // Save to storage
@@ -1397,7 +1602,15 @@
 
         try {
             // [Fix] 키 값 호환성 처리
-            const fullPrompt = p.prompt_en || p.prompt_content || p.prompt || '';
+            let fullPrompt = p.prompt_en || p.prompt_content || p.prompt || '';
+            
+            // [NEW] Dual Frame Logic: Use active frame prompt if applicable
+            if (p.is_dual) {
+                const active = p._active_frame || 'start';
+                if (active === 'start' && p.prompt_en_start) fullPrompt = p.prompt_en_start;
+                else if (active === 'end' && p.prompt_en_end) fullPrompt = p.prompt_en_end;
+            }
+
             const aspectRatio = document.querySelector('input[name="aspectRatio"]:checked')?.value || '16:9';
 
             const result = await API.image.generate(fullPrompt, projectId, index + 1, document.getElementById('imageStyle').value, aspectRatio, isNoHumanEnabled());
@@ -1517,9 +1730,9 @@
         // Initialize Modal if not exists
         if (!document.getElementById('asset-library-modal')) {
             const modalHtml = `
-                <div id="asset-library-modal" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#000106]/60 backdrop-blur-sm hidden animate-in fade-in duration-200">
-                    <div class="bg-[#000106] rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden border dark:border-gray-700">
-                        <div class="p-4 border-b dark:border-gray-700 flex items-center justify-between bg-[#000106]">
+                <div id="asset-library-modal" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#1c2027]/60 backdrop-blur-sm hidden animate-in fade-in duration-200">
+                    <div class="bg-[#1c2027] rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden border dark:border-gray-700">
+                        <div class="p-4 border-b dark:border-gray-700 flex items-center justify-between bg-[#1c2027]">
                             <div class="flex items-center gap-3">
                                 <span class="text-2xl">📂</span>
                                 <div>
@@ -1536,7 +1749,7 @@
                                 </button>
                             </div>
                         </div>
-                        <div id="asset-library-list" class="flex-1 overflow-y-auto p-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 bg-[#000106]/50 bg-[#000106]/50 scrollbar-thin">
+                        <div id="asset-library-list" class="flex-1 overflow-y-auto p-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 bg-[#1c2027]/50 bg-[#1c2027]/50 scrollbar-thin">
                             <div class="col-span-full py-20 text-center text-gray-400">Loading assets...</div>
                         </div>
                     </div>
@@ -1574,19 +1787,19 @@
 
         list.innerHTML = files.map(f => `
             <div onclick="selectLibraryAsset(${sceneIndex}, '${f.url}', ${f.is_video})" 
-                 class="relative aspect-[16/9] bg-[#000106] rounded-xl overflow-hidden cursor-pointer group hover:ring-4 hover:ring-blue-500/50 transition-all shadow-md transform hover:-translate-y-1">
+                 class="relative aspect-[16/9] bg-[#1c2027] rounded-xl overflow-hidden cursor-pointer group hover:ring-4 hover:ring-blue-500/50 transition-all shadow-md transform hover:-translate-y-1">
                 ${f.is_video ? 
                     `<video src="${f.url}" class="w-full h-full object-cover"></video>
-                     <div class="absolute inset-0 flex items-center justify-center bg-[#000106]/10 group-hover:bg-[#000106]/0 transition-colors">
+                     <div class="absolute inset-0 flex items-center justify-center bg-[#1c2027]/10 group-hover:bg-[#1c2027]/0 transition-colors">
                         <span class="bg-purple-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold">🎬 VIDEO</span>
                      </div>` : 
                     `<img src="${f.url}" class="w-full h-full object-cover">
-                     <div class="absolute inset-0 flex items-center justify-center bg-[#000106]/10 group-hover:bg-[#000106]/0 transition-colors">
+                     <div class="absolute inset-0 flex items-center justify-center bg-[#1c2027]/10 group-hover:bg-[#1c2027]/0 transition-colors">
                         <span class="bg-blue-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold">🖼️ IMAGE</span>
                      </div>`
                 }
-                <div class="absolute inset-0 bg-[#000106]/0 group-hover:bg-[#000106]/30 transition-colors flex items-center justify-center">
-                    <span class="opacity-0 group-hover:opacity-100 bg-[#000106] text-blue-600 text-xs px-3 py-1.5 rounded-full shadow-lg font-bold">Select & Apply</span>
+                <div class="absolute inset-0 bg-[#1c2027]/0 group-hover:bg-[#1c2027]/30 transition-colors flex items-center justify-center">
+                    <span class="opacity-0 group-hover:opacity-100 bg-[#1c2027] text-blue-600 text-xs px-3 py-1.5 rounded-full shadow-lg font-bold">Select & Apply</span>
                 </div>
                 <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
                     <p class="text-[9px] text-white truncate font-medium">${f.name}</p>
@@ -1719,6 +1932,141 @@
         Utils.showToast(i18n.msg_download_complete.replace('{n}', imagesToDownload.length), 'success');
     }
 
+    function extractPureImagePrompt(rawText) {
+        if (!rawText) return '';
+        let text = rawText;
+        
+        // 1. JSON 파싱 (듀얼 프레임 구조인 경우)
+        if (text.trim().startsWith('{')) {
+            try {
+                const data = JSON.parse(text);
+                text = data.prompt_en || text;
+            } catch(e) {}
+        }
+        
+        // 2. 동작 지시문 분리 (제거하고 순수 이미지 프롬프트만 남김)
+        const markers = [
+            "Dynamic elements:", 
+            "동적인 요소:", 
+            "[대본 기반 동적 변경 - 가장 중요]", 
+            "[Dynamic Scene Detail]"
+        ];
+        
+        for (const m of markers) {
+            const idx = text.indexOf(m);
+            if (idx !== -1) {
+                text = text.substring(0, idx).trim();
+                break;
+            }
+        }
+        
+        return text;
+    }
+
+    function showGridPromptsModal() {
+        if (prompts.length === 0) {
+            Utils.showToast(i18n.err_no_script, 'warning');
+            return;
+        }
+
+        let modalContent = '';
+        
+        for (let i = 0; i < prompts.length; i += 4) {
+            const chunk = prompts.slice(i, i + 4);
+            
+            // 1. 격자용 이미지 프롬프트 (For ChatGPT)
+            let gridPrompt = "Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total). Do NOT add any extra panels, text, or borders. Each panel must represent one scene:\\n";
+            chunk.forEach((scene, idx) => {
+                const rawSceneText = scene.prompt_en || scene.prompt_ko || '';
+                const sceneText = extractPureImagePrompt(rawSceneText);
+                gridPrompt += `- Panel ${idx+1} (Position: ${['Top-Left', 'Top-Right', 'Bottom-Left', 'Bottom-Right'][idx]}): ${sceneText}\\n`;
+            });
+            gridPrompt += "\\nCRITICAL: You must generate EXACTLY 4 panels in a perfect 2x2 grid. No more, no less. Maintain consistent characters across all panels.";
+            
+            // 2. Google Flow 영상 프롬프트 (Pair 연결 - Option B)
+            let pairsHtml = "";
+            for (let j = 0; j < chunk.length; j++) {
+                const s1 = prompts[i + j];
+                const s2 = prompts[i + j + 1]; // 다음 씬 (현재 청크를 넘어갈 수 있음)
+                const sceneNum1 = i + j + 1;
+                
+                let s1Text = extractPureImagePrompt(s1.prompt_en || s1.prompt_ko || '');
+                let s1Motion = s1.flow_prompt || s1.motion_desc || 'none';
+                
+                let pairPrompt = "";
+                let pairTitle = "";
+                
+                if (s2) {
+                    const sceneNum2 = i + j + 2;
+                    pairTitle = `🎬 씬 ${sceneNum1} - 씬 ${sceneNum2} 연결 프롬프트`;
+                    let s2Text = extractPureImagePrompt(s2.prompt_en || s2.prompt_ko || '');
+                    let s2Motion = s2.flow_prompt || s2.motion_desc || 'none';
+                    
+                    pairPrompt = `[Scene ${sceneNum1}] ${s1Text} transitioning to [Scene ${sceneNum2}] ${s2Text}. Motion: [Scene ${sceneNum1}] ${s1Motion} to [Scene ${sceneNum2}] ${s2Motion}`;
+                } else {
+                    pairTitle = `🎬 씬 ${sceneNum1} 단독 프롬프트 (마지막 씬)`;
+                    pairPrompt = `[Scene ${sceneNum1}] ${s1Text}. Motion: ${s1Motion}`;
+                }
+                
+                pairsHtml += `
+                    <div class="flex flex-col gap-2 bg-black/20 p-2.5 rounded border border-gray-700/50">
+                        <div class="flex justify-between items-center">
+                            <label class="text-xs font-bold text-purple-400">${pairTitle}</label>
+                            <button onclick="copyGridText(this)" class="text-[10px] bg-purple-900/50 hover:bg-purple-800 text-purple-300 px-3 py-1 rounded transition-colors border border-purple-700/50">복사하기</button>
+                            <div class="hidden prompt-raw-text">${pairPrompt.replace(/"/g, '&quot;')}</div>
+                        </div>
+                        <textarea class="w-full h-24 bg-black/40 text-gray-300 p-2.5 rounded text-[11px] font-mono focus:outline-none focus:border-purple-500 border border-gray-700/50 resize-none scrollbar-thin" readonly>${pairPrompt}</textarea>
+                    </div>
+                `;
+            }
+            
+            modalContent += `
+                <div class="mb-8 bg-[#1c2027] rounded-xl border border-gray-700 shadow-md overflow-hidden">
+                    <div class="bg-gray-800 p-3 border-b border-gray-700 flex justify-between items-center">
+                        <h4 class="text-md font-bold text-blue-400 flex items-center gap-2"><span>🎬</span> 씬 ${i+1} ~ ${i + chunk.length}</h4>
+                    </div>
+                    
+                    <div class="p-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- 1. 격자용 이미지 프롬프트 -->
+                        <div class="flex flex-col gap-2">
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="text-xs font-bold text-emerald-400">1. 격자 이미지 생성 프롬프트 (ChatGPT용)</label>
+                                <button onclick="copyGridText(this)" class="text-[10px] bg-emerald-900/50 hover:bg-emerald-800 text-emerald-300 px-3 py-1 rounded transition-colors border border-emerald-700/50">복사하기</button>
+                                <div class="hidden prompt-raw-text">${gridPrompt.replace(/"/g, '&quot;')}</div>
+                            </div>
+                            <textarea class="w-full h-full min-h-[220px] bg-black/30 text-gray-300 p-3 rounded text-[11px] font-mono focus:outline-none focus:border-emerald-500 border border-gray-700/50 resize-none scrollbar-thin" readonly>${gridPrompt}</textarea>
+                        </div>
+                        
+                        <!-- 2. Google Flow 영상 프롬프트 (Pair) -->
+                        <div class="flex flex-col gap-3">
+                            <label class="text-xs font-bold text-purple-400 mb-1">2. 영상 생성 프롬프트 (Google Flow용)</label>
+                            ${pairsHtml}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        document.getElementById('gridPromptContent').innerHTML = modalContent;
+        document.getElementById('gridPromptModal').classList.remove('hidden');
+    }
+    
+    function copyGridText(btn) {
+        const text = btn.nextElementSibling.innerText;
+        Utils.copyToClipboard(text);
+        const originalText = btn.innerText;
+        btn.innerText = '복사됨!';
+        btn.classList.add('bg-green-600');
+        setTimeout(() => {
+            btn.innerText = originalText;
+            btn.classList.remove('bg-green-600');
+        }, 2000);
+    }
+    
+    function closeGridPromptModal() {
+        document.getElementById('gridPromptModal').classList.add('hidden');
+    }
+
     async function generateSelectedImages() {
         const projectId = getCurrentProject();
         if (!projectId) {
@@ -1775,9 +2123,9 @@
                             <img src="${result.image_url}" class="absolute inset-0 w-full h-full object-cover" alt="Scene ${i + 1}">
                             <div class="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded">✓ Image</div>
                             <input type="file" id="scene-upload-${i}" class="hidden" accept="image/*,video/*" onchange="uploadSceneImage(${i}, this)">
-                            <div class="absolute inset-0 bg-[#000106]/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <div class="absolute inset-0 bg-[#1c2027]/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                 <button onclick="document.getElementById('scene-upload-${i}').click()"
-                                        class="bg-[#000106]/90 bg-[#000106]/90 text-[10px] font-bold py-1.5 px-3 rounded-full shadow-lg hover:scale-105 transition-all text-gray-700 dark:text-gray-200">
+                                        class="bg-[#1c2027]/90 bg-[#1c2027]/90 text-[10px] font-bold py-1.5 px-3 rounded-full shadow-lg hover:scale-105 transition-all text-gray-700 dark:text-gray-200">
                                     📂 Replace Media
                                 </button>
                             </div>
@@ -2649,13 +2997,13 @@
         }
 
         if (hasScript) {
-            badge.className = "text-[10px] items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 dark:bg-[#000106] text-green-600 dark:text-green-400 font-normal hidden md:flex";
+            badge.className = "text-[10px] items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 dark:bg-[#1c2027] text-green-600 dark:text-green-400 font-normal hidden md:flex";
             // [Modified] Add topic text
             const label = "{{ t('script_ready') }}";
             const text = topicText ? `[${topicText}] ${label}` : label;
             badge.innerHTML = `<span>✅</span> ${text}`;
         } else {
-            badge.className = "text-[10px] items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 dark:bg-[#000106] text-red-600 dark:text-red-400 font-normal hidden md:flex";
+            badge.className = "text-[10px] items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 dark:bg-[#1c2027] text-red-600 dark:text-red-400 font-normal hidden md:flex";
             const label = "{{ t('no_script') }}";
             const text = topicText ? `[${topicText}] ${label}` : label;
             badge.innerHTML = `<span>🚫</span> ${text}`;
@@ -3139,7 +3487,7 @@
                             class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
                             onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=\'text-center p-2\'><div class=\'text-2xl mb-1\'>🎨</div><div class=\'text-xs text-gray-600 dark:text-gray-300 font-medium\'>${krName.replace(/\n/g, ' ')}</div></div>';">
                     </div>
-                    <div class="p-2 text-center bg-[#000106]">
+                    <div class="p-2 text-center bg-[#1c2027]">
                         <span class="text-xs font-bold block dark:text-white truncate">${krName}</span>
                         <span class="text-[10px] text-gray-500 truncate dark:text-gray-400">${enName.replace(/[()]/g, '')}</span>
                     </div>
@@ -3439,7 +3787,28 @@
         win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title>
             <style>body{font-family:'Noto Sans KR',sans-serif;max-width:720px;margin:40px auto;padding:0 20px;line-height:1.8;color:#333;}
             img{max-width:100%;border-radius:8px;margin:16px 0;}h1{border-bottom:2px solid #eee;padding-bottom:12px;}</style>
-            </head><body><h1>${title}</h1>${html}</body></html>`);
+            </head><body><h1>${title}</h1>${html}
+    <!-- [NEW] Grid Prompts Modal -->
+    <div id="gridPromptModal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden backdrop-blur-sm" style="z-index: 9999;">
+        <div class="bg-[#1e232d] w-full max-w-3xl rounded-xl border border-gray-700 shadow-2xl flex flex-col max-h-[90vh]">
+            <div class="flex justify-between items-center p-5 border-b border-gray-700 bg-[#171a21] rounded-t-xl">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <span>🖼️</span> 2x2 격자판 프롬프트
+                </h3>
+                <button onclick="closeGridPromptModal()" class="text-gray-400 hover:text-white p-1">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="p-5 overflow-y-auto flex-1" id="gridPromptContent">
+                <!-- Chunks will be generated here -->
+            </div>
+            <div class="p-4 border-t border-gray-700 bg-[#171a21] rounded-b-xl text-center text-sm text-gray-400">
+                각 프롬프트를 복사하여 ChatGPT나 DALL-E에 붙여넣으세요.
+            </div>
+        </div>
+    </div>
+</body>
+</html>`);
     }
 
     function buildBlogHtmlWithCaptured() {
@@ -3580,11 +3949,11 @@
             }
 
             if (result.status === 'ok') {
-                resultDiv.className = 'mt-3 p-3 rounded-lg text-sm bg-[#000106] dark:bg-[#000106] text-green-800 dark:text-green-300 border border-green-200 dark:border-green-700';
+                resultDiv.className = 'mt-3 p-3 rounded-lg text-sm bg-[#1c2027] dark:bg-[#1c2027] text-green-800 dark:text-green-300 border border-green-200 dark:border-green-700';
                 resultDiv.innerHTML = `<strong>게시 완료!</strong><br>${urls.join(' | ')}`;
                 Utils.showToast(i18n.msg_blog_post_done, 'success');
             } else {
-                resultDiv.className = 'mt-3 p-3 rounded-lg text-sm bg-[#000106] dark:bg-[#000106] text-red-800 dark:text-red-300 border border-red-200 dark:border-red-700';
+                resultDiv.className = 'mt-3 p-3 rounded-lg text-sm bg-[#1c2027] dark:bg-[#1c2027] text-red-800 dark:text-red-300 border border-red-200 dark:border-red-700';
                 resultDiv.innerHTML = messages.join('<br>');
                 Utils.showToast(messages.join(' | '), 'warning');
             }
@@ -3645,8 +4014,8 @@
 
 <!-- [NEW] Character DNA Modal -->
 <div id="characterDnaModal" class="modal-overlay hidden">
-    <div class="modal-content max-w-2xl bg-[#000106] border border-blue-900/40 shadow-2xl">
-        <div class="p-4 border-b border-gray-800 flex justify-between items-center">
+    <div class="modal-content max-w-2xl bg-[#1c2027] border border-blue-900/40 shadow-2xl">
+        <div class="p-4 border-b border-white/5 flex justify-between items-center">
             <h3 id="dnaModalTitle" class="text-lg font-black text-white flex items-center gap-2">
                 <span>🧬</span> Character DNA
             </h3>
@@ -3655,25 +4024,47 @@
         <div class="p-6">
             <div class="mb-4">
                 <label class="block text-xs font-bold text-blue-400 uppercase tracking-widest mb-2">Seed Value (Consistency Anchor)</label>
-                <input type="number" id="dnaSeedInput" class="input-field w-full dark:bg-[#000106] dark:border-gray-800 text-sm font-mono" placeholder="Enter seed number...">
+                <input type="number" id="dnaSeedInput" class="input-field w-full dark:bg-[#1c2027] dark:border-white/5 text-sm font-mono" placeholder="Enter seed number...">
             </div>
             <div class="mb-4">
                 <div class="flex justify-between items-end mb-2">
                     <label class="block text-xs font-bold text-blue-400 uppercase tracking-widest">DNA Structure (YAML)</label>
                     <span class="text-[9px] text-gray-500 italic">Immutable properties & wardrobe sets</span>
                 </div>
-                <textarea id="dnaYamlEditor" class="input-field w-full min-h-[400px] text-[12px] font-mono leading-relaxed bg-[#000106] border-gray-800 text-gray-300 focus:ring-1 focus:ring-blue-500/50"
+                <textarea id="dnaYamlEditor" class="input-field w-full min-h-[400px] text-[12px] font-mono leading-relaxed bg-[#1c2027] border-white/5 text-gray-300 focus:ring-1 focus:ring-blue-500/50"
                           placeholder="immutable:\n  age: ...\n  gender: ..."></textarea>
             </div>
-            <div class="flex gap-3 pt-4 border-t border-gray-800">
+            <div class="flex gap-3 pt-4 border-t border-white/5">
                 <button onclick="saveCharacterDna()" class="flex-1 py-3 rounded-lg font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:scale-[1.02] active:scale-95 transition-all shadow-lg flex items-center justify-center gap-2">
                     <span>💾</span> {{ t('btn_save_settings') }}
                 </button>
-                <button onclick="closeCharacterDnaModal()" class="px-6 py-3 rounded-lg font-bold text-gray-400 border border-gray-800 hover:bg-gray-800 transition-all">
+                <button onclick="closeCharacterDnaModal()" class="px-6 py-3 rounded-lg font-bold text-gray-400 border border-white/5 hover:bg-gray-800 transition-all">
                     {{ t('btn_cancel') }}
                 </button>
             </div>
         </div>
+</div>
     </div>
 </div>
+
+<!-- [NEW] Grid Prompts Modal -->
+<div id="gridPromptModal" class="modal-overlay hidden" style="z-index: 9999;">
+    <div class="modal-content w-full max-w-3xl bg-[#1e232d] rounded-xl border border-gray-700 shadow-2xl flex flex-col max-h-[90vh]">
+        <div class="flex justify-between items-center p-5 border-b border-gray-700 bg-[#171a21] rounded-t-xl">
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                <span>🖼️</span> 2x2 격자판 프롬프트
+            </h3>
+            <button onclick="closeGridPromptModal()" class="text-gray-400 hover:text-white p-1">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+        <div class="p-5 overflow-y-auto flex-1" id="gridPromptContent">
+            <!-- Chunks will be generated here -->
+        </div>
+        <div class="p-4 border-t border-gray-700 bg-[#171a21] rounded-b-xl text-center text-sm text-gray-400">
+            각 프롬프트를 복사하여 ChatGPT나 DALL-E에 붙여넣으세요.
+        </div>
+    </div>
+</div>
+
 {% endblock %}
