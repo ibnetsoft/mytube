@@ -502,8 +502,8 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
         # [CRITICAL] 4가지 금지 항목 정제 (괄호, 타임스탬프, 이모티콘, 화자 표시)
         import re
         if script:
-            # 1. 괄호와 그 안의 내용 삭제 (예: (배경음악), (웃음))
-            script = re.sub(r'\([^)]*\)', '', script)
+            # 1. 괄호와 그 안의 내용 삭제 -> 삭제하지 않음 (TTS 감정 지시어로 사용하기 위해 유지)
+            # script = re.sub(r'\([^)]*\)', '', script)
             # 2. 타임스탬프 및 시간대 삭제 (예: [0-5초], [00:15])
             script = re.sub(r'\[[^\]]*\]', '', script)
             # 3. 별표 및 꾸밈 기호 삭제 (**)
@@ -962,6 +962,12 @@ JSON만 출력하세요:
                 if all_alignments:
                     # 단어 타이밍을 2줄 자막으로 변환
                     auto_subtitles = self._alignment_to_subtitles(all_alignments, max_chars=40)
+                    
+                    # 괄호 태그(TTS용 감정 지시어) 제거
+                    for sub in auto_subtitles:
+                        import re
+                        sub["text"] = re.sub(r'\([^)]*\)', '', sub["text"]).strip()
+                        
                     print(f"📝 [Auto-Pilot] Generated {len(auto_subtitles)} subtitles from TTS alignment (PRECISE)")
                 else:
                     # 기존 로직: Scene 기반 균등 분할
@@ -971,7 +977,9 @@ JSON만 출력하세요:
                         if not text:
                             continue
                         
-                        chunks = split_text_to_subtitle_chunks(text, max_chars_per_line=40, max_lines=1)
+                        import re
+                        clean_text = re.sub(r'\([^)]*\)', '', text).strip()
+                        chunks = split_text_to_subtitle_chunks(clean_text, max_chars_per_line=40, max_lines=1)
                         if not chunks:
                             continue
                         

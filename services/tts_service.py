@@ -212,7 +212,7 @@ class TTSService:
 
         payload = {
             "text": text,
-            "model_id": "eleven_multilingual_v2",
+            "model_id": "eleven_turbo_v2_5",
             "voice_settings": final_settings
         }
 
@@ -598,19 +598,32 @@ class TTSService:
             return []
 
     def clean_text(self, text: str) -> str:
-        """TTS를 위한 텍스트 정제 (괄호, 마크다운 제거)"""
+        """TTS를 위한 텍스트 정제 (괄호, 마크다운 제거)
+        단, ElevenLabs용 감정 태그 [annoyed], [excited] 등은 유지함.
+        """
         import re
         # 1. 마크다운 헤더/볼드 제거 (**, ## 등)
         text = re.sub(r'[\*#\-]+', '', text)
         
-        # 2. (지문), [지문], <지문> 제거
-        # 일반 괄호
-        text = re.sub(r'\([^)]*\)', '', text)
-        text = re.sub(r'\[[^\]]*\]', '', text)
-        text = re.sub(r'<[^>]*>', '', text)
-        # 전각 괄호 (일본어/한국어)
-        text = re.sub(r'（[^）]*）', '', text)
-        text = re.sub(r'［[^］]*］', '', text)
+        # 2. 감정 태그/일시정지 태그 화이트리스트 (ElevenLabs용)
+        # [annoyed], [excited], [sad], [angry], [shouting], [whispering], [long pause], [pause] 등
+        emotion_tags = ["annoyed", "excited", "sad", "angry", "shouting", "whispering", "long pause", "pause", "appalled"]
+        
+        # 괄호 내용 중 화이트리스트에 없는 것만 제거
+        def remove_brackets_except_emotions(match):
+            content = match.group(1).lower().strip()
+            if any(tag in content for tag in emotion_tags):
+                return match.group(0) # 유지
+            return "" # 제거
+
+        # [], () 중 ()는 한글 감정 지시어(예: (신나게))를 위해 보존하고 나머지만 처리
+        text = re.sub(r'\[([^\]]*)\]', remove_brackets_except_emotions, text)
+        # text = re.sub(r'\(([^)]*)\)', remove_brackets_except_emotions, text)  # 괄호 태그 전체 유지
+        text = re.sub(r'<([^>]*)>', remove_brackets_except_emotions, text)
+        
+        # 전각 괄호 (일본어/한국어) - 이것도 지시어일 수 있으므로 유지
+        # text = re.sub(r'（[^）]*）', '', text)
+        # text = re.sub(r'［[^］]*］', '', text)
         
         # 3. 여러 공백 및 불필요한 기호 정리
         text = re.sub(r'\s+', ' ', text).strip()
