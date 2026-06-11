@@ -910,7 +910,7 @@ export default function DashboardContent() {
                                         }
                                         
                                         // window.open을 사용하여 CORS 우회 및 즉각적인 피드백 제공
-                                        const url = `http://127.0.0.1:8000/api/channels/login-by-info?name=${encodeURIComponent(tempChannelInfo.name)}&id=${encodeURIComponent(tempChannelInfo.id)}`;
+                                        const url = `http://127.0.0.1:8001/api/channels/login-by-info?name=${encodeURIComponent(tempChannelInfo.name)}&id=${encodeURIComponent(tempChannelInfo.id)}`;
                                         window.open(url, '_blank', 'width=600,height=700');
                                         
                                         // 메타데이터 정보 저장은 별도로 수행

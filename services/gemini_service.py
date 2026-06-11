@@ -52,6 +52,14 @@ class GeminiService:
         except Exception:
             pass
 
+    def _safe_format(self, template: str, **kwargs) -> str:
+        """format() safe version: replaces {key} placeholders, then converts {{ }} escapes to { }"""
+        result = template
+        for k, v in kwargs.items():
+            result = result.replace('{' + k + '}', str(v))
+        result = result.replace('{{', '{').replace('}}', '}')
+        return result
+
     def _cleanup_prompt(self, text: str) -> str:
         """프롬프트에서 템플릿 아티팩트(${VAR}, **[Header]**, 중복 쉼표 등) 제거"""
         if not text: return ""
@@ -61,12 +69,16 @@ class GeminiService:
         text = re.sub(r'\$\{.*?\}', '', text)
         text = re.sub(r'\$\[.*?\]', '', text)
         
-        # 2. 마크다운 헤더 제거: **[Header]** or [Header] at start of line
+        # 2. 마크다운 헤더 및 대괄호 플레이스홀더 제거: **[Header]**, [SUBJECT] 등
         text = re.sub(r'\*\*\[[^\]]+\]\*\*\s*', '', text)
         text = re.sub(r'\[[^\]]+\]\s*:', '', text) # "Subject: ..." 형태
         
-        # 3. 불필요한 따옴표 및 이스케이프 문자
-        text = text.replace('\\"', '"').replace('\"', '')
+        # [NEW] 모든 형태의 대괄호 헤더 제거 (Google Flow용 헤더 포함: [OPENING FRAME], [AMBIENT LIFE] 등)
+        # 3~40자 내외의 모든 대괄호 묶음은 헤더나 플레이스홀더로 간주하여 제거
+        text = re.sub(r'\[[^\]]{2,40}\]', '', text, flags=re.IGNORECASE)
+        
+        # 3. 불필요한 따옴표, 마크다운 기호 및 이스케이프 문자
+        text = text.replace("**", "").replace('\\"', '"').replace('\"', '')
         
         # 4. 공백 및 쉼표 정제
         text = re.sub(r',\s*,', ',', text)
@@ -770,7 +782,8 @@ class GeminiService:
             history_list = "\n".join([f"- {t}" for t in recent_titles])
             history_instruction = f"Avoid repeating these topics: {history_list}"
 
-        prompt = prompts.GEMINI_SCRIPT_STRUCTURE.format(
+        prompt = self._safe_format(
+            prompts.GEMINI_SCRIPT_STRUCTURE,
             topic_keyword=topic_keyword,
             user_notes=analysis_data.get('user_notes', '없음'),
             specialized_instruction=specialized_instruction,
@@ -1264,6 +1277,10 @@ Write the flow_prompt now:"""
         result = result.strip().strip('"').strip("'")
         # 첫 번째 코드블록 제거 (Gemini가 ```로 감쌀 경우)
         result = re.sub(r'^```[a-z]*\n?|```$', '', result, flags=re.MULTILINE).strip()
+        
+        # [NEW] 대괄호 및 아티팩트 정제 적용
+        result = self._cleanup_prompt(result)
+        
         return result
 
     async def generate_motion_desc(self, scene_text: str, prompt_en: str = "", project_id: int = None) -> str:
@@ -1403,6 +1420,14 @@ Motion prompt for this image:"""
             num_scenes = max(3, int(num_scenes))
             print(f"[Gemini] Calculated scene count (6-Step Pacing) from {duration_seconds}s: {num_scenes}")
         
+        # [NEW] Get project aspect ratio
+        project_aspect_ratio = "16:9"
+        if project_id:
+            try:
+                settings = db.get_project_settings(project_id) or {}
+                project_aspect_ratio = settings.get('aspect_ratio', '16:9')
+            except Exception: pass
+        
         # 스타일 분류 — wimpy/졸라맨 키워드 기반
         _sk_lower = (style_key or "").lower()
         _sp_lower = (style_prompt or "").lower()
@@ -1446,12 +1471,12 @@ Motion prompt for this image:"""
 [커스텀 스타일 지침 - 필수 준수]
 {cleaned_instruction}
 
-⚠️ CRITICAL OUTPUT RULE: The above is a DYNAMIC TEMPLATE/GUIDE.
+⚠️ CRITICAL OUTPUT RULE: The above is a DYNAMIC GUIDE.
 - Every `prompt_en` MUST be a single, coherent English paragraph.
-- You MUST fill in all placeholders like `[SUBJECT]`, `[ACTION]`, `[LOCATION]`, `[ATMOSPHERE]`, `${{OBJECT}}`, etc., with specific details from the current scene's script.
-- NEVER output the literal placeholders (e.g., do not output "[SUBJECT]"). Replace them with real descriptions.
+- You MUST describe specific details (subject, action, location, atmosphere) based on the scene's script.
+- NEVER output literal placeholders or bracketed keywords.
 - DO NOT just append keywords at the end. Integrate them into a cinematic sentence structure.
-- NEVER copy instruction headers like **[Main Subject]** or **[Camera & Quality]** into the final prompt.
+- NEVER copy instruction headers into the final prompt.
 - The final output for `prompt_en` should be ready to use in a high-end image generator like Midjourney or Google Imagen.
 """
 
@@ -1624,13 +1649,7 @@ Motion prompt for this image:"""
 
         style_prefix_val = style_prompt or 'High quality illustration'
         # [PHASE 5] Piccadilly Prompt Assembler Integration
-        def _safe_format(template: str, **kwargs) -> str:
-            """format() safe version: replaces {key} placeholders, then converts {{ }} escapes to { }"""
-            result = template
-            for k, v in kwargs.items():
-                result = result.replace('{' + k + '}', str(v))
-            result = result.replace('{{', '{').replace('}}', '}')
-            return result
+        # _safe_format is now self._safe_format
 
         # ── 레퍼런스 이미지 로딩 ──────────────────
         _ref_image_bytes: bytes | None = None
@@ -1711,7 +1730,7 @@ Motion prompt for this image:"""
                     f"[현재 씬 생성 구간 - 이 부분에 대해서만 {c_scenes}개 씬 생성]\n"
                     f"{chunk_text}"
                 )
-                c_prompt = _safe_format(
+                c_prompt = self._safe_format(
                     prompts.GEMINI_IMAGE_PROMPTS,
                     num_scenes=c_scenes,
                     script=chunk_text_with_context,
@@ -1729,7 +1748,7 @@ Motion prompt for this image:"""
             scenes = all_scenes
         else:
             # ── 단일 호출 모드 (기존) ──────────────────────────────────────
-            prompt = _safe_format(
+            prompt = self._safe_format(
                 prompts.GEMINI_IMAGE_PROMPTS,
                 num_scenes=num_scenes,
                 script=script,
@@ -1765,12 +1784,51 @@ Motion prompt for this image:"""
                             scene_chars.append(char_map[p_name])
 
                 c_tags = v_analysis.get("cinematic_tags") or "cinematic lighting, high resolution, 8k"
+                
+                if scene.get("is_dual"):
+                    # Assemble Start Frame Prompt
+                    start_frame = scene.get("start_frame") or {}
+                    start_context = v_analysis.copy()
+                    for k in ["action", "expression", "location", "props", "time", "weather", "cinematic_tags", "character_dna_applied"]:
+                        if start_frame.get(k):
+                            start_context[k] = start_frame[k]
+                    
+                    start_result = prompt_assembler.assemble_scene_prompt(
+                        style_prefix=style_prefix_val,
+                        character_dnas=scene_chars,
+                        scene_context=start_context,
+                        cinematic_tags=c_tags,
+                        aspect_ratio=project_aspect_ratio,
+                        seed=scene_chars[0].get('seed', -1) if scene_chars else -1,
+                        global_ethnicity=char_ethnicity
+                    )
+                    scene["prompt_en_start"] = self._cleanup_prompt(start_result["prompt_en"])
+                    
+                    # Assemble End Frame Prompt
+                    end_frame = scene.get("end_frame") or {}
+                    end_context = v_analysis.copy()
+                    for k in ["action", "expression", "location", "props", "time", "weather", "cinematic_tags", "character_dna_applied"]:
+                        if end_frame.get(k):
+                            end_context[k] = end_frame[k]
+                    
+                    end_result = prompt_assembler.assemble_scene_prompt(
+                        style_prefix=style_prefix_val,
+                        character_dnas=scene_chars,
+                        scene_context=end_context,
+                        cinematic_tags=c_tags,
+                        aspect_ratio=project_aspect_ratio,
+                        seed=scene_chars[0].get('seed', -1) if scene_chars else -1,
+                        global_ethnicity=char_ethnicity
+                    )
+                    scene["prompt_en_end"] = self._cleanup_prompt(end_result["prompt_en"])
+
+                # Base / Average Prompt
                 result = prompt_assembler.assemble_scene_prompt(
                     style_prefix=style_prefix_val,
                     character_dnas=scene_chars,
                     scene_context=v_analysis,
                     cinematic_tags=c_tags,
-                    aspect_ratio="9:16",
+                    aspect_ratio=project_aspect_ratio,
                     seed=scene_chars[0].get('seed', -1) if scene_chars else -1,
                     global_ethnicity=char_ethnicity
                 )
@@ -1784,12 +1842,25 @@ Motion prompt for this image:"""
         except Exception as e:
             print(f"[Assembler] Failed: {e}")
 
-        # [TEMPLATE VAR CLEANUP] - assembler 성공/실패 모두 실행
+        # [NEW] Extract "no text" grounding from instruction (Image 2 logic)
+        grounding_suffix = ""
+        if gemini_instruction:
+            import re as _re
+            m = _re.search(r'끝에 반드시 추가:\s*"([^"]+)"', gemini_instruction)
+            if m:
+                grounding_suffix = m.group(1)
+                print(f"[Gemini] Detected grounding suffix: {grounding_suffix}")
+
+        # [TEMPLATE VAR CLEANUP]
         for scene in scenes:
-            for field in ('prompt_en', 'flow_prompt'):
+            for field in ('prompt_en', 'prompt_en_start', 'prompt_en_end', 'flow_prompt'):
                 val = scene.get(field, '')
                 if val:
-                    scene[field] = self._cleanup_prompt(val)
+                    cleaned = self._cleanup_prompt(val)
+                    # Append grounding suffix if missing
+                    if grounding_suffix and grounding_suffix not in cleaned:
+                        cleaned = f"{cleaned}, {grounding_suffix}"
+                    scene[field] = cleaned
 
         # [FIX] target_scene_count가 지정된 경우 씬 분리 없이 그대로 반환
         if target_scene_count and target_scene_count > 0:
@@ -1797,7 +1868,7 @@ Motion prompt for this image:"""
                 scene["scene_number"] = idx + 1
             print(f"[Gemini] Returning {len(scenes)} scenes (target={target_scene_count})")
             return scenes
-
+        
         # [NEW] Hybrid Approach: Time-based correction
         corrected_scenes = []
         MAX_SCENE_SECONDS = 30
@@ -1853,6 +1924,74 @@ Motion prompt for this image:"""
 
         print(f"[Hybrid] Original: {len(scenes)} scenes → Corrected: {len(corrected_scenes)} scenes")
         return corrected_scenes
+
+    async def generate_dual_prompts_for_scene(self, project_id: int, scene: dict, characters: list) -> dict:
+        """단일 씬에 대해 Start/End 프롬프트를 재조립/생성 (이미지 생성용)"""
+        from services.prompt_assembler import prompt_assembler
+        
+        # 1. 스타일 설정 로드
+        settings = db.get_project_settings(project_id) or {}
+        style_key = settings.get('image_style', 'realistic_3d')
+        char_ethnicity = settings.get('character_ethnicity', 'korean')
+        aspect_ratio = settings.get('aspect_ratio', '16:9')
+        
+        db_presets = db.get_style_presets() or {}
+        style_data = db_presets.get(style_key.lower()) if style_key else None
+        style_prefix_val = style_data.get('prompt_value', '') if style_data and isinstance(style_data, dict) else ""
+        
+        # 2. 캐릭터 매핑
+        char_map = {c.get('name', '').lower(): c for c in (characters or [])}
+        for c in (characters or []):
+            if c.get('character_id'):
+                char_map[str(c['character_id']).lower()] = c
+        
+        v_analysis = scene.get("visual_analysis", {})
+        applied_char_id = v_analysis.get("character_dna_applied")
+        scene_chars = []
+        if applied_char_id and str(applied_char_id).lower() != 'null':
+            potential_names = [n.strip().lower() for n in str(applied_char_id).split(",")]
+            for p_name in potential_names:
+                if p_name in char_map:
+                    scene_chars.append(char_map[p_name])
+                    
+        c_tags = v_analysis.get("cinematic_tags") or "cinematic lighting, high resolution, 8k"
+        
+        # 3. Start Frame 조립
+        start_frame = scene.get("start_frame") or {}
+        start_context = v_analysis.copy()
+        for k in ["action", "expression", "location", "props"]:
+            if start_frame.get(k): start_context[k] = start_frame[k]
+            
+        start_res = prompt_assembler.assemble_scene_prompt(
+            style_prefix=style_prefix_val,
+            character_dnas=scene_chars,
+            scene_context=start_context,
+            cinematic_tags=c_tags,
+            aspect_ratio=aspect_ratio,
+            seed=scene_chars[0].get('seed', -1) if scene_chars else -1,
+            global_ethnicity=char_ethnicity
+        )
+        
+        # 4. End Frame 조립
+        end_frame = scene.get("end_frame") or {}
+        end_context = v_analysis.copy()
+        for k in ["action", "expression", "location", "props"]:
+            if end_frame.get(k): end_context[k] = end_frame[k]
+            
+        end_res = prompt_assembler.assemble_scene_prompt(
+            style_prefix=style_prefix_val,
+            character_dnas=scene_chars,
+            scene_context=end_context,
+            cinematic_tags=c_tags,
+            aspect_ratio=aspect_ratio,
+            seed=scene_chars[0].get('seed', -1) if scene_chars else -1,
+            global_ethnicity=char_ethnicity
+        )
+        
+        return {
+            "prompt_en_start": self._cleanup_prompt(start_res["prompt_en"]),
+            "prompt_en_end": self._cleanup_prompt(end_res["prompt_en"])
+        }
     
     def _split_text_evenly(self, text: str, num_parts: int) -> list:
         """텍스트를 균등하게 분할 (문장 경계 우선)"""

@@ -21,11 +21,14 @@ async def repository_page(request: Request):
     """저장소 메인 페이지"""
     templates.env.globals['t'] = _app_state.get_translator().t if _app_state.get_translator() else (lambda k: k)
     templates.env.globals['current_lang'] = _app_state.get_translator().lang if _app_state.get_translator() else 'ko'
-    return templates.TemplateResponse("pages/repository.html", {
-        "request": request, 
-        "title": "분석 저장소", 
-        "page": "repository"
-    })
+    return templates.TemplateResponse(
+        request=request,
+        name="pages/repository.html",
+        context={
+            "title": "분석 저장소", 
+            "page": "repository"
+        }
+    )
 
 @router.get("/api/repository/folders")
 async def list_repository_folders():

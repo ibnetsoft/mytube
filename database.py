@@ -109,7 +109,7 @@ def init_db():
             thumbnail_text TEXT,
             thumbnail_url TEXT,
             duration_seconds INTEGER DEFAULT 60,
-            aspect_ratio TEXT DEFAULT '9:16',
+            aspect_ratio TEXT DEFAULT '16:9',
             script TEXT,
             hashtags TEXT,
             voice_tone TEXT DEFAULT 'neutral',
@@ -236,6 +236,26 @@ def init_db():
             prompt_en TEXT,
             image_url TEXT,
             focal_point_y REAL DEFAULT 0.5,
+            script_start TEXT,
+            script_end TEXT,
+            video_url TEXT,
+            scene_title TEXT,
+            motion_desc TEXT,
+            sfx_prompt TEXT,
+            sfx_url TEXT,
+            bgm_prompt TEXT,
+            bgm_url TEXT,
+            fade_in TEXT,
+            engine TEXT,
+            prompt_char TEXT DEFAULT '',
+            prompt_bg TEXT DEFAULT '',
+            flow_prompt TEXT,
+            scene_type TEXT,
+            is_dual BOOLEAN DEFAULT 0,
+            start_frame TEXT,
+            end_frame TEXT,
+            prompt_en_start TEXT,
+            prompt_en_end TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (project_id) REFERENCES projects(id)
         )
@@ -453,6 +473,12 @@ def migrate_db():
         )
     """)
 
+
+    # projects에 employee_email 컬럼 추가 (없으면)
+    try:
+        cursor.execute("ALTER TABLE projects ADD COLUMN employee_email TEXT")
+    except sqlite3.OperationalError:
+        pass
 
     # project_settings에 thumbnail_url 컬럼 추가 (없으면)
     try:
@@ -776,6 +802,8 @@ scene_type별 구조:
         except sqlite3.OperationalError:
            pass
 
+
+
     # Intro video path
     try:
         cursor.execute("ALTER TABLE project_settings ADD COLUMN intro_video_path TEXT")
@@ -832,6 +860,8 @@ scene_type별 구조:
         cursor.execute("ALTER TABLE projects ADD COLUMN character_ref_image_path TEXT")
     except sqlite3.OperationalError:
         pass
+
+
         
     try:
         cursor.execute("ALTER TABLE project_settings ADD COLUMN image_style TEXT")
@@ -889,7 +919,7 @@ scene_type별 구조:
         except Exception: pass
 
     # [NEW] Audio & Effects Columns migration
-    for col in ['video_url', 'sfx_prompt', 'bgm_prompt', 'sfx_url', 'bgm_url', 'fade_in', 'motion_desc', 'engine']:
+    for col in ['video_url', 'sfx_prompt', 'bgm_prompt', 'sfx_url', 'bgm_url', 'fade_in', 'motion_desc', 'engine', 'prompt_en_start', 'prompt_en_end']:
         if col not in image_prompts_columns:
             print(f"[Migration] Adding {col} to image_prompts...")
             try: cursor.execute(f"ALTER TABLE image_prompts ADD COLUMN {col} TEXT")
@@ -1061,7 +1091,7 @@ scene_type별 구조:
 
 # ============ 프로젝트 CRUD ============
 
-def create_project(name: str, topic: str = None, app_mode: str = 'longform', language: str = 'ko') -> int:
+def create_project(name: str, topic: str = None, app_mode: str = 'longform', language: str = 'ko', employee_email: str = None) -> int:
     """새 프로젝트 생성 + 기본 설정 초기화"""
     # DB 연결 전에 외부 설정값 미리 조회 (트랜잭션 중 별도 connection 방지)
     from services.settings_service import settings_service
@@ -1071,8 +1101,8 @@ def create_project(name: str, topic: str = None, app_mode: str = 'longform', lan
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO projects (name, topic, language) VALUES (?, ?, ?)",
-        (name, topic, language)
+        "INSERT INTO projects (name, topic, language, employee_email) VALUES (?, ?, ?, ?)",
+        (name, topic, language, employee_email)
     )
     project_id = cursor.lastrowid
     
@@ -1106,17 +1136,20 @@ def create_project(name: str, topic: str = None, app_mode: str = 'longform', lan
     return project_id
 
 
-def get_all_projects() -> List[Dict]:
-    """모든 프로젝트 목록"""
+def get_all_projects(employee_email: str = None) -> List[Dict]:
+    """모든 프로젝트 목록 (이메일 필터링 지원)"""
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM projects ORDER BY updated_at DESC")
+    if employee_email:
+        cursor.execute("SELECT * FROM projects WHERE employee_email = ? ORDER BY updated_at DESC", (employee_email,))
+    else:
+        cursor.execute("SELECT * FROM projects ORDER BY updated_at DESC")
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
 
-def get_projects_with_status() -> List[Dict]:
-    """프로젝트 목록과 각 단계별 진행 상태 조회"""
+def get_projects_with_status(employee_email: str = None) -> List[Dict]:
+    """프로젝트 목록과 각 단계별 진행 상태 조회 (이메일 필터링 지원)"""
     conn = get_db()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -1136,17 +1169,24 @@ def get_projects_with_status() -> List[Dict]:
         ps.is_published as is_published,
         (SELECT COUNT(*) FROM thumbnails WHERE project_id = p.id) as thumbnail_count,
         ps.app_mode,
-        m.description
+        m.description,
+        p.employee_email
     FROM projects p
     LEFT JOIN project_settings ps ON p.id = ps.project_id
     LEFT JOIN scripts s ON p.id = s.project_id
     LEFT JOIN script_structure ss ON p.id = ss.project_id
     LEFT JOIN tts_audio t ON p.id = t.project_id
     LEFT JOIN metadata m ON p.id = m.project_id
-    ORDER BY p.updated_at DESC
     """
     
-    cursor.execute(query)
+    if employee_email:
+        query += " WHERE p.employee_email = ? "
+        query += " ORDER BY p.updated_at DESC "
+        cursor.execute(query, (employee_email,))
+    else:
+        query += " ORDER BY p.updated_at DESC "
+        cursor.execute(query)
+        
     rows = cursor.fetchall()
     conn.close()
     
@@ -1418,6 +1458,14 @@ def update_channel_credentials(channel_id: int, path: str):
     cursor = conn.cursor()
     cursor.execute("UPDATE channels SET credentials_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", 
                    (path, channel_id))
+    conn.commit()
+    conn.close()
+
+def update_channel(channel_id: int, name: str, handle: str, description: str = None):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE channels SET name = ?, handle = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", 
+                   (name, handle, description, channel_id))
     conn.commit()
     conn.close()
 
@@ -1770,7 +1818,7 @@ def save_project_settings(project_id: int, settings: Dict):
             settings.get('thumbnail_text'),
             settings.get('thumbnail_url'),
             settings.get('duration_seconds', 60),
-            settings.get('aspect_ratio', '9:16'),
+            settings.get('aspect_ratio', '16:9'),
             settings.get('script'),
             settings.get('hashtags'),
             settings.get('voice_tone', 'neutral'),
@@ -2133,6 +2181,22 @@ def get_project_full_data_v2(project_id: int) -> Optional[Dict]:
         except Exception:
             pass
 
+    # metadata JSON 파싱
+    if meta_row:
+        try:
+            meta_row['titles'] = json.loads(meta_row['titles']) if meta_row.get('titles') else []
+        except Exception:
+            meta_row['titles'] = []
+        try:
+            meta_row['tags'] = json.loads(meta_row['tags']) if meta_row.get('tags') else []
+        except Exception:
+            meta_row['tags'] = []
+        try:
+            meta_row['hashtags'] = json.loads(meta_row['hashtags']) if meta_row.get('hashtags') else []
+        except Exception:
+            meta_row['hashtags'] = []
+
+
     # script_structure sections JSON 파싱 + wrapper 포맷
     script_structure = None
     if structure_row:
@@ -2413,8 +2477,9 @@ def save_image_prompts(project_id: int, prompts: list):
                 (project_id, scene_number, scene_text, prompt_ko, prompt_en, image_url,
                  script_start, script_end, scene_title, video_url,
                  sfx_prompt, bgm_prompt, sfx_url, bgm_url, fade_in, motion_desc, engine,
-                 prompt_char, prompt_bg, flow_prompt, scene_type)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 prompt_char, prompt_bg, flow_prompt, scene_type,
+                 is_dual, start_frame, end_frame, prompt_en_start, prompt_en_end)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 project_id,
                 i + 1,
@@ -2436,7 +2501,12 @@ def save_image_prompts(project_id: int, prompts: list):
                 prompt.get('prompt_char', ''),
                 prompt.get('prompt_bg', ''),
                 prompt.get('flow_prompt', ''),
-                prompt.get('scene_type', '')
+                prompt.get('scene_type', ''),
+                prompt.get('is_dual', 0),
+                json.dumps(prompt.get('start_frame')) if isinstance(prompt.get('start_frame'), (dict, list)) else prompt.get('start_frame', ''),
+                json.dumps(prompt.get('end_frame')) if isinstance(prompt.get('end_frame'), (dict, list)) else prompt.get('end_frame', ''),
+                prompt.get('prompt_en_start', ''),
+                prompt.get('prompt_en_end', '')
             ))
         conn.commit()
     except Exception as e:
@@ -2444,8 +2514,8 @@ def save_image_prompts(project_id: int, prompts: list):
     finally:
         conn.close()
 
-# [OVERRIDE] Final version of get_image_prompts
 def get_image_prompts(project_id: int):
+    import json
     conn = get_db()
     cursor = conn.cursor()
     
@@ -2462,11 +2532,22 @@ def get_image_prompts(project_id: int):
             # Ensure all keys exist for frontend compatibility
             fields = ['script_start', 'script_end', 'scene_title', 'video_url',
                       'sfx_prompt', 'bgm_prompt', 'sfx_url', 'bgm_url', 'fade_in', 'motion_desc', 'engine',
-                      'prompt_char', 'prompt_bg', 'flow_prompt', 'scene_type']
+                      'prompt_char', 'prompt_bg', 'flow_prompt', 'scene_type',
+                      'is_dual', 'start_frame', 'end_frame', 'prompt_en_start', 'prompt_en_end']
             for f in fields:
                 if f not in d or d[f] is None:
                     d[f] = ''
             
+            # [FIX] Parse JSON for frame objects
+            for f in ('start_frame', 'end_frame'):
+                if isinstance(d.get(f), str) and d[f].strip().startswith('{'):
+                    try:
+                        d[f] = json.loads(d[f])
+                    except Exception:
+                        pass
+                if not d.get(f):
+                    d[f] = {}
+
             # [FIX] Default engine should be 'wan' if empty
             if not d.get('engine'): d['engine'] = 'wan'
             
@@ -3054,11 +3135,14 @@ def delete_publish_image(image_id: int):
     conn.commit()
     conn.close()
 
-def get_recent_projects(limit: int = 10) -> List[Dict]:
-    """최근 업데이트된 프로젝트 목록 조회"""
+def get_recent_projects(limit: int = 10, employee_email: str = None) -> List[Dict]:
+    """최근 업데이트된 프로젝트 목록 조회 (이메일 필터링 지원)"""
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM projects ORDER BY updated_at DESC LIMIT ?", (limit,))
+    if employee_email:
+        cursor.execute("SELECT * FROM projects WHERE employee_email = ? ORDER BY updated_at DESC LIMIT ?", (employee_email, limit))
+    else:
+        cursor.execute("SELECT * FROM projects ORDER BY updated_at DESC LIMIT ?", (limit,))
     rows = cursor.fetchall()
     conn.close()
     return [dict(r) for r in rows]

@@ -75,6 +75,234 @@ app = FastAPI(
     version="2.0.0"
 )
 
+from fastapi.responses import RedirectResponse
+import requests
+
+# [NEW] 직원 로그인 & 멀티유저 세션 관리 미들웨어
+@app.middleware("http")
+async def check_login_middleware(request: Request, call_next):
+    try:
+        path = request.url.path
+        
+        # 예외 대상 경로 리스트 (로그인, API 인증, 헬스체크 등)
+        bypass_paths = [
+            "/login",
+            "/api/auth/login",
+            "/api/auth/emails",
+            "/api/health",
+        ]
+        
+        # static, uploads, favicon, docs 등의 정적 에셋 경로 우회
+        is_asset = (
+            path.startswith("/static") or 
+            path.startswith("/output") or 
+            path.startswith("/uploads") or
+            path.startswith("/assets") or
+            path.startswith("/favicon.ico") or
+            path.startswith("/docs") or
+            path.startswith("/openapi.json")
+        )
+        
+        # HTML 페이지 요청인지 확인 (수동 주소창 접근 시 리디렉션하기 위함)
+        accept_header = request.headers.get("accept") or ""
+        is_html_request = "text/html" in accept_header
+        
+        # 로그인 체크 적용 대상인 경우
+        if not is_asset and not any(path == bp for bp in bypass_paths) and is_html_request:
+            user_email = request.cookies.get("user_email")
+            if not user_email:
+                return RedirectResponse(url="/login")
+            else:
+                # auth_service의 active user 이메일 및 에셋 폴더 동적 활성화
+                from services.auth_service import auth_service
+                auth_service.login_user(user_email)
+                
+        response = await call_next(request)
+        return response
+    except Exception as e:
+        import traceback
+        print("CRITICAL: Error in check_login_middleware!")
+        traceback.print_exc()
+        try:
+            with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as rf:
+                rf.write(f"[{datetime.datetime.now()}] Middleware Error: {e}\n{traceback.format_exc()}\n")
+        except Exception:
+            pass
+        raise e
+
+# [NEW] 로그인 페이지 응답 라우트
+@app.get("/login", response_class=HTMLResponse)
+async def get_login_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="pages/login.html",
+        context={
+            "title": "직원 로그인",
+            "membership": "std",
+            "token_balance": 0
+        }
+    )
+
+# [NEW] 등록된 직원 이메일 목록 조회 API
+@app.get("/api/auth/emails")
+async def get_auth_emails():
+    try:
+        supabase_url = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        if not supabase_url or not supabase_key:
+            return {"emails": []}
+            
+        headers = {
+            "apikey": supabase_key,
+            "Authorization": f"Bearer {supabase_key}"
+        }
+        url = f"{supabase_url.rstrip('/')}/rest/v1/profiles?select=email"
+        
+        # Suppress insecure request warnings
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        
+        r = requests.get(url, headers=headers, timeout=5, verify=False)
+        if r.status_code == 200:
+            emails = [item["email"] for item in r.json() if item.get("email")]
+            return {"emails": emails}
+        return {"emails": []}
+    except Exception as e:
+        print(f"[API] Failed to fetch emails: {e}")
+        return {"emails": []}
+
+# [NEW] 직원 핀 번호(PIN) 로그인 검증 API
+class LoginRequest(BaseModel):
+    email: str
+    pin_code: str
+
+@app.post("/api/auth/login")
+async def post_auth_login(req: LoginRequest):
+    try:
+        supabase_url = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        if not supabase_url or not supabase_key:
+            return {"success": False, "error": "서버 DB 연동 설정이 누락되었습니다."}
+            
+        headers = {
+            "apikey": supabase_key,
+            "Authorization": f"Bearer {supabase_key}"
+        }
+        # profiles 테이블에서 이메일 매칭 사용자 조회
+        url = f"{supabase_url.rstrip('/')}/rest/v1/profiles?email=eq.{req.email}&select=*"
+        
+        # Suppress insecure request warnings
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        
+        r = requests.get(url, headers=headers, timeout=5, verify=False)
+        
+        if r.status_code == 200:
+            data = r.json()
+            if data:
+                profile = data[0]
+                db_pin = str(profile.get("pin_code") or "").strip()
+                input_pin = str(req.pin_code).strip()
+                
+                # 디폴트 핀번호 또는 입력한 핀번호 매칭 검증
+                if db_pin == input_pin:
+                    # 로그인 세션 동기화 및 에셋 저장소 스위칭
+                    auth_service.login_user(req.email)
+                    
+                    response = JSONResponse({"success": True})
+                    # 브라우저에 쿠키 주입 (유효기간 30일)
+                    response.set_cookie(
+                        key="user_email", 
+                        value=req.email, 
+                        max_age=30 * 24 * 60 * 60,
+                        httponly=False
+                    )
+                    return response
+                else:
+                    return {"success": False, "error": "PIN 번호가 일치하지 않습니다."}
+            return {"success": False, "error": "등록되지 않은 직원 이메일입니다."}
+        return {"success": False, "error": f"Supabase 연동 실패 (HTTP {r.status_code})"}
+        
+    except Exception as e:
+        return {"success": False, "error": f"로그인 에러: {str(e)}"}
+
+# [NEW] 로그아웃 API
+@app.post("/api/auth/logout")
+async def post_auth_logout():
+    response = JSONResponse({"success": True})
+    response.delete_cookie("user_email")
+    return response
+
+# [NEW] 오늘의 주제 가져오기 API (큐 연동)
+@app.post("/api/topics/get-daily")
+async def get_daily_topic():
+    try:
+        email = auth_service.get_user_email()
+        if not email:
+            raise HTTPException(401, "로그인이 필요합니다.")
+            
+        supabase_url = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        if not supabase_url or not supabase_key:
+            raise HTTPException(500, "Supabase 설정 누락")
+            
+        headers = {
+            "apikey": supabase_key,
+            "Authorization": f"Bearer {supabase_key}"
+        }
+        
+        # 1. 큐에서 로그인한 직원에 할당된 pending 상태의 가장 오래된 주제 1개 가져오기
+        url = f"{supabase_url.rstrip('/')}/rest/v1/topics_queue?assigned_employee_email=eq.{email}&status=eq.pending&order=created_at.asc&limit=1"
+        
+        # Suppress insecure request warnings
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        
+        r = requests.get(url, headers=headers, timeout=5, verify=False)
+        
+        if r.status_code == 200:
+            data = r.json()
+            if data:
+                item = data[0]
+                topic_id = item["id"]
+                topic_name = item["topic"]
+                
+                # 2. 해당 주제의 상태를 'assigned'로 변경
+                update_url = f"{supabase_url.rstrip('/')}/rest/v1/topics_queue?id=eq.{topic_id}"
+                patch_headers = headers.copy()
+                patch_headers["Prefer"] = "return=representation"
+                r_update = requests.patch(update_url, headers=patch_headers, json={"status": "assigned"}, timeout=5, verify=False)
+                
+                if r_update.status_code != 200:
+                    print(f"[Queue] Failed to update topic status in Supabase: {r_update.text}")
+                    
+                # 3. 로컬 프로젝트 자동 생성
+                project_id = db.create_project(
+                    name=topic_name,
+                    topic=topic_name,
+                    app_mode="longform",
+                    language="ko",
+                    employee_email=email
+                )
+                
+                return {"status": "success", "project_id": project_id, "topic": topic_name}
+                
+            return {"status": "error", "error": "배정된 대기 중인 오늘의 주제가 없습니다."}
+        else:
+            raise HTTPException(500, f"Supabase 호출 오류: {r.text}")
+            
+    except Exception as e:
+        print(f"[Queue API Error] {e}")
+        return {"status": "error", "error": str(e)}
+
+# [NEW] 격리된 동적 output 서빙 엔드포인트
+@app.get("/output/{file_path:path}")
+async def serve_output_file(file_path: str):
+    abs_path = os.path.join(config.OUTPUT_DIR, file_path)
+    if os.path.exists(abs_path):
+        return FileResponse(abs_path)
+    raise HTTPException(status_code=404, detail="File not found")
+
 # [NEW] 실시간 등급/토큰 동기화 API
 @app.post("/api/auth/sync")
 async def sync_auth():
@@ -122,7 +350,7 @@ templates = Jinja2Templates(directory=config.TEMPLATES_DIR)
 
 # Static Files
 app.mount("/static", StaticFiles(directory=config.STATIC_DIR), name="static")
-app.mount("/output", StaticFiles(directory=config.OUTPUT_DIR), name="output")
+# app.mount("/output", StaticFiles(directory=config.OUTPUT_DIR), name="output")
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.mount("/assets", StaticFiles(directory=config.ASSETS_DIR), name="assets")
 
@@ -360,6 +588,30 @@ async def get_script(project_id: int):
 async def get_project_full(project_id: int):
     """프로젝트 전체 데이터 조회 (Context Restoration용)"""
     return db.get_project_full_data_v2(project_id) or {}
+
+
+@app.post("/api/projects/{project_id}/analysis")
+async def save_analysis(project_id: int, req: AnalysisSave, background_tasks: BackgroundTasks):
+    """분석 결과 저장 및 백그라운드 학습 트리거"""
+    try:
+        db.save_analysis(project_id, req.video_data, req.analysis_result)
+        
+        # [NEW] 분석 성공 시 백그라운드에서 지식 추출 (학습 자동화)
+        if req.analysis_result:
+            v_id = req.video_data.get('id', '')
+            if isinstance(v_id, dict): v_id = v_id.get('videoId', '')
+            background_tasks.add_task(background_learn_strategy, v_id, req.analysis_result)
+            
+        return {"status": "ok"}
+    except Exception as e:
+        print(f"[Error] Save Analysis Failed: {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.get("/api/projects/{project_id}/analysis")
+async def get_analysis(project_id: int):
+    """분석 결과 조회"""
+    return db.get_analysis(project_id) or {}
 
 
 @app.post("/api/projects/{project_id}/analyze-scenes")
@@ -1258,8 +1510,18 @@ async def tts_generate(req: TTSRequest):
         result_filename = os.path.normpath(os.path.abspath(os.path.join(output_dir, filename)))
     else:
         # Fallback
+        output_dir = config.OUTPUT_DIR
         web_dir = "/output"
         result_filename = os.path.normpath(os.path.abspath(os.path.join(config.OUTPUT_DIR, filename)))
+
+    # ElevenLabs 전용 상세 보이스 설정 구성
+    el_voice_settings = {"speed": req.speed}
+    if req.stability is not None:
+        el_voice_settings["stability"] = req.stability
+    if req.similarity_boost is not None:
+        el_voice_settings["similarity_boost"] = req.similarity_boost
+    if req.style is not None:
+        el_voice_settings["style"] = req.style
 
         # ----------------------------------------------------------------
     try:
@@ -1271,13 +1533,8 @@ async def tts_generate(req: TTSRequest):
             segments = []
             lines = req.text.split('\n')
             
-            # 정규식: "이름: 대사" (마크다운 기호, 괄호, 공백 등에 유연하게 대응)
-            # 1. 앞뒤 마크다운기호/괄호 허용: ^\s*[\*\_\[\(]*
-            # 2. 화자 이름 캡처: ([^\s:\[\(\*\_]+)
-            # 3. 뒤쪽 기호 및 지문(옵션): [\*\_\]\)]*[ \t]*(?:\([^)]*\))?[ \t]*
-            # 4. 구분자 및 대사: [:：][ \t]*(.*)
-            # (Note: .* allows empty content if the script has a speaker name followed by a newline)
-            pattern = re.compile(r'^\s*[\*\_\[\(]*([^\s:\[\(\*\_]+)[\*\_\]\)]*[ \t]*(?:\([^)]*\))?[ \t]*[:：][ \t]*(.*)')
+            # 정규식: 화자 이름과 괄호 안의 감정 지문 캡처
+            pattern = re.compile(r'^\s*[\*\_\[\(]*([^\s:\[\(\*\_]+)[\*\_\]\)]*[ \t]*(\([^)]*\))?[ \t]*[:：][ \t]*(.*)')
             
             current_chunk = []
             current_speaker = None
@@ -1296,10 +1553,13 @@ async def tts_generate(req: TTSRequest):
                             "text": "\n".join(current_chunk)
                         })
                     current_speaker = match.group(1).strip()
+                    emotion = match.group(2) or ""
                     # 백엔드에서도 화자 이름에서 특수기호 2차 정지
                     current_speaker = re.sub(r'[\*\_\#\[\]\(\)]', '', current_speaker).strip()
                     
-                    content = match.group(2).strip()
+                    content = match.group(3).strip()
+                    if emotion:
+                        content = f"{emotion} {content}"
                     current_chunk = [content]
                 else:
                     # 화자 없음 -> 이전 화자에 이어서 추가 (없으면 default)
@@ -1338,7 +1598,7 @@ async def tts_generate(req: TTSRequest):
                     
                     try:
                         if provider == "elevenlabs":
-                             await tts_service.generate_elevenlabs(seg_text, target_voice, seg_path, voice_settings={"speed": req.speed})
+                             await tts_service.generate_elevenlabs(seg_text, target_voice, seg_path, voice_settings=el_voice_settings)
                         elif provider == "openai":
                              await tts_service.generate_openai(seg_text, target_voice, "tts-1", seg_path, req.speed)
                         else: # gemini / edge_tts
@@ -1449,7 +1709,7 @@ async def tts_generate(req: TTSRequest):
             # 1. ElevenLabs
             if req.provider == "elevenlabs":
                 result = await tts_service.generate_elevenlabs(
-                    req.text, req.voice_id, result_filename, voice_settings={"speed": req.speed}
+                    req.text, req.voice_id, result_filename, voice_settings=el_voice_settings
                 )
                 # ElevenLabs returns a dict containing metadata
                 if isinstance(result, dict):
@@ -1651,7 +1911,66 @@ async def tts_voices():
         except Exception:
             pass
 
+    # [NEW] 수동 등록한 커스텀 보이스 병합
+    try:
+        custom_voices = db.get_global_setting("custom_voices", [])
+        if isinstance(custom_voices, list):
+            existing_ids = {v.get("voice_id") for v in voices if v.get("provider") == "elevenlabs"}
+            for cv in custom_voices:
+                vid = cv.get("voice_id")
+                if vid and vid not in existing_ids:
+                    voices.append({
+                        "voice_id": vid,
+                        "name": f"{cv.get('name')} (커스텀)",
+                        "provider": "elevenlabs",
+                        "preview_url": None,
+                        "labels": {"custom": "true"}
+                    })
+    except Exception as e:
+        print(f"[WARN] Failed to load custom voices from db: {e}")
+
     return {"voices": voices}
+
+
+@app.post("/api/tts/voices/add")
+async def add_elevenlabs_voice(
+    name: str = Form(...),
+    voice_id: str = Form(...)
+):
+    """ElevenLabs에 새 음성 등록 (Voice ID 수동 입력)"""
+    name = name.strip()
+    voice_id = voice_id.strip()
+    
+    if not name or not voice_id:
+        raise HTTPException(status_code=400, detail="이름과 Voice ID는 필수 입력 항목입니다.")
+
+    try:
+        custom_voices = db.get_global_setting("custom_voices", [])
+        if not isinstance(custom_voices, list):
+            custom_voices = []
+
+        # 중복 확인 및 업데이트
+        exists = False
+        for cv in custom_voices:
+            if cv.get("voice_id") == voice_id:
+                cv["name"] = name
+                exists = True
+                break
+        
+        if not exists:
+            custom_voices.append({
+                "voice_id": voice_id,
+                "name": name,
+                "provider": "elevenlabs"
+            })
+            
+        db.save_global_setting("custom_voices", custom_voices)
+        print(f"[SUCCESS] Custom Voice Registered: {name} (ID: {voice_id})")
+        return {"status": "ok", "voice_id": voice_id, "name": name}
+    except Exception as e:
+        print(f"[WARN] Exception during voice registration: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 # ===========================================

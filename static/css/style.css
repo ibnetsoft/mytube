@@ -84,7 +84,7 @@
 }
 
 .dark .card {
-    background: #000106;
+    background: #232832;
 }
 
 .card-compact {
@@ -166,8 +166,8 @@
 }
 
 .dark .btn-secondary {
-    background: #000106;
-    border: 1px solid #1e293b;
+    background: #1c2027;
+    border: 1px solid rgba(255, 255, 255, 0.05);
     color: #ffffff;
 }
 
@@ -258,8 +258,8 @@
 }
 
 .dark .input-field {
-    background: #000106;
-    border-color: #1e293b;
+    background: #1c2027;
+    border-color: rgba(255, 255, 255, 0.05);
     color: white;
 }
 
@@ -267,7 +267,7 @@
 select.dark,
 .dark select,
 .dark select option {
-    background-color: #000106 !important;
+    background-color: #1c2027 !important;
     color: #ffffff !important;
 }
 
@@ -298,7 +298,7 @@ textarea.input-field {
 }
 
 .dark .sidebar-item {
-    color: #A3C9FF; /* Light blue-gray default */
+    color: #A3C9FF; 
 }
 
 .sidebar-item:hover {
@@ -306,7 +306,7 @@ textarea.input-field {
 }
 
 .dark .sidebar-item:hover {
-    background-color: #0a0f1d;
+    background-color: rgba(255, 255, 255, 0.03);
     color: #ffffff;
 }
 
@@ -317,11 +317,11 @@ textarea.input-field {
 }
 
 .dark .sidebar-item.active {
-    background-color: #0a0f1d;
+    background-color: rgba(59, 130, 246, 0.1);
     color: #ffffff;
     font-weight: 800;
     box-shadow: inset 2px 0 0 #3B82F6;
-    border: 1px solid rgba(59, 130, 246, 0.3);
+    border: 1px solid rgba(59, 130, 246, 0.2);
 }
 
 /* ===== Loading States ===== */
@@ -379,7 +379,7 @@ textarea.input-field {
 }
 
 .dark .video-card {
-    background: #000106;
+    background: #232832;
 }
 
 .video-card:hover {
@@ -506,8 +506,8 @@ textarea.input-field {
 }
 
 .dark .progress-bar {
-    background: #000106;
-    border: 1px solid #1e293b;
+    background: #1c2027;
+    border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .progress-bar-fill {
@@ -526,7 +526,7 @@ textarea.input-field {
 }
 
 .dark .tabs {
-    border-color: #1e293b;
+    border-color: rgba(255, 255, 255, 0.05);
 }
 
 .tab {
@@ -571,7 +571,7 @@ textarea.input-field {
 }
 
 .dark .modal-content {
-    background: #000106;
+    background: #232832;
 }
 
 /* ===== Spacing Utilities ===== */

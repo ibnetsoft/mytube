@@ -1,5 +1,6 @@
 import yaml
 import json
+import re
 from typing import List, Dict, Any, Optional
 from services.negative_prompt_engine import negative_engine
 
@@ -24,8 +25,48 @@ class PromptAssembler:
         [BLOCK 1~6] 조립 및 최종 프롬프트 세트 반환
         """
         
-        # --- BLOCK 1: STYLE ---
+        # --- BLOCK 1: STYLE (Template Filling) ---
         block1 = style_prefix.strip()
+        used_keys = set()
+        
+        # Mappings for template variables (Case-insensitive)
+        # Format: [VARIABLE_NAME] -> scene_context keys (multiple possible)
+        template_map = {
+            "SUBJECT": ["character_dna_applied", "subject"],
+            "ACTION": ["action"],
+            "LOCATION": ["location"],
+            "STYLE_SPECIFIC_DETAILS": ["props", "style_specific_details"],
+            "ATMOSPHERE": ["weather", "atmosphere"],
+            "CAMERA_ANGLE": ["camera_angle", "cinematic_tags"]
+        }
+        
+        for var_name, ctx_keys in template_map.items():
+            placeholder = f"[{var_name}]"
+            if placeholder in block1:
+                val = ""
+                # Special handling for SUBJECT: use character names if not in context
+                if var_name == "SUBJECT":
+                    context_subject = ""
+                    for k in ctx_keys:
+                        context_subject = scene_context.get(k) or ""
+                        if context_subject: 
+                            used_keys.add(k)
+                            break
+                    
+                    if context_subject:
+                        val = context_subject
+                    elif character_dnas:
+                        # Fallback to names from character_dnas list
+                        val = ", ".join([c.get('name', 'a person') for c in character_dnas])
+                else:
+                    for k in ctx_keys:
+                        val = scene_context.get(k) or ""
+                        if val: 
+                            used_keys.add(k)
+                            break
+                
+                if val:
+                    block1 = block1.replace(placeholder, val)
         
         # --- BLOCK 2: CHARACTER DNA ---
         dna_blocks = []
@@ -42,9 +83,10 @@ class PromptAssembler:
             block1 = f"{block1}, {global_ethnicity}"
         
         # --- BLOCK 3: SCENE CONTEXT ---
-        # action, expression, location, time, weather, props
+        # Only include keys that weren't used in the template (Block 1)
         ctx_parts = []
         for key in ["action", "expression", "location", "time", "weather", "props"]:
+            if key in used_keys: continue
             val = scene_context.get(key)
             if val:
                 ctx_parts.append(val)
@@ -53,9 +95,8 @@ class PromptAssembler:
         # --- BLOCK 4: CINEMATIC FINISH ---
         block4 = cinematic_tags.strip()
         
-        # --- BLOCK 5: NEGATIVE (Phase 1 엔진 호출) ---
+        # --- BLOCK 5: NEGATIVE ---
         scene_type = scene_context.get("scene_type", "Mixed")
-        # style_prefix에서 스타일 키워드 매칭 (간이 처리)
         style_key = self._detect_style_key(style_prefix)
         block5 = negative_engine.build_negative_prompt(scene_type, style_key, model_type)
         
@@ -64,12 +105,12 @@ class PromptAssembler:
         if seed is not None and str(seed) != "-1":
             block6 += f", seed {seed}"
 
-        # 최종 조립 (Block 5는 별도 필드로 분리)
-        # Block 1~4, 6 순서로 텍스트 생성
+        # 최종 조립
         positive_prompt = f"{block1}, {block2}, {block3}, {block4}, {block6}"
         
-        # 쉼표 중복 정제
+        # 쉼표 및 템플릿 잔재 정제
         positive_prompt = self._cleanup_commas(positive_prompt)
+        positive_prompt = self._cleanup_placeholders(positive_prompt)
 
         return {
             "prompt_en": positive_prompt,
@@ -84,7 +125,7 @@ class PromptAssembler:
         """
         dna_yaml_str = char_data.get("dna_yaml", "")
         if not dna_yaml_str:
-            return char_data.get("prompt_en", "") # 백업용
+            return self._cleanup_placeholders(char_data.get("prompt_en", "")) # 백업용
 
         try:
             dna = yaml.safe_load(dna_yaml_str)
@@ -103,9 +144,10 @@ class PromptAssembler:
                 if val:
                     dna_tokens.append(val)
             
-            return f"{char_data.get('character_id', 'character')}: " + ", ".join(dna_tokens)
+            res = f"{char_data.get('character_id', 'character')}: " + ", ".join(dna_tokens)
+            return self._cleanup_placeholders(res)
         except Exception:
-            return char_data.get("prompt_en", "")
+            return self._cleanup_placeholders(char_data.get("prompt_en", ""))
 
     def _detect_style_key(self, style_prefix: str) -> str:
         """prefix에서 NEGATIVE_LAYERS용 키워드 감지"""
@@ -122,5 +164,22 @@ class PromptAssembler:
         text = re.sub(r'\s{2,}', ' ', text)
         return text.strip().strip(',')
 
-import re
+    def _cleanup_placeholders(self, text: str) -> str:
+        """[SUBJECT], [ACTION] 등 템플릿 잔재 및 모든 대괄호 묶음 제거"""
+        if not text: return ""
+        
+        # 1. 템플릿 변수 및 대괄호 묶음 제거 (2~50자 내외)
+        # [SUBJECT], [ACTION], [Opening Frame] 등을 모두 포괄
+        text = re.sub(r'\[[^\]]{2,50}\]', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'\$\{([^}]+)\}', '', text)
+        
+        # 2. 마크다운 강조 및 잔여 기호 정제
+        text = text.replace("**", "")
+        text = re.sub(r',\s*,', ',', text)
+        text = re.sub(r'^\s*,\s*', '', text)
+        text = re.sub(r'\s*,\s*$', '', text)
+        text = re.sub(r'\s{2,}', ' ', text)
+        
+        return text.strip()
+
 prompt_assembler = PromptAssembler()

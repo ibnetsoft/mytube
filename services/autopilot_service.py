@@ -483,7 +483,8 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
 
 [Absolute Rules for TTS]
 - NO character names or colons (e.g., "Narrator:", "Me:").
-- NO parentheses or situational descriptions (e.g., "(music)", "(laughs)").
+- Insert mood/tone instructions in parentheses (e.g., "(차분하게)", "(슬프게)") where appropriate.
+- NO situational descriptions like "(music)" or "(laughs)".
 - NO special characters or emojis.
 """
             if style_key != "default":
@@ -508,8 +509,8 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
             script = re.sub(r'\[[^\]]*\]', '', script)
             # 3. 별표 및 꾸밈 기호 삭제 (**)
             script = re.sub(r'\*', '', script)
-            # 4. 이모티콘 및 특수 기호 삭제 (🤣, ✨, 🔥 등)
-            script = re.sub(r'[^\w\s\d,.\?\!\"\'\. ]', '', script)
+            # 4. 이모티콘 및 특수 기호 삭제 (🤣, ✨, 🔥 등) - 단, 감정 태그용 소괄호 ()는 허용
+            script = re.sub(r'[^\w\s\d,.\?\!\"\'\.\(\) ]', '', script)
             # 5. 화자 표시 삭제 (예: 나:, 상사:, A:) - 문장 시작 부분의 이름과 콜론
             script = re.sub(r'^[가-힣\w\s]+[\s]*:[\s]*', '', script, flags=re.MULTILINE)
             # 6. 불필요한 공백 및 빈 줄 정리

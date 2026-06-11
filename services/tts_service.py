@@ -135,7 +135,73 @@ class TTSService:
                 "duration": float (총 재생 시간)
             }
         """
-        # [FIX] 텍스트 정제 (지문 제거)
+        # [FIX] 텍스트 정제 (지문 제거 및 한국어 감정 괄호를 ElevenLabs용 영어 태그로 치환)
+        import re
+        
+        EMOTION_MAP = {
+            # --- Sad (슬픔) ---
+            "슬프": "sad", "슬픈": "sad", "눈물": "sad", "울먹": "sad", "서글": "sad", "애절": "sad", "아련": "sad", 
+            "씁쓸": "sad", "체념": "sad", "낙담": "sad", "외로운": "sad", "외롭게": "sad", "쓸쓸": "sad", 
+            "떨리는": "sad", "애통": "sad", "비통": "sad", "절망": "sad", "우울": "sad", "괴로": "sad",
+            
+            # --- Quiet / Calm (차분함, 조용함, 덤덤함) ---
+            "차분": "quietly", "조용": "quietly", "나직": "quietly", "잔잔": "quietly", "덤덤": "quietly", 
+            "평온": "quietly", "나긋": "quietly", "낮게": "quietly", "낮은": "quietly", "속삭": "whispers",
+            
+            # --- Thoughtful / Serious / Cold (진지함, 무게감, 차가움) ---
+            "진지": "thoughtful", "무게": "thoughtful", "차갑": "thoughtful", "냉정": "thoughtful", 
+            "냉혹": "thoughtful", "단호": "thoughtful", "엄숙": "thoughtful", "설명": "thoughtful", 
+            "강조": "thoughtful", "묵직": "thoughtful", "조심": "thoughtful", "어두운": "thoughtful", 
+            "어둡게": "thoughtful", "경고": "thoughtful",
+            
+            # --- Happy / Exciting (기쁨, 흥분, 밝음) ---
+            "기쁘": "happy", "기쁜": "happy", "신나": "excited", "활기": "excited", "즐겁": "happy", 
+            "밝게": "happy", "밝은": "happy", "웃음": "happy", "웃으": "happy", "환희": "happy",
+            "유쾌": "happy", "당차": "excited", "희망": "happy",
+            
+            # --- Angry (분노, 짜증, 분개) ---
+            "화나": "angry", "분노": "angry", "적대": "angry", "짜증": "angry", "신경": "angry", 
+            "윽박": "angry", "질책": "angry", "독설": "angry", "거칠": "angry", "울화": "angry",
+            
+            # --- Shout (크게 소리침) ---
+            "소리": "shouts", "크게": "shouts", "외치": "shouts", "강하": "shouts", "질러": "shouts",
+            
+            # --- Pauses ---
+            "쉬고": "pause", "pause": "pause", "정적": "long pause"
+        }
+
+        PHONETIC_MAP = {
+            "한숨": "하아... ",
+            "탄식": "하아... ",
+            "하~": "하아... ",
+            "휴~": "휴... ",
+            "흡": "흡... ",
+            "놀람": "앗... ",
+            "경악": "앗... ",
+        }
+        
+        def replace_ko_emotions(match):
+            content = match.group(1).strip()
+            
+            # 1. Phonetic mapping
+            phonetic_str = ""
+            for ko_key, phonetic in PHONETIC_MAP.items():
+                if ko_key in content:
+                    phonetic_str = phonetic
+                    break
+                    
+            # 2. Emotional tag
+            emotion_tag = ""
+            for ko_key, en_tag in EMOTION_MAP.items():
+                if ko_key in content:
+                    emotion_tag = f"[{en_tag}]"
+                    break
+            
+            if emotion_tag or phonetic_str:
+                return f"{emotion_tag} {phonetic_str}".strip()
+            return "" # 매핑되지 않은 지문은 소리내어 읽지 않도록 제거
+            
+        text = re.sub(r'\(([^)]*)\)', replace_ko_emotions, text)
         text = self.clean_text(text)
         
         # [NEW] 문장 단위 분할 처리 (제한 10,000자, 안전빵 8,000자)
@@ -198,23 +264,60 @@ class TTSService:
             "Content-Type": "application/json"
         }
 
-        # [NEW] Voice Settings Override
+        # [NEW] Voice Settings Override for Expressive Emotions
         final_settings = {
-            "stability": 0.5,
-            "similarity_boost": 0.75
+            "stability": 0.35,          # Lower stability (30-50%) allows voice to be much more emotional and natural
+            "similarity_boost": 0.75,
+            "style": 0.45               # Style Exaggeration (20-50%) amplifies the emotion tags
         }
         speed_factor = 1.0
         
         if voice_settings:
-            final_settings["stability"] = float(voice_settings.get("stability", 0.5))
+            final_settings["stability"] = float(voice_settings.get("stability", 0.35))
             final_settings["similarity_boost"] = float(voice_settings.get("similarity_boost", 0.75))
+            final_settings["style"] = float(voice_settings.get("style", 0.45))
             speed_factor = float(voice_settings.get("speed", 1.0))
 
+        # [NEW] Pre-prompting for emotional steering in ElevenLabs (Korean native steering)
+        PRE_PROMPT_MAP = {
+            "sad": "아주 슬프고 울먹이며 떨리는 목소리로 말합니다: ",
+            "quietly": "낮고 작은 목소리로 조용히 속삭이듯 말합니다: ",
+            "whispers": "낮고 작은 목소리로 조용히 속삭이듯 말합니다: ",
+            "whispering": "낮고 작은 목소리로 조용히 속삭이듯 말합니다: ",
+            "thoughtful": "낮고 진중하며 차분한 목소리로 말합니다: ",
+            "happy": "아주 밝고 기쁘게 웃음기 가득한 목소리로 말합니다: ",
+            "excited": "아주 신나고 활기차며 상기된 높은 톤의 목소리로 말합니다: ",
+            "annoyed": "짜증스럽고 신경질적인 목소리로 말합니다: ",
+            "angry": "매우 화가 나고 분노에 찬 목소리로 거칠게 말합니다: ",
+            "shouting": "매우 크고 상기된 목소리로 지르듯 외칩니다: ",
+            "shouts": "매우 크고 상기된 목소리로 지르듯 외칩니다: ",
+        }
+        
+        # Check if the text contains any of these tags
+        emotion_tag_match = re.search(r'\[([a-zA-Z\s]+)\]', text)
+        has_emotion_prompt = False
+        prompt_text = ""
+        cleaned_text = text
+        
+        if emotion_tag_match:
+            tag_content = emotion_tag_match.group(1).lower().strip()
+            if tag_content in PRE_PROMPT_MAP:
+                prompt_text = PRE_PROMPT_MAP[tag_content]
+                # Remove the tag from the text sent to ElevenLabs to prevent reading it/confusion
+                cleaned_text = text.replace(emotion_tag_match.group(0), "").strip()
+                has_emotion_prompt = True
+                print(f"[EMOTION] [ElevenLabs TTS] Detected emotional tag: [{tag_content}]. Using pre-prompt: '{prompt_text.strip()}'")
+
+        text_to_send = prompt_text + cleaned_text if has_emotion_prompt else text
+
         payload = {
-            "text": text,
-            "model_id": "eleven_turbo_v2_5",
+            "text": text_to_send,
+            "model_id": "eleven_v3",
             "voice_settings": final_settings
         }
+        
+        print(f"[DEBUG] [ElevenLabs TTS] Request Payload: Model={payload.get('model_id')}, Settings={payload.get('voice_settings')}")
+        print(f"[DEBUG] [ElevenLabs TTS] Text to Send: '{payload.get('text')}'")
 
         output_path = os.path.join(self.output_dir, filename)
         alignment_data = []
@@ -226,21 +329,90 @@ class TTSService:
             if response.status_code == 200:
                 import json
                 import base64
+                import subprocess
                 
                 data = response.json()
-                
-                # 오디오 데이터 (base64)
-                audio_base64 = data.get("audio_base64", "")
-                if audio_base64:
-                    audio_bytes = base64.b64decode(audio_base64)
-                    with open(output_path, "wb") as f:
-                        f.write(audio_bytes)
                 
                 # 타이밍 정보 추출
                 alignment = data.get("alignment", {})
                 characters = alignment.get("characters", [])
                 char_start_times = alignment.get("character_start_times_seconds", [])
                 char_end_times = alignment.get("character_end_times_seconds", [])
+                
+                # [NEW] Pre-prompt Cropping Index calculation
+                t_start = 0.0
+                if has_emotion_prompt and characters and char_start_times:
+                    split_idx = len(prompt_text)
+                    found_idx = -1
+                    
+                    # Find the first character of cleaned_text in characters list starting from split_idx - 5
+                    first_real_char = cleaned_text.strip()[0] if cleaned_text.strip() else ""
+                    if first_real_char:
+                        start_search = max(0, split_idx - 5)
+                        for i in range(start_search, len(characters)):
+                            if characters[i] == first_real_char:
+                                found_idx = i
+                                break
+                                    
+                    if found_idx == -1:
+                        found_idx = split_idx
+                        
+                    # Get start timestamp
+                    if 0 <= found_idx < len(char_start_times):
+                        t_start = char_start_times[found_idx]
+                        print(f"[TRIM] [ElevenLabs TTS] Pre-prompt ended at character index {found_idx}, time {t_start:.3f}s. Trimming audio...")
+                        
+                        # Trim characters and timestamps
+                        characters = characters[found_idx:]
+                        char_start_times = [t - t_start for t in char_start_times[found_idx:]]
+                        char_end_times = [t - t_start for t in char_end_times[found_idx:]]
+
+                # 오디오 데이터 (base64) 및 파일 저장 (필요한 경우 크롭 처리)
+                audio_base64 = data.get("audio_base64", "")
+                if audio_base64:
+                    audio_bytes = base64.b64decode(audio_base64)
+                    
+                    if t_start > 0.05:
+                        temp_path = output_path.replace(".mp3", "_temp_crop.mp3")
+                        with open(temp_path, "wb") as f:
+                            f.write(audio_bytes)
+                            
+                        # ffmpeg를 사용하여 pre-prompt 부분 잘라내기
+                        try:
+                            ffmpeg_exe = "ffmpeg"
+                            try:
+                                import imageio_ffmpeg
+                                ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+                            except Exception:
+                                pass
+                                
+                            cmd = [
+                                ffmpeg_exe, "-y",
+                                "-ss", f"{t_start:.3f}",
+                                "-i", temp_path,
+                                "-c:a", "libmp3lame",
+                                "-q:a", "2",
+                                output_path
+                            ]
+                            
+                            startupinfo = None
+                            if os.name == 'nt':
+                                startupinfo = subprocess.STARTUPINFO()
+                                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                                
+                            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, startupinfo=startupinfo)
+                            print(f"[TRIM] [ElevenLabs TTS] Cropped audio saved to {output_path}")
+                        except Exception as crop_err:
+                            print(f"[WARN] [ElevenLabs TTS] Cropping failed: {crop_err}. Saving full audio as fallback.")
+                            with open(output_path, "wb") as f:
+                                f.write(audio_bytes)
+                        finally:
+                            if os.path.exists(temp_path):
+                                try: os.remove(temp_path)
+                                except Exception: pass
+                    else:
+                        with open(output_path, "wb") as f:
+                            f.write(audio_bytes)
                 
                 # 문자 타이밍을 단어 타이밍으로 변환
                 if characters and char_start_times:
@@ -254,10 +426,8 @@ class TTSService:
                 # [NEW] Speed Adjustment Post-Processing
                 if speed_factor != 1.0 and os.path.exists(output_path):
                     try:
-                        print(f"⏩ Adjusting audio speed by {speed_factor}x...")
-                        import subprocess
+                        print(f"[SPEED] Adjusting audio speed by {speed_factor}x...")
                         
-                        # Try to find ffmpeg via imageio_ffmpeg (installed with moviepy)
                         ffmpeg_exe = "ffmpeg"
                         try:
                             import imageio_ffmpeg
@@ -267,18 +437,12 @@ class TTSService:
                             
                         temp_speed_path = output_path.replace(".mp3", "_speed.mp3")
                         
-                        # Use ffmpeg via subprocess for speed change
-                        # -y: overwrite
-                        # -vn: disable video
-                        # filter:a "atempo=X"
-                        
                         cmd = [
                             ffmpeg_exe, "-y", "-i", output_path,
                             "-filter:a", f"atempo={speed_factor}",
                             "-vn", temp_speed_path
                         ]
                         
-                        # Prevent console window on Windows
                         startupinfo = None
                         if os.name == 'nt':
                             startupinfo = subprocess.STARTUPINFO()
@@ -287,34 +451,30 @@ class TTSService:
                         subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, startupinfo=startupinfo)
                         
                         if os.path.exists(temp_speed_path):
-                            # Replace original
                             try:
                                 os.remove(output_path)
                                 os.rename(temp_speed_path, output_path)
                             except OSError:
-                                # Sometimes windows locks file, use shutil move fallback
                                 import shutil
                                 shutil.move(temp_speed_path, output_path)
                             
-                            # Update Duration
                             audio_duration = audio_duration / speed_factor
                             
-                            # Update Alignment Timestamps
                             if alignment_data:
                                 for word in alignment_data:
                                     word["start"] = word["start"] / speed_factor
                                     word["end"] = word["end"] / speed_factor
                                 
-                            print(f"✅ Speed adjustment complete. New duration: {audio_duration:.2f}s")
+                            print(f"[SUCCESS] Speed adjustment complete. New duration: {audio_duration:.2f}s")
                     except Exception as e:
-                        print(f"⚠️ Failed to adjust audio speed: {e}")
+                        print(f"[WARN] Failed to adjust audio speed: {e}")
 
                 # 타이밍 정보 저장
                 alignment_path = output_path.replace(".mp3", "_alignment.json")
                 with open(alignment_path, "w", encoding="utf-8") as f:
                     json.dump(alignment_data, f, ensure_ascii=False, indent=2)
                 
-                print(f"✅ ElevenLabs TTS 생성 완료: {output_path} ({len(alignment_data)} words, {audio_duration:.1f}s)")
+                print(f"[SUCCESS] ElevenLabs TTS 생성 완료: {output_path} ({len(alignment_data)} words, {audio_duration:.1f}s)")
                 
                 return {
                     "audio_path": output_path,
@@ -607,7 +767,7 @@ class TTSService:
         
         # 2. 감정 태그/일시정지 태그 화이트리스트 (ElevenLabs용)
         # [annoyed], [excited], [sad], [angry], [shouting], [whispering], [long pause], [pause] 등
-        emotion_tags = ["annoyed", "excited", "sad", "angry", "shouting", "whispering", "long pause", "pause", "appalled"]
+        emotion_tags = ["annoyed", "excited", "sad", "angry", "shouting", "whispering", "long pause", "pause", "appalled", "happy", "quietly", "thoughtful", "whispers", "shouts", "sigh"]
         
         # 괄호 내용 중 화이트리스트에 없는 것만 제거
         def remove_brackets_except_emotions(match):

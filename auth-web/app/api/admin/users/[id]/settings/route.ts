@@ -11,6 +11,13 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         const { data: { user }, error } = await supabaseAdmin.auth.admin.getUserById(params.id)
         if (error || !user) throw error || new Error('User not found')
 
+        // profiles에서 pin_code 로드
+        const { data: profile } = await supabaseAdmin
+            .from('profiles')
+            .select('pin_code')
+            .eq('id', params.id)
+            .maybeSingle()
+
         const meta = user.user_metadata || {}
         return NextResponse.json({
             gemini: meta.gemini_api_key || '',
@@ -20,6 +27,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
             topview_uid: meta.topview_uid || '',
             youtube_channel: meta.youtube_channel || '',
             youtube_handle: meta.youtube_handle || '',
+            pin_code: profile?.pin_code || '1234',
         })
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 })
@@ -30,14 +38,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     try {
         const body = await req.json()
         const userId = params.id
-        const { gemini, youtube, elevenlabs, topview, topview_uid, youtube_channel, youtube_handle } = body
+        const { gemini, youtube, elevenlabs, topview, topview_uid, youtube_channel, youtube_handle, pin_code } = body
 
         const supabaseAdmin = createClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
             process.env.SUPABASE_SERVICE_ROLE_KEY!
         )
 
-        // 기존 user_metadata 조회 후 병합 (full_name, nationality, contact 등 보존)
+        // 1. 기존 user_metadata 조회 후 병합 (full_name, nationality, contact 등 보존)
         const { data: { user: existingUser } } = await supabaseAdmin.auth.admin.getUserById(userId)
         const merged = { ...(existingUser?.user_metadata || {}) }
         if (gemini !== undefined)      merged.gemini_api_key = gemini
@@ -53,6 +61,18 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         })
 
         if (error) throw error
+
+        // 2. profiles 테이블의 pin_code 업데이트 (전달된 경우)
+        if (pin_code !== undefined) {
+            const { error: profileError } = await supabaseAdmin
+                .from('profiles')
+                .update({ pin_code })
+                .eq('id', userId)
+
+            if (profileError) {
+                console.error('Failed to update pin_code in profiles:', profileError)
+            }
+        }
 
         return NextResponse.json({ success: true })
     } catch (error: any) {

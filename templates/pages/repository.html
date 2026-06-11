@@ -3,7 +3,7 @@
 {% block content %}
 <div class="flex h-full">
     <!-- Left: Folder List -->
-    <div class="w-64 bg-[#000106] border-r border-gray-200 dark:border-gray-700 flex flex-col">
+    <div class="w-64 bg-[#1c2027] border-r border-gray-200 dark:border-gray-700 flex flex-col">
         <div class="p-4 border-b border-gray-200 dark:border-gray-700">
             <h2 class="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
                 <span>📁</span> {{ t('repo_folder') }}
@@ -16,10 +16,10 @@
     </div>
 
     <!-- Right: Content Area -->
-    <div class="flex-1 flex flex-col h-full overflow-hidden bg-[#000106]">
+    <div class="flex-1 flex flex-col h-full overflow-hidden bg-[#1c2027]">
         <!-- Header -->
         <div
-            class="bg-[#000106] border-b border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between shadow-sm z-10">
+            class="bg-[#1c2027] border-b border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between shadow-sm z-10">
             <div>
                 <h1 id="currentFolderName" class="text-xl font-bold text-gray-800 dark:text-white">{{ t('repo_select_folder') }}</h1>
                 <p id="currentFolderDate" class="text-xs text-gray-500 dark:text-gray-400 mt-1"></p>
@@ -120,7 +120,7 @@
         const listEl = document.getElementById('folderList');
         Array.from(listEl.children).forEach(child => {
             if (child.textContent.includes(folderName)) {
-                child.classList.add('bg-[#000106]', 'dark:bg-[#000106]', 'border', 'border-blue-200', 'dark:border-blue-800');
+                child.classList.add('bg-[#1c2027]', 'dark:bg-[#1c2027]', 'border', 'border-blue-200', 'dark:border-blue-800');
             } else {
                 child.className = 'p-3 rounded-lg cursor-pointer hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d] transition flex items-center gap-2 group';
             }
@@ -155,9 +155,9 @@
         // Hidden/Less Priority: Video ID, Views, Channel...
 
         let html = `
-            <div class="bg-[#000106] rounded-lg shadow overflow-hidden">
+            <div class="bg-[#1c2027] rounded-lg shadow overflow-hidden">
                 <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                    <thead class="bg-[#000106]/50">
+                    <thead class="bg-[#1c2027]/50">
                         <tr>
                             <th class="px-6 py-3 text-left w-10">
                                 <input type="checkbox" onclick="toggleAllRepoCheckboxes(this)" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700">
@@ -167,7 +167,7 @@
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">{{ t('th_analysis_result') }}</th>
                         </tr>
                     </thead>
-                    <tbody class="bg-[#000106] divide-y divide-gray-200 dark:divide-gray-700">
+                    <tbody class="bg-[#1c2027] divide-y divide-gray-200 dark:divide-gray-700">
         `;
 
         rows.forEach(row => {
@@ -177,7 +177,7 @@
             const safeFactor = (row['Success Factor'] || "").replace(/"/g, '&quot;');
 
             html += `
-                <tr class="hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d] transition bg-[#000106]">
+                <tr class="hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d] transition bg-[#1c2027]">
                     <td class="px-6 py-4">
                         <input type="checkbox" class="repo-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700"
                             data-title="${safeTitle}"
@@ -198,15 +198,15 @@
                     </td>
                     <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-300 align-top">
                         <div class="mb-3">
-                            <span class="px-2 py-0.5 rounded textxs font-bold bg-green-100 text-green-800 dark:bg-[#000106] dark:text-green-200">${i18n.label_success_factor}</span>
+                            <span class="px-2 py-0.5 rounded textxs font-bold bg-green-100 text-green-800 dark:bg-[#1c2027] dark:text-green-200">${i18n.label_success_factor}</span>
                             <div class="mt-1">${row['Success Factor']}</div>
                         </div>
                         <div class="mb-3">
-                            <span class="px-2 py-0.5 rounded textxs font-bold bg-blue-100 text-blue-800 dark:bg-[#000106] dark:text-blue-200">${i18n.label_benchmarked_title}</span>
+                            <span class="px-2 py-0.5 rounded textxs font-bold bg-blue-100 text-blue-800 dark:bg-[#1c2027] dark:text-blue-200">${i18n.label_benchmarked_title}</span>
                             <div class="mt-1 font-medium text-blue-600 dark:text-blue-300">${row['Benchmarked Title']}</div>
                         </div>
                         <div>
-                            <span class="px-2 py-0.5 rounded textxs font-bold bg-[#000106] text-gray-800 bg-[#000106]/50 dark:text-gray-200">${i18n.label_planning_intent}</span>
+                            <span class="px-2 py-0.5 rounded textxs font-bold bg-[#1c2027] text-gray-800 bg-[#1c2027]/50 dark:text-gray-200">${i18n.label_planning_intent}</span>
                             <div class="mt-1 text-xs opacity-80">${row['Synopsis']}</div>
                         </div>
                     </td>

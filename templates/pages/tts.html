@@ -4,11 +4,11 @@
 <div class="h-[calc(100vh-140px)] flex flex-col gap-3 p-2">
     <!-- 1. Top Control Toolbar -->
     <div
-        class="flex items-center gap-3 p-2 bg-[#000106] rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 shrink-0 flex-wrap">
+        class="flex items-center gap-3 p-2 bg-[#1c2027] rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 shrink-0 flex-wrap">
 
         <!-- Script Status Badge -->
         <span id="scriptStatusBadge"
-            class="text-[10px] flex items-center gap-1 px-2 py-1 rounded-full bg-[#000106] text-gray-400 font-normal">
+            class="text-[10px] flex items-center gap-1 px-2 py-1 rounded-full bg-[#1c2027] text-gray-400 font-normal">
             <span>🔄</span> {{ t('status_checking_script') }}
         </span>
 
@@ -18,7 +18,7 @@
         <div class="flex items-center gap-2">
             <span class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('label_service') }}</span>
             <select id="providerSelect"
-                class="text-xs border-gray-300 dark:border-gray-600 rounded-md py-1 px-2 focus:ring-primary focus:border-primary bg-[#000106]/50 dark:text-white bg-[#000106] text-white">
+                class="text-xs border-gray-300 dark:border-gray-600 rounded-md py-1 px-2 focus:ring-primary focus:border-primary bg-[#1c2027]/50 dark:text-white bg-[#1c2027] text-white">
                 <option value="gemini">Gemini ({{ t('label_free') }})</option>
                 <option value="openai">OpenAI ({{ t('label_paid') }})</option>
                 <option value="elevenlabs" selected>ElevenLabs</option>
@@ -32,9 +32,12 @@
         <div class="flex items-center gap-2" id="singleVoiceControls">
             <span class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('label_voice') }}</span>
             <select id="voiceSelect"
-                class="text-xs border-gray-300 dark:border-gray-600 rounded-md py-1 px-2 focus:ring-primary focus:border-primary bg-[#000106]/50 dark:text-white w-40 bg-[#000106] text-white">
+                class="text-xs border-gray-300 dark:border-gray-600 rounded-md py-1 px-2 focus:ring-primary focus:border-primary bg-[#1c2027]/50 dark:text-white w-40 bg-[#1c2027] text-white">
                 <option value="">{{ t('status_loading') }}</option>
             </select>
+            <button id="addVoiceBtn" onclick="openAddVoiceModal()" class="hidden px-2 py-1 text-[10px] font-bold border border-purple-500 text-purple-400 hover:bg-purple-500/10 rounded transition-all whitespace-nowrap">
+                + 목소리 등록
+            </button>
         </div>
 
         <div class="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
@@ -44,8 +47,19 @@
             <span class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('label_speed') }} <span
                     id="speedValue" class="text-primary">1.0</span></span>
             <input type="range" id="audioSpeed" min="0.5" max="2.0" step="0.1" value="1.0"
-                class="w-20 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer bg-[#000106]/50 accent-primary"
+                class="w-20 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer bg-[#1c2027]/50 accent-primary"
                 title="">
+        </div>
+
+        <!-- ElevenLabs Stability & Style -->
+        <div class="hidden items-center gap-2 border-l border-gray-700 pl-3" id="elSettingsContainer">
+            <span class="text-xs font-bold text-gray-300">안정도 <span id="stabilityValue" class="text-purple-400">0.35</span></span>
+            <input type="range" id="elStability" min="0.0" max="1.0" step="0.05" value="0.35"
+                class="w-16 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-purple-500">
+            
+            <span class="text-xs font-bold text-gray-300 ml-1">스타일 과장 <span id="styleValue" class="text-purple-400">0.45</span></span>
+            <input type="range" id="elStyle" min="0.0" max="1.0" step="0.05" value="0.45"
+                class="w-16 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-purple-500">
         </div>
 
         <div class="flex-1"></div>
@@ -54,7 +68,7 @@
         <label class="inline-flex items-center cursor-pointer mr-2">
             <input type="checkbox" id="multiVoiceToggle" class="sr-only peer">
             <div
-                class="relative w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer bg-[#000106]/50 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-[#000106] after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600">
+                class="relative w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer bg-[#1c2027]/50 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-[#1c2027] after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600">
             </div>
             <span class="ms-2 text-xs font-medium text-gray-900 dark:text-gray-300">{{ t('label_multivoice') }}</span>
         </label>
@@ -89,7 +103,7 @@
         <div class="col-span-12 md:col-span-4 flex flex-col gap-3 min-h-0">
             <!-- Information / Status -->
             <div id="apiStatus"
-                class="bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shrink-0 shadow-sm">
+                class="bg-[#1c2027] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shrink-0 shadow-sm">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
                         <span class="text-sm">🔑</span>
@@ -100,7 +114,7 @@
 
             <!-- Voice Preview Section -->
             <div id="voicePreviewSection"
-                class="hidden bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm border-l-4 border-l-blue-400">
+                class="hidden bg-[#1c2027] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm border-l-4 border-l-blue-400">
                 <div class="flex items-center justify-between mb-2">
                     <h4 class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('voice_preview_title') }}</h4>
                     <span id="previewVoiceLabel" class="text-[10px] text-blue-600 font-bold"></span>
@@ -112,14 +126,14 @@
 
             <!-- Multi-Voice Mapping List (Visible when Toggle ON) -->
             <div id="voiceMappingSection"
-                class="hidden flex-1 bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex flex-col overflow-hidden shadow-sm">
+                class="hidden flex-1 bg-[#1c2027] rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex flex-col overflow-hidden shadow-sm">
                 <div class="flex items-center justify-between mb-2 shrink-0">
                     <h4 class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('character_voice_title') }}</h4>
                     <button onclick="analyzeScriptForCharacters()"
                         class="text-[10px] text-gray-400 font-bold border border-gray-700 px-2 rounded hover:bg-[#0a0f1d] hover:text-white transition-all">{{ t('btn_refresh') }}</button>
                 </div>
 
-                <div class="text-[10px] text-gray-500 mb-2 bg-[#000106] dark:bg-[#000106] p-2 rounded dark:text-gray-400">
+                <div class="text-[10px] text-gray-500 mb-2 bg-[#1c2027] dark:bg-[#1c2027] p-2 rounded dark:text-gray-400">
                     {{ t('multivoice_helper') | safe }}
                 </div>
 
@@ -130,7 +144,7 @@
 
             <!-- Audio Result (Visible after generation) -->
             <div id="resultSection"
-                class="hidden shrink-0 bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm border-l-4 border-l-purple-500">
+                class="hidden shrink-0 bg-[#1c2027] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm border-l-4 border-l-purple-500">
                 <h4 class="text-xs font-bold text-gray-800 dark:text-white mb-2">{{ t('gen_result_title') }}</h4>
                 <audio id="audioPlayer" controls class="w-full h-8 mb-2"></audio>
                 <div class="flex gap-2">
@@ -146,9 +160,9 @@
 
         <!-- Right Panel: Script Editor (Col-8) -->
         <div
-            class="col-span-12 md:col-span-8 flex flex-col min-h-0 bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+            class="col-span-12 md:col-span-8 flex flex-col min-h-0 bg-[#1c2027] rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
             <div
-                class="flex items-center justify-between p-2 border-b border-gray-100 dark:border-gray-700 bg-[#000106]/50">
+                class="flex items-center justify-between p-2 border-b border-gray-100 dark:border-gray-700 bg-[#1c2027]/50">
                 <h3 class="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
                     {{ t('script_input_title') }}
                     <span class="font-normal text-gray-400">|</span>
@@ -165,7 +179,7 @@
                 placeholder="{{ t('script_input_placeholder') }}"></textarea>
 
             <div
-                class="p-1 px-3 bg-[#000106]/50 border-t border-gray-100 dark:border-gray-700 text-[10px] text-gray-400 flex justify-between">
+                class="p-1 px-3 bg-[#1c2027]/50 border-t border-gray-100 dark:border-gray-700 text-[10px] text-gray-400 flex justify-between">
                 <span>{{ t('est_time_label') }}: <span id="estTime">0:00</span></span>
                 <span>{{ t('newline_hint') }}</span>
             </div>
@@ -209,14 +223,71 @@
 
         loadScript();
 
-        document.getElementById('providerSelect').addEventListener('change', handleProviderChange);
+        const providerSelect = document.getElementById('providerSelect');
+        providerSelect.addEventListener('change', () => {
+            handleProviderChange();
+            updateProviderSettingsVisibility();
+        });
+
+        // ElevenLabs Sliders
+        const stabSlider = document.getElementById('elStability');
+        const stabValue = document.getElementById('stabilityValue');
+        if (stabSlider && stabValue) {
+            const savedStab = localStorage.getItem('tts_stability');
+            if (savedStab) {
+                stabSlider.value = savedStab;
+                stabValue.textContent = savedStab;
+            }
+            stabSlider.addEventListener('input', (e) => {
+                stabValue.textContent = e.target.value;
+                localStorage.setItem('tts_stability', e.target.value);
+            });
+        }
+
+        const styleSlider = document.getElementById('elStyle');
+        const styleValue = document.getElementById('styleValue');
+        if (styleSlider && styleValue) {
+            const savedStyle = localStorage.getItem('tts_style');
+            if (savedStyle) {
+                styleSlider.value = savedStyle;
+                styleValue.textContent = savedStyle;
+            }
+            styleSlider.addEventListener('input', (e) => {
+                styleValue.textContent = e.target.value;
+                localStorage.setItem('tts_style', e.target.value);
+            });
+        }
 
         const speedSlider = document.getElementById('audioSpeed');
         const speedValue = document.getElementById('speedValue');
         if (speedSlider && speedValue) {
             speedSlider.addEventListener('input', (e) => speedValue.textContent = e.target.value);
         }
+
+        updateProviderSettingsVisibility();
     });
+
+    function updateProviderSettingsVisibility() {
+        const provider = document.getElementById('providerSelect').value;
+        const container = document.getElementById('elSettingsContainer');
+        const addVoiceBtn = document.getElementById('addVoiceBtn');
+        if (container) {
+            if (provider === 'elevenlabs') {
+                container.classList.remove('hidden');
+                container.classList.add('flex');
+            } else {
+                container.classList.add('hidden');
+                container.classList.remove('flex');
+            }
+        }
+        if (addVoiceBtn) {
+            if (provider === 'elevenlabs') {
+                addVoiceBtn.classList.remove('hidden');
+            } else {
+                addVoiceBtn.classList.add('hidden');
+            }
+        }
+    }
 
     async function restoreTTSSettings(projectId) {
         try {
@@ -282,10 +353,10 @@
         }
 
         if (hasScript) {
-            badge.className = "text-[10px] flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 dark:bg-[#000106] text-green-600 dark:text-green-400 font-normal";
+            badge.className = "text-[10px] flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 dark:bg-[#1c2027] text-green-600 dark:text-green-400 font-normal";
             badge.innerHTML = "<span>✅</span> {{ t('script_ready') }}";
         } else {
-            badge.className = "text-[10px] flex items-center gap-1 px-2 py-1 rounded-full bg-red-100 dark:bg-[#000106] text-red-600 dark:text-red-400 font-normal";
+            badge.className = "text-[10px] flex items-center gap-1 px-2 py-1 rounded-full bg-red-100 dark:bg-[#1c2027] text-red-600 dark:text-red-400 font-normal";
             badge.innerHTML = "<span>🚫</span> {{ t('no_script') }}";
         }
     }
@@ -496,7 +567,7 @@
         sortedChars.forEach(char => {
             const savedVoice = characterVoiceMap[char] || '';
             const row = document.createElement('div');
-            row.className = 'flex items-center justify-between bg-[#000106] p-1.5 rounded border border-gray-100 dark:border-gray-600 gap-2';
+            row.className = 'flex items-center justify-between bg-[#1c2027] p-1.5 rounded border border-gray-100 dark:border-gray-600 gap-2';
 
             let options = availableVoices.length > 0 ? availableVoices.map(v =>
                 `<option value="${v.id}" ${v.id === savedVoice ? 'selected' : ''}>${v.name}</option>`
@@ -506,7 +577,7 @@
 
             row.innerHTML = `
                 <span class="text-xs font-bold text-gray-700 dark:text-gray-300 w-16 truncate" title="${char}">${char}</span>
-                <select class="text-[10px] border-gray-200 dark:border-gray-600 rounded py-1 pl-1 pr-6 flex-1 bg-[#000106] dark:text-white bg-[#000106] text-white" onchange="updateCharVoice('${safeChar}', this.value)">
+                <select class="text-[10px] border-gray-200 dark:border-gray-600 rounded py-1 pl-1 pr-6 flex-1 bg-[#1c2027] dark:text-white bg-[#1c2027] text-white" onchange="updateCharVoice('${safeChar}', this.value)">
                     <option value="">-- {{ t('label_default_voice') }} --</option>
                     ${options}
                 </select>
@@ -700,11 +771,16 @@
         Utils.setLoading(btn, true, `{{ t('status_generating') }}`);
         try {
             const projectId = getCurrentProject();
+            const stability = parseFloat(document.getElementById('elStability').value);
+            const style = parseFloat(document.getElementById('elStyle').value);
+
             const result = await API.tts.generate(text, {
                 voiceId, provider, language: currentLanguage, speed,
                 projectId: projectId ? parseInt(projectId) : null,
                 multiVoice: isMultiVoice,
-                voiceMap: isMultiVoice ? characterVoiceMap : {}
+                voiceMap: isMultiVoice ? characterVoiceMap : {},
+                stability: provider === 'elevenlabs' ? stability : null,
+                style: provider === 'elevenlabs' ? style : null
             });
 
             if (result.status === 'ok') {
@@ -784,5 +860,103 @@
 
     // Browser TTS functions remain similar...
     function playBrowserTTS() { /* ... */ }
+
+    // ElevenLabs 목소리 등록 모달 관련 JS
+    window.openAddVoiceModal = function() {
+        const modal = document.getElementById('addVoiceModal');
+        if (modal) {
+            modal.classList.remove('hidden');
+            document.getElementById('newVoiceName').value = '';
+            document.getElementById('newVoiceId').value = '';
+        }
+    };
+
+    window.closeAddVoiceModal = function() {
+        const modal = document.getElementById('addVoiceModal');
+        if (modal) modal.classList.add('hidden');
+    };
+
+    window.submitAddVoice = async function(e) {
+        e.preventDefault();
+        const name = document.getElementById('newVoiceName').value.trim();
+        const voiceId = document.getElementById('newVoiceId').value.trim();
+        const btn = document.getElementById('addVoiceSubmitBtn');
+
+        if (!name) return Utils.showToast("목소리 이름을 입력해주세요.", "warning");
+        if (!voiceId) return Utils.showToast("Voice ID를 입력해주세요.", "warning");
+
+        Utils.setLoading(btn, true, "등록 중...");
+        
+        const formData = new FormData();
+        formData.append("name", name);
+        formData.append("voice_id", voiceId);
+
+        try {
+            const response = await fetch("/api/tts/voices/add", {
+                method: "POST",
+                body: formData
+            });
+
+            const result = await response.json();
+            if (response.ok && result.status === 'ok') {
+                Utils.showToast(`'${name}' 목소리가 성공적으로 등록되었습니다.`, "success");
+                closeAddVoiceModal();
+                
+                // 목소리 목록 새로고침
+                await loadVoices();
+                
+                // 새로 만든 목소리를 바로 선택하게 설정
+                const select = document.getElementById('voiceSelect');
+                if (select) {
+                    select.value = voiceId;
+                    select.dispatchEvent(new Event('change'));
+                }
+            } else {
+                Utils.showToast(result.detail || "목소리 등록에 실패했습니다.", "error");
+            }
+        } catch (error) {
+            console.error(error);
+            Utils.showToast("네트워크 오류가 발생했습니다.", "error");
+        } finally {
+            Utils.setLoading(btn, false, "등록하기");
+        }
+    };
 </script>
+
+<!-- ElevenLabs Voice Add Modal -->
+<div id="addVoiceModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity">
+    <div class="bg-[#1c2027] border border-gray-700 w-full max-w-sm p-6 rounded-xl shadow-2xl flex flex-col gap-4 text-gray-200">
+        <div class="flex items-center justify-between border-b border-gray-700 pb-3">
+            <h3 class="text-sm font-bold flex items-center gap-2">
+                <span>🎙️</span> ElevenLabs 목소리 등록
+            </h3>
+            <button onclick="closeAddVoiceModal()" class="text-gray-400 hover:text-white transition-colors">&times;</button>
+        </div>
+        
+        <form id="addVoiceForm" onsubmit="submitAddVoice(event)" class="flex flex-col gap-4">
+            <div class="flex flex-col gap-1.5">
+                <label class="text-xs font-bold text-gray-400">목소리 이름 <span class="text-red-500">*</span></label>
+                <input type="text" id="newVoiceName" required placeholder="예: 시어머니 (Sian)"
+                    class="text-xs bg-[#0f1115] border border-gray-700 rounded-lg p-2.5 text-white focus:ring-1 focus:ring-purple-500 outline-none w-full">
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+                <label class="text-xs font-bold text-gray-400">Voice ID <span class="text-red-500">*</span></label>
+                <input type="text" id="newVoiceId" required placeholder="ElevenLabs에서 복사한 Voice ID 입력"
+                    class="text-xs bg-[#0f1115] border border-gray-700 rounded-lg p-2.5 text-white focus:ring-1 focus:ring-purple-500 outline-none w-full">
+            </div>
+
+            <div class="flex gap-2 justify-end border-t border-gray-700 pt-3 mt-2">
+                <button type="button" onclick="closeAddVoiceModal()"
+                    class="px-3 py-1.5 text-xs border border-gray-600 bg-transparent hover:bg-gray-800 text-white rounded transition-all">
+                    취소
+                </button>
+                <button type="submit" id="addVoiceSubmitBtn"
+                    class="px-4 py-1.5 text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white rounded transition-all shadow-md active:scale-95">
+                    등록하기
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
 {% endblock %}

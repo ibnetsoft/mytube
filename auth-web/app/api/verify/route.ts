@@ -44,10 +44,10 @@ export async function POST(req: Request) {
             if (meta[metaKey]) api_keys[configKey] = meta[metaKey]
         }
 
-        // Get user profile (token balance)
+        // Get user profile (token balance, pin_code)
         const { data: profile, error: profileError } = await supabaseAdmin
             .from('profiles')
-            .select('token_balance, membership')
+            .select('token_balance, membership, pin_code')
             .eq('id', userId)
             .maybeSingle()
 
@@ -61,6 +61,7 @@ export async function POST(req: Request) {
             success: true,
             membership: profile?.membership || user.app_metadata?.membership || 'std',
             email: user.email,
+            pin_code: profile?.pin_code || '1234',
             full_name: meta.full_name || '',
             nationality: meta.nationality || '',
             contact: meta.contact || '',

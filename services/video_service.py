@@ -3050,6 +3050,9 @@ class VideoService:
             
         import re
         
+        # 괄호, 대괄호 및 별표 지문 제거 (자막 노출 방지)
+        script_text = re.sub(r'\([^)]*\)|\[[^\]]*\]|\*+[^*]+\*+', '', script_text).strip()
+        
         # 1. Atomic Split (split by punctuation)
         raw_sentences = []
         lines = [L.strip() for L in script_text.splitlines() if L.strip()]

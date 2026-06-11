@@ -109,3 +109,23 @@ async def clone_sources(project_id: int, from_project_id: int):
         return {"status": "ok", "cloned_count": len(sources)}
     except Exception as e:
         raise HTTPException(500, str(e))
+
+from pydantic import BaseModel
+class DirectSourceSave(BaseModel):
+    title: str
+    content: str
+
+@router.post("/{project_id}/sources/text")
+async def add_text_source(project_id: int, req: DirectSourceSave):
+    """직접 입력한 텍스트를 소스로 추가"""
+    try:
+        source_id = db.add_project_source(
+            project_id=project_id,
+            source_type="text",
+            title=req.title,
+            content=req.content
+        )
+        return {"status": "ok", "source_id": source_id, "title": req.title}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+

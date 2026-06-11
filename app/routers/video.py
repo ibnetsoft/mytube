@@ -1524,30 +1524,115 @@ async def render_project_video(
                             if os.path.exists(t_abs):
                                 template_path_arg = t_abs
                 
-                video_path = video_service.create_slideshow(
-                    images=images,
-                    audio_path=effective_audio_path,
-                    output_filename=final_output_path,
-                    resolution=target_resolution_arg,
-                    subtitles=subs,
-                    subtitle_settings=s_settings,
-                    background_video_url=bg_video_url_arg,
-                    thumbnail_path=thumbnail_path_arg, # Keeps 0.1s baking (YT thumb)
-                    template_overlay_path=template_path_arg, # [FIXED] Pass the ACTUAL template path, not thumbnail
-                    duration_per_image=duration_per_image,
-                    fade_in_flags=fade_in_flags,
-                    image_effects=image_effects,
-                    intro_video_path=intro_video_path_arg,
-                    project_id=project_id
-                )
+                if getattr(config, "USE_EXTERNAL_RENDER", False):
+                    # 외부 렌더링 사용 시 구글 드라이브 폴더로 패키징
+                    import shutil
+                    queue_path = getattr(config, "DRIVE_RENDER_QUEUE_PATH", "G:/내 드라이브/Longform_Render_Queue")
+                    requests_dir = os.path.join(queue_path, "requests", f"project_{project_id}_{int(time.time())}")
+                    os.makedirs(requests_dir, exist_ok=True)
+                    
+                    # 에셋 복사 및 새 경로 매핑
+                    new_images = []
+                    for idx, img_p in enumerate(images):
+                        if img_p and os.path.exists(img_p):
+                            ext = os.path.splitext(img_p)[1]
+                            new_name = f"image_{idx:03d}{ext}"
+                            shutil.copy2(img_p, os.path.join(requests_dir, new_name))
+                            new_images.append(new_name)
+                        else:
+                            new_images.append("")
+                            
+                    new_audio = ""
+                    if effective_audio_path and os.path.exists(effective_audio_path):
+                        ext = os.path.splitext(effective_audio_path)[1]
+                        new_audio = f"audio{ext}"
+                        shutil.copy2(effective_audio_path, os.path.join(requests_dir, new_audio))
+                        
+                    new_bg = ""
+                    if bg_video_url_arg and os.path.exists(bg_video_url_arg):
+                        ext = os.path.splitext(bg_video_url_arg)[1]
+                        new_bg = f"bg{ext}"
+                        shutil.copy2(bg_video_url_arg, os.path.join(requests_dir, new_bg))
+                        
+                    new_intro = ""
+                    if intro_video_path_arg and os.path.exists(intro_video_path_arg):
+                        ext = os.path.splitext(intro_video_path_arg)[1]
+                        new_intro = f"intro{ext}"
+                        shutil.copy2(intro_video_path_arg, os.path.join(requests_dir, new_intro))
 
-                final_path = video_path
+                    new_thumb = ""
+                    if thumbnail_path_arg and os.path.exists(thumbnail_path_arg):
+                        ext = os.path.splitext(thumbnail_path_arg)[1]
+                        new_thumb = f"thumb{ext}"
+                        shutil.copy2(thumbnail_path_arg, os.path.join(requests_dir, new_thumb))
+                        
+                    new_template = ""
+                    if template_path_arg and os.path.exists(template_path_arg):
+                        ext = os.path.splitext(template_path_arg)[1]
+                        new_template = f"template{ext}"
+                        shutil.copy2(template_path_arg, os.path.join(requests_dir, new_template))
 
-                # DB 업데이트
-                web_video_path = f"{web_dir}/{os.path.basename(final_path)}"
-                db.update_project_setting(project_id, "video_path", web_video_path)
-                db.update_project(project_id, status="rendered")
-                print(f"프로젝트 {project_id} 렌더링 완료: {final_path}")
+                    # 렌더링 작업 명세서 JSON 생성
+                    job_spec = {
+                        "project_id": project_id,
+                        "output_filename": os.path.basename(final_output_path),
+                        "images": new_images,
+                        "audio_path": new_audio,
+                        "resolution": target_resolution_arg,
+                        "subtitles": subs,
+                        "subtitle_settings": s_settings,
+                        "background_video_url": new_bg,
+                        "thumbnail_path": new_thumb,
+                        "template_overlay_path": new_template,
+                        "duration_per_image": duration_per_image,
+                        "fade_in_flags": fade_in_flags,
+                        "image_effects": image_effects,
+                        "intro_video_path": new_intro
+                    }
+                    
+                    with open(os.path.join(requests_dir, "job.json"), "w", encoding="utf-8") as f:
+                        json.dump(job_spec, f, ensure_ascii=False, indent=2)
+                        
+                    # 최종 완료 플래그 (워커가 job.json을 쓰던 도중 읽는 것을 방지)
+                    with open(os.path.join(requests_dir, "ready.txt"), "w") as f:
+                        f.write("ready")
+                        
+                    # DB 업데이트 (대기 상태)
+                    db.update_project(project_id, status="cloud_pending")
+                    print(f"프로젝트 {project_id} 구글 드라이브 렌더링 요청 완료: {requests_dir}")
+
+                else:
+                    video_path = video_service.create_slideshow(
+                        images=images,
+                        audio_path=effective_audio_path,
+                        output_filename=final_output_path,
+                        resolution=target_resolution_arg,
+                        subtitles=subs,
+                        subtitle_settings=s_settings,
+                        background_video_url=bg_video_url_arg,
+                        thumbnail_path=thumbnail_path_arg, # Keeps 0.1s baking (YT thumb)
+                        template_overlay_path=template_path_arg, # [FIXED] Pass the ACTUAL template path, not thumbnail
+                        duration_per_image=duration_per_image,
+                        fade_in_flags=fade_in_flags,
+                        image_effects=image_effects,
+                        intro_video_path=intro_video_path_arg,
+                        project_id=project_id
+                    )
+
+                    final_path = video_path
+
+                    # DB 업데이트
+                    web_video_path = f"{web_dir}/{os.path.basename(final_path)}"
+                    db.update_project_setting(project_id, "video_path", web_video_path)
+                    db.update_project(project_id, status="rendered")
+                    print(f"프로젝트 {project_id} 렌더링 완료: {final_path}")
+                    
+                    # [NEW] 구글 드라이브 업로드 및 Supabase 동기화 백그라운드 구동
+                    try:
+                        from services.sync_service import start_upload_and_sync_background
+                        start_upload_and_sync_background(project_id, final_path)
+                    except Exception as se:
+                        print(f"[Sync] Failed to start background sync: {se}")
 
             except Exception as e:
                 import traceback
@@ -1596,12 +1681,54 @@ async def get_project_status(project_id: int):
         if not project:
              raise HTTPException(404, "Project not found")
         
+        status = project["status"]
+        
+        # [NEW] 클라우드 렌더링 수신 감지 로직
+        if status == "cloud_pending" and getattr(config, "USE_EXTERNAL_RENDER", False):
+            import shutil
+            queue_path = getattr(config, "DRIVE_RENDER_QUEUE_PATH", "G:/내 드라이브/Longform_Render_Queue")
+            completed_dir = os.path.join(queue_path, "completed", f"project_{project_id}")
+            
+            # 워커가 'done.txt'를 남겼는지 확인
+            if os.path.exists(os.path.join(completed_dir, "done.txt")):
+                result_json_path = os.path.join(completed_dir, "result.json")
+                if os.path.exists(result_json_path):
+                    with open(result_json_path, "r", encoding="utf-8") as f:
+                        res_data = json.load(f)
+                        
+                    output_filename = res_data.get("file")
+                    source_mp4 = os.path.join(completed_dir, output_filename)
+                    
+                    if os.path.exists(source_mp4):
+                        # 메인 PC의 output 폴더로 가져오기
+                        output_dir, web_dir = get_project_output_dir(project_id)
+                        final_path = os.path.join(output_dir, output_filename)
+                        shutil.copy2(source_mp4, final_path)
+                        
+                        web_video_path = f"{web_dir}/{output_filename}"
+                        db.update_project_setting(project_id, "video_path", web_video_path)
+                        db.update_project(project_id, status="rendered")
+                        status = "rendered"
+                        
+                        # [NEW] 구글 드라이브 업로드 및 Supabase 동기화 백그라운드 구동
+                        try:
+                            from services.sync_service import start_upload_and_sync_background
+                            start_upload_and_sync_background(project_id, final_path)
+                        except Exception as se:
+                            print(f"[Sync] Failed to start background sync for external render: {se}")
+                        
+                        # 정리
+                        try:
+                            shutil.rmtree(completed_dir)
+                        except Exception as e:
+                            print(f"완료 폴더 삭제 실패: {e}")
+
         settings = db.get_project_settings(project_id)
         video_path = settings.get("video_path")
         
         return {
             "status": "ok",
-            "project_status": project["status"],
+            "project_status": status,
             "video_path": video_path
         }
     except Exception as e:

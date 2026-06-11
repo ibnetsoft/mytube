@@ -9331,3 +9331,636 @@ ValueError: 유효한 이미지나 배경 동영상이 없습니다
 [2026-04-15 12:08:35.115577] [Gemini] ✅ [Gemini Image] Nano Banana 2.0 succeeded, 1 image(s)
 [2026-04-15 12:08:35.132521] [Gemini] 🎨 [Gemini Image] Trying Nano Banana 2.0 (gemini-3.1-flash-image-preview)
 [2026-04-15 12:08:55.038577] [Gemini] ✅ [Gemini Image] Nano Banana 2.0 succeeded, 1 image(s)
+[2026-05-03 10:54:25.315989] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        Act as a Local Trend Analyst and YouTube SEO Expert for the specific region: Japan (Japanes...)
+[2026-05-03 10:54:46.360767] [Gemini] ✅ [Gemini Text] Success (21.0s, finish=STOP)
+[2026-05-03 10:54:46.365872] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        Act as a Local Trend Analyst and YouTube SEO Expert for the specific region: Japan (Japanes...)
+[2026-05-03 10:54:55.911670] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        Act as a Local Trend Analyst and YouTube SEO Expert for the specific region: Japan (Japanes...)
+[2026-05-03 10:55:10.770467] [Gemini] ✅ [Gemini Text] Success (24.4s, finish=STOP)
+[2026-05-03 10:55:16.351043] [Gemini] ✅ [Gemini Text] Success (20.4s, finish=STOP)
+[2026-05-06 19:43:44.923827] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        Act as a Local Trend Analyst and YouTube SEO Expert for the specific region: Japan (Japanes...)
+[2026-05-06 19:44:11.304281] [Gemini] ✅ [Gemini Text] Success (26.4s, finish=STOP)
+[2026-05-06 19:44:11.388462] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        Act as a Local Trend Analyst and YouTube SEO Expert for the specific region: Japan (Japanes...)
+[2026-05-06 19:44:38.483072] [Gemini] ✅ [Gemini Text] Success (27.1s, finish=STOP)
+[2026-05-06 19:45:46.227176] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        Act as a Local Trend Analyst and YouTube SEO Expert for the specific region: USA/Internatio...)
+[2026-05-06 19:46:10.403394] [Gemini] ✅ [Gemini Text] Success (24.2s, finish=STOP)
+[2026-05-06 19:46:10.408794] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        Act as a Local Trend Analyst and YouTube SEO Expert for the specific region: USA/Internatio...)
+[2026-05-06 19:46:36.436191] [Gemini] ✅ [Gemini Text] Success (26.0s, finish=STOP)
+[2026-05-06 21:55:55.735334] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        Act as a Local Trend Analyst and YouTube SEO Expert for the specific region: South Korea (K...)
+[2026-05-06 21:56:32.314708] [Gemini] ✅ [Gemini Text] Success (36.6s, finish=STOP)
+[2026-05-06 22:11:38.723050] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 콘텐츠 분석 전문가입니다.
+아래 영상의 댓글를 분석해주세요.
+
+[영상 제목]
+[ENG SUB] 신동진 한의사가 직접 먹어보고 검증한 당뇨에 좋은 음식 Best5 - ...)
+[2026-05-06 22:12:04.806839] [Gemini] ✅ [Gemini Text] Success (26.1s, finish=STOP)
+[2026-05-06 22:12:05.977848] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        당신은 유튜브 콘텐츠 기획 전문가입니다.
+        다음 정보를 바탕으로 클릭률(CTR)이 높은 롱폼/쇼츠 유튜브 제목 5개를 제안해주세요.
+
+        [...)
+[2026-05-06 22:12:06.738234] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        당신은 유튜브 콘텐츠 기획 전문가입니다.
+        다음 정보를 바탕으로 클릭률(CTR)이 높은 롱폼/쇼츠 유튜브 제목 5개를 제안해주세요.
+
+        [...)
+[2026-05-06 22:12:07.297371] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        당신은 유튜브 콘텐츠 기획 전문가입니다.
+        다음 정보를 바탕으로 클릭률(CTR)이 높은 롱폼/쇼츠 유튜브 제목 5개를 제안해주세요.
+
+        [...)
+[2026-05-06 22:12:07.846672] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        당신은 유튜브 콘텐츠 기획 전문가입니다.
+        다음 정보를 바탕으로 클릭률(CTR)이 높은 롱폼/쇼츠 유튜브 제목 5개를 제안해주세요.
+
+        [...)
+[2026-05-06 22:12:23.835836] [Gemini] ✅ [Gemini Text] Success (17.9s, finish=STOP)
+[2026-05-06 22:12:24.102487] [Gemini] ✅ [Gemini Text] Success (16.3s, finish=STOP)
+[2026-05-06 22:12:26.217926] [Gemini] ✅ [Gemini Text] Success (18.9s, finish=STOP)
+[2026-05-06 22:12:26.473211] [Gemini] ✅ [Gemini Text] Success (19.7s, finish=STOP)
+[2026-05-06 22:31:37.969299] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 콘텐츠 분석 전문가입니다.
+아래 영상의 댓글를 분석해주세요.
+
+[영상 제목]
+[ENG SUB] 신동진 한의사가 직접 먹어보고 검증한 당뇨에 좋은 음식 Best5 - ...)
+[2026-05-06 22:32:02.089267] [Gemini] ✅ [Gemini Text] Success (24.1s, finish=STOP)
+[2026-05-06 22:32:03.272646] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        당신은 유튜브 콘텐츠 기획 전문가입니다.
+        다음 정보를 바탕으로 클릭률(CTR)이 높은 롱폼/쇼츠 유튜브 제목 5개를 제안해주세요.
+
+        [...)
+[2026-05-06 22:32:04.058978] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        당신은 유튜브 콘텐츠 기획 전문가입니다.
+        다음 정보를 바탕으로 클릭률(CTR)이 높은 롱폼/쇼츠 유튜브 제목 5개를 제안해주세요.
+
+        [...)
+[2026-05-06 22:32:04.631491] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        당신은 유튜브 콘텐츠 기획 전문가입니다.
+        다음 정보를 바탕으로 클릭률(CTR)이 높은 롱폼/쇼츠 유튜브 제목 5개를 제안해주세요.
+
+        [...)
+[2026-05-06 22:32:05.201314] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        당신은 유튜브 콘텐츠 기획 전문가입니다.
+        다음 정보를 바탕으로 클릭률(CTR)이 높은 롱폼/쇼츠 유튜브 제목 5개를 제안해주세요.
+
+        [...)
+[2026-05-06 22:32:24.543450] [Gemini] ✅ [Gemini Text] Success (19.3s, finish=STOP)
+[2026-05-06 22:32:25.236148] [Gemini] ✅ [Gemini Text] Success (21.2s, finish=STOP)
+[2026-05-06 22:32:26.138575] [Gemini] ✅ [Gemini Text] Success (22.9s, finish=STOP)
+[2026-05-06 22:32:28.836731] [Gemini] ✅ [Gemini Text] Success (24.2s, finish=STOP)
+[2026-05-06 22:33:47.948501] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 세계 최고의 유튜브 콘텐츠 기획자이자 스토리텔러입니다.
+당신의 임무는 주어진 **키워드(주제)**를 바탕으로, **분석된 성공 전략**과 **누적된 학습 지식**을 적용하여...)
+[2026-05-06 22:34:31.772062] [Gemini] ✅ [Gemini Text] Success (43.8s, finish=STOP)
+[2026-05-06 22:35:04.046265] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 세계 최고의 유튜브 콘텐츠 기획자이자 스토리텔러입니다.
+당신의 임무는 주어진 **키워드(주제)**를 바탕으로, **분석된 성공 전략**과 **누적된 학습 지식**을 적용하여...)
+[2026-05-06 22:35:58.423161] [Gemini] ✅ [Gemini Text] Success (54.4s, finish=STOP)
+[2026-05-06 22:48:41.307843] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 콘텐츠 분석 전문가입니다.
+아래 영상의 댓글를 분석해주세요.
+
+[영상 제목]
+[ENG SUB] 신동진 한의사가 직접 먹어보고 검증한 당뇨에 좋은 음식 Best5 - ...)
+[2026-05-06 22:49:04.598141] [Gemini] ✅ [Gemini Text] Success (23.3s, finish=STOP)
+[2026-05-06 22:49:04.638124] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 알고리즘과 시청자 심리를 꿰뚫어 보는 세계 최고의 컨설턴트입니다.
+제시된 영상 분석 데이터를 바탕으로, 다른 영상에도 범용적으로 적용 가능한 **'일반화된 성공 공식...)
+[2026-05-06 22:49:06.356063] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        당신은 유튜브 콘텐츠 기획 전문가입니다.
+        다음 정보를 바탕으로 클릭률(CTR)이 높은 롱폼/쇼츠 유튜브 제목 5개를 제안해주세요.
+
+        [...)
+[2026-05-06 22:49:06.907001] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        당신은 유튜브 콘텐츠 기획 전문가입니다.
+        다음 정보를 바탕으로 클릭률(CTR)이 높은 롱폼/쇼츠 유튜브 제목 5개를 제안해주세요.
+
+        [...)
+[2026-05-06 22:49:07.465432] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        당신은 유튜브 콘텐츠 기획 전문가입니다.
+        다음 정보를 바탕으로 클릭률(CTR)이 높은 롱폼/쇼츠 유튜브 제목 5개를 제안해주세요.
+
+        [...)
+[2026-05-06 22:49:08.016680] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        당신은 유튜브 콘텐츠 기획 전문가입니다.
+        다음 정보를 바탕으로 클릭률(CTR)이 높은 롱폼/쇼츠 유튜브 제목 5개를 제안해주세요.
+
+        [...)
+[2026-05-06 22:49:22.065702] [Gemini] ✅ [Gemini Text] Success (14.6s, finish=STOP)
+[2026-05-06 22:49:22.263662] [Gemini] ✅ [Gemini Text] Success (14.2s, finish=STOP)
+[2026-05-06 22:49:22.920859] [Gemini] ✅ [Gemini Text] Success (16.0s, finish=STOP)
+[2026-05-06 22:49:25.856170] [Gemini] ✅ [Gemini Text] Success (19.5s, finish=STOP)
+[2026-05-06 22:49:31.930118] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 세계 최고의 유튜브 콘텐츠 기획자이자 스토리텔러입니다.
+당신의 임무는 주어진 **키워드(주제)**를 바탕으로, **분석된 성공 전략**과 **누적된 학습 지식**을 적용하여...)
+[2026-05-06 22:49:33.142009] [Gemini] ✅ [Gemini Text] Success (28.5s, finish=STOP)
+[2026-05-06 22:50:17.683419] [Gemini] ✅ [Gemini Text] Success (45.8s, finish=STOP)
+[2026-05-06 22:50:58.179251] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "당뇨병을 앓고 있는 한의사의 고백" 파트를 작성해주세요.
+
+[영상 주제]
+한의사가 직접 먹어보고 혈당 잰 당뇨 극복 음식 Bes...)
+[2026-05-06 22:51:13.698754] [Gemini] ✅ [Gemini Text] Success (15.5s, finish=STOP)
+[2026-05-06 22:51:14.236162] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "먹는 즐거움을 잃어버린 고통" 파트를 작성해주세요.
+
+[영상 주제]
+한의사가 직접 먹어보고 혈당 잰 당뇨 극복 음식 Best 5...)
+[2026-05-06 22:51:31.005635] [Gemini] ✅ [Gemini Text] Success (16.8s, finish=STOP)
+[2026-05-06 22:51:31.521151] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "이론이 아닌 실제 혈당 테스트" 파트를 작성해주세요.
+
+[영상 주제]
+한의사가 직접 먹어보고 혈당 잰 당뇨 극복 음식 Best ...)
+[2026-05-06 22:51:47.435550] [Gemini] ✅ [Gemini Text] Success (15.9s, finish=STOP)
+[2026-05-06 22:51:47.943606] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "첫 번째 음식 녹두의 발견" 파트를 작성해주세요.
+
+[영상 주제]
+한의사가 직접 먹어보고 혈당 잰 당뇨 극복 음식 Best 5
+...)
+[2026-05-06 22:52:08.729699] [Gemini] ✅ [Gemini Text] Success (20.8s, finish=MAX_TOKENS)
+[2026-05-06 22:52:09.240114] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "녹두가 당뇨에 좋은 이유와 섭취법" 파트를 작성해주세요.
+
+[영상 주제]
+한의사가 직접 먹어보고 혈당 잰 당뇨 극복 음식 Bes...)
+[2026-05-06 22:52:27.217527] [Gemini] ✅ [Gemini Text] Success (18.0s, finish=MAX_TOKENS)
+[2026-05-06 22:52:27.728397] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "두 번째 음식 바다의 우유 조개" 파트를 작성해주세요.
+
+[영상 주제]
+한의사가 직접 먹어보고 혈당 잰 당뇨 극복 음식 Best...)
+[2026-05-06 22:52:46.200895] [Gemini] ✅ [Gemini Text] Success (18.5s, finish=MAX_TOKENS)
+[2026-05-06 22:52:46.712303] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "조개의 타우린 성분과 활용법" 파트를 작성해주세요.
+
+[영상 주제]
+한의사가 직접 먹어보고 혈당 잰 당뇨 극복 음식 Best 5...)
+[2026-05-06 22:53:04.913061] [Gemini] ✅ [Gemini Text] Success (18.2s, finish=STOP)
+[2026-05-06 22:53:05.422087] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "세 번째 음식 놀라운 동치미" 파트를 작성해주세요.
+
+[영상 주제]
+한의사가 직접 먹어보고 혈당 잰 당뇨 극복 음식 Best 5...)
+[2026-05-06 22:53:26.057100] [Gemini] ✅ [Gemini Text] Success (20.6s, finish=MAX_TOKENS)
+[2026-05-06 22:53:26.563547] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "동치미의 소화 촉진과 혈당 방어" 파트를 작성해주세요.
+
+[영상 주제]
+한의사가 직접 먹어보고 혈당 잰 당뇨 극복 음식 Best...)
+[2026-05-06 22:53:42.086612] [Gemini] ✅ [Gemini Text] Success (15.5s, finish=STOP)
+[2026-05-06 22:53:42.617616] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "네 번째 음식 밥상 위의 불로초 버섯" 파트를 작성해주세요.
+
+[영상 주제]
+한의사가 직접 먹어보고 혈당 잰 당뇨 극복 음식 B...)
+[2026-05-06 22:53:59.008276] [Gemini] ✅ [Gemini Text] Success (16.4s, finish=STOP)
+[2026-05-06 22:53:59.523177] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "버섯의 식이섬유와 포만감" 파트를 작성해주세요.
+
+[영상 주제]
+한의사가 직접 먹어보고 혈당 잰 당뇨 극복 음식 Best 5
+
+...)
+[2026-05-06 22:54:15.610333] [Gemini] ✅ [Gemini Text] Success (16.1s, finish=STOP)
+[2026-05-06 22:54:16.119585] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "다섯 번째 음식 필수 단백질 닭고기" 파트를 작성해주세요.
+
+[영상 주제]
+한의사가 직접 먹어보고 혈당 잰 당뇨 극복 음식 Be...)
+[2026-05-06 22:54:32.966867] [Gemini] ✅ [Gemini Text] Success (16.8s, finish=STOP)
+[2026-05-06 22:54:33.478193] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "건강하게 닭고기를 섭취하는 방법" 파트를 작성해주세요.
+
+[영상 주제]
+한의사가 직접 먹어보고 혈당 잰 당뇨 극복 음식 Best...)
+[2026-05-06 22:54:52.172326] [Gemini] ✅ [Gemini Text] Success (18.7s, finish=STOP)
+[2026-05-06 22:54:52.689928] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "당뇨 극복을 위한 새로운 다짐" 파트를 작성해주세요.
+
+[영상 주제]
+한의사가 직접 먹어보고 혈당 잰 당뇨 극복 음식 Best ...)
+[2026-05-06 22:55:10.185352] [Gemini] ✅ [Gemini Text] Success (17.5s, finish=MAX_TOKENS)
+[2026-05-06 22:55:50.656081] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=다음 대본을 분석하여 이미지 생성을 위한 적절한 Scene 개수를 결정해주세요.
+
+대본:
+여러분 안녕하십니까. 매일 진료실에서 수많은 환자분들의 건강을 챙기고 있지만, 사실 저 역...)
+[2026-05-06 22:56:03.328737] [Gemini] ✅ [Gemini Text] Success (12.7s, finish=STOP)
+[2026-05-06 22:56:10.320231] [Gemini] 👁️ [Gemini Vision] Starting analysis (prompt=당신은 세계 최고의 영화 감독이자 프롬프트 엔지니어입니다.
+[피카디리 프롬프트 지침 보강안]에 따라, 대본을 분석하여 '6블록 조립 원칙'과 '4층 레이어 네거티브'가 적용된 장면...)
+[2026-05-06 22:56:36.841530] [Gemini] ✅ [Gemini Vision] Success (26.5s)
+[2026-05-06 22:56:36.854803] [Gemini] 👁️ [Gemini Vision] Starting analysis (prompt=당신은 세계 최고의 영화 감독이자 프롬프트 엔지니어입니다.
+[피카디리 프롬프트 지침 보강안]에 따라, 대본을 분석하여 '6블록 조립 원칙'과 '4층 레이어 네거티브'가 적용된 장면...)
+[2026-05-06 22:57:00.803592] [Gemini] ✅ [Gemini Vision] Success (24.0s)
+[2026-05-06 22:57:00.810523] [Gemini] 👁️ [Gemini Vision] Starting analysis (prompt=당신은 세계 최고의 영화 감독이자 프롬프트 엔지니어입니다.
+[피카디리 프롬프트 지침 보강안]에 따라, 대본을 분석하여 '6블록 조립 원칙'과 '4층 레이어 네거티브'가 적용된 장면...)
+[2026-05-06 22:57:22.828503] [Gemini] ✅ [Gemini Vision] Success (22.0s)
+[2026-05-07 13:27:24.246369] [Gemini] 👁️ [Gemini Vision] Starting analysis (prompt=당신은 세계 최고의 영화 감독이자 프롬프트 엔지니어입니다.
+[피카디리 프롬프트 지침 보강안]에 따라, 대본을 분석하여 '6블록 조립 원칙'과 '4층 레이어 네거티브'가 적용된 장면...)
+[2026-05-07 13:27:54.021727] [Gemini] ✅ [Gemini Vision] Success (29.8s)
+[2026-05-07 13:27:54.029625] [Gemini] 👁️ [Gemini Vision] Starting analysis (prompt=당신은 세계 최고의 영화 감독이자 프롬프트 엔지니어입니다.
+[피카디리 프롬프트 지침 보강안]에 따라, 대본을 분석하여 '6블록 조립 원칙'과 '4층 레이어 네거티브'가 적용된 장면...)
+[2026-05-07 13:28:22.287613] [Gemini] ✅ [Gemini Vision] Success (28.3s)
+[2026-05-07 13:28:22.296218] [Gemini] 👁️ [Gemini Vision] Starting analysis (prompt=당신은 세계 최고의 영화 감독이자 프롬프트 엔지니어입니다.
+[피카디리 프롬프트 지침 보강안]에 따라, 대본을 분석하여 '6블록 조립 원칙'과 '4층 레이어 네거티브'가 적용된 장면...)
+[2026-05-07 13:28:47.531254] [Gemini] ✅ [Gemini Vision] Success (25.2s)
+[2026-05-07 16:26:06.415130] Starting render for project 188
+[2026-05-07 16:26:06.415595] Audio: C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\output\한의사가_직접_먹어보고_혈당_잰_당뇨_극복_음식_Best_5_20260507\tts_20260507_154028.mp3
+[2026-05-07 16:26:06.779010] create_slideshow(PROJ=188) Effects: ['random', 'random', 'random', 'random', 'random', 'random', 'random', 'random', 'random', 'random', 'random', 'random']
+[2026-05-07 16:26:07.527626] ✅ [Safe Load] Image Success: filled_dfc040ae-7f8a-4386-bac7-684285b3ffda.jpg (1920x1080)
+[2026-05-07 16:26:07.531779] Scene[1] Loaded: 1920x1080, dur=11.33s, item=manual_img_p188_s1_1778134392.png
+[2026-05-07 16:26:07.789694] ✅ [Safe Load] Image Success: filled_0f29e89f-67d9-40c1-ac21-cb373c4be0fb.jpg (1920x1080)
+[2026-05-07 16:26:07.792496] Scene[2] Loaded: 1920x1080, dur=5.00s, item=manual_img_p188_s2_1778134535.png
+[2026-05-07 16:26:08.092326] ✅ [Safe Load] Image Success: filled_abae000a-239b-4a6b-98f2-898b07fa960a.jpg (1920x1080)
+[2026-05-07 16:26:08.095049] Scene[3] Loaded: 1920x1080, dur=0.10s, item=manual_img_p188_s1_1778134392.png
+[2026-05-07 16:26:08.275304] ✅ [Safe Load] Image Success: filled_92967724-e4af-4034-9b28-1226ffbae930.jpg (1920x1080)
+[2026-05-07 16:26:08.277579] Scene[4] Loaded: 1920x1080, dur=4.57s, item=manual_img_p188_s2_1778134535.png
+[2026-05-07 16:26:08.360919] Concatenating 4 clips. method=compose
+[2026-05-07 16:26:08.572735] RENDER_SETTINGS: font='GmarketSansBold', color='white', style='Basic_White', stroke_color='#000000', stroke_enabled=1, stroke_width=4.5, bg_enabled=1
+[2026-05-07 16:26:08.589436] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-05-07 16:26:08.658019] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-05-07 16:26:08.704225] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-05-07 16:26:08.749493] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-05-07 16:26:08.794096] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\유튜브소재발굴기\\롱폼생성기\\services']
+[2026-05-07 16:26:10.681964] calling writes_videofile code in video_service (720p safe mode)
+[2026-05-13 20:56:37.285878] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        Act as a Local Trend Analyst and YouTube SEO Expert for the specific region: South Korea (K...)
+[2026-05-13 20:57:08.988470] [Gemini] ✅ [Gemini Text] Success (31.7s, finish=STOP)
+[2026-05-25 13:35:54.606053] [Gemini] 🎨 [Gemini Image] Trying model: gemini-3.1-flash-image-preview
+[2026-05-25 13:36:12.487604] [Gemini] ✅ [Gemini Image] gemini-3.1-flash-image-preview succeeded, 1 image(s)
+[2026-05-25 13:36:12.765168] [Gemini] 🎨 [Gemini Image] Trying model: gemini-3.1-flash-image-preview
+[2026-05-25 13:36:33.722439] [Gemini] ✅ [Gemini Image] gemini-3.1-flash-image-preview succeeded, 1 image(s)
+[2026-05-25 13:36:33.906397] [Gemini] 🎨 [Gemini Image] Trying model: gemini-3.1-flash-image-preview
+[2026-05-25 13:36:46.584054] [Gemini] ✅ [Gemini Image] gemini-3.1-flash-image-preview succeeded, 1 image(s)
+[2026-05-25 13:48:52.620454] [Gemini] 🎨 [Gemini Image] Trying model: gemini-3.1-flash-image-preview
+[2026-05-25 13:49:18.693259] [Gemini] ✅ [Gemini Image] gemini-3.1-flash-image-preview succeeded, 1 image(s)
+[2026-05-25 13:49:18.923029] [Gemini] 🎨 [Gemini Image] Trying model: gemini-3.1-flash-image-preview
+[2026-05-25 13:49:45.233730] [Gemini] ✅ [Gemini Image] gemini-3.1-flash-image-preview succeeded, 1 image(s)
+[2026-05-25 13:49:45.424347] [Gemini] 🎨 [Gemini Image] Trying model: gemini-3.1-flash-image-preview
+[2026-05-25 13:50:09.795524] [Gemini] ✅ [Gemini Image] gemini-3.1-flash-image-preview succeeded, 1 image(s)
+[2026-06-08 19:56:38.590228] [Gemini] 🎨 [Gemini Image] Trying model: gemini-3.1-flash-image-preview
+[2026-06-08 19:56:51.907427] [Gemini] ✅ [Gemini Image] gemini-3.1-flash-image-preview succeeded, 1 image(s)
+[2026-06-10 10:27:00.271222] Middleware Error: unhashable type: 'dict'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 120, in check_login_middleware
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\starlette\middleware\base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\starlette\middleware\base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\starlette\routing.py", line 660, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\starlette\routing.py", line 680, in app
+    await route.handle(scope, receive, send)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\starlette\routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\fastapi\routing.py", line 134, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\fastapi\routing.py", line 120, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\fastapi\routing.py", line 674, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\fastapi\routing.py", line 328, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\main.py", line 136, in get_login_page
+    return templates.TemplateResponse("pages/login.html", {
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+        "request": request,
+        ^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        "token_balance": 0
+        ^^^^^^^^^^^^^^^^^^
+    })
+    ^^
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\starlette\templating.py", line 148, in TemplateResponse
+    template = self.get_template(name)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\starlette\templating.py", line 115, in get_template
+    return self.env.get_template(name)
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\jinja2\environment.py", line 1016, in get_template
+    return self._load_template(name, globals)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\jinja2\environment.py", line 964, in _load_template
+    template = self.cache.get(cache_key)
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\jinja2\utils.py", line 477, in get
+    return self[key]
+           ~~~~^^^^^
+  File "C:\Users\kimse\Downloads\유튜브소재발굴기\롱폼생성기\venv\Lib\site-packages\jinja2\utils.py", line 515, in __getitem__
+    rv = self._mapping[key]
+         ~~~~~~~~~~~~~^^^^^
+TypeError: unhashable type: 'dict'
+
+[2026-06-11 11:21:09.149594] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        당신은 유튜브 콘텐츠 기획 전문가입니다.
+        다음 정보를 바탕으로 클릭률(CTR)이 높은 롱폼/쇼츠 유튜브 제목 5개를 제안해주세요.
+
+        [...)
+[2026-06-11 11:21:10.553901] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        당신은 유튜브 콘텐츠 기획 전문가입니다.
+        다음 정보를 바탕으로 클릭률(CTR)이 높은 롱폼/쇼츠 유튜브 제목 5개를 제안해주세요.
+
+        [...)
+[2026-06-11 11:21:11.916013] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        당신은 유튜브 콘텐츠 기획 전문가입니다.
+        다음 정보를 바탕으로 클릭률(CTR)이 높은 롱폼/쇼츠 유튜브 제목 5개를 제안해주세요.
+
+        [...)
+[2026-06-11 11:21:13.250144] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        당신은 유튜브 콘텐츠 기획 전문가입니다.
+        다음 정보를 바탕으로 클릭률(CTR)이 높은 롱폼/쇼츠 유튜브 제목 5개를 제안해주세요.
+
+        [...)
+[2026-06-11 11:21:25.401316] [Gemini] ✅ [Gemini Text] Success (16.3s, finish=STOP)
+[2026-06-11 11:21:27.596722] [Gemini] ✅ [Gemini Text] Success (15.7s, finish=STOP)
+[2026-06-11 11:21:29.411575] [Gemini] ✅ [Gemini Text] Success (16.2s, finish=STOP)
+[2026-06-11 11:21:29.992216] [Gemini] ✅ [Gemini Text] Success (19.4s, finish=STOP)
+[2026-06-11 11:22:29.430906] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 세계 최고의 유튜브 콘텐츠 기획자이자 스토리텔러입니다.
+당신의 임무는 주어진 **키워드(주제)**를 바탕으로, **분석된 성공 전략**과 **누적된 학습 지식**을 적용하여...)
+[2026-06-11 11:23:00.750278] [Gemini] ✅ [Gemini Text] Success (31.3s, finish=STOP)
+[2026-06-11 11:23:57.896379] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "호랑이 시어머니의 등장" 파트를 작성해주세요.
+
+[영상 주제]
+평생 며느리 구박하던 시어머니가 황혼에 맞은 기막힌 결말
+
+[현재...)
+[2026-06-11 11:24:17.710215] [Gemini] ✅ [Gemini Text] Success (19.8s, finish=MAX_TOKENS)
+[2026-06-11 11:24:18.231830] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "끝없는 시집살이의 지옥" 파트를 작성해주세요.
+
+[영상 주제]
+평생 며느리 구박하던 시어머니가 황혼에 맞은 기막힌 결말
+
+[현재...)
+[2026-06-11 11:24:35.216897] [Gemini] ✅ [Gemini Text] Success (17.0s, finish=MAX_TOKENS)
+[2026-06-11 11:24:35.731536] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "철저한 방관자 남편" 파트를 작성해주세요.
+
+[영상 주제]
+평생 며느리 구박하던 시어머니가 황혼에 맞은 기막힌 결말
+
+[현재 섹...)
+[2026-06-11 11:24:53.859292] [Gemini] ✅ [Gemini Text] Success (18.1s, finish=MAX_TOKENS)
+[2026-06-11 11:24:54.378970] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "도를 넘은 만행" 파트를 작성해주세요.
+
+[영상 주제]
+평생 며느리 구박하던 시어머니가 황혼에 맞은 기막힌 결말
+
+[현재 섹션]...)
+[2026-06-11 11:25:12.339882] [Gemini] ✅ [Gemini Text] Success (18.0s, finish=STOP)
+[2026-06-11 11:25:12.849200] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "무너지는 권력의 시작" 파트를 작성해주세요.
+
+[영상 주제]
+평생 며느리 구박하던 시어머니가 황혼에 맞은 기막힌 결말
+
+[현재 ...)
+[2026-06-11 11:25:31.404465] [Gemini] ✅ [Gemini Text] Success (18.6s, finish=MAX_TOKENS)
+[2026-06-11 11:25:31.914098] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "책임 전가와 폭언" 파트를 작성해주세요.
+
+[영상 주제]
+평생 며느리 구박하던 시어머니가 황혼에 맞은 기막힌 결말
+
+[현재 섹션...)
+[2026-06-11 11:25:50.613280] [Gemini] ✅ [Gemini Text] Success (18.7s, finish=MAX_TOKENS)
+[2026-06-11 11:25:51.128139] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "며느리의 홀로서기" 파트를 작성해주세요.
+
+[영상 주제]
+평생 며느리 구박하던 시어머니가 황혼에 맞은 기막힌 결말
+
+[현재 섹션...)
+[2026-06-11 11:26:08.892752] [Gemini] ✅ [Gemini Text] Success (17.8s, finish=MAX_TOKENS)
+[2026-06-11 11:26:10.186601] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "세월이 만든 역전" 파트를 작성해주세요.
+
+[영상 주제]
+평생 며느리 구박하던 시어머니가 황혼에 맞은 기막힌 결말
+
+[현재 섹션...)
+[2026-06-11 11:26:24.930296] [Gemini] ✅ [Gemini Text] Success (14.7s, finish=STOP)
+[2026-06-11 11:26:25.442130] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "완벽한 권력의 이동" 파트를 작성해주세요.
+
+[영상 주제]
+평생 며느리 구박하던 시어머니가 황혼에 맞은 기막힌 결말
+
+[현재 섹...)
+[2026-06-11 11:26:41.769338] [Gemini] ✅ [Gemini Text] Success (16.3s, finish=STOP)
+[2026-06-11 11:26:42.290424] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "비참해진 시어머니" 파트를 작성해주세요.
+
+[영상 주제]
+평생 며느리 구박하던 시어머니가 황혼에 맞은 기막힌 결말
+
+[현재 섹션...)
+[2026-06-11 11:26:59.574353] [Gemini] ✅ [Gemini Text] Success (17.3s, finish=MAX_TOKENS)
+[2026-06-11 11:27:00.088669] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "가장 무서운 복수" 파트를 작성해주세요.
+
+[영상 주제]
+평생 며느리 구박하던 시어머니가 황혼에 맞은 기막힌 결말
+
+[현재 섹션...)
+[2026-06-11 11:27:18.565381] [Gemini] ✅ [Gemini Text] Success (18.5s, finish=MAX_TOKENS)
+[2026-06-11 11:27:19.074363] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "철저한 고립" 파트를 작성해주세요.
+
+[영상 주제]
+평생 며느리 구박하던 시어머니가 황혼에 맞은 기막힌 결말
+
+[현재 섹션]
+-...)
+[2026-06-11 11:27:36.205883] [Gemini] ✅ [Gemini Text] Success (17.1s, finish=MAX_TOKENS)
+[2026-06-11 11:27:36.720277] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "뿌린 대로 거두는 결말" 파트를 작성해주세요.
+
+[영상 주제]
+평생 며느리 구박하던 시어머니가 황혼에 맞은 기막힌 결말
+
+[현재...)
+[2026-06-11 11:27:52.176684] [Gemini] ✅ [Gemini Text] Success (15.5s, finish=STOP)
+[2026-06-11 11:35:00.199171] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 세계 최고의 유튜브 콘텐츠 기획자이자 스토리텔러입니다.
+당신의 임무는 주어진 **키워드(주제)**를 바탕으로, **분석된 성공 전략**과 **누적된 학습 지식**을 적용하여...)
+[2026-06-11 11:35:31.318101] [Gemini] ✅ [Gemini Text] Success (31.1s, finish=STOP)
+[2026-06-11 11:51:22.031453] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        당신은 유튜브 콘텐츠 기획 전문가입니다.
+        다음 정보를 바탕으로 클릭률(CTR)이 높은 롱폼/쇼츠 유튜브 제목 5개를 제안해주세요.
+
+        [...)
+[2026-06-11 11:51:23.470445] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        당신은 유튜브 콘텐츠 기획 전문가입니다.
+        다음 정보를 바탕으로 클릭률(CTR)이 높은 롱폼/쇼츠 유튜브 제목 5개를 제안해주세요.
+
+        [...)
+[2026-06-11 11:51:24.805315] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        당신은 유튜브 콘텐츠 기획 전문가입니다.
+        다음 정보를 바탕으로 클릭률(CTR)이 높은 롱폼/쇼츠 유튜브 제목 5개를 제안해주세요.
+
+        [...)
+[2026-06-11 11:51:26.126449] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        당신은 유튜브 콘텐츠 기획 전문가입니다.
+        다음 정보를 바탕으로 클릭률(CTR)이 높은 롱폼/쇼츠 유튜브 제목 5개를 제안해주세요.
+
+        [...)
+[2026-06-11 11:51:41.681896] [Gemini] ✅ [Gemini Text] Success (16.9s, finish=STOP)
+[2026-06-11 11:51:41.701398] [Gemini] ✅ [Gemini Text] Success (15.6s, finish=STOP)
+[2026-06-11 11:51:42.482052] [Gemini] ✅ [Gemini Text] Success (19.0s, finish=STOP)
+[2026-06-11 11:51:43.784971] [Gemini] ✅ [Gemini Text] Success (21.8s, finish=STOP)
+[2026-06-11 12:11:33.175266] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 세계 최고의 유튜브 콘텐츠 기획자이자 스토리텔러입니다.
+당신의 임무는 주어진 **키워드(주제)**를 바탕으로, **분석된 성공 전략**과 **누적된 학습 지식**을 적용하여...)
+[2026-06-11 12:12:12.628814] [Gemini] ✅ [Gemini Text] Success (39.5s, finish=STOP)
+[2026-06-11 12:12:59.771306] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "엇갈린 인연의 시작" 파트를 작성해주세요.
+
+[영상 주제]
+평생 구박하던 며느리에게 황혼의 시어머니가 흘린 눈물
+
+[현재 섹션]...)
+[2026-06-11 12:13:16.342660] [Gemini] ✅ [Gemini Text] Success (16.6s, finish=STOP)
+[2026-06-11 12:13:16.856766] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "창살 없는 감옥" 파트를 작성해주세요.
+
+[영상 주제]
+평생 구박하던 며느리에게 황혼의 시어머니가 흘린 눈물
+
+[현재 섹션]
+-...)
+[2026-06-11 12:13:28.802485] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "엇갈린 인연의 시작" 파트를 작성해주세요.
+
+[영상 주제]
+평생 구박하던 며느리에게 황혼의 시어머니가 흘린 눈물
+
+[현재 섹션]...)
+[2026-06-11 12:13:30.474998] [Gemini] ✅ [Gemini Text] Success (13.6s, finish=STOP)
+[2026-06-11 12:13:48.503858] [Gemini] ✅ [Gemini Text] Success (19.7s, finish=MAX_TOKENS)
+[2026-06-11 12:13:49.024867] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "창살 없는 감옥" 파트를 작성해주세요.
+
+[영상 주제]
+평생 구박하던 며느리에게 황혼의 시어머니가 흘린 눈물
+
+[현재 섹션]
+-...)
+[2026-06-11 12:14:07.951267] [Gemini] ✅ [Gemini Text] Success (18.9s, finish=MAX_TOKENS)
+[2026-06-11 12:14:08.475717] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "삼켜낸 눈물의 무게" 파트를 작성해주세요.
+
+[영상 주제]
+평생 구박하던 며느리에게 황혼의 시어머니가 흘린 눈물
+
+[현재 섹션]...)
+[2026-06-11 12:14:26.072406] [Gemini] ✅ [Gemini Text] Success (17.6s, finish=STOP)
+[2026-06-11 12:14:26.586357] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "세월이 가져온 변화" 파트를 작성해주세요.
+
+[영상 주제]
+평생 구박하던 며느리에게 황혼의 시어머니가 흘린 눈물
+
+[현재 섹션]...)
+[2026-06-11 12:14:43.731390] [Gemini] ✅ [Gemini Text] Success (17.1s, finish=STOP)
+[2026-06-11 12:21:27.882887] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "엇갈린 인연의 시작" 파트를 작성해주세요.
+
+[영상 주제]
+평생 구박하던 며느리에게 황혼의 시어머니가 흘린 눈물
+
+[현재 섹션]...)
+[2026-06-11 12:21:46.364010] [Gemini] ✅ [Gemini Text] Success (18.5s, finish=MAX_TOKENS)
+[2026-06-11 12:21:46.881269] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "창살 없는 감옥" 파트를 작성해주세요.
+
+[영상 주제]
+평생 구박하던 며느리에게 황혼의 시어머니가 흘린 눈물
+
+[현재 섹션]
+-...)
+[2026-06-11 12:22:03.029574] [Gemini] ✅ [Gemini Text] Success (16.1s, finish=STOP)
+[2026-06-11 12:22:03.543535] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "삼켜낸 눈물의 무게" 파트를 작성해주세요.
+
+[영상 주제]
+평생 구박하던 며느리에게 황혼의 시어머니가 흘린 눈물
+
+[현재 섹션]...)
+[2026-06-11 12:22:21.063817] [Gemini] ✅ [Gemini Text] Success (17.5s, finish=MAX_TOKENS)
+[2026-06-11 12:22:21.586759] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "세월이 가져온 변화" 파트를 작성해주세요.
+
+[영상 주제]
+평생 구박하던 며느리에게 황혼의 시어머니가 흘린 눈물
+
+[현재 섹션]...)
+[2026-06-11 12:22:40.562687] [Gemini] ✅ [Gemini Text] Success (19.0s, finish=STOP)
+[2026-06-11 12:22:41.081374] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "예고 없이 찾아온 불행" 파트를 작성해주세요.
+
+[영상 주제]
+평생 구박하던 며느리에게 황혼의 시어머니가 흘린 눈물
+
+[현재 섹...)
+[2026-06-11 12:22:56.568767] [Gemini] ✅ [Gemini Text] Success (15.5s, finish=STOP)
+[2026-06-11 12:22:57.078583] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "외면하는 핏줄들" 파트를 작성해주세요.
+
+[영상 주제]
+평생 구박하던 며느리에게 황혼의 시어머니가 흘린 눈물
+
+[현재 섹션]
+-...)
+[2026-06-11 12:23:15.263223] [Gemini] ✅ [Gemini Text] Success (18.2s, finish=MAX_TOKENS)
+[2026-06-11 12:23:15.779409] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "다시 마주한 두 사람" 파트를 작성해주세요.
+
+[영상 주제]
+평생 구박하던 며느리에게 황혼의 시어머니가 흘린 눈물
+
+[현재 섹션...)
+[2026-06-11 12:23:32.653301] [Gemini] ✅ [Gemini Text] Success (16.9s, finish=STOP)
+[2026-06-11 12:23:33.171333] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "뒤바뀐 처지" 파트를 작성해주세요.
+
+[영상 주제]
+평생 구박하던 며느리에게 황혼의 시어머니가 흘린 눈물
+
+[현재 섹션]
+- 제...)
+[2026-06-11 12:23:51.805156] [Gemini] ✅ [Gemini Text] Success (18.6s, finish=MAX_TOKENS)
+[2026-06-11 12:23:52.327139] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "흐려지는 정신 속의 진심" 파트를 작성해주세요.
+
+[영상 주제]
+평생 구박하던 며느리에게 황혼의 시어머니가 흘린 눈물
+
+[현재 ...)
+[2026-06-11 12:24:12.048576] [Gemini] ✅ [Gemini Text] Success (19.7s, finish=MAX_TOKENS)
+[2026-06-11 12:24:12.563359] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "거칠어진 손을 보며" 파트를 작성해주세요.
+
+[영상 주제]
+평생 구박하던 며느리에게 황혼의 시어머니가 흘린 눈물
+
+[현재 섹션]...)
+[2026-06-11 12:24:30.539426] [Gemini] ✅ [Gemini Text] Success (18.0s, finish=MAX_TOKENS)
+[2026-06-11 12:24:31.062071] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "무너져 내린 자존심" 파트를 작성해주세요.
+
+[영상 주제]
+평생 구박하던 며느리에게 황혼의 시어머니가 흘린 눈물
+
+[현재 섹션]...)
+[2026-06-11 12:24:47.784805] [Gemini] ✅ [Gemini Text] Success (16.7s, finish=STOP)
+[2026-06-11 12:24:48.300659] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "황혼에 흘린 뜨거운 눈물" 파트를 작성해주세요.
+
+[영상 주제]
+평생 구박하던 며느리에게 황혼의 시어머니가 흘린 눈물
+
+[현재 ...)
+[2026-06-11 12:25:05.870751] [Gemini] ✅ [Gemini Text] Success (17.6s, finish=MAX_TOKENS)
+[2026-06-11 12:25:06.379100] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "말 없는 용서" 파트를 작성해주세요.
+
+[영상 주제]
+평생 구박하던 며느리에게 황혼의 시어머니가 흘린 눈물
+
+[현재 섹션]
+- ...)
+[2026-06-11 12:25:24.618088] [Gemini] ✅ [Gemini Text] Success (18.2s, finish=MAX_TOKENS)
+[2026-06-11 12:25:25.131291] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=당신은 유튜브 대본 작가입니다. 아래 주제에 대한 "남겨진 자의 깨달음" 파트를 작성해주세요.
+
+[영상 주제]
+평생 구박하던 며느리에게 황혼의 시어머니가 흘린 눈물
+
+[현재 섹션]...)
+[2026-06-11 12:25:41.351442] [Gemini] ✅ [Gemini Text] Success (16.2s, finish=STOP)
+[2026-06-11 14:32:03.724826] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=다음 대본을 분석하여 이미지 생성을 위한 적절한 Scene 개수를 결정해주세요.
+
+대본:
+(차분하고 무게감 있게) 뼈대 깊은 가부장적인 집안에서 태어나, 평생을 억척스럽게 살아온 ...)
+[2026-06-11 14:32:17.599786] [Gemini] ✅ [Gemini Text] Success (13.9s, finish=STOP)
+[2026-06-11 14:32:36.442906] [Gemini] 👁️ [Gemini Vision] Starting analysis (prompt=당신은 세계 최고의 영화 감독이자 프롬프트 엔지니어입니다.
+[피카디리 프롬프트 지침 보강안]에 따라, 대본을 분석하여 '6블록 조립 원칙'과 '4층 레이어 네거티브'가 적용된 장면...)
+[2026-06-11 14:33:01.608149] [Gemini] ✅ [Gemini Vision] Success (25.2s)
+[2026-06-11 14:33:01.622847] [Gemini] 👁️ [Gemini Vision] Starting analysis (prompt=당신은 세계 최고의 영화 감독이자 프롬프트 엔지니어입니다.
+[피카디리 프롬프트 지침 보강안]에 따라, 대본을 분석하여 '6블록 조립 원칙'과 '4층 레이어 네거티브'가 적용된 장면...)
+[2026-06-11 14:33:27.045201] [Gemini] ✅ [Gemini Vision] Success (25.4s)

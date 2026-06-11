@@ -23,24 +23,24 @@
                 </div>
                 <span class="text-sm font-medium">{{ t('step_url_input') }}</span>
             </div>
-            <div class="w-16 h-1 bg-gray-300 bg-[#000106]/50"></div>
+            <div class="w-16 h-1 bg-gray-300 bg-[#1c2027]/50"></div>
             <div class="flex items-center gap-2">
                 <div id="step-indicator-2"
-                    class="w-8 h-8 rounded-full bg-gray-300 bg-[#000106]/50 text-gray-500 flex items-center justify-center font-bold dark:text-gray-400">
+                    class="w-8 h-8 rounded-full bg-gray-300 bg-[#1c2027]/50 text-gray-500 flex items-center justify-center font-bold dark:text-gray-400">
                     2</div>
                 <span class="text-sm text-gray-500 dark:text-gray-400">{{ t('step_product_info') }}</span>
             </div>
-            <div class="w-16 h-1 bg-gray-300 bg-[#000106]/50"></div>
+            <div class="w-16 h-1 bg-gray-300 bg-[#1c2027]/50"></div>
             <div class="flex items-center gap-2">
                 <div id="step-indicator-3"
-                    class="w-8 h-8 rounded-full bg-gray-300 bg-[#000106]/50 text-gray-500 flex items-center justify-center font-bold dark:text-gray-400">
+                    class="w-8 h-8 rounded-full bg-gray-300 bg-[#1c2027]/50 text-gray-500 flex items-center justify-center font-bold dark:text-gray-400">
                     3</div>
                 <span class="text-sm text-gray-500 dark:text-gray-400">{{ t('step_style_selection') }}</span>
             </div>
-            <div class="w-16 h-1 bg-gray-300 bg-[#000106]/50"></div>
+            <div class="w-16 h-1 bg-gray-300 bg-[#1c2027]/50"></div>
             <div class="flex items-center gap-2">
                 <div id="step-indicator-4"
-                    class="w-8 h-8 rounded-full bg-gray-300 bg-[#000106]/50 text-gray-500 flex items-center justify-center font-bold dark:text-gray-400">
+                    class="w-8 h-8 rounded-full bg-gray-300 bg-[#1c2027]/50 text-gray-500 flex items-center justify-center font-bold dark:text-gray-400">
                     4</div>
                 <span class="text-sm text-gray-500 dark:text-gray-400">{{ t('step_generating') }}</span>
             </div>
@@ -140,7 +140,7 @@
                     <!-- 모델 선택 -->
                     <div>
                         <label class="block text-sm font-medium mb-2">{{ t('label_model_type') }}</label>
-                        <select id="model-type" class="input w-full bg-[#000106] text-white">
+                        <select id="model-type" class="input w-full bg-[#1c2027] text-white">
                             <option value="">{{ t('option_auto_select') }}</option>
                             <option value="female_20s">{{ t('option_female_20s') }}</option>
                             <option value="female_30s">{{ t('option_female_30s') }}</option>
@@ -153,7 +153,7 @@
                     <!-- 배경 선택 -->
                     <div>
                         <label class="block text-sm font-medium mb-2">{{ t('label_background_type') }}</label>
-                        <select id="background-type" class="input w-full bg-[#000106] text-white">
+                        <select id="background-type" class="input w-full bg-[#1c2027] text-white">
                             <option value="">{{ t('option_auto_select') }}</option>
                             <option value="studio_clean">{{ t('option_studio_clean') }}</option>
                             <option value="studio_tech">{{ t('option_studio_tech') }}</option>
@@ -167,7 +167,7 @@
                     <!-- 음악 선택 -->
                     <div>
                         <label class="block text-sm font-medium mb-2">{{ t('label_bgm_type') }}</label>
-                        <select id="music-type" class="input w-full bg-[#000106] text-white">
+                        <select id="music-type" class="input w-full bg-[#1c2027] text-white">
                             <option value="">{{ t('option_no_music') }}</option>
                             <option value="upbeat">{{ t('option_upbeat') }}</option>
                             <option value="calm">{{ t('option_calm') }}</option>
@@ -205,7 +205,7 @@
 
                         <!-- 업로드 진행 상태 -->
                         <div id="upload-progress" class="hidden mt-2">
-                            <div class="w-full bg-gray-200 bg-[#000106]/50 rounded-full h-2">
+                            <div class="w-full bg-gray-200 bg-[#1c2027]/50 rounded-full h-2">
                                 <div id="upload-progress-bar" class="bg-blue-500 h-2 rounded-full transition-all"
                                     style="width: 0%"></div>
                             </div>
@@ -216,7 +216,7 @@
                     <!-- CTA 선택 -->
                     <div>
                         <label class="block text-sm font-medium mb-2">{{ t('label_cta_type') }}</label>
-                        <select id="cta-type" class="input w-full bg-[#000106] text-white">
+                        <select id="cta-type" class="input w-full bg-[#1c2027] text-white">
                             <option value="buy_now">{{ t('option_cta_buy_now') }}</option>
                             <option value="learn_more">{{ t('option_cta_learn_more') }}</option>
                             <option value="limited_offer">{{ t('option_cta_limited_offer') }}</option>
@@ -250,7 +250,7 @@
 
             <!-- Video Engine Selection -->
             <div
-                class="mt-6 mb-4 p-4 bg-[#000106] border border-gray-200 dark:border-gray-700 rounded-lg">
+                class="mt-6 mb-4 p-4 bg-[#1c2027] border border-gray-200 dark:border-gray-700 rounded-lg">
                     <div class="grid grid-cols-1 gap-4">
                     <label
                         class="relative flex items-start p-3 border-2 border-blue-500 dark:border-blue-600 bg-blue-50/10 dark:bg-blue-900/10 rounded-lg cursor-pointer hover:border-blue-500 transition-all group shadow-sm">
@@ -368,19 +368,19 @@
     function handleDragOver(event) {
         event.preventDefault();
         event.stopPropagation();
-        event.currentTarget.classList.add('border-blue-500', 'bg-[#000106]', 'dark:bg-[#000106]');
+        event.currentTarget.classList.add('border-blue-500', 'bg-[#1c2027]', 'dark:bg-[#1c2027]');
     }
 
     function handleDragLeave(event) {
         event.preventDefault();
         event.stopPropagation();
-        event.currentTarget.classList.remove('border-blue-500', 'bg-[#000106]', 'dark:bg-[#000106]');
+        event.currentTarget.classList.remove('border-blue-500', 'bg-[#1c2027]', 'dark:bg-[#1c2027]');
     }
 
     function handleDrop(event) {
         event.preventDefault();
         event.stopPropagation();
-        event.currentTarget.classList.remove('border-blue-500', 'bg-[#000106]', 'dark:bg-[#000106]');
+        event.currentTarget.classList.remove('border-blue-500', 'bg-[#1c2027]', 'dark:bg-[#1c2027]');
 
         const files = event.dataTransfer.files;
         if (files.length > 0) {
@@ -514,13 +514,13 @@
 
         // Update UI
         document.querySelectorAll('[id^="preset-"]').forEach(btn => {
-            btn.classList.remove('border-blue-500', 'bg-[#000106]', 'dark:bg-[#000106]');
+            btn.classList.remove('border-blue-500', 'bg-[#1c2027]', 'dark:bg-[#1c2027]');
             btn.classList.add('border-gray-300', 'dark:border-gray-600');
         });
 
         const selected = document.getElementById(`preset-${key}`);
         if (selected) {
-            selected.classList.add('border-blue-500', 'bg-[#000106]', 'dark:bg-[#000106]');
+            selected.classList.add('border-blue-500', 'bg-[#1c2027]', 'dark:bg-[#1c2027]');
             selected.classList.remove('border-gray-300', 'dark:border-gray-600');
         }
     }
@@ -621,7 +621,7 @@
                 const container = document.getElementById('trend-container');
                 container.innerHTML = data.keywords.map(k => `
                 <a href="https://www.amazon.com/s?k=${encodeURIComponent(k.keyword)}" target="_blank"
-                   class="block p-3 border border-orange-200 dark:border-gray-700 bg-[#000106] rounded-lg hover:bg-[#000106] dark:hover:bg-[#0a0f1d] hover:shadow-md transition-all text-center group h-full flex flex-col justify-center">
+                   class="block p-3 border border-orange-200 dark:border-gray-700 bg-[#1c2027] rounded-lg hover:bg-[#1c2027] dark:hover:bg-[#0a0f1d] hover:shadow-md transition-all text-center group h-full flex flex-col justify-center">
                     <div class="font-bold text-gray-800 dark:text-gray-100 text-sm mb-1 group-hover:text-orange-600 dark:group-hover:text-orange-400 group-hover:underline line-clamp-2">${k.keyword}</div>
                     <div class="text-xs text-orange-600 dark:text-orange-400 line-clamp-2 mt-auto">${k.reason}</div>
                 </a>
@@ -670,7 +670,7 @@
                     return `
                 <div onclick="applyCopy(this)" 
                      data-text="${fullText}"
-                     class="group p-3 border border-purple-100 dark:border-purple-900 bg-[#000106] rounded-lg cursor-pointer hover:bg-[#000106] dark:hover:bg-purple-900/50 hover:border-purple-300 dark:hover:border-purple-500 transition-all shadow-sm">
+                     class="group p-3 border border-purple-100 dark:border-purple-900 bg-[#1c2027] rounded-lg cursor-pointer hover:bg-[#1c2027] dark:hover:bg-purple-900/50 hover:border-purple-300 dark:hover:border-purple-500 transition-all shadow-sm">
                     <div class="flex items-center gap-2 mb-1">
                         <span class="text-xs font-bold text-white bg-purple-500 px-2 py-0.5 rounded-full">${copy.title}</span>
                         <span class="text-xs text-gray-400 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">${i18n.click_to_apply}</span>
@@ -824,7 +824,7 @@
                             alt="${i18n.label_image || 'thumbnail'}"
                         />
                     ` : `
-                        <div class="w-32 h-48 bg-gray-200 bg-[#000106]/50 rounded-lg flex items-center justify-center">
+                        <div class="w-32 h-48 bg-gray-200 bg-[#1c2027]/50 rounded-lg flex items-center justify-center">
                             <span class="text-4xl">🎬</span>
                         </div>
                     `}
@@ -838,10 +838,10 @@
                     
                     <!-- 상태 배지 -->
                     <div class="flex items-center gap-2 mb-2">
-                        <span class="px-2 py-1 rounded text-xs ${video.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-[#000106] dark:text-green-200' :
-                    video.status === 'processing' ? 'bg-yellow-100 text-yellow-800 dark:bg-[#000106] dark:text-yellow-200' :
-                        video.status === 'failed' ? 'bg-red-100 text-red-800 dark:bg-[#000106] dark:text-red-200' :
-                            'bg-[#000106] text-gray-800 bg-[#000106]/50 dark:text-gray-200'
+                        <span class="px-2 py-1 rounded text-xs ${video.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-[#1c2027] dark:text-green-200' :
+                    video.status === 'processing' ? 'bg-yellow-100 text-yellow-800 dark:bg-[#1c2027] dark:text-yellow-200' :
+                        video.status === 'failed' ? 'bg-red-100 text-red-800 dark:bg-[#1c2027] dark:text-red-200' :
+                            'bg-[#1c2027] text-gray-800 bg-[#1c2027]/50 dark:text-gray-200'
                 }">
                             ${video.status === 'completed' ? `✅ ${i18n.status_completed_short}` :
                     video.status === 'processing' ? `⏳ ${i18n.status_processing_short}` :
@@ -851,7 +851,7 @@
                         </span>
                         
                         ${video.style_preset ? `
-                            <span class="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800 dark:bg-[#000106] dark:text-blue-200">
+                            <span class="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800 dark:bg-[#1c2027] dark:text-blue-200">
                                 ${video.style_preset}
                             </span>
                         ` : ''}
@@ -895,14 +895,14 @@
     function playVideo(videoUrl) {
         // 모달로 영상 재생
         const modal = document.createElement('div');
-        modal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50';
+        modal.className = 'fixed inset-0 bg-[#1c2027] bg-opacity-75 flex items-center justify-center z-50';
         modal.onclick = () => modal.remove();
 
         modal.innerHTML = `
             <div class="relative max-w-2xl w-full p-4" onclick="event.stopPropagation()">
                 <button 
                     onclick="this.closest('.fixed').remove()" 
-                    class="absolute top-2 right-2 bg-[#000106] rounded-full w-10 h-10 flex items-center justify-center text-2xl hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d] z-10"
+                    class="absolute top-2 right-2 bg-[#1c2027] rounded-full w-10 h-10 flex items-center justify-center text-2xl hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d] z-10"
                 >
                     ×
                 </button>
@@ -940,7 +940,7 @@
         for (let i = 1; i <= 4; i++) {
             const indicator = document.getElementById(`step-indicator-${i}`);
             if (i <= step) {
-                indicator.classList.remove('bg-gray-300', 'bg-[#000106]/50', 'text-gray-500');
+                indicator.classList.remove('bg-gray-300', 'bg-[#1c2027]/50', 'text-gray-500');
                 indicator.classList.add('bg-blue-500', 'text-white');
             }
         }

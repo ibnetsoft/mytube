@@ -90,7 +90,13 @@ const API = {
                     provider: options.provider || 'elevenlabs',
                     language: options.language || 'ko', // 언어 전달
                     speed: options.speed || 1.0, // 속도 전달
-                    project_id: options.projectId || null
+                    project_id: options.projectId || null,
+                    multi_voice: options.multiVoice || false,
+                    voice_map: options.voiceMap || {},
+                    stability: options.stability !== undefined ? options.stability : null,
+                    similarity_boost: options.similarity_boost !== undefined ? options.similarity_boost : null,
+                    style: options.style !== undefined ? options.style : null,
+                    style_prompt: options.style_prompt || null
                 })
             });
             return response.json();

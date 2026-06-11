@@ -643,3 +643,11 @@ Img[10] EffectRaw: random -> Safe: random (Dur:10.680999999999997, FPS:24)
   -> Random Selection for Img[10]: zoom_in
 Img[11] EffectRaw: random -> Safe: random (Dur:8.830999999999989, FPS:24)
   -> Random Selection for Img[11]: pan_up
+Img[0] EffectRaw: random -> Safe: random (Dur:11.331, FPS:24)
+  -> Random Selection for Img[0]: pan_up
+Img[1] EffectRaw: random -> Safe: random (Dur:5.0, FPS:24)
+  -> Random Selection for Img[1]: pan_right
+Img[2] EffectRaw: random -> Safe: random (Dur:0.1, FPS:24)
+  -> Random Selection for Img[2]: pan_down
+Img[3] EffectRaw: random -> Safe: random (Dur:4.568999999999999, FPS:24)
+  -> Random Selection for Img[3]: zoom_in

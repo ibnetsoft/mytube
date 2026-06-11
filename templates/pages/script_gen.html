@@ -6,9 +6,9 @@
 <div class="flex gap-4 h-[calc(100vh-140px)]">
 
     <!-- LEFT: File Explorer (1/3) -->
-    <div class="w-1/3 flex flex-col bg-[#000106] rounded-xl border border-gray-700 overflow-hidden">
+    <div class="w-1/3 flex flex-col bg-[#1c2027] rounded-xl border border-gray-700 overflow-hidden">
         <!-- Explorer Header -->
-        <div class="flex items-center justify-between px-3 py-2 bg-[#000106] border-b border-gray-700">
+        <div class="flex items-center justify-between px-3 py-2 bg-[#1c2027] border-b border-gray-700">
             <h3 class="text-sm font-bold text-white flex items-center gap-2">
                 {{ t('label_script_archive') }}
             </h3>
@@ -38,7 +38,7 @@
     <div class="w-2/3 flex flex-col overflow-hidden">
 
         <!-- Tab Bar -->
-        <div class="flex gap-1 bg-[#000106] rounded-t-xl p-1.5 border-b border-gray-700">
+        <div class="flex gap-1 bg-[#1c2027] rounded-t-xl p-1.5 border-b border-gray-700">
             <button onclick="setScriptMode('ai')" id="tabAI"
                 class="px-4 py-2 rounded-lg text-xs font-bold transition-all bg-gray-700 text-white">
                 {{ t('tab_ai_auto') }}
@@ -52,7 +52,7 @@
         </div>
 
         <!-- Scrollable Content -->
-        <div class="flex-1 overflow-y-auto bg-[#000106]/50 rounded-b-xl p-4 custom-scrollbar">
+        <div class="flex-1 overflow-y-auto bg-[#1c2027]/50 rounded-b-xl p-4 custom-scrollbar">
 
             <!-- AI Generation Mode -->
             <div id="aiGenSection">
@@ -75,18 +75,18 @@
                 <!-- Generate Button -->
                 <div class="flex items-center justify-between gap-2 mb-4">
                     <!-- Narration Mode Selection -->
-                    <div class="flex items-center gap-3 bg-[#000106] px-3 py-1.5 rounded-lg border border-gray-700">
+                    <div class="flex items-center gap-3 bg-[#1c2027] px-3 py-1.5 rounded-lg border border-gray-700">
                         <span class="text-xs text-gray-400">{{ t('label_narration_mode') }}</span>
                         <div class="flex gap-1">
                             <label class="cursor-pointer">
                                 <input type="radio" name="narrationMode" value="single" class="sr-only peer" checked>
-                                <div class="px-3 py-1 text-[10px] rounded bg-[#000106] border border-gray-700 text-gray-500 peer-checked:bg-blue-600 peer-checked:text-white transition-all">
+                                <div class="px-3 py-1 text-[10px] rounded bg-[#1c2027] border border-gray-700 text-gray-500 peer-checked:bg-blue-600 peer-checked:text-white transition-all">
                                     {{ t('opt_single_narration') }}
                                 </div>
                             </label>
                             <label class="cursor-pointer">
                                 <input type="radio" name="narrationMode" value="multi" class="sr-only peer">
-                                <div class="px-3 py-1 text-[10px] rounded bg-[#000106] border border-gray-700 text-gray-500 peer-checked:bg-purple-600 peer-checked:text-white transition-all">
+                                <div class="px-3 py-1 text-[10px] rounded bg-[#1c2027] border border-gray-700 text-gray-500 peer-checked:bg-purple-600 peer-checked:text-white transition-all">
                                     {{ t('opt_multi_voice') }}
                                 </div>
                             </label>
@@ -106,7 +106,7 @@
                 </div>
 
                 <!-- AI Data Preview (Collapsed) -->
-                <details class="bg-[#000106] rounded-lg p-2 border border-gray-700 mb-4">
+                <details class="bg-[#1c2027] rounded-lg p-2 border border-gray-700 mb-4">
                     <summary class="text-xs text-blue-400 cursor-pointer">{{ t('label_ai_data_check') }}</summary>
                     <pre id="aiDataPreview" class="mt-2 text-[10px] text-gray-400 font-mono whitespace-pre-wrap">{{ t('hint_data_loading') }}</pre>
                 </details>
@@ -114,7 +114,7 @@
 
             <!-- Manual Input Mode (Hidden by default) -->
             <div id="manualInputSection" class="hidden">
-                <div class="bg-[#000106] border border-gray-700 rounded-lg p-4 mb-4">
+                <div class="bg-[#1c2027] border border-gray-700 rounded-lg p-4 mb-4">
                     <h3 class="text-sm font-bold text-white mb-2">{{ t('label_paste_script') }}</h3>
                     <p class="text-xs text-gray-400 mb-3">{{ t('hint_paste_script') }}</p>
                     <textarea id="manualScriptInput" class="input-field font-mono text-sm" style="min-height: 400px;"
@@ -129,7 +129,7 @@
 
             <!-- Result Section -->
             <div id="resultSection" class="hidden">
-                <div class="bg-[#000106] rounded-lg border border-gray-700 p-4">
+                <div class="bg-[#1c2027] rounded-lg border border-gray-700 p-4">
                     <div class="flex items-center justify-between mb-3">
                         <h3 class="text-sm font-bold text-white">{{ t('label_generated_script') }}</h3>
                         <div class="flex gap-2">
@@ -148,13 +148,13 @@
                     </div>
 
                     <div class="flex gap-3 text-xs text-gray-400 mb-3">
-                        <span id="charCount" class="bg-[#000106] border border-gray-800 px-2 py-0.5 rounded">0 {{ t('label_char_count_suffix') }}</span>
-                        <span id="readTime" class="bg-[#000106] border border-gray-800 px-2 py-0.5 rounded">{{ t('label_read_time') }}0 {{ t('unit_minute') }}</span>
+                        <span id="charCount" class="bg-[#1c2027] border border-white/5 px-2 py-0.5 rounded">0 {{ t('label_char_count_suffix') }}</span>
+                        <span id="readTime" class="bg-[#1c2027] border border-white/5 px-2 py-0.5 rounded">{{ t('label_read_time') }}0 {{ t('unit_minute') }}</span>
                     </div>
 
-                    <textarea id="scriptContent" class="input-field font-mono text-sm focus:border-blue-500/50 transition-all w-full leading-relaxed" style="background-color: transparent; border-color: #1e293b; min-height: 800px; resize: none; overflow: hidden;"></textarea>
+                    <div id="scriptContent" contenteditable="true" class="input-field font-mono text-sm focus:border-blue-500/50 transition-all w-full leading-relaxed overflow-y-auto" style="background-color: transparent; border-color: #1e293b; min-height: 800px; outline: none; white-space: pre-wrap;"></div>
 
-                    <div class="flex justify-center gap-3 mt-4 pt-4 border-t border-gray-800">
+                    <div class="flex justify-center gap-3 mt-4 pt-4 border-t border-white/5">
                         <!-- [NEW] Autopilot Continue Button -->
                         <button onclick="continueWithAutopilot()" id="autopilotBtn"
                             class="text-xs font-bold px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white transition-all">
@@ -187,8 +187,8 @@
 </div>
 
 <!-- Folder Creation Modal -->
-<div id="folderModal" class="fixed inset-0 bg-[#000106]/50 hidden items-center justify-center z-50">
-    <div class="bg-[#000106] rounded-xl p-6 w-80 border border-gray-600">
+<div id="folderModal" class="fixed inset-0 bg-[#1c2027]/50 hidden items-center justify-center z-50">
+    <div class="bg-[#1c2027] rounded-xl p-6 w-80 border border-gray-600">
         <h3 class="text-lg font-bold text-white mb-4">{{ t('label_create_folder') }}</h3>
         <input type="text" id="newFolderName" class="input-field w-full mb-4"
             placeholder="{{ t('placeholder_folder_name') }}">
@@ -346,7 +346,7 @@
                      ondragover="event.preventDefault(); event.currentTarget.classList.add('bg-yellow-900/30');"
                      ondragleave="event.currentTarget.classList.remove('bg-yellow-900/30');"
                      ondrop="dropFileToFolder(event, '${folder.id}')">
-                    <div class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#000106] cursor-pointer group" 
+                    <div class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#1c2027] cursor-pointer group" 
                          onclick="toggleFolder('${folder.id}')">
                         <span class="text-yellow-500" id="folderIcon_${folder.id}">📁</span>
                         <span class="text-sm text-gray-300 flex-1" ondblclick="event.stopPropagation(); renameFolder('${folder.id}')">${folder.name}</span>
@@ -391,7 +391,7 @@
 
         return `
         <div id="fileItem_${file.id}" class="file-item flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer group transition-colors
-                        ${isActive ? 'bg-blue-900/50 border border-blue-700' : 'hover:bg-[#000106]'}"
+                        ${isActive ? 'bg-blue-900/50 border border-blue-700' : 'hover:bg-[#1c2027]'}"
             onclick="selectFile('${file.id}')"
             ondblclick="openFile('${file.id}')"
             draggable="true"
@@ -414,13 +414,13 @@
         // Remove active class from all items
         document.querySelectorAll('.file-item').forEach(el => {
             el.classList.remove('bg-blue-900/50', 'border', 'border-blue-700');
-            el.classList.add('hover:bg-[#000106]');
+            el.classList.add('hover:bg-[#1c2027]');
         });
 
         // Add active class to selected item
         const selected = document.getElementById(`fileItem_${fileId}`);
         if (selected) {
-            selected.classList.remove('hover:bg-[#000106]');
+            selected.classList.remove('hover:bg-[#1c2027]');
             selected.classList.add('bg-blue-900/50', 'border', 'border-blue-700');
         }
     }
@@ -729,11 +729,24 @@
 
         if (!confirm(`${i18n.confirm_clean_script}`)) return;
 
+        // 감정 태그 보호 리스트
+        const emotionTags = ["annoyed", "excited", "sad", "angry", "shouting", "whispering", "long pause", "pause", "appalled"];
+        
+        // 괄호 내용 중 감정 태그만 살리고 나머지는 제거하는 로직
         const cleaned = text
-            .replace(/\([^)]*\)/g, '')
-            .replace(/\[[^\]]*\]/g, '')
+            .replace(/\[([^\]]*)\]/g, (match, content) => {
+                const lowerContent = content.toLowerCase().trim();
+                if (emotionTags.some(tag => lowerContent.includes(tag))) return match;
+                return "";
+            })
+            .replace(/\(([^)]*)\)/g, (match, content) => {
+                const lowerContent = content.toLowerCase().trim();
+                if (emotionTags.some(tag => lowerContent.includes(tag))) return match;
+                return "";
+            })
             .replace(/\*/g, '')
-            .replace(/[^\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318Fa-zA-Z0-9\s,.\?\!\"\'\.]/g, '')
+            // 특수문자 제거 시 대괄호[]는 살려야 함
+            .replace(/[^\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318Fa-zA-Z0-9\s,.\?\!\"\'\.\[\]]/g, '')
             .replace(/^[가-힣\w\s]+[\s]*:[\s]*/gm, '')
             .replace(/\n\s*\n/g, '\n\n')
             .trim();
@@ -825,6 +838,25 @@
     // ========== INITIALIZATION ==========
 
     document.addEventListener('DOMContentLoaded', async () => {
+        // [NEW] Define custom getter/setter for contenteditable div value property
+        const scriptEditor = document.getElementById('scriptContent');
+        if (scriptEditor) {
+            Object.defineProperty(scriptEditor, 'value', {
+                get() {
+                    return this.innerText;
+                },
+                set(val) {
+                    this.innerHTML = val.replace(/\(([^)]*)\)/g, '<span class="text-green-400 font-bold" style="color: #4ade80; font-weight: bold;">($1)</span>');
+                }
+            });
+            scriptEditor.addEventListener('blur', () => {
+                scriptEditor.value = scriptEditor.innerText;
+            });
+            scriptEditor.addEventListener('input', () => {
+                updateStats();
+            });
+        }
+
         // [NEW] Check URL for project_id override
         const urlParams = new URLSearchParams(window.location.search);
         const urlProjectId = urlParams.get('project_id');
@@ -991,10 +1023,11 @@ ${modeInstruction}
 5. 이 파트의 분량은 **약 ${minChars}자 ~ ${maxChars}자** 내외로 작성하세요. (절대적으로 지킬 것)
 6. ${isShorts ? '문장을 짧고 간결하게 끊어주세요. 호흡을 짧게 가져가세요.' : '문장을 자연스럽게 이어주세요.'}
 
-**[절대 금지 사항 - TTS 읽기 오류 방지]**
-1. 괄호와 상황 설명 금지 (예: (음악), (상황), (웃음) 등 절대 넣지 말 것)
-2. 시간 표시 금지 (예: [0-5초], ** 등 타임스탬프 금지)
-3. 이모티콘 및 기호 금지 (예: 🤣, ✨, 🔥 등 특수문자 금지)
+**[작성 및 감정/톤 지침]**
+1. 반드시 대본의 구문 앞이나 중간중간에 괄호를 사용하여 말의 톤이나 분위기를 표시하세요. (예: "(차분하게)", "(슬프게)", "(진지하게)")
+2. 음악, 효과음 등 상황 설명용 괄호(예: (음악), (상황), (웃음))는 금지합니다. 오직 성우의 목소리 톤/감정만 괄호로 표시하세요.
+3. 시간 표시 금지 (예: [0-5초], ** 등 타임스탬프 금지)
+4. 이모티콘 및 꾸밈 기호 금지 (예: 🤣, ✨, 🔥 등 특수문자 금지)
 
 본문만 출력하세요: `;
 
@@ -1005,12 +1038,11 @@ ${modeInstruction}
                     if (result.status === 'ok' && result.text) {
                         let sectionText = result.text.trim();
 
-                        // [CRITICAL] 5가지 금지 항목 정제 (괄호, 타임스탬프, 이모티콘, 화자 표시, 별표)
+                        // [CRITICAL] 금지 항목 정제 (타임스탬프, 이모티콘, 화자 표시, 별표) 단, 감정 표시용 소괄호()는 보존
                         sectionText = sectionText
-                            .replace(/\([^)]*\)/g, '')   // 1. 괄호 제거 (웃음)
-                            .replace(/\[[^\]]*\]/g, '')  // 2. 대괄호 제거 [0-5초]
-                            .replace(/\*/g, '')          // 3. 별표 제거 **
-                            .replace(/[^\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318Fa-zA-Z0-9\s,.\?\!\"\'\.:]/g, ''); // 4. 특수문자 제거 (콜론 보존)
+                            .replace(/\[[^\]]*\]/g, '')  // 대괄호 제거 [0-5초]
+                            .replace(/\*/g, '')          // 별표 제거 **
+                            .replace(/[^\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318Fa-zA-Z0-9\s,.\?\!\"\'\.:\(\)]/g, ''); // 특수문자 제거 (괄호 () 및 콜론 보존)
 
                         if (!isMulti) {
                             // 단독 나레이션일 때만 화자 이름 제거

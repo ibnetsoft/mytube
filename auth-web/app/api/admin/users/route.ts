@@ -40,6 +40,7 @@ export async function GET() {
                     token_balance: profileData.token_balance || 0,
                     membership_tier: membership,
                     membership: membership,
+                    pin_code: profileData.pin_code || '1234',
                 }
             }
         })
@@ -61,6 +62,7 @@ export async function GET() {
                     token_balance: p.token_balance || 0,
                     membership_tier: membership,
                     membership: membership,
+                    pin_code: p.pin_code || '1234',
                 }
             } as any)
         }

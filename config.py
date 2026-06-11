@@ -27,6 +27,10 @@ class Config:
     PORT = int(os.getenv("PORT", 8000))
     DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
+    # 외부 렌더링 (구글 드라이브 동기화 방식) 설정
+    USE_EXTERNAL_RENDER = os.getenv("USE_EXTERNAL_RENDER", "false").lower() == "true"
+    DRIVE_RENDER_QUEUE_PATH = os.getenv("DRIVE_RENDER_QUEUE_PATH", "G:/내 드라이브/Longform_Render_Queue")
+
     # API URLs
     YOUTUBE_BASE_URL = "https://www.googleapis.com/youtube/v3"
     GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent"

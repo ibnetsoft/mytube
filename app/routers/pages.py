@@ -19,14 +19,17 @@ def init_pages(templates: Jinja2Templates):
 
 def _render(request, template, page, title, **extra):
     from services.auth_service import auth_service
-    return _templates.TemplateResponse(template, {
-        "request": request,
-        "page": page,
-        "title": title,
-        "membership": auth_service.get_membership(),
-        "token_balance": auth_service.get_token_balance(),
-        **extra
-    })
+    return _templates.TemplateResponse(
+        request=request,
+        name=template,
+        context={
+            "page": page,
+            "title": title,
+            "membership": auth_service.get_membership(),
+            "token_balance": auth_service.get_token_balance(),
+            **extra
+        }
+    )
 
 @router.get("/", response_class=HTMLResponse)
 async def page_index(request: Request):
@@ -67,14 +70,17 @@ async def page_render(request: Request):
 @router.get("/video-upload", response_class=HTMLResponse)
 async def page_video_upload(request: Request):
     from services.auth_service import auth_service
-    return _templates.TemplateResponse("pages/video_upload.html", {
-        "request": request,
-        "page": "video-upload",
-        "title": "영상 업로드",
-        "is_independent": auth_service.is_independent(),
-        "membership": auth_service.get_membership(),
-        "token_balance": auth_service.get_token_balance()
-    })
+    return _templates.TemplateResponse(
+        request=request,
+        name="pages/video_upload.html",
+        context={
+            "page": "video-upload",
+            "title": "영상 업로드",
+            "is_independent": auth_service.is_independent(),
+            "membership": auth_service.get_membership(),
+            "token_balance": auth_service.get_token_balance()
+        }
+    )
 
 @router.get("/subtitle_gen", response_class=HTMLResponse)
 @router.get("/subtitle-gen", response_class=HTMLResponse)
@@ -83,14 +89,17 @@ async def page_subtitle_gen(request: Request, project_id: Optional[int] = Query(
     if project_id:
         project = db.get_project(project_id)
     from services.auth_service import auth_service
-    return _templates.TemplateResponse("pages/subtitle_gen.html", {
-        "request": request,
-        "page": "subtitle-gen",
-        "title": "자막 편집",
-        "project": project,
-        "membership": auth_service.get_membership(),
-        "token_balance": auth_service.get_token_balance()
-    })
+    return _templates.TemplateResponse(
+        request=request,
+        name="pages/subtitle_gen.html",
+        context={
+            "page": "subtitle-gen",
+            "title": "자막 편집",
+            "project": project,
+            "membership": auth_service.get_membership(),
+            "token_balance": auth_service.get_token_balance()
+        }
+    )
 
 @router.get("/title-desc", response_class=HTMLResponse)
 async def page_title_desc(request: Request):
@@ -121,16 +130,19 @@ async def page_settings(request: Request):
     # [FORCE SYNC] Fetch latest metadata from SaaS before rendering
     auth_service.verify_license()
     
-    return _templates.TemplateResponse("pages/settings.html", {
-        "request": request,
-        "page": "settings",
-        "title": "설정",
-        "now": datetime.datetime.now(),
-        "membership": auth_service.get_membership(),
-        "token_balance": auth_service.get_token_balance(),
-        "youtube_channel": auth_service.get_youtube_channel(),
-        "youtube_handle": auth_service.get_youtube_handle()
-    })
+    return _templates.TemplateResponse(
+        request=request,
+        name="pages/settings.html",
+        context={
+            "page": "settings",
+            "title": "설정",
+            "now": datetime.datetime.now(),
+            "membership": auth_service.get_membership(),
+            "token_balance": auth_service.get_token_balance(),
+            "youtube_channel": auth_service.get_youtube_channel(),
+            "youtube_handle": auth_service.get_youtube_handle()
+        }
+    )
 
 @router.get("/logs", response_class=HTMLResponse)
 async def page_logs(request: Request):

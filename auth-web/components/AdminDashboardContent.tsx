@@ -10,7 +10,25 @@ import LanguageSelector from './LanguageSelector'
 // 관리자 이메일 목록
 const ADMIN_EMAILS = ['ejsh0519@naver.com']
 
-type Tab = 'users' | 'queue'
+type Tab = 'users' | 'queue' | 'categories'
+
+type Category = {
+    id: number
+    name: string
+    keywords: string
+    benchmark_channel_url: string
+    assigned_employee_email: string
+    created_at: string
+}
+
+type TopicItem = {
+    id: number
+    category_id: number
+    topic: string
+    assigned_employee_email: string
+    status: 'pending' | 'assigned' | 'completed'
+    created_at: string
+}
 
 type AiLog = {
     id: number
@@ -74,6 +92,16 @@ export default function AdminDashboardContent() {
     const [transactions, setTransactions] = useState<any[]>([])
     const [txLoading, setTxLoading] = useState(false)
 
+    // 카테고리 & AI 주제 자판기 상태
+    const [categories, setCategories] = useState<Category[]>([])
+    const [topics, setTopics] = useState<TopicItem[]>([])
+    const [categoriesLoading, setCategoriesLoading] = useState(false)
+    const [newCatName, setNewCatName] = useState('')
+    const [newCatKeywords, setNewCatKeywords] = useState('')
+    const [newCatChannel, setNewCatChannel] = useState('')
+    const [newCatEmployee, setNewCatEmployee] = useState('')
+    const [generatingCatId, setGeneratingCatId] = useState<number | null>(null)
+
     useEffect(() => {
         const handleAuth = (session: any) => {
             if (!session?.user) {
@@ -113,8 +141,107 @@ export default function AdminDashboardContent() {
 
     const fetchData = async () => {
         setLoading(true)
-        await Promise.all([fetchUsers(), fetchRequests()])
+        await Promise.all([fetchUsers(), fetchRequests(), fetchCategories(), fetchTopics()])
         setLoading(false)
+    }
+
+    const fetchCategories = async () => {
+        try {
+            setCategoriesLoading(true)
+            const res = await fetch('/api/admin/categories')
+            const data = await res.json()
+            if (data.categories) setCategories(data.categories)
+        } catch (e) {
+            console.error("Failed to load categories:", e)
+        } finally {
+            setCategoriesLoading(false)
+        }
+    }
+
+    const fetchTopics = async () => {
+        try {
+            const res = await fetch('/api/admin/topics-queue')
+            const data = await res.json()
+            if (data.topics) setTopics(data.topics)
+        } catch (e) {
+            console.error("Failed to load topics:", e)
+        }
+    }
+
+    const handleCreateCategory = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!newCatName || !newCatEmployee) {
+            alert('카테고리명과 담당 직원 이메일은 필수입니다.')
+            return
+        }
+        try {
+            const res = await fetch('/api/admin/categories', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: newCatName,
+                    keywords: newCatKeywords,
+                    benchmark_channel_url: newCatChannel,
+                    assigned_employee_email: newCatEmployee
+                })
+            })
+            const data = await res.json()
+            if (data.success) {
+                setNewCatName('')
+                setNewCatKeywords('')
+                setNewCatChannel('')
+                setNewCatEmployee('')
+                fetchCategories()
+                fetchTopics()
+                alert('카테고리가 성공적으로 등록되었으며, 기본 샘플 주제 3개가 적재되었습니다.')
+            } else {
+                alert('카테고리 등록 실패: ' + data.error)
+            }
+        } catch (err) {
+            console.error(err)
+            alert('서버 등록 에러 발생')
+        }
+    }
+
+    const handleDeleteCategory = async (id: number) => {
+        if (!confirm('정말 이 카테고리를 삭제하시겠습니까? 관련 데이터도 함께 삭제될 수 있습니다.')) return
+        try {
+            const res = await fetch(`/api/admin/categories?id=${id}`, {
+                method: 'DELETE'
+            })
+            const data = await res.json()
+            if (data.success) {
+                fetchCategories()
+                fetchTopics()
+            } else {
+                alert('삭제 실패: ' + data.error)
+            }
+        } catch (err) {
+            console.error(err)
+        }
+    }
+
+    const handleTriggerAiTopics = async (catId: number) => {
+        setGeneratingCatId(catId)
+        try {
+            const res = await fetch('/api/admin/topics-queue', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ categoryId: catId })
+            })
+            const data = await res.json()
+            if (data.success) {
+                fetchTopics()
+                alert(`AI가 새로운 세부 영상 주제 ${data.count}개를 성공적으로 생성하여 큐에 추가했습니다!`)
+            } else {
+                alert('AI 생성 실패: ' + data.error)
+            }
+        } catch (err) {
+            console.error(err)
+            alert('AI 생성 요청 오류')
+        } finally {
+            setGeneratingCatId(null)
+        }
     }
 
     const fetchUsers = async () => {
@@ -164,9 +291,12 @@ export default function AdminDashboardContent() {
         }
     }
 
+    const [pinCode, setPinCode] = useState('1234')
+
     const openUserPanel = (user: any) => {
         setSelectedUser(user)
         setKeysSaved(false)
+        setPinCode(user.profile?.pin_code || '1234')
         // Load existing keys from user_metadata
         const meta = user.user_metadata || {}
         setApiKeys({
@@ -186,21 +316,28 @@ export default function AdminDashboardContent() {
             const res = await fetch(`/api/admin/users/${selectedUser.id}/settings`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(apiKeys)
+                body: JSON.stringify({ ...apiKeys, pin_code: pinCode })
             })
             if (res.ok) {
                 setKeysSaved(true)
                 // Update local state so re-open shows latest values
                 setUsers(users.map(u =>
                     u.id === selectedUser.id
-                        ? { ...u, user_metadata: {
-                            ...(u.user_metadata || {}),
-                            gemini_api_key: apiKeys.gemini,
-                            youtube_api_key: apiKeys.youtube,
-                            elevenlabs_api_key: apiKeys.elevenlabs,
-                            topview_api_key: apiKeys.topview,
-                            topview_uid: apiKeys.topview_uid,
-                        }}
+                        ? { 
+                            ...u, 
+                            user_metadata: {
+                                ...(u.user_metadata || {}),
+                                gemini_api_key: apiKeys.gemini,
+                                youtube_api_key: apiKeys.youtube,
+                                elevenlabs_api_key: apiKeys.elevenlabs,
+                                topview_api_key: apiKeys.topview,
+                                topview_uid: apiKeys.topview_uid,
+                            },
+                            profile: {
+                                ...(u.profile || {}),
+                                pin_code: pinCode
+                            }
+                        }
                         : u
                 ))
             }
@@ -779,6 +916,21 @@ export default function AdminDashboardContent() {
                                 빈 칸으로 저장하면 해당 키가 제거됩니다.
                             </p>
 
+                            {/* PIN 번호 설정 */}
+                            <div>
+                                <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1 block">
+                                    🔑 간편 로그인 PIN 번호 (4자리 숫자)
+                                </label>
+                                <input
+                                    type="text"
+                                    maxLength={4}
+                                    value={pinCode}
+                                    onChange={e => setPinCode(e.target.value.replace(/[^0-9]/g, ''))}
+                                    placeholder="기본값: 1234"
+                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300 placeholder:text-gray-700"
+                                />
+                            </div>
+
                             {(Object.keys(EMPTY_KEYS) as (keyof ApiKeySet)[]).map(key => (
                                 <div key={key}>
                                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">
@@ -845,6 +997,12 @@ export default function AdminDashboardContent() {
                             </span>
                         )}
                     </button>
+                    <button
+                        onClick={() => setActiveTab('categories')}
+                        className={`px-6 py-3 rounded-2xl font-black text-sm transition-all flex items-center gap-2 ${activeTab === 'categories' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white/5 text-gray-500 hover:bg-white/10'}`}
+                    >
+                        🎯 AI 주제 자판기 관리
+                    </button>
                 </div>
 
                 {activeTab === 'users' ? (
@@ -864,6 +1022,7 @@ export default function AdminDashboardContent() {
                                 <thead className="bg-black/40 text-gray-500 font-black h-16 uppercase text-[10px] tracking-widest">
                                     <tr>
                                         <th className="px-6 py-3">{t.emailId}</th>
+                                        <th className="px-6 py-3">로그인 PIN</th>
                                         <th className="px-6 py-3">{t.fullName}</th>
                                         <th className="px-6 py-3">{t.nationality}</th>
                                         <th className="px-6 py-3">{t.contact}</th>
@@ -886,6 +1045,11 @@ export default function AdminDashboardContent() {
                                                         <span className="text-[9px] text-yellow-400 font-bold">{user.user_metadata.referrer}</span>
                                                     </div>
                                                 )}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className="bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2.5 py-1 rounded-lg font-mono font-bold text-xs">
+                                                    {user.profile?.pin_code || '1234'}
+                                                </span>
                                             </td>
                                             <td className="px-6 py-4 text-gray-300 text-xs font-bold">
                                                 {user.user_metadata?.full_name || '-'}
@@ -961,6 +1125,172 @@ export default function AdminDashboardContent() {
                                     )}
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+                ) : activeTab === 'categories' ? (
+                    <div className="space-y-8 animate-in fade-in duration-300">
+                        {/* 1. 카테고리 추가 폼 */}
+                        <div className="bg-[#111] rounded-[2.5rem] border border-white/5 p-8 shadow-2xl">
+                            <h2 className="font-black text-xl tracking-tight mb-6 flex items-center gap-2">
+                                ➕ 새 카테고리 및 직원 매핑 추가
+                            </h2>
+                            <form onSubmit={handleCreateCategory} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <div>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">카테고리명 *</label>
+                                    <input 
+                                        type="text" 
+                                        required
+                                        placeholder="예: 세계 미스터리"
+                                        value={newCatName}
+                                        onChange={e => setNewCatName(e.target.value)}
+                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">담당 직원 이메일 *</label>
+                                    <input 
+                                        type="email" 
+                                        required
+                                        placeholder="예: worker@picadiri.com"
+                                        value={newCatEmployee}
+                                        onChange={e => setNewCatEmployee(e.target.value)}
+                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">주요 리서치 키워드</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="쉼표로 구분 (예: 버뮤다 삼각지대, 미해결 사건)"
+                                        value={newCatKeywords}
+                                        onChange={e => setNewCatKeywords(e.target.value)}
+                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
+                                    />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">벤치마킹할 유튜브 채널 URL</label>
+                                    <input 
+                                        type="url" 
+                                        placeholder="예: https://www.youtube.com/@BenchmarkChannel"
+                                        value={newCatChannel}
+                                        onChange={e => setNewCatChannel(e.target.value)}
+                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
+                                    />
+                                </div>
+                                <div className="flex items-end">
+                                    <button 
+                                        type="submit"
+                                        className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl transition-all shadow-lg active:scale-95"
+                                    >
+                                        🚀 등록 및 초기 주제 생성
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        {/* 2. 등록된 카테고리 및 매핑 리스트 */}
+                        <div className="bg-[#111] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl p-8">
+                            <h2 className="font-black text-xl tracking-tight mb-6">📂 내 카테고리 현황</h2>
+                            {categoriesLoading ? (
+                                <div className="text-center py-20 text-gray-500 text-sm">카테고리 로딩 중...</div>
+                            ) : categories.length === 0 ? (
+                                <div className="text-center py-20 text-gray-500 text-sm italic">등록된 카테고리가 없습니다.</div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {categories.map((cat) => {
+                                        const pendingTopics = topics.filter(t => t.category_id === cat.id && t.status === 'pending');
+                                        const completedTopics = topics.filter(t => t.category_id === cat.id && t.status === 'completed');
+
+                                        return (
+                                            <div key={cat.id} className="bg-black/40 border border-white/10 rounded-3xl p-6 relative flex flex-col justify-between hover:border-indigo-500/50 transition-all">
+                                                <div>
+                                                    <div className="flex justify-between items-start mb-4">
+                                                        <h3 className="text-lg font-black text-white">{cat.name}</h3>
+                                                        <button 
+                                                            onClick={() => handleDeleteCategory(cat.id)}
+                                                            className="text-gray-500 hover:text-red-500 text-xs transition-colors"
+                                                        >
+                                                            삭제
+                                                        </button>
+                                                    </div>
+                                                    <div className="space-y-2 text-xs text-gray-400 mb-6">
+                                                        <p>👤 <strong className="text-gray-200">담당 직원:</strong> {cat.assigned_employee_email}</p>
+                                                        <p>🔑 <strong className="text-gray-200">키워드:</strong> {cat.keywords || '(없음)'}</p>
+                                                        <p className="truncate">📺 <strong className="text-gray-200">채널:</strong> <a href={cat.benchmark_channel_url} target="_blank" rel="noreferrer" className="text-indigo-400 underline">{cat.benchmark_channel_url || '(없음)'}</a></p>
+                                                    </div>
+                                                    
+                                                    {/* 주제 대기열 카운트 */}
+                                                    <div className="flex gap-3 text-[11px] font-black tracking-wider uppercase mb-6">
+                                                        <span className="px-3 py-1 bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 rounded-lg">대기주제: {pendingTopics.length}개</span>
+                                                        <span className="px-3 py-1 bg-green-500/10 text-green-500 border border-green-500/20 rounded-lg">완료주제: {completedTopics.length}개</span>
+                                                    </div>
+                                                </div>
+
+                                                <button 
+                                                    disabled={generatingCatId === cat.id}
+                                                    onClick={() => handleTriggerAiTopics(cat.id)}
+                                                    className="w-full py-2.5 bg-indigo-600/20 hover:bg-indigo-600 border border-indigo-500/20 hover:border-transparent text-indigo-400 hover:text-white rounded-xl text-xs font-black tracking-wider transition-all disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed uppercase"
+                                                >
+                                                    {generatingCatId === cat.id ? '🤖 AI 주제 분석 발굴 중...' : '🔮 AI 주제 자판기 생성 (10개)'}
+                                                </button>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* 3. 전체 주제 대기열 큐 모니터링 */}
+                        <div className="bg-[#111] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl">
+                            <div className="p-8 border-b border-white/5 bg-white/5 flex justify-between items-center">
+                                <h2 className="font-black text-xl tracking-tight">📋 실시간 전체 주제 대기열 큐 (Topics Queue)</h2>
+                                <span className="bg-yellow-500/20 text-yellow-500 text-[11px] px-3 py-1 rounded-full font-black">
+                                    총 대기 건수: {topics.filter(t => t.status === 'pending').length}개
+                                </span>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-sm">
+                                    <thead className="bg-black/40 text-gray-500 font-black h-14 uppercase text-[10px] tracking-widest">
+                                        <tr>
+                                            <th className="px-10 py-3">카테고리</th>
+                                            <th className="px-10 py-3">제안 영상 주제</th>
+                                            <th className="px-10 py-3">배정된 직원 이메일</th>
+                                            <th className="px-10 py-3 text-center">배당 상태</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5 font-medium">
+                                        {topics.map((item) => (
+                                            <tr key={item.id} className="hover:bg-white/5 transition-all h-16 text-xs">
+                                                <td className="px-10 py-3 text-gray-300 font-bold">
+                                                    {(item as any).categories?.name || '기본'}
+                                                </td>
+                                                <td className="px-10 py-3 text-white font-bold max-w-sm truncate">
+                                                    {item.topic}
+                                                </td>
+                                                <td className="px-10 py-3 text-gray-400">
+                                                    {item.assigned_employee_email}
+                                                </td>
+                                                <td className="px-10 py-3 text-center">
+                                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border uppercase tracking-tighter ${
+                                                        item.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' :
+                                                        item.status === 'assigned' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
+                                                        'bg-green-500/10 text-green-500 border-green-500/20'
+                                                    }`}>
+                                                        {item.status === 'pending' ? '대기 중' : item.status === 'assigned' ? '제작 진행 중' : '제작 완료'}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {topics.length === 0 && (
+                                            <tr>
+                                                <td colSpan={4} className="px-10 py-20 text-center text-gray-600 font-black uppercase tracking-widest text-xs italic">
+                                                    대기열에 등록된 주제가 없습니다. 카테고리를 먼저 생성해주세요.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 ) : (

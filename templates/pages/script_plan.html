@@ -4,12 +4,12 @@
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet"/>
 <style>
     :root {
-        --atl-deep:    #000106;
-        --atl-base:    #000106;
-        --atl-low:     #000106;
-        --atl-mid:     #000106;
-        --atl-high:    #0a0f1d;
-        --atl-highest: #121829;
+        --atl-deep:    #1c2027;
+        --atl-base:    #1c2027;
+        --atl-low:     #1c2027;
+        --atl-mid:     #232832;
+        --atl-high:    #2a303b;
+        --atl-highest: #313845;
         --atl-primary: #b6c4ff;
         --atl-primary-end: #004adf;
         --atl-tertiary: #00daf3;
@@ -22,7 +22,7 @@
     .atl-scrollbar::-webkit-scrollbar-track { background: transparent; }
     .atl-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
     .atl-glass {
-        background: rgba(0, 1, 6, 0.7);
+        background: rgba(28, 32, 39, 0.7);
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
     }
@@ -106,8 +106,8 @@
         opacity: 0.05;
         pointer-events: none;
     }
-    #nurseryIdeasPanel { border-color: rgba(234,179,8,0.15) !important; }
-    #analysisInfo { border-color: rgba(16,185,129,0.15) !important; }
+    #nurseryIdeasPanel { border-color: rgba(234,179,8,0.1) !important; }
+    #analysisInfo { border-color: rgba(16,185,129,0.1) !important; }
 </style>
 {% endblock %}
 
@@ -140,19 +140,19 @@
                     <label class="atl-field-label block">{{ t('label_trend_market') if t('label_trend_market') != 'label_trend_market' else 'Trend Market' }}</label>
                     <div class="grid grid-cols-3 gap-2">
                         <button onclick="setGenerationLanguage('ko')" 
-                                class="py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all hover:scale-105 active:scale-95 border border-gray-600 bg-transparent text-white"
+                                class="py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all hover:scale-105 active:scale-95 border border-white/10 bg-transparent text-white"
                                 style="font-size: 10px; font-weight: 800;"
                                 id="langBtn-ko">
                             {{ t('plan_kr_trend').split(' ')[1] if t('plan_kr_trend') and ' ' in t('plan_kr_trend') else 'KOREAN' }}
                         </button>
                         <button onclick="setGenerationLanguage('ja')" 
-                                class="py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all hover:scale-105 active:scale-95 border border-gray-600 bg-transparent text-white"
+                                class="py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all hover:scale-105 active:scale-95 border border-white/10 bg-transparent text-white"
                                 style="font-size: 10px; font-weight: 800;"
                                 id="langBtn-ja">
                             {{ t('plan_jp_trend').split(' ')[1] if t('plan_jp_trend') and ' ' in t('plan_jp_trend') else 'JAPANESE' }}
                         </button>
                         <button onclick="setGenerationLanguage('en')" 
-                                class="py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all hover:scale-105 active:scale-95 border border-gray-600 bg-transparent text-white"
+                                class="py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all hover:scale-105 active:scale-95 border border-white/10 bg-transparent text-white"
                                 style="font-size: 10px; font-weight: 800;"
                                 id="langBtn-en">
                             {{ t('plan_us_trend').split(' ')[1] if t('plan_us_trend') and ' ' in t('plan_us_trend') else 'ENGLISH' }}
@@ -187,7 +187,7 @@
                         <label class="atl-field-label block">{{ t('plan_style_label') }}</label>
                         <div class="relative">
                             <select id="scriptStyleSelect"
-                                class="atl-select w-full rounded-xl px-3 py-2.5 text-xs pr-7 bg-[#000106] text-white"
+                                class="atl-select w-full rounded-xl px-3 py-2.5 text-xs pr-7 bg-[#1c2027] text-white"
                                 style="background: var(--atl-deep);">
                                 <optgroup label="📹 {{ t('style_basic') }}">
                                     <option value="default" selected>{{ t('style_default') }}</option>
@@ -305,21 +305,31 @@
                         +
                     </button>
                 </div>
-                <div class="grid grid-cols-2 gap-2">
+
+                <div class="grid grid-cols-3 gap-2">
                     <button onclick="document.getElementById('sourceFileInput').click()"
-                        class="py-2 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all hover:brightness-110"
+                        class="py-2 rounded-xl text-[9px] font-bold flex items-center justify-center gap-1 transition-all hover:brightness-110"
                         style="background: var(--atl-high); color: var(--atl-sub);">
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                        {{ t('btn_upload_file') }}
+                        파일 업로드
                     </button>
                     <input type="file" id="sourceFileInput" class="hidden" accept=".txt,.pdf" onchange="uploadFileSource(this)">
-                    <button onclick="importFromProjectDb()"
-                        class="py-2 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all hover:brightness-110"
+                    
+                    <button onclick="openDirectInputModal()"
+                        class="py-2 rounded-xl text-[9px] font-bold flex items-center justify-center gap-1 transition-all hover:brightness-110"
+                        style="background: var(--atl-high); color: var(--atl-sub);">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                        직접 입력
+                    </button>
+
+                    <button onclick="openSourceLibrary()"
+                        class="py-2 rounded-xl text-[9px] font-bold flex items-center justify-center gap-1 transition-all hover:brightness-110"
                         style="background: var(--atl-high); color: var(--atl-sub);">
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
-                        {{ t('btn_import_db') }}
+                        DB 불러오기
                     </button>
                 </div>
+
                 <div id="sourcesList" class="max-h-36 overflow-y-auto atl-scrollbar space-y-1.5">
                     <div class="text-center py-4 text-[9px] font-bold uppercase tracking-widest" style="color: var(--atl-outline); opacity: 0.6;">
                         {{ t('status_no_sources') }}
@@ -336,7 +346,7 @@
 
             <!-- ── 6. NURSERY IDEAS (hidden by default) ── -->
             <div id="nurseryIdeasPanel" class="hidden atl-card p-5"
-                 style="border: 1px solid rgba(234,179,8,0.15);">
+                 style="border: 1px solid rgba(234,179,8,0.1);">
                 <div class="flex items-center justify-between mb-4">
                     <p class="atl-section-label" style="color: #fbbf24;">💡 {{ t('nursery_ideas_title') }}</p>
                     <button onclick="getNurseryIdeas()"
@@ -361,7 +371,7 @@
              style="border: 1px solid var(--atl-outline-dim); box-shadow: 0 20px 60px rgba(11,19,38,0.6);">
             <div id="canvasToolbar" class="flex items-center gap-3">
                 <!-- Left: title + status -->
-                <div class="flex items-center gap-3 pr-4" style="border-right: 1px solid var(--atl-outline-dim);">
+                <div class="flex items-center gap-3 pr-4">
                     <svg class="w-4 h-4 shrink-0" style="color: var(--atl-primary);" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                     <div>
                         <p style="font-family: 'Manrope', sans-serif; font-size: 0.75rem; font-weight: 700; color: var(--atl-text);">
@@ -404,7 +414,7 @@
                 <!-- Empty State Placeholder -->
                 <div id="resultPlaceholder" class="h-[68vh] flex flex-col items-center justify-center space-y-8 text-center">
                     <div class="w-24 h-24 rounded-[2rem] flex items-center justify-center text-5xl shadow-inner"
-                         style="background: #000106; border: 1px solid var(--atl-outline-dim);">
+                         style="background: #232832; border: 1px solid var(--atl-outline-dim);">
                         ✍️
                     </div>
                     <div class="max-w-sm space-y-3">
@@ -448,7 +458,7 @@
 
         <!-- Bottom Status Bar -->
         <footer class="shrink-0 px-8 h-10 flex items-center justify-between"
-                style="background: rgba(6,14,32,0.6); border-top: 1px solid var(--atl-outline-dim);">
+                style="background: rgba(28, 32, 39, 0.6); border-top: 1px solid var(--atl-outline-dim);">
             <div id="canvasFooter" class="flex items-center gap-6">
                 <div class="flex items-center gap-2">
                     <div class="w-1.5 h-1.5 rounded-full" style="background: var(--atl-primary); box-shadow: 0 0 8px var(--atl-primary);"></div>
@@ -783,12 +793,19 @@
     }
 
     function renderAnalysisSection(fullData) {
+        if (!fullData) return;
         const analysis = fullData.analysis || {};
         const settings = fullData.settings || {};
 
-        if (!analysis.video_id && !settings.thumbnail_url) return;
+        console.log("[ScriptPlan] Rendering analysis section. Video ID:", analysis.video_id, "Thumbnail:", settings.thumbnail_url);
+
+        if (!analysis.video_id && !settings.thumbnail_url) {
+            console.warn("[ScriptPlan] Analysis data incomplete, skipping render to preserve existing view.");
+            return;
+        }
 
         const infoDiv = document.getElementById('analysisInfo');
+        if (!infoDiv) return;
         infoDiv.classList.remove('hidden');
 
         let analysisResult = {};
@@ -803,7 +820,7 @@
         let html = `
             <div class="space-y-4">
                 <!-- 원본 영상 정보 -->
-                <div class="flex gap-4 p-3 bg-[#000106] rounded-lg border border-gray-800">
+                <div class="flex gap-4 p-3 bg-[#1c2027] rounded-lg border border-white/5">
                     <img src="${analysis.thumbnail_url}" class="w-28 h-16 object-cover rounded shadow-sm">
                     <div class="min-w-0">
                         <p class="font-bold text-sm text-gray-800 dark:text-white line-clamp-1">${analysis.video_title || i18n.label_structure_analysis}</p>
@@ -818,7 +835,7 @@
                 <!-- AI 심층 분석 결과 -->
                 <div class="space-y-3">
                     ${analysisResult.summary ? `
-                        <div class="p-3 bg-[#000106] rounded-lg border border-blue-900/30">
+                        <div class="p-3 bg-[#1c2027] rounded-lg border border-blue-900/20">
                             <h5 class="text-xs font-bold text-blue-600 dark:text-blue-400 mb-1 flex items-center gap-1">
                                 <span>📝</span> ${i18n.label_ai_analysis_summary}
                             </h5>
@@ -859,7 +876,7 @@
                     ` : ''}
                     
                     ${analysisResult.script_analysis ? `
-                        <div class="pt-2 border-t border-gray-800 mt-2">
+                        <div class="pt-2 mt-2">
                             <h5 class="text-xs font-bold text-indigo-600 dark:text-indigo-400 mb-2 flex items-center gap-1">
                                 <span>🏗️</span> ${i18n.label_structure_analysis}
                             </h5>
@@ -1021,7 +1038,7 @@
             if (result.status === 'ok') {
                 const structureData = result.structure;
                 // [NEW] 기획 단계에서 선택한 스타일을 구조 데이터에 포함하여 다음 단계로 전달
-                structureData.script_style = planStyle;
+                structureData.script_style = scriptStyle;
 
                 currentStructure = structureData;
                 renderStructure(structureData);
@@ -1041,7 +1058,7 @@
                 if (projectId) {
                     try {
                         // 1. 프로젝트 주제 & 스타일 업데이트
-                        await API.project.update(projectId, { topic: topic, script_style: planStyle });
+                        await API.project.update(projectId, { topic: topic, script_style: scriptStyle });
 
                         // 2. 구조 저장
                         await API.project.saveScriptStructure(projectId, {
@@ -1085,7 +1102,7 @@
 
         // 1. Hook
         html += `
-            <div class="p-4 bg-[#000106] rounded-lg border border-gray-800">
+            <div class="p-4 bg-[#232832] rounded-lg border border-white/5">
                 <h4 class="font-bold text-red-600 dark:text-red-400 mb-2">${i18n.hook_label}</h4>
                 <div id="editHook" contenteditable="true" class="text-gray-800 dark:text-gray-200 text-lg font-medium outline-none focus:ring-2 focus:ring-red-200 rounded p-1">${data.hook || ''}</div>
             </div>
@@ -1097,9 +1114,9 @@
             html += `<div id="editSectionsContainer" class="space-y-4">`;
             data.sections.forEach((section, index) => {
                 html += `
-                    <div class="section-item p-4 bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+                    <div class="section-item p-4 bg-[#232832] rounded-lg border border-white/5 shadow-sm">
                         <div class="flex items-center gap-2 mb-2">
-                            <span class="bg-[#000106]/50 text-gray-600 dark:text-gray-300 px-2 py-1 rounded text-xs font-bold">Scene ${index + 1}</span>
+                            <span class="bg-[#1c2027]/50 text-gray-600 dark:text-gray-300 px-2 py-1 rounded text-xs font-bold">Scene ${index + 1}</span>
                             <h5 contenteditable="true" class="editSectionTitle font-bold text-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-purple-200 rounded p-1 flex-1">${section.title}</h5>
                         </div>
                         <ul class="list-disc list-inside space-y-1 ml-1">
@@ -1115,7 +1132,7 @@
 
         // 3. CTA
         html += `
-            <div class="p-4 bg-[#000106] rounded-lg border border-gray-800">
+            <div class="p-4 bg-[#232832] rounded-lg border border-white/5">
                 <h4 class="font-bold text-blue-600 dark:text-blue-400 mb-2">${i18n.cta_label}</h4>
                 <div id="editCTA" contenteditable="true" class="text-gray-800 dark:text-gray-200 outline-none focus:ring-2 focus:ring-blue-200 rounded p-1">${data.cta || ''}</div>
             </div>
@@ -1123,7 +1140,7 @@
 
         // 4. Info (Style, Duration)
         html += `
-            <div class="flex gap-4 text-sm text-gray-500 dark:text-gray-400 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div class="flex gap-4 text-sm text-gray-500 dark:text-gray-400 mt-4 pt-4">
                 <span>${i18n.style_label}: ${data.style || '-'}</span>
                 <span>${i18n.duration_label}: ${data.duration || 0}s</span>
             </div>
@@ -1329,10 +1346,10 @@
         const bestTitle = titles[0];
 
         container.innerHTML = `
-            <div class="p-4 bg-[#000106] border border-gray-800 rounded-xl mb-2">
+            <div class="p-4 bg-[#232832] border border-white/5 rounded-xl mb-2">
                 <p class="text-xs text-blue-500 mb-2 font-bold text-center">✨ ${i18n.label_ai_best_title}</p>
                 <textarea id="recommendedTitleInput"
-                    class="w-full text-base font-bold text-gray-800 dark:text-white bg-[#000106] border border-gray-800 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"
+                    class="w-full text-base font-bold text-gray-800 dark:text-white bg-[#1c2027] border border-white/10 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"
                     rows="2"
                     oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
                 >${bestTitle}</textarea>
@@ -1497,7 +1514,7 @@
         }
 
         container.innerHTML = sources.map(s => `
-            <div class="flex items-center justify-between p-2 bg-[#000106]/50 rounded border border-gray-100 dark:border-gray-700 group">
+            <div class="flex items-center justify-between p-2 bg-[#232832]/50 rounded border border-white/5 group">
                 <div class="min-w-0 flex-1">
                     <p class="text-[11px] font-bold text-gray-800 dark:text-gray-200 truncate" title="${s.title}">${s.title}</p>
                     <p class="text-[9px] text-gray-500 uppercase dark:text-gray-400">${s.type}</p>
@@ -1682,7 +1699,7 @@
 
                 filtered.forEach(proj => {
                     const btn = document.createElement('button');
-                    btn.className = 'w-full flex items-center justify-between p-4 bg-[#000106] hover:bg-[#0a0f1d] dark:hover:bg-purple-900/30 border border-gray-100 dark:border-gray-600 rounded-xl transition-all group mb-2';
+                    btn.className = 'w-full flex items-center justify-between p-4 bg-[#1c2027] hover:bg-[#0a0f1d] dark:hover:bg-purple-900/30 border border-gray-100 dark:border-gray-600 rounded-xl transition-all group mb-2';
                     btn.onclick = () => cloneSourcesFrom(proj.id, proj.name);
                     btn.innerHTML = `
                         <div class="text-left">
@@ -1780,7 +1797,7 @@
         }
 
         content.innerHTML = ideas.map((idea, idx) => `
-            <div class="p-3 bg-[#000106] border border-yellow-100 dark:border-yellow-900 shadow-sm rounded-lg hover:border-yellow-400 transition-all group">
+            <div class="p-3 bg-[#1c2027] border border-yellow-100 dark:border-yellow-900 shadow-sm rounded-lg hover:border-yellow-400 transition-all group">
                 <div class="flex items-start justify-between gap-2">
                     <div class="flex-1">
                         <h5 class="text-[11px] font-bold text-gray-800 dark:text-gray-100 mb-1">#${idx + 1} ${idea.title}</h5>
@@ -1841,7 +1858,6 @@
                 // [NEW] 보관을 위해 전체 가사 데이터를 internal reference로 저장
                 Utils.storage.set('nursery_data', result);
             }
-
         } catch (e) {
             console.error(e);
             Utils.showToast('Failed to develop song: ' + e.message, 'error');
@@ -1851,15 +1867,89 @@
         }
     }
 
+    function openDirectInputModal() {
+        document.getElementById('directInputTitle').value = '';
+        document.getElementById('directInputContent').value = '';
+        document.getElementById('directInputModal').classList.remove('hidden');
+    }
+
+    function closeDirectInputModal() {
+        document.getElementById('directInputModal').classList.add('hidden');
+    }
+
+    async function submitDirectInput() {
+        const title = document.getElementById('directInputTitle').value.trim();
+        const content = document.getElementById('directInputContent').value.trim();
+        if (!title || !content) {
+            Utils.showToast('제목과 본문을 모두 입력해주세요.', 'error');
+            return;
+        }
+
+        const projectId = getCurrentProject();
+        try {
+            Utils.showToast('학습 자료 저장 중...', 'info');
+            const res = await fetch(`/api/projects/${projectId}/sources/text`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, content })
+            });
+            const data = await res.json();
+            if (data.status === 'ok') {
+                Utils.showToast('학습 자료가 추가되었습니다.', 'success');
+                closeDirectInputModal();
+                loadSources();
+            } else {
+                throw new Error(data.error || 'Failed to save');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('저장 실패: ' + e.message, 'error');
+        }
+    }
+
 </script>
+
+<!-- Direct Input Modal -->
+<div id="directInputModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="fixed inset-0 bg-black/60 backdrop-blur-sm" onclick="closeDirectInputModal()"></div>
+    <div class="bg-[#1c2027] rounded-2xl w-full max-w-lg relative z-10 shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 border border-white/10">
+        <div class="px-6 py-4 border-b border-white/5 flex justify-between items-center bg-[#1c2027]/50">
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                <span>✍️</span> 학습 자료 직접 입력
+            </h3>
+            <button onclick="closeDirectInputModal()" class="text-gray-400 hover:text-gray-200 transition-colors">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+        <div class="p-6 space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-gray-400 uppercase mb-2">제목</label>
+                <input type="text" id="directInputTitle" placeholder="예: 유튜브 자막 복사본" class="w-full bg-[#232832] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-400 uppercase mb-2">본문 내용</label>
+                <textarea id="directInputContent" rows="10" placeholder="학습시킬 텍스트 내용을 여기에 붙여넣으세요..." class="w-full bg-[#232832] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"></textarea>
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeDirectInputModal()" class="px-4 py-2 rounded-xl text-sm font-bold bg-white/5 hover:bg-white/10 text-white transition-all">
+                    취소
+                </button>
+                <button onclick="submitDirectInput()" class="px-4 py-2 rounded-xl text-sm font-bold bg-purple-600 hover:bg-purple-700 text-white transition-all">
+                    저장하기
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- Source Library Modal -->
 <div id="sourceLibraryModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
-    <div class="fixed inset-0 bg-[#000106]/60 backdrop-blur-sm" onclick="closeSourceLibrary()"></div>
-    <div
-        class="bg-[#000106] rounded-2xl w-full max-w-md relative z-10 shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+    <div class="fixed inset-0 bg-black/60 backdrop-blur-sm" onclick="closeSourceLibrary()"></div>
+    <div class="bg-[#1c2027] rounded-2xl w-full max-w-md relative z-10 shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
         <div
-            class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-[#000106]/50 bg-[#000106]/50">
+            class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-[#1c2027]/50 bg-[#1c2027]/50">
             <h3 class="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
                 <span>📚</span> {{ t('source_library_title') }}
             </h3>

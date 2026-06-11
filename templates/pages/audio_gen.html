@@ -18,7 +18,7 @@
     </div>
 
     <!-- Audio Settings -->
-    <div class="bg-[#000106] p-4 rounded-lg border border-gray-800 mb-6">
+    <div class="bg-[#1c2027] p-4 rounded-lg border border-white/5 mb-6">
         <h4 class="font-bold text-sm mb-2 text-gray-700 dark:text-gray-300">{{ t('global_settings') }}</h4>
         <div class="flex gap-6">
             <label class="flex items-center gap-2">
@@ -27,7 +27,7 @@
             </label>
             <label class="flex items-center gap-2">
                 <span class="text-sm">{{ t('label_default_duration') }}:</span>
-                <select id="defaultDuration" class="text-xs border-gray-300 rounded dark:border-gray-700 bg-[#000106] text-white">
+                <select id="defaultDuration" class="text-xs border-gray-300 rounded dark:border-gray-700 bg-[#1c2027] text-white">
                     <option value="5">5s (SFX)</option>
                     <option value="10">10s</option>
                     <option value="30">30s (BGM)</option>
@@ -117,8 +117,8 @@
         }
 
         container.innerHTML = audioScenes.map((scene, i) => `
-            <div id="scene-card-${i}" class="bg-[#000106] rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
-                <div class="flex items-center justify-between px-4 py-3 bg-[#000106] border-b border-gray-200 dark:border-gray-700">
+            <div id="scene-card-${i}" class="bg-[#1c2027] rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+                <div class="flex items-center justify-between px-4 py-3 bg-[#1c2027] border-b border-gray-200 dark:border-gray-700">
                     <span class="font-bold text-gray-700 dark:text-gray-300">${i18n.label_scene} ${scene.scene_number}</span>
                     <span class="text-xs text-gray-500 truncate max-w-[300px] dark:text-gray-400">${scene.scene_text || i18n.label_no_text}</span>
                 </div>
@@ -128,10 +128,10 @@
                     <div class="md:col-span-3">
                         <!-- Dynamic Aspect Ratio -->
                         <!-- Reduced size: max-width 128px -->
-                        <div class="bg-[#000106] dark:bg-black rounded overflow-hidden border border-gray-200 dark:border-gray-700 relative group"
+                        <div class="bg-[#1c2027] dark:bg-[#1c2027] rounded overflow-hidden border border-gray-200 dark:border-gray-700 relative group"
                              style="aspect-ratio: ${currentAspectRatio.replace(':', '/')}; width: 100%; max-width: 128px;">
                             ${scene.image_url ? `<img src="${scene.image_url}" class="w-full h-full object-cover">` : `<div class="flex items-center justify-center h-full text-xs text-gray-400">${i18n.label_no_image}</div>`}
-                            <div class="absolute inset-0 bg-[#000106]/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs p-2 text-center">
+                            <div class="absolute inset-0 bg-[#1c2027]/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs p-2 text-center">
                                 ${scene.prompt_en || i18n.label_no_visual_desc}
                             </div>
                         </div>
@@ -141,7 +141,7 @@
                     <div class="md:col-span-9 grid grid-cols-1 md:grid-cols-2 gap-4">
                         
                         <!-- SFX Column -->
-                        <div class="bg-[#000106] p-3 rounded border border-gray-800">
+                        <div class="bg-[#1c2027] p-3 rounded border border-white/5">
                             <div class="flex justify-between items-center mb-2">
                                 <label class="text-xs font-bold text-blue-700 dark:text-blue-300">🔊 {{ t('audio_type_sfx') }}</label>
                                 <button onclick="generateAudio(${i}, 'sfx')" id="btn-sfx-${i}" class="text-[10px] bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded">
@@ -149,7 +149,7 @@
                                 </button>
                             </div>
                             <textarea id="sfx-prompt-${i}" rows="2" 
-                                class="w-full text-xs p-2 rounded border border-gray-800 bg-[#000106] focus:ring-blue-500 mb-2"
+                                class="w-full text-xs p-2 rounded border border-white/5 bg-[#1c2027] focus:ring-blue-500 mb-2"
                                 placeholder="{{ t('placeholder_sfx_prompt') }}">${scene.sfx_prompt || ''}</textarea>
                             
                             <!-- Player -->
@@ -162,7 +162,7 @@
                         </div>
 
                         <!-- BGM Column -->
-                        <div class="bg-[#000106] p-3 rounded border border-gray-800">
+                        <div class="bg-[#1c2027] p-3 rounded border border-white/5">
                             <div class="flex justify-between items-center mb-2">
                                 <label class="text-xs font-bold text-purple-700 dark:text-purple-300">🎵 {{ t('audio_type_bgm') }}</label>
                                 <button onclick="generateAudio(${i}, 'bgm')" id="btn-bgm-${i}" class="text-[10px] bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded">
@@ -170,7 +170,7 @@
                                 </button>
                             </div>
                             <textarea id="bgm-prompt-${i}" rows="2" 
-                                class="w-full text-xs p-2 rounded border border-gray-800 bg-[#000106] focus:ring-purple-500 mb-2"
+                                class="w-full text-xs p-2 rounded border border-white/5 bg-[#1c2027] focus:ring-purple-500 mb-2"
                                 placeholder="{{ t('placeholder_bgm_prompt') }}">${scene.bgm_prompt || ''}</textarea>
 
                             <!-- Player -->

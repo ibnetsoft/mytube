@@ -45,12 +45,13 @@ class AuthService:
                     val = int(f.read().strip())
                     if val > 0:
                         return val
-            # 2순위: 로컬 DB 최신 balance_after
-            db_path = os.path.join(base_dir, "app_data.db")
+            # 2순위: 로컬 DB 최신 balance_after (wingsai.db 사용)
+            db_path = os.path.join(base_dir, "data", "wingsai.db")
             if os.path.exists(db_path):
                 conn = sqlite3.connect(db_path)
+                # [FIX] 단순히 최신이 아니라, 0보다 큰 마지막 잔액을 가져오도록 수정 (오류로 인한 0원 초기화 방지)
                 row = conn.execute(
-                    "SELECT balance_after FROM ai_generation_logs WHERE balance_after IS NOT NULL ORDER BY id DESC LIMIT 1"
+                    "SELECT balance_after FROM ai_generation_logs WHERE balance_after IS NOT NULL AND balance_after > 0 ORDER BY id DESC LIMIT 1"
                 ).fetchone()
                 conn.close()
                 if row:
@@ -160,8 +161,16 @@ class AuthService:
                         self._last_verified = datetime.now()
                         # [RECHARGE DETECTION] Check if balance increased without recent spent
                         old_balance = self._token_balance
-                        new_balance = data.get("token_balance", 0)
+                        remote_balance = data.get("token_balance", 0)
                         
+                        # [FIX] If remote balance is 0 but we have local balance, prioritize local
+                        # (Prevents zeroing out balance due to sync issues if local DB has valid data)
+                        if remote_balance == 0 and old_balance > 0:
+                            new_balance = old_balance
+                            print(f"[Auth] Remote balance is 0. Falling back to local: {old_balance}")
+                        else:
+                            new_balance = remote_balance
+
                         if self._verified and new_balance > old_balance:
                             recharge_amount = new_balance - old_balance
                             # If increased significantly, record a RECHARGE log
@@ -243,6 +252,68 @@ class AuthService:
 
     def is_restricted(self):
         return self._is_restricted
+
+    def login_user(self, email: str):
+        """직원 이메일로 로그인 세션 및 에셋 폴더 활성화"""
+        if self._user_email == email and self._verified:
+            return  # 이미 동일한 이메일로 검증 완료됨
+
+        self._user_email = email
+        self._verified = True
+
+        # Supabase에서 사용자 프로필 정보 동기화
+        try:
+            supabase_url = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
+            supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+            if supabase_url and supabase_key:
+                headers = {
+                    "apikey": supabase_key,
+                    "Authorization": f"Bearer {supabase_key}"
+                }
+                # Suppress insecure request warnings
+                import urllib3
+                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+                
+                response = requests.get(url, headers=headers, timeout=5, verify=False)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data:
+                        profile = data[0]
+                        self._membership = profile.get("membership", "std")
+                        self._token_balance = profile.get("token_balance", 0)
+                        self._verified = True
+                        print(f"[Auth] Logged in user {email}. Membership: {self._membership}, Balance: {self._token_balance}")
+        except Exception as e:
+            print(f"[Auth] Failed to sync user profile from Supabase on login: {e}")
+
+        # [ISOLATION] C:/Users/사용자/AppData/Local/picadilly/{employee_email}/ 경로로 에셋 저장소 격리
+        try:
+            from config import config
+            # 이메일 특수기호 안전하게 가공
+            safe_email = "".join([c if c.isalnum() else "_" for c in email])
+            user_dir = os.path.join(
+                os.environ.get("USERPROFILE", "C:/Users/default"), 
+                "AppData", "Local", "picadilly", safe_email
+            ).replace("\\", "/")
+            config.OUTPUT_DIR = os.path.join(user_dir, "output").replace("\\", "/")
+            config.LOG_DIR = os.path.join(user_dir, "logs").replace("\\", "/")
+            config.ASSETS_DIR = os.path.join(user_dir, "assets").replace("\\", "/")
+            config.MEDIA_DIR = config.OUTPUT_DIR
+            config.setup_directories()
+            print(f"[Auth] Switched output directory for {email} to: {config.OUTPUT_DIR}")
+
+            # 템플릿 환경 변수 갱신
+            try:
+                from .app_state import get_templates
+                templates = get_templates()
+                if templates:
+                    templates.env.globals['membership'] = self._membership
+                    templates.env.globals['token_balance'] = self._token_balance
+                    templates.env.globals['is_independent'] = self.is_independent()
+            except Exception as e:
+                print(f"[Auth] Jinja globals update warning: {e}")
+        except Exception as e:
+            print(f"[Auth] Directory isolation failed for {email}: {e}")
 
     def sync_profile(self, name: str, nationality: str, contact: str):
         """Sync local user profile info to the SaaS server"""

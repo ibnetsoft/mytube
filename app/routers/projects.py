@@ -53,7 +53,9 @@ async def bulk_copy_move(req: BulkCopyMoveRequest):
 @router.get("/projects/current")
 async def get_current_project():
     """가장 최근에 작업한 프로젝트 정보 반환 (연결 폴백용)"""
-    recent = db.get_recent_projects(limit=1)
+    from services.auth_service import auth_service
+    email = auth_service.get_user_email()
+    recent = db.get_recent_projects(limit=1, employee_email=email)
     if recent:
         return recent[0]
     return {"id": None, "name": "No Project"}
@@ -61,7 +63,9 @@ async def get_current_project():
 @router.get("/projects")
 async def get_projects():
     try:
-        projects = db.get_projects_with_status()
+        from services.auth_service import auth_service
+        email = auth_service.get_user_email()
+        projects = db.get_projects_with_status(employee_email=email)
         return {"status": "success", "projects": projects}
     except Exception as e:
         raise HTTPException(500, str(e))
@@ -91,11 +95,15 @@ async def create_project(request: Request):
             else:
                 app_mode = "longform" # 기본값 복구
         
+        from services.auth_service import auth_service
+        email = auth_service.get_user_email()
+
         project_id = db.create_project(
             name=name, 
             topic=topic, 
             app_mode=app_mode, 
-            language=target_lang
+            language=target_lang,
+            employee_email=email
         )
         return {"status": "success", "project_id": project_id}
     except Exception as e:

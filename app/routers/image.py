@@ -1027,6 +1027,30 @@ async def generate_flow_prompt_api(
         return {"status": "error", "error": str(e)}
 
 
+@router.post("/api/image/generate-dual-prompts")
+async def generate_dual_prompts_api(
+    project_id: int = Body(...),
+    scene: dict = Body(...)
+):
+    """특정 씬의 Dual Frame(Start/End) 프롬프트만 AI로 조립/생성"""
+    try:
+        # 1. 캐릭터 DNA 정보 로드
+        characters = db.get_project_characters(project_id)
+        
+        # 2. Gemini 서비스의 단일 씬 조립 로직 호출
+        # (기존 generate_image_prompts_from_script의 조립 부분과 유사하게 처리)
+        result = await gemini_service.generate_dual_prompts_for_scene(
+            project_id=project_id,
+            scene=scene,
+            characters=characters
+        )
+        
+        return {"status": "ok", **result}
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return {"status": "error", "error": str(e)}
+
+
 @router.post("/api/image/bulk-generate-motion")
 async def bulk_generate_motion(
     project_id: int = Body(...),
@@ -1354,3 +1378,79 @@ async def replace_asset_from_library(
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+@router.post("/api/image/generate-grid")
+async def generate_grid_image(
+    project_id: int = Body(...),
+    scenes: list = Body(...),
+    aspect_ratio: str = Body("1:1"),
+    style: str = Body("realistic")
+):
+    """
+    4개의 씬을 묶어 2x2 격자판 스토리보드 이미지를 생성합니다.
+    """
+    try:
+        if not scenes or len(scenes) == 0:
+            return {"status": "error", "error": "씬 데이터가 없습니다."}
+
+        # 프롬프트 조합
+        grid_prompt = "Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total). Do NOT add any extra panels, text, or borders. Each panel must represent one scene:\\n"
+        for i, scene in enumerate(scenes):
+            scene_text = scene.get('prompt_en', scene.get('prompt_ko', ''))
+            
+            # JSON 형태로 듀얼 프레임이 들어온 경우 순수 프롬프트만 추출
+            if scene_text and scene_text.strip().startswith('{'):
+                try:
+                    import json
+                    data = json.loads(scene_text)
+                    scene_text = data.get('prompt_en', scene_text)
+                except Exception:
+                    pass
+            
+            # Dynamic elements (동작 묘사) 분리
+            if "Dynamic elements:" in scene_text:
+                scene_text = scene_text.split("Dynamic elements:")[0].strip()
+            elif "동적인 요소:" in scene_text:
+                scene_text = scene_text.split("동적인 요소:")[0].strip()
+                
+            grid_prompt += f"- Panel {i+1} (Position: {['Top-Left', 'Top-Right', 'Bottom-Left', 'Bottom-Right'][i]}): {scene_text}\\n"
+        
+        # 스타일 추가
+        db_presets = db.get_style_presets()
+        style_data = db_presets.get(style.lower(), {})
+        style_prefix = style_data.get('prompt_value', STYLE_PROMPTS.get(style.lower(), ''))
+        
+        final_prompt = f"{style_prefix}, {grid_prompt}\\nCRITICAL: You must generate EXACTLY 4 panels in a perfect 2x2 grid. No more, no less. Maintain consistent characters across all panels."
+
+        print(f"🎨 [Grid Gen] Project {project_id}, Generating 2x2 Grid for {len(scenes)} scenes...")
+        print(f"   Prompt: {final_prompt[:150]}...")
+
+        images_bytes = await gemini_service.generate_image(
+            prompt=final_prompt,
+            num_images=1,
+            aspect_ratio=aspect_ratio
+        )
+
+        if not images_bytes:
+            return {"status": "error", "error": "격자 이미지 생성 실패"}
+
+        # 파일 저장
+        output_dir, web_dir = get_project_output_dir(project_id)
+        filename = f"grid_p{project_id}_{int(datetime.datetime.now().timestamp())}.png"
+        output_path = os.path.join(output_dir, filename)
+
+        async with aiofiles.open(output_path, "wb") as f:
+            await f.write(images_bytes[0])
+
+        web_url = f"{web_dir}/{filename}"
+        print(f"✅ [Grid Gen] Saved Grid Image to {web_url}")
+
+        return {
+            "status": "ok",
+            "image_url": web_url,
+            "image_path": output_path
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"status": "error", "error": str(e)}

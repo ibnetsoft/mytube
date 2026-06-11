@@ -31,6 +31,9 @@ class TTSRequest(BaseModel):
     speed: Optional[float] = 1.0  # 0.5 ~ 2.0
     multi_voice: bool = False
     voice_map: Optional[Dict[str, str]] = {}  # { "철수": "voice_id_1" }
+    stability: Optional[float] = None
+    similarity_boost: Optional[float] = None
+    style: Optional[float] = None
 
 
 class VideoRequest(BaseModel):

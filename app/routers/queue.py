@@ -30,7 +30,9 @@ async def get_queue_status():
 async def get_autopilot_queue():
     """autopilot 페이지 대기열 조회 (JS 호환)"""
     try:
-        projects = db.get_all_projects()
+        from services.auth_service import auth_service
+        email = auth_service.get_user_email()
+        projects = db.get_all_projects(employee_email=email)
         skip = {"done", "error", "draft", "created", "planning"}
         active = [p for p in projects if p.get("status") and p["status"] not in skip]
         # 최근 프로젝트만 (ID 기준 상위 20개)
