@@ -56,7 +56,7 @@
 
                 <!-- Scene Analysis Button -->
                 <button onclick="analyzeScenes()" id="analyzeSceneBtn"
-                    class="py-2 px-4 flex items-center justify-center rounded-lg text-xs font-bold border border-white/10 bg-transparent text-white hover:bg-[#232832] transition-all">
+                    class="hidden py-2 px-4 flex items-center justify-center rounded-lg text-xs font-bold border border-white/10 bg-transparent text-white hover:bg-[#232832] transition-all">
                     {{ t('btn_analyze_scenes') }}
                 </button>
                 <span id="sceneCountBadge"
@@ -3642,10 +3642,60 @@
                     const container = document.getElementById('resultSection');
                     if (container) container.classList.remove('hidden');
                     drawPromptsUI(prompts);
+                } else {
+                    // [NEW] 대본기획 구조를 확인하여 빈 씬 플레이스홀더를 미리 렌더링
+                    await initializeEmptyScenePlaceholders();
                 }
             }
         } catch (e) {
             console.error('Failed to load prompts from server:', e);
+        }
+    }
+
+    async function initializeEmptyScenePlaceholders() {
+        const projectId = getCurrentProject();
+        if (!projectId) return;
+        try {
+            const res = await fetch(`/api/projects/${projectId}/full`);
+            const data = await res.json();
+            
+            let count = data.structure?.sections?.length || 0;
+            if (count === 0 && data.script?.full_script) {
+                const matches = data.script.full_script.match(/Scene\s*\d+/gi);
+                if (matches) {
+                    count = matches.length;
+                } else {
+                    const duration = data.settings?.duration_seconds || 60;
+                    count = Math.max(3, Math.floor(duration / 5));
+                }
+            }
+
+            if (count > 0) {
+                prompts = [];
+                for (let i = 0; i < count; i++) {
+                    let sceneTitle = "";
+                    let sceneText = "";
+                    if (data.structure?.sections && data.structure.sections[i]) {
+                        const sec = data.structure.sections[i];
+                        sceneTitle = typeof sec === 'string' ? sec : (sec.title || sec.scene_title || sec.scene || "");
+                        sceneText = typeof sec === 'string' ? sec : (sec.content || sec.text || sec.narration || "");
+                    }
+                    prompts.push({
+                        scene_number: i + 1,
+                        scene_title: sceneTitle,
+                        scene_text: sceneText,
+                        prompt_ko: "",
+                        prompt_en: "",
+                        image_url: "",
+                        video_url: ""
+                    });
+                }
+                const container = document.getElementById('resultSection');
+                if (container) container.classList.remove('hidden');
+                drawPromptsUI();
+            }
+        } catch (err) {
+            console.error("Failed to initialize empty scene placeholders:", err);
         }
     }
 
