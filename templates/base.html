@@ -644,6 +644,7 @@
     </script>
 
     <script>
+        window.currentLang = "{{ current_lang }}";
         // i18n for JS
         var i18n = Object.assign(window.i18n || {}, {
             status_labels: {
@@ -827,7 +828,11 @@
                 filteredProjects.forEach(p => {
                     const option = document.createElement('option');
                     option.value = p.id;
-                    option.textContent = `${p.name} (${i18n.status_labels[p.status] || p.status})`;
+                    let displayName = p.name;
+                    if (window.currentLang === 'vi' && p.name_vi) {
+                        displayName = `${p.name} (${p.name_vi})`;
+                    }
+                    option.textContent = `${displayName} (${i18n.status_labels[p.status] || p.status})`;
                     if (p.id == currentId) option.selected = true;
                     select.appendChild(option);
                 });
@@ -882,6 +887,22 @@
                     if (headerDisplay) {
                         const statusText = i18n.status_labels[project.status] || project.status;
                         headerDisplay.textContent = `${project.name} (${statusText})`;
+                        
+                        // Show/Hide Vietnamese Project Name in purple underneath
+                        let nameViEl = document.getElementById('currentProjectNameDisplayVi');
+                        if (!nameViEl) {
+                            nameViEl = document.createElement('div');
+                            nameViEl.id = 'currentProjectNameDisplayVi';
+                            nameViEl.className = 'text-xs font-semibold text-purple-400 mt-1';
+                            headerDisplay.parentNode.appendChild(nameViEl);
+                        }
+                        if (window.currentLang === 'vi' && project.name_vi) {
+                            nameViEl.textContent = project.name_vi;
+                            nameViEl.classList.remove('hidden');
+                        } else {
+                            nameViEl.classList.add('hidden');
+                        }
+                        
                         document.getElementById('projectProgressHeader').classList.remove('hidden');
                     }
 

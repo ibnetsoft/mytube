@@ -16,7 +16,12 @@
                     {{ t('daily_assigned_topic') }}
                     <span class="text-xs font-normal px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20">{{ t('ai_recommended') }}</span>
                 </h2>
-                <p class="text-sm text-gray-400 mt-1">{{ t('daily_assigned_topic_desc') }}</p>
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
+                    <p class="text-sm text-gray-400">{{ t('daily_assigned_topic_desc') }}</p>
+                    <a href="{{ AUTH_SERVER_URL }}/dashboard" target="_blank" class="text-xs text-blue-400 hover:text-blue-300 font-bold underline underline-offset-4 flex items-center gap-1">
+                        {% if current_lang == 'vi' %}(Đi đến bảng quản trị chủ đề ↗){% else %}(주제 생성 및 배정 대시보드 ↗){% endif %}
+                    </a>
+                </div>
             </div>
         </div>
         <div>

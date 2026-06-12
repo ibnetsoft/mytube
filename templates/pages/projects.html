@@ -391,18 +391,27 @@
                     ondblclick="event.stopPropagation(); startInlineEdit(this, '${p.id}', 'name')">
                     <div class="flex items-center gap-1">
                         <span class="text-base">📁</span>
-                        <span>${p.name}</span>
+                        <div class="flex flex-col min-w-0">
+                            <span class="truncate">${p.name}</span>
+                            ${p.name_vi && window.currentLang === 'vi' ? `<span class="text-[10px] text-purple-400 font-semibold truncate" title="${p.name_vi}">${p.name_vi}</span>` : ''}
+                        </div>
                     </div>
                 </td>
                 <td class="px-1 py-2 whitespace-nowrap text-center text-[11px] text-gray-500 dark:text-gray-400 w-20">${created}</td>
                 <td class="px-1 py-2 whitespace-nowrap text-center text-[11px] text-gray-500 dark:text-gray-400 w-20">${updated}</td>
                 <td class="px-2 py-2 whitespace-nowrap text-[12px] text-gray-500 dark:text-gray-400 max-w-[120px] truncate" 
                     title="${p.topic || ''}" ondblclick="event.stopPropagation(); startInlineEdit(this, '${p.id}', 'topic')">
-                    ${p.topic || '-'}
+                    <div class="flex flex-col min-w-0">
+                        <span class="truncate">${p.topic || '-'}</span>
+                        ${p.topic_vi && window.currentLang === 'vi' ? `<span class="text-[10px] text-purple-400 font-semibold truncate" title="${p.topic_vi}">${p.topic_vi}</span>` : ''}
+                    </div>
                 </td>
                 <td class="px-2 py-2 whitespace-nowrap text-[12px] text-gray-500 dark:text-gray-400 max-w-[150px] truncate" 
                     title="${p.video_title || ''}" ondblclick="event.stopPropagation(); startInlineEdit(this, '${p.id}', 'video_title')">
-                    ${p.video_title || '-'}
+                    <div class="flex flex-col min-w-0">
+                        <span class="truncate">${p.video_title || '-'}</span>
+                        ${p.video_title_vi && window.currentLang === 'vi' ? `<span class="text-[10px] text-purple-400 font-semibold truncate" title="${p.video_title_vi}">${p.video_title_vi}</span>` : ''}
+                    </div>
                 </td>
                 
                 <!-- Steps -->

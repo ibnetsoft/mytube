@@ -25,7 +25,7 @@
     <div class="mb-4 border-b border-gray-200 dark:border-gray-700">
         <div class="flex space-x-1 overflow-x-auto custom-scrollbar">
             <button onclick="switchTab('api')" id="tab-api" class="tab-button active">
-                🎫 라이선스 정보
+                🎫 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Thông tin cấp phép{% else %}라이선스 정보{% endif %}
             </button>
             <button onclick="switchTab('content')" id="tab-content" class="tab-button">
                 {{ t('nav_content_settings') }}
@@ -44,7 +44,7 @@
             </button>
 
             <button onclick="switchTab('video-engine')" id="tab-video-engine" class="tab-button">
-                🎬 영상AI엔진
+                🎬 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Động cơ AI Video{% else %}영상AI엔진{% endif %}
             </button>
         </div>
     </div>
@@ -60,21 +60,27 @@
                             🎫
                         </div>
                         <div>
-                            <h3 class="font-black text-lg text-gray-800 dark:text-gray-100">라이선스 및 서비스 정보</h3>
-                            <p class="text-xs text-gray-400">등록된 라이선스 키와 계정 정보를 확인합니다.</p>
+                            <h3 class="font-black text-lg text-gray-800 dark:text-gray-100">
+                                {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Thông tin Cấp phép & Dịch vụ{% else %}라이선스 및 서비스 정보{% endif %}
+                            </h3>
+                            <p class="text-xs text-gray-400">
+                                {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Kiểm tra mã cấp phép đã đăng ký và thông tin tài khoản.{% else %}등록된 라이선스 키와 계정 정보를 확인합니다.{% endif %}
+                            </p>
                         </div>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <!-- License Key View -->
                         <div class="space-y-2">
-                            <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest">현재 라이선스 키</label>
+                            <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest">
+                                {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Mã cấp phép hiện tại{% else %}현재 라이선스 키{% endif %}
+                            </label>
                             <div class="flex items-center gap-2 bg-[#1c2027]/50 p-3 rounded-xl border border-gray-100 dark:border-white/5">
                                 <span class="text-sm font-mono font-bold text-blue-600 dark:text-blue-400">
                                     {% if get_license_key() %}
                                         {{ get_license_key()[:4] }}****{{ get_license_key()[-4:] if get_license_key()|length > 8 else '' }}
                                     {% else %}
-                                        비활성 상태
+                                        {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Trạng thái vô hiệu hóa{% else %}비활성 상태{% endif %}
                                     {% endif %}
                                 </span>
                                 <span class="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold ml-auto">ACTIVE</span>
@@ -83,35 +89,47 @@
 
                         <!-- Membership Tier -->
                         <div class="space-y-2">
-                            <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest">멤버십 등급</label>
+                            <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest">
+                                {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Cấp độ thành viên{% else %}멤버십 등급{% endif %}
+                            </label>
                             <div class="flex items-center gap-2 bg-[#1c2027]/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700">
                                 <span class="text-sm font-bold text-gray-800 dark:text-gray-100 uppercase italic">
                                     {{ membership | default('Standard', true) }}
                                 </span>
-                                <span class="text-[10px] text-gray-400 ml-auto">구독 중</span>
+                                <span class="text-[10px] text-gray-400 ml-auto">
+                                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Đang đăng ký{% else %}구독 중{% endif %}
+                                </span>
                             </div>
                         </div>
                     </div>
 
                     <div class="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
                         <h4 class="text-sm font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
-                            👤 사용자 정보
+                            👤 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Thông tin người dùng{% else %}사용자 정보{% endif %}
                         </h4>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label class="text-[10px] font-bold text-gray-500 mb-1 block">이름</label>
-                                <input type="text" id="userName" class="input-field w-full text-xs" placeholder="이름을 입력하세요">
+                                <label class="text-[10px] font-bold text-gray-500 mb-1 block">
+                                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Tên{% else %}이름{% endif %}
+                                </label>
+                                <input type="text" id="userName" class="input-field w-full text-xs" placeholder="{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Vui lòng nhập tên{% else %}이름을 입력하세요{% endif %}">
                             </div>
                             <div>
-                                <label class="text-[10px] font-bold text-gray-500 mb-1 block">국적</label>
-                                <input type="text" id="userNationality" class="input-field w-full text-xs" placeholder="국가를 입력하세요 (예: 대한민국)">
+                                <label class="text-[10px] font-bold text-gray-500 mb-1 block">
+                                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Quốc tịch{% else %}국적{% endif %}
+                                </label>
+                                <input type="text" id="userNationality" class="input-field w-full text-xs" placeholder="{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Vui lòng nhập quốc gia (Ví dụ: Việt Nam){% else %}국가를 입력하세요 (예: 대한민국){% endif %}">
                             </div>
                             <div>
-                                <label class="text-[10px] font-bold text-gray-500 mb-1 block">연락처</label>
+                                <label class="text-[10px] font-bold text-gray-500 mb-1 block">
+                                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Số điện thoại{% else %}연락처{% endif %}
+                                </label>
                                 <input type="text" id="userPhone" class="input-field w-full text-xs" placeholder="010-0000-0000">
                             </div>
                             <div>
-                                <label class="text-[10px] font-bold text-gray-500 mb-1 block">이메일</label>
+                                <label class="text-[10px] font-bold text-gray-500 mb-1 block">
+                                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Email{% else %}이메일{% endif %}
+                                </label>
                                 <input type="email" id="userEmail" class="input-field w-full text-xs" placeholder="example@email.com" readonly>
                             </div>
                         </div>
@@ -189,54 +207,11 @@
                     </div>
 
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <!-- Voice -->
-                        <div>
-                            <label class="text-xs font-bold text-gray-700 dark:text-white mb-2 block">{{ t('label_default_voice') }}
-                                (Gemini)</label>
-                            <div class="grid grid-cols-2 gap-2 mb-2">
-                                <select id="geminiVoice" class="input-field text-xs h-8 bg-[#1c2027] text-white"></select>
-                                <select id="geminiLanguage" class="input-field text-xs h-8 bg-[#1c2027] text-white"></select>
-                            </div>
-                            <textarea id="geminiStylePrompt" rows="2" class="input-field w-full text-xs"
-                                placeholder="{{ t('placeholder_voice_style') }}"></textarea>
-                        </div>
-
-                        <!-- Script Prompts -->
-                        <div class="space-y-4">
-                            <!-- [NEW] Main Script Writing Prompt -->
-                            <div
-                                class="bg-[#1c2027] dark:bg-[#1c2027] rounded-lg p-3 border border-purple-200 dark:border-purple-800">
-                                <label
-                                    class="text-xs font-bold text-purple-700 dark:text-purple-300 mb-2 flex items-center gap-2">
-                                    <span>{{ t('label_script_master_prompt') }}</span>
-                                    <span class="text-[10px] text-purple-500 dark:text-purple-400 font-normal">{{ t('label_core_guidelines') }}</span>
-                                </label>
-                                <textarea id="promptScriptMaster" class="input-field w-full text-xs font-mono" rows="8"
-                                    placeholder="{{ t('placeholder_script_master') }}"></textarea>
-                                <div class="flex justify-between items-center mt-2">
-                                    <p class="text-[10px] text-purple-500">{{ t('helper_master_prompt') }}</p>
-                                    <button onclick="resetMasterPrompt()"
-                                        class="text-[10px] text-purple-600 hover:underline">{{ t('btn_reset_to_default') }}</button>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label class="text-xs font-bold text-gray-700 dark:text-white mb-1 block">{{ t('label_senior_story_prompt') }}</label>
-                                <textarea id="promptSeniorStory" class="input-field w-full text-xs" rows="3"
-                                    placeholder="{{ t('placeholder_senior_story') }}"></textarea>
-                            </div>
-                            <div>
-                                <label class="text-xs font-bold text-gray-700 dark:text-white mb-1 block">{{ t('label_old_story_prompt') }}</label>
-                                <textarea id="promptStory" class="input-field w-full text-xs" rows="2"
-                                    placeholder="{{ t('placeholder_old_story') }}"></textarea>
-                            </div>
-                            <div>
-                                <label class="text-xs font-bold text-gray-700 dark:text-white mb-1 block">{{ t('label_news_prompt') }}</label>
-                                <textarea id="promptNews" class="input-field w-full text-xs" rows="2"
-                                    placeholder="{{ t('placeholder_news') }}"></textarea>
-                            </div>
-                        </div>
+                    <!-- Hidden Gemini Voice Settings to avoid JS breakage -->
+                    <div class="hidden">
+                        <select id="geminiVoice"></select>
+                        <select id="geminiLanguage"></select>
+                        <textarea id="geminiStylePrompt"></textarea>
                     </div>
                 </div>
             </div>
@@ -361,6 +336,47 @@
 
         <!-- Script Styles Tab -->
         <div id="tab-content-script-styles" class="tab-content">
+            <!-- Moved Script Prompts Section -->
+            <div class="card p-4 shadow-sm border border-gray-200 dark:border-gray-700 mb-4">
+                <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
+                    <i class="fas fa-edit text-purple-500"></i>
+                    대본 작성 프롬프트 설정
+                </h3>
+                <div class="space-y-4">
+                    <!-- [NEW] Main Script Writing Prompt -->
+                    <div class="bg-[#1c2027] dark:bg-[#1c2027] rounded-lg p-3 border border-purple-200 dark:border-purple-800">
+                        <label class="text-xs font-bold text-purple-700 dark:text-purple-300 mb-2 flex items-center gap-2">
+                            <span>✍️ 대본 작성 마스터 프롬프트</span>
+                            <span class="text-[10px] text-purple-500 dark:text-purple-400 font-normal">전달되는 핵심 지침</span>
+                        </label>
+                        <textarea id="promptScriptMaster" class="input-field w-full text-xs font-mono" rows="8"
+                            placeholder="{{ t('placeholder_script_master') }}"></textarea>
+                        <div class="flex justify-between items-center mt-2">
+                            <p class="text-[10px] text-purple-500">{{ t('helper_master_prompt') }}</p>
+                            <button onclick="resetMasterPrompt()"
+                                class="text-[10px] text-purple-600 hover:underline">{{ t('btn_reset_to_default') }}</button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="text-xs font-bold text-gray-700 dark:text-white mb-1 block">{{ t('label_senior_story_prompt') }}</label>
+                        <textarea id="promptSeniorStory" class="input-field w-full text-xs" rows="3"
+                            placeholder="{{ t('placeholder_senior_story') }}"></textarea>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-gray-700 dark:text-white mb-1 block">{{ t('label_old_story_prompt') }}</label>
+                        <textarea id="promptStory" class="input-field w-full text-xs" rows="2"
+                            placeholder="{{ t('placeholder_old_story') }}"></textarea>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-gray-700 dark:text-white mb-1 block">{{ t('label_news_prompt') }}</label>
+                        <textarea id="promptNews" class="input-field w-full text-xs" rows="2"
+                            placeholder="{{ t('placeholder_news') }}"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Style Presets List -->
             <div class="card p-3 shadow-sm border border-gray-200 dark:border-gray-700">
                 <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-3 flex items-center justify-between">
                     <span>{{ t('label_script_style_settings') }}</span>
@@ -438,8 +454,9 @@
             <div class="card p-3 shadow-sm border border-gray-200 dark:border-gray-700">
                 <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-2">{{ t('nav_data_mgmt') }}</h3>
                 <div class="flex gap-2">
-                    <button onclick="exportData()" class="flex-1 btn-secondary py-1.5 text-xs">📤 백업
-                        (JSON)</button>
+                    <button onclick="exportData()" class="flex-1 btn-secondary py-1.5 text-xs">
+                        📤 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Sao lưu (JSON){% else %}백업 (JSON){% endif %}
+                    </button>
                     <button onclick="clearData()"
                         class="flex-1 btn-secondary text-red-600 bg-[#1c2027] hover:bg-red-100 border-red-200 py-1.5 text-xs">🗑️
                         {{ t('btn_reset_short') }}</button>
@@ -458,8 +475,10 @@
                 <!-- 엔진 선택 -->
                 <div class="card p-4 shadow-sm border border-gray-200 dark:border-gray-700">
                     <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-3 flex items-center gap-2">
-                        <span>🎞️ 영상 생성 AI 엔진 선택</span>
-                        <span class="text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded border border-purple-200">중요</span>
+                        <span>🎞️ {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Chọn Động cơ AI tạo video{% else %}영상 생성 AI 엔진 선택{% endif %}</span>
+                        <span class="text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded border border-purple-200">
+                            {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Quan trọng{% else %}중요{% endif %}
+                        </span>
                     </h3>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -469,8 +488,7 @@
                             <div>
                                 <div class="font-bold text-sm text-gray-800 dark:text-gray-200">Google Veo (Primary)</div>
                                 <div class="text-xs text-gray-500 mt-1 dark:text-gray-400">
-                                    🤖 최신 고품질 AI 영상 생성 파이프라인<br>
-                                    Gemini 2.x & Veo 기반의 하이엔드 영상 제작
+                                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}🤖 Quy trình tạo video AI chất lượng cao mới nhất<br>Sản xuất video cao cấp dựa trên Gemini 2.x & Veo{% else %}🤖 최신 고품질 AI 영상 생성 파이프라인<br>Gemini 2.x & Veo 기반의 하이엔드 영상 제작{% endif %}
                                 </div>
                             </div>
                         </label>
@@ -481,8 +499,7 @@
                             <div>
                                 <div class="font-bold text-sm text-gray-800 dark:text-gray-200">Replicate (Fallback)</div>
                                 <div class="text-xs text-gray-500 mt-1 dark:text-gray-400">
-                                    🔄 보조 영상 생성 엔진 (폴백용)<br>
-                                    대기 시간이 짧고 안정적인 처리 지원
+                                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}🔄 Động cơ tạo video phụ trợ (Dự phòng)<br>Hỗ trợ xử lý ổn định với độ trễ ngắn{% else %}🔄 보조 영상 생성 엔진 (폴백용)<br>대기 시간이 짧고 안정적인 처리 지원{% endif %}
                                 </div>
                             </div>
                         </label>
@@ -492,7 +509,7 @@
                 <!-- Veo 버전 선택 (Veo 선택 시에만 표시) -->
                 <div id="veo-version-panel" class="card p-4 shadow-sm border border-blue-200 dark:border-blue-800 bg-[#1c2027] dark:bg-[#1c2027] hidden">
                     <h3 class="font-bold text-sm text-blue-800 dark:text-blue-300 mb-3 flex items-center gap-2">
-                        🤖 Google Veo 버전 선택
+                        🤖 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Chọn phiên bản Google Veo{% else %}Google Veo 버전 선택{% endif %}
                     </h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
 
@@ -501,7 +518,9 @@
                             <div>
                                 <div class="flex items-center gap-1.5 mb-0.5">
                                     <span class="font-bold text-sm text-gray-800 dark:text-gray-200">Veo 2</span>
-                                    <span class="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">안정</span>
+                                    <span class="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
+                                        {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Ổn định{% else %}안정{% endif %}
+                                    </span>
                                 </div>
                                 <div class="text-xs text-gray-500 dark:text-gray-400">
                                     {{ t('msg_veo_quality') }}<br>
@@ -515,7 +534,9 @@
                             <div>
                                 <div class="flex items-center gap-1.5 mb-0.5">
                                     <span class="font-bold text-sm text-gray-800 dark:text-gray-200">Veo 3</span>
-                                    <span class="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">최신</span>
+                                    <span class="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">
+                                        {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Mới nhất{% else %}최신{% endif %}
+                                    </span>
                                 </div>
                                 <div class="text-xs text-gray-500 dark:text-gray-400">
                                     {{ t('msg_veo2_enhanced') }}<br>
@@ -529,10 +550,12 @@
                             <div>
                                 <div class="flex items-center gap-1.5 mb-0.5">
                                     <span class="font-bold text-sm text-gray-800 dark:text-gray-200">Veo 3 Fast</span>
-                                    <span class="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full">빠름</span>
+                                    <span class="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full">
+                                        {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Nhanh{% else %}빠름{% endif %}
+                                    </span>
                                 </div>
                                 <div class="text-xs text-gray-500 dark:text-gray-400">
-                                    속도 우선, 비용 절감<br>
+                                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Ưu tiên tốc độ, tiết kiệm chi phí{% else %}속도 우선, 비용 절감{% endif %}<br>
                                     <code class="text-[10px] bg-[#1c2027]/50 px-1 rounded">veo-3.0-fast-generate-001</code>
                                 </div>
                             </div>
@@ -1038,6 +1061,7 @@
     // 채널 로드
     async function loadChannels() {
         const list = document.getElementById('channelList');
+        if (!list) return;
         try {
             const res = await fetch('/api/channels');
             if (!res.ok) throw new Error('채널 목록 로드 실패');

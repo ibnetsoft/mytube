@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Body, Request, UploadFile, File
+from fastapi import APIRouter, HTTPException, Body, Request, UploadFile, File, BackgroundTasks
 from typing import List, Optional
 import database as db
 from app.models.project import ProjectCreate, ProjectUpdate, ProjectSettingUpdate, ProjectSettingsSave
@@ -50,22 +50,91 @@ async def bulk_copy_move(req: BulkCopyMoveRequest):
         raise HTTPException(500, str(e))
 
 
+async def translate_text_to_vi(text: str) -> str:
+    if not text or not text.strip():
+        return ""
+    try:
+        from services.gemini_service import gemini_service
+        prompt = (
+            "Translate the following Korean text into Vietnamese. "
+            "Output ONLY the final translated Vietnamese text, without any explanations, markdown, quotes or surrounding text.\n\n"
+            f"Korean text: {text}"
+        )
+        res = await gemini_service.generate_text(prompt, temperature=0.2)
+        return res.strip().replace('"', '').replace('"', '')
+    except Exception as e:
+        print(f"[I18n Translation Error] {e}")
+        return ""
+
+async def ensure_vietnamese_translations_bg(projects: list):
+    for p in projects:
+        try:
+            pid = p.get("id")
+            if not pid:
+                continue
+            
+            # 1. Project Name
+            if p.get("name") and not p.get("name_vi"):
+                translated_name = await translate_text_to_vi(p["name"])
+                if translated_name:
+                    db.update_project(pid, name_vi=translated_name)
+                    p["name_vi"] = translated_name
+
+            # 2. Topic
+            if p.get("topic") and not p.get("topic_vi"):
+                translated_topic = await translate_text_to_vi(p["topic"])
+                if translated_topic:
+                    db.update_project(pid, topic_vi=translated_topic)
+                    p["topic_vi"] = translated_topic
+
+            # 3. Video Title
+            title_key = "video_title" if "video_title" in p else ("title" if "title" in p else None)
+            title_vi_key = "video_title_vi" if "video_title" in p else ("title_vi" if "title" in p else None)
+            
+            if title_key and p.get(title_key) and not p.get(title_vi_key):
+                translated_title = await translate_text_to_vi(p[title_key])
+                if translated_title:
+                    db.update_project_setting(pid, "title_vi", translated_title)
+                    p[title_vi_key] = translated_title
+
+            # 4. Image Prompts Scene Script Context
+            try:
+                prompts = db.get_image_prompts(pid)
+                for pm in prompts:
+                    pm_id = pm.get("id")
+                    if pm_id and pm.get("scene_text") and not pm.get("scene_text_vi"):
+                        translated_scene_text = await translate_text_to_vi(pm["scene_text"])
+                        if translated_scene_text:
+                            db.update_image_prompt_scene_text_vi(pm_id, translated_scene_text)
+            except Exception as e_prompts:
+                print(f"[BG Translation Error - Prompts] {e_prompts}")
+        except Exception as e:
+            print(f"[BG Translation Error] {e}")
+
+
 @router.get("/projects/current")
-async def get_current_project():
+async def get_current_project(background_tasks: BackgroundTasks):
     """가장 최근에 작업한 프로젝트 정보 반환 (연결 폴백용)"""
     from services.auth_service import auth_service
     email = auth_service.get_user_email()
     recent = db.get_recent_projects(limit=1, employee_email=email)
     if recent:
-        return recent[0]
+        p = recent[0]
+        background_tasks.add_task(ensure_vietnamese_translations_bg, [p])
+        return p
     return {"id": None, "name": "No Project"}
 
+
 @router.get("/projects")
-async def get_projects():
+async def get_projects(background_tasks: BackgroundTasks):
     try:
         from services.auth_service import auth_service
         email = auth_service.get_user_email()
         projects = db.get_projects_with_status(employee_email=email)
+        
+        # Run translations sequentially in the background
+        background_tasks.add_task(ensure_vietnamese_translations_bg, projects)
+        
         return {"status": "success", "projects": projects}
     except Exception as e:
         raise HTTPException(500, str(e))
@@ -110,10 +179,11 @@ async def create_project(request: Request):
         raise HTTPException(500, str(e))
 
 @router.get("/projects/{project_id}")
-async def get_project(project_id: int):
+async def get_project(project_id: int, background_tasks: BackgroundTasks):
     project = db.get_project(project_id)
     if not project:
         raise HTTPException(404, "Project not found")
+    background_tasks.add_task(ensure_vietnamese_translations_bg, [project])
     return project
 
 @router.get("/projects/{project_id}/script-structure")
@@ -134,7 +204,17 @@ async def save_script_structure(project_id: int, data: dict):
 @router.put("/projects/{project_id}")
 async def update_project(project_id: int, data: ProjectUpdate):
     try:
-        db.update_project(project_id, data.name, data.topic, data.status)
+        update_data = {}
+        if data.name is not None:
+            update_data["name"] = data.name
+            update_data["name_vi"] = None
+        if data.topic is not None:
+            update_data["topic"] = data.topic
+            update_data["topic_vi"] = None
+        if data.status is not None:
+            update_data["status"] = data.status
+            
+        db.update_project(project_id, **update_data)
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(500, str(e))
@@ -150,7 +230,10 @@ async def delete_project(project_id: int):
 @router.post("/project-settings/{project_id}")
 async def save_project_settings(project_id: int, settings: ProjectSettingsSave):
     try:
-        db.save_project_settings(project_id, settings.dict(exclude_unset=True))
+        settings_dict = settings.dict(exclude_unset=True)
+        if "title" in settings_dict:
+            settings_dict["title_vi"] = None
+        db.save_project_settings(project_id, settings_dict)
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(500, str(e))
@@ -159,6 +242,8 @@ async def save_project_settings(project_id: int, settings: ProjectSettingsSave):
 async def update_project_setting(project_id: int, data: ProjectSettingUpdate):
     try:
         db.update_project_setting(project_id, data.key, data.value)
+        if data.key == "title":
+            db.update_project_setting(project_id, "title_vi", None)
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(500, str(e))

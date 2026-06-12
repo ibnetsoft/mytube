@@ -1251,10 +1251,20 @@
         // 상단 격자형 프롬프트 복사 패널 동적 추가
         let gridPanelHtml = '';
         if (data.length > 0) {
+            let titleText = "2x2 격자 이미지 생성 프롬프트 (ChatGPT/DALL-E용 복사)";
+            let copyText = "복사";
+            let gridText = "씬 격자";
+            let copyToastText = "격자 프롬프트 복사 완료!";
+            if (window.currentLang === 'vi') {
+                titleText = "Prompt tạo ảnh lưới 2x2 (Sao chép cho ChatGPT/DALL-E)";
+                copyText = "Sao chép";
+                gridText = "Ghép cảnh";
+                copyToastText = "Sao chép prompt lưới thành công!";
+            }
             gridPanelHtml = `
             <div class="mb-6 bg-[#232832] p-4 rounded-xl border border-white/5 shadow-md">
                 <h4 class="text-sm font-bold text-emerald-400 mb-3 flex items-center gap-2">
-                    <span>🖼️</span> 2x2 격자 이미지 생성 프롬프트 (ChatGPT/DALL-E용 복사)
+                    <span>🖼️</span> ${titleText}
                 </h4>
                 <div class="flex flex-wrap gap-3">
             `;
@@ -1273,10 +1283,10 @@
 
                 gridPanelHtml += `
                     <div class="flex items-center gap-2 bg-[#1c2027] px-3 py-2 rounded-lg border border-white/5">
-                        <span class="text-xs text-gray-300 font-bold">${i+1}~${i + chunk.length}씬 격자</span>
-                        <button onclick="Utils.copyToClipboard(decodeURIComponent('${encodedPrompt}')); Utils.showToast('격자 프롬프트 복사 완료!', 'success')"
+                        <span class="text-xs text-gray-300 font-bold">${gridText} ${i+1}~${i + chunk.length}</span>
+                        <button onclick="Utils.copyToClipboard(decodeURIComponent('${encodedPrompt}')); Utils.showToast('${copyToastText}', 'success')"
                                 class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1 rounded transition-colors">
-                            복사
+                            ${copyText}
                         </button>
                     </div>
                 `;
@@ -1343,8 +1353,11 @@
                         <input type="checkbox" id="scene-checkbox-${i}" class="scene-checkbox w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 cursor-pointer" onchange="handleSceneSelection()">
                         <span class="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-sm">${i + 1}</span>
                         <div>
-                            <span class="font-bold text-gray-800 dark:text-white">Scene ${i + 1}</span>
-                            <span class="text-xs text-gray-500 dark:text-gray-400 ml-2 hidden sm:inline-block truncate max-w-[200px] align-bottom">🎬 ${firstText || i18n.no_script_desc}</span>
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-gray-800 dark:text-white">Scene ${i + 1}</span>
+                                <span class="text-xs text-gray-500 dark:text-gray-400 hidden sm:inline-block truncate max-w-[200px]">🎬 ${firstText || i18n.no_script_desc}</span>
+                            </div>
+                            ${p.scene_text_vi ? `<div class="text-[10px] text-purple-500 dark:text-purple-400 font-semibold truncate max-w-[240px] mt-0.5" title="${p.scene_text_vi}">${p.scene_text_vi}</div>` : ''}
                         </div>
                     </div>
                     <div class="flex items-center gap-2">
@@ -1452,8 +1465,9 @@
                         <!-- Script Context -->
                         <div class="space-y-1">
                             <label class="text-[10px] font-bold text-gray-500 dark:text-gray-400">📝 Script Context</label>
-                            <div class="p-2.5 bg-gray-50 dark:bg-[#1c2128]/50 rounded-lg border border-gray-100 dark:border-gray-800">
+                            <div class="p-2.5 bg-gray-50 dark:bg-[#1c2128]/50 rounded-lg border border-gray-100 dark:border-gray-800 flex flex-col gap-1.5">
                                 <p class="text-[11px] text-gray-700 dark:text-gray-300 leading-relaxed font-medium">${rawSceneText || i18n.no_script_desc}</p>
+                                ${p.scene_text_vi ? `<p class="text-[10.5px] text-purple-500 dark:text-purple-400 leading-relaxed font-semibold border-t border-white/5 pt-1.5">${p.scene_text_vi}</p>` : ''}
                             </div>
                         </div>
 
@@ -1494,9 +1508,13 @@
                         <!-- 🖼️ 격자용 프롬프트 (DALL-E 3용) -->
                         <div class="grid grid-cols-12 gap-2 items-start">
                             <div class="col-span-3 flex flex-col gap-1">
-                                <label class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">🖼️ 격자 프롬프트</label>
+                                <label class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                                    ${window.currentLang === 'vi' ? '🖼️ Prompt lưới' : '🖼️ 격자 프롬프트'}
+                                </label>
                                 <div class="flex items-center gap-1">
-                                    <button onclick="Utils.copyToClipboard(document.getElementById('prompt-en-input-${i}').value); Utils.showToast('복사 완료!', 'success')" class="text-emerald-500 hover:text-emerald-600 text-[9px] bg-[#1c2027] px-1.5 py-0.5 rounded border border-white/5 transition-colors font-bold whitespace-nowrap">복사</button>
+                                    <button onclick="Utils.copyToClipboard(document.getElementById('prompt-en-input-${i}').value); Utils.showToast(window.currentLang === 'vi' ? 'Sao chép thành công!' : '복사 완료!', 'success')" class="text-emerald-500 hover:text-emerald-600 text-[9px] bg-[#1c2027] px-1.5 py-0.5 rounded border border-white/5 transition-colors font-bold whitespace-nowrap">
+                                        ${window.currentLang === 'vi' ? 'Sao chép' : '복사'}
+                                    </button>
                                 </div>
                             </div>
                             <div class="col-span-9 relative">

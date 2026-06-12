@@ -27,14 +27,14 @@
 
         <!-- Render Target Location -->
         <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3 pl-2">
-            <span class="text-xs font-bold text-gray-700 dark:text-gray-300">렌더링 위치</span>
+            <span class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('label_render_location') }}</span>
             <select id="renderTarget" onchange="toggleRemoteUrl()"
                 class="text-xs border-gray-300 dark:border-gray-600 rounded py-1 bg-[#1c2027]/50 dark:text-white bg-[#1c2027] text-white">
-                <option value="local">로컬 PC</option>
-                <option value="remote">원격 GPU 서버</option>
+                <option value="local">{{ t('opt_local_pc') }}</option>
+                <option value="remote">{{ t('opt_remote_gpu') }}</option>
             </select>
             <div id="remoteUrlContainer" class="hidden flex items-center gap-1">
-                <input type="text" id="remoteUrl" placeholder="http://한국서버IP:8000" 
+                <input type="text" id="remoteUrl" placeholder="{{ t('placeholder_remote_url') }}" 
                     class="text-xs border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 bg-[#1c2027] text-white w-44">
             </div>
         </div>
@@ -96,11 +96,11 @@
     <!-- 원격 렌더링 서버 모니터링 패널 (PRO 전용) -->
     <div class="bg-[#1c2027] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shrink-0">
         <div class="flex items-center justify-between mb-2">
-            <h4 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">🎬 원격 GPU 렌더링 서버 대기열 (PRO 전용)</h4>
+            <h4 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">🎬 {{ t('label_remote_monitoring') }}</h4>
             <button onclick="loadRemoteServerQueue()" class="text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">↻</button>
         </div>
         <div id="remoteQueueContainer" class="flex flex-col gap-1.5 max-h-[200px] overflow-y-auto custom-scrollbar text-xs">
-            <div class="text-gray-500 py-2 text-center">대기열 비어있음</div>
+            <div class="text-gray-500 py-2 text-center">{{ t('status_remote_empty') }}</div>
         </div>
     </div>
     {% endif %}
@@ -254,7 +254,12 @@
         status_rendering_project_prefix: "{{ t('status_rendering_project_prefix') }}",
         btn_start_selected_render: "{{ t('btn_start_selected_render') }}",
         status_done: "{{ t('status_done') }}",
-        toast_batch_render_done_suffix: "{{ t('toast_batch_render_done_suffix') }}"
+        toast_batch_render_done_suffix: "{{ t('toast_batch_render_done_suffix') }}",
+        err_enter_remote_url: "{{ t('err_enter_remote_url') }}",
+        status_remote_empty: "{{ t('status_remote_empty') }}",
+        status_rendering: "{{ t('status_rendering') }}",
+        status_waiting: "{{ t('status_waiting') }}",
+        label_waiting_order: "{{ t('label_waiting_order') }}"
     };
 
     document.addEventListener('DOMContentLoaded', async () => {
@@ -372,7 +377,7 @@
         const btn = document.getElementById('renderBtn');
 
         if (render_target === 'remote' && !remote_url) {
-            Utils.showToast("원격 GPU 서버 주소를 입력해 주세요.", "warning");
+            Utils.showToast(i18n_render.err_enter_remote_url, "warning");
             return;
         }
 
@@ -728,7 +733,7 @@
                 const active = data.active;
                 
                 if (queue.length === 0 && !active) {
-                    container.innerHTML = `<div class="text-gray-500 py-2 text-center">대기열 비어있음</div>`;
+                    container.innerHTML = `<div class="text-gray-500 py-2 text-center">${i18n_render.status_remote_empty}</div>`;
                     return;
                 }
                 
@@ -737,7 +742,7 @@
                     html += `
                         <div class="p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg flex items-center justify-between">
                             <div class="truncate flex-1 pr-2">
-                                <span class="font-bold text-blue-400">● 렌더링 중</span>
+                                <span class="font-bold text-blue-400">● ${i18n_render.status_rendering}</span>
                                 <span class="text-white ml-2">${active.project_name}</span>
                                 <span class="text-[10px] text-gray-500 ml-1">(${active.email})</span>
                             </div>
@@ -750,11 +755,11 @@
                     html += `
                         <div class="p-2 bg-white/5 border border-white/10 rounded-lg flex items-center justify-between">
                             <div class="truncate flex-1 pr-2">
-                                <span class="text-gray-400">#${idx + 1} 대기</span>
+                                <span class="text-gray-400">#${idx + 1} ${i18n_render.label_waiting_order}</span>
                                 <span class="text-white ml-2">${task.project_name}</span>
                                 <span class="text-[10px] text-gray-500 ml-1">(${task.email})</span>
                             </div>
-                            <span class="text-gray-500 text-[10px]">대기 중</span>
+                            <span class="text-gray-500 text-[10px]">${i18n_render.status_waiting}</span>
                         </div>
                     `;
                 });

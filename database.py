@@ -85,6 +85,24 @@ def init_db():
     except Exception:
         pass # Already exists
 
+    # [MIGRATION] Add Vietnamese translation columns
+    try:
+        cursor.execute("ALTER TABLE projects ADD COLUMN name_vi TEXT")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE projects ADD COLUMN topic_vi TEXT")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN title_vi TEXT")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE image_prompts ADD COLUMN scene_text_vi TEXT")
+    except Exception:
+        pass
+
     # [NEW] 웹툰 수동 처리 학습 시스템
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS webtoon_learning_rules (
@@ -1162,6 +1180,7 @@ def get_projects_with_status(employee_email: str = None) -> List[Dict]:
     SELECT 
         p.id, p.name, p.topic, p.status as project_status, p.created_at, p.updated_at,
         ps.title as video_title,
+        p.name_vi, p.topic_vi, ps.title_vi as video_title_vi,
         CASE WHEN s.id IS NOT NULL THEN 1 ELSE 0 END as has_script,
         CASE WHEN ss.id IS NOT NULL THEN 1 ELSE 0 END as has_structure,
         (SELECT COUNT(*) FROM image_prompts WHERE project_id = p.id AND image_url IS NOT NULL AND image_url != '') as image_count,
@@ -1200,6 +1219,9 @@ def get_projects_with_status(employee_email: str = None) -> List[Dict]:
             "id": r["id"],
             "name": r["name"],
             "topic": r["topic"],
+            "name_vi": r.get("name_vi") or "",
+            "topic_vi": r.get("topic_vi") or "",
+            "video_title_vi": r.get("video_title_vi") or "",
             "created_at": r["created_at"],
             "updated_at": r["updated_at"],
             "video_title": r["video_title"],
@@ -2480,8 +2502,8 @@ def save_image_prompts(project_id: int, prompts: list):
                  script_start, script_end, scene_title, video_url,
                  sfx_prompt, bgm_prompt, sfx_url, bgm_url, fade_in, motion_desc, engine,
                  prompt_char, prompt_bg, flow_prompt, scene_type,
-                 is_dual, start_frame, end_frame, prompt_en_start, prompt_en_end)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 is_dual, start_frame, end_frame, prompt_en_start, prompt_en_end, scene_text_vi)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 project_id,
                 i + 1,
@@ -2508,13 +2530,22 @@ def save_image_prompts(project_id: int, prompts: list):
                 json.dumps(prompt.get('start_frame')) if isinstance(prompt.get('start_frame'), (dict, list)) else prompt.get('start_frame', ''),
                 json.dumps(prompt.get('end_frame')) if isinstance(prompt.get('end_frame'), (dict, list)) else prompt.get('end_frame', ''),
                 prompt.get('prompt_en_start', ''),
-                prompt.get('prompt_en_end', '')
+                prompt.get('prompt_en_end', ''),
+                prompt.get('scene_text_vi', '')
             ))
         conn.commit()
     except Exception as e:
         print(f"[DB Error] save_image_prompts: {e}")
     finally:
         conn.close()
+
+def update_image_prompt_scene_text_vi(prompt_id: int, scene_text_vi: str):
+    """장면 스크립트 베트남어 번역 업데이트"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE image_prompts SET scene_text_vi = ? WHERE id = ?", (scene_text_vi, prompt_id))
+    conn.commit()
+    conn.close()
 
 def get_image_prompts(project_id: int):
     import json
@@ -2535,7 +2566,7 @@ def get_image_prompts(project_id: int):
             fields = ['script_start', 'script_end', 'scene_title', 'video_url',
                       'sfx_prompt', 'bgm_prompt', 'sfx_url', 'bgm_url', 'fade_in', 'motion_desc', 'engine',
                       'prompt_char', 'prompt_bg', 'flow_prompt', 'scene_type',
-                      'is_dual', 'start_frame', 'end_frame', 'prompt_en_start', 'prompt_en_end']
+                      'is_dual', 'start_frame', 'end_frame', 'prompt_en_start', 'prompt_en_end', 'scene_text_vi']
             for f in fields:
                 if f not in d or d[f] is None:
                     d[f] = ''
