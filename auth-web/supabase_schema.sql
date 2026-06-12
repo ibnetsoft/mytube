@@ -171,3 +171,13 @@ BEGIN
         'video_limit',   v_profile.video_limit);
 END;
 $$;
+
+-- ─────────────────────────────────────────────
+-- 7. global_settings: 시스템 전역 설정 및 API 키 저장용 테이블
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.global_settings (
+    key         TEXT PRIMARY KEY,
+    value       TEXT,
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
