@@ -439,10 +439,10 @@ class AuthService:
         return self._token_balance
 
     def check_credits(self, required_amount: int = 1000):
-        """작업 시작 전 충분한 토큰이 있는지 확인"""
-        if self._token_balance < required_amount:
-            self.logger.warning(f"Insufficient tokens: Available {self._token_balance}, Required {required_amount}")
-            return False
+        """작업 시작 전 충분한 토큰이 있는지 확인 (당분간 글로벌 서비스 시작 전까지 시스템 미가동으로 항상 True 반환)"""
+        # if self._token_balance < required_amount:
+        #     self.logger.warning(f"Insufficient tokens: Available {self._token_balance}, Required {required_amount}")
+        #     return False
         return True
 
 auth_service = AuthService()
