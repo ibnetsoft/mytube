@@ -286,6 +286,33 @@ class AuthService:
                         self._token_balance = profile.get("token_balance", 0)
                         self._verified = True
                         print(f"[Auth] Logged in user {email}. Membership: {self._membership}, Balance: {self._token_balance}")
+                        
+                        # Supabase 원격 전역 API 키 조회 및 로드
+                        try:
+                            settings_url = f"{supabase_url.rstrip('/')}/rest/v1/global_settings?select=key,value"
+                            settings_response = requests.get(settings_url, headers=headers, timeout=5, verify=False, proxies={"http": None, "https": None})
+                            if settings_response.status_code == 200:
+                                settings_data = settings_response.json()
+                                sys_keys = {}
+                                key_map = {
+                                    "sys_api_gemini": "GEMINI_API_KEY",
+                                    "sys_api_youtube": "YOUTUBE_API_KEY",
+                                    "sys_api_elevenlabs": "ELEVENLABS_API_KEY",
+                                    "sys_api_topview": "TOPVIEW_API_KEY",
+                                    "sys_api_topview_uid": "TOPVIEW_UID"
+                                }
+                                for item in settings_data:
+                                    k = item.get("key")
+                                    v = item.get("value")
+                                    if k in key_map and v:
+                                        sys_keys[key_map[k]] = v
+                                
+                                if sys_keys:
+                                    from config import config
+                                    config.load_remote_keys(sys_keys)
+                                    print(f"[Auth] Loaded global API keys from Supabase: {list(sys_keys.keys())}")
+                        except Exception as sys_err:
+                            print(f"[Auth] Failed to load global API keys from Supabase: {sys_err}")
         except Exception as e:
             print(f"[Auth] Failed to sync user profile from Supabase on login: {e}")
 

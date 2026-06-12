@@ -31,8 +31,36 @@ export async function POST(req: Request) {
 
         const meta = user.user_metadata || {}
 
-        // API 키를 Config 키 이름으로 매핑하여 반환
-        const api_keys: Record<string, string> = {}
+        // 1. 시스템 전역 키 조회 (공용 fallback)
+        const sys_keys: Record<string, string> = {}
+        try {
+            const KEYS = ['gemini', 'youtube', 'elevenlabs', 'topview', 'topview_uid']
+            const { data: sysSettings } = await supabaseAdmin
+                .from('global_settings')
+                .select('key, value')
+                .in('key', KEYS.map(k => `sys_api_${k}`))
+            
+            if (sysSettings) {
+                const sysMap: Record<string, string> = {
+                    sys_api_gemini:     'GEMINI_API_KEY',
+                    sys_api_youtube:    'YOUTUBE_API_KEY',
+                    sys_api_elevenlabs: 'ELEVENLABS_API_KEY',
+                    sys_api_topview:    'TOPVIEW_API_KEY',
+                    sys_api_topview_uid: 'TOPVIEW_UID',
+                }
+                for (const row of sysSettings) {
+                    const configKey = sysMap[row.key]
+                    if (configKey && row.value) {
+                        sys_keys[configKey] = row.value
+                    }
+                }
+            }
+        } catch (sysErr) {
+            console.warn('[Verify] Failed to load global_settings fallback:', sysErr)
+        }
+
+        // 2. 유저 개별 키 조회 및 병합 (유저 키가 우선)
+        const api_keys: Record<string, string> = { ...sys_keys }
         const keyMap: Record<string, string> = {
             gemini_api_key:     'GEMINI_API_KEY',
             youtube_api_key:    'YOUTUBE_API_KEY',
