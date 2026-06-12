@@ -25,6 +25,20 @@
             </label>
         </div>
 
+        <!-- Render Target Location -->
+        <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3 pl-2">
+            <span class="text-xs font-bold text-gray-700 dark:text-gray-300">렌더링 위치</span>
+            <select id="renderTarget" onchange="toggleRemoteUrl()"
+                class="text-xs border-gray-300 dark:border-gray-600 rounded py-1 bg-[#1c2027]/50 dark:text-white bg-[#1c2027] text-white">
+                <option value="local">로컬 PC</option>
+                <option value="remote">원격 GPU 서버</option>
+            </select>
+            <div id="remoteUrlContainer" class="hidden flex items-center gap-1">
+                <input type="text" id="remoteUrl" placeholder="http://한국서버IP:8000" 
+                    class="text-xs border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 bg-[#1c2027] text-white w-44">
+            </div>
+        </div>
+
         <!-- Render Button -->
         <button onclick="createVideo()" id="renderBtn"
             class="btn-primary py-1.5 px-6 text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all ml-auto">
@@ -283,7 +297,7 @@
             }
 
             // Check if rendering
-            if (data.project?.status === 'rendering') {
+            if (data.project?.status === 'rendering' || data.project?.status === 'remote_rendering') {
                 startRenderingUI();
                 pollRenderStatus(projectId);
             }
@@ -291,7 +305,31 @@
 
         // Intro Upload Binding directly
         document.getElementById('introFileInput').addEventListener('change', uploadIntro);
+
+        // Restore remote render settings from localStorage
+        const storedUrl = localStorage.getItem('remote_render_url');
+        if (storedUrl && document.getElementById('remoteUrl')) {
+            document.getElementById('remoteUrl').value = storedUrl;
+        }
+        const storedTarget = localStorage.getItem('remote_render_target') || 'local';
+        if (document.getElementById('renderTarget')) {
+            document.getElementById('renderTarget').value = storedTarget;
+            toggleRemoteUrl();
+        }
     });
+
+    function toggleRemoteUrl() {
+        const target = document.getElementById('renderTarget').value;
+        localStorage.setItem('remote_render_target', target);
+        const container = document.getElementById('remoteUrlContainer');
+        if (container) {
+            if (target === 'remote') {
+                container.classList.remove('hidden');
+            } else {
+                container.classList.add('hidden');
+            }
+        }
+    }
 
     function updateStatusUI(data) {
         // Simple status checker
@@ -314,12 +352,29 @@
         const resolution = document.getElementById('resolution').value;
         const aspect_ratio = document.getElementById('aspectRatio').value;
         const sub = document.getElementById('useSubtitles').checked;
+        const render_target = document.getElementById('renderTarget') ? document.getElementById('renderTarget').value : 'local';
+        const remote_url = document.getElementById('remoteUrl') ? document.getElementById('remoteUrl').value : '';
         const btn = document.getElementById('renderBtn');
+
+        if (render_target === 'remote' && !remote_url) {
+            Utils.showToast("원격 GPU 서버 주소를 입력해 주세요.", "warning");
+            return;
+        }
+
+        if (render_target === 'remote') {
+            localStorage.setItem('remote_render_url', remote_url);
+        }
 
         Utils.setLoading(btn, true, i18n_render.status_loading_short);
 
         try {
-            const res = await API.project.render(projectId, { resolution, aspect_ratio, useSubtitles: sub });
+            const res = await API.project.render(projectId, { 
+                resolution, 
+                aspect_ratio, 
+                useSubtitles: sub,
+                render_target,
+                remote_url
+            });
             if (res.status === 'processing') {
                 startRenderingUI();
                 pollRenderStatus(projectId);

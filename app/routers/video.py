@@ -30,6 +30,8 @@ class RenderRequest(BaseModel):
     use_subtitles: bool = True
     resolution: str = "1080p"  # 1080p or 720p
     aspect_ratio: Optional[str] = None # [NEW] Manual aspect ratio override (16:9, 9:16)
+    render_target: Optional[str] = "local" # local or remote
+    remote_url: Optional[str] = None
 
 
 class SubtitleGenerationRequest(BaseModel):
@@ -702,6 +704,12 @@ async def get_project_subtitles(project_id: int, force_refresh: bool = False):
                     if audio_path.startswith(config.OUTPUT_DIR):
                         rel = os.path.relpath(audio_path, config.OUTPUT_DIR).replace("\\", "/")
                         audio_url = f"/output/{rel}"
+                    else:
+                        # Check if it is in the AppData local folder
+                        idx = audio_path.lower().find("picadilly")
+                        if idx != -1:
+                            rel = audio_path[idx + 10:].replace("\\", "/") # strip "picadilly/"
+                            audio_url = f"/output/external/{rel}"
                     
                     # Duration Calculation
                     try:
@@ -723,7 +731,53 @@ async def get_project_subtitles(project_id: int, force_refresh: bool = False):
         # Load subtitles
         if subtitle_path and os.path.exists(subtitle_path):
              with open(subtitle_path, "r", encoding="utf-8") as f:
-                 subtitles = json.load(f)
+                  subtitles = json.load(f)
+
+             # Auto-translate to Vietnamese if text_vi is missing and subtitles exist
+             needs_translation = False
+             for sub in subtitles:
+                 if 'text_vi' not in sub:
+                     needs_translation = True
+                     break
+
+             if needs_translation and subtitles:
+                 print(f"DEBUG_SUB: Subtitles missing text_vi. Requesting translation for project {project_id}")
+                 script_vi = settings.get('script_vi')
+                 try:
+                     from services.gemini_service import gemini_service
+                     texts = [sub.get('text', '') for sub in subtitles]
+
+                     prompt = f"""You are a professional translator. Translate the following list of video subtitles (in Korean/English/Japanese) into Vietnamese.
+Maintain the exact same number of items and order.
+Return the result strictly as a JSON list of strings.
+
+Subtitles to translate:
+{json.dumps(texts, ensure_ascii=False)}
+"""
+                     if script_vi:
+                          prompt += f"\nUse this full Vietnamese script as a reference for context and style:\n{script_vi}"
+                     prompt += "\n\nJSON output:"
+
+                     res_text = await gemini_service.generate_text(prompt, temperature=0.3, project_id=project_id, task_type="translation", model="gemini-2.5-flash")
+                     import re
+                     res_text = re.sub(r'^```json\s*', '', res_text, flags=re.MULTILINE)
+                     res_text = re.sub(r'\s*```$', '', res_text, flags=re.MULTILINE)
+                     translations = json.loads(res_text.strip())
+                     if isinstance(translations, list) and len(translations) == len(subtitles):
+                          for i, trans in enumerate(translations):
+                               subtitles[i]['text_vi'] = trans
+
+                          # Save back to file to cache it
+                          try:
+                              with open(subtitle_path, "w", encoding="utf-8") as f:
+                                  json.dump(subtitles, f, ensure_ascii=False, indent=2)
+                              print(f"DEBUG_SUB: Successfully saved translated subtitles to {subtitle_path}")
+                          except Exception as e_save:
+                              print(f"DEBUG_SUB: Failed to save translated subtitles: {e_save}")
+                     else:
+                          print(f"DEBUG_SUB: Translation length mismatch: expected {len(subtitles)}, got {len(translations)}")
+                 except Exception as e_trans:
+                     print(f"DEBUG_SUB: Failed to translate subtitles: {e_trans}")
         
         # Load image timings
         if image_timings_path and os.path.exists(image_timings_path):
@@ -903,9 +957,25 @@ async def render_project_video(
         # 1. 데이터 조회
         images_data = db.get_image_prompts(project_id)
         tts_data = db.get_tts(project_id)
-        script_data = db.get_script(project_id)
         p_settings = db.get_project_settings(project_id) or {}
         
+        if request.render_target == "remote" and request.remote_url:
+            db.update_project(project_id, status="remote_rendering")
+            db.update_project_setting(project_id, "remote_render_url", request.remote_url)
+            from services.remote_render_service import trigger_remote_render_flow
+            background_tasks.add_task(
+                trigger_remote_render_flow,
+                project_id,
+                request.remote_url,
+                request.use_subtitles,
+                request.resolution
+            )
+            return {
+                "status": "processing",
+                "message": "원격 GPU 렌더링 서버로 패키지 전송 및 작업이 위임되었습니다."
+            }
+        
+        script_data = db.get_script(project_id)
         # [NEW] Aspect Ratio logic (User requested absolute enforcement)
         # 쇼츠모드에서는 무조건 9:16, 롱폼에서는 무조건 16:9
         # Check project app_mode first, fallback to global app_mode
@@ -1524,10 +1594,25 @@ async def render_project_video(
                             if os.path.exists(t_abs):
                                 template_path_arg = t_abs
                 
-                if getattr(config, "USE_EXTERNAL_RENDER", False):
+                use_external = getattr(config, "USE_EXTERNAL_RENDER", False)
+                queue_path = getattr(config, "DRIVE_RENDER_QUEUE_PATH", "G:/내 드라이브/Longform_Render_Queue")
+                
+                # Check if the queue path's drive exists and is writeable, otherwise fallback to local render
+                if use_external:
+                    try:
+                        drive, _ = os.path.splitdrive(queue_path)
+                        if drive and not os.path.exists(drive):
+                            print(f"External render drive {drive} not found. Falling back to local render.")
+                            use_external = False
+                        else:
+                            os.makedirs(queue_path, exist_ok=True)
+                    except Exception as e:
+                        print(f"Failed to access external render queue path {queue_path}: {e}. Falling back to local render.")
+                        use_external = False
+
+                if use_external:
                     # 외부 렌더링 사용 시 구글 드라이브 폴더로 패키징
                     import shutil
-                    queue_path = getattr(config, "DRIVE_RENDER_QUEUE_PATH", "G:/내 드라이브/Longform_Render_Queue")
                     requests_dir = os.path.join(queue_path, "requests", f"project_{project_id}_{int(time.time())}")
                     os.makedirs(requests_dir, exist_ok=True)
                     
@@ -1723,6 +1808,24 @@ async def get_project_status(project_id: int):
                         except Exception as e:
                             print(f"완료 폴더 삭제 실패: {e}")
 
+        # [NEW] 원격 GPU 렌더링 상태 확인 및 다운로드 처리
+        if status == "remote_rendering":
+            settings = db.get_project_settings(project_id) or {}
+            remote_url = settings.get("remote_render_url")
+            task_id = settings.get("remote_task_id")
+            if remote_url and task_id:
+                from services.remote_render_service import poll_remote_render_status, download_remote_render_result
+                res = poll_remote_render_status(remote_url, task_id)
+                if res.get("progress") == 100:
+                    try:
+                        download_remote_render_result(remote_url, task_id, project_id)
+                        status = "rendered"
+                    except Exception as download_err:
+                        print(f"Failed to download remote render result: {download_err}")
+                elif res.get("progress") == -1:
+                    db.update_project(project_id, status="failed")
+                    status = "failed"
+
         settings = db.get_project_settings(project_id)
         video_path = settings.get("video_path")
         
@@ -1912,3 +2015,80 @@ async def upload_project_to_youtube(
     except Exception as e:
         print(f"Upload failed: {e}")
         return {"status": "error", "error": str(e)}
+
+
+# ===========================================
+# Remote Rendering API (Server endpoints)
+# ===========================================
+
+import zipfile
+import shutil
+import uuid
+from fastapi.responses import FileResponse
+
+@router.post("/remote/render")
+async def remote_render_endpoint(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...)
+):
+    """한국 렌더링 서버용: 베트남 클라이언트로부터 ZIP 파일을 받아 렌더링 시작"""
+    task_id = str(uuid.uuid4())
+    temp_dir = os.path.join(tempfile.gettempdir(), f"remote_render_task_{task_id}")
+    os.makedirs(temp_dir, exist_ok=True)
+    
+    zip_path = os.path.join(temp_dir, "package.zip")
+    
+    try:
+        # Save ZIP
+        with open(zip_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        # Extract ZIP
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(temp_dir)
+            
+        # Register task as running
+        progress_file = os.path.join(temp_dir, "progress.txt")
+        with open(progress_file, "w", encoding="utf-8") as f_prog:
+            f_prog.write(json.dumps({"progress": 0, "message": "대기 중...", "timestamp": time.time()}))
+            
+        use_gpu = getattr(config, "USE_GPU_RENDER", True)
+        
+        # Dispatch rendering in background
+        from services.remote_render_service import remote_render_executor_func
+        background_tasks.add_task(remote_render_executor_func, task_id, temp_dir, use_gpu)
+        
+        return {"status": "ok", "task_id": task_id}
+    except Exception as e:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        return {"status": "error", "error": f"서버 업로드 및 준비 실패: {str(e)}"}
+
+@router.get("/remote/status/{task_id}")
+async def get_remote_render_status_endpoint(task_id: str):
+    """한국 렌더링 서버용: 렌더링 진행률 상태 조회"""
+    temp_dir = os.path.join(tempfile.gettempdir(), f"remote_render_task_{task_id}")
+    progress_file = os.path.join(temp_dir, "progress.txt")
+    
+    if not os.path.exists(temp_dir):
+        return {"status": "error", "progress": -1, "message": "존재하지 않는 작업 ID입니다."}
+        
+    if not os.path.exists(progress_file):
+        return {"status": "pending", "progress": 0, "message": "작업 시작 대기 중..."}
+        
+    try:
+        with open(progress_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data
+    except Exception as e:
+        return {"status": "error", "progress": -1, "message": f"상태 읽기 실패: {str(e)}"}
+
+@router.get("/remote/download/{task_id}")
+async def download_remote_render_result_endpoint(task_id: str):
+    """한국 렌더링 서버용: 완성된 비디오 파일 다운로드"""
+    temp_dir = os.path.join(tempfile.gettempdir(), f"remote_render_task_{task_id}")
+    video_path = os.path.join(temp_dir, "output.mp4")
+    
+    if not os.path.exists(video_path):
+        raise HTTPException(404, "영상 파일이 아직 생성되지 않았거나 찾을 수 없습니다.")
+        
+    return FileResponse(video_path, media_type="video/mp4", filename=f"render_{task_id}.mp4")
