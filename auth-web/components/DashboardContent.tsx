@@ -88,7 +88,9 @@ export default function DashboardContent() {
     const [loading, setLoading] = useState(true)
     const [users, setUsers] = useState<UserProfile[]>([])
     const [publishingRequests, setPublishingRequests] = useState<PublishingRequest[]>([])
-    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'api'>('overview')
+    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'api' | 'render-queue'>('overview')
+    const [renderQueue, setRenderQueue] = useState<any[]>([])
+    const [queueLoading, setQueueLoading] = useState(false)
     const [overviewSubTab, setOverviewSubTab] = useState<'video' | 'log'>('video')
     
     // UI Modals State
@@ -399,6 +401,44 @@ export default function DashboardContent() {
         finally { setSysKeysSaving(false); }
     };
 
+    const fetchRenderQueue = useCallback(async () => {
+        if (!isAdmin) return;
+        setQueueLoading(true);
+        try {
+            const res = await fetch(`/api/admin/render-queue?t=${Date.now()}`);
+            const data = await res.json();
+            if (data.success && data.queue) setRenderQueue(data.queue);
+        } catch (e) {
+            console.error("fetchRenderQueue error:", e);
+        } finally {
+            setQueueLoading(false);
+        }
+    }, [isAdmin]);
+
+    const handleDeleteQueueTask = async (id: string) => {
+        if (!confirm(isKor ? '이 작업을 대시보드 대기열에서 삭제하시겠습니까?' : 'Delete this render task from the queue?')) return;
+        try {
+            const res = await fetch(`/api/admin/render-queue?id=${id}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (data.success) {
+                alert(isKor ? '삭제되었습니다.' : 'Deleted successfully');
+                fetchRenderQueue();
+            } else {
+                alert('삭제 실패: ' + (data.error || '오류'));
+            }
+        } catch (e) {
+            alert('오류 발생');
+        }
+    };
+
+    useEffect(() => {
+        if (activeTab === 'render-queue') {
+            fetchRenderQueue();
+            const interval = setInterval(fetchRenderQueue, 3000); // 3초 간격 실시간 갱신
+            return () => clearInterval(interval);
+        }
+    }, [activeTab, fetchRenderQueue]);
+
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
             if (!session) router.push('/');
@@ -553,9 +593,9 @@ export default function DashboardContent() {
                 <div className="flex items-center justify-between">
                     <h2 className="text-4xl font-black uppercase tracking-tighter">관리자 대시보드</h2>
                     <div className="flex gap-2 p-1.5 bg-white/5 rounded-2xl border border-white/5 shadow-2xl">
-                        {['overview', 'users', 'api'].map(tab => (
+                        {['overview', 'users', 'api', 'render-queue'].map(tab => (
                             <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-10 py-3.5 rounded-xl text-[11px] font-black transition-all uppercase tracking-[0.1em] ${activeTab === tab ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-500 hover:text-white'}`}>
-                                {tab === 'overview' ? '개요' : tab === 'users' ? '유저 관리' : '시스템 API'}
+                                {tab === 'overview' ? '개요' : tab === 'users' ? '유저 관리' : tab === 'api' ? '시스템 API' : '🎬 렌더링 큐'}
                             </button>
                         ))}
                     </div>
@@ -790,6 +830,78 @@ export default function DashboardContent() {
                             >
                                 {sysKeysSaving ? '저장 중...' : '💾 키 저장하기'}
                             </button>
+                        </div>
+                    </div>
+                {activeTab === 'render-queue' && (
+                    <div className="bg-[#0f172a]/20 border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="px-10 py-6 border-b border-white/5 bg-black/20 flex justify-between items-center">
+                            <div>
+                                <h3 className="text-sm font-black text-gray-400 uppercase tracking-[0.2em]">원격 비디오 렌더링 큐</h3>
+                                <p className="text-[10px] text-gray-600 mt-1">GPU 서버의 실시간 비디오 인코딩 대기 및 진행 상태를 모니터링합니다.</p>
+                            </div>
+                            <button onClick={fetchRenderQueue} className="px-6 py-2 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-[10px] font-black rounded-xl border border-blue-500/20 transition-all uppercase tracking-widest">새로고침</button>
+                        </div>
+                        <div className="p-10">
+                            {queueLoading && renderQueue.length === 0 ? (
+                                <div className="text-center text-xs text-gray-500 py-10">대기열 조회 중...</div>
+                            ) : renderQueue.length === 0 ? (
+                                <div className="text-center text-xs text-gray-500 py-10">현재 대기 또는 실행 중인 렌더링 작업이 없습니다.</div>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead className="bg-black/30 border-b border-white/20 text-xs font-black text-gray-400 uppercase tracking-widest">
+                                            <tr>
+                                                <th className="px-4 py-4">생성일</th>
+                                                <th className="px-4 py-4">사용자</th>
+                                                <th className="px-4 py-4">프로젝트</th>
+                                                <th className="px-4 py-4">진행 상태</th>
+                                                <th className="px-4 py-4 text-center">진행도</th>
+                                                <th className="px-4 py-4">메시지</th>
+                                                <th className="px-4 py-4 text-center">작업 관리</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/10 text-xs font-medium text-gray-300">
+                                            {renderQueue.map((task: any) => (
+                                                <tr key={task.id} className="hover:bg-white/[0.02] transition-colors">
+                                                    <td className="px-4 py-4 whitespace-nowrap">
+                                                        <div>{new Date(task.created_at).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</div>
+                                                        <div className="text-[10px] text-gray-500 mt-0.5">{new Date(task.created_at).toLocaleDateString()}</div>
+                                                    </td>
+                                                    <td className="px-4 py-4 whitespace-nowrap text-blue-400 font-bold">{task.email}</td>
+                                                    <td className="px-4 py-4 font-bold text-white max-w-[200px] truncate" title={task.project_name}>{task.project_name} <span className="text-[10px] text-gray-500 font-mono">({task.project_id})</span></td>
+                                                    <td className="px-4 py-4 whitespace-nowrap">
+                                                        <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${
+                                                            task.status === 'completed' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
+                                                            task.status === 'rendering' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20 animate-pulse' :
+                                                            task.status === 'pending' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' :
+                                                            'bg-red-500/10 text-red-500 border-red-500/20'
+                                                        }`}>
+                                                            {task.status === 'pending' ? '대기 중' : task.status === 'rendering' ? '렌더링 중' : task.status === 'completed' ? '완료' : '실패'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-4 min-w-[150px]">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                                                                <div className={`h-full rounded-full transition-all duration-500 ${
+                                                                    task.status === 'completed' ? 'bg-green-500' :
+                                                                    task.status === 'failed' ? 'bg-red-500' : 'bg-blue-500'
+                                                                }`} style={{ width: `${task.progress || 0}%` }} />
+                                                            </div>
+                                                            <span className="font-bold font-mono text-[10px] w-8 text-right">{task.progress || 0}%</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-4 max-w-[250px] truncate text-gray-400 italic" title={task.message}>
+                                                        {task.message || '-'}
+                                                    </td>
+                                                    <td className="px-4 py-4 text-center whitespace-nowrap">
+                                                        <button onClick={() => handleDeleteQueueTask(task.id)} className="px-3 py-1.5 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white rounded-lg border border-red-500/20 hover:border-red-600 transition-all font-black text-[10px]">삭제</button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}

@@ -66,4 +66,18 @@ CREATE TABLE IF NOT EXISTS public.global_settings (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- 5. 원격 비디오 렌더링 순차 큐 및 진행 정보 관리용 테이블 생성
+CREATE TABLE IF NOT EXISTS public.remote_render_queue (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id   INTEGER NOT NULL,
+    project_name TEXT,
+    email        TEXT,
+    status       TEXT NOT NULL DEFAULT 'pending',
+    progress     INTEGER DEFAULT 0,
+    message      TEXT,
+    created_at   TIMESTAMPTZ DEFAULT NOW(),
+    updated_at   TIMESTAMPTZ DEFAULT NOW(),
+    completed_at TIMESTAMPTZ
+);
 `);

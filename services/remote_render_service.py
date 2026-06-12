@@ -167,8 +167,14 @@ def package_project_assets(project_id: int, use_subtitles: bool = True, resoluti
             shutil.copy2(intro_video_path, os.path.join(temp_dir, intro_filename))
 
         # 6. 메타데이터 구성 (config.json)
+        from services.auth_service import auth_service
+        project_obj = db.get_project(project_id) or {}
+        project_name = project_obj.get("name", f"Project {project_id}")
+
         metadata = {
             "project_id": project_id,
+            "project_name": project_name,
+            "email": auth_service.get_user_email() or "unknown",
             "use_subtitles": use_subtitles,
             "resolution": resolution,
             "aspect_ratio": project_aspect,

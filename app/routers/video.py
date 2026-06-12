@@ -2047,6 +2047,21 @@ async def remote_render_endpoint(
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(temp_dir)
             
+        # Extract metadata from config.json
+        project_id = 0
+        project_name = "Unknown"
+        email = "unknown"
+        config_json_path = os.path.join(temp_dir, "config.json")
+        if os.path.exists(config_json_path):
+            try:
+                with open(config_json_path, "r", encoding="utf-8") as f_conf:
+                    conf_data = json.load(f_conf)
+                project_id = conf_data.get("project_id", 0)
+                project_name = conf_data.get("project_name", f"Project {project_id}")
+                email = conf_data.get("email", "unknown")
+            except Exception:
+                pass
+
         # Register task as running
         progress_file = os.path.join(temp_dir, "progress.txt")
         with open(progress_file, "w", encoding="utf-8") as f_prog:
@@ -2054,9 +2069,9 @@ async def remote_render_endpoint(
             
         use_gpu = getattr(config, "USE_GPU_RENDER", True)
         
-        # Dispatch rendering in background
-        from services.remote_render_service import remote_render_executor_func
-        background_tasks.add_task(remote_render_executor_func, task_id, temp_dir, use_gpu)
+        # Dispatch rendering via sequential queue worker
+        from services.render_queue_worker import render_queue_worker
+        render_queue_worker.add_task(task_id, temp_dir, use_gpu, project_id, project_name, email)
         
         return {"status": "ok", "task_id": task_id}
     except Exception as e:
