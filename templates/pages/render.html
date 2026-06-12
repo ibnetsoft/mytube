@@ -25,7 +25,6 @@
             </label>
         </div>
 
-        {% if membership == 'pro' or is_independent %}
         <!-- Render Target Location -->
         <div class="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-3 pl-2">
             <span class="text-xs font-bold text-gray-700 dark:text-gray-300">렌더링 위치</span>
@@ -39,7 +38,6 @@
                     class="text-xs border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 bg-[#1c2027] text-white w-44">
             </div>
         </div>
-        {% endif %}
 
         <!-- Render Button -->
         <button onclick="createVideo()" id="renderBtn"
@@ -93,6 +91,19 @@
             </div>
         </div>
     </div>
+
+    {% if membership == 'pro' or is_independent %}
+    <!-- 원격 렌더링 서버 모니터링 패널 (PRO 전용) -->
+    <div class="bg-[#1c2027] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shrink-0">
+        <div class="flex items-center justify-between mb-2">
+            <h4 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">🎬 원격 GPU 렌더링 서버 대기열 (PRO 전용)</h4>
+            <button onclick="loadRemoteServerQueue()" class="text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">↻</button>
+        </div>
+        <div id="remoteQueueContainer" class="flex flex-col gap-1.5 max-h-[200px] overflow-y-auto custom-scrollbar text-xs">
+            <div class="text-gray-500 py-2 text-center">대기열 비어있음</div>
+        </div>
+    </div>
+    {% endif %}
 
             <!-- Project Status Summary -->
             <div class="bg-[#1c2027] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shrink-0">
@@ -705,10 +716,66 @@
         }
     }
 
+    async function loadRemoteServerQueue() {
+        const container = document.getElementById('remoteQueueContainer');
+        if (!container) return;
+        try {
+            const res = await fetch('/api/remote/queue');
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data.status === 'ok') {
+                const queue = data.queue || [];
+                const active = data.active;
+                
+                if (queue.length === 0 && !active) {
+                    container.innerHTML = `<div class="text-gray-500 py-2 text-center">대기열 비어있음</div>`;
+                    return;
+                }
+                
+                let html = '';
+                if (active) {
+                    html += `
+                        <div class="p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg flex items-center justify-between">
+                            <div class="truncate flex-1 pr-2">
+                                <span class="font-bold text-blue-400">● 렌더링 중</span>
+                                <span class="text-white ml-2">${active.project_name}</span>
+                                <span class="text-[10px] text-gray-500 ml-1">(${active.email})</span>
+                            </div>
+                            <span class="font-bold text-blue-500">${active.progress}%</span>
+                        </div>
+                    `;
+                }
+                
+                queue.forEach((task, idx) => {
+                    html += `
+                        <div class="p-2 bg-white/5 border border-white/10 rounded-lg flex items-center justify-between">
+                            <div class="truncate flex-1 pr-2">
+                                <span class="text-gray-400">#${idx + 1} 대기</span>
+                                <span class="text-white ml-2">${task.project_name}</span>
+                                <span class="text-[10px] text-gray-500 ml-1">(${task.email})</span>
+                            </div>
+                            <span class="text-gray-500 text-[10px]">대기 중</span>
+                        </div>
+                    `;
+                });
+                
+                container.innerHTML = html;
+            }
+        } catch (e) {
+            console.error("loadRemoteServerQueue error:", e);
+        }
+    }
+
     // Initial load + auto-refresh every 30s
     loadRenderQueue();
     _queueAutoRefreshTimer = setInterval(() => {
         if (!_isBatchRendering) loadRenderQueue();
     }, 30000);
+
+    // Initial load + auto-refresh for remote queue (if PRO)
+    if (document.getElementById('remoteQueueContainer')) {
+        loadRemoteServerQueue();
+        setInterval(loadRemoteServerQueue, 5000);
+    }
 </script>
 {% endblock %}

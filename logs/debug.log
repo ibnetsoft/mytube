@@ -10192,3 +10192,6 @@ FileNotFoundError: [WinError 3] 지정된 경로를 찾을 수 없습니다: 'G:
 [2026-06-12 16:22:08.906309] [Gemini] ✅ [Gemini Text] Success (15.4s, finish=STOP)
 [2026-06-12 16:22:14.846564] [Gemini] ✅ [Gemini Text] Success (21.8s, finish=STOP)
 [2026-06-12 16:22:14.945606] [Gemini] ✅ [Gemini Text] Success (19.1s, finish=STOP)
+[2026-06-12 19:01:24.793258] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=
+        Act as a Local Trend Analyst and YouTube SEO Expert for the specific region: South Korea (K...)
+[2026-06-12 19:01:53.905095] [Gemini] ✅ [Gemini Text] Success (29.1s, finish=STOP)

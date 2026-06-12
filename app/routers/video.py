@@ -2107,3 +2107,9 @@ async def download_remote_render_result_endpoint(task_id: str):
         raise HTTPException(404, "영상 파일이 아직 생성되지 않았거나 찾을 수 없습니다.")
         
     return FileResponse(video_path, media_type="video/mp4", filename=f"render_{task_id}.mp4")
+
+@router.get("/remote/queue")
+async def get_remote_queue_endpoint():
+    """한국 렌더링 서버용: 로컬 순차 처리 큐 상태 조회"""
+    from services.render_queue_worker import render_queue_worker
+    return render_queue_worker.get_queue_status()

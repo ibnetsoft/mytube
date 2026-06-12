@@ -140,5 +140,47 @@ class RenderQueueWorker:
             finally:
                 self.current_task = None
                 self.task_queue.task_done()
+    
+    def get_queue_status(self) -> dict:
+        queue_list = []
+        # Copy queue items safely
+        for task in list(self.task_queue.queue):
+            queue_list.append({
+                "task_id": task["task_id"],
+                "project_id": task["project_id"],
+                "project_name": task["project_name"],
+                "email": task["email"]
+            })
+            
+        active_task = None
+        if self.current_task:
+            progress = 0
+            message = "렌더링 중..."
+            temp_dir = self.current_task.get("temp_dir")
+            if temp_dir:
+                progress_file = os.path.join(temp_dir, "progress.txt")
+                if os.path.exists(progress_file):
+                    try:
+                        with open(progress_file, "r", encoding="utf-8") as f:
+                            data = json.load(f)
+                        progress = data.get("progress", 0)
+                        message = data.get("message", "렌더링 중...")
+                    except Exception:
+                        pass
+                        
+            active_task = {
+                "task_id": self.current_task["task_id"],
+                "project_id": self.current_task["project_id"],
+                "project_name": self.current_task["project_name"],
+                "email": self.current_task["email"],
+                "progress": progress,
+                "message": message
+            }
+            
+        return {
+            "status": "ok",
+            "active": active_task,
+            "queue": queue_list
+        }
                 
 render_queue_worker = RenderQueueWorker()
