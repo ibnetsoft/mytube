@@ -405,6 +405,7 @@
         status_saving: "{{ t('status_saving') }}",
         status_generating: "{{ t('status_generating') }}",
         opt_select_style: "{{ t('opt_select_style') }}",
+        opt_select_template: "{{ t('opt_select_template') }}",
         toast_enter_style_name: "{{ t('toast_enter_style_name') }}",
         toast_style_preset_saved_prefix: "{{ t('toast_style_preset_saved_prefix') }}",
         toast_style_not_found: "{{ t('toast_style_not_found') }}",
@@ -414,10 +415,11 @@
         toast_style_deleted_prefix: "{{ t('toast_style_deleted_prefix') }}",
         toast_default_style_saved: "{{ t('toast_default_style_saved') }}",
         toast_all_settings_saved: "{{ t('toast_all_settings_saved') }}",
+        confirm_delete_history: "{{ t('confirm_delete_history') }}",
         err_unknown: "{{ t('err_unknown') }}",
     });
 
-    window.targetLang = 'ko';
+    window.targetLang = "{{ current_lang }}";
     const appMode = "{{ app_mode }}";
     let thumbnailData = null;
     let selectedPrompt = null;
@@ -1284,10 +1286,56 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
         saveStateToLocal();
     }
 
+    const _layerTranslationCache = {};
+
+    async function translateLayerText(index, text) {
+        if (!text || !text.trim()) {
+            updateLayerViUI(index, '');
+            return;
+        }
+
+        const cacheKey = `${index}_${text}`;
+        if (_layerTranslationCache[cacheKey]) {
+            updateLayerViUI(index, _layerTranslationCache[cacheKey]);
+            return;
+        }
+
+        if (textLayers[index]._translateTimeout) {
+            clearTimeout(textLayers[index]._translateTimeout);
+        }
+
+        textLayers[index]._translateTimeout = setTimeout(async () => {
+            try {
+                const prompt = `Translate the following text (used in a YouTube thumbnail) into Vietnamese. Return ONLY the translation, with no extra text or quotes: "${text}"`;
+                const result = await API.gemini.generate(prompt, { temperature: 0.1 });
+                if (result.status === 'ok') {
+                    const translation = result.text.trim().replace(/^"|"$/g, '');
+                    textLayers[index].text_vi = translation;
+                    _layerTranslationCache[cacheKey] = translation;
+                    updateLayerViUI(index, translation);
+                    saveStateToLocal();
+                }
+            } catch (e) {
+                console.error("Layer translation failed:", e);
+            }
+        }, 1000);
+    }
+
+    function updateLayerViUI(index, text) {
+        const el = document.getElementById(`layer-vi-translation-${index}`);
+        if (el) {
+            el.textContent = text;
+        }
+    }
+
     // 레이어 UI 렌더링 (Compact & Position Removed)
     function renderLayers() {
         const container = document.getElementById('layersContainer');
-        container.innerHTML = textLayers.map((layer, i) => `
+        container.innerHTML = textLayers.map((layer, i) => {
+            if (window.targetLang === 'vi' && !layer.text_vi && layer.text) {
+                translateLayerText(i, layer.text);
+            }
+            return `
             <div class="bg-[#1c2027] p-3 rounded-lg border border-gray-200 dark:border-gray-700 relative group shadow-sm">
                 <!-- Header -->
                 <div class="flex items-center justify-between mb-2">
@@ -1298,13 +1346,18 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
                 </div>
 
                 <!-- Text Input + Delete -->
-                <div class="flex items-center gap-1 mb-3">
+                <div class="flex items-center gap-1">
                     <input type="text" value="${layer.text}" oninput="updateLayer(${i}, 'text', this.value)"
                         class="input-field font-bold text-sm w-full" placeholder="${i18n.placeholder_text_input}">
                     <button onclick="removeLayer(${i})" class="flex-shrink-0 text-gray-400 hover:text-red-500 transition p-1 rounded hover:bg-red-500/10" title="${i18n.title_delete_layer}">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                     </button>
                 </div>
+                ${window.targetLang === 'vi' ? `
+                <div class="text-xs text-purple-600 dark:text-purple-400 mt-1 mb-3 font-medium pl-1" id="layer-vi-translation-${i}">
+                    ${layer.text_vi || 'Translating...'}
+                </div>
+                ` : '<div class="mb-3"></div>'}
 
                 <!-- Controls Row -->
                 <div class="flex flex-wrap gap-2 items-end">
@@ -1387,7 +1440,7 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
                     <span class="text-[9px] text-gray-400 dark:text-gray-500 ml-auto">${i18n.drag_to_adjust_hint}</span>
                 </div>
             </div>
-        `).join('');
+        `}).join('');
     }
 
     // --- 도형 레이어 관리 ---
@@ -1483,6 +1536,11 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
 
     function updateLayer(index, key, value) {
         textLayers[index][key] = value;
+        if (key === 'text') {
+            if (window.targetLang === 'vi') {
+                translateLayerText(index, value);
+            }
+        }
         if (key === 'position') {
             // 행 변경 시 오프셋 초기화 (사용자 편의)
             textLayers[index].x_offset = 0;
@@ -2103,10 +2161,31 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
     function updateHistory() {
         const container = document.getElementById('historyList');
         container.innerHTML = generatedHistory.slice(0, 12).map((url, i) => `
-            <a href="${url}" download="thumbnail_${i}.png" class="block">
-                <img src="${url}" alt="History ${i}" class="w-full aspect-video object-cover rounded-lg hover:ring-2 hover:ring-primary transition">
-            </a>
+            <div class="relative group aspect-video rounded-lg overflow-hidden border border-gray-200 dark:border-gray-800 shadow-sm">
+                <img src="${url}" alt="History ${i}" class="w-full h-full object-cover">
+                <!-- Hover actions overlay -->
+                <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition duration-200 flex items-center justify-center gap-3">
+                    <a href="${url}" download="thumbnail_${i}.png" 
+                        class="p-2 bg-blue-600 hover:bg-blue-700 rounded text-white text-xs font-bold transition shadow" 
+                        title="Download">
+                        📥
+                    </a>
+                    <button onclick="deleteHistoryItem(${i})" 
+                        class="p-2 bg-red-600 hover:bg-red-700 rounded text-white text-xs font-bold transition shadow" 
+                        title="Delete">
+                        🗑️
+                    </button>
+                </div>
+            </div>
         `).join('');
+    }
+
+    function deleteHistoryItem(index) {
+        if (!confirm(i18n.confirm_delete_history || '이 이력을 삭제하시겠습니까?')) return;
+        generatedHistory.splice(index, 1);
+        updateHistory();
+        saveStateToLocal();
+        autoSaveToServer();
     }
 
     // 다시 생성
@@ -2325,7 +2404,7 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
                 if (!select) return;
                 
                 const currentValue = select.value;
-                select.innerHTML = `<option value="">-- ${i18n.opt_select_template || '템플릿 선택'} --</option>`;
+                select.innerHTML = `<option value="">${i18n.opt_select_template || '-- 템플릿 선택 --'}</option>`;
                 
                 if (data.presets && Array.isArray(data.presets)) {
                     data.presets.forEach(p => {

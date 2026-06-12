@@ -162,7 +162,7 @@
             <!-- 숏폼 템플릿 -->
             <div class="bg-[#1c2027]/50 bg-[#1c2027]/50 rounded-xl p-4 border border-gray-100 dark:border-white/5">
                 <h4 class="text-[11px] font-bold text-purple-400 mb-3 flex items-center gap-2">
-                    <span>{{ t('label_thumb_template_title') }}</span>
+                    <span>{{ t('label_shorts_template_title') }}</span>
                 </h4>
                 <div class="space-y-3">
                     <div class="flex items-center gap-1.5">
@@ -347,6 +347,7 @@
         status_saving: "{{ t('status_saving') }}",
         status_generating: "{{ t('status_generating') }}",
         opt_select_style: "{{ t('opt_select_style') }}",
+        opt_select_template: "{{ t('opt_select_template') }}",
         toast_enter_style_name: "{{ t('toast_enter_style_name') }}",
         toast_style_preset_saved_prefix: "{{ t('toast_style_preset_saved_prefix') }}",
         toast_style_not_found: "{{ t('toast_style_not_found') }}",
@@ -2264,7 +2265,7 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
                 if (!select) return;
                 
                 const currentValue = select.value;
-                select.innerHTML = `<option value="">-- ${i18n.opt_select_template || '템플릿 선택'} --</option>`;
+                select.innerHTML = `<option value="">${i18n.opt_select_template || '-- 템플릿 선택 --'}</option>`;
                 
                 if (data.presets && Array.isArray(data.presets)) {
                     data.presets.forEach(p => {
