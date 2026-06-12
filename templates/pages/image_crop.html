@@ -1,0 +1,333 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto pb-16">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-8">
+        <div>
+            <h1 class="text-2xl font-black text-white flex items-center gap-2">
+                <span>✂️</span> {{ t('crop_title') }}
+            </h1>
+            <p class="text-xs text-gray-400 mt-1">
+                {{ t('crop_desc') }}
+            </p>
+        </div>
+    </div>
+
+    <!-- Main Workspace Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-12 gap-8">
+        <!-- Left Column: Upload & Preview -->
+        <div class="md:col-span-7 space-y-6">
+            <!-- Upload Area -->
+            <div id="upload-zone" class="border-2 border-dashed border-white/10 hover:border-blue-500/40 bg-[#232832]/50 hover:bg-[#232832]/80 transition-all rounded-2xl p-8 text-center cursor-pointer flex flex-col items-center justify-center min-h-[260px] relative overflow-hidden group">
+                <input type="file" id="grid-file-input" class="absolute inset-0 opacity-0 cursor-pointer" accept="image/*">
+                
+                <div id="upload-prompt" class="space-y-3 flex flex-col items-center">
+                    <div class="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center text-2xl text-blue-400 group-hover:scale-110 transition-transform">
+                        📥
+                    </div>
+                    <div>
+                        <p class="text-sm font-bold text-gray-200">{{ t('crop_upload_title') }}</p>
+                        <p class="text-xs text-gray-400 mt-1">{{ t('crop_upload_desc') }}</p>
+                    </div>
+                </div>
+
+                <!-- Preview Image inside zone -->
+                <img id="grid-preview" class="hidden max-h-[300px] rounded-xl object-contain shadow-2xl border border-white/10" alt="Grid Preview">
+            </div>
+
+            <!-- Panel Selector Guide (Visible only when file loaded) -->
+            <div id="guide-card" class="hidden bg-[#232832] rounded-2xl p-5 border border-white/5 space-y-4">
+                <h4 class="text-xs font-black uppercase tracking-wider text-gray-400">{{ t('crop_select_panel') }}</h4>
+                
+                <!-- 2x2 Grid Layout Visualizer -->
+                <div class="grid grid-cols-2 gap-2 max-w-[280px] mx-auto aspect-video border border-white/10 bg-[#1c2027] p-2 rounded-xl relative">
+                    <button onclick="selectPanel(1)" id="btn-p1" class="panel-select-btn flex flex-col items-center justify-center rounded bg-[#232832] border border-white/5 hover:bg-blue-500/10 hover:border-blue-500/30 transition-all text-xs font-bold text-gray-400 hover:text-white">
+                        <span>{{ t('crop_top_left') }}</span>
+                        <span class="text-[9px] text-gray-500">Panel 1</span>
+                    </button>
+                    <button onclick="selectPanel(2)" id="btn-p2" class="panel-select-btn flex flex-col items-center justify-center rounded bg-[#232832] border border-white/5 hover:bg-blue-500/10 hover:border-blue-500/30 transition-all text-xs font-bold text-gray-400 hover:text-white">
+                        <span>{{ t('crop_top_right') }}</span>
+                        <span class="text-[9px] text-gray-500">Panel 2</span>
+                    </button>
+                    <button onclick="selectPanel(3)" id="btn-p3" class="panel-select-btn flex flex-col items-center justify-center rounded bg-[#232832] border border-white/5 hover:bg-blue-500/10 hover:border-blue-500/30 transition-all text-xs font-bold text-gray-400 hover:text-white">
+                        <span>{{ t('crop_bottom_left') }}</span>
+                        <span class="text-[9px] text-gray-500">Panel 3</span>
+                    </button>
+                    <button onclick="selectPanel(4)" id="btn-p4" class="panel-select-btn flex flex-col items-center justify-center rounded bg-[#232832] border border-white/5 hover:bg-blue-500/10 hover:border-blue-500/30 transition-all text-xs font-bold text-gray-400 hover:text-white">
+                        <span>{{ t('crop_bottom_right') }}</span>
+                        <span class="text-[9px] text-gray-500">Panel 4</span>
+                    </button>
+                </div>
+
+                <div class="flex justify-center gap-2">
+                    <button onclick="cropAll()" id="btn-crop-all" class="w-full max-w-[280px] bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs py-3 rounded-xl transition duration-200 flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-600/15">
+                        <span>⚡</span> {{ t('crop_all_btn') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Crop Result & Actions -->
+        <div class="md:col-span-5">
+            <div id="result-card" class="bg-[#232832] rounded-3xl border border-white/5 p-6 min-h-[360px] flex flex-col justify-between relative overflow-hidden">
+                <!-- Inner glow -->
+                <div class="absolute -right-24 -top-24 w-48 h-48 bg-blue-500/5 rounded-full blur-3xl"></div>
+
+                <!-- Empty State -->
+                <div id="result-empty" class="flex-1 flex flex-col items-center justify-center text-center text-gray-500 p-8 space-y-2">
+                    <span class="text-4xl">✨</span>
+                    <p class="text-sm font-bold text-gray-400">{{ t('crop_preview_title') }}</p>
+                    <p class="text-xs">{{ t('crop_preview_desc') }}</p>
+                </div>
+
+                <!-- Loaded State -->
+                <div id="result-loaded" class="hidden flex-1 flex flex-col justify-between h-full space-y-6">
+                    <div class="space-y-3">
+                        <h4 class="text-xs font-black uppercase tracking-wider text-gray-400 flex items-center justify-between">
+                            <span>{{ t('crop_result_title') }}</span>
+                            <span id="active-panel-badge" class="bg-blue-500/15 text-blue-400 px-2 py-0.5 rounded-full text-[9px] font-bold">Panel 1</span>
+                        </h4>
+                        <!-- Output Preview Frame (16:9 widescreen style) -->
+                        <div class="aspect-video w-full rounded-2xl bg-[#1c2027] overflow-hidden border border-white/10 shadow-inner flex items-center justify-center relative group">
+                            <img id="cropped-preview" class="w-full h-full object-cover" alt="Cropped Preview">
+                            <div class="absolute inset-0 bg-[#1c2027]/20 opacity-0 group-hover:opacity-100 transition duration-300"></div>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="space-y-2.5">
+                        <button onclick="downloadActive()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition duration-200 flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/15">
+                            <span>📥</span> {{ t('crop_download_btn') }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Crop All Results Grid (Appears when Crop All triggered) -->
+    <div id="crop-all-section" class="hidden mt-12 border-t border-white/5 pt-8 space-y-6">
+        <div class="flex items-center justify-between">
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                <span>📦</span> {{ t('crop_batch_result') }}
+            </h3>
+            <button onclick="downloadAll()" class="bg-[#1c2027] hover:bg-white/5 border border-white/5 px-4 py-2 rounded-xl text-xs font-bold text-gray-300 flex items-center gap-1.5 transition">
+                <span>📥</span> {{ t('crop_download_all_btn') }}
+            </button>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <!-- P1 Card -->
+            <div class="bg-[#232832] rounded-2xl border border-white/5 p-4 flex flex-col gap-3 group">
+                <div class="aspect-video bg-[#1c2027] rounded-xl overflow-hidden border border-white/10 relative">
+                    <img id="all-p1" class="w-full h-full object-cover">
+                    <span class="absolute top-2 left-2 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">{{ t('crop_top_left') }}</span>
+                </div>
+                <button onclick="downloadSingle(1)" class="w-full py-2 bg-[#1c2027] hover:bg-emerald-500/10 hover:text-emerald-400 text-gray-400 rounded-lg text-xs font-bold transition">{{ t('crop_download_btn_short') }}</button>
+            </div>
+            <!-- P2 Card -->
+            <div class="bg-[#232832] rounded-2xl border border-white/5 p-4 flex flex-col gap-3 group">
+                <div class="aspect-video bg-[#1c2027] rounded-xl overflow-hidden border border-white/10 relative">
+                    <img id="all-p2" class="w-full h-full object-cover">
+                    <span class="absolute top-2 left-2 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">{{ t('crop_top_right') }}</span>
+                </div>
+                <button onclick="downloadSingle(2)" class="w-full py-2 bg-[#1c2027] hover:bg-emerald-500/10 hover:text-emerald-400 text-gray-400 rounded-lg text-xs font-bold transition">{{ t('crop_download_btn_short') }}</button>
+            </div>
+            <!-- P3 Card -->
+            <div class="bg-[#232832] rounded-2xl border border-white/5 p-4 flex flex-col gap-3 group">
+                <div class="aspect-video bg-[#1c2027] rounded-xl overflow-hidden border border-white/10 relative">
+                    <img id="all-p3" class="w-full h-full object-cover">
+                    <span class="absolute top-2 left-2 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">{{ t('crop_bottom_left') }}</span>
+                </div>
+                <button onclick="downloadSingle(3)" class="w-full py-2 bg-[#1c2027] hover:bg-emerald-500/10 hover:text-emerald-400 text-gray-400 rounded-lg text-xs font-bold transition">{{ t('crop_download_btn_short') }}</button>
+            </div>
+            <!-- P4 Card -->
+            <div class="bg-[#232832] rounded-2xl border border-white/5 p-4 flex flex-col gap-3 group">
+                <div class="aspect-video bg-[#1c2027] rounded-xl overflow-hidden border border-white/10 relative">
+                    <img id="all-p4" class="w-full h-full object-cover">
+                    <span class="absolute top-2 left-2 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">{{ t('crop_bottom_right') }}</span>
+                </div>
+                <button onclick="downloadSingle(4)" class="w-full py-2 bg-[#1c2027] hover:bg-emerald-500/10 hover:text-emerald-400 text-gray-400 rounded-lg text-xs font-bold transition">{{ t('crop_download_btn_short') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentFile = null;
+    let activePanelIdx = null;
+    const croppedBlobs = {};
+
+    const fileInput = document.getElementById('grid-file-input');
+    const uploadZone = document.getElementById('upload-zone');
+    const previewImg = document.getElementById('grid-preview');
+    const uploadPrompt = document.getElementById('upload-prompt');
+    const guideCard = document.getElementById('guide-card');
+
+    const resultEmpty = document.getElementById('result-empty');
+    const resultLoaded = document.getElementById('result-loaded');
+    const croppedPreview = document.getElementById('cropped-preview');
+    const activePanelBadge = document.getElementById('active-panel-badge');
+
+    // JS translations map
+    const translations = {
+        processing: "{{ t('crop_toast_processing') }}",
+        failed: "{{ t('crop_toast_failed') }}",
+        loadFailed: "{{ t('crop_toast_load_failed') }}",
+        batchProcessing: "{{ t('crop_toast_batch_processing') }}",
+        batchSuccess: "{{ t('crop_toast_batch_success') }}",
+        batchError: "{{ t('crop_toast_batch_error') }}"
+    };
+
+    const positionNames = [
+        "{{ t('crop_top_left') }}",
+        "{{ t('crop_top_right') }}",
+        "{{ t('crop_bottom_left') }}",
+        "{{ t('crop_bottom_right') }}"
+    ];
+
+    // Handle File Change
+    fileInput.addEventListener('change', handleFileSelect);
+
+    // Drag and drop events
+    uploadZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadZone.classList.add('border-blue-500', 'bg-blue-500/5');
+    });
+    uploadZone.addEventListener('dragleave', () => {
+        uploadZone.classList.remove('border-blue-500', 'bg-blue-500/5');
+    });
+    uploadZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadZone.classList.remove('border-blue-500', 'bg-blue-500/5');
+        if (e.dataTransfer.files.length > 0) {
+            fileInput.files = e.dataTransfer.files;
+            handleFileSelect();
+        }
+    });
+
+    function handleFileSelect() {
+        const file = fileInput.files[0];
+        if (!file) return;
+
+        currentFile = file;
+
+        // Render preview of uploaded grid
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            previewImg.src = e.target.result;
+            previewImg.classList.remove('hidden');
+            uploadPrompt.classList.add('hidden');
+            guideCard.classList.remove('hidden');
+            
+            // Default selection
+            selectPanel(1);
+        };
+        reader.readAsDataURL(file);
+    }
+
+    async function selectPanel(idx) {
+        if (!currentFile) return;
+
+        activePanelIdx = idx;
+        
+        // Highlight active button
+        document.querySelectorAll('.panel-select-btn').forEach(btn => {
+            btn.classList.remove('border-blue-500', 'bg-blue-500/10', 'text-white');
+        });
+        document.getElementById(`btn-p${idx}`).classList.add('border-blue-500', 'bg-blue-500/10', 'text-white');
+
+        // Call backend API
+        const formData = new FormData();
+        formData.append('file', currentFile);
+        formData.append('panel', idx);
+
+        Utils.showToast(translations.processing, 'info');
+
+        try {
+            const res = await fetch('/api/settings/crop-grid', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!res.ok) throw new Error('잘라내기 실패');
+
+            const blob = await res.blob();
+            croppedBlobs[idx] = blob;
+
+            const objectURL = URL.createObjectURL(blob);
+            croppedPreview.src = objectURL;
+
+            // Switch UI states
+            resultEmpty.classList.add('hidden');
+            resultLoaded.classList.remove('hidden');
+            
+            activePanelBadge.textContent = `${positionNames[idx-1]} (Panel ${idx})`;
+
+        } catch (e) {
+            console.error(e);
+            Utils.showToast(translations.loadFailed, 'error');
+        }
+    }
+
+    async function cropAll() {
+        if (!currentFile) return;
+        Utils.showToast(translations.batchProcessing, 'info');
+        
+        try {
+            for (let idx = 1; idx <= 4; idx++) {
+                const formData = new FormData();
+                formData.append('file', currentFile);
+                formData.append('panel', idx);
+
+                const res = await fetch('/api/settings/crop-grid', { method: 'POST', body: formData });
+                if (!res.ok) throw new Error(`${idx}번 잘라내기 실패`);
+
+                const blob = await res.blob();
+                croppedBlobs[idx] = blob;
+
+                const objectURL = URL.createObjectURL(blob);
+                document.getElementById(`all-p${idx}`).src = objectURL;
+            }
+
+            document.getElementById('crop-all-section').classList.remove('hidden');
+            Utils.showToast(translations.batchSuccess, 'success');
+        } catch (e) {
+            console.error(e);
+            Utils.showToast(translations.batchError, 'error');
+        }
+    }
+
+    function downloadActive() {
+        if (!activePanelIdx || !croppedBlobs[activePanelIdx]) return;
+        const blob = croppedBlobs[activePanelIdx];
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `panel_${activePanelIdx}_cropped.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+
+    function downloadSingle(idx) {
+        if (!croppedBlobs[idx]) return;
+        const blob = croppedBlobs[idx];
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const positionKeys = ['top_left', 'top_right', 'bottom_left', 'bottom_right'];
+        a.download = `cropped_${positionKeys[idx-1]}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+
+    function downloadAll() {
+        for (let i = 1; i <= 4; i++) {
+            setTimeout(() => downloadSingle(i), (i - 1) * 200);
+        }
+    }
+</script>
+{% endblock %}

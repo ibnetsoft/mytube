@@ -35,20 +35,32 @@
                 <a href="/" class="flex flex-col gap-0.5">
                     <div class="flex items-center justify-between">
                         <span class="text-[10px] font-black tracking-widest text-blue-500 uppercase">{{ membership }}</span>
-                        <button onclick="syncAuthData()" class="p-1 hover:bg-blue-500/10 rounded-lg transition-all group/sync" title="서버와 동기화">
-                            <svg class="w-2.5 h-2.5 text-blue-500 group-hover/sync:rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                            </svg>
-                        </button>
+                        <div class="flex items-center gap-1">
+                            <button onclick="syncAuthData()" class="p-1 hover:bg-blue-500/10 rounded-lg transition-all group/sync" title="{{ t('tooltip_sync_server') }}">
+                                <svg class="w-2.5 h-2.5 text-blue-500 group-hover/sync:rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                </svg>
+                            </button>
+                            <button type="button" onclick="logoutUser()" class="p-1 hover:bg-red-500/10 rounded-lg transition-all text-red-500" title="{{ t('tooltip_logout') }}">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                     <span class="text-base font-black text-gray-800 dark:text-blue-400 flex items-center gap-2">
                         <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
                         PICADILLY STUDIO
                     </span>
+                    {% if user_email %}
+                    <span class="text-[10px] text-gray-400 dark:text-gray-500 pl-4 block truncate -mt-0.5 font-medium" title="{{ user_email }}">
+                        {{ user_email }}
+                    </span>
+                    {% endif %}
                 </a>
                 
                 <!-- [NEW] Token Balance Display -->
-                <div class="mt-3 px-3 py-2 bg-blue-500/5 rounded-2xl border border-white/5 flex items-center justify-between group hover:bg-blue-500/10 transition-all cursor-help" title="보유 AI 토큰 잔액">
+                <div class="mt-3 px-3 py-2 bg-blue-500/5 rounded-2xl border border-white/5 flex items-center justify-between group hover:bg-blue-500/10 transition-all cursor-help" title="{{ t('tooltip_token_balance') }}">
                     <div class="flex items-center gap-2">
                         <div class="w-6 h-6 rounded-lg bg-blue-500/20 flex items-center justify-center overflow-hidden">
                             <img src="/static/img/air_token_logo.png" alt="AIR" class="w-4 h-4 object-contain shadow-lg" />
@@ -130,6 +142,13 @@
                             class="sidebar-item {% if page == 'image-gen' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
                             <span>{{ t('nav_image') }}</span>
+                        </a>
+                    </li>
+                    <li class="{% if app_mode in ['commerce'] %}hidden{% endif %}">
+                        <a href="/image-crop" id="nav-image-crop"
+                            class="sidebar-item {% if page == 'image-crop' %}active{% endif %}">
+                            <span class="sidebar-icon"></span>
+                            <span>{{ t('nav_image_crop') }}</span>
                         </a>
                     </li>
                     <li class="hidden">
@@ -266,12 +285,12 @@
 
 
         <!-- 메인 컨텐츠 영역 (헤더 포함) -->
-        <div class="flex-1 ml-64 flex flex-col h-screen overflow-hidden">
+        <div class="flex-1 ml-64 flex flex-col min-h-screen">
 
             <!-- Top Fixed Header (Project Progress) -->
             <header id="projectProgressHeader"
                 style="{% if page == 'autopilot' %}display: none !important;{% endif %}"
-                class="hidden shrink-0 bg-[#1c2027] border-b border-white/5 z-30 transition-all duration-300">
+                class="hidden sticky top-0 bg-[#1c2027]/95 backdrop-blur border-b border-white/5 z-30 transition-all duration-300">
                 <div class="px-6 py-3">
                     <!-- Top Row: Title & Actions -->
                     <div class="flex items-center justify-between mb-3">
@@ -434,7 +453,7 @@
             </header>
 
             <!-- Main Content (Scrollable) -->
-            <main class="flex-1 overflow-y-auto p-6 scroll-smooth">
+            <main class="flex-1 p-6 pb-32">
                 {% block content %}{% endblock %}
             </main>
         </div>
@@ -598,6 +617,19 @@
             } catch (e) {
                 console.error("Sync error:", e);
                 Utils.showToast('Connection error', 'error');
+            }
+        }
+
+        // Logout Function
+        async function logoutUser() {
+            try {
+                const res = await fetch('/api/auth/logout', { method: 'POST' });
+                const data = await res.json();
+                localStorage.removeItem('currentProjectId');
+                window.location.href = '/login';
+            } catch (e) {
+                console.error("Logout error:", e);
+                window.location.href = '/login';
             }
         }
 
@@ -1246,16 +1278,24 @@
         initApp();
     </script>
     <script>
-        // 사이드바 토큰 잔액 실시간 동기화 (서버사이드 캐시가 0일 경우 보정)
+        // 사이드바 토큰 잔액 및 멤버십 실시간 동기화 (서버사이드 캐시가 0일 경우 보정)
         (async function syncTokenBalance() {
             try {
                 const res = await fetch('/api/auth/sync', { method: 'POST' });
                 if (!res.ok) return;
                 const data = await res.json();
-                if (data.success && typeof data.token_balance === 'number') {
-                    const el = document.getElementById('sidebar-token-balance');
-                    if (el) {
-                        el.innerHTML = data.token_balance.toLocaleString() + ' <span class="text-[10px] text-gray-500">TK</span>';
+                if (data.success) {
+                    if (typeof data.token_balance === 'number') {
+                        const el = document.getElementById('sidebar-token-balance');
+                        if (el) {
+                            el.innerHTML = data.token_balance.toLocaleString() + ' <span class="text-[10px] text-gray-500">TK</span>';
+                        }
+                    }
+                    // 멤버십 등급 변경 감지 시 즉시 페이지 리로드하여 화면 갱신
+                    const currentMembership = '{{ membership }}'.trim().toLowerCase();
+                    const newMembership = (data.membership || '').trim().toLowerCase();
+                    if (newMembership && currentMembership !== newMembership) {
+                        window.location.reload();
                     }
                 }
             } catch (e) { /* 네트워크 오류 시 무시 */ }

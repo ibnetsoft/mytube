@@ -201,7 +201,7 @@
                         class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-[#1c2027]/50 border border-indigo-200 dark:border-indigo-900 rounded-md py-1 px-2 w-28 focus:ring-1 focus:ring-indigo-500 focus:outline-none cursor-pointer bg-[#1c2027] text-white">
                         <option value="">-- {{ t('opt_select_template') }} --</option>
                     </select>
-                    <button onclick="refreshShortsTemplatePresets()" class="text-[10px] font-bold px-1.5 py-1 text-gray-400 hover:text-white border border-gray-700 hover:bg-[#0a0f1d] rounded transition-all" title="새로고침">
+                    <button onclick="refreshShortsTemplatePresets()" class="text-[10px] font-bold px-1.5 py-1 text-gray-400 hover:text-white border border-gray-700 hover:bg-[#0a0f1d] rounded transition-all" title="{{ t('title_refresh') }}">
                         {{ t('btn_refresh') }}
                     </button>
                 </div>
@@ -264,11 +264,11 @@
                 <div class="flex items-center gap-2 shrink-0">
                     <div class="flex flex-col items-center gap-0.5">
                         <input type="color" id="textColorInput" value="#ffffff" class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer" title="{{ t('label_text_color') }}">
-                        <span class="text-[9px] text-gray-400">글자</span>
+                        <span class="text-[9px] text-gray-400">{{ t('label_text') }}</span>
                     </div>
                     <div class="flex flex-col items-center gap-0.5">
                         <input type="color" id="strokeColorInput" value="#000000" class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer" title="{{ t('label_stroke_color') }}">
-                        <span class="text-[9px] text-gray-400">테두리</span>
+                        <span class="text-[9px] text-gray-400">{{ t('label_stroke') }}</span>
                     </div>
                 </div>
             </div>
@@ -300,7 +300,7 @@
                     </label>
                     <div class="flex flex-col items-center gap-0.5">
                         <input type="color" id="bgColorInput" value="#000000" class="w-7 h-5 p-0 border border-gray-300 dark:border-gray-500 rounded cursor-pointer" title="{{ t('label_bg_color') }}">
-                        <span class="text-[9px] text-gray-400">배경</span>
+                        <span class="text-[9px] text-gray-400">{{ t('label_bg') }}</span>
                     </div>
                     <input type="number" id="bgOpacityInput" value="0.5" min="0" max="1" step="0.1"
                         class="text-[11px] text-gray-800 dark:text-gray-100 bg-[#1c2027]/50 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-1 w-10 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
@@ -385,12 +385,12 @@
             <div class="flex flex-1 min-h-0 overflow-hidden">
                 <!-- Vertical Image Strip -->
                 <div id="imageThumbnailStrip"
-                    class="w-20 flex flex-col gap-2 p-1 overflow-y-auto bg-[#1c2027] border-r border-white/5 custom-scrollbar shrink-0 items-center h-full min-h-0">
+                    class="w-20 flex flex-col gap-2 p-1 pb-24 overflow-y-auto bg-[#1c2027] border-r border-white/5 custom-scrollbar shrink-0 items-center h-full min-h-0">
                     <!-- Thumbnails injected by JS -->
                 </div>
 
                 <!-- Subtitle List -->
-                <div id="subtitleList" class="flex-1 overflow-y-auto custom-scrollbar p-1 space-y-1">
+                <div id="subtitleList" class="flex-1 overflow-y-auto custom-scrollbar p-1 pb-24 space-y-1">
                     <!-- Rows injected by JS -->
                 </div>
             </div>
@@ -568,6 +568,13 @@
                     class="w-full flex-1 min-h-[100px] text-sm p-3 border border-blue-200 dark:border-blue-800 rounded bg-[#1c2027] focus:ring-1 focus:ring-blue-400 outline-none resize-none disabled:opacity-50 CustomScroll text-gray-700 dark:text-gray-200 transition-colors"
                     placeholder="{{ t('placeholder_select_subtitle') }}"></textarea>
 
+                <div class="mt-2 flex flex-col min-h-[80px] shrink-0">
+                    <div class="text-[10px] font-bold text-gray-500 mb-1">Vietnamese Translation (Bản dịch tiếng Việt)</div>
+                    <textarea id="currentSubtitleTextVi"
+                        class="w-full flex-1 text-xs p-2.5 border border-purple-200 dark:border-purple-800 rounded bg-[#1c2027] focus:ring-1 focus:ring-purple-400 outline-none resize-none disabled:opacity-50 CustomScroll text-gray-600 dark:text-gray-300 transition-colors"
+                        placeholder="Vietnamese translation..."></textarea>
+                </div>
+
                 <!-- DEBUG OVERLAY -->
                 <div id="debug-overlay" class="hidden">
                     DEBUG: Initializing...
@@ -635,7 +642,7 @@
                         <div class="flex gap-1">
                             <input type="text" id="bgmUrlInput"
                                 class="flex-1 text-[9px] p-1 bg-[#1c2027] border border-white/5 rounded"
-                                placeholder="https://... (MP3 URL 입력)">
+                                placeholder="https://... {{ t('placeholder_mp3_url') }}">
                             <button onclick="applyBgmUrl()"
                                 class="px-2 text-[9px] bg-purple-600 text-white rounded hover:bg-purple-700">{{ t('apply_url') }}</button>
                         </div>
@@ -967,6 +974,10 @@
             audio.addEventListener('pause', () => {
                 if (iconPlay) iconPlay.classList.remove('hidden');
                 if (iconPause) iconPause.classList.add('hidden');
+                if (_segmentInterval) {
+                    clearInterval(_segmentInterval);
+                    _segmentInterval = null;
+                }
             });
 
             audio.addEventListener('loadedmetadata', () => {
@@ -1148,11 +1159,9 @@
             return `
             <div id="sub-row-${index}"
                  onclick="isSelectMode ? toggleRowSelect(${index}) : selectSubtitle(${index}, false)"
-                 draggable="${isSelectMode ? 'false' : 'true'}"
-                 ondragstart="if(!isSelectMode) handleSubtitleDragStart(event, ${index})"
+                 draggable="false"
                  ondragover="if(!isSelectMode) handleSubtitleDragOver(event, ${index})"
                  ondragleave="if(!isSelectMode) handleSubtitleDragLeave(event)"
-                 ondragend="if(!isSelectMode) handleSubtitleDragEnd(event)"
                  ondrop="if(!isSelectMode) handleCombinedDrop(event, ${index})"
                  class="flex items-stretch p-2 mb-1 bg-[#1c2027] rounded-lg border border-gray-100 dark:border-gray-700 cursor-pointer transition-all ${isActive} group relative overflow-visible">
 
@@ -1168,8 +1177,13 @@
                         </div>
                     </div>
 
-                    <div class="flex-1 text-sm text-gray-700 dark:text-gray-300 sub-text break-words leading-snug">
-                        ${sub.text}
+                    <div class="flex-1 flex flex-col gap-1 min-w-0">
+                        <div class="text-sm text-gray-700 dark:text-gray-300 sub-text break-words leading-snug">
+                            ${sub.text}
+                        </div>
+                        <div class="text-xs text-purple-600 dark:text-purple-400 sub-text-vi break-words leading-tight mt-0.5 font-medium">
+                            ${sub.text_vi || ''}
+                        </div>
                     </div>
                 </div>
             </div>`;
@@ -1220,6 +1234,11 @@
         if (textField) {
             textField.value = sub.text;
             textField.disabled = false;
+        }
+        const textFieldVi = document.getElementById('currentSubtitleTextVi');
+        if (textFieldVi) {
+            textFieldVi.value = sub.text_vi || '';
+            textFieldVi.disabled = false;
         }
 
         document.getElementById('currentStartTime').textContent = sub.start.toFixed(2);
@@ -2068,6 +2087,22 @@
                 }
             });
         }
+
+        const textInputVi = document.getElementById('currentSubtitleTextVi');
+        if (textInputVi) {
+            textInputVi.addEventListener('input', (e) => {
+                if (selectedIndex >= 0 && subtitles[selectedIndex]) {
+                    subtitles[selectedIndex].text_vi = e.target.value;
+
+                    // Update List Item translation too
+                    const row = document.getElementById(`sub-row-${selectedIndex}`);
+                    if (row) {
+                        const subTextViSpan = row.querySelector('.sub-text-vi');
+                        if (subTextViSpan) subTextViSpan.textContent = e.target.value;
+                    }
+                }
+            });
+        }
     }
 
     // [NEW] Save Style Settings Bulk
@@ -2196,7 +2231,7 @@
                 if (window.updateStepStatus) window.updateStepStatus('subtitle', true);
 
                 if (data.subtitles) {
-                    subtitles = data.subtitles;
+                    subtitles = data.subtitles.sort((a, b) => a.start - b.start);
                     renderSubtitles();
                     if (selectedIndex >= 0) selectSubtitle(selectedIndex, false);
                 }
@@ -2219,7 +2254,7 @@
             });
             const data = await res.json();
             if (data.status === 'ok') {
-                subtitles = applyAutoWrapToSubtitles(data.subtitles);
+                subtitles = applyAutoWrapToSubtitles(data.subtitles).sort((a, b) => a.start - b.start);
                 images = data.images || images; // Update images if provided
                 imageTimings = data.image_timings || []; // Update timings
                 renderSubtitles();
@@ -2239,7 +2274,7 @@
             const data = await res.json();
             if (data.status === 'ok') {
                 const prevSelected = selectedIndex >= 0 ? selectedIndex : 0;
-                subtitles = applyAutoWrapToSubtitles(data.subtitles);
+                subtitles = applyAutoWrapToSubtitles(data.subtitles).sort((a, b) => a.start - b.start);
                 images = data.images || images;
                 imageTimings = data.image_timings || [];
                 renderSubtitles();
@@ -2579,8 +2614,10 @@
     function deleteImageStart(imgIdx) {
         if (imgIdx < 0 || imgIdx >= imageTimings.length) return;
 
-        // Optionally prevent deleting the very first image at 0.0
-        // if (imgIdx === 0 && imageTimings[imgIdx] === 0) return Utils.showToast("첫 번째 이미지는 삭제할 수 없습니다.", "warning");
+        if (imgIdx === 0 && imageTimings[imgIdx] === 0) {
+            Utils.showToast("첫 번째 이미지는 삭제할 수 없습니다.", "warning");
+            return;
+        }
 
         if (!confirm("이 자막구간에서 썸네일을 삭제하시겠습니까? (이전 이미지가 계속 표시됩니다)")) return;
 
@@ -2750,10 +2787,10 @@
 
         audio.currentTime = sub.start;
         const endTime = sub.end;
-        audio.play();
+        audio.play().catch(err => console.log("Audio play error:", err));
 
         _segmentInterval = setInterval(function () {
-            if (!audio || audio.paused) {
+            if (!audio) {
                 clearInterval(_segmentInterval);
                 _segmentInterval = null;
                 return;
@@ -3165,8 +3202,8 @@
         }
 
         try {
-            const maxCharsPerLine = 35;  // 20→35
-            const maxLines = 2;
+            const maxCharsPerLine = 22;
+            const maxLines = 1;
             const newSubtitles = [];
 
             for (const sub of subtitles) {
@@ -3288,10 +3325,20 @@
     function applyAutoWrapToSubtitles(subtitleList) {
         const isShorts = window.currentAppMode === 'shorts';
         const maxChars = isShorts ? 16 : 24;
-        return subtitleList.map(sub => ({
-            ...sub,
-            text: autoWrapSubtitleText(sub.text || '', maxChars)
-        }));
+        return subtitleList.map(sub => {
+            let cleanedText = (sub.text || '')
+                .replace(/\[[^\]]*\]/g, '')
+                .replace(/\([^)]*\)/g, '')
+                .replace(/\{[^}]*\}/g, '')
+                .replace(/【[^】]*】/g, '')
+                .replace(/（[^）]*）/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+            return {
+                ...sub,
+                text: autoWrapSubtitleText(cleanedText, maxChars)
+            };
+        });
     }
 
     // Helper: Split text into subtitle chunks (max 2 lines, ~20 chars per line)
@@ -3509,7 +3556,7 @@
             if (data.status === 'ok') {
                 // 1. Set Data (app_mode 먼저 세팅 후 auto-wrap 적용)
                 window.currentAppMode = (data.settings && data.settings.app_mode) || window.APP_MODE || 'longform';
-                subtitles = applyAutoWrapToSubtitles(data.subtitles || []);
+                subtitles = applyAutoWrapToSubtitles(data.subtitles || []).sort((a, b) => a.start - b.start);
                 imageTimings = (data.image_timings || [0.0]).map(Number);
                 images = data.timeline_images || [];
                 sourceImages = data.source_images || [];

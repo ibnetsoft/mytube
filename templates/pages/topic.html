@@ -13,15 +13,15 @@
             </div>
             <div>
                 <h2 class="text-lg font-bold text-white flex items-center gap-2">
-                    오늘의 배정 주제
-                    <span class="text-xs font-normal px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20">AI 추천</span>
+                    {{ t('daily_assigned_topic') }}
+                    <span class="text-xs font-normal px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20">{{ t('ai_recommended') }}</span>
                 </h2>
-                <p class="text-sm text-gray-400 mt-1">대표님이 배정하신 오늘의 유튜브 비디오 제작 주제를 가져옵니다.</p>
+                <p class="text-sm text-gray-400 mt-1">{{ t('daily_assigned_topic_desc') }}</p>
             </div>
         </div>
         <div>
             <button onclick="fetchDailyTopic()" class="relative group overflow-hidden px-6 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-extrabold text-sm shadow-lg shadow-blue-500/25 transition-all duration-300 hover:shadow-indigo-500/35 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 flex items-center gap-2 border border-blue-400/20">
-                <span class="relative z-10">오늘의 주제 가져오기</span>
+                <span class="relative z-10">{{ t('btn_get_daily_topic') }}</span>
                 <span class="text-base group-hover:translate-x-0.5 transition-transform duration-300">⚡</span>
             </button>
         </div>
@@ -187,19 +187,19 @@
     <!-- 추천 주제 -->
     <div class="flex flex-wrap gap-2">
         <span class="text-sm text-gray-500 mr-2 dark:text-gray-400">{{ t('label_suggested_topics') }}</span>
-        <button onclick="setSearchTopic('일상 브이로그')"
+        <button onclick="setSearchTopic('{{ t('topic_daily_vlog') }}')"
             class="px-3 py-1 bg-[#1c2027]/50 rounded-full text-sm hover:bg-[#0a0f1d] dark:hover:bg-gray-600 transition">{{ t('topic_daily_vlog') }}</button>
-        <button onclick="setSearchTopic('먹방')"
+        <button onclick="setSearchTopic('{{ t('topic_mukbang') }}')"
             class="px-3 py-1 bg-[#1c2027]/50 rounded-full text-sm hover:bg-[#0a0f1d] dark:hover:bg-gray-600 transition">{{ t('topic_mukbang') }}</button>
-        <button onclick="setSearchTopic('IT 테크')"
+        <button onclick="setSearchTopic('{{ t('topic_it_tech') }}')"
             class="px-3 py-1 bg-[#1c2027]/50 rounded-full text-sm hover:bg-[#0a0f1d] dark:hover:bg-gray-600 transition">{{ t('topic_it_tech') }}</button>
-        <button onclick="setSearchTopic('재테크')"
+        <button onclick="setSearchTopic('{{ t('topic_finance') }}')"
             class="px-3 py-1 bg-[#1c2027]/50 rounded-full text-sm hover:bg-[#0a0f1d] dark:hover:bg-gray-600 transition">{{ t('topic_finance') }}</button>
-        <button onclick="setSearchTopic('운동 헬스')"
+        <button onclick="setSearchTopic('{{ t('topic_exercise') }}')"
             class="px-3 py-1 bg-[#1c2027]/50 rounded-full text-sm hover:bg-[#0a0f1d] dark:hover:bg-gray-600 transition">{{ t('topic_exercise') }}</button>
-        <button onclick="setSearchTopic('게임')"
+        <button onclick="setSearchTopic('{{ t('topic_game') }}')"
             class="px-3 py-1 bg-[#1c2027]/50 rounded-full text-sm hover:bg-[#0a0f1d] dark:hover:bg-gray-600 transition">{{ t('topic_game') }}</button>
-        <button onclick="setSearchTopic('자기계발')"
+        <button onclick="setSearchTopic('{{ t('topic_self_dev') }}')"
             class="px-3 py-1 bg-[#1c2027]/50 rounded-full text-sm hover:bg-[#0a0f1d] dark:hover:bg-gray-600 transition">{{ t('topic_self_dev') }}</button>
     </div>
 </div>
@@ -1224,23 +1224,23 @@
 
     // [NEW] 오늘의 배정 주제 가져오기
     async function fetchDailyTopic() {
-        Utils.showToast("오늘의 주제를 조회하는 중...", "info");
+        Utils.showToast("{{ t('toast_fetching_topic') }}", "info");
         try {
             const res = await fetch("/api/topics/get-daily", { method: "POST" });
             const data = await res.json();
             
             if (data.status === "success") {
-                Utils.showToast("새 프로젝트가 성공적으로 생성되었습니다!", "success");
+                Utils.showToast("{{ t('toast_project_created') }}", "success");
                 // 해당 프로젝트의 대본 기획 페이지로 이동
                 setTimeout(() => {
                     window.location.href = `/script-plan?project_id=${data.project_id}&auto=true&topic=${encodeURIComponent(data.topic)}`;
                 }, 1000);
             } else {
-                Utils.showToast(data.error || "배정된 대기 중인 주제가 없습니다.", "warning");
+                Utils.showToast(data.error || "{{ t('toast_no_assigned_topics') }}", "warning");
             }
         } catch (e) {
             console.error(e);
-            Utils.showToast("주제 가져오기 실패: " + e.message, "error");
+            Utils.showToast("{{ t('toast_fetch_topic_failed') }}" + e.message, "error");
         }
     }
 

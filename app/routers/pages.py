@@ -51,6 +51,10 @@ async def page_script_gen(request: Request):
 async def page_image_gen(request: Request):
     return _render(request, "pages/image_gen.html", "image-gen", "이미지 생성")
 
+@router.get("/image-crop", response_class=HTMLResponse)
+async def page_image_crop(request: Request):
+    return _render(request, "pages/image_crop.html", "image-crop", "이미지 자르기")
+
 @router.get("/audio-gen", response_class=HTMLResponse)
 async def page_audio_gen(request: Request):
     return _render(request, "pages/audio_gen.html", "audio-gen", "오디오 생성")

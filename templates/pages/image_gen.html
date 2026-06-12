@@ -193,11 +193,7 @@
                     <span>💾</span> {{ t('btn_save_all') }}
                 </button>
 
-                <!-- [NEW] Grid Prompt Generate Button -->
-                <button onclick="showGridPromptsModal()" id="gridGenBtn"
-                    class="btn-primary text-sm px-4 flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 shadow-md border-none">
-                    <span>🖼️</span> 2x2 격자판 프롬프트 추출
-                </button>
+
 
 
                 {% if membership != 'std' %}
@@ -512,123 +508,123 @@
     }
 
     var i18n = {
-        err_no_script: "{{ t('err_no_script') }}",
+        err_no_script: {{ t('err_no_script') | tojson }},
         btn_dna: "🧬 DNA",
-        status_analyzing: "{{ t('status_analyzing') }}",
-        char_not_found: "{{ t('char_not_found') }}",
-        img_not_generated: "{{ t('img_not_generated') }}",
-        btn_ai_gen: "{{ t('btn_ai_gen') }}",
-        btn_apply: "{{ t('btn_apply') }}",
-        toast_char_prompt_regen: "{{ t('toast_char_prompt_regen') }}",
-        toast_vision_success: "{{ t('toast_vision_success') }}",
-        toast_vision_fail: "{{ t('toast_vision_fail') }}",
-        status_analyzing_script: "{{ t('status_analyzing_script') }}",
-        msg_scenes_analyzed: "{{ t('msg_scenes_analyzed') }}",
-        confirm_delete_char: "{{ t('confirm_delete_char') }}",
-        label_fadein: "{{ t('label_fadein') }}",
-        no_script_desc: "{{ t('no_script_desc') }}",
-        label_start: "{{ t('label_start') }}",
-        label_end: "{{ t('label_end') }}",
-        toast_json_copied: "{{ t('toast_json_copied') }}",
-        opt_motion_standard: `⚡ {{ t('unit_5s') }} ({{ t('label_standard') }})`,
-        opt_motion_extend: `💎 {{ t('unit_8s') }} ({{ t('label_high_res_extend') }})`,
-        opt_motion_slowmo: `🐢 {{ t('unit_8s') }} ({{ t('label_smooth_slowmo') }})`,
-        btn_media_upload_v2: "{{ t('btn_media_upload_v2') }}",
-        char_name_unknown: "{{ t('char_name_unknown') }}",
-        char_role: "{{ t('char_role') }}",
-        btn_json_copy: "📋 JSON {{ t('btn_copy') }}",
-        btn_gen_single_img: "🎨 {{ t('btn_gen_images') }}",
-        err_server_comm: "{{ t('err_server_comm') }}",
-        err_char_analysis_fail: "{{ t('err_char_analysis_fail') }}",
-        btn_regen_prompt: "{{ t('btn_regen_prompt') }}",
-        btn_delete: "{{ t('btn_delete') }}",
-        no_desc: "{{ t('label_no_desc') }}",
-        status_generating: "{{ t('status_generating') }}",
-        status_saving: "{{ t('status_saving') }}",
-        btn_upload: "{{ t('btn_upload') }}",
-        status_select_project_first: "{{ t('status_select_project_first') }}",
-        toast_char_saved_server: "{{ t('toast_char_saved_server') }}",
-        toast_server_save_fail: "{{ t('toast_server_save_fail') }}",
-        status_all_chars_deleted: "{{ t('status_all_chars_deleted') }}",
-        confirm_reset_all_chars: "{{ t('confirm_reset_all_chars') }}",
-        toast_char_img_generated: "{{ t('toast_char_img_generated') }}",
-        toast_char_img_set_ref: "{{ t('toast_char_img_set_ref') }}",
-        status_cooking_gen: "{{ t('status_cooking_gen') }}",
-        err_cooking_gen_fail: "{{ t('err_cooking_gen_fail') }}",
-        btn_library: "{{ t('btn_library') }}",
-        btn_upload_new: "{{ t('btn_upload_new') }}",
-        btn_shrink_view: "{{ t('btn_shrink_view') }}",
-        btn_expand_view: "{{ t('btn_expand_view') }}",
-        default_char_desc: "{{ t('default_char_desc') }}",
-        default_char_prompt: "{{ t('default_char_prompt') }}",
-        err_gen_fail: "{{ t('err_gen_fail') }}",
-        close: "{{ t('close') }}",
-        err_project_not_found: "{{ t('err_project_not_found') }}",
-        msg_no_motion_desc: "{{ t('msg_no_motion_desc') }}",
-        confirm_random_cooking: "{{ t('confirm_random_cooking') }}",
-        msg_dish_video_done: "{{ t('msg_dish_video_done') }}",
-        msg_dish_video_toast: "{{ t('msg_dish_video_toast') }}",
-        err_no_images_to_download: "{{ t('err_no_images_to_download') }}",
-        msg_downloading_images: "{{ t('msg_downloading_images') }}",
-        msg_download_complete: "{{ t('msg_download_complete') }}",
-        err_fadein_save_fail: "{{ t('err_fadein_save_fail') }}",
-        err_no_prompt_to_copy: "{{ t('err_no_prompt_to_copy') }}",
-        msg_flow_prompt_copied: "{{ t('msg_flow_prompt_copied') }}",
-        err_select_scene_first: "{{ t('err_select_scene_first') }}",
-        err_scene_no_image: "{{ t('err_scene_no_image') }}",
-        msg_analyzing_scene_images: "{{ t('msg_analyzing_scene_images') }}",
-        msg_motion_gen_complete: "{{ t('msg_motion_gen_complete') }}",
-        err_network: "{{ t('err_network') }}",
-        msg_scene_motion_done: "{{ t('msg_scene_motion_done') }}",
-        msg_all_saved: "{{ t('msg_all_saved') }}",
-        err_gen_image_first: "{{ t('err_gen_image_first') }}",
-        label_analysis_category: "{{ t('label_analysis_category') }}",
-        label_script_extract_info: "{{ t('label_script_extract_info') }}",
-        label_visual_keywords: "{{ t('label_visual_keywords') }}",
-        err_scene_analysis_fail: "{{ t('err_scene_analysis_fail') }}",
-        msg_prompts_restored: "{{ t('msg_prompts_restored') }}",
-        msg_char_ref_deleted: "{{ t('msg_char_ref_deleted') }}",
-        err_no_thumbnail_img: "{{ t('err_no_thumbnail_img') }}",
-        err_project_info_load_fail: "{{ t('err_project_info_load_fail') }}",
-        err_select_image_or_thumbnail: "{{ t('err_select_image_or_thumbnail') }}",
-        label_character: "{{ t('label_character') }}",
-        msg_chars_analyzed_n: "{{ t('msg_chars_analyzed_n') }}",
-        msg_char_analyzed: "{{ t('msg_char_analyzed') }}",
-        err_char_analysis_fail: "{{ t('err_char_analysis_fail') }}",
-        err_all_analysis_failed: "{{ t('err_all_analysis_failed') }}",
-        style_display_realistic: "{{ t('style_display_realistic') }}",
-        style_display_anime: "{{ t('style_display_anime') }}",
-        style_display_cinematic: "{{ t('style_display_cinematic') }}",
-        style_display_cartoon: "{{ t('style_display_cartoon') }}",
-        style_display_oil_painting: "{{ t('style_display_oil_painting') }}",
-        style_display_watercolor: "{{ t('style_display_watercolor') }}",
-        style_display_sketch: "{{ t('style_display_sketch') }}",
-        style_display_pixel_art: "{{ t('style_display_pixel_art') }}",
-        style_display_3d: "{{ t('style_display_3d') }}",
-        style_display_k_webtoon: "{{ t('style_display_k_webtoon') }}",
-        style_display_ghibli: "{{ t('style_display_ghibli') }}",
-        style_display_k_manhwa: "{{ t('style_display_k_manhwa') }}",
-        style_display_minimal: "{{ t('style_display_minimal') }}",
-        style_display_nursery: "{{ t('style_display_nursery') }}",
-        style_display_2d_webtoon: "{{ t('style_display_2d_webtoon') }}",
-        style_display_black_cartoon: "{{ t('style_display_black_cartoon') }}",
-        style_display_object_char: "{{ t('style_display_object_char') }}",
-        style_display_philosophical: "{{ t('style_display_philosophical') }}",
-        style_display_bald_hoodie: "{{ t('style_display_bald_hoodie') }}",
-        msg_ext_connected: "{{ t('msg_ext_connected') }}",
-        msg_ext_not_detected: "{{ t('msg_ext_not_detected') }}",
-        msg_loading: "{{ t('msg_loading') }}",
-        msg_no_captured_images: "{{ t('msg_no_captured_images') }}",
-        msg_imagefx_hint: "{{ t('msg_imagefx_hint') }}",
-        msg_total_scenes: "{{ t('msg_total_scenes') }}",
-        msg_images_included: "{{ t('msg_images_included') }}",
-        label_preview: "{{ t('label_preview') }}",
-        err_select_platform: "{{ t('err_select_platform') }}",
-        label_blog_post: "{{ t('label_blog_post') }}",
-        label_wordpress: "{{ t('label_wordpress') }}",
-        label_google_blog: "{{ t('label_google_blog') }}",
-        msg_blog_post_done: "{{ t('msg_blog_post_done') }}",
-        err_blog_post_fail: "{{ t('err_blog_post_fail') }}"
+        status_analyzing: {{ t('status_analyzing') | tojson }},
+        char_not_found: {{ t('char_not_found') | tojson }},
+        img_not_generated: {{ t('img_not_generated') | tojson }},
+        btn_ai_gen: {{ t('btn_ai_gen') | tojson }},
+        btn_apply: {{ t('btn_apply') | tojson }},
+        toast_char_prompt_regen: {{ t('toast_char_prompt_regen') | tojson }},
+        toast_vision_success: {{ t('toast_vision_success') | tojson }},
+        toast_vision_fail: {{ t('toast_vision_fail') | tojson }},
+        status_analyzing_script: {{ t('status_analyzing_script') | tojson }},
+        msg_scenes_analyzed: {{ t('msg_scenes_analyzed') | tojson }},
+        confirm_delete_char: {{ t('confirm_delete_char') | tojson }},
+        label_fadein: {{ t('label_fadein') | tojson }},
+        no_script_desc: {{ t('no_script_desc') | tojson }},
+        label_start: {{ t('label_start') | tojson }},
+        label_end: {{ t('label_end') | tojson }},
+        toast_json_copied: {{ t('toast_json_copied') | tojson }},
+        opt_motion_standard: `⚡ ${ {{ t('unit_5s') | tojson }} } (${ {{ t('label_standard') | tojson }} })`,
+        opt_motion_extend: `💎 ${ {{ t('unit_8s') | tojson }} } (${ {{ t('label_high_res_extend') | tojson }} })`,
+        opt_motion_slowmo: `🐢 ${ {{ t('unit_8s') | tojson }} } (${ {{ t('label_smooth_slowmo') | tojson }} })`,
+        btn_media_upload_v2: {{ t('btn_media_upload_v2') | tojson }},
+        char_name_unknown: {{ t('char_name_unknown') | tojson }},
+        char_role: {{ t('char_role') | tojson }},
+        btn_json_copy: "📋 JSON " + {{ t('btn_copy') | tojson }},
+        btn_gen_single_img: "🎨 " + {{ t('btn_gen_images') | tojson }},
+        err_server_comm: {{ t('err_server_comm') | tojson }},
+        err_char_analysis_fail: {{ t('err_char_analysis_fail') | tojson }},
+        btn_regen_prompt: {{ t('btn_regen_prompt') | tojson }},
+        btn_delete: {{ t('btn_delete') | tojson }},
+        no_desc: {{ t('label_no_desc') | tojson }},
+        status_generating: {{ t('status_generating') | tojson }},
+        status_saving: {{ t('status_saving') | tojson }},
+        btn_upload: {{ t('btn_upload') | tojson }},
+        status_select_project_first: {{ t('status_select_project_first') | tojson }},
+        toast_char_saved_server: {{ t('toast_char_saved_server') | tojson }},
+        toast_server_save_fail: {{ t('toast_server_save_fail') | tojson }},
+        status_all_chars_deleted: {{ t('status_all_chars_deleted') | tojson }},
+        confirm_reset_all_chars: {{ t('confirm_reset_all_chars') | tojson }},
+        toast_char_img_generated: {{ t('toast_char_img_generated') | tojson }},
+        toast_char_img_set_ref: {{ t('toast_char_img_set_ref') | tojson }},
+        status_cooking_gen: {{ t('status_cooking_gen') | tojson }},
+        err_cooking_gen_fail: {{ t('err_cooking_gen_fail') | tojson }},
+        btn_library: {{ t('btn_library') | tojson }},
+        btn_upload_new: {{ t('btn_upload_new') | tojson }},
+        btn_shrink_view: {{ t('btn_shrink_view') | tojson }},
+        btn_expand_view: {{ t('btn_expand_view') | tojson }},
+        default_char_desc: {{ t('default_char_desc') | tojson }},
+        default_char_prompt: {{ t('default_char_prompt') | tojson }},
+        err_gen_fail: {{ t('err_gen_fail') | tojson }},
+        close: {{ t('close') | tojson }},
+        err_project_not_found: {{ t('err_project_not_found') | tojson }},
+        msg_no_motion_desc: {{ t('msg_no_motion_desc') | tojson }},
+        confirm_random_cooking: {{ t('confirm_random_cooking') | tojson }},
+        msg_dish_video_done: {{ t('msg_dish_video_done') | tojson }},
+        msg_dish_video_toast: {{ t('msg_dish_video_toast') | tojson }},
+        err_no_images_to_download: {{ t('err_no_images_to_download') | tojson }},
+        msg_downloading_images: {{ t('msg_downloading_images') | tojson }},
+        msg_download_complete: {{ t('msg_download_complete') | tojson }},
+        err_fadein_save_fail: {{ t('err_fadein_save_fail') | tojson }},
+        err_no_prompt_to_copy: {{ t('err_no_prompt_to_copy') | tojson }},
+        msg_flow_prompt_copied: {{ t('msg_flow_prompt_copied') | tojson }},
+        err_select_scene_first: {{ t('err_select_scene_first') | tojson }},
+        err_scene_no_image: {{ t('err_scene_no_image') | tojson }},
+        msg_analyzing_scene_images: {{ t('msg_analyzing_scene_images') | tojson }},
+        msg_motion_gen_complete: {{ t('msg_motion_gen_complete') | tojson }},
+        err_network: {{ t('err_network') | tojson }},
+        msg_scene_motion_done: {{ t('msg_scene_motion_done') | tojson }},
+        msg_all_saved: {{ t('msg_all_saved') | tojson }},
+        err_gen_image_first: {{ t('err_gen_image_first') | tojson }},
+        label_analysis_category: {{ t('label_analysis_category') | tojson }},
+        label_script_extract_info: {{ t('label_script_extract_info') | tojson }},
+        label_visual_keywords: {{ t('label_visual_keywords') | tojson }},
+        err_scene_analysis_fail: {{ t('err_scene_analysis_fail') | tojson }},
+        msg_prompts_restored: {{ t('msg_prompts_restored') | tojson }},
+        msg_char_ref_deleted: {{ t('msg_char_ref_deleted') | tojson }},
+        err_no_thumbnail_img: {{ t('err_no_thumbnail_img') | tojson }},
+        err_project_info_load_fail: {{ t('err_project_info_load_fail') | tojson }},
+        err_select_image_or_thumbnail: {{ t('err_select_image_or_thumbnail') | tojson }},
+        label_character: {{ t('label_character') | tojson }},
+        msg_chars_analyzed_n: {{ t('msg_chars_analyzed_n') | tojson }},
+        msg_char_analyzed: {{ t('msg_char_analyzed') | tojson }},
+        err_char_analysis_fail: {{ t('err_char_analysis_fail') | tojson }},
+        err_all_analysis_failed: {{ t('err_all_analysis_failed') | tojson }},
+        style_display_realistic: {{ t('style_display_realistic') | tojson }},
+        style_display_anime: {{ t('style_display_anime') | tojson }},
+        style_display_cinematic: {{ t('style_display_cinematic') | tojson }},
+        style_display_cartoon: {{ t('style_display_cartoon') | tojson }},
+        style_display_oil_painting: {{ t('style_display_oil_painting') | tojson }},
+        style_display_watercolor: {{ t('style_display_watercolor') | tojson }},
+        style_display_sketch: {{ t('style_display_sketch') | tojson }},
+        style_display_pixel_art: {{ t('style_display_pixel_art') | tojson }},
+        style_display_3d: {{ t('style_display_3d') | tojson }},
+        style_display_k_webtoon: {{ t('style_display_k_webtoon') | tojson }},
+        style_display_ghibli: {{ t('style_display_ghibli') | tojson }},
+        style_display_k_manhwa: {{ t('style_display_k_manhwa') | tojson }},
+        style_display_minimal: {{ t('style_display_minimal') | tojson }},
+        style_display_nursery: {{ t('style_display_nursery') | tojson }},
+        style_display_2d_webtoon: {{ t('style_display_2d_webtoon') | tojson }},
+        style_display_black_cartoon: {{ t('style_display_black_cartoon') | tojson }},
+        style_display_object_char: {{ t('style_display_object_char') | tojson }},
+        style_display_philosophical: {{ t('style_display_philosophical') | tojson }},
+        style_display_bald_hoodie: {{ t('style_display_bald_hoodie') | tojson }},
+        msg_ext_connected: {{ t('msg_ext_connected') | tojson }},
+        msg_ext_not_detected: {{ t('msg_ext_not_detected') | tojson }},
+        msg_loading: {{ t('msg_loading') | tojson }},
+        msg_no_captured_images: {{ t('msg_no_captured_images') | tojson }},
+        msg_imagefx_hint: {{ t('msg_imagefx_hint') | tojson }},
+        msg_total_scenes: {{ t('msg_total_scenes') | tojson }},
+        msg_images_included: {{ t('msg_images_included') | tojson }},
+        label_preview: {{ t('label_preview') | tojson }},
+        err_select_platform: {{ t('err_select_platform') | tojson }},
+        label_blog_post: {{ t('label_blog_post') | tojson }},
+        label_wordpress: {{ t('label_wordpress') | tojson }},
+        label_google_blog: {{ t('label_google_blog') | tojson }},
+        msg_blog_post_done: {{ t('msg_blog_post_done') | tojson }},
+        err_blog_post_fail: {{ t('err_blog_post_fail') | tojson }}
     };
 
     // [NEW] 캐릭터 분석 함수
@@ -1252,10 +1248,50 @@
 
         const container = document.getElementById('promptsList');
 
+        // 상단 격자형 프롬프트 복사 패널 동적 추가
+        let gridPanelHtml = '';
+        if (data.length > 0) {
+            gridPanelHtml = `
+            <div class="mb-6 bg-[#232832] p-4 rounded-xl border border-white/5 shadow-md">
+                <h4 class="text-sm font-bold text-emerald-400 mb-3 flex items-center gap-2">
+                    <span>🖼️</span> 2x2 격자 이미지 생성 프롬프트 (ChatGPT/DALL-E용 복사)
+                </h4>
+                <div class="flex flex-wrap gap-3">
+            `;
+            const ratio = document.querySelector('input[name="aspectRatio"]:checked')?.value || '16:9';
+            for (let i = 0; i < data.length; i += 4) {
+                const chunk = data.slice(i, i + 4);
+                let gridPrompt = `Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total). Each of the 4 panels must have a widescreen ${ratio} aspect ratio. There must be NO borders, NO grid lines, NO white lines, and NO dividers/crosshairs between the panels. The panels must touch seamlessly. Each panel must represent one scene:\n`;
+                chunk.forEach((scene, idx) => {
+                    const rawSceneText = scene.prompt_en || scene.prompt_ko || '';
+                    const sceneText = extractPureImagePrompt(rawSceneText);
+                    gridPrompt += `- Panel ${idx+1} (Position: ${['Top-Left', 'Top-Right', 'Bottom-Left', 'Bottom-Right'][idx]}): ${sceneText}\n`;
+                });
+                gridPrompt += `\nCRITICAL: You must generate EXACTLY 4 panels in a perfect 2x2 grid with absolutely NO black borders, NO outlines, NO white borders, and NO dividing lines/crosses. Every panel must seamlessly connect to the edge with a ${ratio} aspect ratio. No more, no less. Maintain consistent characters across all panels.`;
+
+                const encodedPrompt = encodeURIComponent(gridPrompt);
+
+                gridPanelHtml += `
+                    <div class="flex items-center gap-2 bg-[#1c2027] px-3 py-2 rounded-lg border border-white/5">
+                        <span class="text-xs text-gray-300 font-bold">${i+1}~${i + chunk.length}씬 격자</span>
+                        <button onclick="Utils.copyToClipboard(decodeURIComponent('${encodedPrompt}')); Utils.showToast('격자 프롬프트 복사 완료!', 'success')"
+                                class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1 rounded transition-colors">
+                            복사
+                        </button>
+                    </div>
+                `;
+            }
+            gridPanelHtml += `
+                </div>
+            </div>
+            `;
+        }
+
         // Change to vertical list layout
         container.className = 'space-y-4';
 
-        container.innerHTML = data.map((p, i) => {
+        let listHtml = gridPanelHtml;
+        listHtml += data.map((p, i) => {
             // [FIX] Resilience: if image_url contains a video file (due to previous bug), swap it to video_url
             if (p.image_url && (p.image_url.toLowerCase().endsWith('.mp4') || p.image_url.toLowerCase().endsWith('.mov')) && !p.video_url) {
                 p.video_url = p.image_url;
@@ -1289,7 +1325,7 @@
             };
             const jsonString = JSON.stringify(jsonData, null, 2);
 
-            // [DUAL KEYFRAME LOGIC]
+            // [DUAL KEYFRAME LOGIC] - Default to FALSE / Disabled
             const isDual = p.is_dual === true || p.is_dual === 'true' || p.is_dual === 1 || p.is_dual === '1';
             if (typeof p.start_frame === 'string' && p.start_frame.startsWith('{')) {
                 try { p.start_frame = JSON.parse(p.start_frame); } catch(e){}
@@ -1421,8 +1457,8 @@
                             </div>
                         </div>
 
-                        <!-- 🎨 Visual Description (Image) -->
-                        <div class="grid grid-cols-12 gap-2 items-start">
+                        <!-- 🎨 Visual Description (Image) (Hidden) -->
+                        <div class="grid grid-cols-12 gap-2 items-start hidden">
                             <div class="col-span-3 flex flex-col gap-1">
                                 <label class="text-[10px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">🎨 Visual Description</label>
                                 <div class="flex items-center gap-1">
@@ -1455,8 +1491,21 @@
                             </div>
                         </div>
 
-                        <!-- 🌊 Google Flow Optimized Prompt -->
-                        <div class="grid grid-cols-12 gap-2 items-start bg-[#1c2027] p-2 rounded border border-white/5">
+                        <!-- 🖼️ 격자용 프롬프트 (DALL-E 3용) -->
+                        <div class="grid grid-cols-12 gap-2 items-start">
+                            <div class="col-span-3 flex flex-col gap-1">
+                                <label class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">🖼️ 격자 프롬프트</label>
+                                <div class="flex items-center gap-1">
+                                    <button onclick="Utils.copyToClipboard(document.getElementById('prompt-en-input-${i}').value); Utils.showToast('복사 완료!', 'success')" class="text-emerald-500 hover:text-emerald-600 text-[9px] bg-[#1c2027] px-1.5 py-0.5 rounded border border-white/5 transition-colors font-bold whitespace-nowrap">복사</button>
+                                </div>
+                            </div>
+                            <div class="col-span-9 relative">
+                                <textarea id="prompt-en-input-${i}" class="w-full h-16 text-[11px] p-2 rounded border border-gray-200 dark:border-gray-700 bg-[#1c2027] text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-blue-500 font-mono scrollbar-thin" onchange="updatePromptData(${i}, 'prompt_en', this.value)">${extractPureImagePrompt(p.prompt_en || p.prompt_ko || '')}</textarea>
+                            </div>
+                        </div>
+
+                        <!-- 🌊 Google Flow Optimized Prompt (Hidden) -->
+                        <div class="grid grid-cols-12 gap-2 items-start bg-[#1c2027] p-2 rounded border border-white/5 hidden">
                             <div class="col-span-3 flex flex-col gap-1">
                                 <label class="text-[10px] font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">🌊 Google Flow</label>
                                 <div class="flex items-center gap-1">
@@ -1525,7 +1574,7 @@
             `;
         }).join('');
 
-        // [REMOVED] Auto-adjust textarea heights (User requested fixed one-line height)
+        container.innerHTML = listHtml;
     }
 
     // [NEW] Update prompt data from editor & Sync

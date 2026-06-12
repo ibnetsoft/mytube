@@ -130,11 +130,18 @@
             <!-- Result Section -->
             <div id="resultSection" class="hidden">
                 <div class="bg-[#1c2027] rounded-lg border border-gray-700 p-4">
-                    <div class="flex items-center justify-between mb-3">
-                        <h3 class="text-sm font-bold text-white">{{ t('label_generated_script') }}</h3>
+                    <div class="flex items-center justify-between mb-3 border-b border-gray-700 pb-2">
+                        <div class="flex gap-2" id="scriptTabHeaders">
+                            <button onclick="switchScriptTab('original')" id="tabScriptOriginal"
+                                class="px-4 py-2 text-sm font-bold border-b-2 border-blue-500 text-blue-400 focus:outline-none transition-all">
+                                {{ t('tab_original') }}
+                            </button>
+                            <button onclick="switchScriptTab('vietnamese')" id="tabScriptVietnamese"
+                                class="px-4 py-2 text-sm font-bold border-b-2 border-transparent text-gray-400 hover:text-white focus:outline-none transition-all">
+                                {{ t('tab_vietnamese') }}
+                            </button>
+                        </div>
                         <div class="flex gap-2">
-                            <button onclick="translateScript()" id="translateBtn"
-                                class="btn-secondary text-xs hidden">{{ t('btn_translate') }}</button>
                             <button onclick="cleanCurrentScript()"
                                 class="btn-secondary text-xs flex items-center gap-1 border-gray-700 text-yellow-500 hover:bg-gray-800 px-3">
                                 <span>✨</span> {{ t('btn_refine_script') }}
@@ -204,6 +211,8 @@
 {% block scripts %}
 <script>
     let currentScript = '';
+    let vietnameseScript = '';
+    let activeScriptTab = 'original';
     let currentFileId = null;
     let explorerData = { folders: [], files: [] };
 
@@ -469,6 +478,9 @@
             }
 
             currentScript = scriptContent;
+            vietnameseScript = (full && full.settings) ? (full.settings.script_vi || '') : '';
+            activeScriptTab = 'original';
+            updateScriptTabUI();
             document.getElementById('scriptContent').value = currentScript;
 
             if (scriptContent) {
@@ -691,9 +703,17 @@
         }
 
         try {
+            // 로컬 캐시 동기화
+            if (activeScriptTab === 'original') {
+                currentScript = script;
+            } else {
+                vietnameseScript = script;
+            }
+
             const charCount = script.length;
             const readTime = Math.ceil(charCount / 415);
-            await API.project.saveScript(projectId, script, charCount, readTime);
+            const langParam = activeScriptTab === 'vietnamese' ? 'vi' : 'ko';
+            await API.project.saveScript(projectId, script, charCount, readTime, langParam);
             Utils.showToast(`${i18n.status_saved}`, 'success');
             refreshExplorer();
         } catch (e) {
@@ -754,6 +774,100 @@
         document.getElementById('scriptContent').value = cleaned;
         updateStats();
         Utils.showToast(`${i18n.status_script_refined}`, 'success');
+    }
+
+    function updateScriptTabUI() {
+        const tabOrig = document.getElementById('tabScriptOriginal');
+        const tabViet = document.getElementById('tabScriptVietnamese');
+        if (!tabOrig || !tabViet) return;
+        
+        if (activeScriptTab === 'original') {
+            tabOrig.className = "px-4 py-2 text-sm font-bold border-b-2 border-blue-500 text-blue-400 focus:outline-none transition-all";
+            tabViet.className = "px-4 py-2 text-sm font-bold border-b-2 border-transparent text-gray-400 hover:text-white focus:outline-none transition-all";
+        } else {
+            tabViet.className = "px-4 py-2 text-sm font-bold border-b-2 border-blue-500 text-blue-400 focus:outline-none transition-all";
+            tabOrig.className = "px-4 py-2 text-sm font-bold border-b-2 border-transparent text-gray-400 hover:text-white focus:outline-none transition-all";
+        }
+    }
+
+    async function switchScriptTab(lang) {
+        if (activeScriptTab === lang) return;
+        
+        const editor = document.getElementById('scriptContent');
+        if (!editor) return;
+        
+        // 1. 현재 에디터 텍스트를 활성 탭 변수에 보존
+        if (activeScriptTab === 'original') {
+            currentScript = editor.value;
+        } else {
+            vietnameseScript = editor.value;
+        }
+        
+        activeScriptTab = lang;
+        updateScriptTabUI();
+        
+        // 2. 새로운 탭의 스크립트 로드
+        if (lang === 'original') {
+            editor.value = currentScript;
+            updateStats();
+        } else {
+            if (!vietnameseScript.trim()) {
+                await translateScript();
+            } else {
+                editor.value = vietnameseScript;
+                updateStats();
+            }
+        }
+    }
+
+    async function translateScript() {
+        const projectId = getCurrentProject();
+        if (!projectId) {
+            Utils.showToast(`${i18n.status_select_project_first}`, 'warning');
+            return;
+        }
+        
+        const editor = document.getElementById('scriptContent');
+        if (!editor) return;
+        
+        if (activeScriptTab === 'original') {
+            currentScript = editor.value;
+        }
+        
+        if (!currentScript.trim()) {
+            Utils.showToast("번역할 원본 대본이 없습니다.", 'warning');
+            return;
+        }
+        
+        editor.innerHTML = `<div class="flex items-center justify-center h-48 text-gray-400 gap-2"><span class="animate-spin">🔄</span> {{ t('status_translating') }}</div>`;
+        editor.contentEditable = "false";
+        
+        try {
+            const res = await fetch(`/api/projects/${projectId}/translate-script`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ target_language: 'vi' })
+            });
+            
+            if (!res.ok) throw new Error('Translation failed');
+            
+            const data = await res.json();
+            vietnameseScript = data.translated_script;
+            
+            if (activeScriptTab === 'vietnamese') {
+                editor.value = vietnameseScript;
+            }
+            Utils.showToast("{{ t('toast_translation_success') }}", 'success');
+        } catch (e) {
+            console.error(e);
+            Utils.showToast("{{ t('toast_translation_fail') }}", 'error');
+            if (activeScriptTab === 'vietnamese') {
+                editor.value = '';
+            }
+        } finally {
+            editor.contentEditable = "true";
+            updateStats();
+        }
     }
 
     function goToImageGen() { window.location.href = '/image-gen'; }
@@ -886,6 +1000,9 @@
 
                 if (projectFull && projectFull.script && projectFull.script.full_script) {
                     currentScript = projectFull.script.full_script;
+                    vietnameseScript = projectFull.settings?.script_vi || '';
+                    activeScriptTab = 'original';
+                    updateScriptTabUI();
                     currentFileId = projectId;
                     document.getElementById('scriptContent').value = currentScript;
                     document.getElementById('resultSection').classList.remove('hidden');

@@ -254,7 +254,7 @@ JSON만 반환하세요."""
             "scene_number": 1,
             "scene_title": "장면 요약",
             "scene_text": "원본 대본 내용 (원문 그대로)",
-            "is_dual": true,
+            "is_dual": false,
             "start_frame": {{
                 "action": "시작 시점의 동작 (영어)",
                 "expression": "시작 시점의 표정 (영어)",
@@ -289,7 +289,7 @@ JSON만 반환하세요."""
 }}
 
 [📐 지침 3. 듀얼 키프레임 (Dual Keyframe) 생성 규칙]
-- **is_dual**: 영상의 역동성이 필요하거나 장면 전환(A에서 B로)이 뚜렷한 경우 `true`로 설정하세요. 단순 정지 컷이면 `false`입니다.
+- **is_dual**: 기본적으로 항상 비활성(`false`)이 기본값입니다. 특별히 역동적인 움직임이나 장면 전환(A에서 B로)이 명시적으로 필요한 경우를 제외하고는 항상 `false`로 설정하십시오.
 - **start_frame / end_frame**: `is_dual`이 `true`일 때만 작성하세요. 
   - `start_frame`은 영상의 0초 시점 상태, `end_frame`은 영상의 마지막 시점 상태를 묘사합니다.
   - 두 프레임 사이에는 명확한 **동작의 변화(Movement)**나 **상태의 변화(Transformation)**가 있어야 합니다.

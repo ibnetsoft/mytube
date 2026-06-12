@@ -133,7 +133,8 @@ class AuthService:
                     "userId": user_id,
                     "hwid": hwid
                 },
-                timeout=10
+                timeout=10,
+                proxies={"http": None, "https": None}
             )
 
             if response.status_code == 200:
@@ -204,7 +205,8 @@ class AuthService:
                                 templates.env.globals['membership'] = self._membership
                                 templates.env.globals['token_balance'] = self._token_balance
                                 templates.env.globals['is_independent'] = self.is_independent()
-                                print(f"[Auth] Updated Template Globals: {self._membership} (Balance: {self._token_balance})")
+                                templates.env.globals['user_email'] = self._user_email
+                                print(f"[Auth] Updated Template Globals: {self._membership} (Balance: {self._token_balance}, Email: {self._user_email})")
                         except Exception as e:
                             print(f"[Auth] Template sync error: {e}")
                     
@@ -274,7 +276,8 @@ class AuthService:
                 import urllib3
                 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
                 
-                response = requests.get(url, headers=headers, timeout=5, verify=False)
+                url = f"{supabase_url.rstrip('/')}/rest/v1/profiles?email=eq.{email}&select=*"
+                response = requests.get(url, headers=headers, timeout=5, verify=False, proxies={"http": None, "https": None})
                 if response.status_code == 200:
                     data = response.json()
                     if data:
@@ -310,10 +313,33 @@ class AuthService:
                     templates.env.globals['membership'] = self._membership
                     templates.env.globals['token_balance'] = self._token_balance
                     templates.env.globals['is_independent'] = self.is_independent()
+                    templates.env.globals['user_email'] = self._user_email
             except Exception as e:
                 print(f"[Auth] Jinja globals update warning: {e}")
         except Exception as e:
             print(f"[Auth] Directory isolation failed for {email}: {e}")
+
+    def logout_user(self):
+        """로그아웃 처리 - 사용자 정보 초기화"""
+        self._user_email = ""
+        self._user_name = ""
+        self._user_nationality = ""
+        self._user_contact = ""
+        self._membership = "std"
+        self._token_balance = 0
+        self._verified = False
+        
+        # 템플릿 환경 변수 초기화
+        try:
+            from .app_state import get_templates
+            templates = get_templates()
+            if templates:
+                templates.env.globals['membership'] = "std"
+                templates.env.globals['token_balance'] = 0
+                templates.env.globals['is_independent'] = False
+                templates.env.globals['user_email'] = ""
+        except Exception as e:
+            print(f"[Auth] Jinja globals reset warning: {e}")
 
     def sync_profile(self, name: str, nationality: str, contact: str):
         """Sync local user profile info to the SaaS server"""
@@ -335,7 +361,8 @@ class AuthService:
                     "nationality": nationality,
                     "contact": contact
                 },
-                timeout=10
+                timeout=10,
+                proxies={"http": None, "https": None}
             )
             
             if response.status_code == 200:

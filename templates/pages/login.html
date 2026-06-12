@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ko" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>직원 로그인 - PICADILLY STUDIO</title>
+    <script src="/static/js/tailwind.min.js?v=2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Noto+Sans+KR:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'Noto Sans KR', 'sans-serif'],
+                    }
+                }
+            }
+        }
+        document.documentElement.classList.add('dark');
+    </script>
+    <style>
+        body {
+            background-color: #0b0f19;
+            background-image: 
+                radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
+                radial-gradient(at 50% 0%, hsla(225,39%,30%,0.2) 0, transparent 50%), 
+                radial-gradient(at 100% 0%, hsla(242,43%,12%,1) 0, transparent 50%),
+                radial-gradient(at 50% 100%, hsla(263,45%,20%,0.15) 0, transparent 50%);
+        }
+        .glass-card {
+            background: rgba(30, 41, 59, 0.45);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .key-btn {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .key-btn:hover {
+            background: rgba(59, 130, 246, 0.15);
+            border-color: rgba(59, 130, 246, 0.3);
+            transform: translateY(-2px);
+        }
+        .key-btn:active {
+            transform: scale(0.95);
+        }
+        .dot {
+            transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .dot.filled {
+            background-color: #3b82f6;
+            box-shadow: 0 0 12px rgba(59, 130, 246, 0.6);
+            transform: scale(1.25);
+        }
+    </style>
+</head>
+
+<body class="text-gray-100 min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-md glass-card rounded-3xl p-8 shadow-2xl relative overflow-hidden">
+        <!-- Background Blur Accents -->
+        <div class="absolute -right-16 -top-16 w-36 h-36 bg-blue-500/10 rounded-full blur-3xl"></div>
+        <div class="absolute -left-16 -bottom-16 w-36 h-36 bg-indigo-500/10 rounded-full blur-3xl"></div>
+
+        <div class="relative z-10 flex flex-col items-center">
+            <!-- Logo / Brand -->
+            <div class="flex items-center gap-2 mb-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse"></span>
+                <span class="text-xs font-bold uppercase tracking-widest text-blue-400">Picadilly Studio</span>
+            </div>
+            <h1 class="text-2xl font-black text-white mb-6">Đăng nhập nhân viên</h1>
+
+            <!-- Step 1: Email Selection -->
+            <div id="step-email" class="w-full flex flex-col gap-4">
+                <label class="text-sm font-semibold text-gray-400">Vui lòng chọn Email</label>
+                <div id="email-list" class="max-h-60 overflow-y-auto pr-1 flex flex-col gap-2">
+                    <!-- Loading skeleton -->
+                    <div class="animate-pulse bg-white/5 h-12 rounded-xl"></div>
+                    <div class="animate-pulse bg-white/5 h-12 rounded-xl"></div>
+                </div>
+            </div>
+
+            <!-- Step 2: PIN Input -->
+            <div id="step-pin" class="w-full hidden flex flex-col items-center">
+                <!-- Selected User Back Button -->
+                <button onclick="backToEmail()" class="self-start text-xs font-semibold text-gray-400 hover:text-white flex items-center gap-1 mb-4 transition">
+                    ← Chọn Email khác
+                </button>
+                
+                <span id="selected-email" class="text-sm font-bold text-blue-400 mb-6 bg-blue-500/10 border border-blue-500/20 px-3 py-1 rounded-full"></span>
+
+                <!-- Display Dots -->
+                <div class="flex gap-4 mb-8">
+                    <div class="dot w-3.5 h-3.5 rounded-full bg-white/10 border border-white/5"></div>
+                    <div class="dot w-3.5 h-3.5 rounded-full bg-white/10 border border-white/5"></div>
+                    <div class="dot w-3.5 h-3.5 rounded-full bg-white/10 border border-white/5"></div>
+                    <div class="dot w-3.5 h-3.5 rounded-full bg-white/10 border border-white/5"></div>
+                </div>
+
+                <!-- Error Message -->
+                <div id="error-msg" class="text-red-400 text-xs font-semibold h-4 mb-4 text-center"></div>
+
+                <!-- Numeric Keypad Grid -->
+                <div class="grid grid-cols-3 gap-3 w-full max-w-[280px]">
+                    <button onclick="pressKey('1')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">1</button>
+                    <button onclick="pressKey('2')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">2</button>
+                    <button onclick="pressKey('3')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">3</button>
+                    <button onclick="pressKey('4')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">4</button>
+                    <button onclick="pressKey('5')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">5</button>
+                    <button onclick="pressKey('6')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">6</button>
+                    <button onclick="pressKey('7')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">7</button>
+                    <button onclick="pressKey('8')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">8</button>
+                    <button onclick="pressKey('9')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">9</button>
+                    <button onclick="pressKey('clear')" class="key-btn aspect-square rounded-2xl text-xs font-semibold flex items-center justify-center text-gray-400">Đặt lại</button>
+                    <button onclick="pressKey('0')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">0</button>
+                    <button onclick="pressKey('backspace')" class="key-btn aspect-square rounded-2xl text-lg flex items-center justify-center">⌫</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentEmail = '';
+        let currentPin = '';
+
+        // Load emails on start
+        window.addEventListener('DOMContentLoaded', loadEmails);
+
+        async function loadEmails() {
+            try {
+                const response = await fetch('/api/auth/emails');
+                const data = await response.json();
+                const container = document.getElementById('email-list');
+                container.innerHTML = '';
+
+                if (data.emails && data.emails.length > 0) {
+                    data.emails.forEach(email => {
+                        const btn = document.createElement('button');
+                        btn.className = 'w-full text-left px-5 py-4 rounded-xl border border-white/5 bg-white/5 hover:bg-blue-500/10 hover:border-blue-500/30 transition duration-200 font-semibold text-sm flex justify-between items-center group active:scale-[0.99]';
+                        btn.innerHTML = `
+                            <span>${email}</span>
+                            <span class="text-xs text-gray-500 group-hover:text-blue-400 transition">Chọn →</span>
+                        `;
+                        btn.onclick = () => selectEmail(email);
+                        container.appendChild(btn);
+                    });
+                } else {
+                    container.innerHTML = '<div class="text-center text-xs text-gray-500 py-6">Không có email nào được đăng ký.</div>';
+                }
+            } catch (e) {
+                console.error(e);
+                document.getElementById('email-list').innerHTML = '<div class="text-center text-xs text-red-400 py-6">Không thể lấy danh sách email.</div>';
+            }
+        }
+
+        function selectEmail(email) {
+            currentEmail = email;
+            document.getElementById('selected-email').textContent = email;
+            document.getElementById('step-email').classList.add('hidden');
+            document.getElementById('step-pin').classList.remove('hidden');
+            currentPin = '';
+            updateDots();
+        }
+
+        function backToEmail() {
+            currentEmail = '';
+            currentPin = '';
+            document.getElementById('error-msg').textContent = '';
+            document.getElementById('step-pin').classList.add('hidden');
+            document.getElementById('step-email').classList.remove('hidden');
+        }
+
+        function pressKey(key) {
+            document.getElementById('error-msg').textContent = '';
+            
+            if (key === 'clear') {
+                currentPin = '';
+            } else if (key === 'backspace') {
+                currentPin = currentPin.slice(0, -1);
+            } else {
+                if (currentPin.length < 4) {
+                    currentPin += key;
+                }
+            }
+
+            updateDots();
+
+            if (currentPin.length === 4) {
+                // Auto trigger login when 4 digits are typed
+                submitLogin();
+            }
+        }
+
+        function updateDots() {
+            const dots = document.querySelectorAll('.dot');
+            dots.forEach((dot, idx) => {
+                if (idx < currentPin.length) {
+                    dot.classList.add('filled');
+                } else {
+                    dot.classList.remove('filled');
+                }
+            });
+        }
+
+        async function submitLogin() {
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentEmail, pin_code: currentPin })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    // Success, redirect to home
+                    window.location.href = '/';
+                } else {
+                    document.getElementById('error-msg').textContent = data.error || 'Đăng nhập thất bại';
+                    // Shake and clear pin code
+                    currentPin = '';
+                    setTimeout(updateDots, 300);
+                }
+            } catch (e) {
+                console.error(e);
+                document.getElementById('error-msg').textContent = 'Kết nối máy chủ thất bại.';
+                currentPin = '';
+                setTimeout(updateDots, 300);
+            }
+        }
+    </script>
+</body>
+
+</html>

@@ -66,26 +66,6 @@ class TTSService:
             except Exception as e:
                 print(f"OpenAI Client 초기화 실패: {e}")
 
-    async def get_elevenlabs_voices(self) -> list:
-        """ElevenLabs API에서 사용 가능한 목소리 목록 조회"""
-        if not self.elevenlabs_key:
-            return []
-            
-        url = "https://api.elevenlabs.io/v1/voices"
-        headers = {
-            "xi-api-key": self.elevenlabs_key
-        }
-        
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(url, headers=headers)
-                if response.status_code == 200:
-                    data = response.json()
-                    return data.get("voices", [])
-                return []
-        except Exception as e:
-            print(f"ElevenLabs Voice List Error: {e}")
-            return []
 
     async def generate_sound_effect(self, text: str, duration_seconds: Optional[float] = None) -> Optional[bytes]:
         """ElevenLabs Sound Generation API를 사용하여 효과음 생성"""
@@ -105,7 +85,7 @@ class TTSService:
             payload["duration_seconds"] = duration_seconds
         
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=30.0, trust_env=False) as client:
                 response = await client.post(url, json=payload, headers=headers)
                 
                 if response.status_code == 200:
@@ -323,7 +303,7 @@ class TTSService:
         alignment_data = []
         audio_duration = 0.0
 
-        async with httpx.AsyncClient(timeout=180.0) as client:
+        async with httpx.AsyncClient(timeout=180.0, trust_env=False) as client:
             response = await client.post(url, headers=headers, json=payload)
 
             if response.status_code == 200:
@@ -500,7 +480,7 @@ class TTSService:
         url = "https://api.elevenlabs.io/v1/voices"
         headers = {"xi-api-key": api_key}
         
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=10.0, trust_env=False) as client:
             try:
                 response = await client.get(url, headers=headers)
                 if response.status_code == 200:
@@ -538,7 +518,7 @@ class TTSService:
             "prompt_influence": 0.3 # Default balanced
         }
         
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=60.0, trust_env=False) as client:
             try:
                 # Use verify=False if certificate issues arise, but standard shouldn't need it
                 response = await client.post(url, headers=headers, json=payload)
@@ -727,35 +707,6 @@ class TTSService:
         except Exception as e:
             raise Exception(f"OpenAI TTS 생성 실패: {str(e)}")
 
-    async def get_elevenlabs_voices(self) -> list:
-        """ElevenLabs 사용 가능한 음성 목록"""
-        # [FIX] 런타임에 .env 변경사항 반영
-        load_dotenv(override=True)
-        api_key = os.getenv("ELEVENLABS_API_KEY")
-        
-        if not api_key:
-            return []
-
-        url = "https://api.elevenlabs.io/v1/voices"
-
-        headers = {
-            "xi-api-key": api_key
-        }
-
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers)
-
-            if response.status_code == 200:
-                data = response.json()
-                return [
-                    {
-                        "voice_id": v["voice_id"],
-                        "name": v["name"],
-                        "labels": v.get("labels", {})
-                    }
-                    for v in data.get("voices", [])
-                ]
-            return []
 
     def clean_text(self, text: str) -> str:
         """TTS를 위한 텍스트 정제 (괄호, 마크다운 제거)

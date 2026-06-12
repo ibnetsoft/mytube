@@ -108,6 +108,7 @@ class ScriptSave(BaseModel):
     full_script: str
     word_count: int
     estimated_duration: int
+    language: Optional[str] = None
 
 
 class ImagePromptsSave(BaseModel):

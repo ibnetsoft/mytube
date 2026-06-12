@@ -37,4 +37,6 @@ echo.
 
 REM 서버 실행 (--reload: 코드 변경 시 자동 재시작)
 set DEBUG=true
+set PYTHONUTF8=1
 python main.py
+

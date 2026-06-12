@@ -651,3 +651,17 @@ Img[2] EffectRaw: random -> Safe: random (Dur:0.1, FPS:24)
   -> Random Selection for Img[2]: pan_down
 Img[3] EffectRaw: random -> Safe: random (Dur:4.568999999999999, FPS:24)
   -> Random Selection for Img[3]: zoom_in
+Img[0] EffectRaw: zoom_out -> Safe: zoom_out (Dur:8.69, FPS:24)
+Img[1] EffectRaw: random -> Safe: random (Dur:8.410000000000002, FPS:24)
+  -> Random Selection for Img[1]: zoom_in
+Img[2] EffectRaw: random -> Safe: random (Dur:15.14, FPS:24)
+  -> Random Selection for Img[2]: pan_right
+Img[3] EffectRaw: random -> Safe: random (Dur:22.589999999999996, FPS:24)
+  -> Random Selection for Img[3]: pan_left
+Img[4] EffectRaw: random -> Safe: random (Dur:7.770000000000003, FPS:24)
+  -> Random Selection for Img[4]: pan_up
+Img[5] EffectRaw: random -> Safe: random (Dur:6.939999999999991, FPS:24)
+  -> Random Selection for Img[5]: zoom_out
+Img[6] EffectRaw: none -> Safe: none (Dur:5.447000000000003, FPS:24)
+Img[7] EffectRaw: random -> Safe: random (Dur:18.403000000000006, FPS:24)
+  -> Random Selection for Img[7]: pan_up

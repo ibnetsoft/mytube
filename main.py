@@ -162,7 +162,7 @@ async def get_auth_emails():
         import urllib3
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         
-        r = requests.get(url, headers=headers, timeout=5, verify=False)
+        r = requests.get(url, headers=headers, timeout=5, verify=False, proxies={"http": None, "https": None})
         if r.status_code == 200:
             emails = [item["email"] for item in r.json() if item.get("email")]
             return {"emails": emails}
@@ -195,7 +195,7 @@ async def post_auth_login(req: LoginRequest):
         import urllib3
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         
-        r = requests.get(url, headers=headers, timeout=5, verify=False)
+        r = requests.get(url, headers=headers, timeout=5, verify=False, proxies={"http": None, "https": None})
         
         if r.status_code == 200:
             data = r.json()
@@ -229,6 +229,7 @@ async def post_auth_login(req: LoginRequest):
 # [NEW] 로그아웃 API
 @app.post("/api/auth/logout")
 async def post_auth_logout():
+    auth_service.logout_user()
     response = JSONResponse({"success": True})
     response.delete_cookie("user_email")
     return response
@@ -258,7 +259,7 @@ async def get_daily_topic():
         import urllib3
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         
-        r = requests.get(url, headers=headers, timeout=5, verify=False)
+        r = requests.get(url, headers=headers, timeout=5, verify=False, proxies={"http": None, "https": None})
         
         if r.status_code == 200:
             data = r.json()
@@ -271,7 +272,7 @@ async def get_daily_topic():
                 update_url = f"{supabase_url.rstrip('/')}/rest/v1/topics_queue?id=eq.{topic_id}"
                 patch_headers = headers.copy()
                 patch_headers["Prefer"] = "return=representation"
-                r_update = requests.patch(update_url, headers=patch_headers, json={"status": "assigned"}, timeout=5, verify=False)
+                r_update = requests.patch(update_url, headers=patch_headers, json={"status": "assigned"}, timeout=5, verify=False, proxies={"http": None, "https": None})
                 
                 if r_update.status_code != 200:
                     print(f"[Queue] Failed to update topic status in Supabase: {r_update.text}")
@@ -298,16 +299,67 @@ async def get_daily_topic():
 # [NEW] 격리된 동적 output 서빙 엔드포인트
 @app.get("/output/{file_path:path}")
 async def serve_output_file(file_path: str):
-    abs_path = os.path.join(config.OUTPUT_DIR, file_path)
-    if os.path.exists(abs_path):
-        return FileResponse(abs_path)
+    if file_path.startswith("external/"):
+        rel = file_path.replace("external/", "", 1)
+        appdata_base = os.path.join(os.path.expanduser("~"), "AppData", "Local", "picadilly")
+        abs_path = os.path.normpath(os.path.join(appdata_base, rel))
+        if os.path.exists(abs_path):
+            return FileResponse(abs_path)
+    else:
+        abs_path = os.path.join(config.OUTPUT_DIR, file_path)
+        if os.path.exists(abs_path):
+            return FileResponse(abs_path)
     raise HTTPException(status_code=404, detail="File not found")
 
 # [NEW] 실시간 등급/토큰 동기화 API
 @app.post("/api/auth/sync")
 async def sync_auth():
     try:
+        email = auth_service.get_user_email()
+        if email:
+            # 직원 로그인 사용자의 경우 Supabase에서 최신 프로필 정보 동기화
+            supabase_url = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
+            supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+            if supabase_url and supabase_key:
+                headers = {
+                    "apikey": supabase_key,
+                    "Authorization": f"Bearer {supabase_key}"
+                }
+                import urllib3
+                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+                
+                url = f"{supabase_url.rstrip('/')}/rest/v1/profiles?email=eq.{email}&select=*"
+                r = requests.get(url, headers=headers, timeout=5, verify=False, proxies={"http": None, "https": None})
+                if r.status_code == 200:
+                    data = r.json()
+                    if data:
+                        profile = data[0]
+                        auth_service._membership = profile.get("membership", "std")
+                        auth_service._token_balance = profile.get("token_balance", 0)
+                        
+                        # 템플릿 글로벌 변수 즉시 업데이트
+                        try:
+                            from services.app_state import get_templates
+                            templates = get_templates()
+                            if templates:
+                                templates.env.globals['membership'] = auth_service._membership
+                                templates.env.globals['token_balance'] = auth_service._token_balance
+                                templates.env.globals['is_independent'] = auth_service.is_independent()
+                        except Exception as e:
+                            print(f"[Auth Sync] Template sync error: {e}")
+                            
+                        return {
+                            "success": True,
+                            "membership": auth_service.get_membership(),
+                            "token_balance": auth_service.get_token_balance()
+                        }
+            return {"success": False, "error": "Supabase 동기화 실패"}
+
+        # 일반 라이선스 사용자 동기화
         success = auth_service.verify_license()
+        if hasattr(success, "__await__") or hasattr(success, "cr_await"):
+            success = await success
+            
         if success:
             return {
                 "success": True, 
@@ -365,6 +417,7 @@ templates.env.globals['current_lang'] = app_lang
 templates.env.globals['app_mode'] = db.get_global_setting("app_mode", "longform")
 templates.env.globals['membership'] = auth_service.get_membership()
 templates.env.globals['is_independent'] = auth_service.is_independent()
+templates.env.globals['user_email'] = auth_service.get_user_email()
 def get_license_key():
     if os.path.exists("license.key"):
         with open("license.key", "r") as f:
@@ -514,7 +567,9 @@ STYLE_PROMPTS = {
     "3d": "3D render, Pixar style, soft studio lighting, octane render, 4k, high quality",
     "k_webtoon": "Modern K-webtoon manhwa style, high-quality digital illustration, sharp line art, vibrant colors, expressive character, modern manhwa aesthetic, professional digital art, no text, no speech bubbles",
     "ghibli": "Studio Ghibli style, cel shaded, vibrant colors, lush background, Hayao Miyazaki style, highly detailed, masterfully painted",
-    "k_manhwa": "A clean, high-quality, full-color webtoon style illustration in a 16:9 cinematic aspect ratio. Bold black outlines, flat graphic colors with soft gradients, clean vector-like finish. Isolated on a fully illustrated 16:9 detailed background. A cute, minimalist cartoon character with a perfectly uniform white circular head (solid white surface, no hair, shiny bald). THE FACE MUST HAVE a pair of distinct black eyes and a simple mouth. THE CHARACTER HAS EXACTLY TWO ARMS (one left arm, one right arm) AND EXACTLY TWO WHITE GLOVED HANDS TOTAL. NO THIRD ARM, NO FOURTH ARM, NO MULTIPLE LIMBS. NO REAR ARMS. The black limbs must have a perfectly uniform and consistent thickness. The character always wears a long-sleeved hooded sweatshirt (hoodie) that covers the arms down to the wrists, the hoodie is vibrant teal-blue (Brand Color: #00ADB5), black pants and simple sneakers. IMPORTANT: Background elements and other illustrated characters MUST NEVER overlap, touch, or be attached to the main character. The main character must be clearly separated from the background layers. ABSOLUTELY NO TEXT. NO HAIR. ONLY TWO ARMS AND TWO HANDS TOTAL. NO EXTRA LIMBS."
+    "k_manhwa": "A clean, high-quality, full-color webtoon style illustration in a 16:9 cinematic aspect ratio. Bold black outlines, flat graphic colors with soft gradients, clean vector-like finish. Isolated on a fully illustrated 16:9 detailed background. A cute, minimalist cartoon character with a perfectly uniform white circular head (solid white surface, no hair, shiny bald). THE FACE MUST HAVE a pair of distinct black eyes and a simple mouth. THE CHARACTER HAS EXACTLY TWO ARMS (one left arm, one right arm) AND EXACTLY TWO WHITE GLOVED HANDS TOTAL. NO THIRD ARM, NO FOURTH ARM, NO MULTIPLE LIMBS. NO REAR ARMS. The black limbs must have a perfectly uniform and consistent thickness. The character always wears a long-sleeved hooded sweatshirt (hoodie) that covers the arms down to the wrists, the hoodie is vibrant teal-blue (Brand Color: #00ADB5), black pants and simple sneakers. IMPORTANT: Background elements and other illustrated characters MUST NEVER overlap, touch, or be attached to the main character. The main character must be clearly separated from the background layers. ABSOLUTELY NO TEXT. NO HAIR. ONLY TWO ARMS AND TWO HANDS TOTAL. NO EXTRA LIMBS.",
+    "philosophical": "Traditional oriental painting style, ink wash, philosophical atmosphere, historical documentary aesthetic.",
+    "역사/동양철/다큐": "Traditional oriental painting style, ink wash, philosophical atmosphere, historical documentary aesthetic."
 }
 
 
@@ -575,14 +630,56 @@ async def patch_project(project_id: int, body: dict = Body(...)):
 @app.post("/api/projects/{project_id}/script")
 async def save_script(project_id: int, req: ScriptSave):
     """대본 저장"""
-    db.save_script(project_id, req.full_script, req.word_count, req.estimated_duration)
-    db.update_project(project_id, status="scripted")
+    if req.language == "vi":
+        db.update_project_setting(project_id, "script_vi", req.full_script)
+    else:
+        db.save_script(project_id, req.full_script, req.word_count, req.estimated_duration)
+        db.update_project(project_id, status="scripted")
     return {"status": "ok"}
 
 @app.get("/api/projects/{project_id}/script")
 async def get_script(project_id: int):
     """대본 조회"""
     return db.get_script(project_id) or {}
+
+class TranslateScriptRequest(BaseModel):
+    target_language: str = "vi"
+
+@app.post("/api/projects/{project_id}/translate-script")
+async def translate_project_script(project_id: int, req: TranslateScriptRequest):
+    """대본 번역 (베트남어)"""
+    script_data = db.get_script(project_id)
+    if not script_data or not script_data.get("full_script"):
+        raise HTTPException(400, "Original script not found. Please generate it first.")
+    
+    original_script = script_data["full_script"]
+    from services.gemini_service import gemini_service
+    
+    prompt = (
+        f"Translate the following video script into Vietnamese.\n\n"
+        f"CRITICAL RULES:\n"
+        f"1. Keep all speaker labels (e.g. '길동:', '철수:', 'Narrator:') exactly in their original form (do not translate names, but you can translate labels like 'Narrator:').\n"
+        f"2. Keep all brackets containing emotion or direction tags in their original English form (e.g. keep '(excited)', '(whispering)', '(pause)' as is, do not translate them).\n"
+        f"3. Keep the line-by-line structure, paragraphs, and blank lines exactly identical to the original.\n"
+        f"4. Output ONLY the translated script text. Do not add any greeting, introductory text, explanations, or wrapping block quotes.\n\n"
+        f"{original_script}"
+    )
+    
+    try:
+        translated_text = await gemini_service.generate_text(prompt, temperature=0.3)
+        translated_text = translated_text.strip()
+        
+        # DB의 project_settings 테이블에 script_vi 필드로 동적 컬럼 저장
+        db.update_project_setting(project_id, "script_vi", translated_text)
+        
+        return {
+            "status": "success",
+            "translated_script": translated_text
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(500, f"Translation failed: {str(e)}")
 
 @app.get("/api/projects/{project_id}/full")
 async def get_project_full(project_id: int):
@@ -1893,7 +1990,7 @@ async def tts_voices():
     # ElevenLabs
     if config.ELEVENLABS_API_KEY:
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(trust_env=False) as client:
                 response = await client.get(
                     "https://api.elevenlabs.io/v1/voices",
                     headers={"xi-api-key": config.ELEVENLABS_API_KEY}

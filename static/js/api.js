@@ -344,14 +344,15 @@ const API = {
         },
 
         // 대본 저장/조회
-        async saveScript(projectId, fullScript, wordCount, estimatedDuration) {
+        async saveScript(projectId, fullScript, wordCount, estimatedDuration, language = null) {
             const response = await fetch(`/api/projects/${projectId}/script`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     full_script: fullScript,
                     word_count: wordCount,
-                    estimated_duration: estimatedDuration
+                    estimated_duration: estimatedDuration,
+                    language: language
                 })
             });
             return response.json();

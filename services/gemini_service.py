@@ -44,7 +44,15 @@ class GeminiService:
 
     def log_debug(self, msg: str):
         """Write to debug.log for monitoring"""
-        print(msg)
+        try:
+            print(msg)
+        except Exception:
+            try:
+                import sys
+                enc = sys.stdout.encoding or 'utf-8'
+                print(msg.encode(enc, errors='replace').decode(enc))
+            except Exception:
+                pass
         try:
             from datetime import datetime
             with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
@@ -103,7 +111,7 @@ class GeminiService:
         start_time = _time.time()
         try:
             self.log_debug(f"💬 [Gemini Text] Starting generation (model={model}, prompt={prompt[:100]}...)")
-            async with httpx.AsyncClient(timeout=180.0) as client:
+            async with httpx.AsyncClient(timeout=180.0, trust_env=False) as client:
                 response = await client.post(url, json=payload)
                 result = response.json()
 
@@ -166,7 +174,7 @@ class GeminiService:
         start_time = _time.time()
         try:
             self.log_debug(f"👁️ [Gemini Vision] Starting analysis (prompt={prompt[:100]}...)")
-            async with httpx.AsyncClient(timeout=120.0) as client:
+            async with httpx.AsyncClient(timeout=120.0, trust_env=False) as client:
                 response = await client.post(url, json=payload)
                 result = response.json()
 
@@ -605,7 +613,7 @@ class GeminiService:
                     sep = "&" if "?" in download_url else "?"
                     download_url += f"{sep}key={self.api_key}"
                 
-                async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+                async with httpx.AsyncClient(timeout=60.0, follow_redirects=True, trust_env=False) as client:
                     resp = await client.get(download_url)
 
 
@@ -1667,7 +1675,7 @@ Motion prompt for this image:"""
                         _ext = _os.path.splitext(_local)[1].lower()
                         _ref_mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "webp": "image/webp"}.get(_ext.lstrip("."), "image/jpeg")
                 else:
-                    async with _httpx.AsyncClient(timeout=15.0) as _hc:
+                    async with _httpx.AsyncClient(timeout=15.0, trust_env=False) as _hc:
                         _resp = await _hc.get(_ref_url)
                         if _resp.status_code == 200:
                             _ref_image_bytes = _resp.content

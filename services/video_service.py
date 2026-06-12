@@ -56,6 +56,47 @@ class VideoService:
             
         return None, None
 
+    def _get_video_duration_and_resolution(self, path):
+        """Helper to get video duration and dimensions safely using ffmpeg"""
+        import imageio_ffmpeg
+        import subprocess
+        import re
+        import os
+        
+        duration = None
+        w, h = None, None
+        try:
+            ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+            cmd = [ffmpeg_exe, "-i", path]
+            startupinfo = None
+            if os.name == 'nt':
+                 startupinfo = subprocess.STARTUPINFO()
+                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, startupinfo=startupinfo)
+            output = res.stderr or ""
+            
+            # Find duration (e.g. Duration: 00:00:05.12)
+            dur_match = re.search(r"Duration:\s*(\d{2}):(\d{2}):(\d{2}\.\d{2})", output)
+            if dur_match:
+                hours = int(dur_match.group(1))
+                minutes = int(dur_match.group(2))
+                seconds = float(dur_match.group(3))
+                duration = hours * 3600 + minutes * 60 + seconds
+            
+            # Find resolution
+            res_match = re.search(r"Video:.*? (\d{2,5})x(\d{2,5})", output)
+            if res_match:
+                w, h = map(int, res_match.groups())
+            else:
+                fallback_match = re.search(r" (\d{3,5})x(\d{3,5}) ", output)
+                if fallback_match:
+                    w, h = map(int, fallback_match.groups())
+        except Exception as e:
+            print(f"Probe Error for {path}: {e}")
+            
+        return duration, w, h
+
     def create_slideshow(
         self,
         images: List[str],
@@ -2267,8 +2308,14 @@ class VideoService:
             text = re.sub(r"[\u2018\u2019\u201C\u201D\u2032\u2033\u0027\u0060]", '', text)
             # 2. Normalize Unicode (Full-width -> ASCII, etc.)
             text = unicodedata.normalize('NFKC', text)
-            # 3. Regex Clean (Strip all brackets)
+            # 3. Regex Clean (Strip all brackets and their contents)
+            text = re.sub(r'\[[^\]]*\]', '', text)
+            text = re.sub(r'\([^)]*\)', '', text)
+            text = re.sub(r'\{[^}]*\}', '', text)
+            text = re.sub(r'【[^】]*】', '', text)
+            text = re.sub(r'（[^）]*）', '', text)
             text = re.sub(r'[()\[\]\{\}（）「」『』【】]', '', text)
+            text = re.sub(r'\s+', ' ', text)
             # 4. Newline Safety
             text = text.replace('\r', '').strip()
             
@@ -2965,7 +3012,7 @@ class VideoService:
                 current_block = []
                 current_start = 0.0
                 current_chars = 0
-                MAX_CHARS = 70   # 40→70: 문맥 단위 유지
+                MAX_CHARS = 35   # 단위를 작게 분할하여 대사 타이밍 씽크 정확도 향상
 
                 # Check format: Is it list of {word, start, end}?
                 # Yes, tts_service saves it that way.
@@ -2981,18 +3028,16 @@ class VideoService:
                     current_block.append(word)
                     current_chars += len(word)
 
-                    # Grouping Logic — 문장부호(. ? !)에서만 끊음, 쉼표는 제외
+                    # Grouping Logic — 문장부호(. ? !)와 쉼표(,) 및 글자수 초과 기준으로 정교하게 분리
                     is_end_char = word.strip().endswith(('.', '?', '!', '…'))
+                    is_comma = word.strip().endswith(',') and current_chars > 15
                     is_long = current_chars > MAX_CHARS
                     is_last = (i == len(data) - 1)
 
-                    if is_end_char or is_long or is_last:
+                    if is_end_char or is_comma or is_long or is_last:
                         # Reconstruct sentence
                         text = "".join(current_block)
                         # Fix spacing if words don't have spaces (ElevenLabs returns raw chars sometimes?)
-                        # Actually tts_service _chars_to_words_alignment constructs words.
-                        # If words lack spaces, join with space.
-                        # But better: just join with space and strip.
                         if " " not in text and len(current_block) > 1:
                              text = " ".join(current_block)
                         
@@ -3240,16 +3285,35 @@ class VideoService:
         # crop=w:h cuts the center
         # fps for consistency
         # setpts=PTS-STARTPTS: 타임스탬프 0 기준 재설정 (Veo 등 비정상 PTS 영상 첫 프레임 검은화면 방지)
-        vf_filter = f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},fps={fps},setpts=PTS-STARTPTS"
+        is_video = input_path.lower().endswith(('.mp4', '.mov', '.avi', '.mkv', '.webm'))
+
+        # Check if the original video is shorter than the target duration and apply slow-motion speed stretch
+        orig_dur = None
+        if is_video and duration:
+             orig_dur, _, _ = self._get_video_duration_and_resolution(input_path)
+        
+        should_stretch = False
+        speed_factor = 1.0
+        if is_video and orig_dur and duration and orig_dur < duration:
+             speed_factor = duration / orig_dur
+             # Only slow down if it's within a reasonable limit (e.g. <= 3.0x), otherwise fallback to loop
+             if speed_factor <= 3.0:
+                 should_stretch = True
+                 print(f"DEBUG_RENDER: Video original duration ({orig_dur:.2f}s) is shorter than target duration ({duration:.2f}s). Stretching speed by {speed_factor:.3f}x.")
+
+        if should_stretch:
+             vf_filter = f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},fps={fps},setpts={speed_factor}*PTS"
+        else:
+             vf_filter = f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},fps={fps},setpts=PTS-STARTPTS"
 
         cmd = [ffmpeg_exe, "-y"]
 
-        is_video = input_path.lower().endswith(('.mp4', '.mov', '.avi', '.mkv', '.webm'))
-
         if is_video:
-            # [FIX] -t를 출력 옵션으로 이동: 입력 PTS 기준이 아닌 실제 인코딩 시작점부터 카운트
-            # Veo 등 영상은 PTS가 0이 아닌 값에서 시작 → -t를 입력 옵션으로 쓰면 첫 프레임이 검게 됨
-            cmd.extend(["-stream_loop", "-1", "-i", input_path])
+            if should_stretch:
+                 # Read input once (no loop) and stretch it using setpts
+                 cmd.extend(["-i", input_path])
+            else:
+                 cmd.extend(["-stream_loop", "-1", "-i", input_path])
         else:
             cmd.extend(["-loop", "1", "-framerate", str(fps)])
             if duration is not None:
@@ -3397,19 +3461,32 @@ class VideoService:
         # 단순히 폭(Width)을 맞추고 원래의 세로 비율(Height)을 살려둔 '길다란 비디오'를 만듭니다.
         # 실제 움직임(Pan)은 MoviePy의 `with_position`을 통해 부드럽게 스크롤됩니다. (루핑 문제 해결)
 
-        vf_filter = f"scale={width}:{scaled_h}"
-        
-        cmd = [
-            ffmpeg_exe, "-y"
-        ]
-
         # 이미지인지 비디오인지 확장자로 판단
         is_video = input_path.lower().endswith(('.mp4', '.mov', '.avi', '.mkv', '.webm'))
 
+        # Check if the original video is shorter than the target duration and apply slow-motion speed stretch
+        orig_dur = None
+        if is_video and duration:
+             orig_dur, _, _ = self._get_video_duration_and_resolution(input_path)
+        
+        should_stretch = False
+        speed_factor = 1.0
+        if is_video and orig_dur and duration and orig_dur < duration:
+             speed_factor = duration / orig_dur
+             if speed_factor <= 3.0:
+                 should_stretch = True
+                 print(f"DEBUG_RENDER: [TallPan] Video original duration ({orig_dur:.2f}s) is shorter than target duration ({duration:.2f}s). Stretching speed by {speed_factor:.3f}x.")
+
+        if should_stretch:
+             vf_filter = f"scale={width}:{scaled_h},setpts={speed_factor}*PTS"
+        else:
+             vf_filter = f"scale={width}:{scaled_h}"
+
         if is_video:
-            # 비디오면 짧을 수 있으므로 스트림 루프(무한 반복)
-            # [FIX] -t 출력 옵션으로 이동 (입력 PTS 비정상 영상 첫 프레임 검은화면 방지)
-            cmd.extend(["-stream_loop", "-1", "-i", input_path])
+            if should_stretch:
+                 cmd.extend(["-i", input_path])
+            else:
+                 cmd.extend(["-stream_loop", "-1", "-i", input_path])
         else:
             # 이미지면 루프와 프레임레이트 옵션
             cmd.extend(["-loop", "1", "-framerate", str(fps), "-t", str(duration), "-i", input_path])

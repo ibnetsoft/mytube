@@ -9964,3 +9964,231 @@ TypeError: unhashable type: 'dict'
 [2026-06-11 14:33:01.622847] [Gemini] 👁️ [Gemini Vision] Starting analysis (prompt=당신은 세계 최고의 영화 감독이자 프롬프트 엔지니어입니다.
 [피카디리 프롬프트 지침 보강안]에 따라, 대본을 분석하여 '6블록 조립 원칙'과 '4층 레이어 네거티브'가 적용된 장면...)
 [2026-06-11 14:33:27.045201] [Gemini] ✅ [Gemini Vision] Success (25.4s)
+[2026-06-11 15:53:05.508959] [Gemini] 👁️ [Gemini Vision] Starting analysis (prompt=당신은 세계 최고의 영화 감독이자 프롬프트 엔지니어입니다.
+[피카디리 프롬프트 지침 보강안]에 따라, 대본을 분석하여 '6블록 조립 원칙'과 '4층 레이어 네거티브'가 적용된 장면...)
+[2026-06-11 15:53:29.440740] [Gemini] ✅ [Gemini Vision] Success (23.9s)
+[2026-06-11 15:53:29.451776] [Gemini] 👁️ [Gemini Vision] Starting analysis (prompt=당신은 세계 최고의 영화 감독이자 프롬프트 엔지니어입니다.
+[피카디리 프롬프트 지침 보강안]에 따라, 대본을 분석하여 '6블록 조립 원칙'과 '4층 레이어 네거티브'가 적용된 장면...)
+[2026-06-11 15:53:55.878807] [Gemini] ✅ [Gemini Vision] Success (26.4s)
+[2026-06-11 19:08:26.285204] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=다음 대본을 분석하여 이미지 생성을 위한 적절한 Scene 개수를 결정해주세요.
+
+대본:
+(차분하고 무게감 있게) 뼈대 깊은 가부장적인 집안에서 태어나, 평생을 억척스럽게 살아온 ...)
+[2026-06-11 19:08:27.741470] [Gemini] ❌ [Gemini Text] Exception: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1028)
+[2026-06-11 19:08:35.795113] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=다음 대본을 분석하여 이미지 생성을 위한 적절한 Scene 개수를 결정해주세요.
+
+대본:
+(차분하고 무게감 있게) 뼈대 깊은 가부장적인 집안에서 태어나, 평생을 억척스럽게 살아온 ...)
+[2026-06-11 19:08:37.099108] [Gemini] ❌ [Gemini Text] Exception: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1028)
+[2026-06-11 19:08:48.652690] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=다음 대본을 분석하여 이미지 생성을 위한 적절한 Scene 개수를 결정해주세요.
+
+대본:
+(차분하고 무게감 있게) 뼈대 깊은 가부장적인 집안에서 태어나, 평생을 억척스럽게 살아온 ...)
+[2026-06-11 19:08:50.136126] [Gemini] ❌ [Gemini Text] Exception: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1028)
+[2026-06-11 19:10:33.538590] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=Hello, how are you?...)
+[2026-06-11 19:10:34.947521] [Gemini] ❌ [Gemini Text] Exception: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1028)
+[2026-06-11 19:11:42.875771] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=Hello, how are you?...)
+[2026-06-11 19:11:48.948965] [Gemini] ✅ [Gemini Text] Success (6.1s, finish=STOP)
+[2026-06-11 19:12:24.000460] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=다음 대본을 분석하여 이미지 생성을 위한 적절한 Scene 개수를 결정해주세요.
+
+대본:
+(차분하고 무게감 있게) 뼈대 깊은 가부장적인 집안에서 태어나, 평생을 억척스럽게 살아온 ...)
+[2026-06-11 19:12:36.137798] [Gemini] ✅ [Gemini Text] Success (12.1s, finish=STOP)
+[2026-06-11 19:12:54.479962] [Gemini] 👁️ [Gemini Vision] Starting analysis (prompt=당신은 세계 최고의 영화 감독이자 프롬프트 엔지니어입니다.
+[피카디리 프롬프트 지침 보강안]에 따라, 대본을 분석하여 '6블록 조립 원칙'과 '4층 레이어 네거티브'가 적용된 장면...)
+[2026-06-11 19:13:17.050687] [Gemini] ✅ [Gemini Vision] Success (22.6s)
+[2026-06-11 19:13:17.067663] [Gemini] 👁️ [Gemini Vision] Starting analysis (prompt=당신은 세계 최고의 영화 감독이자 프롬프트 엔지니어입니다.
+[피카디리 프롬프트 지침 보강안]에 따라, 대본을 분석하여 '6블록 조립 원칙'과 '4층 레이어 네거티브'가 적용된 장면...)
+[2026-06-11 19:13:39.512585] [Gemini] ✅ [Gemini Vision] Success (22.4s)
+[2026-06-12 09:37:03.998569] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=Translate the following video script into Vietnamese.
+
+CRITICAL RULES:
+1. Keep all speaker labels (e...)
+[2026-06-12 09:37:33.762698] [Gemini] ✅ [Gemini Text] Success (29.8s, finish=STOP)
+[2026-06-12 13:40:56.140391] Middleware Error: unexpected char '\\' at 9470
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\main.py", line 120, in check_login_middleware
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\venv\Lib\site-packages\starlette\middleware\base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\venv\Lib\site-packages\starlette\middleware\base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\venv\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\venv\Lib\site-packages\starlette\routing.py", line 660, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\venv\Lib\site-packages\starlette\routing.py", line 680, in app
+    await route.handle(scope, receive, send)
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\venv\Lib\site-packages\starlette\routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\venv\Lib\site-packages\fastapi\routing.py", line 134, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\venv\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\venv\Lib\site-packages\fastapi\routing.py", line 120, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\venv\Lib\site-packages\fastapi\routing.py", line 674, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\venv\Lib\site-packages\fastapi\routing.py", line 328, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\app\routers\pages.py", line 36, in page_index
+    return _render(request, "pages/topic.html", "topic", "주제 찾기")
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\app\routers\pages.py", line 22, in _render
+    return _templates.TemplateResponse(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        request=request,
+        ^^^^^^^^^^^^^^^^
+    ...<7 lines>...
+        }
+        ^
+    )
+    ^
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\venv\Lib\site-packages\starlette\templating.py", line 148, in TemplateResponse
+    template = self.get_template(name)
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\venv\Lib\site-packages\starlette\templating.py", line 115, in get_template
+    return self.env.get_template(name)
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\venv\Lib\site-packages\jinja2\environment.py", line 1016, in get_template
+    return self._load_template(name, globals)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\venv\Lib\site-packages\jinja2\environment.py", line 975, in _load_template
+    template = self.loader.load(self, name, self.make_globals(globals))
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\venv\Lib\site-packages\jinja2\loaders.py", line 138, in load
+    code = environment.compile(source, name, filename)
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\venv\Lib\site-packages\jinja2\environment.py", line 771, in compile
+    self.handle_exception(source=source_hint)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\venv\Lib\site-packages\jinja2\environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\templates\pages\topic.html", line 190, in template
+    <button onclick="setSearchTopic('{{ t(\'topic_daily_vlog\') }}')"
+    ^^^^^^^^^^^^^^^^^
+jinja2.exceptions.TemplateSyntaxError: unexpected char '\\' at 9470
+
+[2026-06-12 14:46:32.525385] Starting render for project 190
+[2026-06-12 14:46:32.525401] Audio: C:\Users\kimse\AppData\Local\picadilly\ejsh0519_naver_com\output\평생_구박하던_며느리에게_황혼의_시어머니가_흘린_눈물_20260611\tts_20260611_231516.mp3
+[2026-06-12 14:46:32.707838] Render Error: [WinError 3] 지정된 경로를 찾을 수 없습니다: 'G:\\'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\app\routers\video.py", line 1538, in render_executor_func
+    os.makedirs(requests_dir, exist_ok=True)
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen os>", line 218, in makedirs
+  File "<frozen os>", line 218, in makedirs
+  File "<frozen os>", line 218, in makedirs
+  [Previous line repeated 1 more time]
+  File "<frozen os>", line 228, in makedirs
+FileNotFoundError: [WinError 3] 지정된 경로를 찾을 수 없습니다: 'G:\\'
+
+[2026-06-12 14:46:42.147231] Starting render for project 190
+[2026-06-12 14:46:42.147255] Audio: C:\Users\kimse\AppData\Local\picadilly\ejsh0519_naver_com\output\평생_구박하던_며느리에게_황혼의_시어머니가_흘린_눈물_20260611\tts_20260611_231516.mp3
+[2026-06-12 14:46:42.297598] Render Error: [WinError 3] 지정된 경로를 찾을 수 없습니다: 'G:\\'
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\app\routers\video.py", line 1538, in render_executor_func
+    os.makedirs(requests_dir, exist_ok=True)
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen os>", line 218, in makedirs
+  File "<frozen os>", line 218, in makedirs
+  File "<frozen os>", line 218, in makedirs
+  [Previous line repeated 1 more time]
+  File "<frozen os>", line 228, in makedirs
+FileNotFoundError: [WinError 3] 지정된 경로를 찾을 수 없습니다: 'G:\\'
+
+[2026-06-12 14:48:14.380047] Starting render for project 190
+[2026-06-12 14:48:14.380063] Audio: C:\Users\kimse\AppData\Local\picadilly\ejsh0519_naver_com\output\평생_구박하던_며느리에게_황혼의_시어머니가_흘린_눈물_20260611\tts_20260611_231516.mp3
+[2026-06-12 14:48:14.567013] create_slideshow(PROJ=190) Effects: ['zoom_out', 'random', 'random', 'random', 'random', 'random', 'random', 'random']
+[2026-06-12 14:48:14.893747] ✅ [Safe Load] Image Success: filled_58e04bce-0959-4c92-ac5e-c4505c587861.jpg (1920x1080)
+[2026-06-12 14:48:14.895801] Scene[1] Loaded: 1920x1080, dur=8.69s, item=manual_img_p190_s1_1781226583.png
+[2026-06-12 14:48:15.148634] ✅ [Safe Load] Image Success: filled_9bff5f0e-a02e-4023-9b35-b302904c8a90.jpg (1920x1080)
+[2026-06-12 14:48:15.151640] Scene[2] Loaded: 1920x1080, dur=8.41s, item=manual_img_p190_s2_1781240394.png
+[2026-06-12 14:48:15.383279] ✅ [Safe Load] Image Success: filled_dcb0dd61-9c7f-4af7-9753-481da8ed19be.jpg (1920x1080)
+[2026-06-12 14:48:15.386032] Scene[3] Loaded: 1920x1080, dur=15.14s, item=manual_img_p190_s3_1781240388.png
+[2026-06-12 14:48:15.658455] ✅ [Safe Load] Image Success: filled_4c69f227-fca3-47bc-a86a-0e37028d6081.jpg (1920x1080)
+[2026-06-12 14:48:15.660766] Scene[4] Loaded: 1920x1080, dur=22.59s, item=manual_img_p190_s4_1781240383.png
+[2026-06-12 14:48:15.893759] ✅ [Safe Load] Image Success: filled_f8226667-9aab-41c0-9649-6a64839a7f55.jpg (1920x1080)
+[2026-06-12 14:48:15.895903] Scene[5] Loaded: 1920x1080, dur=7.77s, item=manual_img_p190_s5_1781240371.png
+[2026-06-12 14:48:16.135744] ✅ [Safe Load] Image Success: filled_25b5d41e-4292-4807-8f87-4b33ad0d8421.jpg (1920x1080)
+[2026-06-12 14:48:16.137996] Scene[6] Loaded: 1920x1080, dur=6.94s, item=manual_img_p190_s6_1781240366.png
+[2026-06-12 14:48:17.214342] VideoAsset loaded: dur=5.420s, target=5.447s, path=video_prep_e367755c-3520-448c-9f79-280b74f282fa.mp4
+[2026-06-12 14:48:17.220736] Scene[7] Loaded: 1920x1080, dur=5.45s, item=manual_vid_p190_s7_1781240327.mp4
+[2026-06-12 14:48:17.429521] ✅ [Safe Load] Image Success: filled_e968e952-5815-45a8-9c11-7d445a7091e0.jpg (1920x1080)
+[2026-06-12 14:48:17.431979] Scene[8] Loaded: 1920x1080, dur=18.40s, item=manual_img_p190_s8_1781240411.jpeg
+[2026-06-12 14:48:17.604678] Concatenating 8 clips. method=compose
+[2026-06-12 14:48:17.807651] RENDER_SETTINGS: font='GmarketSansBold', color='white', style='Basic_White', stroke_color='#000000', stroke_enabled=1, stroke_width=4.5, bg_enabled=1
+[2026-06-12 14:48:17.810824] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:17.859196] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:17.891976] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:17.923150] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:17.956679] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:17.991713] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:18.025377] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:18.055350] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:18.101602] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:18.139209] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:18.174399] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:18.207562] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:18.238643] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:18.269601] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:18.302519] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:18.335788] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:18.364193] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:18.400645] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:18.435246] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:18.467433] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:18.497286] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:18.528677] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:18.563718] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:18.596611] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:18.629276] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:18.656736] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:18.686738] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:18.716854] FONT_DEBUG: target='GmarketSansTTFBold.ttf', found_path='C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\static\fonts\GmarketSansTTFBold.ttf', search_paths=['C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services\\..\\assets\\fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\static\\fonts', 'C:/Windows/Fonts', 'C:\\Users\\kimse\\Downloads\\YoutubeSourceFinder\\LongformGenerator\\services']
+[2026-06-12 14:48:18.915139] calling writes_videofile code in video_service (720p safe mode)
+[2026-06-12 15:20:18.982970] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=You are a professional translator. Translate the following list of video subtitles (in Korean/Englis...)
+[2026-06-12 15:21:17.957094] [Gemini] ✅ [Gemini Text] Success (59.0s, finish=MAX_TOKENS)
+[2026-06-12 15:21:18.443522] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.5-flash, prompt=You are a professional translator. Translate the following list of video subtitles (in Korean/Englis...)
+[2026-06-12 15:21:25.327432] [Gemini] ✅ [Gemini Text] Success (6.9s, finish=STOP)
+[2026-06-12 15:24:00.518962] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.5-flash, prompt=You are a professional translator. Translate the following list of video subtitles (in Korean/Englis...)
+[2026-06-12 15:24:07.925990] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.5-flash, prompt=You are a professional translator. Translate the following list of video subtitles (in Korean/Englis...)
+[2026-06-12 15:24:26.802626] [Gemini] ✅ [Gemini Text] Success (18.9s, finish=STOP)
+[2026-06-12 15:24:31.052480] [Gemini] ✅ [Gemini Text] Success (30.5s, finish=STOP)
+[2026-06-12 16:00:37.791526] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=너는 유튜브 SEO와 클릭률(CTR) 최적화 전문가야.
+        
+[스크립트 요약]
+(차분하고 무게감 있게) 뼈대 깊은 가부장적인 집안에서 태어나, 평생을 억척스럽게 살아온 ...)
+[2026-06-12 16:00:56.331790] [Gemini] ✅ [Gemini Text] Success (18.5s, finish=STOP)
+[2026-06-12 16:02:26.349282] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=As a YouTube thumbnail expert, generate high-CTR thumbnail ideas based on the following:
+
+[Video Top...)
+[2026-06-12 16:02:42.322211] [Gemini] ✅ [Gemini Text] Success (16.0s, finish=STOP)
+[2026-06-12 16:15:45.651242] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=Translate the following text (used in a YouTube thumbnail) into Vietnamese. Return ONLY the translat...)
+[2026-06-12 16:15:46.134061] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=Translate the following text (used in a YouTube thumbnail) into Vietnamese. Return ONLY the translat...)
+[2026-06-12 16:15:58.044707] [Gemini] ✅ [Gemini Text] Success (12.4s, finish=STOP)
+[2026-06-12 16:16:02.272011] [Gemini] ✅ [Gemini Text] Success (16.1s, finish=STOP)
+[2026-06-12 16:21:49.284306] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=Translate the following text (used in a YouTube thumbnail) into Vietnamese. Return ONLY the translat...)
+[2026-06-12 16:21:49.778057] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=Translate the following text (used in a YouTube thumbnail) into Vietnamese. Return ONLY the translat...)
+[2026-06-12 16:21:53.046259] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=Translate the following text (used in a YouTube thumbnail) into Vietnamese. Return ONLY the translat...)
+[2026-06-12 16:21:53.473889] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=Translate the following text (used in a YouTube thumbnail) into Vietnamese. Return ONLY the translat...)
+[2026-06-12 16:21:55.385656] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=Translate the following text (used in a YouTube thumbnail) into Vietnamese. Return ONLY the translat...)
+[2026-06-12 16:21:55.818731] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-3.1-pro-preview, prompt=Translate the following text (used in a YouTube thumbnail) into Vietnamese. Return ONLY the translat...)
+[2026-06-12 16:22:02.800432] [Gemini] ✅ [Gemini Text] Success (13.5s, finish=STOP)
+[2026-06-12 16:22:05.856418] [Gemini] ✅ [Gemini Text] Success (10.5s, finish=STOP)
+[2026-06-12 16:22:06.260351] [Gemini] ✅ [Gemini Text] Success (16.5s, finish=STOP)
+[2026-06-12 16:22:08.906309] [Gemini] ✅ [Gemini Text] Success (15.4s, finish=STOP)
+[2026-06-12 16:22:14.846564] [Gemini] ✅ [Gemini Text] Success (21.8s, finish=STOP)
+[2026-06-12 16:22:14.945606] [Gemini] ✅ [Gemini Text] Success (19.1s, finish=STOP)

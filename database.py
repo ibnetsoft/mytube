@@ -679,9 +679,10 @@ def migrate_db():
 
     # [NURSERY] Nursery Rhyme Style Preset
     try:
-        cursor.execute("SELECT id FROM style_presets WHERE style_key = 'nursery_rhyme'")
-        if not cursor.fetchone():
-            print("[Migration] Adding nursery_rhyme style preset...")
+        # Only insert if the table is completely empty (clean DB)
+        cursor.execute("SELECT COUNT(*) FROM style_presets")
+        if cursor.fetchone()[0] == 0:
+            print("[Migration] Adding nursery_rhyme style preset (clean db)...")
             cursor.execute("""
                 INSERT INTO style_presets (style_key, prompt_value, image_url, mode, gemini_instruction) 
                 VALUES (?, ?, ?, ?, ?)
@@ -698,8 +699,9 @@ def migrate_db():
 
     # [NURSERY] Script Style Preset
     try:
-        cursor.execute("SELECT id FROM script_style_presets WHERE style_key = 'nursery_rhyme'")
-        if not cursor.fetchone():
+        # Only insert if the table is completely empty (clean DB)
+        cursor.execute("SELECT COUNT(*) FROM script_style_presets")
+        if cursor.fetchone()[0] == 0:
             cursor.execute("INSERT INTO script_style_presets (style_key, prompt_value) VALUES (?, ?)", 
                            ('nursery_rhyme', 'Educational and fun nursery rhyme for children aged 2-6.'))
             conn.commit()
@@ -3204,7 +3206,7 @@ def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status:
             if _os.getenv("DEBUG") == "true" or _os.path.exists(_os.path.join(base_dir, ".env.local")):
                 try:
                     # 로컬 대시보드가 응답하는지 확인
-                    check_resp = _req.get("http://localhost:3000/api/health", timeout=0.5)
+                    check_resp = _req.get("http://localhost:3000/api/health", timeout=0.5, proxies={"http": None, "https": None})
                     if check_resp.status_code == 200:
                         base_url = "http://localhost:3000"
                 except Exception:
@@ -3224,14 +3226,23 @@ def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status:
                 "balance_after": balance_after
             }
             
-            resp = _req.post(f"{base_url}/api/logs", json=payload, timeout=10)
+            resp = _req.post(f"{base_url}/api/logs", json=payload, timeout=10, proxies={"http": None, "https": None})
             if resp.status_code != 200:
-                print(f"❌ [Sync] Failed to push log to {base_url}: {resp.status_code} {resp.text}")
+                try:
+                    print(f"[Sync] Failed to push log to {base_url}: {resp.status_code} {resp.text}")
+                except Exception:
+                    pass
             else:
-                print(f"✅ [Sync] Successfully pushed {task_type} log to remote.")
+                try:
+                    print(f"[Sync] Successfully pushed {task_type} log to remote.")
+                except Exception:
+                    pass
                 
         except Exception as e:
-            print(f"❌ [Sync] Error during remote push: {e}")
+            try:
+                print(f"[Sync] Error during remote push: {e}")
+            except Exception:
+                pass
             
     threading.Thread(target=_push_remote, daemon=True).start()
 
