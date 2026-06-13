@@ -107,3 +107,63 @@ export async function DELETE(req: Request) {
         return NextResponse.json({ error: e.message }, { status: 500 })
     }
 }
+
+// PUT: 카테고리 수정
+export async function PUT(req: Request) {
+    try {
+        const body = await req.json()
+        const { id, name, keywords, benchmark_channel_url, assigned_employee_email, default_script_style, default_image_style } = body
+
+        if (!id) {
+            return NextResponse.json({ error: 'Category ID is required' }, { status: 400 })
+        }
+
+        const supabase = getAdmin()
+
+        if (assigned_employee_email) {
+            // 해당 이메일의 직원이 이미 다른 카테고리에 배정되어 있는지 확인 (현재 카테고리 제외)
+            const { data: existingCat, error: checkError } = await supabase
+                .from('categories')
+                .select('id, name')
+                .eq('assigned_employee_email', assigned_employee_email)
+                .neq('id', id)
+                .maybeSingle()
+
+            if (checkError) throw checkError
+            if (existingCat) {
+                return NextResponse.json({ error: `이 직원은 이미 '${existingCat.name}' 카테고리에 배정되어 있습니다.` }, { status: 400 })
+            }
+        }
+
+        const updateData: any = {}
+        if (name !== undefined) updateData.name = name
+        if (keywords !== undefined) updateData.keywords = keywords
+        if (benchmark_channel_url !== undefined) updateData.benchmark_channel_url = benchmark_channel_url
+        if (assigned_employee_email !== undefined) updateData.assigned_employee_email = assigned_employee_email
+        if (default_script_style !== undefined) updateData.default_script_style = default_script_style
+        if (default_image_style !== undefined) updateData.default_image_style = default_image_style
+
+        const { data, error } = await supabase
+            .from('categories')
+            .update(updateData)
+            .eq('id', id)
+            .select()
+
+        if (error) throw error
+
+        // 담당 직원이 바뀌면 기존 pending 상태의 토픽들도 새로운 직원 이메일로 같이 업데이트해 줍니다.
+        if (assigned_employee_email) {
+            await supabase
+                .from('topics_queue')
+                .update({ assigned_employee_email })
+                .eq('category_id', id)
+                .eq('status', 'pending')
+        }
+
+        return NextResponse.json({ success: true, category: data[0] })
+    } catch (e: any) {
+        console.error('Failed to update category:', e)
+        return NextResponse.json({ error: e.message }, { status: 500 })
+    }
+}
+

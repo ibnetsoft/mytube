@@ -105,6 +105,17 @@ export default function DashboardContent() {
     const [newCatImageStyle, setNewCatImageStyle] = useState('realistic')
     const [generatingCatId, setGeneratingCatId] = useState<number | null>(null)
     
+    // 카테고리 수정 모달 상태
+    const [editCategory, setEditCategory] = useState<any | null>(null)
+    const [editCatForm, setEditCatForm] = useState({
+        name: '',
+        keywords: '',
+        benchmark_channel_url: '',
+        assigned_employee_email: '',
+        default_script_style: 'default',
+        default_image_style: 'realistic'
+    })
+    
     // UI Modals State
     const [logViewUser, setLogViewUser] = useState<UserProfile | null>(null)
     const [apiViewUser, setApiViewUser] = useState<any>(null);
@@ -547,6 +558,36 @@ export default function DashboardContent() {
         }
     }
 
+    const handleSaveCategory = async () => {
+        if (!editCategory) return
+        if (!editCatForm.name || !editCatForm.assigned_employee_email) {
+            alert('카테고리명과 담당 직원 이메일은 필수입니다.')
+            return
+        }
+        try {
+            const res = await fetch('/api/admin/categories', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: editCategory.id,
+                    ...editCatForm
+                })
+            })
+            const data = await res.json()
+            if (data.success) {
+                alert('성공적으로 수정되었습니다.')
+                setEditCategory(null)
+                fetchCategories()
+                fetchTopics()
+            } else {
+                alert('수정 실패: ' + data.error)
+            }
+        } catch (err) {
+            console.error(err)
+            alert('서버 수정 에러 발생')
+        }
+    }
+
     const handleTriggerAiTopics = async (catId: number) => {
         setGeneratingCatId(catId)
         try {
@@ -872,17 +913,38 @@ export default function DashboardContent() {
                                                 <div>
                                                     <div className="flex justify-between items-start mb-4">
                                                         <h3 className="text-lg font-black text-white">{cat.name}</h3>
-                                                        <button 
-                                                            onClick={() => handleDeleteCategory(cat.id)}
-                                                            className="text-gray-500 hover:text-red-500 text-xs transition-colors shadow-none bg-transparent p-0"
-                                                        >
-                                                            삭제
-                                                        </button>
+                                                        <div className="flex gap-2">
+                                                            <button 
+                                                                onClick={() => {
+                                                                    setEditCategory(cat);
+                                                                    setEditCatForm({
+                                                                        name: cat.name || '',
+                                                                        keywords: cat.keywords || '',
+                                                                        benchmark_channel_url: cat.benchmark_channel_url || '',
+                                                                        assigned_employee_email: cat.assigned_employee_email || '',
+                                                                        default_script_style: cat.default_script_style || 'default',
+                                                                        default_image_style: cat.default_image_style || 'realistic'
+                                                                    });
+                                                                }}
+                                                                className="text-blue-400 hover:text-blue-300 text-xs transition-colors shadow-none bg-transparent p-0"
+                                                            >
+                                                                수정
+                                                            </button>
+                                                            <span className="text-gray-700">|</span>
+                                                            <button 
+                                                                onClick={() => handleDeleteCategory(cat.id)}
+                                                                className="text-gray-500 hover:text-red-500 text-xs transition-colors shadow-none bg-transparent p-0"
+                                                            >
+                                                                삭제
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                     <div className="space-y-2 text-xs text-gray-400 mb-6">
                                                         <p>👤 <strong className="text-gray-200">담당 직원:</strong> {cat.assigned_employee_email}</p>
                                                         <p>🔑 <strong className="text-gray-200">키워드:</strong> {cat.keywords || '(없음)'}</p>
                                                         <p className="truncate">📺 <strong className="text-gray-200">채널:</strong> <a href={cat.benchmark_channel_url} target="_blank" rel="noreferrer" className="text-blue-400 underline">{cat.benchmark_channel_url || '(없음)'}</a></p>
+                                                        <p>📝 <strong className="text-gray-200">대본 스타일:</strong> {cat.default_script_style || '기본'}</p>
+                                                        <p>🎨 <strong className="text-gray-200">화풍:</strong> {cat.default_image_style || '실사'}</p>
                                                     </div>
                                                     
                                                     {/* 주제 대기열 카운트 */}
@@ -1480,6 +1542,103 @@ export default function DashboardContent() {
                                     {isKor ? '구글 연동하기' : 'Connect Google'}
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 카테고리 정보 수정 모달 */}
+            {editCategory && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setEditCategory(null)}>
+                    <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl p-8 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">카테고리 수정</div>
+                        <div className="text-white font-black text-lg mb-6">"{editCategory.name}" 설정 관리</div>
+                        <div className="flex flex-col gap-4 text-xs">
+                            <div>
+                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">카테고리명 *</label>
+                                <input 
+                                    type="text"
+                                    value={editCatForm.name} 
+                                    onChange={e => setEditCatForm(p => ({ ...p, name: e.target.value }))}
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500/50" 
+                                    placeholder="카테고리명 입력" 
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">담당 직원 이메일 *</label>
+                                <select
+                                    value={editCatForm.assigned_employee_email}
+                                    onChange={e => setEditCatForm(p => ({ ...p, assigned_employee_email: e.target.value }))}
+                                    className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500/50 cursor-pointer"
+                                >
+                                    <option value="">-- 직원을 선택하세요 --</option>
+                                    {users.map(user => {
+                                        const email = user.email?.toLowerCase();
+                                        if (!email) return null;
+                                        const name = user.user_metadata?.full_name || '';
+                                        return (
+                                            <option key={user.id} value={email} className="bg-[#111] text-white">
+                                                {email} {name ? `(${name})` : ''}
+                                            </option>
+                                        );
+                                    })}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">주요 리서치 키워드</label>
+                                <input 
+                                    type="text"
+                                    value={editCatForm.keywords} 
+                                    onChange={e => setEditCatForm(p => ({ ...p, keywords: e.target.value }))}
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500/50" 
+                                    placeholder="쉼표로 구분" 
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">벤치마킹할 유튜브 채널 URL</label>
+                                <input 
+                                    type="url"
+                                    value={editCatForm.benchmark_channel_url} 
+                                    onChange={e => setEditCatForm(p => ({ ...p, benchmark_channel_url: e.target.value }))}
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500/50" 
+                                    placeholder="유튜브 채널 주소" 
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">기본 대본 스타일</label>
+                                <select
+                                    value={editCatForm.default_script_style}
+                                    onChange={e => setEditCatForm(p => ({ ...p, default_script_style: e.target.value }))}
+                                    className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500/50 cursor-pointer"
+                                >
+                                    <option value="default" className="bg-[#111] text-white">기본 설정 (선명하고 자연스럽게)</option>
+                                    <option value="story" className="bg-[#111] text-white">옛날 이야기 (구연동화 톤)</option>
+                                    <option value="senior_story" className="bg-[#111] text-white">시니어 이야기 (회상/감성 톤)</option>
+                                    <option value="news" className="bg-[#111] text-white">뉴스 (정보전달 톤)</option>
+                                    <option value="mystery_thriller" className="bg-[#111] text-white">미스터리 스릴러 (긴장감 톤)</option>
+                                    <option value="nursery_rhyme" className="bg-[#111] text-white">전래동요풍 (어린이 구연 톤)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">기본 이미지 화풍</label>
+                                <select
+                                    value={editCatForm.default_image_style}
+                                    onChange={e => setEditCatForm(p => ({ ...p, default_image_style: e.target.value }))}
+                                    className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500/50 cursor-pointer"
+                                >
+                                    <option value="realistic" className="bg-[#111] text-white">실사 (Photorealistic)</option>
+                                    <option value="ghibli" className="bg-[#111] text-white">지브리 감성 일러스트 (Ghibli)</option>
+                                    <option value="anime" className="bg-[#111] text-white">일본 애니메이션풍 (Anime)</option>
+                                    <option value="cinematic" className="bg-[#111] text-white">영화 스틸컷 느낌 (Cinematic)</option>
+                                    <option value="cartoon" className="bg-[#111] text-white">2D 카툰 일러스트 (Cartoon)</option>
+                                    <option value="nursery_rhyme" className="bg-[#111] text-white">3D 동화/애니 (Nursery/Pixar)</option>
+                                    <option value="역사/동양철/다큐" className="bg-[#111] text-white">전통 동양화/수묵화 (Ink Wash)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="flex gap-3 mt-6">
+                            <button onClick={handleSaveCategory} className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-black rounded-xl transition-all uppercase tracking-widest">수정완료</button>
+                            <button onClick={() => setEditCategory(null)} className="px-6 py-3 bg-white/5 hover:bg-white/10 text-gray-400 text-[11px] font-black rounded-xl transition-all">취소</button>
                         </div>
                     </div>
                 </div>
