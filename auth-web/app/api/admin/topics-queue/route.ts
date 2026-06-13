@@ -61,10 +61,21 @@ export async function POST(req: Request) {
         }
 
         // 2. Gemini API Key 로드 (환경변수 또는 대표님 API Key)
-        // Vercel 환경에 세팅된 GEMINI_API_KEY 사용
-        const geminiApiKey = process.env.GEMINI_API_KEY
+        // Vercel 환경에 세팅된 GEMINI_API_KEY 사용 후, 없을 시 DB global_settings에서 백업본 로드
+        let geminiApiKey = process.env.GEMINI_API_KEY
         if (!geminiApiKey) {
-            return NextResponse.json({ error: 'Gemini API Key is not configured on the server' }, { status: 500 })
+            const { data: dbKey } = await supabase
+                .from('global_settings')
+                .select('value')
+                .eq('key', 'sys_api_gemini')
+                .maybeSingle()
+            if (dbKey?.value) {
+                geminiApiKey = dbKey.value
+            }
+        }
+        
+        if (!geminiApiKey) {
+            return NextResponse.json({ error: 'Gemini API Key is not configured on the server (Neither environment variable nor sys_api_gemini is present in global_settings)' }, { status: 500 })
         }
 
         console.log(`Running AI Auto-Topic Generator for category: ${category.name}`);
