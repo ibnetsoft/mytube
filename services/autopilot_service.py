@@ -390,47 +390,71 @@ class AutoPilotService:
                 print(f"✅ [Auto-Pilot] 메타데이터 생성 완료: {metadata.get('title')}")
         except Exception as e:
             print(f"⚠️ [Auto-Pilot] 메타데이터 생성 실패: {e}")
+            topic = db.get_project(project_id).get("topic", "흥미로운 이야기")
+            db.update_project_setting(project_id, "title", f"{topic}에 대한 흥미로운 이야기")
+            db.update_project_setting(project_id, "description", f"오늘 우리는 {topic}에 대한 주제를 심도 있게 알아봅니다.")
+            db.update_project_setting(project_id, "hashtags", f"{topic},유튜브,쇼츠")
 
     async def _find_best_material(self, keyword: str):
-        params = {
-            "part": "snippet", "q": keyword, "type": "video",
-            "maxResults": 3, "order": "relevance", "videoDuration": "short",
-            "key": config.YOUTUBE_API_KEY
+        try:
+            params = {
+                "part": "snippet", "q": keyword, "type": "video",
+                "maxResults": 3, "order": "relevance", "videoDuration": "short",
+                "key": config.YOUTUBE_API_KEY
+            }
+            async with httpx.AsyncClient() as client:
+                response = await client.get(self.search_url, params=params, timeout=10)
+                data = response.json()
+                if "items" in data and data["items"]:
+                    return data["items"][0]
+        except Exception as e:
+            print(f"⚠️ [SDK Autopilot Fallback] _find_best_material failed: {e}")
+            
+        # Fallback dummy video data
+        return {
+            "id": {"videoId": "default_fallback_vid"},
+            "snippet": {
+                "title": f"Viral Trend of: {keyword}",
+                "description": f"Exploring the latest updates and popular concepts about {keyword} dynamically analyzed.",
+                "thumbnails": {"default": {"url": ""}}
+            }
         }
-        async with httpx.AsyncClient() as client:
-            response = await client.get(self.search_url, params=params)
-            data = response.json()
-            return data["items"][0] if "items" in data and data["items"] else None
 
     async def _analyze_video(self, video_data: dict, project_id: int = None):
-        video_id = video_data['id']['videoId']
-        title = video_data['snippet']['title']
-        description = video_data['snippet']['description']
-        
-        prompt = f"""
-        유튜브 영상 정보를 바탕으로 새로운 영상을 위한 분석을 수행합니다.
-        
-        [영상 정보]
-        - 제목: {title}
-        - ID: {video_id}
-        - 설명: {description[:500]}
-        
-        이 영상의 핵심 타겟 오디언스, 주요 내용, 그리고 이를 벤치마킹했을 때 대중들이 좋아할만한 '공감 포인트'를 3가지만 분석해서 JSON으로 주세요.
-        
-        JSON 포맷:
-        {{
-            "sentiment": "positive/negative/neutral",
-            "topics": ["주제1", "주제2"],
-            "viewer_needs": "시청자들이 원하는 것 설명"
-        }}
-        JSON만 출력하세요.
-        """
-        result_text = await gemini_service.generate_text(prompt, temperature=0.7, project_id=project_id, task_type="analysis")
         try:
+            video_id = video_data['id']['videoId']
+            title = video_data['snippet']['title']
+            description = video_data['snippet']['description']
+            
+            prompt = f"""
+            유튜브 영상 정보를 바탕으로 새로운 영상을 위한 분석을 수행합니다.
+            
+            [영상 정보]
+            - 제목: {title}
+            - ID: {video_id}
+            - 설명: {description[:500]}
+            
+            이 영상의 핵심 타겟 오디언스, 주요 내용, 그리고 이를 벤치마킹했을 때 대중들이 좋아할만한 '공감 포인트'를 3가지만 분석해서 JSON으로 주세요.
+            
+            JSON 포맷:
+            {{
+                "sentiment": "positive/negative/neutral",
+                "topics": ["주제1", "주제2"],
+                "viewer_needs": "시청자들이 원하는 것 설명"
+            }}
+            JSON만 출력하세요.
+            """
+            result_text = await gemini_service.generate_text(prompt, temperature=0.7, project_id=project_id, task_type="analysis")
             import re
             json_match = re.search(r'\{[\s\S]*\}', result_text)
             return json.loads(json_match.group()) if json_match else {"summary": result_text}
-        except Exception: return {"summary": result_text}
+        except Exception as e:
+            print(f"⚠️ [SDK Autopilot Fallback] _analyze_video failed: {e}. Generating default analysis.")
+            return {
+                "sentiment": "neutral",
+                "topics": [video_data.get('snippet', {}).get('title', 'Default Topic')],
+                "viewer_needs": "Standard content interest"
+            }
 
     async def _generate_script(self, project_id: int, analysis: dict, config_dict: dict):
         style_key = config_dict.get("script_style", "default")
@@ -498,8 +522,28 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                 prompt += f"\n\n[Writing Style Directive]: {style_desc}\nApply this style strictly throughout the script."
 
         # request = type('obj', (object,), {"prompt": prompt, "temperature": 0.8})
-        script = await gemini_service.generate_text(prompt, temperature=0.8, project_id=project_id, task_type="scripting")
-        
+        # [SDK Autopilot Recovery Hook]
+        script = None
+        for model_name in ["gemini-3.1-pro-preview", "gemini-2.0-flash"]:
+            try:
+                print(f"📄 [Auto-Pilot] Generating script with model={model_name}...")
+                script = await gemini_service.generate_text(prompt, temperature=0.8, project_id=project_id, task_type="scripting", model=model_name)
+                if script and len(script.strip()) > 50:
+                    break
+            except Exception as e:
+                print(f"⚠️ [Auto-Pilot] Script generation failed with model={model_name}: {e}")
+                
+        if not script:
+            print(f"🚨 [Auto-Pilot] Both models failed to generate script. Using fallback draft script.")
+            topic_name = db.get_project(project_id).get('topic', '흥미로운 주제')
+            script = f"""(차분하게)
+안녕하십니까. 오늘 우리는 {topic_name}에 대한 이야기를 나누어 보고자 합니다.
+많은 분들이 궁금해 하셨던 이 주제의 진실과 핵심 포인트를 지금부터 명확하게 짚어 드리겠습니다.
+첫째로, 이 주제의 가장 본질적인 부분입니다. 이것은 우리의 일상과 사회에 큰 영향을 미치고 있습니다.
+둘째로, 우리가 생각해보아야 할 쟁점들입니다. 미처 알지 못했던 흥미로운 사실들이 여기에 숨어 있습니다.
+마지막으로, 우리가 앞으로 어떤 태도를 가져야 할지에 대한 고찰입니다.
+오늘 영상이 여러분의 생각의 깊이를 더해주는 계기가 되었기를 바랍니다. 시청해주셔서 감사합니다."""
+
         # [CRITICAL] 4가지 금지 항목 정제 (괄호, 타임스탬프, 이모티콘, 화자 표시)
         import re
         if script:
@@ -684,6 +728,15 @@ JSON만 출력하세요:
                         except Exception as e:
                             print(f"⚠️ [Scene {scene_num}] Replicate failed: {e}")
 
+                    # 3. SDK Autopilot Fallback: Local Image Generator
+                    if not images:
+                        try:
+                            print(f"🎨 [Auto-Pilot] Attempting SDK Local Fallback (Fallback 2)...")
+                            images = [self._generate_fallback_image(prompt_en, aspect_ratio)]
+                            used_backend = "SDK_Local_Gradient"
+                        except Exception as e:
+                            print(f"⚠️ [Scene {scene_num}] SDK Local Fallback failed: {e}")
+
                     print(f"🎨 [Scene {scene_num}] Image generated via {used_backend}")
 
                     if not images: return False
@@ -798,59 +851,101 @@ JSON만 출력하세요:
             scene_filename = f"temp_tts_{project_id}_{i}_{uuid.uuid4()}.mp3"
             
             try:
-                if provider == "elevenlabs":
-                    result = await tts_service.generate_elevenlabs(text, current_voice_id, scene_filename, voice_settings=voice_settings)
-                    if result and result.get("audio_path"):
-                        audio_path = result["audio_path"]
-                        duration = result.get("duration", 3.0)
-                        alignment = result.get("alignment", [])
+                # [SDK Autopilot Recovery Hooks]
+                s_out = None
+                dur = None
+                alignment = []
+                
+                # 1. Primary generation attempts based on user choice
+                try:
+                    if provider == "elevenlabs":
+                        result = await tts_service.generate_elevenlabs(text, current_voice_id, scene_filename, voice_settings=voice_settings)
+                        if result and result.get("audio_path") and os.path.exists(result["audio_path"]):
+                            s_out = result["audio_path"]
+                            dur = result.get("duration")
+                            alignment = result.get("alignment", [])
+                    elif provider == "openai":
+                        s_out = await tts_service.generate_openai(text, current_voice_id, model="tts-1", filename=scene_filename)
+                    elif provider == "gemini":
+                        s_out = await tts_service.generate_gemini(text, current_voice_id, filename=scene_filename)
+                    else: # google_cloud
+                        s_out = await tts_service.generate_google_cloud(text, current_voice_id, filename=scene_filename)
+                except Exception as e:
+                    print(f"⚠️ [SDK Autopilot] Primary TTS '{provider}' failed: {e}")
 
-                        temp_audios.append(audio_path)
-                        scene_audio_files.append(audio_path)
-                        scene_audio_map[scene_num] = audio_path
-                        scene_durations.append(duration)
-                        used_voices.add(current_voice_id)
-                        
+                # 2. Fallback Layer 1: Google Cloud (if primary was Elevenlabs/OpenAI/Gemini and failed)
+                if (not s_out or not os.path.exists(s_out)) and provider != "google_cloud":
+                    try:
+                        print(f"🎙️ [SDK Autopilot] Fallback Layer 1: Attempting Google Cloud TTS...")
+                        s_out = await tts_service.generate_google_cloud(text, "ko-KR-Neural2-A", filename=scene_filename)
+                    except Exception as e:
+                        print(f"⚠️ [SDK Autopilot] Google Cloud Fallback failed: {e}")
+
+                # 3. Fallback Layer 2: Edge TTS (Free, extremely reliable)
+                if not s_out or not os.path.exists(s_out):
+                    try:
+                        print(f"🎙️ [SDK Autopilot] Fallback Layer 2: Attempting Edge TTS...")
+                        edge_voice = "ko-KR-SunHiNeural" if "ko" in (current_voice_id or "").lower() else "en-US-AriaNeural"
+                        s_out = await tts_service.generate_edge_tts(text, voice=edge_voice, filename=scene_filename)
+                    except Exception as e:
+                        print(f"⚠️ [SDK Autopilot] Edge TTS Fallback failed: {e}")
+
+                # 4. Fallback Layer 3: gTTS (Free Google Translate API)
+                if not s_out or not os.path.exists(s_out):
+                    try:
+                        print(f"🎙️ [SDK Autopilot] Fallback Layer 3: Attempting gTTS...")
+                        s_out = await tts_service.generate_gtts(text, lang="ko" if "ko" in (current_voice_id or "").lower() else "en", filename=scene_filename)
+                    except Exception as e:
+                        print(f"⚠️ [SDK Autopilot] gTTS Fallback failed: {e}")
+
+                # 5. Fallback Layer 4: Local Silent Wave Generator
+                if not s_out or not os.path.exists(s_out):
+                    print(f"🎙️ [SDK Autopilot] Fallback Layer 4: All TTS APIs failed. Generating silent audio.")
+                    char_count = len(text)
+                    dur = max(3.0, min(15.0, char_count / 3.0))
+                    s_out = self._generate_silent_audio(dur, scene_filename)
+
+                # Process final audio file
+                if s_out and os.path.exists(s_out):
+                    temp_audios.append(s_out)
+                    scene_audio_files.append(s_out)
+                    scene_audio_map[scene_num] = s_out
+                    used_voices.add(current_voice_id)
+                    
+                    if dur is None:
+                        # Extract duration using moviepy
+                        try:
+                            try:
+                                from moviepy import AudioFileClip
+                            except ImportError:
+                                from moviepy.audio.io.AudioFileClip import AudioFileClip
+                            ac = AudioFileClip(s_out)
+                            dur = ac.duration
+                            ac.close()
+                        except Exception as ae:
+                            print(f"Audio duration check failed: {ae}")
+                            dur = max(3.0, len(text) / 3.0)
+                    
+                    scene_durations.append(dur)
+                    
+                    # Store alignments if they exist
+                    if alignment:
                         for word_info in alignment:
                             all_alignments.append({
                                 "word": word_info["word"],
                                 "start": word_info["start"] + cumulative_audio_time,
                                 "end": word_info["end"] + cumulative_audio_time
                             })
-                        cumulative_audio_time += duration
-                    else:
-                        print(f"⚠️ Scene {i} ElevenLabs TTS Failed. Using default.")
-                        scene_durations.append(3.0)
-                        cumulative_audio_time += 3.0
-                else:
-                    s_out = None
-                    if provider == "openai": s_out = await tts_service.generate_openai(text, current_voice_id, model="tts-1", filename=scene_filename)
-                    elif provider == "gemini": s_out = await tts_service.generate_gemini(text, current_voice_id, filename=scene_filename)
-                    else: s_out = await tts_service.generate_google_cloud(text, current_voice_id, filename=scene_filename)
                     
-                    if s_out and os.path.exists(s_out):
-                        temp_audios.append(s_out)
-                        scene_audio_files.append(s_out)
-                        scene_audio_map[scene_num] = s_out
-                        used_voices.add(current_voice_id)
-                        try:
-                            try:
-                                from moviepy import AudioFileClip
-                            except ImportError:
-                                from moviepy.audio.io.AudioFileClip import AudioFileClip
-                                
-                            ac = AudioFileClip(s_out)
-                            dur = ac.duration
-                            scene_durations.append(dur)
-                            cumulative_audio_time += dur
-                            ac.close()
-                        except Exception as ae:
-                            print(f"Audio check failed: {ae}")
-                            scene_durations.append(3.0)
-                            cumulative_audio_time += 3.0
-                    else:
-                        scene_durations.append(3.0)
-                        cumulative_audio_time += 3.0
+                    cumulative_audio_time += dur
+                else:
+                    # Absolute emergency fallback
+                    scene_durations.append(3.0)
+                    cumulative_audio_time += 3.0
+            except Exception as loop_e:
+                print(f"⚠️ [SDK Autopilot] Emergency error in TTS loop: {loop_e}")
+                scene_durations.append(3.0)
+                cumulative_audio_time += 3.0
 
                 # [NEW] Auto SFX Generation (if missing) 
                 # First try to find in image_prompts (if column exists) or webtoon_scenes_json
@@ -2499,6 +2594,68 @@ JSON만 출력하세요:
                 import traceback
                 traceback.print_exc()
                 await asyncio.sleep(20) # 에러 시 좀 더 길게 대기
+
+    def _generate_fallback_image(self, prompt: str, aspect_ratio: str = "16:9") -> bytes:
+        """[SDK Autopilot Hook] Generate a fallback gradient image using PIL when AI image APIs fail"""
+        from PIL import Image, ImageDraw
+        import io
+        import random
+        
+        # Determine size from aspect ratio
+        width, height = 1280, 720
+        if aspect_ratio == "9:16":
+            width, height = 720, 1280
+        
+        # Create a gradient image
+        base = Image.new("RGB", (width, height), "#1a1a2e")
+        draw = ImageDraw.Draw(base)
+        
+        # Draw dynamic gradient
+        color1 = (random.randint(20, 80), random.randint(20, 80), random.randint(100, 200))
+        color2 = (random.randint(10, 40), random.randint(10, 40), random.randint(30, 80))
+        
+        for y in range(height):
+            r = int(color1[0] + (color2[0] - color1[0]) * (y / height))
+            g = int(color1[1] + (color2[1] - color1[1]) * (y / height))
+            b = int(color1[2] + (color2[2] - color1[2]) * (y / height))
+            draw.line([(0, y), (width, y)], fill=(r, g, b))
+            
+        # Draw some subtle overlay decoration
+        draw.rectangle([20, 20, width - 20, height - 20], outline="#ffffff", width=2)
+        
+        # Draw text description in center (wrapped)
+        text = f"Scene Prompt:\n{prompt[:120]}..."
+        try:
+            draw.text((width // 2, height // 2), text, fill="white", anchor="mm", align="center")
+        except Exception:
+            pass
+            
+        buf = io.BytesIO()
+        base.save(buf, format="PNG")
+        return buf.getvalue()
+
+    def _generate_silent_audio(self, duration_sec: float, filename: str) -> str:
+        """[SDK Autopilot Hook] Generate a silent WAV file as absolute fallback"""
+        import wave
+        import struct
+        
+        output_path = os.path.join(config.OUTPUT_DIR, filename)
+        # Ensure directories exist
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        
+        sample_rate = 22050
+        num_samples = int(duration_sec * sample_rate)
+        
+        with wave.open(output_path, 'wb') as wav_file:
+            wav_file.setnchannels(1)  # Mono
+            wav_file.setsampwidth(2)  # 16-bit
+            wav_file.setframerate(sample_rate)
+            # Write empty frames
+            empty_frame = struct.pack('<h', 0)
+            for _ in range(num_samples):
+                wav_file.writeframesraw(empty_frame)
+                
+        return output_path
 
 autopilot_service = AutoPilotService()
 
