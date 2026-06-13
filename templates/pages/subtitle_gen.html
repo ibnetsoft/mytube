@@ -111,12 +111,10 @@
         color: black;
     }
 
-    .dark .input-compact option {
-        background-color: #374151;
-        color: white;
+    .sub-row.active {
+        border-color: #3b82f6 !important;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
     }
-
-        @apply bg-[#1c2027] dark:bg-[#1c2027] border-blue-200 dark:border-blue-700;
 
     /* Font specific previews in dropdown */
     #fontFamilySelect option[value="TmonMonsori"] {
@@ -1189,7 +1187,7 @@
                  ondragover="if(!isSelectMode) handleSubtitleDragOver(event, ${index})"
                  ondragleave="if(!isSelectMode) handleSubtitleDragLeave(event)"
                  ondrop="if(!isSelectMode) handleCombinedDrop(event, ${index})"
-                 class="flex items-stretch p-2 mb-1 bg-[#1c2027] rounded-lg border border-gray-100 dark:border-gray-700 cursor-pointer transition-all ${isActive} group relative overflow-visible">
+                 class="sub-row flex items-stretch p-2 mb-1 bg-[#1c2027] rounded-lg border border-gray-100 dark:border-gray-700 cursor-pointer transition-all ${isActive} group relative overflow-visible">
 
                 ${leftCol}
 
