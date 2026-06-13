@@ -213,6 +213,8 @@ async def update_project(project_id: int, data: ProjectUpdate):
             update_data["topic_vi"] = None
         if data.status is not None:
             update_data["status"] = data.status
+        if data.target_language is not None:
+            update_data["target_language"] = data.target_language
             
         db.update_project(project_id, **update_data)
         return {"status": "success"}

@@ -19,6 +19,7 @@ class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     topic: Optional[str] = None
     status: Optional[str] = None
+    target_language: Optional[str] = None
 
 
 class ProjectSettingUpdate(BaseModel):

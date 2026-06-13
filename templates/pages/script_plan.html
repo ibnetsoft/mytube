@@ -251,15 +251,17 @@
                     style="font-family: 'Manrope', sans-serif; font-size: 0.85rem; letter-spacing: 0.05em;">
                     {{ t('gen_structure') }}
                 </button>
-                <div class="grid grid-cols-2 gap-2.5">
+                <div class="{% if membership in ['std', 'standard'] %}block{% else %}grid grid-cols-2 gap-2.5{% endif %}">
+                    {% if membership not in ['std', 'standard'] %}
                     <button onclick="continueWithAutopilot(true)"
                         class="py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all hover:brightness-110"
                         style="background: #343d96; color: #a8afff; font-family: 'Manrope', sans-serif;">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 3l14 9-14 9V3z"/></svg>
                         {{ t('nav_autopilot') }}
                     </button>
+                    {% endif %}
                     <button onclick="saveScriptSettings(this)"
-                        class="py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all hover:brightness-110"
+                        class="w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all hover:brightness-110"
                         style="background: var(--atl-high); color: var(--atl-sub); font-family: 'Manrope', sans-serif;">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
                         {{ t('save_settings') }}
@@ -699,6 +701,7 @@
                 } else if (settings.target_language) {
                     currentTargetLanguage = settings.target_language;
                 }
+                setGenerationLanguage(currentTargetLanguage);
             }
 
             // Load existing structure
@@ -907,8 +910,11 @@
             let durationSeconds = (window.APP_MODE === 'shorts') ? durationVal : durationVal * 60;
             const scriptStyle = document.getElementById('scriptStyleSelect').value;
 
-            // 1. Update project topic (projects table)
-            await API.project.update(projectId, { topic: topic });
+            // 1. Update project topic and target language (projects table)
+            await API.project.update(projectId, { 
+                topic: topic,
+                target_language: currentTargetLanguage
+            });
 
             // 2. Update settings (project_settings table)
             const result = await API.project.saveSettings(projectId, {
