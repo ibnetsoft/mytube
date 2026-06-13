@@ -258,19 +258,19 @@ class TTSService:
             final_settings["style"] = float(voice_settings.get("style", 0.45))
             speed_factor = float(voice_settings.get("speed", 1.0))
 
-        # [NEW] Pre-prompting for emotional steering in ElevenLabs (Korean native steering)
+        # [NEW] Pre-prompting for emotional steering in ElevenLabs (English prompts are much more effective)
         PRE_PROMPT_MAP = {
-            "sad": "아주 슬프고 울먹이며 떨리는 목소리로 말합니다: ",
-            "quietly": "낮고 작은 목소리로 조용히 속삭이듯 말합니다: ",
-            "whispers": "낮고 작은 목소리로 조용히 속삭이듯 말합니다: ",
-            "whispering": "낮고 작은 목소리로 조용히 속삭이듯 말합니다: ",
-            "thoughtful": "낮고 진중하며 차분한 목소리로 말합니다: ",
-            "happy": "아주 밝고 기쁘게 웃음기 가득한 목소리로 말합니다: ",
-            "excited": "아주 신나고 활기차며 상기된 높은 톤의 목소리로 말합니다: ",
-            "annoyed": "짜증스럽고 신경질적인 목소리로 말합니다: ",
-            "angry": "매우 화가 나고 분노에 찬 목소리로 거칠게 말합니다: ",
-            "shouting": "매우 크고 상기된 목소리로 지르듯 외칩니다: ",
-            "shouts": "매우 크고 상기된 목소리로 지르듯 외칩니다: ",
+            "sad": "In a very sad, sobbing, and crying voice, they say: ",
+            "quietly": "In a very low, quiet, and calm whisper, they say: ",
+            "whispers": "In a very low, quiet, and calm whisper, they say: ",
+            "whispering": "In a very low, quiet, and calm whisper, they say: ",
+            "thoughtful": "In a deep, serious, and thoughtful tone, they say: ",
+            "happy": "In an extremely happy, cheerful, and laughing voice, they say: ",
+            "excited": "In an extremely excited, high-pitched, and joyful voice, they say: ",
+            "annoyed": "In a very annoyed, irritated, and impatient voice, they say: ",
+            "angry": "In an extremely angry, furious, and harsh voice, they say: ",
+            "shouting": "Yelling loudly in a very high-pitched and intense voice, they say: ",
+            "shouts": "Yelling loudly in a very high-pitched and intense voice, they say: ",
         }
         
         # Check if the text contains any of these tags
@@ -292,7 +292,7 @@ class TTSService:
 
         payload = {
             "text": text_to_send,
-            "model_id": "eleven_v3",
+            "model_id": "eleven_multilingual_v2",
             "voice_settings": final_settings
         }
         
