@@ -41,6 +41,7 @@ type AiLog = {
     elapsed_time: number
     input_tokens: number
     output_tokens: number
+    thinking_tokens?: number
     balance_after?: number
     created_at: string
 }
@@ -858,14 +859,24 @@ export default function AdminDashboardContent() {
                                                                     <div className="flex items-center gap-2">
                                                                          <div className={`px-2 py-0.5 rounded border ${log.task_type === 'RECHARGE' ? 'bg-green-500/10 border-green-500/20' : 'bg-blue-500/10 border-blue-500/20'}`}>
                                                                             <span className={`text-[11px] font-black tracking-tight ${log.task_type === 'RECHARGE' ? 'text-green-500' : 'text-blue-400'}`}>
-                                                                                {log.task_type === 'RECHARGE' ? '+' : ''}{((log.input_tokens || 0) + (log.output_tokens || 0)).toLocaleString()}
+                                                                                {log.task_type === 'RECHARGE' ? '+' : ''}{((log.input_tokens || 0) + (log.output_tokens || 0) + (log.thinking_tokens || 0)).toLocaleString()}
                                                                             </span>
                                                                          </div>
+                                                                         {log.thinking_tokens ? (
+                                                                             <span className="text-[9px] bg-purple-500/10 text-purple-400 px-1.5 py-0.5 rounded border border-purple-500/20 font-black">
+                                                                                 THINKING: {log.thinking_tokens.toLocaleString()}
+                                                                             </span>
+                                                                         ) : null}
                                                                          <span className="text-[10px] text-gray-600 font-black tracking-tighter">TOKENS</span>
                                                                     </div>
                                                                     <div className="text-[10px] text-gray-500 line-clamp-1 italic max-w-sm group-hover:text-gray-300 transition-colors" title={log.prompt_summary}>
                                                                         "{log.prompt_summary || 'No prompt info'}"
                                                                     </div>
+                                                                    {log.error_msg && (
+                                                                        <div className="text-[10px] text-red-400 font-bold bg-red-500/10 border border-red-500/20 rounded px-2 py-1 mt-1 max-w-sm" title={log.error_msg}>
+                                                                            ⚠️ {log.error_msg}
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             </td>
                                                             <td className="px-10 py-6">
@@ -1315,7 +1326,14 @@ export default function AdminDashboardContent() {
                                                     {(item as any).categories?.name || '기본'}
                                                 </td>
                                                 <td className="px-10 py-3 text-white font-bold max-w-sm truncate">
-                                                    {item.topic}
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="truncate">{item.topic}</span>
+                                                        {item.is_auto_generated && (
+                                                            <span className="bg-purple-500/10 text-purple-400 px-1.5 py-0.5 rounded border border-purple-500/20 font-black text-[8px] tracking-tight shrink-0">
+                                                                🤖 AUTO
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="px-10 py-3 text-gray-400">
                                                     {item.assigned_employee_email}

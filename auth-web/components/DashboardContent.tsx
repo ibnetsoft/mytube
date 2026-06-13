@@ -910,7 +910,14 @@ export default function DashboardContent() {
                                                     {item.categories?.name || '기본'}
                                                 </td>
                                                 <td className="px-10 py-6 text-white font-bold max-w-sm truncate">
-                                                    {item.topic}
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="truncate">{item.topic}</span>
+                                                        {item.is_auto_generated && (
+                                                            <span className="bg-purple-500/10 text-purple-400 px-1.5 py-0.5 rounded border border-purple-500/20 font-black text-[8px] tracking-tight shrink-0">
+                                                                🤖 AUTO
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="px-10 py-6 text-gray-400">
                                                     {item.assigned_employee_email}
