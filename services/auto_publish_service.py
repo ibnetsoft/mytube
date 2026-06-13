@@ -119,6 +119,11 @@ class AutoPublishService:
                         print(f"[Success] Published {video_id}. Drive Link: {drive_link}")
                     else:
                         print(f"[Warning] Server update failed for {video_id}: {patch_res.text}")
+                    
+                    # [NEW] 연속 업로드 시 유튜브 IP/스팸 차단을 우회하기 위해 2분(120초) 대기 시간 추가
+                    if req != publish_queue[-1]:
+                        print("[Auto Publish] 안전한 업로드를 위해 다음 채널 업로드까지 120초 동안 대기합니다...")
+                        time.sleep(120)
                         
                 except Exception as e:
                     err_msg = str(e)
