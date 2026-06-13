@@ -1806,13 +1806,13 @@ class VideoService:
                         final_words.append({"word": w.get("word", ""), "start": w.get("start", 0), "end": w.get("end", 0)})
 
             # [IMPROVED] Smart Semantic Segmentation (2-Line Limit Rule)
-            # 1. 절대 한계: 35자 (가독성 향상 및 숏츠/롱폼 적정 길이 유지)
-            # 2. 의미 분할: 문장부호 뒤 (조사/어미는 15자 이상일 때만 체크)
-            # 3. 호흡 분할: 0.4초 이상 침묵
+            # 1. 절대 한계: 22자 (가독성 향상 및 숏츠/롱폼 1줄 고정 길이 유지)
+            # 2. 의미 분할: 문장부호 뒤 (조사/어미는 8자 이상일 때만 체크)
+            # 3. 호흡 분할: 0.3초 이상 침묵
  
-            MAX_CHARS_PER_BLOCK = 35   # 70→35: 자막 밀림 방지 및 단문 구성
-            SOFT_LIMIT_CHARS = 15      # 25→15: 더 타이트한 끊기 기준 적용
-            MIN_SILENCE_GAP = 0.4      # 0.8→0.4: 단어 간 쉼이 있으면 쪼갬
+            MAX_CHARS_PER_BLOCK = 22   # 35→22: 1줄 기준 최대 길이 제한
+            SOFT_LIMIT_CHARS = 8       # 15→8: 더 빈번히 끊기도록 조절
+            MIN_SILENCE_GAP = 0.3      # 0.4→0.3: 단어 사이 쉼 감지 강화
  
             # Heuristics — 조사 목록 확대 (의미 완결이 가능한 어미들 추가)
             SEMANTIC_ENDINGS = ('고', '며', '니', '면', '요', '죠', '다', '까', '서', '게', '은', '는', '이', '가', '을', '를', '에', '와', '과')
