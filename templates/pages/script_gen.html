@@ -67,6 +67,9 @@
                     </div>
                     <input type="text" id="structureTopic" class="input-field text-sm"
                         placeholder="{{ t('placeholder_video_topic') }}">
+                    {% if current_lang == 'vi' %}
+                    <div id="structureTopicVi" class="text-xs font-semibold text-purple-400 mt-2 px-1"></div>
+                    {% endif %}
                 </div>
 
 
@@ -514,6 +517,8 @@
                 Utils.storage.set('scriptStructure', full.script_structure);
                 document.getElementById('analysisInfo').classList.remove('hidden');
                 document.getElementById('structureTopic').value = full.project?.topic || '';
+                const viEl = document.getElementById('structureTopicVi');
+                if (viEl) viEl.textContent = full.project?.name_vi || '';
             } else {
                 document.getElementById('analysisInfo').classList.add('hidden');
             }
@@ -993,6 +998,8 @@
                     Utils.storage.set('scriptStructure', projectFull.script_structure);
                     document.getElementById('analysisInfo').classList.remove('hidden');
                     document.getElementById('structureTopic').value = projectFull.project?.topic || '';
+                    const viEl = document.getElementById('structureTopicVi');
+                    if (viEl) viEl.textContent = projectFull.project?.name_vi || '';
 
                     // Safe check for style
                     if (projectFull.script_structure.script_style) {
@@ -1345,6 +1352,25 @@ ${modeInstruction}
 
     // Initial call after some delay or content load
     setTimeout(autoResizeTextarea, 1000);
+
+    // Sync state when project changes via sidebar
+    window.addEventListener('projectStateRestored', (e) => {
+        const fullData = e.detail;
+        if (fullData) {
+            const analysisInfo = document.getElementById('analysisInfo');
+            if (analysisInfo) {
+                if (fullData.script_structure) {
+                    analysisInfo.classList.remove('hidden');
+                    const topicInput = document.getElementById('structureTopic');
+                    if (topicInput) topicInput.value = fullData.project?.topic || '';
+                    const viEl = document.getElementById('structureTopicVi');
+                    if (viEl) viEl.textContent = fullData.project?.name_vi || '';
+                } else {
+                    analysisInfo.classList.add('hidden');
+                }
+            }
+        }
+    });
 
 </script>
 {% endblock %}
