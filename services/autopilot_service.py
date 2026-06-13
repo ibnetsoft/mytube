@@ -728,18 +728,13 @@ JSON만 출력하세요:
                         except Exception as e:
                             print(f"⚠️ [Scene {scene_num}] Replicate failed: {e}")
 
-                    # 3. SDK Autopilot Fallback: Local Image Generator
-                    if not images:
-                        try:
-                            print(f"🎨 [Auto-Pilot] Attempting SDK Local Fallback (Fallback 2)...")
-                            images = [self._generate_fallback_image(prompt_en, aspect_ratio)]
-                            used_backend = "SDK_Local_Gradient"
-                        except Exception as e:
-                            print(f"⚠️ [Scene {scene_num}] SDK Local Fallback failed: {e}")
-
                     print(f"🎨 [Scene {scene_num}] Image generated via {used_backend}")
 
-                    if not images: return False
+                    if not images: 
+                        err_msg = f"[Asset Gen Error] Image generation failed for Scene {scene_num} (both Gemini and Replicate failed)."
+                        db.update_project_setting(project_id, "error_msg", err_msg)
+                        db.update_project(project_id, status="error")
+                        raise Exception(err_msg)
                     
                     filename = f"img_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.png"
                     image_abs_path = os.path.join(config.OUTPUT_DIR, filename)
@@ -864,6 +859,8 @@ JSON만 출력하세요:
                             s_out = result["audio_path"]
                             dur = result.get("duration")
                             alignment = result.get("alignment", [])
+                        else:
+                            raise Exception("ElevenLabs returned empty audio path or file not found.")
                     elif provider == "openai":
                         s_out = await tts_service.generate_openai(text, current_voice_id, model="tts-1", filename=scene_filename)
                     elif provider == "gemini":
@@ -872,38 +869,56 @@ JSON만 출력하세요:
                         s_out = await tts_service.generate_google_cloud(text, current_voice_id, filename=scene_filename)
                 except Exception as e:
                     print(f"⚠️ [SDK Autopilot] Primary TTS '{provider}' failed: {e}")
+                    if provider == "elevenlabs":
+                        err_msg = f"[ElevenLabs TTS Critical Failure] {str(e)}"
+                        print(f"🚨 {err_msg}")
+                        # Log to DB (will sync to Supabase)
+                        db.add_ai_log(
+                            project_id=project_id,
+                            task_type="TTS",
+                            model_id=current_voice_id,
+                            provider="ElevenLabs",
+                            status="failed",
+                            prompt_summary=text[:100],
+                            error_msg=err_msg
+                        )
+                        db.update_project_setting(project_id, "error_msg", err_msg)
+                        db.update_project(project_id, status="error")
+                        raise Exception(err_msg)
 
-                # 2. Fallback Layer 1: Google Cloud (if primary was Elevenlabs/OpenAI/Gemini and failed)
-                if (not s_out or not os.path.exists(s_out)) and provider != "google_cloud":
-                    try:
-                        print(f"🎙️ [SDK Autopilot] Fallback Layer 1: Attempting Google Cloud TTS...")
-                        s_out = await tts_service.generate_google_cloud(text, "ko-KR-Neural2-A", filename=scene_filename)
-                    except Exception as e:
-                        print(f"⚠️ [SDK Autopilot] Google Cloud Fallback failed: {e}")
+                # 2. Fallbacks (Only if provider is NOT elevenlabs!)
+                if provider != "elevenlabs":
+                    # Fallback Layer 1: Google Cloud
+                    if (not s_out or not os.path.exists(s_out)) and provider != "google_cloud":
+                        try:
+                            print(f"🎙️ [SDK Autopilot] Fallback Layer 1: Attempting Google Cloud TTS...")
+                            s_out = await tts_service.generate_google_cloud(text, "ko-KR-Neural2-A", filename=scene_filename)
+                        except Exception as e:
+                            print(f"⚠️ [SDK Autopilot] Google Cloud Fallback failed: {e}")
 
-                # 3. Fallback Layer 2: Edge TTS (Free, extremely reliable)
-                if not s_out or not os.path.exists(s_out):
-                    try:
-                        print(f"🎙️ [SDK Autopilot] Fallback Layer 2: Attempting Edge TTS...")
-                        edge_voice = "ko-KR-SunHiNeural" if "ko" in (current_voice_id or "").lower() else "en-US-AriaNeural"
-                        s_out = await tts_service.generate_edge_tts(text, voice=edge_voice, filename=scene_filename)
-                    except Exception as e:
-                        print(f"⚠️ [SDK Autopilot] Edge TTS Fallback failed: {e}")
+                    # Fallback Layer 2: Edge TTS (Free, extremely reliable)
+                    if not s_out or not os.path.exists(s_out):
+                        try:
+                            print(f"🎙️ [SDK Autopilot] Fallback Layer 2: Attempting Edge TTS...")
+                            edge_voice = "ko-KR-SunHiNeural" if "ko" in (current_voice_id or "").lower() else "en-US-AriaNeural"
+                            s_out = await tts_service.generate_edge_tts(text, voice=edge_voice, filename=scene_filename)
+                        except Exception as e:
+                            print(f"⚠️ [SDK Autopilot] Edge TTS Fallback failed: {e}")
 
-                # 4. Fallback Layer 3: gTTS (Free Google Translate API)
-                if not s_out or not os.path.exists(s_out):
-                    try:
-                        print(f"🎙️ [SDK Autopilot] Fallback Layer 3: Attempting gTTS...")
-                        s_out = await tts_service.generate_gtts(text, lang="ko" if "ko" in (current_voice_id or "").lower() else "en", filename=scene_filename)
-                    except Exception as e:
-                        print(f"⚠️ [SDK Autopilot] gTTS Fallback failed: {e}")
+                    # Fallback Layer 3: gTTS (Free Google Translate API)
+                    if not s_out or not os.path.exists(s_out):
+                        try:
+                            print(f"🎙️ [SDK Autopilot] Fallback Layer 3: Attempting gTTS...")
+                            s_out = await tts_service.generate_gtts(text, lang="ko" if "ko" in (current_voice_id or "").lower() else "en", filename=scene_filename)
+                        except Exception as e:
+                            print(f"⚠️ [SDK Autopilot] gTTS Fallback failed: {e}")
 
-                # 5. Fallback Layer 4: Local Silent Wave Generator
-                if not s_out or not os.path.exists(s_out):
-                    print(f"🎙️ [SDK Autopilot] Fallback Layer 4: All TTS APIs failed. Generating silent audio.")
-                    char_count = len(text)
-                    dur = max(3.0, min(15.0, char_count / 3.0))
-                    s_out = self._generate_silent_audio(dur, scene_filename)
+                    # Fallback Layer 4: Local Silent Wave Generator (Emergency backup for non-ElevenLabs)
+                    if not s_out or not os.path.exists(s_out):
+                        print(f"🎙️ [SDK Autopilot] Fallback Layer 4: All non-ElevenLabs TTS APIs failed. Generating silent audio.")
+                        char_count = len(text)
+                        dur = max(3.0, min(15.0, char_count / 3.0))
+                        s_out = self._generate_silent_audio(dur, scene_filename)
 
                 # Process final audio file
                 if s_out and os.path.exists(s_out):
