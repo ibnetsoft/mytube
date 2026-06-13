@@ -1748,6 +1748,7 @@ class VideoService:
             return []
 
         print(f"Aligning subtitles for: {audio_path}")
+        subtitles = []
         
         # 모델 로드 (첫 실행시 다운로드됨)
         # GPU 사용 가능시 cuda, 아니면 cpu
