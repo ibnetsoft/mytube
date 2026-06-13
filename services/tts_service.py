@@ -292,7 +292,7 @@ class TTSService:
 
         payload = {
             "text": text_to_send,
-            "model_id": "eleven_multilingual_v2",
+            "model_id": "eleven_v3",
             "voice_settings": final_settings
         }
         
@@ -339,13 +339,19 @@ class TTSService:
                         
                     # Get start timestamp
                     if 0 <= found_idx < len(char_start_times):
-                        t_start = char_start_times[found_idx]
-                        print(f"[TRIM] [ElevenLabs TTS] Pre-prompt ended at character index {found_idx}, time {t_start:.3f}s. Trimming audio...")
-                        
-                        # Trim characters and timestamps
-                        characters = characters[found_idx:]
-                        char_start_times = [t - t_start for t in char_start_times[found_idx:]]
-                        char_end_times = [t - t_start for t in char_end_times[found_idx:]]
+                        proposed_t_start = char_start_times[found_idx]
+                        total_duration = char_end_times[-1] if char_end_times else 0.0
+                        if proposed_t_start >= total_duration - 0.2:
+                            print(f"[TRIM] [ElevenLabs TTS] Crop safety triggered: proposed_t_start ({proposed_t_start:.3f}s) is too close to total duration ({total_duration:.3f}s). Disabling cropping.")
+                            t_start = 0.0
+                        else:
+                            t_start = proposed_t_start
+                            print(f"[TRIM] [ElevenLabs TTS] Pre-prompt ended at character index {found_idx}, time {t_start:.3f}s. Trimming audio...")
+                            
+                            # Trim characters and timestamps only if cropping is active
+                            characters = characters[found_idx:]
+                            char_start_times = [t - t_start for t in char_start_times[found_idx:]]
+                            char_end_times = [t - t_start for t in char_end_times[found_idx:]]
 
                 # 오디오 데이터 (base64) 및 파일 저장 (필요한 경우 크롭 처리)
                 audio_base64 = data.get("audio_base64", "")
