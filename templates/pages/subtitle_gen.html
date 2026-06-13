@@ -1006,7 +1006,15 @@
 
             audio.addEventListener('loadedmetadata', () => {
                 audioDuration = audio.duration;
-                if (timeDisplay) timeDisplay.textContent = `${formatTime(audio.currentTime)} / ${formatTime(audio.duration)}`;
+                if (timeDisplay) {
+                    if (selectedIndex >= 0 && subtitles[selectedIndex]) {
+                        const sub = subtitles[selectedIndex];
+                        const segDur = sub.end - sub.start;
+                        timeDisplay.textContent = `00:00 / ${formatTime(segDur)}`;
+                    } else {
+                        timeDisplay.textContent = `${formatTime(audio.currentTime)} / ${formatTime(audio.duration)}`;
+                    }
+                }
             });
 
             audio.addEventListener('timeupdate', () => {
@@ -1014,8 +1022,8 @@
                 const cur = audio.currentTime;
                 const dur = audio.duration;
 
-                // 구간 재생 중: 구간 기준 프로그레스바 표시
-                if (_segmentInterval !== null && selectedIndex >= 0 && subtitles[selectedIndex]) {
+                // 구간 재생 중 혹은 자막 선택됨: 구간 기준 프로그레스바 및 시간 표시
+                if (selectedIndex >= 0 && subtitles[selectedIndex]) {
                     const sub = subtitles[selectedIndex];
                     const segDur = sub.end - sub.start;
                     const segCur = Math.max(0, Math.min(cur - sub.start, segDur));
@@ -1292,6 +1300,19 @@
 
         document.getElementById('currentStartTime').textContent = sub.start.toFixed(2);
         document.getElementById('currentEndTime').textContent = sub.end.toFixed(2);
+
+        // Update custom player time display immediately when selecting a row
+        const timeDisplay = document.getElementById('customTimeDisplay');
+        if (timeDisplay) {
+            const formatTime = (sec) => {
+                if (isNaN(sec) || !isFinite(sec)) return "00:00";
+                const m = Math.floor(sec / 60);
+                const s = Math.floor(sec % 60);
+                return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            };
+            const segDur = sub.end - sub.start;
+            timeDisplay.textContent = `00:00 / ${formatTime(segDur)}`;
+        }
 
         updateImageMatchIndicator(sub.start); // [NEW] Check Image Match
         renderImageStrip(); // [NEW] Update strip to highlight current image
