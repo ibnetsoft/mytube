@@ -1111,7 +1111,7 @@ scene_type별 구조:
 
 # ============ 프로젝트 CRUD ============
 
-def create_project(name: str, topic: str = None, app_mode: str = 'longform', language: str = 'ko', employee_email: str = None) -> int:
+def create_project(name: str, topic: str = None, app_mode: str = 'longform', language: str = 'ko', employee_email: str = None, script_style: str = None, image_style: str = None) -> int:
     """새 프로젝트 생성 + 기본 설정 초기화"""
     # DB 연결 전에 외부 설정값 미리 조회 (트랜잭션 중 별도 connection 방지)
     from services.settings_service import settings_service
@@ -1141,14 +1141,16 @@ def create_project(name: str, topic: str = None, app_mode: str = 'longform', lan
         """INSERT OR IGNORE INTO project_settings
            (project_id, title, voice_name, voice_language, voice_style_prompt,
             subtitle_font, subtitle_font_size, subtitle_color, subtitle_style_enum, subtitle_stroke_color, subtitle_stroke_width,
-            subtitle_bg_enabled, subtitle_stroke_enabled, voice_provider, voice_speed, voice_multi_enabled, app_mode)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            subtitle_bg_enabled, subtitle_stroke_enabled, voice_provider, voice_speed, voice_multi_enabled, app_mode,
+            script_style, image_style)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (project_id, name, defaults.get("voice_name", "Puck"),
          defaults.get("language_code", "ko-KR"), defaults.get("style_prompt", ""),
          initial_font, sub_defaults.get("subtitle_font_size"),
          sub_defaults.get("subtitle_color"), sub_defaults.get("subtitle_style_enum"),
          sub_defaults.get("subtitle_stroke_color"), sub_defaults.get("subtitle_stroke_width"),
-         1, 0, 'elevenlabs', 1.0, 0, app_mode) # Default: BG ON, Stroke OFF
+         1, 0, 'elevenlabs', 1.0, 0, app_mode,
+         script_style or 'default', image_style or 'realistic') # Default styles if not provided
     )
 
     conn.commit()

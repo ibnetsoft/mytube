@@ -101,6 +101,8 @@ export default function AdminDashboardContent() {
     const [newCatKeywords, setNewCatKeywords] = useState('')
     const [newCatChannel, setNewCatChannel] = useState('')
     const [newCatEmployee, setNewCatEmployee] = useState('')
+    const [newCatScriptStyle, setNewCatScriptStyle] = useState('default')
+    const [newCatImageStyle, setNewCatImageStyle] = useState('realistic')
     const [generatingCatId, setGeneratingCatId] = useState<number | null>(null)
 
     useEffect(() => {
@@ -183,7 +185,9 @@ export default function AdminDashboardContent() {
                     name: newCatName,
                     keywords: newCatKeywords,
                     benchmark_channel_url: newCatChannel,
-                    assigned_employee_email: newCatEmployee
+                    assigned_employee_email: newCatEmployee,
+                    default_script_style: newCatScriptStyle,
+                    default_image_style: newCatImageStyle
                 })
             })
             const data = await res.json()
@@ -192,6 +196,8 @@ export default function AdminDashboardContent() {
                 setNewCatKeywords('')
                 setNewCatChannel('')
                 setNewCatEmployee('')
+                setNewCatScriptStyle('default')
+                setNewCatImageStyle('realistic')
                 fetchCategories()
                 fetchTopics()
                 alert('카테고리가 성공적으로 등록되었으며, 기본 샘플 주제 3개가 적재되었습니다.')
@@ -1178,7 +1184,7 @@ export default function AdminDashboardContent() {
                                         className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
                                     />
                                 </div>
-                                <div className="md:col-span-2">
+                                <div>
                                     <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">벤치마킹할 유튜브 채널 URL</label>
                                     <input 
                                         type="url" 
@@ -1188,10 +1194,43 @@ export default function AdminDashboardContent() {
                                         className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
                                     />
                                 </div>
-                                <div className="flex items-end">
+                                <div>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">기본 대본 스타일 *</label>
+                                    <select
+                                        required
+                                        value={newCatScriptStyle}
+                                        onChange={e => setNewCatScriptStyle(e.target.value)}
+                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
+                                    >
+                                        <option value="default" className="bg-[#111] text-white">기본 설정 (선명하고 자연스럽게)</option>
+                                        <option value="story" className="bg-[#111] text-white">옛날 이야기 (구연동화 톤)</option>
+                                        <option value="senior_story" className="bg-[#111] text-white">시니어 이야기 (회상/감성 톤)</option>
+                                        <option value="news" className="bg-[#111] text-white">뉴스 (정보전달 톤)</option>
+                                        <option value="mystery_thriller" className="bg-[#111] text-white">미스터리 스릴러 (긴장감 톤)</option>
+                                        <option value="nursery_rhyme" className="bg-[#111] text-white">전래동요풍 (어린이 구연 톤)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">기본 이미지 화풍 *</label>
+                                    <select
+                                        required
+                                        value={newCatImageStyle}
+                                        onChange={e => setNewCatImageStyle(e.target.value)}
+                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
+                                    >
+                                        <option value="realistic" className="bg-[#111] text-white">실사 (Photorealistic)</option>
+                                        <option value="ghibli" className="bg-[#111] text-white">지브리 감성 일러스트 (Ghibli)</option>
+                                        <option value="anime" className="bg-[#111] text-white">일본 애니메이션풍 (Anime)</option>
+                                        <option value="cinematic" className="bg-[#111] text-white">영화 스틸컷 느낌 (Cinematic)</option>
+                                        <option value="cartoon" className="bg-[#111] text-white">2D 카툰 일러스트 (Cartoon)</option>
+                                        <option value="nursery_rhyme" className="bg-[#111] text-white">3D 동화/애니 (Nursery/Pixar)</option>
+                                        <option value="역사/동양철/다큐" className="bg-[#111] text-white">전통 동양화/수묵화 (Ink Wash)</option>
+                                    </select>
+                                </div>
+                                <div className="md:col-span-3 mt-4 flex justify-end">
                                     <button 
                                         type="submit"
-                                        className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl transition-all shadow-lg active:scale-95"
+                                        className="px-8 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
                                     >
                                         🚀 등록 및 초기 주제 생성
                                     </button>

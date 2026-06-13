@@ -267,6 +267,20 @@ async def get_daily_topic():
                 item = data[0]
                 topic_id = item["id"]
                 topic_name = item["topic"]
+                category_id = item.get("category_id")
+                category_script_style = None
+                category_image_style = None
+                if category_id:
+                    try:
+                        cat_url = f"{supabase_url.rstrip('/')}/rest/v1/categories?id=eq.{category_id}"
+                        cat_r = requests.get(cat_url, headers=headers, timeout=5, verify=False, proxies={"http": None, "https": None})
+                        if cat_r.status_code == 200:
+                            cat_data = cat_r.json()
+                            if cat_data:
+                                category_script_style = cat_data[0].get("default_script_style")
+                                category_image_style = cat_data[0].get("default_image_style")
+                    except Exception as e:
+                        print(f"[Queue API Warning] Failed to fetch category default styles: {e}")
                 
                 # 2. 해당 주제의 상태를 'assigned'로 변경
                 update_url = f"{supabase_url.rstrip('/')}/rest/v1/topics_queue?id=eq.{topic_id}"
@@ -283,7 +297,9 @@ async def get_daily_topic():
                     topic=topic_name,
                     app_mode="longform",
                     language="ko",
-                    employee_email=email
+                    employee_email=email,
+                    script_style=category_script_style,
+                    image_style=category_image_style
                 )
                 
                 return {"status": "success", "project_id": project_id, "topic": topic_name}

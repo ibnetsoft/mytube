@@ -25,10 +25,9 @@ export async function GET(req: Request) {
     }
 }
 
-// POST: 신규 카테고리 등록
 export async function POST(req: Request) {
     try {
-        const { name, keywords, benchmark_channel_url, assigned_employee_email } = await req.json()
+        const { name, keywords, benchmark_channel_url, assigned_employee_email, default_script_style, default_image_style } = await req.json()
 
         if (!name || !assigned_employee_email) {
             return NextResponse.json({ error: 'Name and Employee email are required' }, { status: 400 })
@@ -54,7 +53,9 @@ export async function POST(req: Request) {
                 name,
                 keywords: keywords || '',
                 benchmark_channel_url: benchmark_channel_url || '',
-                assigned_employee_email
+                assigned_employee_email,
+                default_script_style: default_script_style || 'default',
+                default_image_style: default_image_style || 'realistic'
             }])
             .select()
 
