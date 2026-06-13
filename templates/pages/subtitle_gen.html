@@ -3446,8 +3446,6 @@
 
     // 전체 자막 리스트에 자동 줄바꿈 적용
     function applyAutoWrapToSubtitles(subtitleList) {
-        const isShorts = window.currentAppMode === 'shorts';
-        const maxChars = isShorts ? 16 : 24;
         return subtitleList.map(sub => {
             let cleanedText = (sub.text || '')
                 .replace(/\[[^\]]*\]/g, '')
@@ -3459,7 +3457,7 @@
                 .trim();
             return {
                 ...sub,
-                text: autoWrapSubtitleText(cleanedText, maxChars)
+                text: cleanedText
             };
         });
     }
