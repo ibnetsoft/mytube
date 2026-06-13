@@ -30,6 +30,10 @@ class Config:
     # 외부 렌더링 (구글 드라이브 동기화 방식) 설정
     USE_EXTERNAL_RENDER = os.getenv("USE_EXTERNAL_RENDER", "false").lower() == "true"
     DRIVE_RENDER_QUEUE_PATH = os.getenv("DRIVE_RENDER_QUEUE_PATH", "G:/내 드라이브/Longform_Render_Queue")
+    DRIVE_PATH_KO = os.getenv("DRIVE_PATH_KO", "G:/내 드라이브/Longform_Render_Queue")
+    DRIVE_PATH_EN = os.getenv("DRIVE_PATH_EN", "G:/My Drive/Longform_Render_Queue")
+    DRIVE_PATH_JA = os.getenv("DRIVE_PATH_JA", "G:/マ이드라이브/Longform_Render_Queue")
+    DRIVE_ACTIVE_LANG = os.getenv("DRIVE_ACTIVE_LANG", "ko")
 
     # API URLs
     YOUTUBE_BASE_URL = "https://www.googleapis.com/youtube/v3"
@@ -123,7 +127,9 @@ class Config:
             'GOOGLE_APPLICATION_CREDENTIALS', 'OPENAI_API_KEY', 'PEXELS_API_KEY', 
             'REPLICATE_API_TOKEN', 'TOPVIEW_API_KEY', 'TOPVIEW_UID',
             'BLOG_CLIENT_ID', 'BLOG_CLIENT_SECRET', 'BLOG_ID',
-            'WP_URL', 'WP_USERNAME', 'WP_PASSWORD'
+            'WP_URL', 'WP_USERNAME', 'WP_PASSWORD',
+            'USE_EXTERNAL_RENDER', 'DRIVE_RENDER_QUEUE_PATH',
+            'DRIVE_PATH_KO', 'DRIVE_PATH_EN', 'DRIVE_PATH_JA', 'DRIVE_ACTIVE_LANG'
         ]
 
         if key_name not in valid_keys:

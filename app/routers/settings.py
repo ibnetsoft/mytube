@@ -48,6 +48,13 @@ class GlobalSettings(BaseModel):
     pexels_api_key: Optional[str] = None
     replicate_api_token: Optional[str] = None
     openai_api_key: Optional[str] = None
+    # [NEW] Google Drive Settings
+    use_external_render: Optional[bool] = None
+    drive_render_queue_path: Optional[str] = None
+    drive_path_ko: Optional[str] = None
+    drive_path_en: Optional[str] = None
+    drive_path_ja: Optional[str] = None
+    drive_active_lang: Optional[str] = None
 
 @router.get("")
 async def get_global_settings_api():
@@ -82,7 +89,14 @@ async def get_global_settings_api():
         "user_name": db.get_global_setting("user_name", ""),
         "user_nationality": db.get_global_setting("user_nationality", ""),
         "user_phone": db.get_global_setting("user_phone", ""),
-        "user_email": db.get_global_setting("user_email", "")
+        "user_email": db.get_global_setting("user_email", ""),
+        # [NEW] Google Drive Settings
+        "use_external_render": db.get_global_setting("use_external_render", config.USE_EXTERNAL_RENDER, value_type="bool"),
+        "drive_render_queue_path": db.get_global_setting("drive_render_queue_path", config.DRIVE_RENDER_QUEUE_PATH),
+        "drive_path_ko": db.get_global_setting("drive_path_ko", config.DRIVE_PATH_KO),
+        "drive_path_en": db.get_global_setting("drive_path_en", config.DRIVE_PATH_EN),
+        "drive_path_ja": db.get_global_setting("drive_path_ja", config.DRIVE_PATH_JA),
+        "drive_active_lang": db.get_global_setting("drive_active_lang", config.DRIVE_ACTIVE_LANG)
     }
     
     # 2. Load Default Settings (stored in Project 1 by convention)
@@ -128,6 +142,13 @@ async def get_global_settings_api():
     merged["user_nationality"] = auth_service.get_user_nationality() or global_conf["user_nationality"]
     merged["user_phone"] = auth_service.get_user_contact() or global_conf["user_phone"]
     merged["user_email"] = auth_service.get_user_email() or global_conf["user_email"]
+    
+    merged["use_external_render"] = global_conf["use_external_render"]
+    merged["drive_render_queue_path"] = global_conf["drive_render_queue_path"]
+    merged["drive_path_ko"] = global_conf["drive_path_ko"]
+    merged["drive_path_en"] = global_conf["drive_path_en"]
+    merged["drive_path_ja"] = global_conf["drive_path_ja"]
+    merged["drive_active_lang"] = global_conf["drive_active_lang"]
     
     # [NEW] Add Current API Keys Status
     api_status = config.get_api_keys_status()
@@ -218,6 +239,37 @@ async def save_global_settings_api(settings: GlobalSettings):
         config.update_api_key("REPLICATE_API_TOKEN", settings.replicate_api_token)
     if settings.openai_api_key is not None:
         config.update_api_key("OPENAI_API_KEY", settings.openai_api_key)
+        
+    # [NEW] Google Drive Settings Save
+    if settings.use_external_render is not None:
+        db.save_global_setting("use_external_render", settings.use_external_render)
+        config.update_api_key("USE_EXTERNAL_RENDER", str(settings.use_external_render).lower())
+    if settings.drive_path_ko is not None:
+        db.save_global_setting("drive_path_ko", settings.drive_path_ko)
+        config.update_api_key("DRIVE_PATH_KO", settings.drive_path_ko)
+    if settings.drive_path_en is not None:
+        db.save_global_setting("drive_path_en", settings.drive_path_en)
+        config.update_api_key("DRIVE_PATH_EN", settings.drive_path_en)
+    if settings.drive_path_ja is not None:
+        db.save_global_setting("drive_path_ja", settings.drive_path_ja)
+        config.update_api_key("DRIVE_PATH_JA", settings.drive_path_ja)
+    if settings.drive_active_lang is not None:
+        db.save_global_setting("drive_active_lang", settings.drive_active_lang)
+        config.update_api_key("DRIVE_ACTIVE_LANG", settings.drive_active_lang)
+
+    # Automatically resolve DRIVE_RENDER_QUEUE_PATH
+    active_lang = settings.drive_active_lang or db.get_global_setting("drive_active_lang", "ko")
+    resolved_path = ""
+    if active_lang == "ko":
+        resolved_path = settings.drive_path_ko or db.get_global_setting("drive_path_ko", config.DRIVE_PATH_KO)
+    elif active_lang == "en":
+        resolved_path = settings.drive_path_en or db.get_global_setting("drive_path_en", config.DRIVE_PATH_EN)
+    elif active_lang == "ja":
+        resolved_path = settings.drive_path_ja or db.get_global_setting("drive_path_ja", config.DRIVE_PATH_JA)
+
+    if resolved_path:
+        db.save_global_setting("drive_render_queue_path", resolved_path)
+        config.update_api_key("DRIVE_RENDER_QUEUE_PATH", resolved_path)
     
     # 모드 변경 여부 반환
     mode_changed = previous_mode != settings.app_mode if settings.app_mode else False
