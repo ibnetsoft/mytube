@@ -338,23 +338,25 @@ export default function DashboardContent() {
     const calcGeneralStats = (logs: any[], days: number) => {
         const coreTasks = ['video', 'image', 'script', 'text_gen', 'vision_gen', 'test_after_fix'];
         const breakdown: any = {};
+        let totalThinkingTokens = 0;
         coreTasks.forEach(task => {
             breakdown[task] = { tokens: 0, count: 0, buckets: new Array(days === 1 ? 24 : days).fill(0).map(() => ({ tokens: 0, count: 0 })) };
         });
-        if (!logs || !logs.length) return { total: 0, successRate: 0, avgLatency: 0, totalTokens: 0, breakdown };
+        if (!logs || !logs.length) return { total: 0, successRate: 0, avgLatency: 0, totalTokens: 0, totalThinkingTokens: 0, breakdown };
         const total = logs.length;
         const successes = logs.filter(l => (l.task_type !== 'RECHARGE' && ((l.status || '').toLowerCase() === 'success' || (l.status || '').toLowerCase() === 'done'))).length;
-        const tokens = logs.reduce((acc, l) => acc + (l.task_type === 'RECHARGE' ? 0 : (l.input_tokens || 0) + (l.output_tokens || 0)), 0);
+        const tokens = logs.reduce((acc, l) => acc + (l.task_type === 'RECHARGE' ? 0 : (l.input_tokens || 0) + (l.output_tokens || 0) + (l.thinking_tokens || 0)), 0);
         logs.forEach(l => {
             if (l.task_type === 'RECHARGE') return;
             const stage = (l.task_type || 'unknown').toLowerCase();
             if (!breakdown[stage]) breakdown[stage] = { tokens: 0, count: 0, buckets: new Array(days === 1 ? 24 : days).fill(0).map(() => ({ tokens: 0, count: 0 })) };
-            const t = (l.input_tokens || 0) + (l.output_tokens || 0);
+            const t = (l.input_tokens || 0) + (l.output_tokens || 0) + (l.thinking_tokens || 0);
             breakdown[stage].tokens += t;
             breakdown[stage].count += 1;
+            totalThinkingTokens += (l.thinking_tokens || 0);
         });
         const avgLat = total > 0 ? parseFloat((logs.reduce((acc, l) => acc + (l.elapsed_time || 0), 0) / total).toFixed(1)) : 0;
-        return { total, successRate: total > 0 ? Math.round((successes / total)*100) : 0, avgLatency: avgLat, totalTokens: tokens, breakdown };
+        return { total, successRate: total > 0 ? Math.round((successes / total)*100) : 0, avgLatency: avgLat, totalTokens: tokens, totalThinkingTokens, breakdown };
     }
 
     const fetchGlobalStats = useCallback(async (days: number) => {
@@ -605,9 +607,12 @@ export default function DashboardContent() {
                     const end = start + (data.tokens / (total || 1)) * 100; 
                     return `${colors[stage] || '#334155'} ${start}% ${end}%`; 
                 }).join(', ') || '#1e293b'})` }}>
-                <div className="absolute inset-5 bg-[#0f172a] rounded-full flex flex-col items-center justify-center overflow-hidden">
-                    <span className="text-[9px] font-black text-gray-500 uppercase tracking-tighter">EXPEND</span>
-                    <span className="text-[7px] text-blue-500 font-bold">TOKENS</span>
+                <div className="absolute inset-5 bg-[#0f172a] rounded-full flex flex-col items-center justify-center overflow-hidden text-center">
+                    <span className="text-[9px] font-black text-gray-500 uppercase tracking-tighter">TOTAL</span>
+                    <span className="text-[7.5px] text-blue-400 font-bold leading-none mt-0.5">{(stats.totalTokens || 0).toLocaleString()} TK</span>
+                    {stats.totalThinkingTokens > 0 && (
+                        <span className="text-[6.5px] text-purple-400 font-medium leading-none mt-0.5">(Thk: {stats.totalThinkingTokens.toLocaleString()})</span>
+                    )}
                 </div>
             </div>
             <div className="w-full space-y-0.5 mt-1">
@@ -676,8 +681,13 @@ export default function DashboardContent() {
                             <td className="px-10 py-5 text-right font-black text-[12px]">
                                 <div className="flex flex-col items-end">
                                     <span className={log.task_type === 'RECHARGE' ? 'text-green-500' : 'text-white'}>
-                                        {log.task_type === 'RECHARGE' ? '+' : ''}{((log.input_tokens || 0) + (log.output_tokens || 0)).toLocaleString()} <span className="text-gray-600 text-[10px]">TK</span>
+                                        {log.task_type === 'RECHARGE' ? '+' : ''}{((log.input_tokens || 0) + (log.output_tokens || 0) + (log.thinking_tokens || 0)).toLocaleString()} <span className="text-gray-600 text-[10px]">TK</span>
                                     </span>
+                                    {log.thinking_tokens > 0 && (
+                                        <span className="text-[8px] text-purple-400 font-semibold mt-0.5">
+                                            (Thk: {log.thinking_tokens.toLocaleString()})
+                                        </span>
+                                    )}
                                 </div>
                             </td>
                             <td className="px-10 py-5 text-right font-black text-blue-500 text-[12px] tabular-nums">

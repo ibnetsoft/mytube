@@ -10,7 +10,7 @@ const getAdmin = () => createClient(
 export async function POST(req: Request) {
     try {
         const body = await req.json()
-        const { userId, task_type, model_id, provider, status, prompt_summary, error_msg, elapsed_time, input_tokens, output_tokens, balance_after } = body
+        const { userId, task_type, model_id, provider, status, prompt_summary, error_msg, elapsed_time, input_tokens, output_tokens, balance_after, thinking_tokens } = body
 
         if (!userId) return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
 
@@ -31,6 +31,7 @@ export async function POST(req: Request) {
                 elapsed_time: elapsed_time || 0,
                 input_tokens: input_tokens || 0,
                 output_tokens: output_tokens || 0,
+                thinking_tokens: thinking_tokens || 0,
                 balance_after: balance_after
             })
 
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
 
         // [Credit System] 작업 성공 시 토큰 차감 (RECHARGE/BILLING 유형은 차감 제외)
         const NO_DEDUCT_TYPES = ['RECHARGE', 'BILLING']
-        const totalTokens = (input_tokens || 0) + (output_tokens || 0)
+        const totalTokens = (input_tokens || 0) + (output_tokens || 0) + (thinking_tokens || 0)
         if (totalTokens > 0 && (status === 'success' || status === 'done') && !NO_DEDUCT_TYPES.includes((task_type || '').toUpperCase())) {
             const { data: deductResult, error: deductError } = await getAdmin().rpc('deduct_tokens', {
                 p_user_id: userId,

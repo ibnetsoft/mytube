@@ -122,13 +122,22 @@ class GeminiService:
                     usage = result.get("usageMetadata", {})
                     in_tokens = usage.get('promptTokenCount', 0)
                     out_tokens = usage.get('candidatesTokenCount', 0)
+                    
+                    # [SDK] Extract thinking token count from usageMetadata candidatesTokenDetails if present
+                    candidates_details = usage.get('candidatesTokenDetails', {})
+                    thk_tokens = 0
+                    if isinstance(candidates_details, dict):
+                        # candidatesTokenDetails -> [{'type': 'thinking', 'tokenCount': 100}]
+                        # or direct value based on Gemini API spec: {'thinkingTokenCount': X}
+                        thk_tokens = candidates_details.get('thinkingTokenCount', 0)
+                    
                     elapsed = _time.time() - start_time
                     
-                    self.log_debug(f"✅ [Gemini Text] Success ({elapsed:.1f}s, finish={finish_reason})")
+                    self.log_debug(f"✅ [Gemini Text] Success ({elapsed:.1f}s, finish={finish_reason}, thinking={thk_tokens})")
                     
                     # Always log, even if project_id is None
                     db.add_ai_log(project_id, task_type, model, 'google', 'success', 
-                                 prompt_summary=prompt[:100], input_tokens=in_tokens, output_tokens=out_tokens, elapsed_time=elapsed)
+                                 prompt_summary=prompt[:100], input_tokens=in_tokens, output_tokens=out_tokens, elapsed_time=elapsed, thinking_tokens=thk_tokens)
                     
                     return text
                 else:
