@@ -1040,9 +1040,14 @@
                     let clickX = e.clientX - rect.left;
                     clickX = Math.max(0, Math.min(clickX, rect.width));
                     const pct = clickX / rect.width;
-                    if (progressFill) progressFill.style.width = `${pct * 100}%`;
-                    if (playhead) playhead.style.left = `${pct * 100}%`;
-                    audio.currentTime = pct * audioDuration;
+                    
+                    if (_segmentInterval !== null && selectedIndex >= 0 && subtitles[selectedIndex]) {
+                        const sub = subtitles[selectedIndex];
+                        const segDur = sub.end - sub.start;
+                        audio.currentTime = sub.start + (pct * segDur);
+                    } else {
+                        audio.currentTime = pct * audioDuration;
+                    }
                 };
                 updatePlayhead(e);
 
@@ -1050,7 +1055,13 @@
                 const onMouseUp = () => {
                     document.removeEventListener('mousemove', onMouseMove);
                     document.removeEventListener('mouseup', onMouseUp);
-                    if (audio.paused) audio.play();
+                    if (audio.paused) {
+                        if (selectedIndex >= 0 && subtitles[selectedIndex]) {
+                            playSegment(selectedIndex);
+                        } else {
+                            audio.play();
+                        }
+                    }
                 };
 
                 document.addEventListener('mousemove', onMouseMove);
@@ -2873,10 +2884,11 @@
 
         if (_segmentInterval) { clearInterval(_segmentInterval); _segmentInterval = null; }
 
+        audio.pause();
         audio.currentTime = sub.start;
         const endTime = sub.end;
-        audio.play().catch(err => console.log("Audio play error:", err));
 
+        // Force segment interval initialization before playing to prevent timing race
         _segmentInterval = setInterval(function () {
             if (!audio) {
                 clearInterval(_segmentInterval);
@@ -2885,11 +2897,13 @@
             }
             if (audio.currentTime >= endTime) {
                 audio.pause();
-                audio.currentTime = endTime; // 정확한 끝 지점으로 snap
+                audio.currentTime = sub.start; // Reset back to start of segment instead of end
                 clearInterval(_segmentInterval);
                 _segmentInterval = null;
             }
-        }, 16); // ~60fps 체크로 오버슈팅 최소화
+        }, 16);
+
+        audio.play().catch(err => console.log("Audio play error:", err));
     }
 
     // Draggable Functionality
