@@ -595,6 +595,32 @@
                     </p>
                 </div>
 
+                <!-- 렌더링 설정 (Render Settings) -->
+                <div class="card p-4 shadow-sm border border-gray-200 dark:border-gray-700 mt-4">
+                    <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-3 flex items-center gap-2">
+                        <span>🎬 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Cài đặt kết xuất{% else %}렌더링 설정{% endif %}</span>
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">
+                                {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Vị trí kết xuất{% else %}렌더링 위치{% endif %}
+                            </label>
+                            <select id="renderTarget" onchange="toggleRemoteUrl()"
+                                class="input-field w-full text-xs bg-[#1c2027] text-white">
+                                <option value="local">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Máy tính cục bộ (Local PC){% else %}로컬 PC{% endif %}</option>
+                                <option value="remote">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Máy chủ GPU từ xa (Remote GPU){% else %}원격 GPU 서버{% endif %}</option>
+                            </select>
+                        </div>
+                        <div id="remoteUrlContainer" class="hidden">
+                            <label class="block text-xs text-gray-500 mb-1">
+                                {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Địa chỉ máy chủ GPU{% else %}원격 GPU 서버 주소{% endif %}
+                            </label>
+                            <input type="text" id="remoteUrl" placeholder="{{ t('placeholder_remote_url') }}"
+                                class="input-field w-full text-xs">
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
         <!-- End Video AI Engine Tab -->
@@ -2082,6 +2108,20 @@
         if (panel) panel.classList.toggle('hidden', engine !== 'veo');
     }
 
+    function toggleRemoteUrl() {
+        const select = document.getElementById('renderTarget');
+        if (!select) return;
+        const target = select.value;
+        const container = document.getElementById('remoteUrlContainer');
+        if (container) {
+            if (target === 'remote') {
+                container.classList.remove('hidden');
+            } else {
+                container.classList.add('hidden');
+            }
+        }
+    }
+
     // [MODIFIED] saveAllSettings to include Webtoon Prompt
 
 
@@ -2168,6 +2208,12 @@
     // [FINAL OVERRIDE] Ensure saveAllSettings handles EVERYTHING
     async function saveAllSettings() {
         try {
+            // Save Remote Render Settings to localStorage
+            const renderTarget = document.getElementById('renderTarget')?.value || 'local';
+            const remoteUrl = document.getElementById('remoteUrl')?.value || '';
+            localStorage.setItem('remote_render_target', renderTarget);
+            localStorage.setItem('remote_render_url', remoteUrl);
+
             // Gather All Global Settings
             const safeVal = (id) => document.getElementById(id)?.value || '';
             const safeCheck = (id) => document.getElementById(id)?.checked ?? false;
@@ -2280,6 +2326,17 @@
 
             // Webtoon Settings
             await loadWebtoonSettings();
+
+            // Restore Remote Render Settings from localStorage
+            const storedUrl = localStorage.getItem('remote_render_url') || '';
+            const storedTarget = localStorage.getItem('remote_render_target') || 'local';
+            if (document.getElementById('remoteUrl')) {
+                document.getElementById('remoteUrl').value = storedUrl;
+            }
+            if (document.getElementById('renderTarget')) {
+                document.getElementById('renderTarget').value = storedTarget;
+                toggleRemoteUrl();
+            }
 
             Utils.showToast(i18n.toast_settings_loaded, 'info');
         } catch (e) {

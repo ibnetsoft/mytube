@@ -323,33 +323,7 @@
 
         // Intro Upload Binding directly
         document.getElementById('introFileInput').addEventListener('change', uploadIntro);
-
-        // Restore remote render settings from localStorage
-        const storedUrl = localStorage.getItem('remote_render_url');
-        if (storedUrl && document.getElementById('remoteUrl')) {
-            document.getElementById('remoteUrl').value = storedUrl;
-        }
-        const storedTarget = localStorage.getItem('remote_render_target') || 'local';
-        if (document.getElementById('renderTarget')) {
-            document.getElementById('renderTarget').value = storedTarget;
-            toggleRemoteUrl();
-        }
     });
-
-    function toggleRemoteUrl() {
-        const select = document.getElementById('renderTarget');
-        if (!select) return;
-        const target = select.value;
-        localStorage.setItem('remote_render_target', target);
-        const container = document.getElementById('remoteUrlContainer');
-        if (container) {
-            if (target === 'remote') {
-                container.classList.remove('hidden');
-            } else {
-                container.classList.add('hidden');
-            }
-        }
-    }
 
     function updateStatusUI(data) {
         // Simple status checker
@@ -372,17 +346,13 @@
         const resolution = document.getElementById('resolution').value;
         const aspect_ratio = document.getElementById('aspectRatio').value;
         const sub = document.getElementById('useSubtitles').checked;
-        const render_target = document.getElementById('renderTarget') ? document.getElementById('renderTarget').value : 'local';
-        const remote_url = document.getElementById('remoteUrl') ? document.getElementById('remoteUrl').value : '';
+        const render_target = localStorage.getItem('remote_render_target') || 'local';
+        const remote_url = localStorage.getItem('remote_render_url') || '';
         const btn = document.getElementById('renderBtn');
 
         if (render_target === 'remote' && !remote_url) {
             Utils.showToast(i18n_render.err_enter_remote_url, "warning");
             return;
-        }
-
-        if (render_target === 'remote') {
-            localStorage.setItem('remote_render_url', remote_url);
         }
 
         Utils.setLoading(btn, true, i18n_render.status_loading_short);
