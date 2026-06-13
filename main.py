@@ -1646,8 +1646,14 @@ async def tts_generate(req: TTSRequest):
             segments = []
             lines = req.text.split('\n')
             
-            # 정규식: 화자 이름과 괄호 안의 감정 지문 캡처
-            pattern = re.compile(r'^\s*[\*\_\[\(]*([^\s:\[\(\*\_]+)[\*\_\]\)]*[ \t]*(\([^)]*\))?[ \t]*[:：][ \t]*(.*)')
+            # 정규식: 화자 이름과 괄호 안의 감정 지문 캡처 (이름: 대사 형식 및 이름) 대사 형식 지원)
+            pattern = re.compile(
+                r'^\s*(?:'
+                r'[\*\_\[\(]*([^\s:\[\(\*\_]+)[\*\_\]\)]*[ \t]*(\([^)]*\))?[ \t]*[:：][ \t]*(.*)'
+                r'|'
+                r'([^\s:\[\(\*\_]+)[ \t]*[\)）\]][ \t]*(.*)'
+                r')$'
+            )
             
             current_chunk = []
             current_speaker = None
@@ -1665,12 +1671,19 @@ async def tts_generate(req: TTSRequest):
                             "speaker": current_speaker,
                             "text": "\n".join(current_chunk)
                         })
-                    current_speaker = match.group(1).strip()
-                    emotion = match.group(2) or ""
+                    
+                    if match.group(1) is not None:
+                        current_speaker = match.group(1).strip()
+                        emotion = match.group(2) or ""
+                        content = match.group(3).strip()
+                    else:
+                        current_speaker = match.group(4).strip()
+                        emotion = ""
+                        content = match.group(5).strip()
+
                     # 백엔드에서도 화자 이름에서 특수기호 2차 정지
                     current_speaker = re.sub(r'[\*\_\#\[\]\(\)]', '', current_speaker).strip()
                     
-                    content = match.group(3).strip()
                     if emotion:
                         content = f"{emotion} {content}"
                     current_chunk = [content]
@@ -1684,6 +1697,8 @@ async def tts_generate(req: TTSRequest):
                     "speaker": current_speaker,
                     "text": "\n".join(current_chunk)
                 })
+
+            print(f"🎙️ [DEBUG MULTIVOICE] Parsed segments: {[{'speaker': s['speaker'], 'text': s['text'][:30]} for s in segments]}")
 
             # 2. 세그먼트별 오디오 생성 (동시 생성 개수 제한)
             import asyncio
@@ -1700,11 +1715,15 @@ async def tts_generate(req: TTSRequest):
                     
                     # 화자별 목소리 결정
                     target_voice = req.voice_map.get(speaker, req.voice_id)
+                    if isinstance(target_voice, dict) and "id" in target_voice:
+                        target_voice = target_voice["id"]
                     
                     provider = req.provider
                     # [ROBUSTNESS] '기본 설정 따름' 등의 비어있는 값 처리
                     if not target_voice:
                         target_voice = req.voice_id
+                    
+                    print(f"🎙️ [DEBUG MULTIVOICE] Segment {idx} (Speaker: '{speaker}') mapped to target_voice: '{target_voice}' (from voice_map: {req.voice_map}, fallback: '{req.voice_id}')")
                     
                     seg_filename = f"{base_filename}_seg_{idx:03d}.mp3"
                     seg_path = os.path.join(output_dir, seg_filename)
@@ -1790,7 +1809,8 @@ async def tts_generate(req: TTSRequest):
                             
                             if clips:
                                 final_clip = concatenate_audioclips(clips)
-                                final_clip.write_audiofile(result_filename, codec='libmp3lame', verbose=False, logger=None)
+                                # Modern MoviePy does not accept 'verbose' parameter. logger=None is sufficient.
+                                final_clip.write_audiofile(result_filename, codec='libmp3lame', logger=None)
                                 final_clip.close()
                                 for clip in clips: clip.close()
                                 output_path = result_filename

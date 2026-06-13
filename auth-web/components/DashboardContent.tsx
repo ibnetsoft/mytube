@@ -103,8 +103,12 @@ export default function DashboardContent() {
     const [newCatEmployee, setNewCatEmployee] = useState('')
     const [newCatScriptStyle, setNewCatScriptStyle] = useState('default')
     const [newCatImageStyle, setNewCatImageStyle] = useState('realistic')
+    const [newCatVideoType, setNewCatVideoType] = useState('longform') // 'longform' | 'shorts'
     const [generatingCatId, setGeneratingCatId] = useState<number | null>(null)
     
+    // 카테고리 리스트 롱폼/숏폼 탭 구분
+    const [categoryListTab, setCategoryListTab] = useState<'longform' | 'shorts'>('longform')
+
     // 카테고리 수정 모달 상태
     const [editCategory, setEditCategory] = useState<any | null>(null)
     const [editCatForm, setEditCatForm] = useState({
@@ -113,7 +117,8 @@ export default function DashboardContent() {
         benchmark_channel_url: '',
         assigned_employee_email: '',
         default_script_style: 'default',
-        default_image_style: 'realistic'
+        default_image_style: 'realistic',
+        video_type: 'longform'
     })
     
     // UI Modals State
@@ -517,7 +522,8 @@ export default function DashboardContent() {
                     benchmark_channel_url: newCatChannel,
                     assigned_employee_email: newCatEmployee,
                     default_script_style: newCatScriptStyle,
-                    default_image_style: newCatImageStyle
+                    default_image_style: newCatImageStyle,
+                    video_type: newCatVideoType
                 })
             })
             const data = await res.json()
@@ -528,6 +534,7 @@ export default function DashboardContent() {
                 setNewCatEmployee('')
                 setNewCatScriptStyle('default')
                 setNewCatImageStyle('realistic')
+                setNewCatVideoType('longform')
                 fetchCategories()
                 fetchTopics()
                 alert('카테고리가 성공적으로 등록되었으며, 기본 샘플 주제 3개가 적재되었습니다.')
@@ -884,6 +891,33 @@ export default function DashboardContent() {
                                         <option value="역사/동양철/다큐" className="bg-[#111] text-white">전통 동양화/수묵화 (Ink Wash)</option>
                                     </select>
                                 </div>
+                                <div>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">영상 포맷 (형식) *</label>
+                                    <div className="flex gap-4 mt-2 bg-black/40 border border-white/10 rounded-xl px-4 py-3">
+                                        <label className="flex items-center gap-2 cursor-pointer text-xs font-bold">
+                                            <input 
+                                                type="radio" 
+                                                name="video_type" 
+                                                value="longform" 
+                                                checked={newCatVideoType === 'longform'} 
+                                                onChange={() => setNewCatVideoType('longform')}
+                                                className="w-4 h-4 rounded-full text-blue-500 bg-black border-white/10"
+                                            />
+                                            <span>가로형 (Longform)</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer text-xs font-bold">
+                                            <input 
+                                                type="radio" 
+                                                name="video_type" 
+                                                value="shorts" 
+                                                checked={newCatVideoType === 'shorts'} 
+                                                onChange={() => setNewCatVideoType('shorts')}
+                                                className="w-4 h-4 rounded-full text-blue-500 bg-black border-white/10"
+                                            />
+                                            <span>세로형 (Shorts)</span>
+                                        </label>
+                                    </div>
+                                </div>
                                 <div className="md:col-span-3 mt-4 flex justify-end">
                                     <button 
                                         type="submit"
@@ -897,14 +931,31 @@ export default function DashboardContent() {
 
                         {/* 2. 등록된 카테고리 및 매핑 리스트 */}
                         <div className="bg-[#0f172a]/60 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl p-8">
-                            <h2 className="font-black text-xl tracking-tight mb-6">📂 내 카테고리 현황</h2>
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                                <h2 className="font-black text-xl tracking-tight">📂 내 카테고리 현황</h2>
+                                <div className="flex p-1 bg-black/40 rounded-xl border border-white/10">
+                                    <button 
+                                        onClick={() => setCategoryListTab('longform')}
+                                        className={`px-6 py-2 rounded-lg text-xs font-black transition-all ${categoryListTab === 'longform' ? 'bg-blue-600 text-white shadow' : 'text-gray-500 hover:text-white'}`}
+                                    >
+                                        가로형 (Longform)
+                                    </button>
+                                    <button 
+                                        onClick={() => setCategoryListTab('shorts')}
+                                        className={`px-6 py-2 rounded-lg text-xs font-black transition-all ${categoryListTab === 'shorts' ? 'bg-blue-600 text-white shadow' : 'text-gray-500 hover:text-white'}`}
+                                    >
+                                        세로형 (Shorts)
+                                    </button>
+                                </div>
+                            </div>
+
                             {categoriesLoading ? (
                                 <div className="text-center py-20 text-gray-500 text-sm">카테고리 로딩 중...</div>
-                            ) : categories.length === 0 ? (
-                                <div className="text-center py-20 text-gray-500 text-sm italic">등록된 카테고리가 없습니다.</div>
+                            ) : categories.filter(c => (c.video_type || 'longform') === categoryListTab).length === 0 ? (
+                                <div className="text-center py-20 text-gray-500 text-sm italic">해당 포맷에 등록된 카테고리가 없습니다.</div>
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    {categories.map((cat) => {
+                                    {categories.filter(c => (c.video_type || 'longform') === categoryListTab).map((cat) => {
                                         const pendingTopics = topics.filter(t => t.category_id === cat.id && t.status === 'pending');
                                         const completedTopics = topics.filter(t => t.category_id === cat.id && t.status === 'completed');
 
@@ -923,7 +974,8 @@ export default function DashboardContent() {
                                                                         benchmark_channel_url: cat.benchmark_channel_url || '',
                                                                         assigned_employee_email: cat.assigned_employee_email || '',
                                                                         default_script_style: cat.default_script_style || 'default',
-                                                                        default_image_style: cat.default_image_style || 'realistic'
+                                                                        default_image_style: cat.default_image_style || 'realistic',
+                                                                        video_type: cat.video_type || 'longform'
                                                                     });
                                                                 }}
                                                                 className="text-blue-400 hover:text-blue-300 text-xs transition-colors shadow-none bg-transparent p-0"
@@ -945,6 +997,7 @@ export default function DashboardContent() {
                                                         <p className="truncate">📺 <strong className="text-gray-200">채널:</strong> <a href={cat.benchmark_channel_url} target="_blank" rel="noreferrer" className="text-blue-400 underline">{cat.benchmark_channel_url || '(없음)'}</a></p>
                                                         <p>📝 <strong className="text-gray-200">대본 스타일:</strong> {cat.default_script_style || '기본'}</p>
                                                         <p>🎨 <strong className="text-gray-200">화풍:</strong> {cat.default_image_style || '실사'}</p>
+                                                        <p>🎬 <strong className="text-gray-200">영상 포맷:</strong> {cat.video_type === 'shorts' ? '세로형 (Shorts)' : '가로형 (Longform)'}</p>
                                                     </div>
                                                     
                                                     {/* 주제 대기열 카운트 */}
@@ -1634,7 +1687,34 @@ export default function DashboardContent() {
                                     <option value="nursery_rhyme" className="bg-[#111] text-white">3D 동화/애니 (Nursery/Pixar)</option>
                                     <option value="역사/동양철/다큐" className="bg-[#111] text-white">전통 동양화/수묵화 (Ink Wash)</option>
                                 </select>
-                            </div>
+                             </div>
+                             <div>
+                                 <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-2">영상 포맷 (형식) *</label>
+                                 <div className="flex gap-6 items-center">
+                                     <label className="flex items-center gap-2 cursor-pointer text-white font-black">
+                                         <input 
+                                             type="radio" 
+                                             name="edit_video_type" 
+                                             value="longform" 
+                                             checked={editCatForm.video_type === 'longform'} 
+                                             onChange={() => setEditCatForm(p => ({ ...p, video_type: 'longform' }))}
+                                             className="w-4 h-4 accent-blue-500 cursor-pointer"
+                                         />
+                                         <span>가로형 (Longform)</span>
+                                     </label>
+                                     <label className="flex items-center gap-2 cursor-pointer text-white font-black">
+                                         <input 
+                                             type="radio" 
+                                             name="edit_video_type" 
+                                             value="shorts" 
+                                             checked={editCatForm.video_type === 'shorts'} 
+                                             onChange={() => setEditCatForm(p => ({ ...p, video_type: 'shorts' }))}
+                                             className="w-4 h-4 accent-blue-500 cursor-pointer"
+                                         />
+                                         <span>세로형 (Shorts)</span>
+                                     </label>
+                                 </div>
+                             </div>
                         </div>
                         <div className="flex gap-3 mt-6">
                             <button onClick={handleSaveCategory} className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-black rounded-xl transition-all uppercase tracking-widest">수정완료</button>

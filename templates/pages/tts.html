@@ -425,7 +425,15 @@
                     // Restore mapping
                     if (settings.voice_mapping_json) {
                         try {
-                            characterVoiceMap = JSON.parse(settings.voice_mapping_json);
+                            const parsed = JSON.parse(settings.voice_mapping_json);
+                            characterVoiceMap = {};
+                            for (let key in parsed) {
+                                if (parsed[key] && typeof parsed[key] === 'object' && parsed[key].id) {
+                                    characterVoiceMap[key] = parsed[key].id;
+                                } else {
+                                    characterVoiceMap[key] = parsed[key];
+                                }
+                            }
                         } catch (e) { }
                     }
                     toggle.dispatchEvent(new Event('change'));
@@ -507,8 +515,8 @@
             analyzeScriptForCharacters();
 
             const provider = document.getElementById('providerSelect');
-            if (provider.value !== 'gemini') {
-                provider.value = 'gemini';
+            if (provider.value !== 'gemini' && provider.value !== 'elevenlabs' && provider.value !== 'openai') {
+                provider.value = 'elevenlabs'; // Default to ElevenLabs for premium multivoice instead of gemini
                 handleProviderChange();
                 Utils.showToast("{{ t('toast_multivoice_gemini_recommended') }}", 'info');
             }
@@ -529,12 +537,14 @@
         const text = document.getElementById('ttsText').value;
         const lines = text.split('\n');
         const newCharacters = new Set();
-        const regex = /^([^\s:\[\]\(\)]+)(?:\(.*\))?[:]/;
+        // 정규식: 이름: 대사 또는 이름) 대사 형식 매칭
+        const regex = /^\s*(?:([^\s:\[\]\(\)]+)(?:\(.*\))?[:：]|([^\s:\[\]\(\)]+)[\)）\]])/;
 
         lines.forEach(line => {
             const match = line.trim().match(regex);
-            if (match && match[1]) {
-                let cleanName = match[1].trim()
+            const rawName = match ? (match[1] || match[2]) : null;
+            if (rawName) {
+                let cleanName = rawName.trim()
                     .replace(/[\*\_\#]/g, '')
                     .replace(/[\[\]\(\)\{\}]/g, '')
                     .trim();
@@ -565,6 +575,12 @@
 
         const sortedChars = Array.from(detectedCharacters).sort();
         sortedChars.forEach(char => {
+            // [NEW] 인물이 처음 감지되었거나 매핑이 안되어 있다면 사용가능한 성우 목록에서 순서대로 자동 배정
+            if (!characterVoiceMap[char] && availableVoices.length > 0) {
+                const voiceIndex = sortedChars.indexOf(char) % availableVoices.length;
+                characterVoiceMap[char] = availableVoices[voiceIndex].id;
+            }
+
             const savedVoice = characterVoiceMap[char] || '';
             const row = document.createElement('div');
             row.className = 'flex items-center justify-between bg-[#1c2027] p-1.5 rounded border border-gray-100 dark:border-gray-600 gap-2';

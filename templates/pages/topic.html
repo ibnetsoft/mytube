@@ -1058,19 +1058,38 @@
         // Main Keyword
         labels.append("tspan")
             .attr("x", 0)
-            .attr("dy", d => d.translation ? "-0.2em" : "0.3em") // Adjust vertical center based on content
+            .attr("dy", d => d.translation ? "-0.4em" : "0.3em") // Adjust vertical center based on content
             .style("font-size", d => Math.min(d.r / 1.5, 16) + "px")
             .style("font-weight", "bold")
             .text(d => d.keyword.substring(0, d.r / 2.5)); // Truncate longer text
 
-        // Translation (if distinct)
-        labels.append("tspan")
-            .attr("x", 0)
-            .attr("dy", "1.2em")
-            .style("font-size", d => Math.min(d.r / 2.5, 12) + "px") // Smaller font
-            .style("font-weight", "normal")
-            .style("opacity", 0.9)
-            .text(d => (d.translation && d.translation !== d.keyword) ? d.translation : "");
+        // Translation (wrapped to 2-3 lines to prevent overflow)
+        labels.each(function(d) {
+            if (d.translation && d.translation !== d.keyword) {
+                const el = d3.select(this);
+                const text = d.translation;
+                
+                // Words splitting or character-based splitting for Korean/languages
+                const maxLen = 12; // Maximum characters per line
+                const lines = [];
+                for (let i = 0; i < text.length; i += maxLen) {
+                    lines.push(text.substring(i, i + maxLen));
+                }
+                
+                // Limit to maximum 3 lines
+                const displayLines = lines.slice(0, 3);
+                
+                displayLines.forEach((lineText, idx) => {
+                    el.append("tspan")
+                        .attr("x", 0)
+                        .attr("dy", idx === 0 ? "1.2em" : "1.0em")
+                        .style("font-size", d => Math.min(d.r / 2.8, 10) + "px") // Slightly smaller font to fit inside
+                        .style("font-weight", "normal")
+                        .style("opacity", 0.95)
+                        .text(lineText);
+                });
+            }
+        });
 
         // 5. Simulation Tick
         simulation.on("tick", () => {

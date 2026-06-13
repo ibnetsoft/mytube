@@ -27,7 +27,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
     try {
-        const { name, keywords, benchmark_channel_url, assigned_employee_email, default_script_style, default_image_style } = await req.json()
+        const { name, keywords, benchmark_channel_url, assigned_employee_email, default_script_style, default_image_style, video_type } = await req.json()
 
         if (!name || !assigned_employee_email) {
             return NextResponse.json({ error: 'Name and Employee email are required' }, { status: 400 })
@@ -55,7 +55,8 @@ export async function POST(req: Request) {
                 benchmark_channel_url: benchmark_channel_url || '',
                 assigned_employee_email,
                 default_script_style: default_script_style || 'default',
-                default_image_style: default_image_style || 'realistic'
+                default_image_style: default_image_style || 'realistic',
+                video_type: video_type || 'longform'
             }])
             .select()
 
@@ -112,7 +113,7 @@ export async function DELETE(req: Request) {
 export async function PUT(req: Request) {
     try {
         const body = await req.json()
-        const { id, name, keywords, benchmark_channel_url, assigned_employee_email, default_script_style, default_image_style } = body
+        const { id, name, keywords, benchmark_channel_url, assigned_employee_email, default_script_style, default_image_style, video_type } = body
 
         if (!id) {
             return NextResponse.json({ error: 'Category ID is required' }, { status: 400 })
@@ -142,6 +143,7 @@ export async function PUT(req: Request) {
         if (assigned_employee_email !== undefined) updateData.assigned_employee_email = assigned_employee_email
         if (default_script_style !== undefined) updateData.default_script_style = default_script_style
         if (default_image_style !== undefined) updateData.default_image_style = default_image_style
+        if (video_type !== undefined) updateData.video_type = video_type
 
         const { data, error } = await supabase
             .from('categories')

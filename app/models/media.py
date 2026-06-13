@@ -3,7 +3,7 @@ Media Pydantic Models (Image, Video, TTS, Search)
 """
 
 from pydantic import BaseModel
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 
 
 class SearchRequest(BaseModel):
@@ -30,7 +30,7 @@ class TTSRequest(BaseModel):
     style_prompt: Optional[str] = None  # for gemini
     speed: Optional[float] = 1.0  # 0.5 ~ 2.0
     multi_voice: bool = False
-    voice_map: Optional[Dict[str, str]] = {}  # { "철수": "voice_id_1" }
+    voice_map: Optional[Dict[str, Any]] = {}  # { "철수": "voice_id_1" } or { "철수": { "id": "voice_id_1" } }
     stability: Optional[float] = None
     similarity_boost: Optional[float] = None
     style: Optional[float] = None
