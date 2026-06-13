@@ -124,8 +124,11 @@ export default function DashboardContent() {
     const [globalStats, setGlobalStats] = useState({ total: 0, successRate: 0, avgLatency: 0, totalTokens: 0, breakdown: {} as any })
     const [globalLoading, setGlobalLoading] = useState(false)
 
-    // 시스템 전역 API 키
-    const [sysKeys, setSysKeys] = useState({ gemini: '', youtube: '', elevenlabs: '', topview: '', topview_uid: '' })
+    // 시스템 전역 API 키 및 구글 드라이브 설정
+    const [sysKeys, setSysKeys] = useState({ 
+        gemini: '', youtube: '', elevenlabs: '', topview: '', topview_uid: '',
+        use_external_render: false, drive_path_ko: '', drive_path_en: '', drive_path_ja: '', drive_active_lang: 'ko'
+    })
     const [sysKeysSaving, setSysKeysSaving] = useState(false)
     const [sysKeysSaved, setSysKeysSaved] = useState(false)
 
@@ -403,14 +406,32 @@ export default function DashboardContent() {
             const res = await fetch('/api/admin/settings/global');
             if (!res.ok) return;
             const data = await res.json();
-            setSysKeys({ gemini: data.gemini || '', youtube: data.youtube || '', elevenlabs: data.elevenlabs || '', topview: data.topview || '', topview_uid: data.topview_uid || '' });
+            setSysKeys({
+                gemini: data.gemini || '',
+                youtube: data.youtube || '',
+                elevenlabs: data.elevenlabs || '',
+                topview: data.topview || '',
+                topview_uid: data.topview_uid || '',
+                use_external_render: data.use_external_render === 'true' || data.use_external_render === true,
+                drive_path_ko: data.drive_path_ko || '',
+                drive_path_en: data.drive_path_en || '',
+                drive_path_ja: data.drive_path_ja || '',
+                drive_active_lang: data.drive_active_lang || 'ko'
+            });
         } catch (e) { console.error('fetchSysKeys error:', e); }
     }, []);
 
     const saveSysKeys = async () => {
         setSysKeysSaving(true); setSysKeysSaved(false);
         try {
-            const res = await fetch('/api/admin/settings/global', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sysKeys) });
+            const res = await fetch('/api/admin/settings/global', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify({
+                    ...sysKeys,
+                    use_external_render: String(sysKeys.use_external_render)
+                }) 
+            });
             if (res.ok) setSysKeysSaved(true);
         } catch (e) { console.error('saveSysKeys error:', e); }
         finally { setSysKeysSaving(false); }
@@ -1159,7 +1180,7 @@ export default function DashboardContent() {
                                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">{label}</label>
                                     <input
                                         type="password"
-                                        value={sysKeys[key]}
+                                        value={sysKeys[key] as string}
                                         onChange={e => setSysKeys(prev => ({ ...prev, [key]: e.target.value }))}
                                         onFocus={e => (e.target as HTMLInputElement).type = 'text'}
                                         onBlur={e => (e.target as HTMLInputElement).type = 'password'}
@@ -1168,6 +1189,74 @@ export default function DashboardContent() {
                                     />
                                 </div>
                             ))}
+
+                            {/* Google Drive Queue Configuration section */}
+                            <div className="border-t border-white/10 pt-6 mt-6 space-y-4">
+                                <h4 className="text-xs font-black text-blue-400 uppercase tracking-widest mb-2">📁 구글 드라이브 렌더 대기열 설정</h4>
+                                
+                                <div className="flex items-center gap-3 bg-white/[0.02] p-4 rounded-xl border border-white/5">
+                                    <input 
+                                        type="checkbox" 
+                                        id="use_external_render" 
+                                        checked={sysKeys.use_external_render} 
+                                        onChange={e => setSysKeys(prev => ({ ...prev, use_external_render: e.target.checked }))}
+                                        className="w-4 h-4 rounded text-blue-500 bg-black border-white/10 cursor-pointer"
+                                    />
+                                    <div className="text-xs">
+                                        <label htmlFor="use_external_render" className="font-bold text-gray-300 cursor-pointer">외부 렌더 대기열 사용 (Google Drive File Stream 연동)</label>
+                                        <p className="text-[10px] text-gray-500 mt-0.5">활성화 시, 각 생성 단계 및 비디오 렌더 파일이 아래 설정된 구글 드라이브 경로로 동기화됩니다.</p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">우선 적용 언어 경로 (활성 설정)</label>
+                                        <select 
+                                            value={sysKeys.drive_active_lang}
+                                            onChange={e => setSysKeys(prev => ({ ...prev, drive_active_lang: e.target.value }))}
+                                            className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-300 cursor-pointer"
+                                        >
+                                            <option value="ko" className="bg-[#111]">한국어 (Korean OS 경로 적용)</option>
+                                            <option value="en" className="bg-[#111]">영어 (English OS 경로 적용)</option>
+                                            <option value="ja" className="bg-[#111]">일본어 (Japanese OS 경로 적용)</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">🇰🇷 한국어 Windows 경로 (DRIVE_PATH_KO)</label>
+                                        <input 
+                                            type="text" 
+                                            value={sysKeys.drive_path_ko} 
+                                            onChange={e => setSysKeys(prev => ({ ...prev, drive_path_ko: e.target.value }))}
+                                            placeholder="G:/내 드라이브/Longform_Render_Queue"
+                                            className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">🇺🇸 영어 Windows 경로 (DRIVE_PATH_EN)</label>
+                                        <input 
+                                            type="text" 
+                                            value={sysKeys.drive_path_en} 
+                                            onChange={e => setSysKeys(prev => ({ ...prev, drive_path_en: e.target.value }))}
+                                            placeholder="G:/My Drive/Longform_Render_Queue"
+                                            className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">🇯🇵 일본어 Windows 경로 (DRIVE_PATH_JA)</label>
+                                        <input 
+                                            type="text" 
+                                            value={sysKeys.drive_path_ja} 
+                                            onChange={e => setSysKeys(prev => ({ ...prev, drive_path_ja: e.target.value }))}
+                                            placeholder="G:/マイドライブ/Longform_Render_Queue"
+                                            className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
                             {sysKeysSaved && <p className="text-xs text-green-400 font-bold text-center">✅ 저장 완료</p>}
                             <button
                                 onClick={saveSysKeys}

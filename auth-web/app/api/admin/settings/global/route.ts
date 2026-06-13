@@ -3,7 +3,10 @@ import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
-const KEYS = ['gemini', 'youtube', 'elevenlabs', 'topview', 'topview_uid']
+const KEYS = [
+    'gemini', 'youtube', 'elevenlabs', 'topview', 'topview_uid',
+    'use_external_render', 'drive_path_ko', 'drive_path_en', 'drive_path_ja', 'drive_active_lang'
+]
 
 const getAdmin = () => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
