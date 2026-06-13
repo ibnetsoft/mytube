@@ -1806,17 +1806,17 @@ class VideoService:
                         final_words.append({"word": w.get("word", ""), "start": w.get("start", 0), "end": w.get("end", 0)})
 
             # [IMPROVED] Smart Semantic Segmentation (2-Line Limit Rule)
-            # 1. 절대 한계: 70자 (문맥 단위 유지)
-            # 2. 의미 분할: 문장부호 뒤 (조사/어미는 25자 이상일 때만 체크)
-            # 3. 호흡 분할: 0.8초 이상 침묵
-
-            MAX_CHARS_PER_BLOCK = 70   # 40→70: 문맥 단위 유지
-            SOFT_LIMIT_CHARS = 25      # 12→25: 너무 짧게 끊기는 현상 방지
-            MIN_SILENCE_GAP = 0.8      # 0.5→0.8: 짧은 호흡에도 끊기는 현상 방지
-
-            # Heuristics — 조사 목록 축소 (문장 의미가 완결되는 어미/부호만)
-            SEMANTIC_ENDINGS = ('고', '며', '니', '면', '요', '죠', '다', '까')
-            SENTENCE_ENDINGS = ('.', '?', '!', '…')
+            # 1. 절대 한계: 35자 (가독성 향상 및 숏츠/롱폼 적정 길이 유지)
+            # 2. 의미 분할: 문장부호 뒤 (조사/어미는 15자 이상일 때만 체크)
+            # 3. 호흡 분할: 0.4초 이상 침묵
+ 
+            MAX_CHARS_PER_BLOCK = 35   # 70→35: 자막 밀림 방지 및 단문 구성
+            SOFT_LIMIT_CHARS = 15      # 25→15: 더 타이트한 끊기 기준 적용
+            MIN_SILENCE_GAP = 0.4      # 0.8→0.4: 단어 간 쉼이 있으면 쪼갬
+ 
+            # Heuristics — 조사 목록 확대 (의미 완결이 가능한 어미들 추가)
+            SEMANTIC_ENDINGS = ('고', '며', '니', '면', '요', '죠', '다', '까', '서', '게', '은', '는', '이', '가', '을', '를', '에', '와', '과')
+            SENTENCE_ENDINGS = ('.', '?', '!', '…', ',')
 
             if final_words:
                 current_words = []
