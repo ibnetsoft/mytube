@@ -1149,14 +1149,24 @@ export default function AdminDashboardContent() {
                                 </div>
                                 <div>
                                     <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">담당 직원 이메일 *</label>
-                                    <input 
-                                        type="email" 
+                                    <select
                                         required
-                                        placeholder="예: worker@picadiri.com"
                                         value={newCatEmployee}
                                         onChange={e => setNewCatEmployee(e.target.value)}
-                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
-                                    />
+                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
+                                    >
+                                        <option value="">-- 직원을 선택하세요 --</option>
+                                        {users.map(user => {
+                                            const email = user.email?.toLowerCase();
+                                            if (!email) return null;
+                                            const name = user.user_metadata?.full_name || '';
+                                            return (
+                                                <option key={user.id} value={email} className="bg-[#111] text-white">
+                                                    {email} {name ? `(${name})` : ''}
+                                                </option>
+                                            );
+                                        })}
+                                    </select>
                                 </div>
                                 <div>
                                     <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">주요 리서치 키워드</label>
