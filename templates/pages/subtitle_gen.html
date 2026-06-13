@@ -564,15 +564,29 @@
                     </div>
                 </div>
 
-                <textarea id="currentSubtitleText"
-                    class="w-full flex-1 min-h-[100px] text-sm p-3 border border-blue-200 dark:border-blue-800 rounded bg-[#1c2027] focus:ring-1 focus:ring-blue-400 outline-none resize-none disabled:opacity-50 CustomScroll text-gray-700 dark:text-gray-200 transition-colors"
-                    placeholder="{{ t('placeholder_select_subtitle') }}"></textarea>
+                <!-- Unified Subtitle Input Box -->
+                <div id="currentSubtitleEditWrapper" class="w-full border border-white/5 rounded-lg bg-[#1c2027] overflow-hidden focus-within:ring-1 focus-within:ring-blue-400 focus-within:border-blue-400 transition-all flex flex-col p-3 gap-1.5">
+                    <!-- Korean Subtitle Input -->
+                    <textarea id="currentSubtitleText"
+                        class="w-full text-sm p-0 border-0 bg-transparent focus:ring-0 outline-none resize-none disabled:opacity-50 CustomScroll text-gray-700 dark:text-gray-200"
+                        style="height: auto; min-height: 24px;"
+                        rows="1"
+                        oninput="this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px'"
+                        placeholder="{{ t('placeholder_select_subtitle') }}"></textarea>
+                    
+                    <!-- [NEW] Korean Pronunciation in Vietnamese spelling (Green) -->
+                    <div id="currentSubtitlePronunciation" 
+                         class="w-full p-0 text-xs text-green-500 dark:text-green-400 font-bold bg-transparent select-text break-words leading-tight"
+                         title="Korean Pronunciation (Vietnamese phonetics)">
+                    </div>
 
-                <div class="mt-2 flex flex-col min-h-[80px] shrink-0">
-                    <div class="text-[10px] font-bold text-gray-500 mb-1">Vietnamese Translation (Bản dịch tiếng Việt)</div>
+                    <!-- Vietnamese Subtitle Input -->
                     <textarea id="currentSubtitleTextVi"
-                        class="w-full flex-1 text-xs p-2.5 border border-purple-200 dark:border-purple-800 rounded bg-[#1c2027] focus:ring-1 focus:ring-purple-400 outline-none resize-none disabled:opacity-50 CustomScroll text-gray-600 dark:text-gray-300 transition-colors"
-                        placeholder="Vietnamese translation..."></textarea>
+                        class="w-full text-xs p-0 border-0 bg-transparent focus:ring-0 outline-none resize-none disabled:opacity-50 CustomScroll text-purple-500 dark:text-purple-400 font-medium"
+                        style="height: auto; min-height: 20px;"
+                        rows="1"
+                        oninput="this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px'"
+                        placeholder="Vietnamese translation (Bản dịch tiếng Việt)"></textarea>
                 </div>
 
                 <!-- DEBUG OVERLAY -->
@@ -899,6 +913,18 @@
 
         await waitForUtils();
 
+        // [NEW] Hide Vietnamese translation box and phonetic pronunciation if not in Vietnamese mode
+        if (window.currentLang !== 'vi') {
+            const viTextarea = document.getElementById('currentSubtitleTextVi');
+            if (viTextarea) {
+                viTextarea.style.display = 'none';
+            }
+            const pronDiv = document.getElementById('currentSubtitlePronunciation');
+            if (pronDiv) {
+                pronDiv.style.display = 'none';
+            }
+        }
+
         // [PRESETS] Load Subtitle Presets
         await loadSubtitlePresets();
         
@@ -1177,10 +1203,15 @@
                         </div>
                     </div>
 
-                    <div class="flex-1 flex flex-col gap-1 min-w-0">
+                    <div class="flex-1 flex flex-col gap-0.5 min-w-0">
                         <div class="text-sm text-gray-700 dark:text-gray-300 sub-text break-words leading-snug">
                             ${sub.text}
                         </div>
+                        ${window.currentLang === 'vi' ? `
+                        <div class="text-xs text-green-500 dark:text-green-400 sub-text-pron font-bold break-words leading-tight">
+                            ${koreanToVietnamesePhonetic(sub.text || '')}
+                        </div>
+                        ` : ''}
                         <div class="text-xs text-purple-600 dark:text-purple-400 sub-text-vi break-words leading-tight mt-0.5 font-medium">
                             ${sub.text_vi || ''}
                         </div>
@@ -1234,11 +1265,20 @@
         if (textField) {
             textField.value = sub.text;
             textField.disabled = false;
+            textField.style.height = 'auto';
+            textField.style.height = textField.scrollHeight + 'px';
         }
         const textFieldVi = document.getElementById('currentSubtitleTextVi');
         if (textFieldVi) {
             textFieldVi.value = sub.text_vi || '';
             textFieldVi.disabled = false;
+            textFieldVi.style.height = 'auto';
+            textFieldVi.style.height = textFieldVi.scrollHeight + 'px';
+        }
+
+        const pronField = document.getElementById('currentSubtitlePronunciation');
+        if (pronField) {
+            pronField.textContent = koreanToVietnamesePhonetic(sub.text || '');
         }
 
         document.getElementById('currentStartTime').textContent = sub.start.toFixed(2);
@@ -2016,6 +2056,50 @@
         if (cssEl) cssEl.style.display = 'inline-block';
     }
 
+    function koreanToVietnamesePhonetic(text) {
+        if (!text) return "";
+        
+        const CHOSEONG = [
+            "k", "kk", "n", "t", "tt", "r", "m", "p", "pp", 
+            "s", "ss", "", "ch", "jj", "ch", "kh", "th", "ph", "h"
+        ];
+        const JUNGSEONG = [
+            "a", "ae", "ya", "yae", "ơ", "e", "yơ", "ye", "o", "oa", 
+            "oae", "oe", "yo", "u", "uơ", "ue", "uy", "yu", "ư", "ưi", "i"
+        ];
+        const JONGSEONG = [
+            "", "k", "k", "t", "n", "n", "n", "t", "l", "l", "l", "l", 
+            "l", "l", "l", "l", "m", "p", "p", "t", "ng", "t", "t", "t", 
+            "t", "t", "p", "t"
+        ];
+
+        let result = "";
+        for (let i = 0; i < text.length; i++) {
+            const char = text[i];
+            const code = char.charCodeAt(0);
+            
+            if (code >= 0xAC00 && code <= 0xD7A3) {
+                const index = code - 0xAC00;
+                const cho = Math.floor(index / 588);
+                const jung = Math.floor((index % 588) / 28);
+                const jong = index % 28;
+                
+                let choV = CHOSEONG[cho];
+                let jungV = JUNGSEONG[jung];
+                let jongV = JONGSEONG[jong];
+                
+                result += choV + jungV + jongV + " ";
+            } else {
+                if (result.endsWith(" ") && char === " ") {
+                    // avoid duplicate
+                } else {
+                    result += char;
+                }
+            }
+        }
+        return result.trim().replace(/\s+([.,!?~])/g, '$1');
+    }
+
     function setupStyleListeners() {
         // Debounced or direct auto-save logic
         const update = async (key, val) => {
@@ -2083,6 +2167,12 @@
                     if (row) {
                         const subTextSpan = row.querySelector('.sub-text');
                         if (subTextSpan) subTextSpan.textContent = e.target.value;
+                        const subTextPronSpan = row.querySelector('.sub-text-pron');
+                        if (subTextPronSpan) subTextPronSpan.textContent = koreanToVietnamesePhonetic(e.target.value);
+                    }
+                    const pronField = document.getElementById('currentSubtitlePronunciation');
+                    if (pronField) {
+                        pronField.textContent = koreanToVietnamesePhonetic(e.target.value);
                     }
                 }
             });
