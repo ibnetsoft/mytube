@@ -88,10 +88,20 @@ export default function DashboardContent() {
     const [loading, setLoading] = useState(true)
     const [users, setUsers] = useState<UserProfile[]>([])
     const [publishingRequests, setPublishingRequests] = useState<PublishingRequest[]>([])
-    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'api' | 'render-queue'>('overview')
+    const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'api' | 'render-queue'>('topics')
     const [renderQueue, setRenderQueue] = useState<any[]>([])
     const [queueLoading, setQueueLoading] = useState(false)
     const [overviewSubTab, setOverviewSubTab] = useState<'video' | 'log'>('video')
+
+    // 카테고리 & AI 주제 자판기 상태
+    const [categories, setCategories] = useState<any[]>([])
+    const [topics, setTopics] = useState<any[]>([])
+    const [categoriesLoading, setCategoriesLoading] = useState(false)
+    const [newCatName, setNewCatName] = useState('')
+    const [newCatKeywords, setNewCatKeywords] = useState('')
+    const [newCatChannel, setNewCatChannel] = useState('')
+    const [newCatEmployee, setNewCatEmployee] = useState('')
+    const [generatingCatId, setGeneratingCatId] = useState<number | null>(null)
     
     // UI Modals State
     const [logViewUser, setLogViewUser] = useState<UserProfile | null>(null)
@@ -431,6 +441,105 @@ export default function DashboardContent() {
         }
     };
 
+    const fetchCategories = useCallback(async () => {
+        try {
+            setCategoriesLoading(true)
+            const res = await fetch('/api/admin/categories')
+            const data = await res.json()
+            if (data.categories) setCategories(data.categories)
+        } catch (e) {
+            console.error("Failed to load categories:", e)
+        } finally {
+            setCategoriesLoading(false)
+        }
+    }, [])
+
+    const fetchTopics = useCallback(async () => {
+        try {
+            const res = await fetch('/api/admin/topics-queue')
+            const data = await res.json()
+            if (data.topics) setTopics(data.topics)
+        } catch (e) {
+            console.error("Failed to load topics:", e)
+        }
+    }, [])
+
+    const handleCreateCategory = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!newCatName || !newCatEmployee) {
+            alert('카테고리명과 담당 직원 이메일은 필수입니다.')
+            return
+        }
+        try {
+            const res = await fetch('/api/admin/categories', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: newCatName,
+                    keywords: newCatKeywords,
+                    benchmark_channel_url: newCatChannel,
+                    assigned_employee_email: newCatEmployee
+                })
+            })
+            const data = await res.json()
+            if (data.success) {
+                setNewCatName('')
+                setNewCatKeywords('')
+                setNewCatChannel('')
+                setNewCatEmployee('')
+                fetchCategories()
+                fetchTopics()
+                alert('카테고리가 성공적으로 등록되었으며, 기본 샘플 주제 3개가 적재되었습니다.')
+            } else {
+                alert('카테고리 등록 실패: ' + data.error)
+            }
+        } catch (err) {
+            console.error(err)
+            alert('서버 등록 에러 발생')
+        }
+    }
+
+    const handleDeleteCategory = async (id: number) => {
+        if (!confirm('정말 이 카테고리를 삭제하시겠습니까? 관련 데이터도 함께 삭제될 수 있습니다.')) return
+        try {
+            const res = await fetch(`/api/admin/categories?id=${id}`, {
+                method: 'DELETE'
+            })
+            const data = await res.json()
+            if (data.success) {
+                fetchCategories()
+                fetchTopics()
+            } else {
+                alert('삭제 실패: ' + data.error)
+            }
+        } catch (err) {
+            console.error(err)
+        }
+    }
+
+    const handleTriggerAiTopics = async (catId: number) => {
+        setGeneratingCatId(catId)
+        try {
+            const res = await fetch('/api/admin/topics-queue', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ categoryId: catId })
+            })
+            const data = await res.json()
+            if (data.success) {
+                fetchTopics()
+                alert(`AI가 새로운 세부 영상 주제 ${data.count}개를 성공적으로 생성하여 큐에 추가했습니다!`)
+            } else {
+                alert('AI 생성 실패: ' + data.error)
+            }
+        } catch (err) {
+            console.error(err)
+            alert('AI 생성 요청 오류')
+        } finally {
+            setGeneratingCatId(null)
+        }
+    }
+
     useEffect(() => {
         if (activeTab === 'render-queue') {
             fetchRenderQueue();
@@ -454,8 +563,10 @@ export default function DashboardContent() {
             fetchGlobalStats(globalPeriod);
             fetchPublishingRequests();
             fetchSysKeys();
+            fetchCategories();
+            fetchTopics();
         }
-    }, [isAdmin, loading]);
+    }, [isAdmin, loading, fetchCategories, fetchTopics]);
 
     // 기간 변경 시에만 별도 호출
     useEffect(() => {
@@ -593,13 +704,181 @@ export default function DashboardContent() {
                 <div className="flex items-center justify-between">
                     <h2 className="text-4xl font-black uppercase tracking-tighter">관리자 대시보드</h2>
                     <div className="flex gap-2 p-1.5 bg-white/5 rounded-2xl border border-white/5 shadow-2xl">
-                        {['overview', 'users', 'api', 'render-queue'].map(tab => (
+                        {['topics', 'overview', 'users', 'api', 'render-queue'].map(tab => (
                             <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-10 py-3.5 rounded-xl text-[11px] font-black transition-all uppercase tracking-[0.1em] ${activeTab === tab ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-500 hover:text-white'}`}>
-                                {tab === 'overview' ? '개요' : tab === 'users' ? '유저 관리' : tab === 'api' ? '시스템 API' : '🎬 렌더링 큐'}
+                                {tab === 'topics' ? '주제배당' : tab === 'overview' ? '개요' : tab === 'users' ? '유저 관리' : tab === 'api' ? '시스템 API' : '🎬 렌더링 큐'}
                             </button>
                         ))}
                     </div>
                 </div>
+
+                {activeTab === 'topics' && (
+                    <div className="space-y-8 animate-in fade-in duration-300">
+                        {/* 1. 카테고리 추가 폼 */}
+                        <div className="bg-[#0f172a]/60 rounded-[2.5rem] border border-white/10 p-8 shadow-2xl">
+                            <h2 className="font-black text-xl tracking-tight mb-6 flex items-center gap-2">
+                                ➕ 새 카테고리 및 직원 매핑 추가
+                            </h2>
+                            <form onSubmit={handleCreateCategory} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <div>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">카테고리명 *</label>
+                                    <input 
+                                        type="text" 
+                                        required
+                                        placeholder="예: 세계 미스터리"
+                                        value={newCatName}
+                                        onChange={e => setNewCatName(e.target.value)}
+                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">담당 직원 이메일 *</label>
+                                    <input 
+                                        type="email" 
+                                        required
+                                        placeholder="예: worker@picadiri.com"
+                                        value={newCatEmployee}
+                                        onChange={e => setNewCatEmployee(e.target.value)}
+                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">주요 리서치 키워드</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="쉼표로 구분 (예: 버뮤다 삼각지대, 미해결 사건)"
+                                        value={newCatKeywords}
+                                        onChange={e => setNewCatKeywords(e.target.value)}
+                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
+                                    />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">벤치마킹할 유튜브 채널 URL</label>
+                                    <input 
+                                        type="url" 
+                                        placeholder="예: https://www.youtube.com/@BenchmarkChannel"
+                                        value={newCatChannel}
+                                        onChange={e => setNewCatChannel(e.target.value)}
+                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
+                                    />
+                                </div>
+                                <div className="flex items-end">
+                                    <button 
+                                        type="submit"
+                                        className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl transition-all shadow-lg active:scale-95"
+                                    >
+                                        🚀 등록 및 초기 주제 생성
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        {/* 2. 등록된 카테고리 및 매핑 리스트 */}
+                        <div className="bg-[#0f172a]/60 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl p-8">
+                            <h2 className="font-black text-xl tracking-tight mb-6">📂 내 카테고리 현황</h2>
+                            {categoriesLoading ? (
+                                <div className="text-center py-20 text-gray-500 text-sm">카테고리 로딩 중...</div>
+                            ) : categories.length === 0 ? (
+                                <div className="text-center py-20 text-gray-500 text-sm italic">등록된 카테고리가 없습니다.</div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {categories.map((cat) => {
+                                        const pendingTopics = topics.filter(t => t.category_id === cat.id && t.status === 'pending');
+                                        const completedTopics = topics.filter(t => t.category_id === cat.id && t.status === 'completed');
+
+                                        return (
+                                            <div key={cat.id} className="bg-black/40 border border-white/10 rounded-3xl p-6 relative flex flex-col justify-between hover:border-blue-500/50 transition-all">
+                                                <div>
+                                                    <div className="flex justify-between items-start mb-4">
+                                                        <h3 className="text-lg font-black text-white">{cat.name}</h3>
+                                                        <button 
+                                                            onClick={() => handleDeleteCategory(cat.id)}
+                                                            className="text-gray-500 hover:text-red-500 text-xs transition-colors shadow-none bg-transparent p-0"
+                                                        >
+                                                            삭제
+                                                        </button>
+                                                    </div>
+                                                    <div className="space-y-2 text-xs text-gray-400 mb-6">
+                                                        <p>👤 <strong className="text-gray-200">담당 직원:</strong> {cat.assigned_employee_email}</p>
+                                                        <p>🔑 <strong className="text-gray-200">키워드:</strong> {cat.keywords || '(없음)'}</p>
+                                                        <p className="truncate">📺 <strong className="text-gray-200">채널:</strong> <a href={cat.benchmark_channel_url} target="_blank" rel="noreferrer" className="text-blue-400 underline">{cat.benchmark_channel_url || '(없음)'}</a></p>
+                                                    </div>
+                                                    
+                                                    {/* 주제 대기열 카운트 */}
+                                                    <div className="flex gap-3 text-[11px] font-black tracking-wider uppercase mb-6">
+                                                        <span className="px-3 py-1 bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 rounded-lg">대기주제: {pendingTopics.length}개</span>
+                                                        <span className="px-3 py-1 bg-green-500/10 text-green-500 border border-green-500/20 rounded-lg">완료주제: {completedTopics.length}개</span>
+                                                    </div>
+                                                </div>
+
+                                                <button 
+                                                    disabled={generatingCatId === cat.id}
+                                                    onClick={() => handleTriggerAiTopics(cat.id)}
+                                                    className="w-full py-2.5 bg-blue-600/20 hover:bg-blue-600 border border-blue-500/20 hover:border-transparent text-blue-400 hover:text-white rounded-xl text-xs font-black tracking-wider transition-all disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed uppercase"
+                                                >
+                                                    {generatingCatId === cat.id ? '🤖 AI 주제 분석 발굴 중...' : '🔮 AI 주제 자판기 생성 (10개)'}
+                                                </button>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* 3. 전체 주제 대기열 큐 모니터링 */}
+                        <div className="bg-[#0f172a]/60 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl">
+                            <div className="p-8 border-b border-white/10 bg-black/20 flex justify-between items-center">
+                                <h2 className="font-black text-xl tracking-tight">📋 실시간 전체 주제 대기열 큐 (Topics Queue)</h2>
+                                <span className="bg-yellow-500/20 text-yellow-500 text-[11px] px-3 py-1 rounded-full font-black">
+                                    총 대기 건수: {topics.filter(t => t.status === 'pending').length}개
+                                </span>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-sm">
+                                    <thead className="bg-black/30 border-b border-white/5 text-[10px] font-black text-gray-500 uppercase tracking-widest">
+                                        <tr>
+                                            <th className="px-10 py-6">카테고리</th>
+                                            <th className="px-10 py-6">제안 영상 주제</th>
+                                            <th className="px-10 py-6">배정된 직원 이메일</th>
+                                            <th className="px-10 py-6 text-center">배당 상태</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5 font-medium">
+                                        {topics.map((item) => (
+                                            <tr key={item.id} className="hover:bg-white/[0.03] transition-colors h-16 text-xs">
+                                                <td className="px-10 py-6 text-gray-300 font-bold">
+                                                    {item.categories?.name || '기본'}
+                                                </td>
+                                                <td className="px-10 py-6 text-white font-bold max-w-sm truncate">
+                                                    {item.topic}
+                                                </td>
+                                                <td className="px-10 py-6 text-gray-400">
+                                                    {item.assigned_employee_email}
+                                                </td>
+                                                <td className="px-10 py-6 text-center">
+                                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border uppercase tracking-tighter ${
+                                                        item.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' :
+                                                        item.status === 'assigned' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
+                                                        'bg-green-500/10 text-green-500 border-green-500/20'
+                                                    }`}>
+                                                        {item.status === 'pending' ? '대기 중' : item.status === 'assigned' ? '제작 진행 중' : '제작 완료'}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {topics.length === 0 && (
+                                            <tr>
+                                                <td colSpan={4} className="px-10 py-20 text-center text-gray-600 font-black uppercase tracking-widest text-xs italic">
+                                                    대기열에 등록된 주제가 없습니다. 카테고리를 먼저 생성해주세요.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {activeTab === 'overview' && (
                     <div className={`space-y-6 animate-in fade-in duration-500 ${globalLoading ? 'opacity-50' : ''}`}>
@@ -832,6 +1111,7 @@ export default function DashboardContent() {
                             </button>
                         </div>
                     </div>
+                )}
                 {activeTab === 'render-queue' && (
                     <div className="bg-[#0f172a]/20 border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <div className="px-10 py-6 border-b border-white/5 bg-black/20 flex justify-between items-center">

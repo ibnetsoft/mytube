@@ -41,6 +41,7 @@ type AiLog = {
     elapsed_time: number
     input_tokens: number
     output_tokens: number
+    balance_after?: number
     created_at: string
 }
 
@@ -689,7 +690,7 @@ export default function AdminDashboardContent() {
                                                         <div className="flex items-end gap-[2px] h-12 w-full mt-4">
                                                             {d.buckets.map((v: number, i: number) => {
                                                                 let h = (v / maxBk) * 100;
-                                                                if (v === 0 && d.buckets.some(b => b > 0)) h = 10; // Tiny baseline for consistency
+                                                                if (v === 0 && d.buckets.some((b: number) => b > 0)) h = 10; // Tiny baseline for consistency
                                                                 return (
                                                                     <div key={i} className={`flex-1 ${bgMap[s] || 'bg-gray-500'} rounded-t-sm transition-all duration-500`} style={{height: `${Math.max(8, h)}%`, opacity: v > 0 ? 1 : 0.05}} />
                                                                 );
