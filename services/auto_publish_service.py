@@ -81,6 +81,7 @@ class AutoPublishService:
                 # Get local project info for token and file path
                 token_path = None
                 local_video_path = None
+                channel_proxy = None
                 try:
                     # [NEW] Find project by youtube video id
                     p_settings = db.get_project_settings_by_youtube_id(video_id)
@@ -91,12 +92,13 @@ class AutoPublishService:
                             channel = db.get_channel(channel_id)
                             if channel:
                                 token_path = channel.get('credentials_path')
+                                channel_proxy = channel.get('proxy')
                 except Exception as db_err:
                     print(f"[DB Error] Failed to find project info for {video_id}: {db_err}")
 
                 try:
                     # A. Update YouTube Privacy
-                    youtube_upload_service.update_video_privacy(video_id, "public", token_path=token_path)
+                    youtube_upload_service.update_video_privacy(video_id, "public", token_path=token_path, proxy=channel_proxy)
                     
                     # B. [NEW] Upload to Google Drive as backup
                     drive_link = None

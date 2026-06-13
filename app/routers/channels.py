@@ -16,7 +16,7 @@ async def list_channels():
 @router.post("", response_model=int)
 async def create_channel(data: ChannelCreate):
     try:
-        channel_id = db.create_channel(data.name, data.handle, data.description)
+        channel_id = db.create_channel(data.name, data.handle, data.description, data.proxy)
         return channel_id
     except Exception as e:
         raise HTTPException(500, str(e))
@@ -92,6 +92,7 @@ async def login_by_info_api(
         # GET 쿼리 혹은 POST 바디에서 데이터 추출
         channel_name = name or (data.get("name") if data else None)
         channel_id_val = id or (data.get("id") if data else None)
+        channel_proxy = (data.get("proxy") if data else None)
         
         if not channel_name or not channel_id_val:
             return {"status": "error", "error": "채널 이름과 ID가 누락되었습니다."}
@@ -102,11 +103,11 @@ async def login_by_info_api(
         
         if target_channel:
             local_id = target_channel['id']
-            db.update_channel(local_id, channel_name, channel_id_val, f"Managed by Admin ({channel_name})")
+            db.update_channel(local_id, channel_name, channel_id_val, f"Managed by Admin ({channel_name})", channel_proxy)
         else:
-            local_id = db.create_channel(channel_name, channel_id_val, f"Managed by Admin ({channel_name})")
+            local_id = db.create_channel(channel_name, channel_id_val, f"Managed by Admin ({channel_name})", channel_proxy)
             
-        print(f"[Auth] Remote Trigger -> Google OAuth for: {channel_name}")
+        print(f"[Auth] Remote Trigger -> Google OAuth for: {channel_name} with proxy: {channel_proxy}")
 
         # 2. 토큰 경로 준비
         token_filename = f"token_{local_id}.pickle"

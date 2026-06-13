@@ -10,6 +10,7 @@ class ChannelCreate(BaseModel):
     name: str
     handle: str
     description: Optional[str] = None
+    proxy: Optional[str] = None
 
 
 class ChannelResponse(BaseModel):
@@ -19,3 +20,4 @@ class ChannelResponse(BaseModel):
     description: Optional[str]
     created_at: Any
     credentials_path: Optional[str] = None
+    proxy: Optional[str] = None

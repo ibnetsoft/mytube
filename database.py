@@ -225,10 +225,17 @@ def init_db():
             handle TEXT,
             description TEXT,
             credentials_path TEXT,
+            proxy TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+
+    # [MIGRATION] Add proxy column to channels table if not exists
+    try:
+        cursor.execute("ALTER TABLE channels ADD COLUMN proxy TEXT")
+    except Exception:
+        pass
 
     # 생성된 대본
     cursor.execute("""
@@ -1462,11 +1469,11 @@ def update_project_render_status(project_id: int, status: str):
     conn.close()
 
 
-def create_channel(name: str, handle: str, description: str = None) -> int:
+def create_channel(name: str, handle: str, description: str = None, proxy: str = None) -> int:
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO channels (name, handle, description) VALUES (?, ?, ?)", 
-                   (name, handle, description))
+    cursor.execute("INSERT INTO channels (name, handle, description, proxy) VALUES (?, ?, ?, ?)", 
+                   (name, handle, description, proxy))
     new_id = cursor.lastrowid
     conn.commit()
     conn.close()
@@ -1487,11 +1494,11 @@ def update_channel_credentials(channel_id: int, path: str):
     conn.commit()
     conn.close()
 
-def update_channel(channel_id: int, name: str, handle: str, description: str = None):
+def update_channel(channel_id: int, name: str, handle: str, description: str = None, proxy: str = None):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("UPDATE channels SET name = ?, handle = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", 
-                   (name, handle, description, channel_id))
+    cursor.execute("UPDATE channels SET name = ?, handle = ?, description = ?, proxy = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", 
+                   (name, handle, description, proxy, channel_id))
     conn.commit()
     conn.close()
 

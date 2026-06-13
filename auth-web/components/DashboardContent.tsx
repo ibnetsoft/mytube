@@ -110,7 +110,7 @@ export default function DashboardContent() {
     const [apiViewUser, setApiViewUser] = useState<any>(null);
     const [channelViewUser, setChannelViewUser] = useState<any>(null);
     const [tempApiKeys, setTempApiKeys] = useState<any>({ openai: '', gemini: '', pexels: '', replicate: '' });
-    const [tempChannelInfo, setTempChannelInfo] = useState<any>({ name: '', id: '' });
+    const [tempChannelInfo, setTempChannelInfo] = useState<any>({ name: '', id: '', proxy: '' });
     const [editInfoUser, setEditInfoUser] = useState<any>(null);
     const [editInfoForm, setEditInfoForm] = useState({ full_name: '', nationality: '', contact: '' });
     
@@ -221,7 +221,8 @@ export default function DashboardContent() {
                     userId: channelViewUser.id, 
                     metadata: { 
                         youtube_channel: tempChannelInfo.name,
-                        youtube_channel_id: tempChannelInfo.id 
+                        youtube_channel_id: tempChannelInfo.id,
+                        youtube_channel_proxy: tempChannelInfo.proxy
                     } 
                 })
             });
@@ -1112,7 +1113,7 @@ export default function DashboardContent() {
                                                 <button onClick={() => handleRecharge(u.id)} className="px-1.5 py-1 bg-green-600/10 hover:bg-green-600 text-green-500 hover:text-white text-[7px] font-black rounded border border-green-500/20 transition-all whitespace-nowrap">토큰충전</button>
                                                 <button onClick={() => { setEditInfoUser(u); setEditInfoForm({ full_name: u.user_metadata?.full_name || '', nationality: u.user_metadata?.nationality || '', contact: u.user_metadata?.contact || '' }); }} className="px-1.5 py-1 bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white text-[7px] font-black rounded border border-yellow-500/20 transition-all whitespace-nowrap">정보수정</button>
                                                 <button onClick={() => { setLogViewUser(u); setLogPeriod(1); fetchUserLogs(u.id, 1); }} className="px-1.5 py-1 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-[7px] font-black rounded border border-blue-500/20 transition-all whitespace-nowrap">로그조회</button>
-                                                <button onClick={() => { setChannelViewUser(u); setTempChannelInfo({ name: u.user_metadata?.youtube_channel || '', id: u.user_metadata?.youtube_channel_id || '' }); }} className="px-1.5 py-1 bg-purple-600/10 hover:bg-purple-600 text-purple-500 hover:text-white text-[7px] font-black rounded border border-purple-500/20 transition-all whitespace-nowrap">채널ID</button>
+                                                <button onClick={() => { setChannelViewUser(u); setTempChannelInfo({ name: u.user_metadata?.youtube_channel || '', id: u.user_metadata?.youtube_channel_id || '', proxy: u.user_metadata?.youtube_channel_proxy || '' }); }} className="px-1.5 py-1 bg-purple-600/10 hover:bg-purple-600 text-purple-500 hover:text-white text-[7px] font-black rounded border border-purple-500/20 transition-all whitespace-nowrap">채널ID</button>
                                                 <button onClick={() => { setApiViewUser(u); setTempApiKeys(u.app_metadata?.custom_api_keys || { openai: '', gemini: '', pexels: '', replicate: '' }); }} className="px-1.5 py-1 bg-indigo-600/10 hover:bg-indigo-600 text-indigo-500 hover:text-white text-[7px] font-black rounded border border-indigo-500/20 transition-all whitespace-nowrap">API</button>
                                             </div>
                                         </td>
@@ -1332,14 +1333,11 @@ export default function DashboardContent() {
                                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-4">유튜브 채널 ID</label>
                                     <input type="text" placeholder="예: UCxxxxxxxxxxxx" value={tempChannelInfo.id} onChange={(e) => setTempChannelInfo({...tempChannelInfo, id: e.target.value})} className="w-full bg-black/40 border border-white/5 rounded-2xl px-8 py-5 text-sm font-black text-white focus:outline-none focus:border-purple-500/50 transition-all" />
                                     
-                                    <div className="mt-4 p-4 rounded-xl bg-purple-500/5 border border-purple-500/15 space-y-2">
-                                        <p className="text-[10px] text-purple-400 font-black flex items-center gap-1.5">
-                                            💡 관리자 권한 위임 안내
-                                        </p>
-                                        <p className="text-[10px] text-gray-400 font-medium leading-relaxed">
-                                            회사가 해당 직원에게 부여한 <strong>구글 워크스페이스(Workspace) 계정</strong>으로 로그인하여 승인해야 합니다. 연동 완료 시, 해당 채널에 대한 비디오 업로드 대행 권한이 보안 저장됩니다.
-                                        </p>
-                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-4">국가 우회용 고정 IP 프록시 (선택)</label>
+                                    <input type="text" placeholder="예: http://username:password@ip:port" value={tempChannelInfo.proxy || ''} onChange={(e) => setTempChannelInfo({...tempChannelInfo, proxy: e.target.value})} className="w-full bg-black/40 border border-white/5 rounded-2xl px-8 py-5 text-sm font-black text-white focus:outline-none focus:border-purple-500/50 transition-all font-mono" />
+                                    <p className="text-[9px] text-gray-600 ml-4 font-bold">* 해당 채널 영상 업로드 시 지정한 프록시 IP 대역을 경유하여 타겟 국가 노출 확률을 높입니다.</p>
                                 </div>
                             </div>
                             <div className="flex gap-4">
@@ -1359,7 +1357,7 @@ export default function DashboardContent() {
                                         }
                                         
                                         // window.open을 사용하여 CORS 우회 및 즉각적인 피드백 제공
-                                        const url = `http://127.0.0.1:8001/api/channels/login-by-info?name=${encodeURIComponent(tempChannelInfo.name)}&id=${encodeURIComponent(tempChannelInfo.id)}`;
+                                        const url = `http://127.0.0.1:8001/api/channels/login-by-info?name=${encodeURIComponent(tempChannelInfo.name)}&id=${encodeURIComponent(tempChannelInfo.id)}&proxy=${encodeURIComponent(tempChannelInfo.proxy || '')}`;
                                         window.open(url, '_blank', 'width=600,height=700');
                                         
                                         // 메타데이터 정보 저장은 별도로 수행

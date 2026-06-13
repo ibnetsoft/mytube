@@ -20,8 +20,8 @@ class YouTubeUploadService:
         self.api_service_name = "youtube"
         self.api_version = "v3"
 
-    def get_authenticated_service(self, token_path: str = None, interactive: bool = False):
-        """인증된 YouTube API 서비스 객체 반환 (채널별 토큰 지원)"""
+    def get_authenticated_service(self, token_path: str = None, interactive: bool = False, proxy: str = None):
+        """인증된 YouTube API 서비스 객체 반환 (채널별 토큰 및 프록시 우회 지원)"""
         credentials = None
         
         # 1. 사용할 토큰 파일 결정
@@ -37,6 +37,33 @@ class YouTubeUploadService:
                 print(f"Failed to load existing token from {target_token_file}: {e}")
                 credentials = None
 
+        # 프록시 설정 적용 (http 클라이언트 래핑)
+        http_client = None
+        if proxy:
+            import httplib2
+            # proxy 형식 예: "http://username:password@ip:port" 또는 "http://ip:port"
+            # httplib2는 proxy_info 객체를 받음
+            try:
+                print(f"[Proxy] Routing YouTube API requests through proxy: {proxy}")
+                import urllib.parse
+                parsed = urllib.parse.urlparse(proxy)
+                proxy_type = httplib2.ProxyInfo.PROXY_TYPE_HTTP
+                if parsed.scheme == 'socks5':
+                    proxy_type = httplib2.ProxyInfo.PROXY_TYPE_SOCKS5
+                elif parsed.scheme == 'socks4':
+                    proxy_type = httplib2.ProxyInfo.PROXY_TYPE_SOCKS4
+                
+                proxy_info = httplib2.ProxyInfo(
+                    proxy_type=proxy_type,
+                    proxy_host=parsed.hostname,
+                    proxy_port=parsed.port or (80 if parsed.scheme == 'http' else 443),
+                    proxy_user=parsed.username,
+                    proxy_pass=parsed.password
+                )
+                http_client = httplib2.Http(proxy_info=proxy_info, timeout=60)
+            except Exception as proxy_err:
+                print(f"[Proxy Error] Failed to parse proxy {proxy}: {proxy_err}")
+
         # 3. 토큰 유효성 검사 및 갱신/신규 발급
         is_authenticated = False
         if credentials and credentials.valid:
@@ -44,7 +71,17 @@ class YouTubeUploadService:
         elif credentials and credentials.expired and credentials.refresh_token:
             try:
                 print(f"Refreshing expired token for {target_token_file}...")
-                credentials.refresh(Request())
+                # 프록시를 적용해 갱신 요청을 전송
+                from google.auth.transport.requests import Request
+                import google.auth.transport.urllib3
+                import urllib3
+                
+                request_runner = Request()
+                if proxy:
+                    proxy_manager = urllib3.ProxyManager(proxy)
+                    request_runner = google.auth.transport.urllib3.Request(proxy_manager)
+                    
+                credentials.refresh(request_runner)
                 # 갱신된 토큰 즉시 저장
                 with open(target_token_file, "wb") as token:
                     pickle.dump(credentials, token)
@@ -73,6 +110,13 @@ class YouTubeUploadService:
             with open(target_token_file, "wb") as token:
                 pickle.dump(credentials, token)
 
+        # build 시 http_client 주입하여 API 호출이 프록시를 거치도록 함
+        if http_client:
+            # credentials가 http를 래핑하도록 연결
+            import google.auth.transport.requests
+            authorized_http = google.auth.transport.requests.AuthorizedHttp(credentials, http=http_client)
+            return build(self.api_service_name, self.api_version, http=authorized_http)
+            
         return build(self.api_service_name, self.api_version, credentials=credentials)
 
 
@@ -85,14 +129,15 @@ class YouTubeUploadService:
         category_id: str = "22",
         privacy_status: str = "private",
         publish_at: str = None,
-        token_path: str = None # [NEW] 인증 토큰 경로
+        token_path: str = None, # [NEW] 인증 토큰 경로
+        proxy: str = None # [NEW] 프록시 정보
     ) -> dict:
         """비디오 업로드 (채널 지정 가능)"""
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"파일을 찾을 수 없습니다: {file_path}")
 
-        # 지정된 토큰(채널)으로 인증
-        youtube = self.get_authenticated_service(token_path)
+        # 지정된 토큰(채널) 및 프록시로 인증
+        youtube = self.get_authenticated_service(token_path, proxy=proxy)
 
         status_body = {
             "privacyStatus": privacy_status,
@@ -131,13 +176,13 @@ class YouTubeUploadService:
         
         return response
 
-    def set_thumbnail(self, video_id: str, thumbnail_path: str, token_path: str = None):
+    def set_thumbnail(self, video_id: str, thumbnail_path: str, token_path: str = None, proxy: str = None):
         """비디오 썸네일 설정 (채널 지정 가능)"""
         if not os.path.exists(thumbnail_path):
             print(f"썸네일 파일을 찾을 수 없습니다: {thumbnail_path}")
             return None
 
-        youtube = self.get_authenticated_service(token_path)
+        youtube = self.get_authenticated_service(token_path, proxy=proxy)
         
         request = youtube.thumbnails().set(
             videoId=video_id,
@@ -147,9 +192,9 @@ class YouTubeUploadService:
         print(f"썸네일 설정 완료: {video_id}")
         return response
 
-    def update_video_privacy(self, video_id: str, privacy_status: str = "public", token_path: str = None):
+    def update_video_privacy(self, video_id: str, privacy_status: str = "public", token_path: str = None, proxy: str = None):
         """비디오 공개 범위 수정"""
-        youtube = self.get_authenticated_service(token_path)
+        youtube = self.get_authenticated_service(token_path, proxy=proxy)
 
         body = {
             "id": video_id,
