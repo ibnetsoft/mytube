@@ -131,6 +131,7 @@
             <div id="resultSection" class="hidden">
                 <div class="bg-[#1c2027] rounded-lg border border-gray-700 p-4">
                     <div class="flex items-center justify-between mb-3 border-b border-gray-700 pb-2">
+                        {% if current_lang == 'vi' %}
                         <div class="flex gap-2" id="scriptTabHeaders">
                             <button onclick="switchScriptTab('original')" id="tabScriptOriginal"
                                 class="px-4 py-2 text-sm font-bold border-b-2 border-blue-500 text-blue-400 focus:outline-none transition-all">
@@ -141,6 +142,7 @@
                                 {{ t('tab_vietnamese') }}
                             </button>
                         </div>
+                        {% endif %}
                         <div class="flex gap-2">
                             <button onclick="cleanCurrentScript()"
                                 class="btn-secondary text-xs flex items-center gap-1 border-gray-700 text-yellow-500 hover:bg-gray-800 px-3">
