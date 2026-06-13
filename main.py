@@ -3287,6 +3287,10 @@ if __name__ == "__main__":
     from services.auto_publish_service import auto_publish_service
     auto_publish_service.start()
 
+    # [SDK] Smart Queue Dispatcher Start
+    from services.dispatcher_service import dispatcher_service
+    dispatcher_service.start()
+
     print(f"[*] 서버 시간(KST): {config.get_kst_time().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"[*] 서버 주소: http://{config.HOST}:{config.PORT}")
     print("=" * 50)
