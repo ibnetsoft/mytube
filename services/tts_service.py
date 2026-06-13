@@ -341,8 +341,9 @@ class TTSService:
                     if 0 <= found_idx < len(char_start_times):
                         proposed_t_start = char_start_times[found_idx]
                         total_duration = char_end_times[-1] if char_end_times else 0.0
-                        if proposed_t_start >= total_duration - 0.2:
-                            print(f"[TRIM] [ElevenLabs TTS] Crop safety triggered: proposed_t_start ({proposed_t_start:.3f}s) is too close to total duration ({total_duration:.3f}s). Disabling cropping.")
+                        min_required = max(0.5, len(cleaned_text.strip()) * 0.1)
+                        if proposed_t_start >= total_duration - min_required:
+                            print(f"[TRIM] [ElevenLabs TTS] Crop safety triggered: proposed_t_start ({proposed_t_start:.3f}s) is too close to total duration ({total_duration:.3f}s), min required remaining is {min_required:.2f}s. Disabling cropping.")
                             t_start = 0.0
                         else:
                             t_start = proposed_t_start
