@@ -3239,6 +3239,80 @@ def get_recent_projects(limit: int = 10, employee_email: str = None) -> List[Dic
     return [dict(r) for r in rows]
 
 
+def resolve_remote_user_id_for_log(project_id=None) -> str:
+    """Resolve Supabase Auth UUID for remote log sync using the current user email."""
+    import os as _os
+    import re as _re
+    import requests as _req
+    from pathlib import Path
+    from config import config  # Ensures .env is loaded before reading Supabase credentials.
+
+    supabase_url = _os.getenv("NEXT_PUBLIC_SUPABASE_URL")
+    supabase_key = _os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    if not supabase_url or not supabase_key:
+        return ""
+
+    license_value = ""
+    try:
+        license_path = Path(__file__).parent / "license.key"
+        if license_path.exists():
+            license_value = license_path.read_text(encoding="utf-8").strip()
+            if _re.fullmatch(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", license_value):
+                return license_value
+    except Exception:
+        license_value = ""
+
+    email = ""
+    try:
+        if project_id:
+            project = get_project(project_id)
+            email = (project or {}).get("employee_email") or ""
+    except Exception:
+        email = ""
+
+    if not email:
+        try:
+            from services.auth_service import auth_service
+            email = auth_service.get_user_email() or ""
+        except Exception:
+            email = ""
+
+    if not email and "@" in license_value:
+        email = license_value
+
+    headers = {
+        "apikey": supabase_key,
+        "Authorization": f"Bearer {supabase_key}",
+    }
+
+    try:
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    except Exception:
+        pass
+
+    if email:
+        try:
+            profile_url = f"{supabase_url.rstrip('/')}/rest/v1/profiles"
+            response = _req.get(
+                profile_url,
+                headers=headers,
+                params={"select": "id", "email": f"eq.{email}"},
+                timeout=10,
+                verify=False,
+                proxies={"http": None, "https": None},
+            )
+            if response.status_code == 200 and response.json():
+                user_id = response.json()[0].get("id") or ""
+                if user_id:
+                    return user_id
+            print(f"[Sync] Failed to resolve profile UUID for email {email}: {response.status_code} {response.text[:200]}")
+        except Exception as e:
+            print(f"[Sync] Error resolving profile UUID for email {email}: {e}")
+
+    return ""
+
+
 def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status: str, prompt_summary: str = "", error_msg: str = "", elapsed_time: float = 0.0, input_tokens: int = 0, output_tokens: int = 0, balance_after: int = None, thinking_tokens: int = 0):
     """AI 생성 로그 추가 (로컬 DB + Supabase 원격 동기화)"""
     # 실패한 작업은 토큰 사용량 0으로 처리
@@ -3274,19 +3348,11 @@ def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status:
         try:
             import requests as _req, os as _os
             from pathlib import Path
-            # database.py 위치 기준으로 부모 디렉토리의 license.key 찾기
             base_dir = Path(__file__).parent
-            license_path = base_dir / "license.key"
             
-            if not license_path.exists():
-                print(f"⚠️ [Sync] license.key not found at {license_path}")
-                return
-                
-            with open(license_path) as f:
-                user_id = f.read().strip()
-                
+            user_id = resolve_remote_user_id_for_log(project_id)
             if not user_id:
-                print("⚠️ [Sync] user_id is empty in license.key")
+                print("[Sync] Could not resolve Supabase profile UUID for remote log push")
                 return
 
             # DASHBOARD_URL 환경변수 사용
