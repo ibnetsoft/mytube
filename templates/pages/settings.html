@@ -2,6 +2,7 @@
 
 {% block content %}
 
+{% set is_standard_member = (membership | default('standard', true) | lower) in ['std', 'standard'] %}
 
 <div class="h-[calc(100vh-80px)] overflow-y-auto p-4 custom-scrollbar">
     <!-- Header with Actions -->
@@ -27,6 +28,7 @@
             <button onclick="switchTab('api')" id="tab-api" class="tab-button active">
                 🎫 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Cấu hình cơ bản{% else %}기본 설정{% endif %}
             </button>
+            {% if not is_standard_member %}
             <button onclick="switchTab('image-styles')" id="tab-image-styles" class="tab-button">
                 {{ t('nav_image_style') }}
             </button>
@@ -43,6 +45,7 @@
             <button onclick="switchTab('video-engine')" id="tab-video-engine" class="tab-button">
                 🎬 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Động cơ AI Video{% else %}영상AI엔진{% endif %}
             </button>
+            {% endif %}
         </div>
     </div>
 
@@ -111,6 +114,10 @@
                                 <button id="btnModeLong" onclick="setAppMode('longform')"
                                     class="px-4 py-1.5 rounded-md text-xs font-bold transition-all bg-[#1c2027] dark:bg-gray-600 shadow text-gray-800 dark:text-white">
                                     {{ t('btnModeLong') }}
+                                </button>
+                                <button id="btnModeLongMusic" onclick="setAppMode('longform_music')"
+                                    class="px-4 py-1.5 rounded-md text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+                                    롱폼뮤직
                                 </button>
                                 <button id="btnModeShort" onclick="setAppMode('shorts')"
                                     class="px-4 py-1.5 rounded-md text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
@@ -828,8 +835,13 @@
 
     const DEFAULT_STYLE_KEYS = ['realistic', 'ghibli', 'anime', 'cinematic', 'cartoon', 'oil_painting', 'watercolor', 'sketch', 'pixel_art', '3d', 'k_webtoon', 'k_manhwa', 'minimal', 'nursery_rhyme', '2d웹', '블랙카툰', '사물캐릭터', '역사/동양철/다큐', '후드티민머리'];
 
+    const IS_STANDARD_MEMBER = {{ 'true' if is_standard_member else 'false' }};
+
     // Tab switching
     function switchTab(tabName) {
+        if (IS_STANDARD_MEMBER && tabName !== 'api') {
+            tabName = 'api';
+        }
         console.log('Switching to tab:', tabName);
 
         // Hide all tabs
@@ -2156,6 +2168,7 @@
         };
 
         updateBtn('btnModeLong', mode === 'longform');
+        updateBtn('btnModeLongMusic', mode === 'longform_music');
         updateBtn('btnModeShort', mode === 'shorts');
         updateBtn('btnModeWebtoon', mode === 'webtoon');
         updateBtn('btnModeCommerce', mode === 'commerce');

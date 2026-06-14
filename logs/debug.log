@@ -12137,3 +12137,603 @@ FileNotFoundError: [WinError 3] 지정된 경로를 찾을 수 없습니다: 'G:
 [영상 주제]
 호랑이가 하이에나를 습격하면 벌어지는 실제...)
 [2026-06-14 07:37:08.204065] [Gemini] ✅ [Gemini Text] Success (19.4s, finish=MAX_TOKENS, thinking=0)
+[2026-06-14 23:49:59.416858] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-14 23:50:00.414218] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:50:00.420062] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:50:05.425432] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-14 23:50:06.284543] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:50:06.307558] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:50:11.312679] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-14 23:50:12.193728] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:50:12.195649] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:50:17.200168] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-14 23:50:18.048636] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:50:18.050736] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:50:23.056742] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-14 23:50:23.907597] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:50:23.910194] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:50:28.914929] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-14 23:50:29.922677] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:50:29.925241] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:50:34.931606] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-14 23:50:35.824071] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:50:35.825995] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:50:40.830505] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-14 23:50:41.689633] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:50:41.691934] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:50:46.696916] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-14 23:50:47.551318] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:50:47.553339] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:50:52.562470] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-14 23:50:53.356377] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:50:53.358629] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:50:58.364406] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-14 23:50:59.128156] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:50:59.130255] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:51:04.134806] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-14 23:51:04.982465] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:51:04.984306] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:51:09.988869] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-14 23:51:10.776084] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:51:10.778224] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:51:15.782934] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-14 23:51:16.585717] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:51:16.587712] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:51:21.592838] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-14 23:51:22.439511] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:51:22.442341] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:51:27.454005] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-14 23:51:28.203512] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:51:28.205711] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:51:33.210773] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-14 23:51:34.100504] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:51:34.102380] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:51:39.108850] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-14 23:51:39.930369] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:51:39.932303] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:51:44.937120] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-14 23:51:45.744365] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:51:45.745873] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:51:50.751162] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-14 23:51:51.594163] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:51:51.596323] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:51:56.600903] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-14 23:51:57.425052] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:51:57.427587] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:52:02.431671] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-14 23:52:03.230127] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:52:03.231901] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:52:08.241302] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-14 23:52:09.098672] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:52:09.100076] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:52:14.104798] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-14 23:52:14.879762] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-14 23:52:14.881855] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:52:25.380506] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 00:52:26.178927] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:52:26.181072] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:52:31.185760] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 00:52:31.988354] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:52:31.990707] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:52:36.995515] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 00:52:37.819370] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:52:37.821987] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:52:42.826217] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 00:52:43.596427] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:52:43.598414] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:52:48.602773] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 00:52:49.389873] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:52:49.392130] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:52:54.405556] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 00:52:55.261569] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:52:55.263697] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:53:00.267972] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 00:53:01.078557] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:53:01.080676] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:53:06.085074] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 00:53:06.828445] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:53:06.830523] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:53:11.835891] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 00:53:12.662554] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:53:12.664607] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:53:17.669009] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 00:53:18.434306] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:53:18.436419] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:53:23.441024] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 00:53:24.299464] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:53:24.301234] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:53:29.305848] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 00:53:30.046647] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:53:30.049145] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:53:35.059759] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 00:53:35.851080] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:53:35.852874] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:53:40.857729] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 00:53:41.608769] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:53:41.610920] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:53:46.615001] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 00:53:47.451097] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:53:47.453211] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:53:52.460979] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 00:53:53.209966] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:53:53.211701] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:53:58.216254] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 00:53:59.012115] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:53:59.014409] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:54:04.019368] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 00:54:04.800677] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:54:04.802510] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:54:09.808620] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 00:54:10.564990] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:54:10.567248] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:54:15.575287] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 00:54:16.371319] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:54:16.373280] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:54:21.378520] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 00:54:22.141847] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:54:22.143967] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:54:27.148147] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 00:54:27.951372] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:54:27.953435] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:54:32.961168] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 00:54:33.694906] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:54:33.696300] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:54:38.701991] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 00:54:39.516231] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 00:54:39.518086] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:54:49.645452] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 01:54:50.456556] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:54:50.458592] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:54:55.465297] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 01:54:56.519496] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:54:56.521544] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:55:01.532088] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 01:55:02.328218] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:55:02.330121] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:55:07.335383] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 01:55:08.095686] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:55:08.098078] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:55:13.104524] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 01:55:13.906691] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:55:13.908459] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:55:18.913968] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 01:55:19.760544] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:55:19.762641] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:55:24.766966] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 01:55:25.569908] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:55:25.571350] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:55:30.577842] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 01:55:31.415686] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:55:31.417741] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:55:36.421881] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 01:55:37.290735] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:55:37.292777] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:55:42.298019] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 01:55:43.105220] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:55:43.107182] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:55:48.112408] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 01:55:48.979583] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:55:48.981567] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:55:53.985778] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 01:55:54.771343] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:55:54.773439] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:55:59.779104] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 01:56:00.575003] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:56:00.577154] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:56:05.581040] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 01:56:06.400247] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:56:06.402429] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:56:11.407237] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 01:56:12.193455] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:56:12.195999] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:56:17.207058] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 01:56:17.966325] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:56:17.968320] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:56:22.973052] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 01:56:23.747853] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:56:23.749322] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:56:28.756484] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 01:56:29.619651] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:56:29.622034] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:56:34.627818] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 01:56:35.453832] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:56:35.456099] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:56:40.460656] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 01:56:41.230595] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:56:41.232594] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:56:46.237053] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 01:56:47.263936] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:56:47.265947] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:56:52.271560] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 01:56:53.106871] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:56:53.108558] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:56:58.113719] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 01:56:58.973113] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:56:58.975267] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:57:03.979660] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 01:57:04.738399] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 01:57:04.740883] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:57:13.326163] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 02:57:14.189822] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:57:14.191760] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:57:19.196820] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 02:57:20.092354] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:57:20.094396] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:57:25.098787] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 02:57:26.056980] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:57:26.059377] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:57:31.066116] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 02:57:31.998188] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:57:32.000321] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:57:37.004541] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 02:57:37.895005] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:57:37.896904] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:57:42.902632] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 02:57:43.745741] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:57:43.747901] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:57:48.752040] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 02:57:49.640568] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:57:49.642746] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:57:54.646547] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 02:57:55.603312] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:57:55.605480] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:58:00.610296] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 02:58:01.550447] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:58:01.552330] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:58:06.557167] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 02:58:07.333616] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:58:07.335613] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:58:12.340546] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 02:58:13.133471] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:58:13.135671] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:58:18.141159] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 02:58:18.986594] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:58:18.988682] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:58:23.994711] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 02:58:24.787887] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:58:24.789942] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:58:29.793668] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 02:58:30.544727] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:58:30.546847] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:58:35.550547] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 02:58:36.385267] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:58:36.386629] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:58:41.392637] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 02:58:42.327789] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:58:42.329969] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:58:47.334284] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 02:58:48.093136] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:58:48.094999] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:58:53.107532] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 02:58:53.851275] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:58:53.853365] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:58:58.857622] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 02:58:59.787074] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:58:59.789192] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:59:04.795152] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 02:59:05.562182] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:59:05.564722] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:59:10.577797] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 02:59:11.370422] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:59:11.372551] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:59:16.376797] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 02:59:17.229393] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:59:17.231407] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:59:22.235598] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 02:59:23.102617] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:59:23.104692] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:59:28.108477] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 02:59:28.918082] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 02:59:28.920646] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 03:59:38.767397] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 03:59:39.545022] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 03:59:39.547827] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 03:59:44.551875] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 03:59:45.395304] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 03:59:45.397429] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 03:59:50.401720] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 03:59:51.194016] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 03:59:51.196239] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 03:59:56.202552] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 03:59:57.023132] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 03:59:57.025273] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:00:02.031103] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 04:00:02.798645] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:00:02.800715] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:00:07.804910] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 04:00:08.609974] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:00:08.612015] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:00:13.619637] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 04:00:14.379281] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:00:14.381345] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:00:19.385288] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 04:00:20.138364] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:00:20.140560] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:00:25.145358] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 04:00:26.060157] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:00:26.062586] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:00:31.068354] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 04:00:31.977267] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:00:31.979341] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:00:36.983136] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 04:00:37.844630] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:00:37.846707] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:00:42.852714] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 04:00:43.687654] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:00:43.689895] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:00:48.694005] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 04:00:49.553492] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:00:49.555645] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:00:54.559762] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 04:00:55.455127] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:00:55.457574] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:01:00.461617] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 04:01:01.281716] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:01:01.283907] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:01:06.291241] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 04:01:07.070433] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:01:07.072214] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:01:12.077730] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 04:01:12.895256] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:01:12.897479] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:01:17.909272] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 04:01:18.679580] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:01:18.681676] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:01:23.685925] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 04:01:24.531281] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:01:24.533346] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:01:29.537466] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 04:01:30.285027] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:01:30.287040] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:01:35.291223] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 04:01:36.102256] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:01:36.104492] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:01:41.109355] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 04:01:41.896457] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:01:41.898362] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:01:46.902084] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 04:01:47.711023] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:01:47.713478] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:01:52.719550] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.0-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-15 04:01:53.464081] [Gemini] ❌ [Gemini Text] Failed: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
+[2026-06-15 04:01:53.466315] [Gemini] ❌ [Gemini Text] Exception: Gemini API 오류: This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.
