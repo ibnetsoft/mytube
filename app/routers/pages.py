@@ -132,7 +132,9 @@ async def page_settings(request: Request):
     from services.auth_service import auth_service
     import datetime
     # [FORCE SYNC] Fetch latest metadata from SaaS before rendering
-    auth_service.verify_license()
+    verify_result = auth_service.verify_license()
+    if hasattr(verify_result, "__await__") or hasattr(verify_result, "cr_await"):
+        await verify_result
     
     return _templates.TemplateResponse(
         request=request,

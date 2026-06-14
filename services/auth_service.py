@@ -9,6 +9,7 @@ from datetime import datetime
 class AuthService:
     def __init__(self):
         self.license_file = "license.key"
+        self.key_file = self.license_file
         # [FORCE] 실서비스(Vercel) 주소를 기본으로 사용 (로컬 개발 시에도 실서버 잔액 확인을 위함)
         custom_url = os.getenv("DASHBOARD_URL")
         base_url = custom_url if custom_url else "https://mytube-ashy-seven.vercel.app"
