@@ -238,6 +238,7 @@
             <textarea id="geminiStylePrompt"></textarea>
         </div>
 
+        {% if not is_standard_member %}
         <!-- Image Styles Tab -->
         <div id="tab-content-image-styles" class="tab-content">
             <div class="card p-3 shadow-sm border border-gray-200 dark:border-gray-700">
@@ -646,6 +647,7 @@
             </div>
         </div>
         <!-- End Video AI Engine Tab -->
+        {% endif %}
 
     </div>
 </div>
@@ -2306,6 +2308,25 @@
                 drive_path_ja: safeVal('drivePathJa'),
                 drive_active_lang: safeVal('driveActiveLang')
             };
+
+            if (IS_STANDARD_MEMBER) {
+                Object.keys(settings).forEach((key) => {
+                    if (![
+                        'app_mode',
+                        'user_name',
+                        'user_nationality',
+                        'user_phone',
+                        'user_email',
+                        'use_external_render',
+                        'drive_path_ko',
+                        'drive_path_en',
+                        'drive_path_ja',
+                        'drive_active_lang'
+                    ].includes(key)) {
+                        delete settings[key];
+                    }
+                });
+            }
 
             const res = await fetch('/api/settings', {
                 method: 'POST',

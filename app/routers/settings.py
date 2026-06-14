@@ -13,6 +13,51 @@ from app.modes import DEFAULT_APP_MODE, normalize_app_mode
 
 router = APIRouter(prefix="/api/settings", tags=["Settings"])
 
+
+STANDARD_MEMBERSHIPS = {"std", "standard"}
+
+
+def _is_standard_member() -> bool:
+    try:
+        from services.auth_service import auth_service
+        return (auth_service.get_membership() or "std").lower() in STANDARD_MEMBERSHIPS
+    except Exception:
+        return True
+
+
+def _require_advanced_settings_access():
+    if _is_standard_member():
+        raise HTTPException(status_code=403, detail="Standard mode can only access basic settings.")
+
+
+ADVANCED_GLOBAL_SETTING_FIELDS = {
+    "gemini_tts",
+    "script_styles",
+    "webtoon_auto_split",
+    "webtoon_smart_pan",
+    "webtoon_convert_zoom",
+    "webtoon_plan_prompt",
+    "webtoon_vertical_prompt",
+    "webtoon_horizontal_prompt",
+    "webtoon_motion_pan",
+    "webtoon_motion_zoom",
+    "webtoon_motion_action",
+    "video_engine",
+    "veo_model_version",
+    "blog_client_id",
+    "blog_client_secret",
+    "blog_id",
+    "wp_url",
+    "wp_username",
+    "wp_password",
+    "youtube_api_key",
+    "gemini_api_key",
+    "elevenlabs_api_key",
+    "pexels_api_key",
+    "replicate_api_token",
+    "openai_api_key",
+}
+
 class GlobalSettings(BaseModel):
     app_mode: Optional[str] = None
     gemini_tts: Optional[Dict[str, Any]] = None
@@ -162,6 +207,14 @@ async def get_global_settings_api():
 @router.post("")
 async def save_global_settings_api(settings: GlobalSettings):
     """글로벌 설정 저장"""
+    if _is_standard_member():
+        sent_advanced = [
+            key for key in ADVANCED_GLOBAL_SETTING_FIELDS
+            if getattr(settings, key, None) is not None
+        ]
+        if sent_advanced:
+            raise HTTPException(status_code=403, detail="Standard mode can only save basic settings.")
+
     # 이전 모드 저장 (모드 변경 감지용)
     previous_mode = normalize_app_mode(db.get_global_setting("app_mode", DEFAULT_APP_MODE))
     
@@ -369,6 +422,7 @@ async def get_style_presets_api(mode: Optional[str] = None):
 
 @router.post("/style-presets")
 async def save_style_preset_api(preset: StylePreset):
+    _require_advanced_settings_access()
     """이미지 스타일 프리셋 저장"""
     db.save_style_preset(preset.style_key, preset.prompt_value, preset.image_url,
                          preset.gemini_instruction, preset.mode)
@@ -380,6 +434,7 @@ async def save_custom_style_preset(
     prompt_value: str = Form(...),
     file: UploadFile = File(None)
 ):
+    _require_advanced_settings_access()
     """커스텀 스타일 저장 (이미지 포함)"""
     image_url = None
     if file:
@@ -406,6 +461,7 @@ async def analyze_style_image(
     style_file: Optional[UploadFile] = File(None),
     char_file: Optional[UploadFile] = File(None)
 ):
+    _require_advanced_settings_access()
     """화풍 및 캐릭터 레퍼런스 이미지 통합 분석 (Settings 전용)"""
     from services.auth_service import auth_service
     if not auth_service.check_credits(500):
@@ -459,6 +515,7 @@ async def analyze_style_image(
 
 @router.delete("/style-presets/{style_key}")
 async def delete_style_preset(style_key: str):
+    _require_advanced_settings_access()
     """스타일 프리셋 삭제 (커스텀)"""
     conn = db.get_db()
     cursor = conn.cursor()
@@ -474,6 +531,7 @@ async def delete_style_preset(style_key: str):
 
 @router.post("/sync-presets")
 async def sync_presets_from_supabase():
+    _require_advanced_settings_access()
     """Supabase style_presets 테이블로부터 최신 프리셋 데이터를 로컬 SQLite에 동기화"""
     import requests
     supabase_url = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
@@ -597,6 +655,7 @@ async def get_script_style_presets_api(detailed: Optional[bool] = None):
 
 @router.post("/script-style-presets")
 async def save_script_style_preset_api(preset: StylePreset):
+    _require_advanced_settings_access()
     """대본 스타일 프리셋 저장"""
     db.save_script_style_preset(preset.style_key, preset.prompt_value)
     return {"status": "ok"}
@@ -633,6 +692,7 @@ async def get_thumbnail_style_presets_api():
 
 @router.post("/thumbnail-style-presets")
 async def save_thumbnail_style_preset_api(preset: StylePreset):
+    _require_advanced_settings_access()
     """썸네일 스타일 프리셋 저장"""
     # If preset.image_url is None, db layer will preserve existing if any
     db.save_thumbnail_style_preset(preset.style_key, preset.prompt_value, preset.image_url)
@@ -644,6 +704,7 @@ async def add_custom_thumbnail_style_preset(
     prompt_value: str = Form(...),
     file: UploadFile = File(...)
 ):
+    _require_advanced_settings_access()
     """커스텀 썸네일 스타일 추가 (이미지 포함)"""
     try:
         # Validate file
@@ -679,6 +740,7 @@ async def add_custom_thumbnail_style_preset(
 
 @router.delete("/thumbnail-style-presets/{style_key}")
 async def delete_thumbnail_style_preset(style_key: str):
+    _require_advanced_settings_access()
     """썸네일 스타일 프리셋 삭제"""
     try:
         conn = db.get_db()
@@ -734,6 +796,7 @@ async def get_autopilot_settings():
 
 @router.post("/autopilot")
 async def save_autopilot_settings(settings: Dict[str, Any] = Body(...)):
+    _require_advanced_settings_access()
     """오토파일럿 설정 저장"""
     try:
         db.save_project_settings(1, settings)
@@ -761,6 +824,7 @@ async def get_webtoon_rules_api():
 
 @router.post("/webtoon-rules")
 async def add_webtoon_rule_api(req: WebtoonRuleAdd):
+    _require_advanced_settings_access()
     try:
         db.save_webtoon_rule(req.condition_type, req.condition_value, req.action_type, req.description)
         return {"status": "success"}
@@ -769,6 +833,7 @@ async def add_webtoon_rule_api(req: WebtoonRuleAdd):
 
 @router.delete("/webtoon-rules/{rule_id}")
 async def delete_webtoon_rule_api(rule_id: int):
+    _require_advanced_settings_access()
     try:
         db.delete_webtoon_rule(rule_id)
         return {"status": "success"}
@@ -780,6 +845,7 @@ async def crop_grid_image(
     file: UploadFile = File(...),
     panel: int = Form(...) # 1: Top-Left, 2: Top-Right, 3: Bottom-Left, 4: Bottom-Right
 ):
+    _require_advanced_settings_access()
     """2x2 격자판 이미지에서 지정된 패널 영역을 자동으로 Crop하여 반환"""
     try:
         from PIL import Image
