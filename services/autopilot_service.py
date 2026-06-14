@@ -525,7 +525,7 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
         # request = type('obj', (object,), {"prompt": prompt, "temperature": 0.8})
         # [SDK Autopilot Recovery Hook]
         script = None
-        for model_name in ["gemini-3.1-pro-preview", "gemini-2.0-flash"]:
+        for model_name in ["gemini-2.5-flash"]:
             try:
                 print(f"📄 [Auto-Pilot] Generating script with model={model_name}...")
                 script = await gemini_service.generate_text(prompt, temperature=0.8, project_id=project_id, task_type="scripting", model=model_name)

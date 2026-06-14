@@ -22,6 +22,13 @@ from google import genai
 from google.genai import types
 
 
+DEFAULT_TEXT_MODEL = "gemini-2.5-flash"
+LEGACY_TEXT_MODEL_ALIASES = {
+    "gemini-2.0-flash": DEFAULT_TEXT_MODEL,
+    "gemini-3.1-pro-preview": DEFAULT_TEXT_MODEL,
+}
+
+
 class GeminiService:
     def __init__(self):
         self.base_url = "https://generativelanguage.googleapis.com/v1beta"
@@ -94,10 +101,11 @@ class GeminiService:
         
         return text.strip().strip(',').strip()
 
-    async def generate_text(self, prompt: str, temperature: float = 0.7, max_tokens: int = 8192, project_id: int = None, task_type: str = "text_gen", model: str = "gemini-3.1-pro-preview") -> str:
+    async def generate_text(self, prompt: str, temperature: float = 0.7, max_tokens: int = 8192, project_id: int = None, task_type: str = "text_gen", model: str = DEFAULT_TEXT_MODEL) -> str:
         """텍스트 생성"""
         if not self.api_key:
             raise Exception("Gemini API 키가 설정되지 않았습니다. 어드민 웹에서 키를 저장한 후 앱을 재시작하세요.")
+        model = LEGACY_TEXT_MODEL_ALIASES.get(model, model or DEFAULT_TEXT_MODEL)
         url = f"{self.base_url}/models/{model}:generateContent?key={self.api_key}"
 
         payload = {
@@ -540,7 +548,7 @@ class GeminiService:
         # --- IMAGE GENERATION PIPELINE ---
         models_to_try = [
             model if model else "gemini-3.1-flash-image-preview",
-            "gemini-3.1-pro-preview"
+            "gemini-3.1-flash-image-preview"
         ]
 
         last_error = "No models tried"
@@ -829,11 +837,11 @@ class GeminiService:
                     return res
                 except Exception:
                     pass
-            db.add_ai_log(None, 'script', 'gemini-3.1-pro-preview', 'google', 'failed', prompt_summary=topic_keyword, error_msg="JSON parse failed", elapsed_time=elapsed)
+            db.add_ai_log(None, 'script', DEFAULT_TEXT_MODEL, 'google', 'failed', prompt_summary=topic_keyword, error_msg="JSON parse failed", elapsed_time=elapsed)
             return {"error": "구조 생성 실패", "raw": text}
         except Exception as e:
             elapsed = _time.time() - start_time
-            db.add_ai_log(None, 'script', 'gemini-3.1-pro-preview', 'google', 'failed', prompt_summary=topic_keyword, error_msg=str(e), elapsed_time=elapsed)
+            db.add_ai_log(None, 'script', DEFAULT_TEXT_MODEL, 'google', 'failed', prompt_summary=topic_keyword, error_msg=str(e), elapsed_time=elapsed)
             print(f"Script Structure Gen Error: {e}")
             return {"error": f"구조 생성 실패: {str(e)}"}
     async def generate_nursery_rhyme_ideas(self) -> List[dict]:
@@ -1012,7 +1020,7 @@ class GeminiService:
         )
         
         try:
-            text = await self.generate_text(prompt, temperature=0.9, model="gemini-3.1-pro-preview")
+            text = await self.generate_text(prompt, temperature=0.9, model=DEFAULT_TEXT_MODEL)
             
             import json
             import re
@@ -2584,7 +2592,7 @@ Motion prompt for this image:"""
         
         return {"error": "대본 생성 실패", "raw": text}
 
-    async def create_batch_job(self, input_file_path: str, model: str = "gemini-3.1-pro-preview", display_name: str = "batch-job") -> dict:
+    async def create_batch_job(self, input_file_path: str, model: str = DEFAULT_TEXT_MODEL, display_name: str = "batch-job") -> dict:
         """
         [새로운 기능] Gemini Batch API - 대규모 백그라운드 처리를 위한 일괄 작업 예약 (비용 50% 절감)
         JSONL 파일을 업로드하고 비동기 배치 작업을 생성합니다.

@@ -299,8 +299,13 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 async def startup_event():
     """앱 시작 시 실행 (DB 초기화 및 마이그레이션)"""
     try:
-        # Verify License & Membership
-        auth_service.verify_license()
+        from config import Config
+
+        # Load web-admin API keys first, then verify user-specific overrides.
+        Config.load_remote_keys_from_supabase()
+        verify_result = auth_service.verify_license()
+        if hasattr(verify_result, "__await__") or hasattr(verify_result, "cr_await"):
+            await verify_result
 
         db.init_db()
         db.migrate_db()

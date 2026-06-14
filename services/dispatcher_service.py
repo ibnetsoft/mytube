@@ -133,7 +133,7 @@ class DispatcherService:
                 import asyncio
                 for attempt in range(3):
                     try:
-                        response_text = asyncio.run(gemini_service.generate_text(prompt, model="gemini-2.0-flash", temperature=0.7))
+                        response_text = asyncio.run(gemini_service.generate_text(prompt, model="gemini-2.5-flash", temperature=0.7))
                         import json as _json
                         # clean json wrapper
                         cleaned = response_text.replace("```json", "").replace("```", "").strip()

@@ -329,7 +329,7 @@ async def generate_thumbnail_background(req: ThumbnailBackgroundRequest):
         raise HTTPException(400, "Gemini API 키가 설정되지 않았습니다")
 
     try:
-        # 1. gemini-2.0-flash로 배경 이미지 생성
+        # 1. Gemini로 배경 이미지 생성
         clean_prompt = req.prompt
         
         # [NEW] Style Inheritance architecture
@@ -404,7 +404,7 @@ async def generate_thumbnail_background(req: ThumbnailBackgroundRequest):
             f"High quality, 8k, YouTube thumbnail background, no watermark. DO NOT INCLUDE: {negative_constraints}."
         )
 
-        # 이미지 생성 (전략: gemini_service (gemini-2.0-flash))
+        # 이미지 생성 (전략: gemini_service)
         images_bytes = None
         
         try:
@@ -868,7 +868,7 @@ async def generate_character_image(
         # 이미지 생성 (전략: Gemini (Primary) -> Replicate Fallback)
         images_bytes = None
         
-        # 1차 시도: Gemini (gemini-2.0-flash)
+        # 1차 시도: Gemini
         try:
             print(f"🎨 [Char Generation] Attempting Gemini (Primary)...")
             images_bytes = await gemini_service.generate_image(
