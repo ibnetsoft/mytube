@@ -25,7 +25,7 @@
     <div class="mb-4 border-b border-gray-200 dark:border-gray-700">
         <div class="flex space-x-1 overflow-x-auto custom-scrollbar">
             <button onclick="switchTab('api')" id="tab-api" class="tab-button active">
-                🎫 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Thông tin cấp phép{% else %}라이선스 정보{% endif %}
+                🎫 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Cấu hình cơ bản{% else %}기본 설정{% endif %}
             </button>
             <button onclick="switchTab('content')" id="tab-content" class="tab-button">
                 {{ t('nav_content_settings') }}
@@ -51,7 +51,7 @@
 
     <!-- Tab Content Container -->
     <div id="settings-content">
-        <!-- API Settings Tab (Now License Info) -->
+        <!-- API Settings Tab (Now License Info / Basic Settings) -->
         <div id="tab-content-api" class="tab-content active">
             <div class="max-w-4xl mx-auto space-y-6 py-4">
                 <div class="card p-6 shadow-lg border border-gray-200 dark:border-white/5 bg-[#1c2027]">
@@ -61,10 +61,10 @@
                         </div>
                         <div>
                             <h3 class="font-black text-lg text-gray-800 dark:text-gray-100">
-                                {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Thông tin Cấp phép & Dịch vụ{% else %}라이선스 및 서비스 정보{% endif %}
+                                {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Cấu hình cơ bản & Cấp phép{% else %}기본 설정 및 라이선스 정보{% endif %}
                             </h3>
                             <p class="text-xs text-gray-400">
-                                {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Kiểm tra mã cấp phép đã đăng ký và thông tin tài khoản.{% else %}등록된 라이선스 키와 계정 정보를 확인합니다.{% endif %}
+                                {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Kiểm tra thông tin tài khoản, cấu hình nền tảng và mã cấp phép.{% else %}계정 정보, 플랫폼 모드 설정 및 등록된 라이선스 키를 확인합니다.{% endif %}
                             </p>
                         </div>
                     </div>
@@ -99,6 +99,39 @@
                                 <span class="text-[10px] text-gray-400 ml-auto">
                                     {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Đang đăng ký{% else %}구독 중{% endif %}
                                 </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Platform Mode (Relocated to Basic Settings) -->
+                    <div class="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
+                        <h4 class="text-sm font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
+                            💻 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Chế độ nền tảng{% else %}플랫폼 모드 설정{% endif %}
+                        </h4>
+                        <div class="mb-5 pb-2">
+                            <input type="hidden" id="appMode" value="longform">
+                            <div class="flex bg-[#1c2027] rounded-lg p-1 w-fit">
+                                <button id="btnModeLong" onclick="setAppMode('longform')"
+                                    class="px-4 py-1.5 rounded-md text-xs font-bold transition-all bg-[#1c2027] dark:bg-gray-600 shadow text-gray-800 dark:text-white">
+                                    {{ t('btnModeLong') }}
+                                </button>
+                                <button id="btnModeShort" onclick="setAppMode('shorts')"
+                                    class="px-4 py-1.5 rounded-md text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+                                    {{ t('btnModeShort') }}
+                                </button>
+
+                                <button id="btnModeCommerce" onclick="setAppMode('commerce')"
+                                    class="px-4 py-1.5 rounded-md text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+                                    {{ t('btnModeCommerce') }}
+                                </button>
+                            </div>
+                            <div class="mt-2 space-y-1">
+                                <p class="text-[10px] text-gray-500 dark:text-gray-400">
+                                    * 모드를 변경하면 메뉴 구성과 영상 생성 설정이 해당 포맷에 최적화됩니다.
+                                </p>
+                                <p class="text-[10px] text-orange-600 dark:text-orange-400 font-medium">
+                                    {{ t('warn_mode_switch') }}
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -205,7 +238,8 @@
                         {{ t('title_content_gen_settings') }}
                     </h3>
 
-                    <!-- Channel Info Sub-Banner (Relocated) -->
+                    <!-- Channel Info Sub-Banner (Relocated) - Visible only for PRO membership -->
+                    {% if membership and membership.lower() == 'pro' %}
                     <div class="mb-6 p-3 rounded-xl border {% if youtube_channel %}border-blue-100 dark:border-blue-900/30 bg-[#1c2027] dark:bg-[#1c2027]{% else %}border-dashed border-gray-200 dark:border-gray-700 bg-[#1c2027]/50 bg-[#1c2027]{% endif %} flex items-center justify-between transition-all">
                         <div class="flex items-center gap-3">
                             <div class="w-8 h-8 rounded-full {% if youtube_channel %}bg-red-500 text-white shadow-lg shadow-red-500/20{% else %}bg-gray-200 bg-[#1c2027]/50 text-gray-400{% endif %} flex items-center justify-center">
@@ -231,36 +265,7 @@
                             {% endif %}
                         </div>
                     </div>
-
-                    <!-- Platform Mode -->
-                    <div class="mb-5 border-b border-gray-100 dark:border-gray-700 pb-4">
-                        <label class="text-xs font-bold text-gray-700 dark:text-white mb-2 block">{{ t('label_platform_mode') }}</label>
-                        <input type="hidden" id="appMode" value="longform">
-                        <div class="flex bg-[#1c2027] rounded-lg p-1 w-fit">
-                            <button id="btnModeLong" onclick="setAppMode('longform')"
-                                class="px-4 py-1.5 rounded-md text-xs font-bold transition-all bg-[#1c2027] dark:bg-gray-600 shadow text-gray-800 dark:text-white">
-                                {{ t('btnModeLong') }}
-                            </button>
-                            <button id="btnModeShort" onclick="setAppMode('shorts')"
-                                class="px-4 py-1.5 rounded-md text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
-                                {{ t('btnModeShort') }}
-                            </button>
-
-                            <button id="btnModeCommerce" onclick="setAppMode('commerce')"
-                                class="px-4 py-1.5 rounded-md text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
-                                {{ t('btnModeCommerce') }}
-                            </button>
-                        </div>
-                        <div class="mt-2 space-y-1">
-                            <p class="text-[10px] text-gray-500 dark:text-gray-400">
-                                * 모드를 변경하면 메뉴 구성과 영상 생성 설정이 해당 포맷에 최적화됩니다.
-                            </p>
-                            <p class="text-[10px] text-orange-600 dark:text-orange-400 font-medium">
-                                {{ t('warn_mode_switch') }}
-                            </p>
-                        </div>
-                    </div>
-
+                    {% endif %}
 
                     <!-- Hidden Gemini Voice Settings to avoid JS breakage -->
                     <div class="hidden">
