@@ -121,7 +121,13 @@ class AuthService:
 
         try:
             with open(self.license_file, "r") as f:
-                user_id = f.read().strip()
+                license_value = f.read().strip()
+
+            from services.web_admin_client import web_admin_client
+            user_id = web_admin_client.resolve_user_id(
+                email=self._user_email,
+                candidate=license_value,
+            )
 
             if not user_id:
                 return False
@@ -266,54 +272,20 @@ class AuthService:
 
         # Supabase에서 사용자 프로필 정보 동기화
         try:
-            supabase_url = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
-            supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-            if supabase_url and supabase_key:
-                headers = {
-                    "apikey": supabase_key,
-                    "Authorization": f"Bearer {supabase_key}"
-                }
-                # Suppress insecure request warnings
-                import urllib3
-                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-                
-                url = f"{supabase_url.rstrip('/')}/rest/v1/profiles?email=eq.{email}&select=*"
-                response = requests.get(url, headers=headers, timeout=5, verify=False, proxies={"http": None, "https": None})
-                if response.status_code == 200:
-                    data = response.json()
-                    if data:
-                        profile = data[0]
-                        self._membership = profile.get("membership", "std")
-                        self._token_balance = profile.get("token_balance", 0)
-                        self._verified = True
-                        print(f"[Auth] Logged in user {email}. Membership: {self._membership}, Balance: {self._token_balance}")
-                        
-                        # Supabase 원격 전역 API 키 조회 및 로드
-                        try:
-                            settings_url = f"{supabase_url.rstrip('/')}/rest/v1/global_settings?select=key,value"
-                            settings_response = requests.get(settings_url, headers=headers, timeout=5, verify=False, proxies={"http": None, "https": None})
-                            if settings_response.status_code == 200:
-                                settings_data = settings_response.json()
-                                sys_keys = {}
-                                key_map = {
-                                    "sys_api_gemini": "GEMINI_API_KEY",
-                                    "sys_api_youtube": "YOUTUBE_API_KEY",
-                                    "sys_api_elevenlabs": "ELEVENLABS_API_KEY",
-                                    "sys_api_topview": "TOPVIEW_API_KEY",
-                                    "sys_api_topview_uid": "TOPVIEW_UID"
-                                }
-                                for item in settings_data:
-                                    k = item.get("key")
-                                    v = item.get("value")
-                                    if k in key_map and v:
-                                        sys_keys[key_map[k]] = v
-                                
-                                if sys_keys:
-                                    from config import config
-                                    config.load_remote_keys(sys_keys)
-                                    print(f"[Auth] Loaded global API keys from Supabase: {list(sys_keys.keys())}")
-                        except Exception as sys_err:
-                            print(f"[Auth] Failed to load global API keys from Supabase: {sys_err}")
+            from services.web_admin_client import web_admin_client
+
+            profile = web_admin_client.fetch_profile_by_email(email)
+            if profile:
+                self._membership = profile.get("membership", "std")
+                self._token_balance = profile.get("token_balance", 0)
+                self._verified = True
+                print(f"[Auth] Logged in user {email}. Membership: {self._membership}, Balance: {self._token_balance}")
+
+            sys_keys = web_admin_client.fetch_global_api_keys()
+            if sys_keys:
+                from config import config
+                config.load_remote_keys(sys_keys)
+                print(f"[Auth] Loaded global API keys from Supabase: {list(sys_keys.keys())}")
         except Exception as e:
             print(f"[Auth] Failed to sync user profile from Supabase on login: {e}")
 

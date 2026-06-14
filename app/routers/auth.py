@@ -8,6 +8,7 @@ from pydantic import BaseModel
 import database as db
 from services.app_state import get_templates
 from services.auth_service import auth_service
+from services.web_admin_client import web_admin_client
 
 
 router = APIRouter(tags=["Auth"])
@@ -53,17 +54,9 @@ async def get_login_page(request: Request):
 @router.get("/api/auth/emails")
 async def get_auth_emails():
     try:
-        supabase_url, headers = _supabase_headers()
-        if not supabase_url:
-            return {"emails": []}
-
-        _disable_insecure_warnings()
-        url = f"{supabase_url}/rest/v1/profiles?select=email"
-        r = requests.get(url, headers=headers, timeout=5, verify=False, proxies={"http": None, "https": None})
-        if r.status_code == 200:
-            emails = [item["email"] for item in r.json() if item.get("email")]
-            return {"emails": emails}
-        return {"emails": []}
+        profiles = web_admin_client.fetch_profiles(select="email")
+        emails = [item["email"] for item in profiles if item.get("email")]
+        return {"emails": emails}
     except Exception as e:
         print(f"[API] Failed to fetch emails: {e}")
         return {"emails": []}
@@ -72,37 +65,28 @@ async def get_auth_emails():
 @router.post("/api/auth/login")
 async def post_auth_login(req: LoginRequest):
     try:
-        supabase_url, headers = _supabase_headers()
-        if not supabase_url:
+        if not web_admin_client.has_supabase():
             return {"success": False, "error": "서버 DB 연동 설정이 누락되었습니다."}
 
-        _disable_insecure_warnings()
-        url = f"{supabase_url}/rest/v1/profiles?email=eq.{req.email}&select=*"
-        r = requests.get(url, headers=headers, timeout=5, verify=False, proxies={"http": None, "https": None})
+        profile = web_admin_client.fetch_profile_by_email(req.email)
+        if profile:
+            db_pin = str(profile.get("pin_code") or "").strip()
+            input_pin = str(req.pin_code).strip()
 
-        if r.status_code == 200:
-            data = r.json()
-            if data:
-                profile = data[0]
-                db_pin = str(profile.get("pin_code") or "").strip()
-                input_pin = str(req.pin_code).strip()
+            if db_pin == input_pin:
+                auth_service.login_user(req.email)
+                response = JSONResponse({"success": True})
+                response.set_cookie(
+                    key="user_email",
+                    value=req.email,
+                    max_age=30 * 24 * 60 * 60,
+                    httponly=False,
+                )
+                return response
 
-                if db_pin == input_pin:
-                    auth_service.login_user(req.email)
-                    response = JSONResponse({"success": True})
-                    response.set_cookie(
-                        key="user_email",
-                        value=req.email,
-                        max_age=30 * 24 * 60 * 60,
-                        httponly=False,
-                    )
-                    return response
+            return {"success": False, "error": "PIN 번호가 일치하지 않습니다."}
 
-                return {"success": False, "error": "PIN 번호가 일치하지 않습니다."}
-
-            return {"success": False, "error": "등록되지 않은 직원 이메일입니다."}
-
-        return {"success": False, "error": f"Supabase 연동 실패 (HTTP {r.status_code})"}
+        return {"success": False, "error": "등록되지 않은 직원 이메일입니다."}
     except Exception as e:
         return {"success": False, "error": f"로그인 오류: {str(e)}"}
 
@@ -120,29 +104,22 @@ async def sync_auth():
     try:
         email = auth_service.get_user_email()
         if email:
-            supabase_url, headers = _supabase_headers()
-            if supabase_url:
-                _disable_insecure_warnings()
-                url = f"{supabase_url}/rest/v1/profiles?email=eq.{email}&select=*"
-                r = requests.get(url, headers=headers, timeout=5, verify=False, proxies={"http": None, "https": None})
-                if r.status_code == 200:
-                    data = r.json()
-                    if data:
-                        profile = data[0]
-                        auth_service._membership = profile.get("membership", "std")
-                        auth_service._token_balance = profile.get("token_balance", 0)
+            profile = web_admin_client.fetch_profile_by_email(email)
+            if profile:
+                auth_service._membership = profile.get("membership", "std")
+                auth_service._token_balance = profile.get("token_balance", 0)
 
-                        templates = get_templates()
-                        if templates:
-                            templates.env.globals["membership"] = auth_service._membership
-                            templates.env.globals["token_balance"] = auth_service._token_balance
-                            templates.env.globals["is_independent"] = auth_service.is_independent()
+                templates = get_templates()
+                if templates:
+                    templates.env.globals["membership"] = auth_service._membership
+                    templates.env.globals["token_balance"] = auth_service._token_balance
+                    templates.env.globals["is_independent"] = auth_service.is_independent()
 
-                        return {
-                            "success": True,
-                            "membership": auth_service.get_membership(),
-                            "token_balance": auth_service.get_token_balance(),
-                        }
+                return {
+                    "success": True,
+                    "membership": auth_service.get_membership(),
+                    "token_balance": auth_service.get_token_balance(),
+                }
 
             return {"success": False, "error": "Supabase 동기화 실패"}
 

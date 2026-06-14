@@ -3,8 +3,8 @@ import os
 import time
 import requests
 import threading
-from config import config
 from services.youtube_upload_service import youtube_upload_service
+from services.web_admin_client import web_admin_client
 import database as db
 
 class AutoPublishService:
@@ -12,13 +12,19 @@ class AutoPublishService:
         self.running = False
         self.thread = None
         self.interval = 60 # Check every 60 seconds
-        self.auth_server_url = "https://mytube-ashy-seven.vercel.app" if not config.DEBUG else "http://localhost:3000"
+        self.auth_server_url = web_admin_client.dashboard_url
 
-    def get_license_key(self):
+    def get_remote_user_id(self):
+        license_value = ""
         if os.path.exists("license.key"):
             with open("license.key", "r") as f:
-                return f.read().strip()
-        return None
+                license_value = f.read().strip()
+        try:
+            from services.auth_service import auth_service
+            email = auth_service.get_user_email()
+        except Exception:
+            email = ""
+        return web_admin_client.resolve_user_id(email=email, candidate=license_value)
 
     def start(self):
         if self.running:
@@ -45,7 +51,7 @@ class AutoPublishService:
         if auth_service.is_restricted():
             return
 
-        user_id = self.get_license_key()
+        user_id = self.get_remote_user_id()
         if not user_id:
             return
 

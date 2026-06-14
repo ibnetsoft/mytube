@@ -122,46 +122,9 @@ class Config:
     @classmethod
     def load_remote_keys_from_supabase(cls):
         """웹어드민 Supabase global_settings의 공용 API 키를 우선 로드합니다."""
-        supabase_url = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
-        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        if not supabase_url or not supabase_key:
-            return []
-
         try:
-            import requests
-            import urllib3
-
-            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-            headers = {
-                "apikey": supabase_key,
-                "Authorization": f"Bearer {supabase_key}",
-            }
-            url = f"{supabase_url.rstrip('/')}/rest/v1/global_settings?select=key,value"
-            response = requests.get(
-                url,
-                headers=headers,
-                timeout=8,
-                verify=False,
-                proxies={"http": None, "https": None},
-            )
-            if response.status_code != 200:
-                print(f"[Config] Supabase API key load failed: HTTP {response.status_code} {response.text[:200]}")
-                return []
-
-            key_map = {
-                "sys_api_gemini": "GEMINI_API_KEY",
-                "sys_api_youtube": "YOUTUBE_API_KEY",
-                "sys_api_elevenlabs": "ELEVENLABS_API_KEY",
-                "sys_api_topview": "TOPVIEW_API_KEY",
-                "sys_api_topview_uid": "TOPVIEW_UID",
-            }
-            keys = {}
-            for item in response.json():
-                config_key = key_map.get(item.get("key"))
-                value = item.get("value")
-                if config_key and value:
-                    keys[config_key] = value
-
+            from services.web_admin_client import web_admin_client
+            keys = web_admin_client.fetch_global_api_keys()
             loaded = cls.load_remote_keys(keys)
             if loaded:
                 print(f"[Config] Loaded API keys from web admin: {loaded}")

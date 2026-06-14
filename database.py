@@ -3241,24 +3241,14 @@ def get_recent_projects(limit: int = 10, employee_email: str = None) -> List[Dic
 
 def resolve_remote_user_id_for_log(project_id=None) -> str:
     """Resolve Supabase Auth UUID for remote log sync using the current user email."""
-    import os as _os
-    import re as _re
-    import requests as _req
     from pathlib import Path
-    from config import config  # Ensures .env is loaded before reading Supabase credentials.
-
-    supabase_url = _os.getenv("NEXT_PUBLIC_SUPABASE_URL")
-    supabase_key = _os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    if not supabase_url or not supabase_key:
-        return ""
+    from services.web_admin_client import web_admin_client
 
     license_value = ""
     try:
         license_path = Path(__file__).parent / "license.key"
         if license_path.exists():
             license_value = license_path.read_text(encoding="utf-8").strip()
-            if _re.fullmatch(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", license_value):
-                return license_value
     except Exception:
         license_value = ""
 
@@ -3277,40 +3267,7 @@ def resolve_remote_user_id_for_log(project_id=None) -> str:
         except Exception:
             email = ""
 
-    if not email and "@" in license_value:
-        email = license_value
-
-    headers = {
-        "apikey": supabase_key,
-        "Authorization": f"Bearer {supabase_key}",
-    }
-
-    try:
-        import urllib3
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-    except Exception:
-        pass
-
-    if email:
-        try:
-            profile_url = f"{supabase_url.rstrip('/')}/rest/v1/profiles"
-            response = _req.get(
-                profile_url,
-                headers=headers,
-                params={"select": "id", "email": f"eq.{email}"},
-                timeout=10,
-                verify=False,
-                proxies={"http": None, "https": None},
-            )
-            if response.status_code == 200 and response.json():
-                user_id = response.json()[0].get("id") or ""
-                if user_id:
-                    return user_id
-            print(f"[Sync] Failed to resolve profile UUID for email {email}: {response.status_code} {response.text[:200]}")
-        except Exception as e:
-            print(f"[Sync] Error resolving profile UUID for email {email}: {e}")
-
-    return ""
+    return web_admin_client.resolve_user_id(email=email, candidate=license_value)
 
 
 def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status: str, prompt_summary: str = "", error_msg: str = "", elapsed_time: float = 0.0, input_tokens: int = 0, output_tokens: int = 0, balance_after: int = None, thinking_tokens: int = 0):

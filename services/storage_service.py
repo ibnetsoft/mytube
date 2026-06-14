@@ -2,12 +2,12 @@
 import os
 import requests
 import logging
+from services.web_admin_client import web_admin_client
 
 class StorageService:
     def __init__(self):
         self.logger = logging.getLogger("StorageService")
-        # [MOD] Use localhost for development if auth-web is running locally
-        self.auth_base_url = "http://localhost:3000" # "https://mytube-ashy-seven.vercel.app"
+        self.auth_base_url = web_admin_client.dashboard_url
 
     def upload_video_to_cloud(self, user_id, local_file_path):
         """
@@ -19,6 +19,16 @@ class StorageService:
             self.logger.error(f"File not found: {local_file_path}")
             return None
 
+        try:
+            from services.auth_service import auth_service
+            email = auth_service.get_user_email()
+        except Exception:
+            email = ""
+        resolved_user_id = web_admin_client.resolve_user_id(email=email, candidate=user_id)
+        if not resolved_user_id:
+            self.logger.error("Could not resolve Supabase user UUID for cloud upload")
+            return None
+
         file_name = os.path.basename(local_file_path)
         
         try:
@@ -27,7 +37,7 @@ class StorageService:
             res = requests.post(
                 f"{self.auth_base_url}/api/publishing/presigned-url",
                 json={
-                    "userId": user_id,
+                    "userId": resolved_user_id,
                     "fileName": file_name
                 },
                 timeout=10
