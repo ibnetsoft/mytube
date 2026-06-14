@@ -88,7 +88,7 @@ export default function DashboardContent() {
     const [loading, setLoading] = useState(true)
     const [users, setUsers] = useState<UserProfile[]>([])
     const [publishingRequests, setPublishingRequests] = useState<PublishingRequest[]>([])
-    const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'api' | 'render-queue'>('topics')
+    const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'api' | 'render-queue' | 'styles'>('topics')
     const [renderQueue, setRenderQueue] = useState<any[]>([])
     const [queueLoading, setQueueLoading] = useState(false)
     const [overviewSubTab, setOverviewSubTab] = useState<'video' | 'log'>('video')
@@ -147,6 +147,19 @@ export default function DashboardContent() {
     })
     const [sysKeysSaving, setSysKeysSaving] = useState(false)
     const [sysKeysSaved, setSysKeysSaved] = useState(false)
+
+    // Style Presets state
+    const [stylePresets, setStylePresets] = useState<any[]>([])
+    const [presetsLoading, setPresetsLoading] = useState(false)
+    const [presetId, setPresetId] = useState<string | null>(null)
+    const [presetType, setPresetType] = useState<'image' | 'script' | 'thumbnail'>('image')
+    const [presetKeyCode, setPresetKeyCode] = useState('')
+    const [presetNameKo, setPresetNameKo] = useState('')
+    const [presetNameVi, setPresetNameVi] = useState('')
+    const [presetPromptTemplate, setPresetPromptTemplate] = useState('')
+    const [presetGeminiInstruction, setPresetGeminiInstruction] = useState('')
+    const [presetImageUrl, setPresetImageUrl] = useState('')
+    const [isSavingPreset, setIsSavingPreset] = useState(false)
 
     // Auth & Access
     const isSuperAdmin = user?.email === SUPER_ADMIN_EMAIL;
@@ -506,6 +519,91 @@ export default function DashboardContent() {
         }
     }, [])
 
+    const fetchStylePresets = async () => {
+        try {
+            setPresetsLoading(true)
+            const res = await fetch('/api/admin/style-presets')
+            const data = await res.json()
+            if (data.presets) setStylePresets(data.presets)
+        } catch (e) {
+            console.error("Failed to load style presets:", e)
+        } finally {
+            setPresetsLoading(false)
+        }
+    }
+
+    const handleSavePreset = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!presetType || !presetKeyCode || !presetNameKo || !presetPromptTemplate) {
+            alert('필수 입력 항목을 채워주세요.')
+            return
+        }
+        try {
+            setIsSavingPreset(true)
+            const res = await fetch('/api/admin/style-presets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: presetId || undefined,
+                    preset_type: presetType,
+                    key_code: presetKeyCode.trim().toLowerCase(),
+                    display_name_ko: presetNameKo,
+                    display_name_vi: presetNameVi,
+                    prompt_template: presetPromptTemplate,
+                    gemini_instruction: presetGeminiInstruction,
+                    image_url: presetImageUrl
+                })
+            })
+            const data = await res.json()
+            if (data.success) {
+                alert('스타일 프리셋이 저장되었습니다.')
+                setPresetId(null)
+                setPresetKeyCode('')
+                setPresetNameKo('')
+                setPresetNameVi('')
+                setPresetPromptTemplate('')
+                setPresetGeminiInstruction('')
+                setPresetImageUrl('')
+                fetchStylePresets()
+            } else {
+                alert('저장 실패: ' + (data.error || '알 수 없는 오류'))
+            }
+        } catch (e: any) {
+            alert('저장 오류: ' + e.message)
+        } finally {
+            setIsSavingPreset(false)
+        }
+    }
+
+    const handleEditPreset = (preset: any) => {
+        setPresetId(preset.id)
+        setPresetType(preset.preset_type)
+        setPresetKeyCode(preset.key_code)
+        setPresetNameKo(preset.display_name_ko)
+        setPresetNameVi(preset.display_name_vi || '')
+        setPresetPromptTemplate(preset.prompt_template)
+        setPresetGeminiInstruction(preset.gemini_instruction || '')
+        setPresetImageUrl(preset.image_url || '')
+    }
+
+    const handleDeletePreset = async (id: string, keyCode: string) => {
+        if (!confirm(`"${keyCode}" 스타일 프리셋을 삭제하시겠습니까?`)) return
+        try {
+            const res = await fetch(`/api/admin/style-presets?id=${id}`, {
+                method: 'DELETE'
+            })
+            const data = await res.json()
+            if (data.success) {
+                alert('성공적으로 삭제되었습니다.')
+                fetchStylePresets()
+            } else {
+                alert('삭제 실패: ' + (data.error || '알 수 없는 오류'))
+            }
+        } catch (e: any) {
+            alert('삭제 오류: ' + e.message)
+        }
+    }
+
     const handleCreateCategory = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!newCatName || !newCatEmployee) {
@@ -643,6 +741,7 @@ export default function DashboardContent() {
             fetchSysKeys();
             fetchCategories();
             fetchTopics();
+            fetchStylePresets();
         }
     }, [isAdmin, loading, fetchCategories, fetchTopics]);
 
@@ -790,9 +889,9 @@ export default function DashboardContent() {
                 <div className="flex items-center justify-between">
                     <h2 className="text-4xl font-black uppercase tracking-tighter">관리자 대시보드</h2>
                     <div className="flex gap-2 p-1.5 bg-white/5 rounded-2xl border border-white/5 shadow-2xl">
-                        {['topics', 'overview', 'users', 'api', 'render-queue'].map(tab => (
+                        {['topics', 'overview', 'users', 'api', 'render-queue', 'styles'].map(tab => (
                             <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-10 py-3.5 rounded-xl text-[11px] font-black transition-all uppercase tracking-[0.1em] ${activeTab === tab ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-500 hover:text-white'}`}>
-                                {tab === 'topics' ? '주제배당' : tab === 'overview' ? '개요' : tab === 'users' ? '유저 관리' : tab === 'api' ? '시스템 API' : '🎬 렌더링 큐'}
+                                {tab === 'topics' ? '주제배당' : tab === 'overview' ? '개요' : tab === 'users' ? '유저 관리' : tab === 'api' ? '시스템 API' : tab === 'render-queue' ? '🎬 렌더링 큐' : '🎨 스타일 세팅'}
                             </button>
                         ))}
                     </div>
@@ -1453,6 +1552,202 @@ export default function DashboardContent() {
                                     </table>
                                 </div>
                             )}
+                        </div>
+                    </div>
+                )}
+                {activeTab === 'styles' && (
+                    <div className="space-y-8 animate-in fade-in duration-300">
+                        {/* 1. 스타일 추가/수정 폼 */}
+                        <div className="bg-[#0f172a]/60 rounded-[2.5rem] border border-white/10 p-8 shadow-2xl">
+                            <h2 className="font-black text-xl tracking-tight mb-6 flex items-center gap-2">
+                                🎨 {presetId ? '스타일 프리셋 수정' : '➕ 새 스타일 프리셋 추가'}
+                            </h2>
+                            <form onSubmit={handleSavePreset} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <div>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">스타일 타입 *</label>
+                                    <select
+                                        required
+                                        value={presetType}
+                                        onChange={e => setPresetType(e.target.value as any)}
+                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
+                                    >
+                                        <option value="image">🎨 이미지 스타일 (Image Style)</option>
+                                        <option value="script">📝 대본 스타일 (Script Style)</option>
+                                        <option value="thumbnail">🖼️ 썸네일 스타일 (Thumbnail Style)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">스타일 영문 코드명 * (예: realistic)</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        placeholder="영문 소문자 및 언더바 권장"
+                                        value={presetKeyCode}
+                                        onChange={e => setPresetKeyCode(e.target.value)}
+                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">스타일 한글 표시명 *</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        placeholder="예: 실사영화"
+                                        value={presetNameKo}
+                                        onChange={e => setPresetNameKo(e.target.value)}
+                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">스타일 베트남어 표시명</label>
+                                    <input
+                                        type="text"
+                                        placeholder="예: Điện ảnh thực tế"
+                                        value={presetNameVi}
+                                        onChange={e => setPresetNameVi(e.target.value)}
+                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">프리셋 썸네일 이미지 URL</label>
+                                    <input
+                                        type="text"
+                                        placeholder="https://... 또는 /static/img/... (선택사항)"
+                                        value={presetImageUrl}
+                                        onChange={e => setPresetImageUrl(e.target.value)}
+                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
+                                    />
+                                </div>
+                                <div className="md:col-span-2 lg:col-span-3">
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">프롬프트 템플릿 *</label>
+                                    <textarea
+                                        required
+                                        rows={4}
+                                        placeholder="스타일에 적용할 주요 프롬프트 및 수식어를 적어주세요. 이미지 스타일의 경우 [SUBJECT] 등을 활용할 수 있습니다."
+                                        value={presetPromptTemplate}
+                                        onChange={e => setPresetPromptTemplate(e.target.value)}
+                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-xs"
+                                    />
+                                </div>
+                                <div className="md:col-span-2 lg:col-span-3">
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">AI 추가 지시사항 (Grounded Gemini Instruction - 이미지 스타일 전용)</label>
+                                    <textarea
+                                        rows={3}
+                                        placeholder="예: 절대 텍스트나 말풍선을 넣지 마세요."
+                                        value={presetGeminiInstruction}
+                                        onChange={e => setPresetGeminiInstruction(e.target.value)}
+                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-xs"
+                                    />
+                                </div>
+                                <div className="md:col-span-2 lg:col-span-3 flex justify-end gap-3">
+                                    {presetId && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setPresetId(null)
+                                                setPresetKeyCode('')
+                                                setPresetNameKo('')
+                                                setPresetNameVi('')
+                                                setPresetPromptTemplate('')
+                                                setPresetGeminiInstruction('')
+                                                setPresetImageUrl('')
+                                            }}
+                                            className="px-6 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-black transition-all"
+                                        >
+                                            취소
+                                        </button>
+                                    )}
+                                    <button
+                                        type="submit"
+                                        disabled={isSavingPreset}
+                                        className="px-8 py-3 rounded-xl text-xs font-black bg-blue-600 text-white shadow-lg flex items-center gap-1.5 disabled:opacity-50 hover:bg-blue-500 transition-all"
+                                    >
+                                        {isSavingPreset ? '저장 중...' : '💾 프리셋 저장'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        {/* 2. 스타일 프리셋 리스트 */}
+                        <div className="bg-[#0f172a]/60 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl">
+                            <div className="p-8 border-b border-white/5 bg-white/5 flex justify-between items-center">
+                                <h2 className="font-black text-xl tracking-tight uppercase">스타일 템플릿 카탈로그 목록</h2>
+                                <button
+                                    onClick={fetchStylePresets}
+                                    className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border border-white/10"
+                                >
+                                    🔄 새로고침
+                                </button>
+                            </div>
+                            <div className="p-6">
+                                {presetsLoading ? (
+                                    <div className="text-center text-xs text-gray-500 py-10">프리셋 로딩 중...</div>
+                                ) : (
+                                    <div className="grid grid-cols-1 gap-8">
+                                        {['image', 'script', 'thumbnail'].map(type => {
+                                            const typePresets = stylePresets.filter((p: any) => p.preset_type === type);
+                                            const typeLabel = type === 'image' ? '🎨 이미지 스타일' : type === 'script' ? '📝 대본 스타일' : '🖼️ 썸네일 스타일';
+                                            return (
+                                                <div key={type} className="border border-white/5 rounded-2xl p-6 bg-black/20">
+                                                    <h3 className="text-base font-bold text-gray-300 mb-4">
+                                                        {typeLabel} ({typePresets.length})
+                                                    </h3>
+                                                    {typePresets.length === 0 ? (
+                                                        <p className="text-xs text-gray-600 italic">등록된 스타일 프리셋이 없습니다.</p>
+                                                    ) : (
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                            {typePresets.map((preset: any) => (
+                                                                <div key={preset.id} className="border border-white/5 bg-black/40 p-4 rounded-xl relative group hover:border-white/10 transition-all flex flex-col justify-between">
+                                                                    <div>
+                                                                        <div className="flex justify-between items-start mb-2">
+                                                                            <div>
+                                                                                <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
+                                                                                    {preset.display_name_ko}
+                                                                                    {preset.display_name_vi && (
+                                                                                        <span className="text-[10px] text-gray-500 font-normal">({preset.display_name_vi})</span>
+                                                                                    )}
+                                                                                </h4>
+                                                                                <span className="text-[9px] font-mono text-gray-500 bg-white/5 px-1.5 py-0.5 rounded mt-1 inline-block">code: {preset.key_code}</span>
+                                                                            </div>
+                                                                            <div className="flex gap-1">
+                                                                                <button
+                                                                                    onClick={() => handleEditPreset(preset)}
+                                                                                    className="p-1 hover:bg-white/5 rounded text-blue-400 text-xs"
+                                                                                    title="수정"
+                                                                                >
+                                                                                    ✏️
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => handleDeletePreset(preset.id, preset.key_code)}
+                                                                                    className="p-1 hover:bg-white/5 rounded text-red-500 text-xs"
+                                                                                    title="삭제"
+                                                                                >
+                                                                                    🗑️
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                        {preset.image_url && (
+                                                                            <img src={preset.image_url} alt={preset.display_name_ko} className="w-full h-24 object-cover rounded-lg mb-2.5 border border-white/5 bg-[#111]" />
+                                                                        )}
+                                                                        <p className="text-[10px] text-gray-400 font-mono line-clamp-3 bg-black/50 p-2 rounded border border-white/5">
+                                                                            {preset.prompt_template}
+                                                                        </p>
+                                                                        {preset.gemini_instruction && (
+                                                                            <p className="text-[9px] text-purple-400 font-mono mt-1.5">
+                                                                                💡 Instruction: {preset.gemini_instruction}
+                                                                            </p>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 )}
