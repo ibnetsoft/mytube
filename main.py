@@ -2461,6 +2461,8 @@ class AutoPilotStartRequest(BaseModel):
     product_url: Optional[str] = None
     use_character_analysis: bool = False
     is_queued: bool = False
+    aspect_ratio: Optional[str] = "16:9"
+    longform_music: Optional[Dict[str, Any]] = None
 
 @app.get("/api/settings/subtitle/defaults")
 async def get_subtitle_defaults_api():
@@ -2553,6 +2555,10 @@ async def start_autopilot_api(
         "subtitle_settings": req.subtitle_settings,
         "use_character_analysis": req.use_character_analysis,
         "upload_privacy": req.upload_privacy,
+        "creation_mode": req.creation_mode,
+        "product_url": req.product_url,
+        "aspect_ratio": req.aspect_ratio,
+        "longform_music": req.longform_music,
     }
     
     # Create Project First
@@ -2581,6 +2587,12 @@ async def start_autopilot_api(
          db.update_project_setting(project_id, "video_engine", req.video_engine)
     if req.mode:
          db.update_project_setting(project_id, "app_mode", req.mode)
+    if req.creation_mode:
+         db.update_project_setting(project_id, "creation_mode", req.creation_mode)
+    if req.aspect_ratio:
+         db.update_project_setting(project_id, "aspect_ratio", req.aspect_ratio)
+    if req.longform_music:
+         db.update_project_setting(project_id, "longform_music", req.longform_music)
     
     from services.autopilot_service import autopilot_service
     # Start Task

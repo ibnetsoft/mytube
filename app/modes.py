@@ -32,6 +32,10 @@ def is_longform_family(value: Optional[str]) -> bool:
     }
 
 
+def is_longform_music_mode(value: Optional[str]) -> bool:
+    return normalize_app_mode(value) == AppMode.LONGFORM_MUSIC.value
+
+
 def recover_mode_language_mixup(app_mode: Optional[str], target_language: Optional[str]) -> tuple[str, Optional[str]]:
     """Recover old requests where language and app_mode were accidentally swapped."""
     mode = app_mode or DEFAULT_APP_MODE

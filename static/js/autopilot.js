@@ -261,28 +261,74 @@ function selectStyle(inputId, val) {
 }
 
 // [NEW] Mode Selection
+function isLongformMusicMode(mode) {
+    return mode === 'longform_music';
+}
+
+function isLongformFamilyMode(mode) {
+    return mode === 'longform' || isLongformMusicMode(mode);
+}
+
+function updateModeButtons(activeMode) {
+    document.querySelectorAll('.mode-btn, .mode-btn-header').forEach(btn => {
+        const isActive = btn.dataset.mode === activeMode;
+        btn.classList.toggle('bg-purple-600', isActive);
+        btn.classList.toggle('text-white', isActive);
+        btn.classList.toggle('font-bold', isActive);
+        btn.classList.toggle('text-gray-400', !isActive);
+        btn.classList.toggle('hover:text-white', !isActive);
+    });
+}
+
+function applyLongformMusicDefaults() {
+    const topicInput = document.getElementById('topicInput');
+    if (topicInput && !topicInput.value) {
+        topicInput.placeholder = '예: 비 오는 밤에 듣는 잔잔한 로파이 플레이리스트';
+    }
+
+    const scriptSelect = document.getElementById('scriptStyleSelect');
+    if (scriptSelect) scriptSelect.value = 'bgm';
+
+    const durInput = document.getElementById('targetDuration');
+    if (durInput && (!durInput.value || Number(durInput.value) < 30)) {
+        durInput.value = 60;
+    }
+
+    const sceneInput = document.getElementById('videoSceneCount');
+    if (sceneInput && Number(sceneInput.value || 0) < 1) {
+        sceneInput.value = 1;
+        const sceneLabel = document.getElementById('sceneCountVal');
+        if (sceneLabel) sceneLabel.innerText = `1 ${i18n.unit_scenes}`;
+    }
+
+    const characterCheck = document.getElementById('useCharacterAnalysis');
+    if (characterCheck) characterCheck.checked = false;
+}
+
+function resetTopicPlaceholder() {
+    const topicInput = document.getElementById('topicInput');
+    if (topicInput) {
+        topicInput.placeholder = i18n.placeholder_topic_idea || 'Enter a topic idea';
+    }
+}
+
 function setMode(mode) {
     const input = document.getElementById('appMode');
     if (!input) return;
     input.value = mode;
-    const isLongformMode = mode === 'longform' || mode === 'longform_music';
+    const isLongformMode = isLongformFamilyMode(mode);
+    const isMusicMode = isLongformMusicMode(mode);
 
     // Visual update
-    const btnLong = document.getElementById('modeLongform');
-    const btnShort = document.getElementById('modeShorts');
+    updateModeButtons(mode);
 
     if (isLongformMode) {
-        btnLong.classList.add('bg-purple-600', 'text-white', 'font-bold');
-        btnLong.classList.remove('text-gray-500');
-        btnShort.classList.remove('bg-purple-600', 'text-white', 'font-bold');
-        btnShort.classList.add('text-gray-400');
-        
         setAspectRatio('16:9');
 
         const durLabel = document.querySelector('#targetDuration + span');
         if (durLabel) durLabel.innerText = i18n.unit_min_short;
         const durInput = document.getElementById('targetDuration');
-        if (durInput && durInput.value == 60) durInput.value = 10;
+        if (durInput && !isMusicMode && durInput.value == 60) durInput.value = 10;
 
         const commerceToggle = document.getElementById('commerceModeToggle');
         if (commerceToggle) commerceToggle.classList.add('hidden');
@@ -290,13 +336,14 @@ function setMode(mode) {
         const thumbSection = document.getElementById('thumbnailStyleSection');
         if (thumbSection && _fixedAppMode !== 'shorts') thumbSection.classList.remove('hidden');
         setCreationMode('default');
+        if (isMusicMode) {
+            applyLongformMusicDefaults();
+        } else {
+            resetTopicPlaceholder();
+        }
     } else {
-        btnShort.classList.add('bg-purple-600', 'text-white', 'font-bold');
-        btnLong.classList.add('text-gray-400');
-        btnShort.classList.remove('text-gray-400' , 'hover:text-white');
-        btnShort.classList.add('bg-purple-600', 'text-white', 'font-bold');
-
         setAspectRatio('9:16');
+        resetTopicPlaceholder();
 
         const durLabel = document.querySelector('#targetDuration + span');
         if (durLabel) durLabel.innerText = i18n.unit_sec_short;
@@ -630,14 +677,12 @@ async function loadSavedSettings() {
             if (data.app_mode) {
                 _fixedAppMode = data.app_mode; // 전역 고정 모드 저장
                 setMode(data.app_mode);
-                // 설정된 모드가 고정이면 반대쪽 버튼 숨김
-                const btnLong = document.getElementById('modeLongform');
-                const btnShort = document.getElementById('modeShorts');
-                if ((data.app_mode === 'longform' || data.app_mode === 'longform_music') && btnShort) {
-                    btnShort.style.display = 'none';
-                } else if (data.app_mode === 'shorts' && btnLong) {
-                    btnLong.style.display = 'none';
-                }
+                // 설정된 모드가 고정이면 선택된 모드만 노출
+                document.querySelectorAll('.mode-btn, .mode-btn-header').forEach(btn => {
+                    if (btn.dataset.mode && btn.dataset.mode !== data.app_mode) {
+                        btn.style.display = 'none';
+                    }
+                });
             }
 
 
@@ -965,6 +1010,19 @@ function getAutopilotConfig() {
         aspect_ratio: document.getElementById('aspectRatio')?.value || '16:9',
         use_character_analysis: document.getElementById('useCharacterAnalysis')?.checked || false,
     };
+    if (isLongformMusicMode(config.mode)) {
+        config.creation_mode = 'longform_music';
+        config.script_style = config.script_style || 'bgm';
+        config.use_character_analysis = false;
+        config.all_video = false;
+        config.longform_music = {
+            content_type: 'music_playlist',
+            playlist_duration_seconds: config.duration_seconds,
+            track_count: Math.max(8, Math.round((config.duration_seconds || 3600) / 300)),
+            visual_strategy: 'single_expanded_cover_with_light_motion',
+            metadata_strategy: 'global_music_playlist'
+        };
+    }
     return config;
 }
 

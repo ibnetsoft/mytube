@@ -69,6 +69,7 @@ async def start_autopilot_api(
                     "upload_privacy":    "upload_privacy",
                     "youtube_channel_id":"youtube_channel_id",
                     "shorts_template_preset": "shorts_template_preset",
+                    "longform_music":    "longform_music",
                 }
                 for req_field, preset_key in field_map.items():
                     if preset_key in p_settings:
@@ -120,6 +121,8 @@ async def start_autopilot_api(
         db.update_project_setting(pid, "duration_seconds", req.duration_seconds)
     if req.aspect_ratio:
         db.update_project_setting(pid, "aspect_ratio", req.aspect_ratio)
+    if req.longform_music:
+        db.update_project_setting(pid, "longform_music", req.longform_music)
 
 
     if req.is_queued:

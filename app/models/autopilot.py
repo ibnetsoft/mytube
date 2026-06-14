@@ -28,6 +28,7 @@ class AutoPilotStartRequest(BaseModel):
     char_ethnicity: Optional[str] = "East Asian heritage, Polished porcelain skin"
     is_queued: bool = False
     shorts_template_preset: Optional[str] = ""
+    longform_music: Optional[Dict[str, Any]] = None
 
 
 class AutopilotPresetSave(BaseModel):

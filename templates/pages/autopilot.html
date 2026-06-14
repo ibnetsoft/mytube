@@ -66,11 +66,15 @@
                             <!-- [NEW] Mode Switch - Enhanced Visibility -->
                             <div
                                 class="flex bg-[#1c2027]/90 rounded-xl p-1 border border-purple-500/30 shadow-lg shadow-purple-500/5">
-                                <button type="button" onclick="setMode('longform')"
+                                <button type="button" onclick="setMode('longform')" data-mode="longform"
                                     class="mode-btn-header px-3 py-1.5 text-[10px] rounded-lg bg-purple-600 text-white font-bold transition-all flex items-center gap-1">
                                     📺 {{ t('mode_longform') }}
                                 </button>
-                                <button type="button" onclick="setMode('shorts')"
+                                <button type="button" onclick="setMode('longform_music')" data-mode="longform_music"
+                                    class="mode-btn-header px-3 py-1.5 text-[10px] rounded-lg text-gray-400 hover:text-white transition-all flex items-center gap-1">
+                                    🎵 롱폼뮤직
+                                </button>
+                                <button type="button" onclick="setMode('shorts')" data-mode="shorts"
                                     class="mode-btn-header px-3 py-1.5 text-[10px] rounded-lg text-gray-400 hover:text-white transition-all flex items-center gap-1">
                                     📱 {{ t('mode_shorts') }}
                                 </button>
@@ -92,8 +96,9 @@
                             <div class="bg-[#1c2027]/30 p-2 rounded-xl border border-purple-500/10 min-w-[100px]">
                                 <label class="block text-[9px] font-bold text-gray-500 mb-1 uppercase tracking-tighter">THEME</label>
                                 <div class="flex bg-[#1c2027]/50 rounded-lg p-0.5 border border-white/5">
-                                    <button type="button" onclick="setMode('longform')" id="modeLongform" class="mode-btn px-2 py-1 text-[9px] rounded-md bg-purple-600 text-white font-bold transition-all">LONG</button>
-                                    <button type="button" onclick="setMode('shorts')" id="modeShorts" class="mode-btn px-2 py-1 text-[9px] rounded-md text-gray-400 transition-all">SHORT</button>
+                                    <button type="button" onclick="setMode('longform')" data-mode="longform" id="modeLongform" class="mode-btn px-2 py-1 text-[9px] rounded-md bg-purple-600 text-white font-bold transition-all">LONG</button>
+                                    <button type="button" onclick="setMode('longform_music')" data-mode="longform_music" id="modeLongMusic" class="mode-btn px-2 py-1 text-[9px] rounded-md text-gray-400 transition-all">MUSIC</button>
+                                    <button type="button" onclick="setMode('shorts')" data-mode="shorts" id="modeShorts" class="mode-btn px-2 py-1 text-[9px] rounded-md text-gray-400 transition-all">SHORT</button>
                                 </div>
                             </div>
                          </div>
@@ -153,8 +158,9 @@
                                      <option value="news">{{ t('opt_style_news') }}</option>
                                      <option value="story">{{ t('opt_style_story') }}</option>
                                      <option value="senior_story">{{ t('opt_style_senior') }}</option>
+                                     <option value="bgm">{{ t('style_bgm_focus') }}</option>
                                      <option value="modern_drama">{{ t('opt_style_trendy') }}</option>
-                                 </select>
+                                  </select>
                              </div>
                              <div>
                                  <label class="block text-[9px] font-medium text-gray-500 mb-1">{{ t('label_target_duration') }}</label>

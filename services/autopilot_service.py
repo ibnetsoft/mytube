@@ -28,7 +28,7 @@ from services.tts_service import tts_service
 from services.video_service import video_service
 from services.youtube_upload_service import youtube_upload_service
 from services.topview_service import topview_service
-from app.modes import DEFAULT_APP_MODE, is_longform_family
+from app.modes import DEFAULT_APP_MODE, is_longform_family, is_longform_music_mode
 
 
 def split_text_to_subtitle_chunks(text: str, max_chars_per_line: int = 40, max_lines: int = 1) -> list:
@@ -145,6 +145,79 @@ class AutoPilotService:
         except Exception:
             pass
 
+    def _is_longform_music_config(self, config_dict: Optional[dict]) -> bool:
+        if not config_dict:
+            return False
+        return is_longform_music_mode(
+            config_dict.get("mode") or config_dict.get("app_mode") or config_dict.get("creation_mode")
+        )
+
+    def _apply_longform_music_defaults(self, config_dict: Optional[dict]) -> dict:
+        config = dict(config_dict or {})
+        if not self._is_longform_music_config(config):
+            return config
+
+        config["mode"] = "longform_music"
+        config["app_mode"] = "longform_music"
+        config["creation_mode"] = "longform_music"
+        config["aspect_ratio"] = config.get("aspect_ratio") or "16:9"
+        config["script_style"] = config.get("script_style") or "bgm"
+        config["narrative_style"] = config.get("narrative_style") or config["script_style"]
+        config["auto_plan"] = True
+        config["use_character_analysis"] = False
+        config["all_video"] = False
+        config["auto_thumbnail"] = config.get("auto_thumbnail", True)
+
+        raw_music_config = config.get("longform_music") or {}
+        if isinstance(raw_music_config, str):
+            try:
+                raw_music_config = json.loads(raw_music_config)
+            except Exception:
+                raw_music_config = {}
+        music_config = dict(raw_music_config)
+        duration_seconds = int(config.get("duration_seconds") or music_config.get("playlist_duration_seconds") or 3600)
+        music_config.setdefault("content_type", "music_playlist")
+        music_config.setdefault("playlist_duration_seconds", duration_seconds)
+        music_config.setdefault("track_count", max(8, round(duration_seconds / 300)))
+        music_config.setdefault("visual_strategy", "single_expanded_cover_with_light_motion")
+        music_config.setdefault("metadata_strategy", "global_music_playlist")
+        config["longform_music"] = music_config
+        return config
+
+    def _build_longform_music_analysis(self, keyword: str, config_dict: dict) -> tuple[dict, dict]:
+        music_config = config_dict.get("longform_music") or {}
+        if isinstance(music_config, str):
+            try:
+                music_config = json.loads(music_config)
+            except Exception:
+                music_config = {}
+        track_count = music_config.get("track_count", 12)
+        duration_seconds = music_config.get("playlist_duration_seconds") or config_dict.get("duration_seconds") or 3600
+        minutes = max(1, round(int(duration_seconds) / 60))
+        video_data = {
+            "id": "longform_music_playlist",
+            "snippet": {
+                "title": keyword,
+                "channelTitle": "Picadilly Longform Music",
+                "thumbnails": {"high": {"url": ""}},
+            },
+            "statistics": {"viewCount": 0, "likeCount": 0, "commentCount": 0},
+            "viralScore": 0,
+        }
+        analysis = {
+            "sentiment": "calm",
+            "topics": [keyword, "AI music playlist", "longform background music"],
+            "viewer_needs": "긴 시간 동안 끊기지 않고 들을 수 있는 음악 플레이리스트, 분위기에 맞는 커버 이미지, 글로벌 제목과 설명",
+            "content_type": "longform_music_playlist",
+            "playlist_direction": {
+                "duration_minutes": minutes,
+                "track_count": track_count,
+                "visual_strategy": music_config.get("visual_strategy"),
+                "metadata_strategy": music_config.get("metadata_strategy"),
+            },
+        }
+        return video_data, analysis
+
     async def run_project_workflow(self, keyword: str, project_id: int = None, config_dict: dict = None):
         """Serialize autopilot execution and prevent duplicate runs for the same project."""
         if not self._claim_project(project_id):
@@ -177,7 +250,7 @@ class AutoPilotService:
         start_dt = datetime.now()
         db.update_project_setting(project_id, "stats_start_time", start_dt.strftime("%Y-%m-%d %H:%M:%S"))
         
-        self.config = config_dict or {}
+        self.config = self._apply_longform_music_defaults(config_dict)
         if "auto_plan" not in self.config:
             self.config["auto_plan"] = True  # Always generate plan data by default
         
@@ -197,9 +270,9 @@ class AutoPilotService:
                 # Update self.config with DB settings
                 if config_dict:
                     p_settings.update(config_dict)
-                self.config = p_settings
+                self.config = self._apply_longform_music_defaults(p_settings)
             else:
-                self.config = config_dict or {}
+                self.config = self._apply_longform_music_defaults(config_dict)
             
             # Force all_video if needed
             if self.config.get("all_video"):
@@ -219,10 +292,14 @@ class AutoPilotService:
             # 3. AI 분석
             if current_status in ["created", "draft"]:
                 db.update_project(project_id, status="analyzing") # [NEW] status for UI
-                self.set_step(project_id, "유튜브 소재 검색 중...")
-                video = await self._find_best_material(keyword)
-                self.set_step(project_id, "유튜브 영상 AI 분석 중...")
-                analysis_result = await self._analyze_video(video, project_id=project_id)
+                if self._is_longform_music_config(self.config):
+                    self.set_step(project_id, "롱폼뮤직 플레이리스트 기획 중...")
+                    video, analysis_result = self._build_longform_music_analysis(keyword, self.config)
+                else:
+                    self.set_step(project_id, "유튜브 소재 검색 중...")
+                    video = await self._find_best_material(keyword)
+                    self.set_step(project_id, "유튜브 영상 AI 분석 중...")
+                    analysis_result = await self._analyze_video(video, project_id=project_id)
                 db.save_analysis(project_id, video, analysis_result)
                 db.update_project(project_id, status="analyzed")
                 current_status = "analyzed"
@@ -505,6 +582,7 @@ class AutoPilotService:
 
     async def _generate_script(self, project_id: int, analysis: dict, config_dict: dict):
         style_key = config_dict.get("script_style", "default")
+        is_music_playlist = self._is_longform_music_config(config_dict)
         # Get script style description from DB presets if exists
         script_presets = db.get_script_style_presets()
         style_desc = script_presets.get(style_key, f"Style: {style_key}")
@@ -517,7 +595,29 @@ class AutoPilotService:
              print(f"🤖 [Auto-Pilot] 자동 기획 생성 시작...")
              try:
                   # [AUTO-PLAN] Automatic Planning
-                  struct_prompt = f"Create a structured plan for a YouTube video...\nTopic: {db.get_project(project_id).get('topic')}\nStyle: {style_desc}"
+                  topic_name = db.get_project(project_id).get('topic')
+                  if is_music_playlist:
+                      music_config = config_dict.get("longform_music") or {}
+                      struct_prompt = f"""Create a JSON production plan for a longform YouTube music playlist.
+
+Topic: {topic_name}
+Style directive: {style_desc}
+Target duration seconds: {music_config.get('playlist_duration_seconds', config_dict.get('duration_seconds', 3600))}
+Target track count: {music_config.get('track_count', 12)}
+
+Return JSON only:
+{{
+  "style": "bgm",
+  "playlist_title": "...",
+  "mood": "...",
+  "audience": "...",
+  "tracks": [{{"title": "...", "mood": "...", "prompt": "music generation prompt"}}],
+  "visual_concept": "...",
+  "thumbnail_concept": "...",
+  "description_angle": "..."
+}}"""
+                  else:
+                      struct_prompt = f"Create a structured plan for a YouTube video...\nTopic: {topic_name}\nStyle: {style_desc}"
                   result_text_s = await gemini_service.generate_text(struct_prompt, temperature=0.7, project_id=project_id, task_type="planning")
                   
                   import re
@@ -562,9 +662,26 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                 prompt += f"\n\n[Writing Style Directive]: {style_desc}\nApply this style strictly."
         else:
             # Original Logic
-            prompt = prompts.AUTOPILOT_GENERATE_SCRIPT.format(
-                analysis_json=json.dumps(analysis, ensure_ascii=False)
-            )
+            if is_music_playlist:
+                music_config = config_dict.get("longform_music") or {}
+                prompt = f"""You are a producer for longform YouTube music playlist videos.
+Create a production-ready playlist script/brief in Korean from this planning data.
+
+[Planning Data]
+{json.dumps(analysis, ensure_ascii=False)}
+
+[Music Playlist Requirements]
+- Content type: longform music playlist
+- Target duration seconds: {music_config.get('playlist_duration_seconds', config_dict.get('duration_seconds', 3600))}
+- Target track count: {music_config.get('track_count', 12)}
+- Include a short intro narration, track list with mood/style prompts, visual concept, thumbnail concept, and upload description notes.
+- Keep narration minimal. The video should be music-first, not talk-first.
+- No dialogue and no character acting.
+"""
+            else:
+                prompt = prompts.AUTOPILOT_GENERATE_SCRIPT.format(
+                    analysis_json=json.dumps(analysis, ensure_ascii=False)
+                )
             if style_key != "default":
                 prompt += f"\n\n[Writing Style Directive]: {style_desc}\nApply this style strictly throughout the script."
 

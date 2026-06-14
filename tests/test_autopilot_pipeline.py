@@ -69,6 +69,38 @@ class AutoPilotPipelineTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("queued_count", status)
         self.assertIn("processing_count", status)
 
+    def test_longform_music_defaults_are_applied(self):
+        service = AutoPilotService()
+
+        config = service._apply_longform_music_defaults({
+            "mode": "longform_music",
+            "duration_seconds": 3600,
+        })
+
+        self.assertEqual(config["mode"], "longform_music")
+        self.assertEqual(config["app_mode"], "longform_music")
+        self.assertEqual(config["creation_mode"], "longform_music")
+        self.assertEqual(config["script_style"], "bgm")
+        self.assertFalse(config["use_character_analysis"])
+        self.assertFalse(config["all_video"])
+        self.assertEqual(config["aspect_ratio"], "16:9")
+        self.assertEqual(config["longform_music"]["content_type"], "music_playlist")
+        self.assertEqual(config["longform_music"]["track_count"], 12)
+
+    def test_longform_music_analysis_is_playlist_brief(self):
+        service = AutoPilotService()
+        config = service._apply_longform_music_defaults({
+            "mode": "longform_music",
+            "duration_seconds": 1800,
+        })
+
+        video, analysis = service._build_longform_music_analysis("lofi rain", config)
+
+        self.assertEqual(video["id"], "longform_music_playlist")
+        self.assertEqual(analysis["content_type"], "longform_music_playlist")
+        self.assertEqual(analysis["playlist_direction"]["duration_minutes"], 30)
+        self.assertGreaterEqual(analysis["playlist_direction"]["track_count"], 8)
+
 
 if __name__ == "__main__":
     unittest.main()
