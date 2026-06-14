@@ -105,10 +105,16 @@ class AutoPilotService:
     def __init__(self):
         self.search_url = f"{config.YOUTUBE_BASE_URL}/search"
         self.config = {}  # Director Mode Configuration
-        self.is_batch_running = False # [NEW] Batch Concurrency Lock
+        self.is_batch_running = False # True only while a batch item is actively processing
+        self.is_batch_worker_running = False
+        self.current_project_id: Optional[int] = None
+        self._workflow_lock = asyncio.Lock()
+        self._active_project_ids = set()
         self._progress: Dict[int, Dict] = {}  # {project_id: {message, updated_at}}
 
     def set_step(self, project_id: int, message: str):
+        if not project_id:
+            return
         self._progress[project_id] = {
             "message": message,
             "updated_at": datetime.now().isoformat()
@@ -116,6 +122,45 @@ class AutoPilotService:
 
     def get_progress(self, project_id: int) -> Dict:
         return self._progress.get(project_id, {"message": "", "updated_at": ""})
+
+    def _claim_project(self, project_id: Optional[int]) -> bool:
+        if not project_id:
+            return True
+        if project_id in self._active_project_ids:
+            return False
+        self._active_project_ids.add(project_id)
+        return True
+
+    def _release_project(self, project_id: Optional[int]):
+        if not project_id:
+            return
+        self._active_project_ids.discard(project_id)
+
+    def _record_project_error(self, project_id: Optional[int], message: str):
+        if not project_id:
+            return
+        try:
+            db.update_project_setting(project_id, "autopilot_last_error", message[:2000])
+            db.update_project_setting(project_id, "autopilot_last_error_at", datetime.now().isoformat())
+        except Exception:
+            pass
+
+    async def run_project_workflow(self, keyword: str, project_id: int = None, config_dict: dict = None):
+        """Serialize autopilot execution and prevent duplicate runs for the same project."""
+        if not self._claim_project(project_id):
+            msg = f"⚠️ [Auto-Pilot] Project {project_id} is already running. Duplicate request skipped."
+            log_debug(msg)
+            self.set_step(project_id, "이미 오토파일럿이 실행 중입니다.")
+            return {"status": "skipped", "reason": "already_running"}
+
+        async with self._workflow_lock:
+            self.current_project_id = project_id
+            try:
+                return await self.run_workflow(keyword, project_id=project_id, config_dict=config_dict)
+            finally:
+                if self.current_project_id == project_id:
+                    self.current_project_id = None
+                self._release_project(project_id)
 
     async def run_workflow(self, keyword: str, project_id: int = None, config_dict: dict = None):
         """오토파일럿 전체 워크플로우 실행"""
@@ -282,6 +327,7 @@ class AutoPilotService:
                     df.write(f"[{datetime.now()}] ❌ [Auto-Pilot] CRITICAL ERROR in run_workflow:\n{err_details}\n")
             except Exception: pass
             
+            self._record_project_error(project_id, str(e))
             db.update_project(project_id, status="error")
 
     async def _extract_characters(self, project_id: int, script_text: str, config_dict: dict = None):
@@ -2228,13 +2274,14 @@ JSON만 출력하세요:
                     }
                     
                     # 워크플로우 실행 (Wait for completion)
-                    await self.run_workflow(project.get('topic'), pid, config_dict)
+                    await self.run_project_workflow(project.get('topic'), pid, config_dict)
                     print(f"✅ [Batch] 프로젝트 완료: {pid}")
                     
                 except Exception as e:
                     import traceback
                     traceback.print_exc()
                     print(f"❌ [Batch] 프로젝트 실패 (ID: {pid}): {e}")
+                    self._record_project_error(pid, str(e))
                     db.update_project(pid, status="error")
                     
                 await asyncio.sleep(2)
@@ -2373,6 +2420,9 @@ JSON만 출력하세요:
         
         return {
             "is_running": self.is_batch_running,
+            "worker_running": self.is_batch_worker_running,
+            "current_project_id": self.current_project_id,
+            "active_project_ids": sorted(self._active_project_ids),
             "queued_count": len(queued_projects),
             "processing_count": len(processing_projects),
             "queued_items": queued_projects[:10],  # 상위 10개만
@@ -2486,11 +2536,11 @@ JSON만 출력하세요:
 
     async def start_batch_worker(self):
         """[NEW] 프로젝트 대기열을 감시하고 순차적으로 처리하는 워커"""
-        if self.is_batch_running:
+        if self.is_batch_worker_running:
             print("[Auto-Pilot] Batch worker already running.")
             return
 
-        self.is_batch_running = True
+        self.is_batch_worker_running = True
         print("[Auto-Pilot] Batch worker started.")
 
         while True:
@@ -2521,7 +2571,11 @@ JSON만 출력하세요:
                     if "mode" not in p_settings and "app_mode" in p_settings:
                         p_settings["mode"] = p_settings["app_mode"]
 
-                    await self.run_workflow(target_topic, project_id=target_pid, config_dict=p_settings)
+                    self.is_batch_running = True
+                    try:
+                        await self.run_project_workflow(target_topic, project_id=target_pid, config_dict=p_settings)
+                    finally:
+                        self.is_batch_running = False
                     
                     print(f"✅ [Auto-Pilot] Project {target_pid} processing complete.")
                 

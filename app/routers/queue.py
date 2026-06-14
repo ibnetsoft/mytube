@@ -114,6 +114,8 @@ async def add_project_to_queue(project_id: int, req: AutopilotQueueRequest):
 async def start_processing(background_tasks: BackgroundTasks):
     """대기열 처리 시작 (배치 워커가 이미 실행 중이면 그대로 성공 반환)"""
     try:
+        if getattr(autopilot_service, "is_batch_worker_running", False):
+            return {"status": "success", "message": "Batch worker is already monitoring the queue"}
         if autopilot_service.is_batch_running:
             return {"status": "success", "message": "Batch worker already running"}
         background_tasks.add_task(autopilot_service.run_batch_workflow)

@@ -2584,7 +2584,7 @@ async def start_autopilot_api(
     
     from services.autopilot_service import autopilot_service
     # Start Task
-    background_tasks.add_task(autopilot_service.run_workflow, topic, project_id, config_dict)
+    background_tasks.add_task(autopilot_service.run_project_workflow, topic, project_id, config_dict)
     
     return {"status": "ok", "project_id": project_id, "message": "Automation started"}
 
@@ -2619,7 +2619,7 @@ async def schedule_autopilot(
     
     # 새 작업 추가
     scheduler.add_job(
-        lambda: asyncio.run(autopilot_service.run_workflow(keyword)),
+        lambda: asyncio.run(autopilot_service.run_project_workflow(keyword)),
         trigger=CronTrigger(hour=hour, minute=minute),
         id="autopilot_job",
         name=f"AutoPilot-{keyword}"
@@ -2638,7 +2638,7 @@ async def run_autopilot_now(
     keyword: str = Form(...)
 ):
     """오토파일럿 즉시 실행 (테스트용)"""
-    background_tasks.add_task(autopilot_service.run_workflow, keyword)
+    background_tasks.add_task(autopilot_service.run_project_workflow, keyword)
     return {"status": "started", "message": f"'{keyword}' 주제로 즉시 제작을 시작합니다."}
 
 class AutopilotContinueRequest(BaseModel):
@@ -2689,7 +2689,7 @@ async def continue_autopilot(
         "auto_plan": req.auto_plan
     }
 
-    background_tasks.add_task(autopilot_service.run_workflow, project['topic'], project_id, config_dict)
+    background_tasks.add_task(autopilot_service.run_project_workflow, project['topic'], project_id, config_dict)
     return {"status": "ok", "project_id": project_id}
 
 
