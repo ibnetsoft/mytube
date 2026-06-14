@@ -2742,6 +2742,15 @@ def save_style_preset(style_key: str, prompt_value: str, image_url: str = None, 
     conn.close()
 
 
+def clear_all_style_presets():
+    """모든 이미지 스타일 프리셋을 삭제 (sync 전 초기화용)"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM style_presets")
+    conn.commit()
+    conn.close()
+
+
 # ===========================================
 # 자막 스타일 프리셋 관리
 # ===========================================

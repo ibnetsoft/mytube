@@ -297,7 +297,46 @@ async def get_style_presets_api(mode: Optional[str] = None):
     """이미지 스타일 프리셋 조회. mode=image|blog|all 필터 가능"""
     presets = db.get_style_presets()
 
-    # Ensure all default styles exist in the database (insert missing ones dynamically ONLY if DB is empty)
+    # DB가 비어있으면 Supabase에서 자동 동기화 시도
+    if not presets:
+        supabase_url = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        if supabase_url and supabase_key:
+            try:
+                import requests as _requests, urllib3
+                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+                headers = {"apikey": supabase_key, "Authorization": f"Bearer {supabase_key}"}
+                r = _requests.get(f"{supabase_url.rstrip('/')}/rest/v1/style_presets?select=*",
+                                  headers=headers, timeout=8, verify=False)
+                if r.status_code == 200:
+                    for p in r.json():
+                        ptype = p.get("preset_type", "image")
+                        key = p.get("key_code")
+                        prompt = p.get("prompt_template")
+                        if not key or not prompt:
+                            continue
+                        if ptype == "image":
+                            db.save_style_preset(key, prompt,
+                                image_url=p.get("image_url"),
+                                gemini_instruction=p.get("gemini_instruction"),
+                                mode="all",
+                                display_name_ko=p.get("display_name_ko"),
+                                display_name_vi=p.get("display_name_vi"))
+                        elif ptype == "script":
+                            db.save_script_style_preset(key, prompt,
+                                display_name_ko=p.get("display_name_ko"),
+                                display_name_vi=p.get("display_name_vi"))
+                        elif ptype == "thumbnail":
+                            db.save_thumbnail_style_preset(key, prompt,
+                                image_url=p.get("image_url"),
+                                display_name_ko=p.get("display_name_ko"),
+                                display_name_vi=p.get("display_name_vi"))
+                    presets = db.get_style_presets()
+                    print(f"[Auto-sync] Pulled {len(presets)} style presets from Supabase")
+            except Exception as _e:
+                print(f"[Auto-sync] Failed to pull from Supabase: {_e}")
+
+    # Supabase도 없을 때만 하드코딩 fallback 적용
     if not presets:
         default_styles = {
             "realistic": "**[Subject & Atmosphere]**\nA cinematic photorealistic shot of [SUBJECT] in [LOCATION]. The lighting is [LIGHTING_DETAILS] with a [ATMOSPHERE] mood.\n\n**[Environment & Details]**\nDetailed environment featuring [ENVIRONMENT_DETAILS]. High-end textures and sharp details.\n\n**[Camera & Quality]**\n[CAMERA_ANGLE], shot on 35mm lens, f/1.8, 8k resolution, cinematic color grading, ray-traced shadows.",
@@ -305,62 +344,10 @@ async def get_style_presets_api(mode: Optional[str] = None):
             "anime": "anime style, vibrant colors, studio ghibli inspired",
             "cinematic": "cinematic lighting, dramatic, movie still, bokeh",
             "cartoon": "cartoon style, cel shading, vibrant, playful",
-            "oil_painting": "oil painting, brush strokes, artistic, classic",
-            "watercolor": "watercolor painting, soft colors, artistic",
-            "sketch": "pencil sketch, hand drawn, artistic, detailed",
-            "pixel_art": "pixel art, 16-bit style, retro gaming",
-            "3d": "3d render, pixar style, 3d animation, cute, vibrant lighting",
-            "k_webtoon": "Modern K-webtoon manhwa style, high-quality digital illustration, sharp line art, vibrant colors, expressive character, modern manhwa aesthetic, professional digital art, no text, no speech bubbles",
-            "k_manhwa": "Korean manhwa webtoon illustration style, bold black outlines, cel-shading, vibrant flat colors, anime-inspired character design, dynamic composition, professional digital art, modern Korean comic aesthetic. ABSOLUTELY NO TEXT.",
-            "minimal": "Minimalist vector illustration, clean lines, simple shapes, limited color palette, modern aesthetic, professional design.",
             "nursery_rhyme": "Cute 3D animation style, Pixar/Disney inspired, vibrant colors, child-friendly environment, no text.",
-            "2d웹": "Classic 2D western comic style, bold ink lines, vibrant colors, simplified character design.",
-            "블랙카툰": "High contrast black and white cartoon style, bold ink strokes, noir comic aesthetic.",
-            "사물캐릭터": "Anthropomorphic object character, personified inanimate object with expressive face, cute and creative.",
-            "역사/동양철/다큐": "Traditional oriental painting style, ink wash, philosophical atmosphere, historical documentary aesthetic.",
-            "후드티민머리": "Wimpy stick figure style, minimalist character design, teal-blue hoodie, bold black outlines, white background."
         }
         for key, val in default_styles.items():
             db.save_style_preset(key, val)
-
-        # 새로 추가된 시스템 스타일만 없을 때 개별 삽입 (기존 스타일과 독립)
-        _new_system_styles = {
-            "animal_cooking_shorts": {
-                "prompt": (
-                    "Warm cozy photorealistic scene, anthropomorphic animals wearing aprons and chef hats, "
-                    "natural soft warm lighting, high quality food photography style, rich textures of ingredients "
-                    "and cooking tools, adorable expressive animal faces, 9:16 vertical shorts format"
-                ),
-                "gemini_instruction": (
-                    "[쇼츠 3x2 시퀀스 생성기 - 필수 준수]\n"
-                    "반드시 정확히 6개의 씬을 아래 스토리보드 순서대로 생성하세요. "
-                    "캐릭터는 부모 동물 1마리 + 아기 동물 2마리 총 3마리입니다. "
-                    "모든 씬은 동일한 캐릭터·배경·조명·스타일로 일관성을 유지하세요.\n\n"
-                    "씬1 (재료 준비 1): 부모 동물이 주요 재료를 씻거나 다듬고 있습니다. "
-                    "아기 동물 한 마리가 옆에서 호기심 어린 눈으로 바라보거나 작은 도구를 들고 돕는 시늉을 합니다.\n"
-                    "씬2 (재료 준비 2): 다른 재료를 손질하거나 섞는 과정입니다. "
-                    "아기 동물 두 마리가 밀가루를 묻히거나 재료로 장난치는 귀엽고 서툰 모습. 부모 동물은 흐뭇하게 바라봅니다.\n"
-                    "씬3 (조리 시작): 냄비나 팬에 재료를 넣고 조리를 시작합니다. "
-                    "불 위에서 재료가 볶아지거나 끓으며 김이 모락모락 납니다. 세 마리가 함께 불 앞을 지켜봅니다.\n"
-                    "씬4 (조리 중): 요리가 한창 진행 중입니다. 오븐 속에서 굽거나 냄비에서 보글보글 끓고 있습니다. "
-                    "음식 색감이 먹음직스럽게 변해가고 아기 동물들이 기대에 찬 표정으로 기다립니다.\n"
-                    "씬5 (조리 완료): 완성된 요리를 예쁜 그릇에 플레이팅하는 장면입니다. "
-                    "부모 동물이 마지막 장식을 더하고, 아기 동물들은 숟가락을 들고 먹을 준비를 완료하며 기뻐합니다.\n"
-                    "씬6 (함께 식사): 세 마리가 식탁에 둘러앉아 완성된 요리를 행복하게 먹는 장면입니다. "
-                    "모두 입가에 음식을 묻히며 만족스러운 표정, 따뜻하고 화목한 분위기의 절정.\n\n"
-                    "스타일 요구사항:\n"
-                    "- 의인화된 동물: 앞치마·요리 모자 착용, 표정에서 즐거움과 행복함이 느껴질 것\n"
-                    "- 따뜻하고 아늑한 분위기, 자연광 활용한 부드러운 사진 스타일\n"
-                    "- 동물 털 질감·음식 식재료 질감·요리 도구 디테일을 생생하게 표현\n"
-                    "- 6개 씬 전체가 하나의 연속된 이야기처럼 자연스럽게 연결될 것"
-                )
-            },
-        }
-        for key, data in _new_system_styles.items():
-            db.save_style_preset(key, data["prompt"], image_url=None,
-                                 gemini_instruction=data.get("gemini_instruction"),
-                                 mode=data.get("mode", "image"))
-        
         presets = db.get_style_presets()
 
     # sports_analysis가 있으면 mode를 'blog'로 설정 (아직 'image'인 경우만)
@@ -504,14 +491,18 @@ async def sync_presets_from_supabase():
         if r.status_code != 200:
             raise HTTPException(status_code=500, detail=f"Supabase request failed: {r.text}")
         
-        presets = r.json()
+        supabase_presets = r.json()
         
-        # Sync each type of preset
+        # 이미지 스타일만 완전 교체: 기존 로컬 데이터 먼저 삭제
+        image_presets_in_supabase = [p for p in supabase_presets if p.get("preset_type") == "image"]
+        if image_presets_in_supabase:
+            db.clear_all_style_presets()
+        
         image_count = 0
         script_count = 0
         thumb_count = 0
         
-        for preset in presets:
+        for preset in supabase_presets:
             ptype = preset.get("preset_type")
             key = preset.get("key_code")
             p_val = preset.get("prompt_template")
@@ -554,7 +545,7 @@ async def sync_presets_from_supabase():
                 
         return {
             "status": "ok",
-            "message": f"Successfully synced {image_count} image styles, {script_count} script styles, and {thumb_count} thumbnail styles."
+            "message": f"동기화 완료: 이미지 {image_count}개, 대본 {script_count}개, 썸네일 {thumb_count}개"
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Sync error: {str(e)}")
