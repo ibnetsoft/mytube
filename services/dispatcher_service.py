@@ -130,9 +130,10 @@ class DispatcherService:
 
                 # [SDK Hook fallback] API 한도나 오류 시 재시도 안전장치 적용
                 topic_title = None
+                import asyncio
                 for attempt in range(3):
                     try:
-                        response_text = gemini_service.generate_text(prompt, model="gemini-2.0-flash", temperature=0.7)
+                        response_text = asyncio.run(gemini_service.generate_text(prompt, model="gemini-2.0-flash", temperature=0.7))
                         import json as _json
                         # clean json wrapper
                         cleaned = response_text.replace("```json", "").replace("```", "").strip()
