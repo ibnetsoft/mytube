@@ -236,7 +236,7 @@
             <div class="card p-3 shadow-sm border border-gray-200 dark:border-gray-700">
                 <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-4 flex items-center justify-between">
                     <span>🎨 이미지 스타일 및 캐릭터 관리</span>
-                    <button onclick="loadStylePresets()" class="text-[10px] text-blue-500 hover:underline">🔄 서버 동기화</button>
+                    <button onclick="syncAllPresetsFromServer()" class="text-[10px] text-blue-500 hover:underline">🔄 서버 동기화</button>
                 </h3>
 
                 <!-- [NEW] Add Custom Style Form -->
@@ -393,7 +393,7 @@
             <div class="card p-3 shadow-sm border border-gray-200 dark:border-gray-700">
                 <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-3 flex items-center justify-between">
                     <span>{{ t('label_script_style_settings') }}</span>
-                    <button onclick="loadScriptStylePresets()" class="text-[10px] text-blue-500 hover:underline">{{ t('btn_sync') }}</button>
+                    <button onclick="syncAllPresetsFromServer()" class="text-[10px] text-blue-500 hover:underline">🔄 서버 동기화</button>
                 </h3>
                 <div id="scriptStylePresetList" class="space-y-3">
                     <!-- Loaded via JS -->
@@ -413,7 +413,7 @@
             <div class="card p-3 shadow-sm border border-gray-200 dark:border-gray-700">
                 <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-3 flex items-center justify-between">
                     <span>{{ t('label_thumbnail_style_settings') }}</span>
-                    <button onclick="loadThumbnailStylePresets()" class="text-[10px] text-blue-500 hover:underline">{{ t('btn_sync') }}</button>
+                    <button onclick="syncAllPresetsFromServer()" class="text-[10px] text-blue-500 hover:underline">🔄 서버 동기화</button>
                 </h3>
 
                 <!-- [NEW] Add Custom Thumbnail Style -->
@@ -1248,7 +1248,7 @@
                 const geminiInstruction = typeof data === 'object' ? (data.gemini_instruction || '') : '';
                 const mode = typeof data === 'object' ? (data.mode || 'image') : 'image';
 
-                const displayName = {
+                const displayName = (typeof data === 'object' && (window_lang == 'vi' ? (data.display_name_vi || data.display_name_ko) : data.display_name_ko)) || {
                     'realistic': i18n.sname_realistic, 'anime': i18n.sname_anime, 'cinematic': i18n.sname_cinematic,
                     'cartoon': i18n.sname_cartoon, 'oil_painting': i18n.sname_oil_painting, 'watercolor': i18n.sname_watercolor,
                     'sketch': i18n.sname_sketch, 'pixel_art': i18n.sname_pixel_art, '3d': i18n.sname_3d,
@@ -1618,11 +1618,12 @@
     async function loadScriptStylePresets() {
         const list = document.getElementById('scriptStylePresetList');
         try {
-            const res = await fetch('/api/settings/script-style-presets');
+            const res = await fetch('/api/settings/script-style-presets?detailed=true');
             const presets = await res.json();
 
-            list.innerHTML = Object.entries(presets).map(([key, val]) => {
-                const displayName = {
+            list.innerHTML = Object.entries(presets).map(([key, data]) => {
+                const val = typeof data === 'string' ? data : (data.prompt_value || '');
+                const displayName = (typeof data === 'object' && (window_lang == 'vi' ? (data.display_name_vi || data.display_name_ko) : data.display_name_ko)) || {
                     'default': i18n.ss_default,
                     'news': i18n.ss_news,
                     'story': i18n.ss_story,
@@ -1746,7 +1747,7 @@
                 const prompt = typeof data === 'string' ? data : (data.prompt_value || '');
                 const imageUrl = typeof data === 'object' ? data.image_url : null;
 
-                const displayName = {
+                const displayName = (typeof data === 'object' && (window_lang == 'vi' ? (data.display_name_vi || data.display_name_ko) : data.display_name_ko)) || {
                     'face': i18n.ts_face,
                     'text': i18n.ts_text,
                     'contrast': i18n.ts_contrast,
@@ -2477,6 +2478,31 @@
             }
         }
     });
+
+    async function syncAllPresetsFromServer() {
+        const confirmSync = confirm(window_lang === 'vi' ? 'Bạn có muốn đồng bộ hóa tất cả các phong cách từ máy chủ?' : '서버로부터 모든 스타일 프리셋을 동기화하시겠습니까?');
+        if (!confirmSync) return;
+        
+        try {
+            Utils.showToast(window_lang === 'vi' ? 'Đang đồng bộ...' : '동기화 중...', 'info');
+            const res = await fetch('/api/settings/sync-presets', {
+                method: 'POST'
+            });
+            const data = await res.json();
+            if (data.status === 'ok') {
+                Utils.showToast(data.message, 'success');
+                // Reload all presets in UI
+                loadStylePresets();
+                loadScriptStylePresets();
+                loadThumbnailStylePresets();
+            } else {
+                Utils.showToast('Sync Failed: ' + (data.detail || 'Unknown error'), 'error');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast(window_lang === 'vi' ? 'Lỗi kết nối đồng bộ' : '서버 동기화 중 오류 발생', 'error');
+        }
+    }
 
     // 초기화
     document.addEventListener('DOMContentLoaded', () => {

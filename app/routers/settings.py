@@ -481,10 +481,91 @@ async def delete_style_preset(style_key: str):
 # API: 대본 스타일 프리셋 관리
 # ===========================================
 
+@router.post("/sync-presets")
+async def sync_presets_from_supabase():
+    """Supabase style_presets 테이블로부터 최신 프리셋 데이터를 로컬 SQLite에 동기화"""
+    import requests
+    supabase_url = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    if not supabase_url or not supabase_key:
+        raise HTTPException(status_code=400, detail="Supabase credentials missing on local environment")
+
+    headers = {
+        "apikey": supabase_key,
+        "Authorization": f"Bearer {supabase_key}"
+    }
+    
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    
+    url = f"{supabase_url.rstrip('/')}/rest/v1/style_presets?select=*"
+    try:
+        r = requests.get(url, headers=headers, timeout=10, verify=False)
+        if r.status_code != 200:
+            raise HTTPException(status_code=500, detail=f"Supabase request failed: {r.text}")
+        
+        presets = r.json()
+        
+        # Sync each type of preset
+        image_count = 0
+        script_count = 0
+        thumb_count = 0
+        
+        for preset in presets:
+            ptype = preset.get("preset_type")
+            key = preset.get("key_code")
+            p_val = preset.get("prompt_template")
+            inst = preset.get("gemini_instruction")
+            img = preset.get("image_url")
+            name_ko = preset.get("display_name_ko")
+            name_vi = preset.get("display_name_vi")
+            
+            if not key or not p_val:
+                continue
+                
+            if ptype == "image":
+                db.save_style_preset(
+                    style_key=key,
+                    prompt_value=p_val,
+                    image_url=img,
+                    gemini_instruction=inst,
+                    mode="all",
+                    display_name_ko=name_ko,
+                    display_name_vi=name_vi
+                )
+                image_count += 1
+            elif ptype == "script":
+                db.save_script_style_preset(
+                    style_key=key,
+                    prompt_value=p_val,
+                    display_name_ko=name_ko,
+                    display_name_vi=name_vi
+                )
+                script_count += 1
+            elif ptype == "thumbnail":
+                db.save_thumbnail_style_preset(
+                    style_key=key,
+                    prompt_value=p_val,
+                    image_url=img,
+                    display_name_ko=name_ko,
+                    display_name_vi=name_vi
+                )
+                thumb_count += 1
+                
+        return {
+            "status": "ok",
+            "message": f"Successfully synced {image_count} image styles, {script_count} script styles, and {thumb_count} thumbnail styles."
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Sync error: {str(e)}")
+
 @router.get("/script-style-presets")
-async def get_script_style_presets_api():
+async def get_script_style_presets_api(detailed: Optional[bool] = None):
     """모든 대본 스타일 프리셋 조회"""
-    presets = db.get_script_style_presets()
+    if detailed:
+        presets = db.get_script_style_presets_detailed()
+    else:
+        presets = db.get_script_style_presets()
     
     # DB에 하나도 없으면 기본값으로 초기화
     if not presets:

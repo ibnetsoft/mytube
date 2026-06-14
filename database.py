@@ -690,6 +690,20 @@ def migrate_db():
             conn.commit()
         except sqlite3.OperationalError:
             pass
+
+    # [Migration] style_presets, script_style_presets, thumbnail_style_presets 테이블에 display_name_ko/vi 추가
+    for table in ['style_presets', 'script_style_presets', 'thumbnail_style_presets']:
+        cursor.execute(f"PRAGMA table_info({table})")
+        cols = [info[1] for info in cursor.fetchall()]
+        if 'display_name_ko' not in cols:
+            try:
+                cursor.execute(f"ALTER TABLE {table} ADD COLUMN display_name_ko TEXT")
+            except Exception: pass
+        if 'display_name_vi' not in cols:
+            try:
+                cursor.execute(f"ALTER TABLE {table} ADD COLUMN display_name_vi TEXT")
+            except Exception: pass
+    conn.commit()
     # [Migration] project_sources 테이블에 type 컬럼 추가 (source_type 과 통일)
     cursor.execute("PRAGMA table_info(project_sources)")
     ps_cols = [info[1] for info in cursor.fetchall()]
@@ -2661,7 +2675,9 @@ def get_style_presets(mode: str = None):
             'prompt_value': row_dict['prompt_value'],
             'image_url': row_dict.get('image_url'),
             'gemini_instruction': row_dict.get('gemini_instruction') or '',
-            'mode': row_dict.get('mode') or 'image'
+            'mode': row_dict.get('mode') or 'image',
+            'display_name_ko': row_dict.get('display_name_ko') or '',
+            'display_name_vi': row_dict.get('display_name_vi') or ''
         }
     return result
 
@@ -2678,12 +2694,14 @@ def get_style_preset(style_key: str) -> Optional[Dict]:
         return {
             'style_key': row_dict['style_key'],
             'prompt': row_dict['prompt_value'],
-            'image_url': row_dict.get('image_url')
+            'image_url': row_dict.get('image_url'),
+            'display_name_ko': row_dict.get('display_name_ko') or '',
+            'display_name_vi': row_dict.get('display_name_vi') or ''
         }
     return None
 
 
-def save_style_preset(style_key: str, prompt_value: str, image_url: str = None, gemini_instruction: str = None, mode: str = None):
+def save_style_preset(style_key: str, prompt_value: str, image_url: str = None, gemini_instruction: str = None, mode: str = None, display_name_ko: str = None, display_name_vi: str = None):
     """이미지 스타일 프리셋 저장. mode: 'image'(기본) | 'blog' | 'all'"""
     conn = get_db()
     cursor = conn.cursor()
@@ -2692,40 +2710,33 @@ def save_style_preset(style_key: str, prompt_value: str, image_url: str = None, 
     existing = cursor.fetchone()
 
     if existing:
-        # mode가 None이면 기존 mode 유지
-        mode_sql = ", mode = ?" if mode is not None else ""
-        mode_params = (mode,) if mode is not None else ()
-
-        if image_url is None and gemini_instruction is None:
-            cursor.execute(f"""
-                UPDATE style_presets
-                SET prompt_value = ?{mode_sql}, updated_at = CURRENT_TIMESTAMP
-                WHERE style_key = ?
-            """, (prompt_value,) + mode_params + (style_key,))
-        elif image_url is None:
-            cursor.execute(f"""
-                UPDATE style_presets
-                SET prompt_value = ?, gemini_instruction = ?{mode_sql}, updated_at = CURRENT_TIMESTAMP
-                WHERE style_key = ?
-            """, (prompt_value, gemini_instruction) + mode_params + (style_key,))
-        elif gemini_instruction is None:
-            cursor.execute(f"""
-                UPDATE style_presets
-                SET prompt_value = ?, image_url = ?{mode_sql}, updated_at = CURRENT_TIMESTAMP
-                WHERE style_key = ?
-            """, (prompt_value, image_url) + mode_params + (style_key,))
-        else:
-            cursor.execute(f"""
-                UPDATE style_presets
-                SET prompt_value = ?, image_url = ?, gemini_instruction = ?{mode_sql}, updated_at = CURRENT_TIMESTAMP
-                WHERE style_key = ?
-            """, (prompt_value, image_url, gemini_instruction) + mode_params + (style_key,))
+        updates = ["prompt_value = ?", "updated_at = CURRENT_TIMESTAMP"]
+        params = [prompt_value]
+        if image_url is not None:
+            updates.append("image_url = ?")
+            params.append(image_url)
+        if gemini_instruction is not None:
+            updates.append("gemini_instruction = ?")
+            params.append(gemini_instruction)
+        if mode is not None:
+            updates.append("mode = ?")
+            params.append(mode)
+        if display_name_ko is not None:
+            updates.append("display_name_ko = ?")
+            params.append(display_name_ko)
+        if display_name_vi is not None:
+            updates.append("display_name_vi = ?")
+            params.append(display_name_vi)
+        
+        sql = f"UPDATE style_presets SET {', '.join(updates)} WHERE style_key = ?"
+        params.append(style_key)
+        cursor.execute(sql, tuple(params))
     else:
         effective_mode = mode or 'image'
         cursor.execute("""
-            INSERT INTO style_presets (style_key, prompt_value, image_url, gemini_instruction, mode)
-            VALUES (?, ?, ?, ?, ?)
-        """, (style_key, prompt_value, image_url, gemini_instruction, effective_mode))
+            INSERT INTO style_presets (style_key, prompt_value, image_url, gemini_instruction, mode, display_name_ko, display_name_vi)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (style_key, prompt_value, image_url, gemini_instruction, effective_mode, display_name_ko or '', display_name_vi or ''))
 
     conn.commit()
     conn.close()
@@ -2850,7 +2861,25 @@ def get_script_style_presets():
         result[row['style_key']] = row['prompt_value']
     return result
 
-def save_script_style_preset(style_key: str, prompt_value: str):
+def get_script_style_presets_detailed():
+    """대본 스타일 프리셋 상세 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM script_style_presets")
+    rows = cursor.fetchall()
+    conn.close()
+    
+    result = {}
+    for row in rows:
+        row_dict = dict(row)
+        result[row_dict['style_key']] = {
+            'prompt_value': row_dict['prompt_value'],
+            'display_name_ko': row_dict.get('display_name_ko') or '',
+            'display_name_vi': row_dict.get('display_name_vi') or ''
+        }
+    return result
+
+def save_script_style_preset(style_key: str, prompt_value: str, display_name_ko: str = None, display_name_vi: str = None):
     """대본 스타일 프리셋 저장"""
     conn = get_db()
     cursor = conn.cursor()
@@ -2859,23 +2888,29 @@ def save_script_style_preset(style_key: str, prompt_value: str):
     existing = cursor.fetchone()
     
     if existing:
-        cursor.execute("""
-            UPDATE script_style_presets 
-            SET prompt_value = ?, updated_at = CURRENT_TIMESTAMP 
-            WHERE style_key = ?
-        """, (prompt_value, style_key))
+        updates = ["prompt_value = ?", "updated_at = CURRENT_TIMESTAMP"]
+        params = [prompt_value]
+        if display_name_ko is not None:
+            updates.append("display_name_ko = ?")
+            params.append(display_name_ko)
+        if display_name_vi is not None:
+            updates.append("display_name_vi = ?")
+            params.append(display_name_vi)
+        sql = f"UPDATE script_style_presets SET {', '.join(updates)} WHERE style_key = ?"
+        params.append(style_key)
+        cursor.execute(sql, tuple(params))
     else:
         cursor.execute("""
-            INSERT INTO script_style_presets (style_key, prompt_value) 
-            VALUES (?, ?)
-        """, (style_key, prompt_value))
+            INSERT INTO script_style_presets (style_key, prompt_value, display_name_ko, display_name_vi) 
+            VALUES (?, ?, ?, ?)
+        """, (style_key, prompt_value, display_name_ko or '', display_name_vi or ''))
     
     conn.commit()
     conn.close()
 
 # Removed duplicate get_thumbnail_style_presets to avoid collision
 
-def save_thumbnail_style_preset(style_key: str, prompt_value: str, image_url: str = None):
+def save_thumbnail_style_preset(style_key: str, prompt_value: str, image_url: str = None, display_name_ko: str = None, display_name_vi: str = None):
     """썸네일 스타일 프리셋 저장"""
     conn = get_db()
     cursor = conn.cursor()
@@ -2884,24 +2919,25 @@ def save_thumbnail_style_preset(style_key: str, prompt_value: str, image_url: st
     existing = cursor.fetchone()
     
     if existing:
-        # Update (preserve image_url if not provided)
-        if image_url is None:
-            cursor.execute("""
-                UPDATE thumbnail_style_presets 
-                SET prompt_value = ?, updated_at = CURRENT_TIMESTAMP 
-                WHERE style_key = ?
-            """, (prompt_value, style_key))
-        else:
-            cursor.execute("""
-                UPDATE thumbnail_style_presets 
-                SET prompt_value = ?, image_url = ?, updated_at = CURRENT_TIMESTAMP 
-                WHERE style_key = ?
-            """, (prompt_value, image_url, style_key))
+        updates = ["prompt_value = ?", "updated_at = CURRENT_TIMESTAMP"]
+        params = [prompt_value]
+        if image_url is not None:
+            updates.append("image_url = ?")
+            params.append(image_url)
+        if display_name_ko is not None:
+            updates.append("display_name_ko = ?")
+            params.append(display_name_ko)
+        if display_name_vi is not None:
+            updates.append("display_name_vi = ?")
+            params.append(display_name_vi)
+        sql = f"UPDATE thumbnail_style_presets SET {', '.join(updates)} WHERE style_key = ?"
+        params.append(style_key)
+        cursor.execute(sql, tuple(params))
     else:
         cursor.execute("""
-            INSERT INTO thumbnail_style_presets (style_key, prompt_value, image_url) 
-            VALUES (?, ?, ?)
-        """, (style_key, prompt_value, image_url))
+            INSERT INTO thumbnail_style_presets (style_key, prompt_value, image_url, display_name_ko, display_name_vi) 
+            VALUES (?, ?, ?, ?, ?)
+        """, (style_key, prompt_value, image_url, display_name_ko or '', display_name_vi or ''))
     
     conn.commit()
     conn.close()
