@@ -1,26 +1,6 @@
-faster-whisper not installed. fallback to simple. Error: No module named 'faster_whisper'
-faster-whisper not installed. fallback to simple. Error: No module named 'faster_whisper'
-faster-whisper not installed. fallback to simple. Error: No module named 'faster_whisper'
-faster-whisper not installed. fallback to simple. Error: No module named 'faster_whisper'
-faster-whisper not installed. fallback to simple. Error: No module named 'faster_whisper'
-faster-whisper not installed. fallback to simple. Error: No module named 'faster_whisper'
-faster-whisper not installed. fallback to simple. Error: No module named 'faster_whisper'
-faster-whisper not installed. fallback to simple. Error: No module named 'faster_whisper'
-faster-whisper not installed. fallback to simple. Error: No module named 'faster_whisper'
-faster-whisper not installed. fallback to simple. Error: No module named 'faster_whisper'
-faster-whisper not installed. fallback to simple. Error: No module named 'faster_whisper'
-faster-whisper not installed. fallback to simple. Error: No module named 'faster_whisper'
-faster-whisper not installed. fallback to simple. Error: No module named 'faster_whisper'
-faster-whisper not installed. fallback to simple. Error: No module named 'faster_whisper'
-faster-whisper not installed. fallback to simple. Error: No module named 'faster_whisper'
-faster-whisper not installed. fallback to simple. Error: No module named 'faster_whisper'
-faster-whisper not installed. fallback to simple. Error: No module named 'faster_whisper'
-faster-whisper not installed. fallback to simple. Error: No module named 'faster_whisper'
-faster-whisper not installed. fallback to simple. Error: No module named 'faster_whisper'
-faster-whisper not installed. fallback to simple. Error: No module named 'faster_whisper'
-faster-whisper not installed. fallback to simple. Error: No module named 'faster_whisper'
-faster-whisper not installed. fallback to simple. Error: No module named 'faster_whisper'
-faster-whisper not installed. fallback to simple. Error: No module named 'faster_whisper'
-faster-whisper not installed. fallback to simple. Error: No module named 'faster_whisper'
-faster-whisper not installed. fallback to simple. Error: No module named 'faster_whisper'
-faster-whisper not installed. fallback to simple. Error: No module named 'faster_whisper'
+Error during generate_aligned_subtitles:
+Traceback (most recent call last):
+  File "C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator\services\video_service.py", line 1873, in generate_aligned_subtitles
+    subtitles.append({
+    ^^^^^^^^^
+NameError: name 'subtitles' is not defined

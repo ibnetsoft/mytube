@@ -1,0 +1,1167 @@
+templates\base.html:23: // 초기 테마 설정 (기본값: Dark 고정)
+templates\base.html:39: <button onclick="syncAuthData()" class="p-1 hover:bg-blue-500/10 rounded-lg transition-all group/sync" title="서버와 동기화">
+templates\base.html:44: <button type="button" onclick="logoutUser()" class="p-1 hover:bg-red-500/10 rounded-lg transition-all text-red-500" title="로그아웃">
+templates\base.html:58: <div class="mt-3 px-3 py-2 bg-blue-500/5 rounded-2xl border border-white/5 flex items-center justify-between group hover:bg-blue-500/10 transition-all cursor-help" title="보유 AI 토큰 잔액">
+templates\base.html:395: <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{ t('step_shorts_template') or '숏폼 템플릿' }}</span>
+templates\base.html:477: <option value="ko">🇰🇷 한국어 (Korean)</option>
+templates\base.html:509: title="한국어">
+templates\base.html:810: // 프로젝트 목록 로드
+templates\base.html:830: // 현재 프로젝트 정보 표시 및 전체 상태 복구
+templates\base.html:832: // onProjectChange를 호출하여 헤더, 진행상태, 로컬 스토리지 데이터 등을 모두 복구
+templates\base.html:836: console.error('프로젝트 로드 오류:', e);
+templates\base.html:840: // 프로젝트 정보 업데이트
+templates\base.html:853: // 프로젝트 변경
+templates\base.html:856: // 1. UI 및 로컬 상태 기본 업데이트
+templates\base.html:859: // Select Box 업데이트 (프로그램적 호출 시 필요)
+templates\base.html:865: // 2. 프로젝트 기본 정보 조회 및 표시
+templates\base.html:885: // 3. ✨ 전체 데이터 동기화 (Context Switching 핵심) ✨
+templates\base.html:888: // 로컬 스토리지에 각 단계 데이터 업데이트
+templates\base.html:890: // 대본 기획
+templates\base.html:892: // 대본
+templates\base.html:894: // 이미지 프롬프트 (image_gen.html용)
+templates\base.html:897: // 캐릭터 정보 동기화 [NEW]
+templates\base.html:900: // 이벤트 발생 (현재 페이지가 리스닝 중이라면 즉시 반영)
+templates\base.html:903: // ✨ UI 진행 상태 업데이트 (Green Light)
+templates\base.html:904: // 사용자 요청: 각 단계별 실제 데이터 존재 여부만 확인 (Strict Mode)
+templates\base.html:954: console.error("프로젝트 로드 실패", e);
+templates\base.html:963: // 로컬 스토리지 데이터도 비우는 것이 좋음 (선택 해제 시)
+templates\base.html:971: // 프로젝트 모달 열기/닫기
+templates\base.html:986: // 새 프로젝트 생성
+templates\base.html:1032: // API 상태 확인
+templates\base.html:1230: // ESC 키로 모달 닫기
+templates\base.html:1267: // 초기화
+templates\base.html:1276: // 사이드바 토큰 잔액 및 멤버십 실시간 동기화 (서버사이드 캐시가 0일 경우 보정)
+templates\base.html:1289: // 멤버십 등급 변경 감지 시 즉시 페이지 리로드하여 화면 갱신
+templates\base.html:1296: } catch (e) { /* 네트워크 오류 시 무시 */ }
+templates\pages\autopilot.html:212: ↕️ {{ t('label_v_position') or '자막 위치 (높이 조정)' }}
+templates\pages\autopilot.html:220: <span>{{ t('pos_middle') or '중앙(Middle)' }}</span>
+templates\pages\autopilot.html:221: <span>{{ t('pos_bottom') or '하단(Bottom)' }}</span>
+templates\pages\autopilot.html:244: <span class="text-xs">🍳</span> 랜덤 요리 영상 (Shorts)
+templates\pages\autopilot.html:320: <h3 class="text-sm font-bold text-white">{{ t('label_shorts_template_style') or '숏폼 템플릿 스타일' }}</h3>
+templates\pages\autopilot.html:327: <option value="">-- {{ t('opt_no_template') or '디자인 템플릿 없음' }} --</option>
+templates\pages\autopilot.html:335: {{ t('label_template_loading') or '템플릿 로딩 중...' }}</div>
+templates\pages\commerce_shorts.html:317: uploadedImages: []  // 업로드된 이미지 URL 저장
+templates\pages\commerce_shorts.html:366: // ============ 이미지 업로드 관련 함수 ============
+templates\pages\commerce_shorts.html:399: // 파일 개수 확인
+templates\pages\commerce_shorts.html:405: // 파일 크기 확인 (각 10MB)
+templates\pages\commerce_shorts.html:414: // 진행 상태 표시
+templates\pages\commerce_shorts.html:423: // 업로드 시작
+templates\pages\commerce_shorts.html:435: // 진행 상태 완료
+templates\pages\commerce_shorts.html:438: // 업로드된 이미지 저장
+templates\pages\commerce_shorts.html:441: // 미리보기 표시
+templates\pages\commerce_shorts.html:446: // 진행 상태 숨기기
+templates\pages\commerce_shorts.html:484: // ============ 기존 함수들 ============
+templates\pages\commerce_shorts.html:610: // ============ 트렌드 검색 ============
+templates\pages\commerce_shorts.html:642: // ============ 카피라이팅 생성 ============
+templates\pages\commerce_shorts.html:714: // 고급 옵션 수집
+templates\pages\commerce_shorts.html:722: // 제품 이미지와 업로드된 이미지 병합
+templates\pages\commerce_shorts.html:725: // 업로드된 이미지가 있으면 우선 사용
+templates\pages\commerce_shorts.html:728: // 없으면 제품 분석에서 추출한 이미지 사용
+templates\pages\commerce_shorts.html:896: // 모달로 영상 재생
+templates\pages\image_crop.html:254: if (!res.ok) throw new Error('잘라내기 실패');
+templates\pages\image_crop.html:285: if (!res.ok) throw new Error(`${idx}번 잘라내기 실패`);
+templates\pages\image_gen.html:310: // 사람 제외 토글 상태 반환
+templates\pages\image_gen.html:316: // [FIX] settings를 DOMContentLoaded보다 빨리 로드 시작 (projectStateRestored 타이밍 문제 방지)
+templates\pages\image_gen.html:322: // [NEW] 프롬프트 최적화 유틸리티
+templates\pages\image_gen.html:324: if (!fullPrompt) return "동작 묘사 없음";
+templates\pages\image_gen.html:325: // 한국어/영어 마커 모두 대응
+templates\pages\image_gen.html:326: const marker = fullPrompt.includes("[대본 기반 동적 변경 - 가장 중요]")
+templates\pages\image_gen.html:327: ? "[대본 기반 동적 변경 - 가장 중요]"
+templates\pages\image_gen.html:330: const nextMarker = "[추가 시각 효과]";
+templates\pages\image_gen.html:421: btn.innerHTML = '<span class="animate-spin inline-block mr-1">↻</span> 작성 중...';
+templates\pages\image_gen.html:438: // 스토리지 저장 및 UI 갱신
+templates\pages\image_gen.html:441: // 현재 활성화된 프레임 텍스트 영역 즉시 업데이트
+templates\pages\image_gen.html:457: btn.innerHTML = '↻ AI 프롬프트 자동 작성 (Start/End)';
+templates\pages\image_gen.html:470: // 다른 열려 있는 패널 먼저 닫기
+templates\pages\image_gen.html:486: // 펼쳐질 때 높이 자동 조절
+templates\pages\image_gen.html:490: // 바깥 클릭 시 닫힘 (setTimeout으로 현재 클릭 이벤트와 분리)
+templates\pages\image_gen.html:630: // [NEW] 캐릭터 분석 함수
+templates\pages\image_gen.html:632: // [Fix] 스크립트 데이터 안전하게 가져오기 (객체일 경우 처리)
+templates\pages\image_gen.html:637: // 만약 객체라면 텍스트 필드를 찾거나 전체를 문자열화
+templates\pages\image_gen.html:643: // DB fallback: localStorage에 없으면 DB에서 가져오기
+templates\pages\image_gen.html:669: // UI 상태 업데이트
+templates\pages\image_gen.html:677: // [Fix] PROJECT_ID 전역 변수 대신 함수 사용
+templates\pages\image_gen.html:700: // 결과 스크롤 이동
+templates\pages\image_gen.html:703: // [NEW] 서버 자동 저장
+templates\pages\image_gen.html:727: // 캐릭터 카드 렌더링
+templates\pages\image_gen.html:741: // 역할에 따른 배지 색상
+templates\pages\image_gen.html:743: if (char.role && char.role.includes("주인공")) roleBadgeColor = "bg-blue-500/10 text-blue-400 border border-blue-500/20";
+templates\pages\image_gen.html:744: else if (char.role && char.role.includes("조연")) roleBadgeColor = "bg-green-500/10 text-green-400 border border-green-500/20";
+templates\pages\image_gen.html:753: <option value="주인공" ${char.role === '주인공' ? 'selected' : ''}>{{ t('role_main') }}</option>
+templates\pages\image_gen.html:754: <option value="조연" ${char.role === '조연' ? 'selected' : ''}>{{ t('role_sub') }}</option>
+templates\pages\image_gen.html:755: <option value="배경인물" ${char.role === '배경인물' ? 'selected' : ''}>{{ t('role_bg') }}</option>
+templates\pages\image_gen.html:810: // [NEW] 수동으로 캐릭터 추가
+templates\pages\image_gen.html:815: role: "조연",
+templates\pages\image_gen.html:824: // UI 보이기
+templates\pages\image_gen.html:830: // 마지막 카드로 스크롤
+templates\pages\image_gen.html:834: // 이름 입력칸에 포커스
+templates\pages\image_gen.html:843: // [NEW] 로컬 스토리지 데이터 업데이트 & 서버 싱크
+templates\pages\image_gen.html:852: // [NEW] 서버 자동 저장 (디바운스)
+templates\pages\image_gen.html:860: // [NEW] 서버에 캐릭터 정보 영구 저장 (Autopilot 연동 핵심)
+templates\pages\image_gen.html:909: // [NEW] 만약 삭제하는 캐릭터가 현재 레퍼런스 이미지라면 레퍼런스도 초기화
+templates\pages\image_gen.html:917: // UI 초기화
+templates\pages\image_gen.html:929: // 1. 로컬 데이터 초기화
+templates\pages\image_gen.html:933: // 2. 서버 설정 초기화
+templates\pages\image_gen.html:940: // 3. 서버 캐릭터 목록 초기화 (saveCharactersToProject는 storage 데이터를 사용함)
+templates\pages\image_gen.html:949: // 4. UI 숨김 처리
+templates\pages\image_gen.html:990: // [NEW] 캐릭터 이미지 개별 생성
+templates\pages\image_gen.html:1006: // UI 상태 업데이트
+templates\pages\image_gen.html:1047: // 캐릭터 프롬프트 및 이미지 적용
+templates\pages\image_gen.html:1053: // 1. 프롬프트 적용
+templates\pages\image_gen.html:1062: // 2. 이미지 레퍼런스 적용 (있을 경우)
+templates\pages\image_gen.html:1070: // UI 레퍼런스 이미지 업데이트
+templates\pages\image_gen.html:1085: // 효과: 깜빡임
+templates\pages\image_gen.html:1102: // 기존 로직 유지 (DB Fallback 등)
+templates\pages\image_gen.html:1104: // [NEW] 로컬 스토리지에 없으면 DB에서 가져오기 시도
+templates\pages\image_gen.html:1157: // 활성화 (std 유저는 버튼 없음)
+templates\pages\image_gen.html:1219: // UI 업데이트
+templates\pages\image_gen.html:1223: // 결과 요리 이름 표시
+templates\pages\image_gen.html:1227: // 활성화
+templates\pages\image_gen.html:1251: // 상단 격자형 프롬프트 복사 패널 동적 추가
+templates\pages\image_gen.html:1257: <span>🖼️</span> 2x2 격자 이미지 생성 프롬프트 (ChatGPT/DALL-E용 복사)
+templates\pages\image_gen.html:1276: <span class="text-xs text-gray-300 font-bold">${i+1}~${i + chunk.length}씬 격자</span>
+templates\pages\image_gen.html:1277: <button onclick="Utils.copyToClipboard(decodeURIComponent('${encodedPrompt}')); Utils.showToast('격자 프롬프트 복사 완료!', 'success')"
+templates\pages\image_gen.html:1279: 복사
+templates\pages\image_gen.html:1301: // [FIX] 엔진 결정: 사용자가 직접 바꾼 씬(_engine_overridden)은 p.engine 유지,
+templates\pages\image_gen.html:1302: //       그 외에는 항상 글로벌 설정(window.defaultVideoEngine) 사용
+templates\pages\image_gen.html:1305: // [Fix] 키 값 호환성 처리 (scene vs scene_text, prompt vs prompt_en)
+templates\pages\image_gen.html:1306: // 대본 텍스트를 최대한 찾아내기 위해 prompt_ko와 scene_title까지 확인
+templates\pages\image_gen.html:1444: ↻ AI 프롬프트 자동 작성 (Start/End)
+templates\pages\image_gen.html:1497: <label class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">🖼️ 격자 프롬프트</label>
+templates\pages\image_gen.html:1499: <button onclick="Utils.copyToClipboard(document.getElementById('prompt-en-input-${i}').value); Utils.showToast('복사 완료!', 'success')" class="text-emerald-500 hover:text-emerald-600 text-[9px] bg-[#1c2027] px-1.5 py-0.5 rounded border border-white/5 transition-colors font-bold whitespace-nowrap">복사</button>
+templates\pages\image_gen.html:1528: <span>🔍 시각 요소 분석 (Visual Analysis)</span>
+templates\pages\image_gen.html:1653: // [Fix] 키 값 호환성 처리
+templates\pages\image_gen.html:1674: // [Fix] UI 강제 업데이트 (이미지 미표시 문제 해결)
+templates\pages\image_gen.html:1940: const text = prompts.map((p, i) => `[장면 ${i + 1}] ${p.scene_text || p.scene || ''}\n${p.prompt_en || p.prompt_content || p.prompt || ''}`).join('\n\n');
+templates\pages\image_gen.html:1988: // 1. JSON 파싱 (듀얼 프레임 구조인 경우)
+templates\pages\image_gen.html:1996: // 2. 동작 지시문 분리 (제거하고 순수 이미지 프롬프트만 남김)
+templates\pages\image_gen.html:1999: "동적인 요소:",
+templates\pages\image_gen.html:2000: "[대본 기반 동적 변경 - 가장 중요]",
+templates\pages\image_gen.html:2026: // 1. 격자용 이미지 프롬프트 (For ChatGPT)
+templates\pages\image_gen.html:2035: // 2. Google Flow 영상 프롬프트 (Pair 연결 - Option B)
+templates\pages\image_gen.html:2039: const s2 = prompts[i + j + 1]; // 다음 씬 (현재 청크를 넘어갈 수 있음)
+templates\pages\image_gen.html:2050: pairTitle = `🎬 씬 ${sceneNum1} - 씬 ${sceneNum2} 연결 프롬프트`;
+templates\pages\image_gen.html:2056: pairTitle = `🎬 씬 ${sceneNum1} 단독 프롬프트 (마지막 씬)`;
+templates\pages\image_gen.html:2064: <button onclick="copyGridText(this)" class="text-[10px] bg-purple-900/50 hover:bg-purple-800 text-purple-300 px-3 py-1 rounded transition-colors border border-purple-700/50">복사하기</button>
+templates\pages\image_gen.html:2075: <h4 class="text-md font-bold text-blue-400 flex items-center gap-2"><span>🎬</span> 씬 ${i+1} ~ ${i + chunk.length}</h4>
+templates\pages\image_gen.html:2082: <label class="text-xs font-bold text-emerald-400">1. 격자 이미지 생성 프롬프트 (ChatGPT용)</label>
+templates\pages\image_gen.html:2083: <button onclick="copyGridText(this)" class="text-[10px] bg-emerald-900/50 hover:bg-emerald-800 text-emerald-300 px-3 py-1 rounded transition-colors border border-emerald-700/50">복사하기</button>
+templates\pages\image_gen.html:2091: <label class="text-xs font-bold text-purple-400 mb-1">2. 영상 생성 프롬프트 (Google Flow용)</label>
+templates\pages\image_gen.html:2107: btn.innerText = '복사됨!';
+templates\pages\image_gen.html:2151: // 상태 표시 업데이트
+templates\pages\image_gen.html:2159: // API 호출
+templates\pages\image_gen.html:2160: // [Fix] 키 값 호환성 처리
+templates\pages\image_gen.html:2167: // 성공 시 UI 업데이트: DOM 조작을 통해 이미지 컨테이너 교체
+templates\pages\image_gen.html:2189: // 스토리지에 결과 저장 (새로고침 시 유지)
+templates\pages\image_gen.html:2200: statusDiv.textContent = '❌ 생성 실패: ' + result.error;
+templates\pages\image_gen.html:2212: // 다음 단계 (수동 이동)
+templates\pages\image_gen.html:2216: // 숏폼이면 썸네일로, 그 외는 TTS로 가이드
+templates\pages\image_gen.html:2243: // 전체 선택/해제 토글
+templates\pages\image_gen.html:2264: // Scene 선택 시 버튼 활성화 상태 업데이트
+templates\pages\image_gen.html:2286: // [NEW] 페이드인 설정 업데이트
+templates\pages\image_gen.html:2304: console.log(`페이드인 설정 저장: Scene ${sceneIndex + 1} = ${fadeIn}`);
+templates\pages\image_gen.html:2306: throw new Error(data.error || '저장 실패');
+templates\pages\image_gen.html:2310: console.error('페이드인 설정 저장 실패:', e);
+templates\pages\image_gen.html:2323: prompts[index]._engine_overridden = true; // 사용자가 직접 선택했음을 표시
+templates\pages\image_gen.html:2393: if (!projectId) { Toast.show('프로젝트를 먼저 선택하세요.', 'error'); return; }
+templates\pages\image_gen.html:2400: if (viewEl) viewEl.textContent = '⏳ 생성 중...';
+templates\pages\image_gen.html:2420: Toast.show(`Scene ${index + 1} Flow prompt 재생성 완료`, 'success');
+templates\pages\image_gen.html:2422: Toast.show(data.error || 'Flow prompt 생성 실패', 'error');
+templates\pages\image_gen.html:2426: Toast.show('네트워크 오류: ' + e.message, 'error');
+templates\pages\image_gen.html:2433: // ── 선택씬 이미지 분석 → 모션 생성 ─────────────────────────────────
+templates\pages\image_gen.html:2439: // 선택된 씬 번호 수집 (체크박스 ID에서 인덱스 추출)
+templates\pages\image_gen.html:2451: // 이미지가 없는 씬 확인
+templates\pages\image_gen.html:2464: btn.innerHTML = `<span class="animate-spin inline-block">🔍</span> 분석 중... (${checked.length}개)`;
+templates\pages\image_gen.html:2477: // 결과를 UI에 반영
+templates\pages\image_gen.html:2488: ? `${data.generated}개 완료, ${errCount}개 실패`
+templates\pages\image_gen.html:2489: : `${data.generated}개 씬 모션 생성 완료`;
+templates\pages\image_gen.html:2492: Utils.showToast('오류: ' + (data.error || '알 수 없는 오류'), 'error');
+templates\pages\image_gen.html:2495: Utils.showToast('요청 실패: ' + e.message, 'error');
+templates\pages\image_gen.html:2502: // ── Motion 자동생성 ────────────────────────────────────────────────
+templates\pages\image_gen.html:2505: // 현재 씬 수를 최대값으로 설정
+templates\pages\image_gen.html:2526: confirmBtn.textContent = '생성 중...';
+templates\pages\image_gen.html:2528: progress.textContent = `씬 1~${maxScene} 처리 중...`;
+templates\pages\image_gen.html:2539: // 로컬 prompts 배열 업데이트
+templates\pages\image_gen.html:2544: // textarea 직접 업데이트
+templates\pages\image_gen.html:2550: progress.textContent = `✅ ${data.generated}개 씬 생성 완료!`;
+templates\pages\image_gen.html:2555: progress.textContent = `❌ 오류: ${data.error}`;
+templates\pages\image_gen.html:2562: confirmBtn.textContent = '✨ 생성 시작';
+templates\pages\image_gen.html:2572: if (btn) { btn.disabled = true; btn.textContent = '생성 중...'; }
+templates\pages\image_gen.html:2598: Utils.showToast('생성 실패: ' + errMsg, 'error');
+templates\pages\image_gen.html:2601: Utils.showToast('오류: ' + e.message, 'error');
+templates\pages\image_gen.html:2603: if (btn) { btn.disabled = false; btn.textContent = '✨ AI 생성'; }
+templates\pages\image_gen.html:2626: Utils.showToast('저장 실패: ' + e.message, 'error');
+templates\pages\image_gen.html:2693: // [FIX] drawPromptsUI와 동일한 엔진 결정 로직 사용 (ui상 보이는 파란 버튼과 실 요청 엔진 일치시키기)
+templates\pages\image_gen.html:2702: // 엔진별 안내 메시지
+templates\pages\image_gen.html:2704: const engineTime = engine === 'veo' ? '약 3~5분 소요' : '약 1~2분 소요';
+templates\pages\image_gen.html:2709: btn.innerHTML = `<span class="animate-spin">⏳</span> ${engineLabel} 생성 중...`;
+templates\pages\image_gen.html:2713: statusDiv.innerHTML = `<span class="font-bold text-blue-600">${engineLabel}</span> 영상 생성 중... (${engineTime})`;
+templates\pages\image_gen.html:2717: // Seedance용 파라미터 추가
+templates\pages\image_gen.html:2724: body.resolution = '720p';  // 720p = 5크레딧, 가장 균형적
+templates\pages\image_gen.html:2764: // localStorage에서 프로젝트별로 복원
+templates\pages\image_gen.html:2818: // 스타일 선택 함수
+templates\pages\image_gen.html:2843: throw new Error(result.error || "저장 실패");
+templates\pages\image_gen.html:2847: Utils.showToast("설정 저장 실패: " + e.message, "error");
+templates\pages\image_gen.html:2855: return style && /wimpy|stick|졸라맨/i.test(style);
+templates\pages\image_gen.html:2879: // 3. Auto-save to DB (debounced 500ms) — 복원 시에는 스킵
+templates\pages\image_gen.html:2883: // localStorage에 즉시 백업 (DB 저장 전 새로고침 방어)
+templates\pages\image_gen.html:2902: // 프로젝트 상태 복구 이벤트 수신
+templates\pages\image_gen.html:2903: // 현재 표시 중인 프로젝트 ID 추적 (새로고침 vs 프로젝트 전환 구분용)
+templates\pages\image_gen.html:2915: // [핵심] 다른 프로젝트로 전환될 때만 기존 데이터 초기화
+templates\pages\image_gen.html:2916: // 같은 프로젝트(새로고침 포함)이면 초기화하지 않음
+templates\pages\image_gen.html:2921: // 프로젝트 전환 시: 기존 데이터 초기화
+templates\pages\image_gen.html:2947: // 쉼표로 구분된 여러 이미지 경로 지원
+templates\pages\image_gen.html:2954: <span class="text-[10px] text-gray-400">${paths.length > 1 ? (i + 1) + '번' : ''}</span>
+templates\pages\image_gen.html:2968: // [RESTORE] Image Prompts - 데이터가 있을 때만 업데이트 (없으면 기존 유지)
+templates\pages\image_gen.html:2970: // 현재 세션의 video_url 보존 (DB 저장 전 race condition 방지)
+templates\pages\image_gen.html:2988: // [FIX] settings 로드 완료 후 렌더링 (defaultVideoEngine 반영 보장)
+templates\pages\image_gen.html:2995: // 데이터 없으면 기존 prompts 유지 (새로고침 케이스는 DOMContentLoaded가 처리)
+templates\pages\image_gen.html:3003: // 프로젝트 전환 시에만 캐릭터 초기화
+templates\pages\image_gen.html:3062: // 현재 선택된 비율에 맞는 aspect-ratio 스타일 반환
+templates\pages\image_gen.html:3067: // 쇼츠 모드(9:16)에서는 이미지 컨테이너 크기 50% 축소
+templates\pages\image_gen.html:3074: // 이미지 컬럼 클래스 반환 (모드에 따라 크기 조정)
+templates\pages\image_gen.html:3082: // 초기 로드 시 DB 및 로컬 스토리지 확인
+templates\pages\image_gen.html:3084: // 썸네일 체크박스: 기본값 unchecked, localStorage로 마지막 값 유지
+templates\pages\image_gen.html:3088: _thumbCheck.checked = _saved === 'true'; // 저장값 없으면 false(기본 unchecked)
+templates\pages\image_gen.html:3099: // [FIX] projectStateRestored가 먼저 실행되어 'wan'으로 렌더링됐을 수 있으므로 재렌더링
+templates\pages\image_gen.html:3110: // 1. DB에서 프롬프트 불러오기 (권장)
+templates\pages\image_gen.html:3129: <span class="text-[10px] text-gray-400">${paths.length > 1 ? (i + 1) + '번' : ''}</span>
+templates\pages\image_gen.html:3148: // DB 포맷 -> 프론트엔드 포맷 매핑
+templates\pages\image_gen.html:3166: // 로컬 스토리지 동기화
+templates\pages\image_gen.html:3168: // 현재 프로젝트 ID 기록 (projectStateRestored가 불필요하게 초기화하지 않도록)
+templates\pages\image_gen.html:3174: // DB에 없으면 직접 엔드포인트 시도
+templates\pages\image_gen.html:3182: // 2. DB에 없으면 로컬 스토리지 확인 (Fallback)
+templates\pages\image_gen.html:3206: list.innerHTML = ''; // 기존 미리보기 초기화
+templates\pages\image_gen.html:3215: <span class="text-[10px] text-gray-400 max-w-[40px] truncate">${idx + 1}번</span>
+templates\pages\image_gen.html:3261: // ── 소스 결정 ──
+templates\pages\image_gen.html:3282: // ── 분석할 소스 목록 구성 ──
+templates\pages\image_gen.html:3283: // 파일 업로드: 각 파일 개별 분석 / 썸네일: 단일 분석
+templates\pages\image_gen.html:3320: // ── globalPrompt에 적용 ──
+templates\pages\image_gen.html:3322: // 기존 [캐릭터 X Visual Reference] 블록 모두 제거 후 새 내용 추가
+templates\pages\image_gen.html:3324: .replace(/\[캐릭터\s*\d+\s*Visual Reference\]:[\s\S]*?(?=\[|$)/g, '')
+templates\pages\image_gen.html:3329: // ── DB 저장 ──
+templates\pages\image_gen.html:3331: // 여러 이미지 경로를 쉼표로 구분하여 저장 (기존 단일 경로와 호환)
+templates\pages\image_gen.html:3342: Utils.showToast('분석 중 통신 오류: ' + e.message, 'error');
+templates\pages\image_gen.html:3428: // 모드 전역 저장 (getContainerStyle, getImageColClass 에서 참조)
+templates\pages\image_gen.html:3432: // 숏폼: 롱폼 비율 숨기고, 숏폼 비율 표시 (기본 3:4 선택)
+templates\pages\image_gen.html:3442: // Thumbnail Reference → 세로형
+templates\pages\image_gen.html:3449: // 이미 렌더된 씬 카드 이미지 컨테이너 → 9:16 + 50% 크기
+templates\pages\image_gen.html:3456: // 롱폼: 숏폼 비율 숨기고, 롱폼 비율 숨김 (기존처럼 16:9 자동 선택)
+templates\pages\image_gen.html:3466: // Thumbnail Reference → 가로형
+templates\pages\image_gen.html:3473: // 이미 렌더된 씬 카드 이미지 컨테이너 → 16:9
+templates\pages\image_gen.html:3513: '2D웹': i18n.style_display_2d_webtoon,
+templates\pages\image_gen.html:3514: '블랙카툰': i18n.style_display_black_cartoon,
+templates\pages\image_gen.html:3515: '사물캐릭터': i18n.style_display_object_char,
+templates\pages\image_gen.html:3516: '역사/동양철/다큐': i18n.style_display_philosophical,
+templates\pages\image_gen.html:3517: '후드티민머리': i18n.style_display_bald_hoodie
+templates\pages\image_gen.html:3521: // 이미지 우선순위: 1. DB에 저장된 전용 image_url  2. static 내부의 기본 이미지  3. 없는 경우 대비용 텍스트 아이콘
+templates\pages\image_gen.html:3560: // 비율 변경 시 이미 렌더된 image-container들의 aspect-ratio 업데이트
+templates\pages\image_gen.html:3573: // [NEW] 서버에서 저장된 캐릭터 정보 불러오기
+templates\pages\image_gen.html:3587: // UI 표시
+templates\pages\image_gen.html:3600: // [NEW] 서버에서 저장된 장면 프롬프트 정보 불러오기 (폴백 전용)
+templates\pages\image_gen.html:3609: // [FIX] 빈 배열이면 기존 데이터를 덮어쓰지 않음
+templates\pages\image_gen.html:3620: // 서버에 없으면 localStorage 폴백
+templates\pages\image_gen.html:3634: // ========== 블로그 게시 기능 ==========
+templates\pages\image_gen.html:3636: // --- 포착된 이미지 (Google Flow Bridge 확장프로그램) ---
+templates\pages\image_gen.html:3637: let selectedBlogImages = [];  // 블로그에 삽입할 이미지 URL 목록
+templates\pages\image_gen.html:3641: // 확장프로그램 메시지 수신
+templates\pages\image_gen.html:3663: // 확장프로그램 연결 확인 (타임아웃)
+templates\pages\image_gen.html:3685: // 타임아웃 - 3초 내 응답 없으면 안내
+templates\pages\image_gen.html:3773: // 정보 업데이트
+templates\pages\image_gen.html:3779: // 제목 자동 추출
+templates\pages\image_gen.html:3800: // 대본(script) + 이미지(prompts)를 조합해 블로그 HTML 생성
+templates\pages\image_gen.html:3808: // 이미지가 있으면 삽입
+templates\pages\image_gen.html:3810: // 로컬 경로를 절대 URL로 변환
+templates\pages\image_gen.html:3820: // 대본 텍스트 삽입
+templates\pages\image_gen.html:3845: <span>🖼️</span> 2x2 격자판 프롬프트
+templates\pages\image_gen.html:3855: 각 프롬프트를 복사하여 ChatGPT나 DALL-E에 붙여넣으세요.
+templates\pages\image_gen.html:3864: // 포착 이미지 + 프로젝트 이미지 모두 합쳐서 HTML 빌드
+templates\pages\image_gen.html:3866: // 1) 포착된(선택된) 이미지
+templates\pages\image_gen.html:3868: // 2) 프로젝트 장면 이미지
+templates\pages\image_gen.html:3877: // 대본 텍스트 모으기
+templates\pages\image_gen.html:3885: // 이미지만 있는 경우
+templates\pages\image_gen.html:3891: // 이미지를 텍스트 사이에 균등 배분
+templates\pages\image_gen.html:3924: btn.innerHTML = '<span class="animate-spin inline-block">⏳</span> 게시 중...';
+templates\pages\image_gen.html:3926: // 먼저 대본을 가져와서 HTML 빌드
+templates\pages\image_gen.html:3939: // 포착 이미지 + 프로젝트 이미지 모두 모으기
+templates\pages\image_gen.html:3948: // 대본 + 이미지 조합 HTML
+templates\pages\image_gen.html:3993: messages.push(`${name}: 게시 완료!`);
+templates\pages\image_gen.html:3994: if (res.url) urls.push(`<a href="${res.url}" target="_blank" class="underline text-blue-500">${name} 보기</a>`);
+templates\pages\image_gen.html:4002: resultDiv.innerHTML = `<strong>게시 완료!</strong><br>${urls.join(' | ')}`;
+templates\pages\image_gen.html:4104: <span>🖼️</span> 2x2 격자판 프롬프트
+templates\pages\image_gen.html:4114: 각 프롬프트를 복사하여 ChatGPT나 DALL-E에 붙여넣으세요.
+templates\pages\login.html:7: <title>직원 로그인 - PICADILLY STUDIO</title>
+templates\pages\login.html:73: <h1 class="text-2xl font-black text-white mb-6">직원 로그인</h1>
+templates\pages\login.html:77: <label class="text-sm font-semibold text-gray-400">이메일을 선택해주세요</label>
+templates\pages\login.html:89: ← 다른 이메일 선택
+templates\pages\login.html:116: <button onclick="pressKey('clear')" class="key-btn aspect-square rounded-2xl text-xs font-semibold flex items-center justify-center text-gray-400">초기화</button>
+templates\pages\login.html:144: <span class="text-xs text-gray-500 group-hover:text-blue-400 transition">선택하기 →</span>
+templates\pages\login.html:150: container.innerHTML = '<div class="text-center text-xs text-gray-500 py-6">등록된 이메일이 없습니다.</div>';
+templates\pages\login.html:154: document.getElementById('email-list').innerHTML = '<div class="text-center text-xs text-red-400 py-6">이메일 목록을 가져오지 못했습니다.</div>';
+templates\pages\login.html:220: document.getElementById('error-msg').textContent = data.error || '로그인 실패';
+templates\pages\login.html:227: document.getElementById('error-msg').textContent = '서버 연결에 실패했습니다.';
+templates\pages\logs.html:103: <option value="newest">⌛ {{ t('sort_newest') or '최신기준' }}</option>
+templates\pages\logs.html:104: <option value="oldest">⏳ {{ t('sort_oldest') or '과거기준' }}</option>
+templates\pages\logs.html:108: <option value="20">20{{ t('rows_suffix') or '개씩' }}</option>
+templates\pages\logs.html:109: <option value="50">50{{ t('rows_suffix') or '개씩' }}</option>
+templates\pages\logs.html:110: <option value="100">100{{ t('rows_suffix') or '개씩' }}</option>
+templates\pages\logs.html:125: <th class="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-orange-500">AI 토큰 소모량</th>
+templates\pages\logs.html:126: <th class="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-blue-500">남은 토큰 총량</th>
+templates\pages\logs.html:135: <p class="text-xs text-gray-400 font-medium">로딩 중...</p>
+templates\pages\logs.html:442: <span class="text-sm">${icon} <span class="text-lg font-black text-white tabular-nums">${data.count}</span> <span class="text-[10px] text-gray-600 font-bold uppercase">건</span></span>
+templates\pages\projects.html:33: <option value="newest">⌛ {{ t('sort_newest') or '최신기준' }}</option>
+templates\pages\projects.html:34: <option value="oldest">⏳ {{ t('sort_oldest') or '과거기준' }}</option>
+templates\pages\projects.html:35: <option value="name">🔤 {{ t('sort_name') or '이름순' }}</option>
+templates\pages\projects.html:39: <option value="20">20{{ t('rows_suffix') or '개씩' }}</option>
+templates\pages\projects.html:40: <option value="50">50{{ t('rows_suffix') or '개씩' }}</option>
+templates\pages\projects.html:41: <option value="100">100{{ t('rows_suffix') or '개씩' }}</option>
+templates\pages\projects.html:46: {{ t('btn_new_project') or '새 프로젝트' }}
+templates\pages\projects.html:127: {{ t('total') or '총' }} <span id="totalItemsCount" class="font-bold text-blue-500">0</span> {{ t('items') or '개' }}
+templates\pages\projects.html:147: + {{ t('btn_new_project') or '새 프로젝트' }}
+templates\pages\projects.html:157: // i18n for JS (var 사용 - base.html의 var i18n과 전역 충돌 방지)
+templates\pages\projects.html:205: sort_newest: "{{ t('sort_newest') or '최신기준' }}",
+templates\pages\projects.html:206: sort_oldest: "{{ t('sort_oldest') or '과거기준' }}",
+templates\pages\projects.html:207: sort_name: "{{ t('sort_name') or '이름순' }}"
+templates\pages\projects.html:367: // 날짜 포맷 (YY.MM.DD)
+templates\pages\projects.html:371: // 상태 아이콘 헬퍼
+templates\pages\projects.html:544: // 사이드바 목록도 갱신
+templates\pages\publish_hub.html:360: // URL에서 session_id가 있으면 해당 세션 자동 로드
+templates\pages\publish_hub.html:434: // 프로젝트 이름도 제목에
+templates\pages\publish_hub.html:454: // 기존 세션 업데이트
+templates\pages\publish_hub.html:461: // 새 세션 생성
+templates\pages\publish_hub.html:570: // 자동으로 다음 빈 슬롯 선택
+templates\pages\publish_hub.html:648: // 이미지 URL이 WordPress URL로 교체되었으므로 다시 로드
+templates\pages\publish_hub.html:714: // 요약 업데이트
+templates\pages\publish_hub.html:729: // 기존 프로젝트의 이미지 생성/TTS/렌더링 페이지로 이동
+templates\pages\render.html:234: // URL 쿼리 파라미터로 넘어온 project_id 처리 (오토파일럿 등)
+templates\pages\script_gen.html:706: // 로컬 캐시 동기화
+templates\pages\script_gen.html:752: // 감정 태그 보호 리스트
+templates\pages\script_gen.html:755: // 괄호 내용 중 감정 태그만 살리고 나머지는 제거하는 로직
+templates\pages\script_gen.html:768: // 특수문자 제거 시 대괄호[]는 살려야 함
+templates\pages\script_gen.html:770: .replace(/^[가-힣\w\s]+[\s]*:[\s]*/gm, '')
+templates\pages\script_gen.html:799: // 1. 현재 에디터 텍스트를 활성 탭 변수에 보존
+templates\pages\script_gen.html:809: // 2. 새로운 탭의 스크립트 로드
+templates\pages\script_gen.html:838: Utils.showToast("번역할 원본 대본이 없습니다.", 'warning');
+templates\pages\script_gen.html:883: // 제목 추출 (첫 줄 또는 프로젝트명)
+templates\pages\script_gen.html:1066: const topic = document.getElementById('structureTopic')?.value || structureData.topic || '영상';
+templates\pages\script_gen.html:1074: // 글자 수 계산 (한국어 기준)
+templates\pages\script_gen.html:1075: // 롱폼: 분당 450자 (빠름)
+templates\pages\script_gen.html:1076: // 숏폼: 초당 7자 (매우 빠름) ~ 6자 (보통) -> 20초면 120~140자
+templates\pages\script_gen.html:1081: totalTargetChars = durationSeconds * 7.5; // 숏폼은 말을 좀 더 빨리 함
+templates\pages\script_gen.html:1082: lengthInstruction = `[매우 중요] 이 대본은 **${durationSeconds}초 숏폼(Shorts)** 영상용입니다. 전체 대본이 매우 짧아야 합니다. 군더더기 없이 핵심만 빠르게 전달하세요.`;
+templates\pages\script_gen.html:1085: lengthInstruction = `이 영상은 약 ${Math.floor(durationSeconds / 60)}분 ${durationSeconds % 60}초 길이입니다.`;
+templates\pages\script_gen.html:1089: // 숏폼일 경우 최소 글자 수 제한을 낮춤
+templates\pages\script_gen.html:1114: 1. 반드시 **두 명 이상의 대화(Dialogue) 또는 상황극** 형식으로 작성하세요.
+templates\pages\script_gen.html:1115: 2. 각 대사 앞에 반드시 **"화자 이름:"**을 붙이세요. (예: "철수: 안녕하세요", "영희: 네 반갑습니다")
+templates\pages\script_gen.html:1116: 3. 화자 이름은 한글로 간결하게 작성하세요.
+templates\pages\script_gen.html:1120: 1. 반드시 **독백(Monologue) 또는 나레이션(Narration) 형식**으로 작성하세요. (대화체 절대 금지)
+templates\pages\script_gen.html:1121: 2. 화자는 **무조건 딱 1명(성우 1인)**으로 제한합니다. 대화 형식으로 역할을 나누지 마세요.
+templates\pages\script_gen.html:1122: 5. 화자(이름) 표시 금지 (예: 나:, 상사: 처럼 누가 말하는지 적지 말 것)
+templates\pages\script_gen.html:1126: const prompt = `당신은 ${isShorts ? '유튜브 쇼츠(Shorts)' : '유튜브'} 대본 작가입니다. 아래 주제에 대한 "${section.title}" 파트를 작성해주세요.
+templates\pages\script_gen.html:1128: [영상 주제]
+templates\pages\script_gen.html:1131: [현재 섹션]
+templates\pages\script_gen.html:1132: - 제목: ${section.title}
+templates\pages\script_gen.html:1133: - 주요 내용: ${keyPoints.length > 0 ? keyPoints.join(', ') : '자유롭게 작성'}
+templates\pages\script_gen.html:1135: [작성 지침]
+templates\pages\script_gen.html:1138: 3. 자연스럽고 몰입감 있는 한국어 대본을 작성하세요.
+templates\pages\script_gen.html:1139: 4. 섹션 제목은 출력하지 말고, 본문만 작성하세요.
+templates\pages\script_gen.html:1140: 5. 이 파트의 분량은 **약 ${minChars}자 ~ ${maxChars}자** 내외로 작성하세요. (절대적으로 지킬 것)
+templates\pages\script_gen.html:1141: 6. ${isShorts ? '문장을 짧고 간결하게 끊어주세요. 호흡을 짧게 가져가세요.' : '문장을 자연스럽게 이어주세요.'}
+templates\pages\script_gen.html:1143: **[작성 및 감정/톤 지침]**
+templates\pages\script_gen.html:1144: 1. 반드시 대본의 구문 앞이나 중간중간에 괄호를 사용하여 말의 톤이나 분위기를 표시하세요. (예: "(차분하게)", "(슬프게)", "(진지하게)")
+templates\pages\script_gen.html:1145: 2. 음악, 효과음 등 상황 설명용 괄호(예: (음악), (상황), (웃음))는 금지합니다. 오직 성우의 목소리 톤/감정만 괄호로 표시하세요.
+templates\pages\script_gen.html:1146: 3. 시간 표시 금지 (예: [0-5초], ** 등 타임스탬프 금지)
+templates\pages\script_gen.html:1147: 4. 이모티콘 및 꾸밈 기호 금지 (예: 🤣, ✨, 🔥 등 특수문자 금지)
+templates\pages\script_gen.html:1149: 본문만 출력하세요: `;
+templates\pages\script_gen.html:1158: // [CRITICAL] 금지 항목 정제 (타임스탬프, 이모티콘, 화자 표시, 별표) 단, 감정 표시용 소괄호()는 보존
+templates\pages\script_gen.html:1160: .replace(/\[[^\]]*\]/g, '')  // 대괄호 제거 [0-5초]
+templates\pages\script_gen.html:1161: .replace(/\*/g, '')          // 별표 제거 **
+templates\pages\script_gen.html:1162: .replace(/[^\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318Fa-zA-Z0-9\s,.\?\!\"\'\.:\(\)]/g, ''); // 특수문자 제거 (괄호 () 및 콜론 보존)
+templates\pages\script_gen.html:1165: // 단독 나레이션일 때만 화자 이름 제거
+templates\pages\script_gen.html:1166: sectionText = sectionText.replace(/^[가-힣\w\s]+[\s]*:[\s]*/gm, '');
+templates\pages\script_plan.html:314: 파일 업로드
+templates\pages\script_plan.html:322: 직접 입력
+templates\pages\script_plan.html:329: DB 불러오기
+templates\pages\script_plan.html:563: // 페이지 로드 시 분석 데이터 확인
+templates\pages\script_plan.html:564: // 페이지 로드 시 분석 데이터 확인
+templates\pages\script_plan.html:566: // 프로젝트 변경 이벤트 리스너 -> data reloading
+templates\pages\script_plan.html:586: // [STRONG OVERRIDE] URL에서 전달된 topic이 있다면 무조건 입력창에 적용 (DB 값보다 우선) + DB 동기화
+templates\pages\script_plan.html:600: // URL 파라미터가 없더라도, 잠시 후 topicInput에 값이 들어오면 동기화 시도
+templates\pages\script_plan.html:638: // 상태 복구 완료 시 UI 업데이트
+templates\pages\script_plan.html:643: // [FIX] 프로젝트 ID가 다르면 복구된 상태 무시 (이전 프로젝트 데이터 오염 방지)
+templates\pages\script_plan.html:685: // [NEW] 추천 제목 복구 또는 자동 생성
+templates\pages\script_plan.html:691: // 프로젝트 주제가 있으면 자동 추천 실행
+templates\pages\script_plan.html:763: // [NEW] 추천 제목 불러오기 로직 추가
+templates\pages\script_plan.html:790: console.error('데이터 로드 실패:', e);
+templates\pages\script_plan.html:895: // [NEW] 전역 변수로 타겟 언어 관리
+templates\pages\script_plan.html:995: // 분 단위 입력 -> 초 단위 변환 (Longform) / 초 단위 유지 (Shorts)
+templates\pages\script_plan.html:1040: // [NEW] 기획 단계에서 선택한 스타일을 구조 데이터에 포함하여 다음 단계로 전달
+templates\pages\script_plan.html:1050: // 로컬 스토리지 즉시 저장 (다음 단계 이동용)
+templates\pages\script_plan.html:1051: // project_id 명시적 추가
+templates\pages\script_plan.html:1057: // DB 저장
+templates\pages\script_plan.html:1060: // 1. 프로젝트 주제 & 스타일 업데이트
+templates\pages\script_plan.html:1063: // 2. 구조 저장
+templates\pages\script_plan.html:1075: } catch (e) { console.error('DB 저장 실패:', e); }
+templates\pages\script_plan.html:1081: console.error('생성 오류:', error);
+templates\pages\script_plan.html:1095: <p class="text-sm mt-1">${i18n.empty_helper.replace('[🔄 다시 생성]', `[🔄 ${i18n.regenerate}]`)}</p>
+templates\pages\script_plan.html:1253: // 키워드가 비어있으면 영상 주제(topicInput)를 기본값으로 사용
+templates\pages\script_plan.html:1256: if (keyword && keywordInput) keywordInput.value = keyword; // UI 반영
+templates\pages\script_plan.html:1260: // 주제도 없으면 로그만 남기고 조용히 종료 (자동 생성 시 토스트 등 방해 방지)
+templates\pages\script_plan.html:1265: const btn = document.getElementById('btnRecTitle'); // 버튼이 없을 수 있으므로 체크
+templates\pages\script_plan.html:1284: topic: currentTopic, // 주제도 함께 보냄
+templates\pages\script_plan.html:1294: // [NEW] 생성된 제목들을 프로젝트 메타데이터에 즉시 저장 (새로고침 대비)
+templates\pages\script_plan.html:1298: // 기존 메타데이터 가져오기 (설명, 태그 등 보존 목적)
+templates\pages\script_plan.html:1345: // 5개 중 첫 번째 제목을 가장 좋은 제목으로 간주하여 하나만 표시
+templates\pages\script_plan.html:1371: // 생성된 즉시 이 제목을 프로젝트에 적용 (유저가 선택한 것처럼)
+templates\pages\script_plan.html:1386: // 1. 프로젝트 name + topic 동시 업데이트 (새로고침 후에도 유지)
+templates\pages\script_plan.html:1393: // 2. metadata titles 에도 저장 (추천제목 UI 복원용)
+templates\pages\script_plan.html:1407: // 3. UI 동기화
+templates\pages\script_plan.html:1410: // 사이드바 프로젝트명 갱신 (가능한 경우)
+templates\pages\script_plan.html:1691: // 현재 프로젝트 제외
+templates\pages\script_plan.html:1740: loadSources(); // 목록 새로고침
+templates\pages\script_plan.html:1758: // 주제가 비어있지 않으면 자동으로 아이디어 가져오기 시도
+templates\pages\script_plan.html:1821: // 1. 영상 주제(topicInput) 업데이트
+templates\pages\script_plan.html:1823: // 2. 추가 요청사항 업데이트
+templates\pages\script_plan.html:1826: // 3. 바로 구조 생성(노래 개발) 시도
+templates\pages\script_plan.html:1838: // 구조 렌더링 (대본 구조와 유사하게 변환하여 표시)
+templates\pages\script_plan.html:1858: // [NEW] 보관을 위해 전체 가사 데이터를 internal reference로 저장
+templates\pages\script_plan.html:1884: Utils.showToast('제목과 본문을 모두 입력해주세요.', 'error');
+templates\pages\script_plan.html:1890: Utils.showToast('학습 자료 저장 중...', 'info');
+templates\pages\script_plan.html:1898: Utils.showToast('학습 자료가 추가되었습니다.', 'success');
+templates\pages\script_plan.html:1906: Utils.showToast('저장 실패: ' + e.message, 'error');
+templates\pages\script_plan.html:1918: <span>✍️</span> 학습 자료 직접 입력
+templates\pages\script_plan.html:1928: <label class="block text-xs font-bold text-gray-400 uppercase mb-2">제목</label>
+templates\pages\script_plan.html:1929: <input type="text" id="directInputTitle" placeholder="예: 유튜브 자막 복사본" class="w-full bg-[#232832] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500">
+templates\pages\script_plan.html:1932: <label class="block text-xs font-bold text-gray-400 uppercase mb-2">본문 내용</label>
+templates\pages\script_plan.html:1933: <textarea id="directInputContent" rows="10" placeholder="학습시킬 텍스트 내용을 여기에 붙여넣으세요..." class="w-full bg-[#232832] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"></textarea>
+templates\pages\script_plan.html:1937: 취소
+templates\pages\script_plan.html:1940: 저장하기
+templates\pages\settings.html:28: 🎫 라이선스 정보
+templates\pages\settings.html:47: 🎬 영상AI엔진
+templates\pages\settings.html:63: <h3 class="font-black text-lg text-gray-800 dark:text-gray-100">라이선스 및 서비스 정보</h3>
+templates\pages\settings.html:64: <p class="text-xs text-gray-400">등록된 라이선스 키와 계정 정보를 확인합니다.</p>
+templates\pages\settings.html:71: <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest">현재 라이선스 키</label>
+templates\pages\settings.html:77: 비활성 상태
+templates\pages\settings.html:86: <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest">멤버십 등급</label>
+templates\pages\settings.html:91: <span class="text-[10px] text-gray-400 ml-auto">구독 중</span>
+templates\pages\settings.html:98: 👤 사용자 정보
+templates\pages\settings.html:102: <label class="text-[10px] font-bold text-gray-500 mb-1 block">이름</label>
+templates\pages\settings.html:103: <input type="text" id="userName" class="input-field w-full text-xs" placeholder="이름을 입력하세요">
+templates\pages\settings.html:106: <label class="text-[10px] font-bold text-gray-500 mb-1 block">국적</label>
+templates\pages\settings.html:107: <input type="text" id="userNationality" class="input-field w-full text-xs" placeholder="국가를 입력하세요 (예: 대한민국)">
+templates\pages\settings.html:110: <label class="text-[10px] font-bold text-gray-500 mb-1 block">연락처</label>
+templates\pages\settings.html:114: <label class="text-[10px] font-bold text-gray-500 mb-1 block">이메일</label>
+templates\pages\settings.html:144: {{ youtube_channel if youtube_channel else '채널 정보 미연동' }}
+templates\pages\settings.html:156: 연동하기 ↗
+templates\pages\settings.html:183: * 모드를 변경하면 메뉴 구성과 영상 생성 설정이 해당 포맷에 최적화됩니다.
+templates\pages\settings.html:250: <span>🎨 이미지 스타일 및 캐릭터 관리</span>
+templates\pages\settings.html:251: <button onclick="loadStylePresets()" class="text-[10px] text-blue-500 hover:underline">🔄 서버 동기화</button>
+templates\pages\settings.html:262: <span class="text-[10px] text-gray-400">일관성 유지를 위한 주인공/화풍 등록</span>
+templates\pages\settings.html:273: <span>🎨</span> 화풍 (Style)
+templates\pages\settings.html:279: <span class="text-[8px] whitespace-nowrap">업로드</span>
+templates\pages\settings.html:288: <span>👤</span> 캐릭터 (Char)
+templates\pages\settings.html:294: <span class="text-[8px] whitespace-nowrap">업로드</span>
+templates\pages\settings.html:303: <span>✨</span> AI 통합 분석 가이드 생성
+templates\pages\settings.html:305: <p class="text-[9px] text-gray-400 text-center">두 이미지를 분석해 최적의 화풍+캐릭터 지침을 생성합니다.</p>
+templates\pages\settings.html:313: <input type="text" id="customStyleName" class="input-field w-full text-xs" placeholder="예: hero_kim, ghibli_studio">
+templates\pages\settings.html:316: <label class="text-[10px] font-bold text-gray-500 mb-1 block">사용 위치</label>
+templates\pages\settings.html:319: <option value="all">🌐 전체 공통</option>
+templates\pages\settings.html:327: placeholder="예: A portrait of a character, Studio Ghibli style..."></textarea>
+templates\pages\settings.html:332: <span>🤖 Gemini Grounding Instruction (캐릭터/화풍 지침)</span>
+templates\pages\settings.html:333: <span class="text-[9px] font-normal text-gray-400">AI 분석 버튼 클릭 시 자동 입력됩니다.</span>
+templates\pages\settings.html:336: placeholder="AI 분석 결과가 여기에 표시됩니다..."></textarea>
+templates\pages\settings.html:354: * 각 스타일 선택 시 AI에게 전달될 기본 묘사 프롬프트입니다.<br>
+templates\pages\settings.html:355: * 수정 후 '저장' 버튼을 누르면 즉시 반영됩니다.
+templates\pages\settings.html:374: * 대본 생성 시 각 스타일별로 AI에게 전달될 작성 지침입니다.<br>
+templates\pages\settings.html:375: * 수정 후 '저장' 버튼을 누르면 즉시 반영됩니다.<br>
+templates\pages\settings.html:376: * 'script_master'는 대본 작성의 전체 프로세스를 정의하는 마스터 프롬프트입니다.
+templates\pages\settings.html:428: * 썸네일 생성 시 각 스타일별로 AI에게 전달될 디자인 지침입니다.<br>
+templates\pages\settings.html:429: * 수정 후 '저장' 버튼을 누르면 즉시 반영됩니다.
+templates\pages\settings.html:441: <button onclick="exportData()" class="flex-1 btn-secondary py-1.5 text-xs">📤 백업
+templates\pages\settings.html:461: <span>🎞️ 영상 생성 AI 엔진 선택</span>
+templates\pages\settings.html:462: <span class="text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded border border-purple-200">중요</span>
+templates\pages\settings.html:472: 🤖 최신 고품질 AI 영상 생성 파이프라인<br>
+templates\pages\settings.html:473: Gemini 2.x & Veo 기반의 하이엔드 영상 제작
+templates\pages\settings.html:484: 🔄 보조 영상 생성 엔진 (폴백용)<br>
+templates\pages\settings.html:485: 대기 시간이 짧고 안정적인 처리 지원
+templates\pages\settings.html:495: 🤖 Google Veo 버전 선택
+templates\pages\settings.html:504: <span class="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">안정</span>
+templates\pages\settings.html:518: <span class="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">최신</span>
+templates\pages\settings.html:532: <span class="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full">빠름</span>
+templates\pages\settings.html:535: 속도 우선, 비용 절감<br>
+templates\pages\settings.html:755: style_display_ghibli: "지브리 스튜디오",
+templates\pages\settings.html:756: style_display_minimal: "미니멀리즘",
+templates\pages\settings.html:757: style_display_nursery: "유아용/동요",
+templates\pages\settings.html:758: style_display_2d_webtoon: "2D 웹툰",
+templates\pages\settings.html:759: style_display_black_cartoon: "블랙 카툰",
+templates\pages\settings.html:760: style_display_object_char: "사물 캐릭터",
+templates\pages\settings.html:761: style_display_philosophical: "역사/철학 다큐",
+templates\pages\settings.html:762: style_display_bald_hoodie: "후드티 민머리"
+templates\pages\settings.html:765: const DEFAULT_STYLE_KEYS = ['realistic', 'ghibli', 'anime', 'cinematic', 'cartoon', 'oil_painting', 'watercolor', 'sketch', 'pixel_art', '3d', 'k_webtoon', 'k_manhwa', 'minimal', 'nursery_rhyme', '2d웹', '블랙카툰', '사물캐릭터', '역사/동양철/다큐', '후드티민머리'];
+templates\pages\settings.html:843: throw new Error(err.detail || "이름 변경 실패");
+templates\pages\settings.html:854: Utils.showToast("오류 발생: " + e.message, "error");
+templates\pages\settings.html:859: const DEFAULT_SCRIPT_MASTER_PROMPT = `최종 확정: '딥-다이브' 대본 빌드업 4단계 프로세스 (Ver. 4.0)
+templates\pages\settings.html:861: [1단계] 대본 정밀 해부 및 흥행 잠재력 진단
+templates\pages\settings.html:862: 임무: 대본을 문장 단위로 정밀 분석하고, '흥행 심리 지도(5070 타겟 제목 리스트)'와 '전문 드라마 기법'을 사용하여 잠재력과 개선점에 대한 '대본 정밀 해부 리포트'를 발행합니다.
+templates\pages\settings.html:864: 실행 원칙:
+templates\pages\settings.html:865: - [종합 진단] 작품의 가장 매력적인 설정과 개선 필요 지점 명확하게 요약
+templates\pages\settings.html:866: - [톤앤매너 분석] 나레이션은 시청자에게 정중한 '존댓말' 원칙 (5070 시청자 정서적 유대감)
+templates\pages\settings.html:867: - [대사 현미경 분석] 감정 설명 대사를 '극적 아이러니(Dramatic Irony)'가 담긴 상황으로 개선
+templates\pages\settings.html:868: - [장면 구조 분석] 도입부는 '인 미디어스 레스(In medias res)' + '체호프의 총(Chekhov's Gun)' 기법 적용
+templates\pages\settings.html:869: - [인물 매력도 분석] 주인공에게 '복선(Foreshadowing)'을 통한 숨겨진 능력 암시
+templates\pages\settings.html:871: [2단계] '감독판 샘플' 제작 및 공동 창작 방향 확정
+templates\pages\settings.html:872: 임무: 지정된 장면을 드라마 기법 + 흥행 코드 + 존댓말 나레이션에 따라 '원본 vs 감독 수정본' 형태로 제공
+templates\pages\settings.html:874: [3단계] 감독판 대본 전체 집필
+templates\pages\settings.html:875: 임무: 합의된 개선 방향과 스타일을 대본 전체에 일관되게 적용하여 최종 [감독판 대본] 완성
+templates\pages\settings.html:877: [4단계] 최종 마케팅 에셋 시화
+templates\pages\settings.html:878: 임무: 완성된 대본의 핵심 컨셉을 보여줄 썸네일 비주얼을 구체적으로 묘사`;
+templates\pages\settings.html:890: // 현재 모드와 같은 모드를 선택한 경우 아무것도 하지 않음
+templates\pages\settings.html:895: // 모드 변경 적용 (팝업 제거됨)
+templates\pages\settings.html:897: // 모드 변경 적용
+templates\pages\settings.html:921: // 저장 버튼 강조 (사용자에게 저장 필요성 알림)
+templates\pages\settings.html:941: // API 키는 어드민 웹 대시보드에서 관리됩니다. 로컬 저장 비활성화.
+templates\pages\settings.html:1010: // API 연결 상태 확인
+templates\pages\settings.html:1011: // API 연결 상태 확인은 어드민 대시보드에서 관리됩니다.
+templates\pages\settings.html:1038: // 채널 로드
+templates\pages\settings.html:1043: if (!res.ok) throw new Error('채널 목록 로드 실패');
+templates\pages\settings.html:1051: // credentials_path가 있으면 인증된 것으로 간주
+templates\pages\settings.html:1074: <button onclick="deleteChannel(${ch.id})" class="text-red-500 hover:text-red-700 p-2" title="삭제">
+templates\pages\settings.html:1087: // 채널 인증 (OAuth)
+templates\pages\settings.html:1098: Utils.showToast(data.message || '인증 완료!', 'success');
+templates\pages\settings.html:1099: // 목록 갱신을 위해 약간의 지연 (토큰 저장 완료 대기)
+templates\pages\settings.html:1111: // 채널 추가
+templates\pages\settings.html:1143: loadChannels(); // 목록 갱신
+templates\pages\settings.html:1154: // 채널 삭제
+templates\pages\settings.html:1172: // [NEW] 이미지 스타일 프리셋 관리 (최종 통합 버전)
+templates\pages\settings.html:1194: 'nursery_rhyme': i18n.style_display_nursery, '2d웹': i18n.style_display_2d_webtoon,
+templates\pages\settings.html:1195: '블랙카툰': i18n.style_display_black_cartoon, '사물캐릭터': i18n.style_display_object_char,
+templates\pages\settings.html:1196: '역사/동양철/다큐': i18n.style_display_philosophical, '후드티민머리': i18n.style_display_bald_hoodie
+templates\pages\settings.html:1323: // multipart: 이미지 업로드 + prompt_value 저장
+templates\pages\settings.html:1334: // gemini_instruction도 저장 (업로드된 image_url 유지)
+templates\pages\settings.html:1345: // 파일 없음: image_url=null 전달 → DB가 기존 image_url 유지
+templates\pages\settings.html:1415: Utils.showToast('분석할 이미지를 하나 이상 선택하세요.', 'warning');
+templates\pages\settings.html:1421: analyzeBtn.innerHTML = '<span>⏳</span> 통합 분석 중...';
+templates\pages\settings.html:1422: Utils.showToast('AI가 화풍과 캐릭터를 정밀 분석하고 있습니다...', 'info');
+templates\pages\settings.html:1437: Utils.showToast('화풍과 캐릭터가 결합된 지침이 생성되었습니다.', 'success');
+templates\pages\settings.html:1440: Utils.showToast(err.detail || '분석 실패', 'error');
+templates\pages\settings.html:1444: Utils.showToast('서버 오류가 발생했습니다.', 'error');
+templates\pages\settings.html:1476: // 썸네일로 사용할 이미지를 결정 (화풍 이미지를 우선순위로 사용하거나 둘 중 있는 것 사용)
+templates\pages\settings.html:1554: // [NEW] 대본 스타일 프리셋 관리
+templates\pages\settings.html:1672: // [NEW] 썸네일 스타일 프리셋 관리
+templates\pages\settings.html:1728: `<button onclick="deleteThumbnailStylePreset('${key}')" class="text-[10px] bg-[#1c2027] text-red-500 border border-red-200 px-2 py-1 rounded hover:bg-red-100 transition-colors" title="삭제">🗑️</button>`
+templates\pages\settings.html:1971: **IMPORTANT**: For NARRATOR (내레이션), always use the voice 'Brian'.
+templates\pages\settings.html:2024: console.error('웹툰 설정 로드 실패:', e);
+templates\pages\settings.html:2054: // Video Engine 변경 시 Veo 패널 토글
+templates\pages\settings.html:2216: console.error('설정 저장 오류:', e);
+templates\pages\settings.html:2262: console.error('설정 로드 실패:', e);
+templates\pages\settings.html:2342: // 먼저 현재 입력된 Client ID와 Secret을 저장 시도 (백엔드 세션/DB 연동 위해)
+templates\pages\settings.html:2366: Utils.showToast('❌ 토큰 발급 실패: ' + result.message, 'error');
+templates\pages\settings.html:2375: // 초기화
+templates\pages\settings.html:2380: loadStylePresets(); // [NEW] 스타일 프리셋 로드
+templates\pages\subtitle_gen.html:204: <button onclick="refreshShortsTemplatePresets()" class="text-[10px] font-bold px-1.5 py-1 text-gray-400 hover:text-white border border-gray-700 hover:bg-[#0a0f1d] rounded transition-all" title="새로고침">
+templates\pages\subtitle_gen.html:267: <span class="text-[9px] text-gray-400">글자</span>
+templates\pages\subtitle_gen.html:271: <span class="text-[9px] text-gray-400">테두리</span>
+templates\pages\subtitle_gen.html:303: <span class="text-[9px] text-gray-400">배경</span>
+templates\pages\subtitle_gen.html:638: placeholder="https://... (MP3 URL 입력)">
+templates\pages\subtitle_gen.html:807: url: null,       // 최종 URL (서버 or 외부)
+templates\pages\subtitle_gen.html:809: enabled: false,  // BGM 사용 여부
+templates\pages\subtitle_gen.html:810: filename: null   // 표시용 파일명
+templates\pages\subtitle_gen.html:926: loadBgmSettings(); // BGM/SFX 설정 복원
+templates\pages\subtitle_gen.html:960: // 재생 버튼은 onclick="handlePlayBtn()"으로 직접 처리
+templates\pages\subtitle_gen.html:982: // 구간 재생 중: 구간 기준 프로그레스바 표시
+templates\pages\subtitle_gen.html:1027: // renderSubtitles 구현은 아래에 있음
+templates\pages\subtitle_gen.html:1106: ${index > 0 ? `<button onclick="event.stopPropagation(); moveImageStart(${imgIdx}, -1)" class="absolute -top-2 z-10 w-full h-3 bg-gray-200 hover:bg-blue-100 text-[8px] flex items-center justify-center rounded-t border border-b-0 border-gray-300 opacity-0 group-hover/thumb:opacity-100 transition-opacity dark:border-gray-700" title="이전 자막부터 시작">▲</button>` : ''}
+templates\pages\subtitle_gen.html:1111: <button onclick="event.stopPropagation(); deleteImageStart(${imgIdx})" class="absolute top-1 right-1 z-10 w-5 h-5 bg-red-500/80 hover:bg-red-600 text-white text-[10px] flex items-center justify-center rounded shadow-sm opacity-0 group-hover/thumb:opacity-100 transition-opacity" title="이 자막구간에서 이미지 삭제">✕</button>
+templates\pages\subtitle_gen.html:1116: title="소스 미디어 변경/업로드 (이미지 or 영상)">
+templates\pages\subtitle_gen.html:1127: title="이미지 효과 선택">
+templates\pages\subtitle_gen.html:1138: ${index < subtitles.length - 1 ? `<button onclick="event.stopPropagation(); moveImageStart(${imgIdx}, 1)" class="absolute -bottom-2 z-10 w-full h-3 bg-gray-200 hover:bg-blue-100 text-[8px] flex items-center justify-center rounded-b border border-t-0 border-gray-300 opacity-0 group-hover/thumb:opacity-100 transition-opacity dark:border-gray-700" title="다음 자막부터 시작">▼</button>` : ''}
+templates\pages\subtitle_gen.html:1237: // Update Preview - textContent로 초기 텍스트 설정 후 updateSubtitlePreview로 배경띠 포함 갱신
+templates\pages\subtitle_gen.html:1242: // 자막 클릭 시 해당 구간 즉시 재생 (shouldPlay=false이면 재생 안 함)
+templates\pages\subtitle_gen.html:1277: // 숏츠 모드 비디오: object-contain으로 레터박스 유지
+templates\pages\subtitle_gen.html:1336: // [NEW] Aspect Ratio — shorts 모드는 항상 9:16 강제
+templates\pages\subtitle_gen.html:1360: if (el) el.textContent = "?뼹截영상대?吏€: 留ㅼ묶 정보 없음";
+templates\pages\subtitle_gen.html:1450: if (el) el.textContent = "현재영상이미지: 매칭 정보 없음";
+templates\pages\subtitle_gen.html:1513: // 숏폼: 세로형 9:16 — 가로 672px 대비 세로 672px 기준 너비 378px 적용
+templates\pages\subtitle_gen.html:1545: // 자막 세로 위치 스피너 — ▲(delta=-1): 위로(bottom% 증가), ▼(delta=1): 아래로(bottom% 감소)
+templates\pages\subtitle_gen.html:1549: // ▲ 누르면 bottom% 증가 (위로), ▼ 누르면 감소 (아래로), 범위 0~95%
+templates\pages\subtitle_gen.html:1556: // 디스플레이 업데이트
+templates\pages\subtitle_gen.html:1560: // 미리보기 위치 즉시 반영
+templates\pages\subtitle_gen.html:1567: // DB 저장
+templates\pages\subtitle_gen.html:1569: // [IMPORTANT] 전체 프리뷰 업데이트를 호출하여 top 픽셀 캐싱 로직 등을 동기화
+templates\pages\subtitle_gen.html:1591: // 위치: styleSettings에 명시적으로 저장된 값이 있을 때만 덮어씀
+templates\pages\subtitle_gen.html:1592: // null/undefined이면 현재 DOM 위치를 유지 (투명도 등 다른 조작 시 위치 변경 방지)
+templates\pages\subtitle_gen.html:1598: // 아직 위치가 설정되지 않은 초기 상태에서만 기본값 적용
+templates\pages\subtitle_gen.html:1633: // 9:16 모드와 16:9 모드 모두 실제 화면에 렌더링된 너비를 기준으로 해야 % 비율이 렌더링과 완벽히 일치함
+templates\pages\subtitle_gen.html:1640: // videoHeight를 비율로 직접 계산 (clientHeight 타이밍 의존 제거)
+templates\pages\subtitle_gen.html:1643: // [FIX] scaleFactor 정의 - 백엔드(video_service.py scale_factor = target_h / 360.0)와 동일한 공식
+templates\pages\subtitle_gen.html:1644: // stroke 및 bg v-offset 스케일링에 사용. 미정의 상태에서 ReferenceError 발생 → 배경띠 렌더링 중단 버그 수정
+templates\pages\subtitle_gen.html:1650: // 화면 가로길이의 90%로 고정 (사용자 요청 사항)
+templates\pages\subtitle_gen.html:1660: if (font.includes('Gungsuh') || font.includes('궁서')) {
+templates\pages\subtitle_gen.html:1694: // 너비: 비디오 프레임 기준 90% 고정
+templates\pages\subtitle_gen.html:1704: // 위치: b:X% 형식 사용. 레거시/없으면 기본 bottom:5%
+templates\pages\subtitle_gen.html:1789: // 통 배경띠: 모든 줄을 하나의 배경으로 처리 (높이 2% 추가 적용)
+templates\pages\subtitle_gen.html:1844: // CSS 미리보기를 항상 표시
+templates\pages\subtitle_gen.html:1845: // [FIX] showRenderedPreview()가 display:none으로 숨긴 경우 복원 (배경띠 토글 시 반영 안 되던 버그)
+templates\pages\subtitle_gen.html:1851: // display:none(showRenderedPreview에 의해 설정)을 해제하여 CSS 미리보기 항상 표시
+templates\pages\subtitle_gen.html:1857: // [NO-OP] top 재계산 블록 제거 - bottom 앵커링 + translateX(-50%) 중앙정렬로 충분
+templates\pages\subtitle_gen.html:1861: // [NEW] 백엔드 렌더링 미리보기 (렌더링 결과와 100% 일치)
+templates\pages\subtitle_gen.html:1867: // 현재 선택된 자막 텍스트 가져오기
+templates\pages\subtitle_gen.html:1876: // 스타일 설정 수집
+templates\pages\subtitle_gen.html:1903: // 해상도 결정 (16:9 = 1920x1080, 9:16 = 1080x1920)
+templates\pages\subtitle_gen.html:1911: // 폰트 크기 계산 (영상 높이의 퍼센트)
+templates\pages\subtitle_gen.html:1918: // 요청 객체 생성
+templates\pages\subtitle_gen.html:1934: // 동일한 요청 중복 방지
+templates\pages\subtitle_gen.html:1938: // 디바운스 (300ms)
+templates\pages\subtitle_gen.html:1980: // inline style이 class보다 우선순위 높으므로 style.display로 직접 숨김
+templates\pages\subtitle_gen.html:1996: // CSS 폴백 표시 복원
+templates\pages\subtitle_gen.html:2100: // bottom% 방식으로 저장 (styleSettings에 b: 값 있으면 사용, 없으면 b:5%)
+templates\pages\subtitle_gen.html:2154: // bottom% 방식으로 저장
+templates\pages\subtitle_gen.html:2157: // bottom 속성에서 직접 읽기
+templates\pages\subtitle_gen.html:2246: // 이전 선택 위치 유지 (범위 초과 시 마지막으로)
+templates\pages\subtitle_gen.html:2290: // ====== 선택삭제 기능 ======
+templates\pages\subtitle_gen.html:2321: // 체크박스 UI만 업데이트 (전체 재렌더 없이)
+templates\pages\subtitle_gen.html:2336: // 전체 해제
+templates\pages\subtitle_gen.html:2339: // 전체 선택
+templates\pages\subtitle_gen.html:2374: // ── 핵심 로직 ──────────────────────────────────────────────────
+templates\pages\subtitle_gen.html:2375: // 각 이미지의 "전환점 자막"을 찾는다 (썸네일이 표시되는 최초 자막)
+templates\pages\subtitle_gen.html:2376: // 그 자막이 삭제 대상이면 해당 이미지도 삭제한다.
+templates\pages\subtitle_gen.html:2378: const imageOwnerSub = {}; // imgIdx → 전환점 자막 index
+templates\pages\subtitle_gen.html:2384: // 이 자막이 imgIdx 이미지의 전환점(썸네일 표시 자막)
+templates\pages\subtitle_gen.html:2389: // 전환점 자막이 삭제 대상이면 이미지도 삭제
+templates\pages\subtitle_gen.html:2397: // 자막 삭제 (내림차순 splice)
+templates\pages\subtitle_gen.html:2403: // 이미지/타이밍/효과 삭제 (내림차순)
+templates\pages\subtitle_gen.html:2411: // 선택 모드 종료
+templates\pages\subtitle_gen.html:2423: // ====== 선택삭제 기능 끝 ======
+templates\pages\subtitle_gen.html:2428: subtitles.push({ start: start, end: start + 2, text: "영상자막" });
+templates\pages\subtitle_gen.html:2470: Utils.showToast('프로젝트 정보를 찾을 수 없습니다.', 'error');
+templates\pages\subtitle_gen.html:2480: Utils.showToast('미디어 업로드 중...', 'info');
+templates\pages\subtitle_gen.html:2493: Utils.showToast('영상 업로드 완료!', 'success');
+templates\pages\subtitle_gen.html:2496: Utils.showToast('이미지 업로드 완료!', 'success');
+templates\pages\subtitle_gen.html:2524: Utils.showToast('업로드 실패: ' + e.message, 'error');
+templates\pages\subtitle_gen.html:2583: // if (imgIdx === 0 && imageTimings[imgIdx] === 0) return Utils.showToast("첫 번째 이미지는 삭제할 수 없습니다.", "warning");
+templates\pages\subtitle_gen.html:2585: if (!confirm("이 자막구간에서 썸네일을 삭제하시겠습니까? (이전 이미지가 계속 표시됩니다)")) return;
+templates\pages\subtitle_gen.html:2596: Utils.showToast("이미지가 삭제되었습니다.", "success");
+templates\pages\subtitle_gen.html:2607: stripFn.innerHTML = '<div class="text-[9px] text-gray-400 text-center p-2">이미지 없음</div>';
+templates\pages\subtitle_gen.html:2654: title="소스 이미지 #${idx + 1} (드래그하여 자막에 적용 가능)">
+templates\pages\subtitle_gen.html:2708: return Utils.showToast("다음 이미지보다 늦을 수 없습니다.", 'warning');
+templates\pages\subtitle_gen.html:2711: return Utils.showToast("다음 이미지보다 앞설 수 없습니다.", 'warning');
+templates\pages\subtitle_gen.html:2763: audio.currentTime = endTime; // 정확한 끝 지점으로 snap
+templates\pages\subtitle_gen.html:2767: }, 16); // ~60fps 체크로 오버슈팅 최소화
+templates\pages\subtitle_gen.html:2792: // [FIX] 아래쪽 고정값(bottom)이 남아있는 상태에서 top값을 지정하면 브라우저가 위아래로 박스를 강제 스크래치(Stretch)하는 버그 발생
+templates\pages\subtitle_gen.html:2803: // bottom% 방식으로 저장 (로드 시 bottom 속성으로 직접 사용, translateY 불필요)
+templates\pages\subtitle_gen.html:2845: Utils.showToast(`이미지 #${idx + 1} 미리보기`, 'info');
+templates\pages\subtitle_gen.html:2954: Utils.showToast("자막 순서가 변경되었습니다.", "success");
+templates\pages\subtitle_gen.html:3024: // BGM 설정 포함
+templates\pages\subtitle_gen.html:3029: // SFX 설정 포함
+templates\pages\subtitle_gen.html:3061: btn.innerHTML = '⏳ 저장 중...';
+templates\pages\subtitle_gen.html:3176: // 텍스트를 2줄 청크로 분할
+templates\pages\subtitle_gen.html:3180: // 이미 짧은 자막은 그대로
+templates\pages\subtitle_gen.html:3183: // 여러 청크로 분할하고 시간 균등 배분
+templates\pages\subtitle_gen.html:3215: // [NEW] 긴 자막 텍스트에 자동으로 \n 줄바꿈 삽입
+templates\pages\subtitle_gen.html:3216: // 기존 \n이 있으면 유지, 너무 긴 경우만 처리
+templates\pages\subtitle_gen.html:3229: const particles = ["은", "는", "이", "가", "을", "를", "도", "에", "서", "의", "와", "과", "면", "고", "며", "니"];
+templates\pages\subtitle_gen.html:3287: // 전체 자막 리스트에 자동 줄바꿈 적용
+templates\pages\subtitle_gen.html:3306: const particles = ["은", "는", "이", "가", "을", "를", "도", "에", "서", "의", "와", "과", "면", "고", "며", "니"];
+templates\pages\subtitle_gen.html:3314: // 만약 문장 전체가 2줄 분량(maxCharsPerLine * 2) 이하라면 밸런스있게 나누기 시도
+templates\pages\subtitle_gen.html:3320: // 단어 경계(공백) 중 최적의 위치 찾기
+templates\pages\subtitle_gen.html:3325: let score = 50; // 기본 공백 점수
+templates\pages\subtitle_gen.html:3350: // [Greedy Fallback] 기존 로직
+templates\pages\subtitle_gen.html:3385: const maxCharsPerLine = 35;  // 20→35: 한 줄에 더 많은 텍스트 허용
+templates\pages\subtitle_gen.html:3387: const maxTotalChars = 140;   // 40→140: 자동 재분할 거의 발동 안 되도록
+templates\pages\subtitle_gen.html:3389: // Check if any subtitle needs splitting (매우 긴 경우에만 처리)
+templates\pages\subtitle_gen.html:3466: }, 1000); // 1초 후 이동 (토스트 메시지를 볼 수 있도록)
+templates\pages\subtitle_gen.html:3510: // 1. Set Data (app_mode 먼저 세팅 후 auto-wrap 적용)
+templates\pages\subtitle_gen.html:3620: // Position — top만 사용 (bottom: auto 고정)
+templates\pages\subtitle_gen.html:3621: // 20% 미만 값은 이전 버그로 저장된 잘못된 값 → 기본값 80% 사용
+templates\pages\subtitle_gen.html:3630: // b:X% 형식만 유효. 레거시(숫자%) 또는 없으면 기본 bottom:5%
+templates\pages\subtitle_gen.html:3638: // Aspect Ratio — shorts 모드는 항상 9:16 강제 (저장된 값 무시)
+templates\pages\subtitle_gen.html:3712: // BGM / SFX 관리 함수들
+templates\pages\subtitle_gen.html:3724: // 모든 패널 숨기기
+templates\pages\subtitle_gen.html:3726: // 모든 탭 스타일 초기화
+templates\pages\subtitle_gen.html:3734: // 선택 모드 활성화
+templates\pages\subtitle_gen.html:3749: // 미리듣기 플레이어 볼륨도 업데이트
+templates\pages\subtitle_gen.html:3753: // DB 저장
+templates\pages\subtitle_gen.html:3765: // FormData로 서버에 업로드
+templates\pages\subtitle_gen.html:3780: // 서버 업로드 실패 시 로컬 Object URL로 미리듣기만
+templates\pages\subtitle_gen.html:3786: // 네트워크 에러 시 로컬 Object URL 사용
+templates\pages\subtitle_gen.html:3804: // 상태바 업데이트
+templates\pages\subtitle_gen.html:3821: // DB 저장 (로컬 Object URL은 임시이므로 저장 안함)
+templates\pages\subtitle_gen.html:3919: // BGM 설정값 로드 (페이지 로드 시 기존 설정 복원)
+templates\pages\subtitle_gen.html:3950: select.innerHTML = '<option value="">-- ' + (i18n.label_template || '템플릿') + ' ' + i18n.opt_select + ' --</option>';
+templates\pages\subtitle_gen.html:3985: Utils.showToast(name + " " + (i18n.toast_preset_applied_suffix || "템플릿 적용됨"), "success");
+templates\pages\template.html:106: <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">🖼️ {{ t('label_preview') or '미리보기' }}</span>
+templates\pages\template.html:110: title="전체 설정 저장">
+templates\pages\template.html:216: <h3 class="font-bold text-gray-800 dark:text-white mb-4">{{ t('template_stage_4') or '4단계: 확정된 템플릿' }}</h3>
+templates\pages\template.html:225: <h4 class="font-medium text-gray-800 dark:text-white mb-2">📐 {{ t('template_info_title') or '템플릿 정보' }}</h4>
+templates\pages\template.html:261: // 기존 i18n 객체에 썸네일 전용 번역 추가 (SyntaxError/ReferenceError 방지)
+templates\pages\template.html:368: let currentBackgroundPath = null; // 생성된 배경 이미지 경로 (백엔드용)
+templates\pages\template.html:369: let currentBackgroundUrl = null; // 생성된 배경 이미지 URL (프론트엔드용)
+templates\pages\template.html:370: let currentAspectRatio = (appMode === 'shorts') ? '9:16' : '16:9'; // 롱폼: 가로, 숏츠: 세로
+templates\pages\template.html:372: // 텍스트 레이어 상태 (동적 관리) — text는 빈 문자열로 초기화하여 캔버스 공백 유지
+templates\pages\template.html:378: // 도형 레이어 상태
+templates\pages\template.html:381: // 드래그 상태 변수
+templates\pages\template.html:388: let layerBBoxes = []; // 히트 테스트용 좌표 저장 [{x, y, w, h, index}]
+templates\pages\template.html:390: // 도형 크기 조절 관련 변수
+templates\pages\template.html:397: // 프로젝트 데이터 로드
+templates\pages\template.html:399: // 롱폼 모드는 16:9, 숏츠 모드는 9:16 기본값
+templates\pages\template.html:403: initCanvasEvents(); // 캔버스 이벤트 초기화
+templates\pages\template.html:405: await loadImageStyles(); // 이미지 스타일 그리드 로드 (화풍)
+templates\pages\template.html:412: _refreshStylePresetSelect(''); // 스타일 프리셋 드롭다운 초기화
+templates\pages\template.html:414: renderLayers(); // 기본 레이어 렌더링
+templates\pages\template.html:416: await refreshShortsTemplatePresets(); // 숏폼 템플릿 목록 로드
+templates\pages\template.html:417: drawPreview(); // 초기 캔버스 그리기
+templates\pages\template.html:421: // 1. 로컬 상태 먼저 복구 (Session)
+templates\pages\template.html:424: // 프로젝트 정보 가져오기 (언어 설정)
+templates\pages\template.html:437: // 분석 데이터에서 제목 가져오기 (Legacy, now part of project.title/topic)
+templates\pages\template.html:443: // 기존 저장된 썸네일 URL 로드
+templates\pages\template.html:444: // 기존 저장된 썸네일 URL 로드
+templates\pages\template.html:448: // [Fallback] URL 없으면 경로 기반 추적
+templates\pages\template.html:462: // 결과 섹션 표시
+templates\pages\template.html:469: // 이력에 없으면 추가
+templates\pages\template.html:475: // 썸네일 레이아웃 스타일 복원
+templates\pages\template.html:482: // 이미지 스타일(화풍) 자동 선택 — image_gen.html에서 저장된 값 사용
+templates\pages\template.html:506: // [AUTOPILOT] 오토파일럿 작업 흔적 복원
+templates\pages\template.html:509: console.log('프로젝트 데이터 로드 실패', e);
+templates\pages\template.html:516: // [AUTOPILOT] 오토파일럿 작업 흔적 복원
+templates\pages\template.html:521: // 1. 후킹 문구 후보 복원
+templates\pages\template.html:527: /* [REQUESTED] 템플릿 페이지에서는 AI 문구 추천 섹션을 숨김
+templates\pages\template.html:528: // hookTextsSection 표시
+templates\pages\template.html:541: // reasoning 표시
+templates\pages\template.html:549: // thumbnailData 복원 (데이터는 유지하되 UI만 숨김)
+templates\pages\template.html:553: /* 텍스트 후보 영역도 숨길 경우 주석 처리
+templates\pages\template.html:554: // textCandidates 영역에도 표시
+templates\pages\template.html:567: console.log(`[Autopilot] 후킹 문구 ${hookTexts.length}개 복원 (UI 숨김)`);
+templates\pages\template.html:570: console.warn('[Autopilot] 후킹 문구 파싱 실패:', e);
+templates\pages\template.html:574: // 2. 배경 이미지 복원
+templates\pages\template.html:579: // 캔버스에 배경 표시
+templates\pages\template.html:589: // 프리뷰 플레이스홀더 숨김
+templates\pages\template.html:592: // 텍스트 레이어 다시 그리기
+templates\pages\template.html:598: console.log(`[Autopilot] 배경 이미지 복원: ${bgUrl}`);
+templates\pages\template.html:601: // 3. 아이디어 프롬프트 복원
+templates\pages\template.html:610: // 아이디어 섹션 표시
+templates\pages\template.html:619: console.log(`[Autopilot] 아이디어 프롬프트 복원`);
+templates\pages\template.html:622: // 4. 첫 번째 후킹 문구를 텍스트 레이어에 적용
+templates\pages\template.html:635: console.log('[Autopilot] 썸네일 작업 흔적 복원 완료');
+templates\pages\template.html:639: // [NEW] Image style presets (화풍) — synced from image_gen.html selection
+templates\pages\template.html:669: // 배지 업데이트
+templates\pages\template.html:679: // 배지 텍스트 업데이트
+templates\pages\template.html:691: // 그리드 active 클래스
+templates\pages\template.html:696: // 프로젝트 설정에 저장
+templates\pages\template.html:703: .catch(e => console.warn('image_style 저장 실패:', e));
+templates\pages\template.html:793: // 스타일 선택 함수 (UI selection only, no auto-save)
+templates\pages\template.html:797: // UI 업데이트
+templates\pages\template.html:816: // 스타일에 따른 기본 텍스트 설정 자동 최적화
+templates\pages\template.html:858: // 제목 텍스트에서 언어 자동 감지
+templates\pages\template.html:861: if (/[\u3040-\u30ff]/.test(title)) return 'ja';          // 히라가나/가타카나 → 일본어
+templates\pages\template.html:862: if (/[\uac00-\ud7af\u1100-\u11ff]/.test(title)) return 'ko'; // 한글 → 한국어
+templates\pages\template.html:864: if (/[\u4e00-\u9fff]/.test(title)) return 'zh';           // 한자 → 중국어
+templates\pages\template.html:865: if (/[\u0600-\u06ff]/.test(title)) return 'ar';           // 아랍어
+templates\pages\template.html:866: if (/^[\x00-\x7F\s]+$/.test(title.trim())) return 'en';  // ASCII만 → 영어
+templates\pages\template.html:870: // 1. 아이디어 생성
+templates\pages\template.html:879: // 이미지 스타일 프롬프트 — 현재 선택된 imageStyleKey 기준으로 프리셋에서 직접 조회
+templates\pages\template.html:887: // 프리셋에 없으면 project settings에서 폴백
+templates\pages\template.html:960: // JSON 내 제어문자 제거 후 파싱
+templates\pages\template.html:968: // [REMOVED] 사용자 요청으로 아이디어 섹션 숨김 유지
+templates\pages\template.html:970: saveStateToLocal(); // 저장
+templates\pages\template.html:983: // 할당량 초과 에러 특별 처리
+templates\pages\template.html:1014: // 서버에도 자동 저장 (새로고침 시 유지)
+templates\pages\template.html:1024: // 서버에 썸네일 상태 자동 저장 (설정 저장 버튼 없이도 유지)
+templates\pages\template.html:1054: console.log('[AutoSave] 썸네일 상태 서버 저장 완료');
+templates\pages\template.html:1056: console.warn('[AutoSave] 서버 저장 실패:', e);
+templates\pages\template.html:1060: // 아이디어 렌더링
+templates\pages\template.html:1085: // 데이터 업데이트
+templates\pages\template.html:1089: // 만약 현재 선택된 아이디어라면, 선택된 프롬프트 변수도 즉시 업데이트
+templates\pages\template.html:1093: saveStateToLocal(); // 저장
+templates\pages\template.html:1097: // 아이디어 선택
+templates\pages\template.html:1102: // UI 업데이트 (선택됨 표시)
+templates\pages\template.html:1105: // [MODIFIED] 텍스트 후보 처리: 3개의 후보를 각각 다른 레이어로 배치
+templates\pages\template.html:1107: const textsToApply = thumbnailData.texts.slice(0, 3); // 최대 3개
+templates\pages\template.html:1109: // 스타일별 최적 폰트/색상 설정
+templates\pages\template.html:1174: /* [REQUESTED] 템플릿 페이지에서는 AI 문구 추천 섹션을 숨김
+templates\pages\template.html:1175: // 상단 'AI 추천 후킹 문구' 섹션 연동
+templates\pages\template.html:1179: // [REMOVED] 사용자 요청으로 후킹 문구 버튼 섹션 숨김 유지
+templates\pages\template.html:1191: // 텍스트 섹션 표시
+templates\pages\template.html:1194: // 하단 텍스트 후보 섹션 비움
+templates\pages\template.html:1198: // 미리보기 플레이스홀더 숨기기
+templates\pages\template.html:1207: // 스크롤
+templates\pages\template.html:1212: // 레이어 추가
+templates\pages\template.html:1221: // 레이어 제거
+templates\pages\template.html:1228: // 레이어 UI 렌더링 (Compact & Position Removed)
+templates\pages\template.html:1334: // --- 도형 레이어 관리 ---
+templates\pages\template.html:1338: color_start: '#000000', color_end: null, // null이면 단색
+templates\pages\template.html:1342: selectedShapeIndex = shapeLayers.length - 1; // 추가 시 자동 선택
+templates\pages\template.html:1350: selectedShapeIndex = -1; // 선택 해제
+templates\pages\template.html:1362: // 도형 선택 (UI에서 클릭 시)
+templates\pages\template.html:1365: renderShapeLayers(); // 하이라이트 갱신 등을 위해
+templates\pages\template.html:1366: drawPreview(); // 핸들 표시
+templates\pages\template.html:1428: // 행 변경 시 오프셋 초기화 (사용자 편의)
+templates\pages\template.html:1431: renderLayers(); // 오프셋 입력창 값도 바뀌어야 하므로 전체 렌더링
+templates\pages\template.html:1433: drawPreview(); // 실시간 업데이트
+templates\pages\template.html:1440: // 시작/끝 색상 + 투명도 모두 교환
+templates\pages\template.html:1474: // 캔버스 이벤트 초기화 (드래그 앤 드롭)
+templates\pages\template.html:1484: // 터치 이벤트 지원 (모바일)
+templates\pages\template.html:1501: e.preventDefault(); // 기본 드래그 방지
+templates\pages\template.html:1505: // 0. 핸들 클릭 확인 (이미 선택된 도형이 있을 때)
+templates\pages\template.html:1509: // 현재 선택된 도형의 핸들인지 확인
+templates\pages\template.html:1522: return; // 리사이즈 시작하면 종료
+templates\pages\template.html:1527: // 1. 도형 클릭 확인 (텍스트보다 아래에 있으므로 먼저 체크하지만 텍스트가 우선권 가짐)
+templates\pages\template.html:1528: // 하지만 직관성을 위해 '가장 위에 있는 요소'를 선택하는게 맞음.
+templates\pages\template.html:1529: // 여기선 단순화를 위해: 텍스트 히트 -> 텍스트 드래그 / 도형 히트(텍스트 아님) -> 도형 선택+드래그
+templates\pages\template.html:1531: // 텍스트 히트 테스트
+templates\pages\template.html:1540: resizeHandle = null; // 텍스트 드래그임
+templates\pages\template.html:1550: // 텍스트 선택 시 도형 선택 해제 (원한다면)
+templates\pages\template.html:1557: // 도형 히트 테스트
+templates\pages\template.html:1565: resizeHandle = 'move_shape'; // 특별 타입
+templates\pages\template.html:1578: // 아무것도 안찍음 -> 선택 해제
+templates\pages\template.html:1591: // 커서 업데이트 로직
+templates\pages\template.html:1594: // 1. 핸들 오버
+templates\pages\template.html:1610: // 2. 텍스트 오버
+templates\pages\template.html:1620: // 3. 도형 오버
+templates\pages\template.html:1634: // 드래그/리사이즈 처리
+templates\pages\template.html:1646: // Resize + Flip Logic (끝을 반대쪽으로 넘기면 반전)
+templates\pages\template.html:1654: // 반전 처리: width/height가 음수면 좌표를 뒤집어서 정규화
+templates\pages\template.html:1658: // 최소 크기 보장
+templates\pages\template.html:1665: renderShapeLayers(); // 수치 업데이트
+templates\pages\template.html:1668: // 텍스트 이동
+templates\pages\template.html:1681: renderLayers(); // 텍스트만 업데이트
+templates\pages\template.html:1682: renderShapeLayers(); // 도형 업데이트
+templates\pages\template.html:1683: saveStateToLocal(); // 드래그 종료 시 저장
+templates\pages\template.html:1757: // 배경 생성 함수
+templates\pages\template.html:1762: // 스타일 파라미터가 없으면 현재 선택된 스타일 사용
+templates\pages\template.html:1765: // selectedPrompt가 없으면 영상 제목을 폴백으로 사용 (텍스트 생성 불필요)
+templates\pages\template.html:1779: drawPreview(); // 배경 적용
+templates\pages\template.html:1780: saveStateToLocal(); // 저장
+templates\pages\template.html:1781: autoSaveToServer(); // 서버에도 저장
+templates\pages\template.html:1783: // 404 등의 경우 detail 필드로 에러가 옴
+templates\pages\template.html:1809: Utils.showToast(i18n.toast_bg_cleared || '배경이 투명화되었습니다.', 'success');
+templates\pages\template.html:1812: // 캔버스 미리보기 렌더링
+templates\pages\template.html:1818: // 1. 기본 배경 (체커보드 + 어두운 오버레이)
+templates\pages\template.html:1832: // 2. 배경 이미지 처리
+templates\pages\template.html:1834: // 캐시된 이미지 객체가 있으면 즉시 그리기
+templates\pages\template.html:1837: // 플레이스홀더 숨김
+templates\pages\template.html:1841: // URL은 있으나 이미지가 아직 로드되지 않은 경우 로드 시작
+templates\pages\template.html:1845: bgImage = tempImg; // 로드 완료 시 캐싱
+templates\pages\template.html:1846: drawPreview(); // 재귀 호출하여 이미지와 함께 다시 그리기
+templates\pages\template.html:1849: console.error("배경 이미지 로드 실패:", currentBackgroundUrl, e);
+templates\pages\template.html:1854: // 3. 오버레이 레이어 (도형 및 텍스트) - 배경 로드 여부와 상관없이 항상 그림
+templates\pages\template.html:1925: // 배경 이미지 업로드 핸들러
+templates\pages\template.html:1948: // 최종 썸네일 생성
+templates\pages\template.html:1949: // 최종 썸네일 생성 (Canvas 캡처 & 저장)
+templates\pages\template.html:1973: // 캔버스 데이터를 Blob으로 변환
+templates\pages\template.html:1988: // 서버로 전송
+templates\pages\template.html:2000: // 결과 표시
+templates\pages\template.html:2005: // 이력 추가
+templates\pages\template.html:2016: // 썸네일 아이디어/텍스트 정보도 함께 저장 (선택 사항)
+templates\pages\template.html:2021: saveStateToLocal(); // 저장
+templates\pages\template.html:2041: // 이력 업데이트
+templates\pages\template.html:2051: // 다시 생성
+templates\pages\template.html:2093: // [Aggressive Fix] 캔버스와 컨테이너 스타일을 정밀하게 강제
+templates\pages\template.html:2095: // 내부 해상도 (물리적)
+templates\pages\template.html:2099: // 컨테이너 스타일 (시각적)
+templates\pages\template.html:2105: // 정보 텍스트
+templates\pages\template.html:2107: if (info) info.innerText = i18n.size_portrait || '세로 (9:16)';
+templates\pages\template.html:2109: // 내부 해상도 (물리적)
+templates\pages\template.html:2113: // 컨테이너 스타일 (시각적)
+templates\pages\template.html:2119: // 정보 텍스트
+templates\pages\template.html:2121: if (info) info.innerText = i18n.size_landscape || '가로 (16:9)';
+templates\pages\template.html:2141: // ========== 스타일 프리셋 저장/불러오기 (멀티 프리셋) ==========
+templates\pages\template.html:2239: Utils.showToast("스타일 적용 중 오류가 발생했습니다.", 'error');
+templates\pages\template.html:2267: select.innerHTML = `<option value="">-- ${i18n.opt_select_template || '템플릿 선택'} --</option>`;
+templates\pages\template.html:2290: Utils.showToast(i18n.toast_enter_style_name || '프리셋 이름을 입력하세요.', 'error');
+templates\pages\template.html:2338: Utils.showToast(`${i18n.toast_style_preset_saved_prefix || '저장되었습니다:'} "${name}"`, 'success');
+templates\pages\template.html:2365: Utils.showToast(`${i18n.toast_style_preset_loaded_prefix || '불러왔습니다:'} "${name}"`, 'success');
+templates\pages\template.html:2368: Utils.showToast(i18n.toast_style_load_fail || '로드 실패', 'error');
+templates\pages\template.html:2377: if (!confirm(`"${name}" - ${i18n.confirm_delete_style || '이 프리셋을 삭제할까요?'}`)) return;
+templates\pages\template.html:2383: Utils.showToast(i18n.toast_style_deleted_prefix || '삭제되었습니다.', 'success');
+templates\pages\template.html:2387: Utils.showToast('삭제 실패', 'error');
+templates\pages\template.html:2465: console.log('[DefaultStyle] 전역 기본 스타일 적용됨');
+templates\pages\template.html:2471: console.warn('[DefaultStyle] 불러오기 실패:', e);
+templates\pages\template.html:2505: // ideas와 texts는 thumbnailData에서 추출
+templates\pages\template.html:2524: saveStateToLocal(); // 로컬 세션도 동기화
+templates\pages\template.html:2537: // [Fix] 전역 appMode 변수 직접 사용 (가장 확실함)
+templates\pages\template.html:2544: // [NEW] 서버에서 데이터 가져오기 시도
+templates\pages\template.html:2553: // thumbnailData는 ideas와 texts로 재구성 필요할 수 있음
+templates\pages\template.html:2572: // 저장된 상태 없음 → 항상 세로(9:16) 기본값
+templates\pages\template.html:2597: // Aspect Ratio — 항상 세로(9:16) 기본값 (저장된 값 무시)
+templates\pages\template.html:2607: // [REMOVED] 상태 복구 시에도 아이디어 섹션 숨김 유지
+templates\pages\template.html:2612: // 저장된 텍스트 레이어 전체 복원 (스타일 + 내용)
+templates\pages\template.html:2617: /* [REQUESTED] 텍스트 후보 영역 숨김 (노란색 상단 문구 안나오게)
+templates\pages\template.html:2618: // 텍스트 후보 표시 복구
+templates\pages\template.html:2631: // 배경 이미지 복구
+templates\pages\template.html:2636: // 이미지 로드 후 그리기 및 상태 복원
+templates\pages\template.html:2649: // 배경 이미지가 있으면 결과 섹션이 아니라 프리뷰에 보여야 함.
+templates\pages\thumbnail.html:154: <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">🖼️ {{ t('label_preview') or '미리보기' }}</span>
+templates\pages\thumbnail.html:157: title="전체 설정 저장">
+templates\pages\thumbnail.html:274: <h3 class="font-bold text-gray-800 dark:text-white mb-4">{{ t('template_stage_4') or '4단계: 확정된 템플릿' }}</h3>
+templates\pages\thumbnail.html:283: <h4 class="font-medium text-gray-800 dark:text-white mb-2">📐 {{ t('template_info_title') or '템플릿 정보' }}</h4>
+templates\pages\thumbnail.html:319: // 기존 i18n 객체에 썸네일 전용 번역 추가 (SyntaxError/ReferenceError 방지)
+templates\pages\thumbnail.html:426: let currentBackgroundPath = null; // 생성된 배경 이미지 경로 (백엔드용)
+templates\pages\thumbnail.html:427: let currentBackgroundUrl = null; // 생성된 배경 이미지 URL (프론트엔드용)
+templates\pages\thumbnail.html:428: let currentAspectRatio = '9:16'; // Default: 세로 모드
+templates\pages\thumbnail.html:430: // 텍스트 레이어 상태 (동적 관리) — text는 빈 문자열로 초기화하여 캔버스 공백 유지
+templates\pages\thumbnail.html:436: // 도형 레이어 상태
+templates\pages\thumbnail.html:439: // 드래그 상태 변수
+templates\pages\thumbnail.html:446: let layerBBoxes = []; // 히트 테스트용 좌표 저장 [{x, y, w, h, index}]
+templates\pages\thumbnail.html:448: // 도형 크기 조절 관련 변수
+templates\pages\thumbnail.html:455: // 프로젝트 데이터 로드
+templates\pages\thumbnail.html:457: // [FIX] 기본값 세로(9:16) — appMode 무관하게 항상 세로 모드로 시작
+templates\pages\thumbnail.html:461: initCanvasEvents(); // 캔버스 이벤트 초기화
+templates\pages\thumbnail.html:463: await loadImageStyles(); // 이미지 스타일 그리드 로드 (화풍)
+templates\pages\thumbnail.html:470: _refreshStylePresetSelect(''); // 스타일 프리셋 드롭다운 초기화
+templates\pages\thumbnail.html:472: renderLayers(); // 기본 레이어 렌더링
+templates\pages\thumbnail.html:474: await refreshShortsTemplatePresets(); // 숏폼 템플릿 목록 로드
+templates\pages\thumbnail.html:475: drawPreview(); // 초기 캔버스 그리기
+templates\pages\thumbnail.html:479: // 1. 로컬 상태 먼저 복구 (Session)
+templates\pages\thumbnail.html:482: // 프로젝트 정보 가져오기 (언어 설정)
+templates\pages\thumbnail.html:495: // 분석 데이터에서 제목 가져오기 (Legacy, now part of project.title/topic)
+templates\pages\thumbnail.html:501: // 기존 저장된 썸네일 URL 로드
+templates\pages\thumbnail.html:502: // 기존 저장된 썸네일 URL 로드
+templates\pages\thumbnail.html:506: // [Fallback] URL 없으면 경로 기반 추적
+templates\pages\thumbnail.html:520: // 결과 섹션 표시
+templates\pages\thumbnail.html:527: // 이력에 없으면 추가
+templates\pages\thumbnail.html:533: // 썸네일 레이아웃 스타일 복원
+templates\pages\thumbnail.html:540: // 이미지 스타일(화풍) 자동 선택 — image_gen.html에서 저장된 값 사용
+templates\pages\thumbnail.html:564: // [AUTOPILOT] 오토파일럿 작업 흔적 복원
+templates\pages\thumbnail.html:567: console.log('프로젝트 데이터 로드 실패', e);
+templates\pages\thumbnail.html:574: // [AUTOPILOT] 오토파일럿 작업 흔적 복원
+templates\pages\thumbnail.html:579: // 1. 후킹 문구 후보 복원
+templates\pages\thumbnail.html:585: /* [REQUESTED] AI 추천 후킹 문구 섹션 숨김 (UI는 유지하되 자동 노출 안함)
+templates\pages\thumbnail.html:586: // hookTextsSection 표시
+templates\pages\thumbnail.html:599: // reasoning 표시
+templates\pages\thumbnail.html:607: // thumbnailData 복원 (데이터는 유지하되 UI만 숨김)
+templates\pages\thumbnail.html:611: /* 텍스트 후보 영역도 숨길 경우 주석 처리
+templates\pages\thumbnail.html:612: // textCandidates 영역에도 표시
+templates\pages\thumbnail.html:625: console.log(`[Autopilot] 후킹 문구 ${hookTexts.length}개 복원 (UI 숨김)`);
+templates\pages\thumbnail.html:628: console.warn('[Autopilot] 후킹 문구 파싱 실패:', e);
+templates\pages\thumbnail.html:632: // 2. 배경 이미지 복원
+templates\pages\thumbnail.html:637: // 캔버스에 배경 표시
+templates\pages\thumbnail.html:647: // 프리뷰 플레이스홀더 숨김
+templates\pages\thumbnail.html:650: // 텍스트 레이어 다시 그리기
+templates\pages\thumbnail.html:656: console.log(`[Autopilot] 배경 이미지 복원: ${bgUrl}`);
+templates\pages\thumbnail.html:659: // 3. 아이디어 프롬프트 복원
+templates\pages\thumbnail.html:668: // 아이디어 섹션 표시
+templates\pages\thumbnail.html:677: console.log(`[Autopilot] 아이디어 프롬프트 복원`);
+templates\pages\thumbnail.html:680: // 4. 첫 번째 후킹 문구를 텍스트 레이어에 적용
+templates\pages\thumbnail.html:693: console.log('[Autopilot] 썸네일 작업 흔적 복원 완료');
+templates\pages\thumbnail.html:697: // [NEW] Image style presets (화풍) — synced from image_gen.html selection
+templates\pages\thumbnail.html:727: // 배지 업데이트
+templates\pages\thumbnail.html:737: // 배지 텍스트 업데이트
+templates\pages\thumbnail.html:749: // 그리드 active 클래스
+templates\pages\thumbnail.html:754: // 프로젝트 설정에 저장
+templates\pages\thumbnail.html:761: .catch(e => console.warn('image_style 저장 실패:', e));
+templates\pages\thumbnail.html:852: // 스타일 선택 함수 (UI selection only, no auto-save)
+templates\pages\thumbnail.html:856: // UI 업데이트
+templates\pages\thumbnail.html:875: // 스타일에 따른 기본 텍스트 설정 자동 최적화
+templates\pages\thumbnail.html:917: // 제목 텍스트에서 언어 자동 감지
+templates\pages\thumbnail.html:920: if (/[\u3040-\u30ff]/.test(title)) return 'ja';          // 히라가나/가타카나 → 일본어
+templates\pages\thumbnail.html:921: if (/[\uac00-\ud7af\u1100-\u11ff]/.test(title)) return 'ko'; // 한글 → 한국어
+templates\pages\thumbnail.html:923: if (/[\u4e00-\u9fff]/.test(title)) return 'zh';           // 한자 → 중국어
+templates\pages\thumbnail.html:924: if (/[\u0600-\u06ff]/.test(title)) return 'ar';           // 아랍어
+templates\pages\thumbnail.html:925: if (/^[\x00-\x7F\s]+$/.test(title.trim())) return 'en';  // ASCII만 → 영어
+templates\pages\thumbnail.html:929: // 1. 아이디어 생성
+templates\pages\thumbnail.html:938: // 이미지 스타일 프롬프트 — 현재 선택된 imageStyleKey 기준으로 프리셋에서 직접 조회
+templates\pages\thumbnail.html:946: // 프리셋에 없으면 project settings에서 폴백
+templates\pages\thumbnail.html:1019: // JSON 내 제어문자 제거 후 파싱
+templates\pages\thumbnail.html:1027: // [RESTORED] 아이디어 섹션 자동 노출
+templates\pages\thumbnail.html:1029: saveStateToLocal(); // 저장
+templates\pages\thumbnail.html:1042: // 할당량 초과 에러 특별 처리
+templates\pages\thumbnail.html:1073: // 서버에도 자동 저장 (새로고침 시 유지)
+templates\pages\thumbnail.html:1083: // 서버에 썸네일 상태 자동 저장 (설정 저장 버튼 없이도 유지)
+templates\pages\thumbnail.html:1113: console.log('[AutoSave] 썸네일 상태 서버 저장 완료');
+templates\pages\thumbnail.html:1115: console.warn('[AutoSave] 서버 저장 실패:', e);
+templates\pages\thumbnail.html:1119: // 아이디어 렌더링
+templates\pages\thumbnail.html:1144: // 데이터 업데이트
+templates\pages\thumbnail.html:1148: // 만약 현재 선택된 아이디어라면, 선택된 프롬프트 변수도 즉시 업데이트
+templates\pages\thumbnail.html:1152: saveStateToLocal(); // 저장
+templates\pages\thumbnail.html:1156: // 아이디어 선택
+templates\pages\thumbnail.html:1161: // UI 업데이트 (선택됨 표시)
+templates\pages\thumbnail.html:1164: // [MODIFIED] 텍스트 후보 처리: 3개의 후보를 각각 다른 레이어로 배치
+templates\pages\thumbnail.html:1166: const textsToApply = thumbnailData.texts.slice(0, 3); // 최대 3개
+templates\pages\thumbnail.html:1168: // 스타일별 최적 폰트/색상 설정
+templates\pages\thumbnail.html:1233: /* [REQUESTED] AI 추천 후킹 문구 섹션 숨김 고도화 (사용자 요청 반영)
+templates\pages\thumbnail.html:1234: // 상단 'AI 추천 후킹 문구' 섹션 연동
+templates\pages\thumbnail.html:1238: // [RESTORED] AI 후킹 문구 섹션 표시
+templates\pages\thumbnail.html:1250: // 텍스트 섹션 표시
+templates\pages\thumbnail.html:1253: // 하단 텍스트 후보 섹션 비움
+templates\pages\thumbnail.html:1257: // 미리보기 플레이스홀더 숨기기
+templates\pages\thumbnail.html:1266: // 스크롤
+templates\pages\thumbnail.html:1271: // 레이어 추가
+templates\pages\thumbnail.html:1280: // 레이어 제거
+templates\pages\thumbnail.html:1287: // 레이어 UI 렌더링 (Compact & Position Removed)
+templates\pages\thumbnail.html:1393: // --- 도형 레이어 관리 ---
+templates\pages\thumbnail.html:1397: color_start: '#000000', color_end: null, // null이면 단색
+templates\pages\thumbnail.html:1401: selectedShapeIndex = shapeLayers.length - 1; // 추가 시 자동 선택
+templates\pages\thumbnail.html:1409: selectedShapeIndex = -1; // 선택 해제
+templates\pages\thumbnail.html:1421: // 도형 선택 (UI에서 클릭 시)
+templates\pages\thumbnail.html:1424: renderShapeLayers(); // 하이라이트 갱신 등을 위해
+templates\pages\thumbnail.html:1425: drawPreview(); // 핸들 표시
+templates\pages\thumbnail.html:1487: // 행 변경 시 오프셋 초기화 (사용자 편의)
+templates\pages\thumbnail.html:1490: renderLayers(); // 오프셋 입력창 값도 바뀌어야 하므로 전체 렌더링
+templates\pages\thumbnail.html:1492: drawPreview(); // 실시간 업데이트
+templates\pages\thumbnail.html:1499: // 시작/끝 색상 + 투명도 모두 교환
+templates\pages\thumbnail.html:1533: // 캔버스 이벤트 초기화 (드래그 앤 드롭)
+templates\pages\thumbnail.html:1543: // 터치 이벤트 지원 (모바일)
+templates\pages\thumbnail.html:1560: e.preventDefault(); // 기본 드래그 방지
+templates\pages\thumbnail.html:1564: // 0. 핸들 클릭 확인 (이미 선택된 도형이 있을 때)
+templates\pages\thumbnail.html:1568: // 현재 선택된 도형의 핸들인지 확인
+templates\pages\thumbnail.html:1581: return; // 리사이즈 시작하면 종료
+templates\pages\thumbnail.html:1586: // 1. 도형 클릭 확인 (텍스트보다 아래에 있으므로 먼저 체크하지만 텍스트가 우선권 가짐)
+templates\pages\thumbnail.html:1587: // 하지만 직관성을 위해 '가장 위에 있는 요소'를 선택하는게 맞음.
+templates\pages\thumbnail.html:1588: // 여기선 단순화를 위해: 텍스트 히트 -> 텍스트 드래그 / 도형 히트(텍스트 아님) -> 도형 선택+드래그
+templates\pages\thumbnail.html:1590: // 텍스트 히트 테스트
+templates\pages\thumbnail.html:1599: resizeHandle = null; // 텍스트 드래그임
+templates\pages\thumbnail.html:1609: // 텍스트 선택 시 도형 선택 해제 (원한다면)
+templates\pages\thumbnail.html:1616: // 도형 히트 테스트
+templates\pages\thumbnail.html:1624: resizeHandle = 'move_shape'; // 특별 타입
+templates\pages\thumbnail.html:1637: // 아무것도 안찍음 -> 선택 해제
+templates\pages\thumbnail.html:1650: // 커서 업데이트 로직
+templates\pages\thumbnail.html:1653: // 1. 핸들 오버
+templates\pages\thumbnail.html:1669: // 2. 텍스트 오버
+templates\pages\thumbnail.html:1679: // 3. 도형 오버
+templates\pages\thumbnail.html:1693: // 드래그/리사이즈 처리
+templates\pages\thumbnail.html:1705: // Resize + Flip Logic (끝을 반대쪽으로 넘기면 반전)
+templates\pages\thumbnail.html:1713: // 반전 처리: width/height가 음수면 좌표를 뒤집어서 정규화
+templates\pages\thumbnail.html:1717: // 최소 크기 보장
+templates\pages\thumbnail.html:1724: renderShapeLayers(); // 수치 업데이트
+templates\pages\thumbnail.html:1727: // 텍스트 이동
+templates\pages\thumbnail.html:1740: renderLayers(); // 텍스트만 업데이트
+templates\pages\thumbnail.html:1741: renderShapeLayers(); // 도형 업데이트
+templates\pages\thumbnail.html:1742: saveStateToLocal(); // 드래그 종료 시 저장
+templates\pages\thumbnail.html:1816: // 배경 생성 함수
+templates\pages\thumbnail.html:1821: // 스타일 파라미터가 없으면 현재 선택된 스타일 사용
+templates\pages\thumbnail.html:1824: // selectedPrompt가 없으면 영상 제목을 폴백으로 사용 (텍스트 생성 불필요)
+templates\pages\thumbnail.html:1838: drawPreview(); // 배경 적용
+templates\pages\thumbnail.html:1839: saveStateToLocal(); // 저장
+templates\pages\thumbnail.html:1840: autoSaveToServer(); // 서버에도 저장
+templates\pages\thumbnail.html:1842: // 404 등의 경우 detail 필드로 에러가 옴
+templates\pages\thumbnail.html:1868: Utils.showToast(i18n.toast_bg_cleared || '배경이 투명화되었습니다.', 'success');
+templates\pages\thumbnail.html:1871: // 캔버스 미리보기 렌더링
+templates\pages\thumbnail.html:1877: // 1. 기본 배경 (체커보드 + 어두운 오버레이)
+templates\pages\thumbnail.html:1891: // 2. 배경 이미지 처리
+templates\pages\thumbnail.html:1893: // 캐시된 이미지 객체가 있으면 즉시 그리기
+templates\pages\thumbnail.html:1896: // 플레이스홀더 숨김
+templates\pages\thumbnail.html:1900: // URL은 있으나 이미지가 아직 로드되지 않은 경우 로드 시작
+templates\pages\thumbnail.html:1904: bgImage = tempImg; // 로드 완료 시 캐싱
+templates\pages\thumbnail.html:1905: drawPreview(); // 재귀 호출하여 이미지와 함께 다시 그리기
+templates\pages\thumbnail.html:1908: console.error("배경 이미지 로드 실패:", currentBackgroundUrl, e);
+templates\pages\thumbnail.html:1909: // 로드 실패 시 무한 루프 방지를 위해 URL 또는 상태 초기화 고려
+templates\pages\thumbnail.html:1915: // 3. 오버레이 레이어 (도형 및 텍스트) - 배경 로드 여부와 상관없이 항상 그림
+templates\pages\thumbnail.html:1986: // 배경 이미지 업로드 핸들러
+templates\pages\thumbnail.html:2009: // 최종 썸네일 생성
+templates\pages\thumbnail.html:2010: // 최종 썸네일 생성 (Canvas 캡처 & 저장)
+templates\pages\thumbnail.html:2034: // 캔버스 데이터를 Blob으로 변환
+templates\pages\thumbnail.html:2049: // 서버로 전송
+templates\pages\thumbnail.html:2061: // 결과 표시
+templates\pages\thumbnail.html:2066: // 이력 추가
+templates\pages\thumbnail.html:2077: // 썸네일 아이디어/텍스트 정보도 함께 저장 (선택 사항)
+templates\pages\thumbnail.html:2082: saveStateToLocal(); // 저장
+templates\pages\thumbnail.html:2102: // 이력 업데이트
+templates\pages\thumbnail.html:2112: // 다시 생성
+templates\pages\thumbnail.html:2154: // [Aggressive Fix] 캔버스와 컨테이너 스타일을 정밀하게 강제
+templates\pages\thumbnail.html:2156: // 내부 해상도 (물리적)
+templates\pages\thumbnail.html:2160: // 컨테이너 스타일 (시각적)
+templates\pages\thumbnail.html:2166: // 정보 텍스트
+templates\pages\thumbnail.html:2168: if (info) info.innerText = i18n.size_portrait || '세로 (9:16)';
+templates\pages\thumbnail.html:2170: // 내부 해상도 (물리적)
+templates\pages\thumbnail.html:2174: // 컨테이너 스타일 (시각적)
+templates\pages\thumbnail.html:2180: // 정보 텍스트
+templates\pages\thumbnail.html:2182: if (info) info.innerText = i18n.size_landscape || '가로 (16:9)';
+templates\pages\thumbnail.html:2202: // ========== 스타일 프리셋 저장/불러오기 (멀티 프리셋) ==========
+templates\pages\thumbnail.html:2300: Utils.showToast("스타일 적용 중 오류가 발생했습니다.", 'error');
+templates\pages\thumbnail.html:2328: select.innerHTML = `<option value="">-- ${i18n.opt_select_template || '템플릿 선택'} --</option>`;
+templates\pages\thumbnail.html:2351: Utils.showToast(i18n.toast_enter_style_name || '프리셋 이름을 입력하세요.', 'error');
+templates\pages\thumbnail.html:2399: Utils.showToast(`${i18n.toast_style_preset_saved_prefix || '저장되었습니다:'} "${name}"`, 'success');
+templates\pages\thumbnail.html:2426: Utils.showToast(`${i18n.toast_style_preset_loaded_prefix || '불러왔습니다:'} "${name}"`, 'success');
+templates\pages\thumbnail.html:2429: Utils.showToast(i18n.toast_style_load_fail || '로드 실패', 'error');
+templates\pages\thumbnail.html:2438: if (!confirm(`"${name}" - ${i18n.confirm_delete_style || '이 프리셋을 삭제할까요?'}`)) return;
+templates\pages\thumbnail.html:2444: Utils.showToast(i18n.toast_style_deleted_prefix || '삭제되었습니다.', 'success');
+templates\pages\thumbnail.html:2448: Utils.showToast('삭제 실패', 'error');
+templates\pages\thumbnail.html:2526: console.log('[DefaultStyle] 전역 기본 스타일 적용됨');
+templates\pages\thumbnail.html:2532: console.warn('[DefaultStyle] 불러오기 실패:', e);
+templates\pages\thumbnail.html:2566: // ideas와 texts는 thumbnailData에서 추출
+templates\pages\thumbnail.html:2585: saveStateToLocal(); // 로컬 세션도 동기화
+templates\pages\thumbnail.html:2598: // [Fix] 전역 appMode 변수 직접 사용 (가장 확실함)
+templates\pages\thumbnail.html:2605: // [NEW] 서버에서 데이터 가져오기 시도
+templates\pages\thumbnail.html:2614: // thumbnailData는 ideas와 texts로 재구성 필요할 수 있음
+templates\pages\thumbnail.html:2633: // 저장된 상태 없음 → 항상 세로(9:16) 기본값
+templates\pages\thumbnail.html:2658: // Aspect Ratio — 항상 세로(9:16) 기본값 (저장된 값 무시)
+templates\pages\thumbnail.html:2668: // [RESTORED] 상태 복구 시에도 아이디어 섹션 노출
+templates\pages\thumbnail.html:2673: // 저장된 텍스트 레이어 전체 복원 (스타일 + 내용)
+templates\pages\thumbnail.html:2678: /* [REQUESTED] 텍스트 후보 영역 숨김 (노란색 상단 문구 안나오게)
+templates\pages\thumbnail.html:2679: // 텍스트 후보 표시 복구
+templates\pages\thumbnail.html:2692: // 배경 이미지 복구
+templates\pages\thumbnail.html:2697: // 이미지 로드 후 그리기 및 상태 복원
+templates\pages\thumbnail.html:2710: // 배경 이미지가 있으면 결과 섹션이 아니라 프리뷰에 보여야 함.
+templates\pages\title_desc.html:108: /* 커스텀 스크롤바 */
+templates\pages\title_desc.html:162: // 프로젝트 전환 시 메타데이터 재로드
+templates\pages\topic.html:16: 오늘의 배정 주제
+templates\pages\topic.html:17: <span class="text-xs font-normal px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20">AI 추천</span>
+templates\pages\topic.html:19: <p class="text-sm text-gray-400 mt-1">대표님이 배정하신 오늘의 유튜브 비디오 제작 주제를 가져옵니다.</p>
+templates\pages\topic.html:24: <span class="relative z-10">오늘의 주제 가져오기</span>
+templates\pages\topic.html:190: <button onclick="setSearchTopic('일상 브이로그')"
+templates\pages\topic.html:192: <button onclick="setSearchTopic('먹방')"
+templates\pages\topic.html:194: <button onclick="setSearchTopic('IT 테크')"
+templates\pages\topic.html:196: <button onclick="setSearchTopic('재테크')"
+templates\pages\topic.html:198: <button onclick="setSearchTopic('운동 헬스')"
+templates\pages\topic.html:200: <button onclick="setSearchTopic('게임')"
+templates\pages\topic.html:202: <button onclick="setSearchTopic('자기계발')"
+templates\pages\topic.html:359: // 주제 설정
+templates\pages\topic.html:365: // 기간 필터 계산
+templates\pages\topic.html:376: // 검색 실행
+templates\pages\topic.html:393: // 1. 검색
+templates\pages\topic.html:423: // 2. 비디오 상세 정보 가져오기
+templates\pages\topic.html:428: // 3. 채널 상세 정보 가져오기 (구독자 수 등)
+templates\pages\topic.html:440: console.error("채널 정보 로드 실패:", e);
+templates\pages\topic.html:454: // 4. 데이터 병합 및 스코어 계산 (+ Duration Filter)
+templates\pages\topic.html:471: // 채널 평균 조회수 (단순 계산)
+templates\pages\topic.html:476: // 채널 기여도: 평소보다 얼마나 더 잘 나왔나?
+templates\pages\topic.html:479: // 성과도 배율: 구독자 대비 조회수
+templates\pages\topic.html:494: // 5. 렌더링
+templates\pages\topic.html:513: // 비디오 렌더링 (리스트/테이블 형태)
+templates\pages\topic.html:518: // 성과도 배율 색상
+templates\pages\topic.html:521: // 기여도 색상
+templates\pages\topic.html:639: // 분석 준비 및 실행 (이제 팝업 없이 바로 실행 후 이동)
+templates\pages\topic.html:646: // 로딩 오버레이 표시
+templates\pages\topic.html:656: // 1. 자막 추출 시도
+templates\pages\topic.html:664: } catch (e) { console.warn('자막 추출 실패:', e); }
+templates\pages\topic.html:670: // 2. AI 분석 실행
+templates\pages\topic.html:676: // 3. 자동으로 대본 기획 페이지로 이동 (분석 결과 저장 포함)
+templates\pages\topic.html:682: console.error('분석 오류:', error);
+templates\pages\topic.html:695: // 대본 기획으로 이동 (프로젝트 저장)
+templates\pages\topic.html:706: // 프로젝트가 없으면 자동 생성
+templates\pages\topic.html:732: // 분석 결과를 DB에 저장
+templates\pages\topic.html:746: console.error('저장 실패:', e);
+templates\pages\topic.html:1128: // ESC 키는 이제 필요 없음 (모달 제거됨)
+templates\pages\topic.html:1189: // 만약 프로젝트에 저장된 주제가 있다면 검색창에 반영 (검색어 입력은 프로젝트 데이터 우선)
+templates\pages\topic.html:1193: // 주제가 바뀌었으므로 상태 다시 저장
+templates\pages\topic.html:1225: // [NEW] 오늘의 배정 주제 가져오기
+templates\pages\topic.html:1227: Utils.showToast("오늘의 주제를 조회하는 중...", "info");
+templates\pages\topic.html:1233: Utils.showToast("새 프로젝트가 성공적으로 생성되었습니다!", "success");
+templates\pages\topic.html:1234: // 해당 프로젝트의 대본 기획 페이지로 이동
+templates\pages\topic.html:1239: Utils.showToast(data.error || "배정된 대기 중인 주제가 없습니다.", "warning");
+templates\pages\topic.html:1243: Utils.showToast("주제 가져오기 실패: " + e.message, "error");
+templates\pages\tts.html:39: + 목소리 등록
+templates\pages\tts.html:56: <span class="text-xs font-bold text-gray-300">안정도 <span id="stabilityValue" class="text-purple-400">0.35</span></span>
+templates\pages\tts.html:60: <span class="text-xs font-bold text-gray-300 ml-1">스타일 과장 <span id="styleValue" class="text-purple-400">0.45</span></span>
+templates\pages\tts.html:364: // ... (기존 JS 로직 유지, ID 매칭 확인) ...
+templates\pages\tts.html:365: // window.addEventListener('projectStateRestored', ...) 로직은 그대로 사용 가능
+templates\pages\tts.html:366: // 단, HTML 구조가 바뀌었으므로 classList 제어 부분 확인 필요
+templates\pages\tts.html:368: // 상태 복구 이벤트 수신
+templates\pages\tts.html:494: // 전역 변수
+templates\pages\tts.html:864: // ElevenLabs 목소리 등록 모달 관련 JS
+templates\pages\tts.html:885: if (!name) return Utils.showToast("목소리 이름을 입력해주세요.", "warning");
+templates\pages\tts.html:886: if (!voiceId) return Utils.showToast("Voice ID를 입력해주세요.", "warning");
+templates\pages\tts.html:888: Utils.setLoading(btn, true, "등록 중...");
+templates\pages\tts.html:902: Utils.showToast(`'${name}' 목소리가 성공적으로 등록되었습니다.`, "success");
+templates\pages\tts.html:905: // 목소리 목록 새로고침
+templates\pages\tts.html:908: // 새로 만든 목소리를 바로 선택하게 설정
+templates\pages\tts.html:915: Utils.showToast(result.detail || "목소리 등록에 실패했습니다.", "error");
+templates\pages\tts.html:919: Utils.showToast("네트워크 오류가 발생했습니다.", "error");
+templates\pages\tts.html:921: Utils.setLoading(btn, false, "등록하기");
+templates\pages\tts.html:931: <span>🎙️</span> ElevenLabs 목소리 등록
+templates\pages\tts.html:938: <label class="text-xs font-bold text-gray-400">목소리 이름 <span class="text-red-500">*</span></label>
+templates\pages\tts.html:939: <input type="text" id="newVoiceName" required placeholder="예: 시어머니 (Sian)"
+templates\pages\tts.html:945: <input type="text" id="newVoiceId" required placeholder="ElevenLabs에서 복사한 Voice ID 입력"
+templates\pages\tts.html:952: 취소
+templates\pages\tts.html:956: 등록하기
+templates\pages\video_gen.html:311: // [AUTOPILOT] 오토파일럿이 렌더링한 최종 영상 폴백

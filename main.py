@@ -1702,7 +1702,8 @@ async def tts_generate(req: TTSRequest):
 
             # 2. 세그먼트별 오디오 생성 (동시 생성 개수 제한)
             import asyncio
-            semaphore = asyncio.Semaphore(3) # 최대 3개 동시 요청 (API 동시성 제한 방지)
+            # ElevenLabs eleven_v3는 동시 요청 2개 제한이 있으므로 Semaphore=2
+            semaphore = asyncio.Semaphore(2) # 최대 2개 동시 요청 (eleven_v3 동시성 제한 방지)
             
             async def process_segment(idx, segment):
                 async with semaphore:
@@ -1730,12 +1731,20 @@ async def tts_generate(req: TTSRequest):
                     
                     try:
                         if provider == "elevenlabs":
-                             await tts_service.generate_elevenlabs(seg_text, target_voice, seg_path, voice_settings=el_voice_settings)
+                             result = await tts_service.generate_elevenlabs(seg_text, target_voice, seg_path, voice_settings=el_voice_settings)
+                             # 실제 저장된 경로 검증 (None 또는 파일 없으면 실패 처리)
+                             actual_path = result.get("audio_path") if result else None
+                             if actual_path and os.path.exists(actual_path) and os.path.getsize(actual_path) > 0:
+                                 return actual_path
+                             else:
+                                 print(f"❌ Segment {idx} (Speaker: {speaker}) - 파일 생성 실패 또는 빈 파일: {actual_path}")
+                                 return None
                         elif provider == "openai":
                              await tts_service.generate_openai(seg_text, target_voice, "tts-1", seg_path, req.speed)
+                             return seg_path if os.path.exists(seg_path) else None
                         else: # gemini / edge_tts
                              await tts_service.generate_gemini(seg_text, target_voice, req.language, req.style_prompt, seg_path, req.speed)
-                        return seg_path
+                             return seg_path if os.path.exists(seg_path) else None
                     except Exception as e:
                         print(f"❌ Segment {idx} (Speaker: {speaker}) generation failed: {e}")
                         return None
