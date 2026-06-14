@@ -27,9 +27,6 @@
             <button onclick="switchTab('api')" id="tab-api" class="tab-button active">
                 🎫 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Cấu hình cơ bản{% else %}기본 설정{% endif %}
             </button>
-            <button onclick="switchTab('content')" id="tab-content" class="tab-button">
-                {{ t('nav_content_settings') }}
-            </button>
             <button onclick="switchTab('image-styles')" id="tab-image-styles" class="tab-button">
                 {{ t('nav_image_style') }}
             </button>
@@ -182,7 +179,7 @@
                                         {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Sử dụng Render hàng đợi ngoài (Google Drive File Stream){% else %}외부 렌더 대기열 사용 (구글 드라이브 파일 스트림 연동){% endif %}
                                     </label>
                                     <p class="text-gray-400 text-[10px] mt-0.5">
-                                        {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Khi bật, các file render và asset sẽ được xuất thẳng vào thư mục Google Drive được chỉ định bên dưới.{% else %}활성화 시, 생성 프로세스가 완료되면 렌더링 요청 파일이 지정된 구글 드라이브 폴더로 자동 복사됩니다.{% endif %}
+                                        {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Khi bật, các file render và asset sẽ được xuất thẳng vào thư mục Google Drive được chỉ định bên dưới.{% else %}활성화 시, 생성 프로세스가 완료되면 렌더링 요청 파일이 지정된 구글 드라이브 폴더로 automatic 복사됩니다.{% endif %}
                                     </p>
                                 </div>
                             </div>
@@ -227,56 +224,12 @@
         </div>
         <!-- End API Tab -->
 
-        <!-- Content Settings Tab -->
-        <div id="tab-content-content" class="tab-content">
-            <div class="grid grid-cols-1 gap-4">
-
-                <!-- Content Settings (Voice & Scripts) -->
-                <div class="card p-4 shadow-sm border border-gray-200 dark:border-gray-700">
-                    <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
-                        <i class="fas fa-sliders-h text-blue-500"></i>
-                        {{ t('title_content_gen_settings') }}
-                    </h3>
-
-                    <!-- Channel Info Sub-Banner (Relocated) - Visible only for PRO membership -->
-                    {% if membership and membership.lower() == 'pro' %}
-                    <div class="mb-6 p-3 rounded-xl border {% if youtube_channel %}border-blue-100 dark:border-blue-900/30 bg-[#1c2027] dark:bg-[#1c2027]{% else %}border-dashed border-gray-200 dark:border-gray-700 bg-[#1c2027]/50 bg-[#1c2027]{% endif %} flex items-center justify-between transition-all">
-                        <div class="flex items-center gap-3">
-                            <div class="w-8 h-8 rounded-full {% if youtube_channel %}bg-red-500 text-white shadow-lg shadow-red-500/20{% else %}bg-gray-200 bg-[#1c2027]/50 text-gray-400{% endif %} flex items-center justify-center">
-                                <i class="fab fa-youtube text-sm"></i>
-                            </div>
-                            <div>
-                                <p class="text-[9px] font-black {% if youtube_channel %}text-blue-600 dark:text-blue-400{% else %}text-gray-400{% endif %} uppercase tracking-widest mb-0.5">YouTube Connection</p>
-                                <h4 class="text-xs font-bold {% if youtube_channel %}text-gray-800 dark:text-gray-100{% else %}text-gray-400{% endif %}">
-                                    {{ youtube_channel if youtube_channel else '채널 정보 미연동' }}
-                                </h4>
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            {% if youtube_channel %}
-                                <div class="text-right">
-                                    <span class="text-[9px] font-black text-green-600 bg-green-100 px-1.5 py-0.5 rounded-md">LIVE</span>
-                                    <p class="text-[9px] text-gray-400 mt-0.5">{{ youtube_handle }}</p>
-                                </div>
-                            {% else %}
-                                <a href="{{ AUTH_SERVER_URL }}/dashboard" target="_blank" class="text-[10px] font-black text-blue-600 hover:text-blue-700 underline underline-offset-4">
-                                    연동하기 ↗
-                                </a>
-                            {% endif %}
-                        </div>
-                    </div>
-                    {% endif %}
-
-                    <!-- Hidden Gemini Voice Settings to avoid JS breakage -->
-                    <div class="hidden">
-                        <select id="geminiVoice"></select>
-                        <select id="geminiLanguage"></select>
-                        <textarea id="geminiStylePrompt"></textarea>
-                    </div>
-                </div>
-            </div>
+        <!-- Hidden Gemini Voice Settings to avoid JS breakage -->
+        <div class="hidden">
+            <select id="geminiVoice"></select>
+            <select id="geminiLanguage"></select>
+            <textarea id="geminiStylePrompt"></textarea>
         </div>
-        <!-- End Content Tab -->
 
         <!-- Image Styles Tab -->
         <div id="tab-content-image-styles" class="tab-content">
