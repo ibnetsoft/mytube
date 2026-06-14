@@ -304,7 +304,39 @@ class TTSService:
         audio_duration = 0.0
 
         async with httpx.AsyncClient(timeout=180.0, trust_env=False) as client:
-            response = await client.post(url, headers=headers, json=payload)
+            response = None
+            max_retries = 3
+            retry_delay = 2.0
+
+            for attempt in range(max_retries):
+                try:
+                    response = await client.post(url, headers=headers, json=payload)
+                    
+                    if response.status_code == 200:
+                        break
+                    
+                    is_rate_limit = response.status_code == 429 or "concurrent" in response.text or "rate_limit" in response.text
+                    if is_rate_limit and attempt < max_retries - 1:
+                        sleep_time = retry_delay * (attempt + 1)
+                        print(f"[WARN] [ElevenLabs TTS] Concurrency/Rate limit hit (Status {response.status_code}). Retrying in {sleep_time:.1f}s (Attempt {attempt+1}/{max_retries})...")
+                        await asyncio.sleep(sleep_time)
+                        continue
+                    
+                    if "voice_not_found" in response.text and voice_id != "4JJwo477JUAx3HV0T7n7":
+                        print(f"⚠️ ElevenLabs voice '{voice_id}' not found. Falling back to default.")
+                        return await self.generate_elevenlabs(text, "4JJwo477JUAx3HV0T7n7", filename, return_alignment, voice_settings)
+                    else:
+                        raise Exception(f"ElevenLabs API 오류: {response.text}")
+                except Exception as e:
+                    if "voice_not_found" in str(e):
+                        raise e
+                    if attempt < max_retries - 1:
+                        sleep_time = retry_delay * (attempt + 1)
+                        print(f"[WARN] [ElevenLabs TTS] Request exception: {e}. Retrying in {sleep_time:.1f}s...")
+                        await asyncio.sleep(sleep_time)
+                        continue
+                    else:
+                        raise e
 
             if response.status_code == 200:
                 import json

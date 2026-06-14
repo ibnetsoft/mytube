@@ -1702,7 +1702,7 @@ async def tts_generate(req: TTSRequest):
 
             # 2. 세그먼트별 오디오 생성 (동시 생성 개수 제한)
             import asyncio
-            semaphore = asyncio.Semaphore(10) # 최대 10개 동시 요청
+            semaphore = asyncio.Semaphore(3) # 최대 3개 동시 요청 (API 동시성 제한 방지)
             
             async def process_segment(idx, segment):
                 async with semaphore:
