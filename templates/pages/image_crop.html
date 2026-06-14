@@ -8,7 +8,7 @@
             <h1 class="text-2xl font-black text-white flex items-center gap-2">
                 <span>✂️</span> {{ t('crop_title') }}
             </h1>
-            <p class="text-xs text-gray-400 mt-1">
+            <p class="text-xs text-gray-400 mt-1" id="page-desc-text">
                 2x2 격자 이미지들을 한 번에 여러 장 업로드하여 일괄로 자르고, 잘린 모든 이미지들을 한 번에 다운로드할 수 있습니다.
             </p>
         </div>
@@ -27,8 +27,8 @@
                         📥
                     </div>
                     <div>
-                        <p class="text-sm font-bold text-gray-200">여러 개의 격자 이미지 업로드</p>
-                        <p class="text-xs text-gray-400 mt-1">마우스로 드래그하거나 클릭하여 다중 선택</p>
+                        <p class="text-sm font-bold text-gray-200" id="upload-title-text">{{ t('crop_upload_title') }}</p>
+                        <p class="text-xs text-gray-400 mt-1" id="upload-desc-text">마우스로 드래그하거나 클릭하여 다중 선택</p>
                     </div>
                 </div>
             </div>
@@ -36,8 +36,8 @@
             <!-- Uploaded Files List -->
             <div id="files-list-card" class="hidden bg-[#232832] rounded-2xl p-5 border border-white/5 space-y-4">
                 <h4 class="text-xs font-black uppercase tracking-wider text-gray-400 flex justify-between items-center">
-                    <span>업로드된 파일 목록 (<span id="files-count">0</span>)</span>
-                    <button onclick="clearAllFiles()" class="text-[10px] text-red-400 hover:text-red-300">전체 삭제</button>
+                    <span id="uploaded-files-title">업로드된 파일 목록 (<span id="files-count">0</span>)</span>
+                    <button onclick="clearAllFiles()" class="text-[10px] text-red-400 hover:text-red-300" id="clear-all-btn-text">전체 삭제</button>
                 </h4>
                 
                 <div id="files-container" class="space-y-2 max-h-[220px] overflow-y-auto pr-1">
@@ -46,7 +46,7 @@
 
                 <div class="flex gap-3 pt-2">
                     <button onclick="cropAllMultipleFiles()" id="btn-crop-all" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs py-3 rounded-xl transition duration-200 flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-600/15">
-                        <span>⚡</span> 모든 파일 한 번에 자르기
+                        <span>⚡</span> <span id="btn-crop-all-text">모든 파일 한 번에 자르기</span>
                     </button>
                 </div>
             </div>
@@ -61,8 +61,8 @@
                 <!-- Empty State -->
                 <div id="result-empty" class="flex-1 flex flex-col items-center justify-center text-center text-gray-500 p-8 space-y-2">
                     <span class="text-4xl">✨</span>
-                    <p class="text-sm font-bold text-gray-400">일괄 자르기 결과</p>
-                    <p class="text-xs">왼쪽에서 격자 이미지들을 등록하고 자르기 버튼을 눌러주세요.</p>
+                    <p class="text-sm font-bold text-gray-400" id="empty-title-text">일괄 자르기 결과</p>
+                    <p class="text-xs" id="empty-desc-text">왼쪽에서 격자 이미지들을 등록하고 자르기 버튼을 눌러주세요.</p>
                 </div>
 
                 <!-- Loaded State / Active Preview of selected file -->
@@ -70,7 +70,7 @@
                     <div class="space-y-3">
                         <h4 class="text-xs font-black uppercase tracking-wider text-gray-400 flex justify-between items-center">
                             <span id="preview-filename-title" class="truncate max-w-[200px]">선택된 파일 미리보기</span>
-                            <span class="bg-blue-500/15 text-blue-400 px-2 py-0.5 rounded-full text-[9px] font-bold">2x2 원본</span>
+                            <span class="bg-blue-500/15 text-blue-400 px-2 py-0.5 rounded-full text-[9px] font-bold" id="badge-raw-text">2x2 원본</span>
                         </h4>
                         <!-- Output Preview Frame -->
                         <div class="aspect-video w-full rounded-2xl bg-[#1c2027] overflow-hidden border border-white/10 shadow-inner flex items-center justify-center relative group">
@@ -86,10 +86,10 @@
     <div id="crop-all-section" class="hidden mt-12 border-t border-white/5 pt-8 space-y-6">
         <div class="flex items-center justify-between">
             <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                <span>📦</span> 잘라낸 모든 이미지 결과 목록
+                <span>📦</span> <span id="batch-results-heading-text">잘라낸 모든 이미지 결과 목록</span>
             </h3>
             <button onclick="downloadAllZip()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-lg shadow-emerald-600/15">
-                <span>📥</span> 잘라낸 모든 파일 다운로드 (.zip)
+                <span>📥</span> <span id="download-all-zip-btn-text">잘라낸 모든 파일 다운로드 (.zip)</span>
             </button>
         </div>
 
@@ -120,6 +120,46 @@
     const previewFilenameTitle = document.getElementById('preview-filename-title');
     const cropAllSection = document.getElementById('crop-all-section');
     const batchFilesResultsContainer = document.getElementById('batch-files-results-container');
+
+    // i18n dynamic mapping for JS
+    const isVi = (window.currentLang === 'vi');
+    const i18nCrop = {
+        pageDesc: isVi ? "Tải lên cùng lúc nhiều ảnh lưới 2x2 để cắt hàng loạt và tải xuống tất cả các ảnh đã cắt trong một lần." : "2x2 격자 이미지들을 한 번에 여러 장 업로드하여 일괄로 자르고, 잘린 모든 이미지들을 한 번에 다운로드할 수 있습니다.",
+        dragDropDesc: isVi ? "Kéo và thả hoặc nhấp để chọn nhiều tệp" : "마우스로 드래그하거나 클릭하여 다중 선택",
+        listTitle: isVi ? "Danh sách tệp đã tải lên" : "업로드된 파일 목록",
+        clearAll: isVi ? "Xóa tất cả" : "전체 삭제",
+        cropAllBtn: isVi ? "Cắt tất cả các tệp cùng lúc" : "모든 파일 한 번에 자르기",
+        batchResultTitle: isVi ? "Kết quả cắt hàng loạt" : "일괄 자르기 결과",
+        batchResultDesc: isVi ? "Vui lòng tải ảnh lưới ở phía bên trái và nhấp vào nút cắt." : "왼쪽에서 격자 이미지들을 등록하고 자르기 버튼을 눌러주세요.",
+        previewSelected: isVi ? "Xem trước tệp đã chọn" : "선택된 파일 미리보기",
+        rawGridBadge: isVi ? "Ảnh gốc 2x2" : "2x2 원본",
+        batchResultHeading: isVi ? "Danh sách kết quả cắt ảnh" : "잘라낸 모든 이미지 결과 목록",
+        downloadZipBtn: isVi ? "Tải xuống tất cả (.zip)" : "잘라낸 모든 파일 다운로드 (.zip)",
+        processing: isVi ? "Đang cắt toàn bộ tệp..." : "전체 파일 자르는 중...",
+        panelDone: isVi ? "Cắt xong 4 ô ảnh" : "4개 패널 자르기 완료",
+        download: isVi ? "Tải xuống" : "다운로드",
+        successToast: isVi ? "Đã cắt hàng loạt toàn bộ ảnh thành công!" : "모든 이미지의 일괄 자르기가 완료되었습니다!",
+        errorToast: isVi ? "Lỗi khi cắt hàng loạt: " : "일괄 자르기 오류 발생: ",
+        zipProcessing: isVi ? "Đang tạo tệp nén (.zip)..." : "압축 파일(.zip) 생성 중...",
+        zipSuccess: isVi ? "Tải xuống hàng loạt hoàn tất!" : "일괄 다운로드가 완료되었습니다!"
+    };
+
+    // Apply translations on load
+    document.getElementById('page-desc-text').textContent = i18nCrop.pageDesc;
+    document.getElementById('upload-desc-text').textContent = i18nCrop.dragDropDesc;
+    document.getElementById('uploaded-files-title').innerHTML = `${i18nCrop.listTitle} (<span id="files-count">0</span>)`;
+    document.getElementById('clear-all-btn-text').textContent = i18nCrop.clearAll;
+    document.getElementById('btn-crop-all-text').textContent = i18nCrop.cropAllBtn;
+    document.getElementById('empty-title-text').textContent = i18nCrop.batchResultTitle;
+    document.getElementById('empty-desc-text').textContent = i18nCrop.batchResultDesc;
+    document.getElementById('preview-filename-title').textContent = i18nCrop.previewSelected;
+    document.getElementById('badge-raw-text').textContent = i18nCrop.rawGridBadge;
+    document.getElementById('batch-results-heading-text').textContent = i18nCrop.batchResultHeading;
+    document.getElementById('download-all-zip-btn-text').textContent = i18nCrop.downloadZipBtn;
+
+    const panelLabels = isVi 
+        ? ['Trên bên trái (P1)', 'Trên bên phải (P2)', 'Dưới bên trái (P3)', 'Dưới bên phải (P4)'] 
+        : ['좌측 상단 (P1)', '우측 상단 (P2)', '좌측 하단 (P3)', '우측 하단 (P4)'];
 
     // Drag and drop events
     uploadZone.addEventListener('dragover', (e) => {
@@ -158,14 +198,12 @@
         const keys = Object.keys(croppedResults).sort((a, b) => a - b);
         const tempResults = {};
         uploadedFiles.forEach((_, newIdx) => {
-            // Find old key from keys array
             const matchedKey = keys.find(k => parseInt(k) === newIdx);
             if (matchedKey !== undefined) {
                 tempResults[newIdx] = croppedResults[matchedKey];
             }
         });
         
-        // Overwrite
         Object.keys(croppedResults).forEach(k => delete croppedResults[k]);
         Object.assign(croppedResults, tempResults);
 
@@ -183,6 +221,7 @@
     }
 
     function renderFilesList() {
+        const countSpan = document.getElementById('files-count');
         if (uploadedFiles.length === 0) {
             filesListCard.classList.add('hidden');
             resultEmpty.classList.remove('hidden');
@@ -192,7 +231,7 @@
         }
 
         filesListCard.classList.remove('hidden');
-        filesCount.textContent = uploadedFiles.length;
+        if (countSpan) countSpan.textContent = uploadedFiles.length;
         filesContainer.innerHTML = '';
 
         uploadedFiles.forEach((file, idx) => {
@@ -222,7 +261,6 @@
         if (idx < 0 || idx >= uploadedFiles.length) return;
         selectedFileIdx = idx;
 
-        // Highlight in list
         const items = filesContainer.children;
         for (let i = 0; i < items.length; i++) {
             if (i === idx) {
@@ -233,7 +271,8 @@
         }
 
         const file = uploadedFiles[idx];
-        previewFilenameTitle.textContent = file.name;
+        const rawName = isVi ? `${i18nCrop.previewSelected}: ${file.name}` : file.name;
+        previewFilenameTitle.textContent = rawName;
 
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -246,7 +285,7 @@
 
     async function cropAllMultipleFiles() {
         if (uploadedFiles.length === 0) return;
-        Utils.setLoading(document.getElementById('btn-crop-all'), true, '전체 파일 자르는 중...');
+        Utils.setLoading(document.getElementById('btn-crop-all'), true, i18nCrop.processing);
         batchFilesResultsContainer.innerHTML = '';
         
         try {
@@ -254,7 +293,6 @@
                 const file = uploadedFiles[fIdx];
                 croppedResults[fIdx] = {};
 
-                // Create a container group for this file
                 const fileGroup = document.createElement('div');
                 fileGroup.className = "bg-[#232832] rounded-2xl border border-white/5 p-6 space-y-4";
                 fileGroup.innerHTML = `
@@ -263,7 +301,7 @@
                             <span class="text-emerald-400">📄</span>
                             <span class="text-sm font-bold text-white">${file.name}</span>
                         </div>
-                        <span class="text-[10px] text-gray-400">4개 패널 자르기 완료</span>
+                        <span class="text-[10px] text-gray-400">${i18nCrop.panelDone}</span>
                     </div>
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4" id="panels-grid-${fIdx}">
                         <!-- 4 crop panels will load here -->
@@ -272,7 +310,6 @@
                 batchFilesResultsContainer.appendChild(fileGroup);
                 const panelsGrid = document.getElementById(`panels-grid-${fIdx}`);
 
-                // Crop 4 panels
                 for (let panelIdx = 1; panelIdx <= 4; panelIdx++) {
                     const formData = new FormData();
                     formData.append('file', file);
@@ -283,14 +320,13 @@
                         body: formData
                     });
 
-                    if (!res.ok) throw new Error(`${file.name}의 ${panelIdx}번 패널 자르기 실패`);
+                    if (!res.ok) throw new Error(`${file.name} -> ${panelIdx} fail`);
 
                     const blob = await res.blob();
                     croppedResults[fIdx][panelIdx] = blob;
 
                     const objectURL = URL.createObjectURL(blob);
                     
-                    const panelLabels = ['좌측 상단 (P1)', '우측 상단 (P2)', '좌측 하단 (P3)', '우측 하단 (P4)'];
                     const card = document.createElement('div');
                     card.className = "bg-[#1c2027]/50 rounded-xl border border-white/5 p-3 flex flex-col gap-2 group";
                     card.innerHTML = `
@@ -298,7 +334,7 @@
                             <img src="${objectURL}" class="w-full h-full object-cover">
                             <span class="absolute top-1.5 left-1.5 bg-black/60 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">${panelLabels[panelIdx-1]}</span>
                         </div>
-                        <button onclick="downloadSingleFileBlob(${fIdx}, ${panelIdx})" class="w-full py-1.5 bg-[#1c2027] hover:bg-emerald-500/10 hover:text-emerald-400 text-gray-400 rounded-lg text-[10px] font-bold transition">다운로드</button>
+                        <button onclick="downloadSingleFileBlob(${fIdx}, ${panelIdx})" class="w-full py-1.5 bg-[#1c2027] hover:bg-emerald-500/10 hover:text-emerald-400 text-gray-400 rounded-lg text-[10px] font-bold transition">${i18nCrop.download}</button>
                     `;
                     panelsGrid.appendChild(card);
                 }
@@ -306,10 +342,10 @@
 
             cropAllSection.classList.remove('hidden');
             cropAllSection.scrollIntoView({ behavior: 'smooth' });
-            Utils.showToast('모든 이미지의 일괄 자르기가 완료되었습니다!', 'success');
+            Utils.showToast(i18nCrop.successToast, 'success');
         } catch (e) {
             console.error(e);
-            Utils.showToast(`일괄 자르기 오류 발생: ${e.message}`, 'error');
+            Utils.showToast(`${i18nCrop.errorToast}${e.message}`, 'error');
         } finally {
             Utils.setLoading(document.getElementById('btn-crop-all'), false);
         }
@@ -346,7 +382,7 @@
             }
         });
 
-        Utils.showToast('압축 파일(.zip) 생성 중...', 'info');
+        Utils.showToast(i18nCrop.zipProcessing, 'info');
         const content = await zip.generateAsync({ type: 'blob' });
         
         const url = URL.createObjectURL(content);
@@ -356,7 +392,7 @@
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        Utils.showToast('일괄 다운로드가 완료되었습니다!', 'success');
+        Utils.showToast(i18nCrop.zipSuccess, 'success');
     }
 </script>
 {% endblock %}
