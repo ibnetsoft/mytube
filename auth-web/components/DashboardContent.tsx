@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import { useLanguage } from '@/lib/LanguageContext'
@@ -575,6 +575,8 @@ export default function DashboardContent() {
         }
     }
 
+    const presetFormRef = useRef<HTMLDivElement>(null)
+
     const handleEditPreset = (preset: any) => {
         setPresetId(preset.id)
         setPresetType(preset.preset_type)
@@ -584,6 +586,10 @@ export default function DashboardContent() {
         setPresetPromptTemplate(preset.prompt_template)
         setPresetGeminiInstruction(preset.gemini_instruction || '')
         setPresetImageUrl(preset.image_url || '')
+        // 폼으로 자동 스크롤
+        setTimeout(() => {
+            presetFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }, 50)
     }
 
     const handleDeletePreset = async (id: string, keyCode: string) => {
@@ -1558,7 +1564,7 @@ export default function DashboardContent() {
                 {activeTab === 'styles' && (
                     <div className="space-y-8 animate-in fade-in duration-300">
                         {/* 1. 스타일 추가/수정 폼 */}
-                        <div className="bg-[#0f172a]/60 rounded-[2.5rem] border border-white/10 p-8 shadow-2xl">
+                        <div ref={presetFormRef} className={`rounded-[2.5rem] border p-8 shadow-2xl scroll-mt-24 transition-all duration-300 ${presetId ? 'bg-blue-950/40 border-blue-500/40' : 'bg-[#0f172a]/60 border-white/10'}`}>
                             <h2 className="font-black text-xl tracking-tight mb-6 flex items-center gap-2">
                                 🎨 {presetId ? '스타일 프리셋 수정' : '➕ 새 스타일 프리셋 추가'}
                             </h2>
@@ -1712,10 +1718,10 @@ export default function DashboardContent() {
                                                                             <div className="flex gap-1">
                                                                                 <button
                                                                                     onClick={() => handleEditPreset(preset)}
-                                                                                    className="p-1 hover:bg-white/5 rounded text-blue-400 text-xs"
+                                                                                    className="px-2 py-1 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white rounded text-[10px] font-bold transition-all border border-blue-500/20"
                                                                                     title="수정"
                                                                                 >
-                                                                                    ✏️
+                                                                                    ✏️ 수정
                                                                                 </button>
                                                                                 <button
                                                                                     onClick={() => handleDeletePreset(preset.id, preset.key_code)}
