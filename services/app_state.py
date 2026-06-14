@@ -5,6 +5,7 @@ main.py에서 초기화하고 routers에서 참조합니다.
 """
 from __future__ import annotations
 from typing import TYPE_CHECKING
+from app.modes import normalize_app_mode
 
 if TYPE_CHECKING:
     from services.i18n import Translator
@@ -54,6 +55,7 @@ def switch_mode(mode: str) -> bool:
     if _templates is None:
         return False
     try:
+        mode = normalize_app_mode(mode)
         _templates.env.globals['app_mode'] = mode
         return True
     except Exception as e:

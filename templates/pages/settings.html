@@ -117,7 +117,7 @@
                                 </button>
                                 <button id="btnModeLongMusic" onclick="setAppMode('longform_music')"
                                     class="px-4 py-1.5 rounded-md text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
-                                    롱폼뮤직
+                                    {{ t('btnModeLongMusic') }}
                                 </button>
                                 <button id="btnModeShort" onclick="setAppMode('shorts')"
                                     class="px-4 py-1.5 rounded-md text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
@@ -974,6 +974,7 @@
         document.getElementById('appMode').value = mode;
 
         const btnLong = document.getElementById('btnModeLong');
+        const btnLongMusic = document.getElementById('btnModeLongMusic');
         const btnShort = document.getElementById('btnModeShort');
         const btnCommerce = document.getElementById('btnModeCommerce');
 
@@ -982,15 +983,23 @@
 
         if (mode === 'longform') {
             btnLong.className = `px-4 py-1.5 rounded-md text-xs transition-all ${activeClass}`;
+            if (btnLongMusic) btnLongMusic.className = `px-4 py-1.5 rounded-md text-xs transition-all ${inactiveClass}`;
+            btnShort.className = `px-4 py-1.5 rounded-md text-xs transition-all ${inactiveClass}`;
+            btnCommerce.className = `px-4 py-1.5 rounded-md text-xs transition-all ${inactiveClass}`;
+        } else if (mode === 'longform_music') {
+            btnLong.className = `px-4 py-1.5 rounded-md text-xs transition-all ${inactiveClass}`;
+            if (btnLongMusic) btnLongMusic.className = `px-4 py-1.5 rounded-md text-xs transition-all ${activeClass}`;
             btnShort.className = `px-4 py-1.5 rounded-md text-xs transition-all ${inactiveClass}`;
             btnCommerce.className = `px-4 py-1.5 rounded-md text-xs transition-all ${inactiveClass}`;
         } else if (mode === 'shorts') {
             btnShort.className = `px-4 py-1.5 rounded-md text-xs transition-all ${activeClass}`;
             btnLong.className = `px-4 py-1.5 rounded-md text-xs transition-all ${inactiveClass}`;
+            if (btnLongMusic) btnLongMusic.className = `px-4 py-1.5 rounded-md text-xs transition-all ${inactiveClass}`;
             btnCommerce.className = `px-4 py-1.5 rounded-md text-xs transition-all ${inactiveClass}`;
         } else if (mode === 'commerce') {
             btnCommerce.className = `px-4 py-1.5 rounded-md text-xs transition-all ${activeClass}`;
             btnLong.className = `px-4 py-1.5 rounded-md text-xs transition-all ${inactiveClass}`;
+            if (btnLongMusic) btnLongMusic.className = `px-4 py-1.5 rounded-md text-xs transition-all ${inactiveClass}`;
             btnShort.className = `px-4 py-1.5 rounded-md text-xs transition-all ${inactiveClass}`;
         }
 

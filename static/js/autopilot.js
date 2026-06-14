@@ -265,12 +265,13 @@ function setMode(mode) {
     const input = document.getElementById('appMode');
     if (!input) return;
     input.value = mode;
+    const isLongformMode = mode === 'longform' || mode === 'longform_music';
 
     // Visual update
     const btnLong = document.getElementById('modeLongform');
     const btnShort = document.getElementById('modeShorts');
 
-    if (mode === 'longform') {
+    if (isLongformMode) {
         btnLong.classList.add('bg-purple-600', 'text-white', 'font-bold');
         btnLong.classList.remove('text-gray-500');
         btnShort.classList.remove('bg-purple-600', 'text-white', 'font-bold');
@@ -632,7 +633,7 @@ async function loadSavedSettings() {
                 // 설정된 모드가 고정이면 반대쪽 버튼 숨김
                 const btnLong = document.getElementById('modeLongform');
                 const btnShort = document.getElementById('modeShorts');
-                if (data.app_mode === 'longform' && btnShort) {
+                if ((data.app_mode === 'longform' || data.app_mode === 'longform_music') && btnShort) {
                     btnShort.style.display = 'none';
                 } else if (data.app_mode === 'shorts' && btnLong) {
                     btnLong.style.display = 'none';

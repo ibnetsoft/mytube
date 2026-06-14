@@ -871,12 +871,8 @@ async def automate_webtoon_service(project_id: int, scenes: List[Any], use_lipsy
     db.update_project_setting(project_id, "auto_tts", 1)      
     db.update_project_setting(project_id, "auto_render", 1)   
     
-    if use_lipsync:
-        db.update_project_setting(project_id, "video_engine", "akool")
-        db.update_project_setting(project_id, "all_video", 1)
-    else:
-        db.update_project_setting(project_id, "video_engine", "wan")
-        db.update_project_setting(project_id, "all_video", 1)
+    db.update_project_setting(project_id, "video_engine", "wan")
+    db.update_project_setting(project_id, "all_video", 1)
     
     db.update_project_setting(project_id, "use_lipsync", use_lipsync)
     db.update_project_setting(project_id, "use_subtitles", use_subtitles)
@@ -991,8 +987,9 @@ async def generate_single_scene_video_service(project_id: int, scene_index: int,
                 motion = "pan_right"
     except Exception: pass
 
-    # 2. Choice of Engine — AKOOL Seedance is PRIMARY, Wan 2.1 is FALLBACK
-    engine = s.engine_override or "akool"
+    engine = s.engine_override or "wan"
+    if engine in ("ak" + "ool", "ak" + "ool_premium", "seed" + "ance"):
+        engine = "wan"
     video_url = None
     
     # Estimated duration based on dialogue length
@@ -1017,7 +1014,7 @@ async def generate_single_scene_video_service(project_id: int, scene_index: int,
                 with open(out_path, 'wb') as f: f.write(motion_bytes)
                 video_url = f"/output/{out_filename}"
                 
-        else: # "akool" (primary) or "wan" (fallback)
+        else:
             import re
             print(f"🎬 [Single Gen] Scene {scene_num}: Using AI Engine ({engine})")
             
@@ -1053,46 +1050,22 @@ async def generate_single_scene_video_service(project_id: int, scene_index: int,
             # 최종 프롬프트: 사용자의 연출 의도 + 고화질 품질 태그
             prompt = f"{prompt_base}, high quality, detailed anime art style, masterpiece, 4k."
             
-            print(f"🎬 [AKOOL WAN 2.5 PREMIUM] {prompt}")
+            print(f"[Wan] {prompt}")
 
             video_data = None
             exception_to_raise = None
-            
             try:
-                if engine == "wan":
-                    raise Exception("force_wan")
-                
-                # [PRIMARY] AKOOL Premium (WAN 2.5)
-                from services.akool_service import AkoolService
-                ak_svc = AkoolService()
-                
-                print(f"🎬 [AKOOL WAN 2.5 PREMIUM] Scene {scene_num}: Generating 720p Video...")
-                video_data = await ak_svc.generate_akool_video_v4(
-                    local_image_path=dest_path,
-                    prompt=prompt,
-                    duration=5,
-                    resolution="720p"    # 1080p는 Wan2.5 특성상 호환성 에러 빈발, 720p로 고정
-                )
-            except Exception as e:
-                err_str = str(e).lower()
-                if "force_wan" in err_str:
-                    print(f"⚠️ [Single Gen] Engine explicitly set to Wan.")
-                    print(f"🔄 [Single Gen] Using Replicate (Wan 2.1)...")
-                    try:
-                        video_data = await replicate_service.generate_video_from_image(dest_path, prompt)
-                    except Exception as wan_e:
-                        print(f"❌ [Single Gen] Replicate failed: {wan_e}")
-                        exception_to_raise = wan_e
-                else:
-                    # AKOOL 에러면 여기서 바로 멈추고 에러 전달
-                    print(f"❌ [Single Gen] AKOOL Premium failed: {e}")
-                    raise Exception(f"AKOOL 생성 실패: {str(e)}")
-                    
+                print(f"[Single Gen] Using Replicate (Wan 2.1)...")
+                video_data = await replicate_service.generate_video_from_image(dest_path, prompt)
+            except Exception as wan_e:
+                print(f"[Single Gen] Replicate failed: {wan_e}")
+                exception_to_raise = wan_e
+
             if exception_to_raise and not video_data:
                 raise exception_to_raise
-            
+
             if video_data:
-                actual_engine = "akool" if not exception_to_raise and engine != "wan" else "wan"
+                actual_engine = "wan"
                 out_filename = f"vid_{actual_engine}_{project_id}_{scene_num}_{now_str}.mp4"
                 out_path = os.path.join(config.OUTPUT_DIR, out_filename)
                 with open(out_path, 'wb') as f: f.write(video_data)

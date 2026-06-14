@@ -3,6 +3,7 @@ from typing import List, Optional
 import database as db
 from app.models.project import ProjectCreate, ProjectUpdate, ProjectSettingUpdate, ProjectSettingsSave
 from pydantic import BaseModel
+from app.modes import DEFAULT_APP_MODE, VALID_APP_MODES, recover_mode_language_mixup
 
 class BulkDeleteRequest(BaseModel):
     ids: List[int]
@@ -150,7 +151,7 @@ async def create_project(request: Request):
         
         # 명시적으로 필드 추출
         target_lang = data.get("target_language") or data.get("language") or "ko"
-        app_mode = data.get("app_mode") or data.get("mode") or "longform"
+        app_mode = data.get("app_mode") or data.get("mode") or DEFAULT_APP_MODE
         
         # [ROBUST] 만약 app_mode에 언어 코드가 들어왔다면 보정 (매핑 오류 대비)
         if app_mode in ['ko', 'en', 'ja', 'vi', 'es']:
@@ -158,11 +159,13 @@ async def create_project(request: Request):
             # 1. target_lang이 'ko'라면 app_mode가 진짜 데이터였을 수 있음
             # 2. 하지만 필드명이 'app_mode'인데 'ko'가 들어왔다면 보통 뒤바뀐 것
             real_mode = data.get("target_language") # target_language 필드에 shorts가 있었을 가능성
-            if real_mode in ['shorts', 'longform']:
+            if real_mode in VALID_APP_MODES:
                 app_mode = real_mode
                 target_lang = data.get("app_mode") # 원래 언어
             else:
-                app_mode = "longform" # 기본값 복구
+                app_mode = DEFAULT_APP_MODE # 기본값 복구
+
+        app_mode, target_lang = recover_mode_language_mixup(app_mode, target_lang)
         
         from services.auth_service import auth_service
         email = auth_service.get_user_email()
@@ -288,17 +291,16 @@ async def update_motion_desc(project_id: int, data: MotionDescUpdate):
 
 class SingleVideoGenRequest(BaseModel):
     scene_number: int
-    engine: str = "veo"  # veo | wan | akool | seedance | image
+    engine: str = "veo"  # veo | wan | image
     motion_desc: Optional[str] = None  # Optional motion description override
     resolution: Optional[str] = "720p"  # For Seedance: 480p / 720p / 1080p
     duration: Optional[int] = 5         # For Seedance: 5 or 10 seconds
 
 @router.post("/projects/{project_id}/generate-video")
 async def generate_single_video(project_id: int, req: SingleVideoGenRequest):
-    """단일 씬 비디오 생성 (Wan/Akool)"""
+    """단일 씬 비디오 생성 (Veo/Wan/Image)"""
     try:
         from services.replicate_service import replicate_service
-        from services.akool_service import akool_service
         from services.video_service import video_service
         from config import config
         from app.utils import STYLE_PROMPTS
@@ -411,6 +413,8 @@ async def generate_single_video(project_id: int, req: SingleVideoGenRequest):
         PAN_KEYWORDS = ("pan_up", "pan_down", "pan up", "pan down", "vertical pan", "tilt up", "tilt down")
         is_pan_scene = any(kw in (effective_motion_desc or "").lower() for kw in PAN_KEYWORDS)
         actual_engine = req.engine
+        if actual_engine in ("ak" + "ool", "ak" + "ool_premium", "seed" + "ance"):
+            actual_engine = "wan"
         pan_redirected = False
         if actual_engine == "wan" and is_pan_scene:
             actual_engine = "image"
@@ -449,53 +453,6 @@ async def generate_single_video(project_id: int, req: SingleVideoGenRequest):
                 filename = f"vid_wan_{project_id}_{req.scene_number}_{now.strftime('%H%M%S')}.mp4"
                 out = os.path.join(config.OUTPUT_DIR, filename)
                 with open(out, 'wb') as f: f.write(video_data)
-                video_url = f"/output/{filename}"
-
-        elif actual_engine == "seedance":
-            # [Seedance 1.5 Pro] Akool v4 API - 가장 저렴한 선택
-            # Akool API 700자 제한 → motion_desc 우선 배치로 잘림 방지
-            motion_part = effective_motion_desc
-            prompt_en   = target_p.get('prompt_en') or target_p.get('visual_desc') or ""
-            final_prompt = _build_video_prompt(prompt_en, motion_part, style_prefix, max_chars=650)
-
-            print(f"🌱 [Studio] Generating Akool v4 Video for Scene {req.scene_number}... Prompt: {final_prompt[:80]}...")
-            video_data = await akool_service.generate_akool_video_v4(
-                local_image_path=image_abs_path,
-                prompt=final_prompt,
-                duration=req.duration or 5,
-                resolution=req.resolution or "720p"
-            )
-
-            if video_data:
-                filename = f"vid_seedance_{project_id}_{req.scene_number}_{now.strftime('%H%M%S')}.mp4"
-                out = os.path.join(config.OUTPUT_DIR, filename)
-                with open(out, 'wb') as f: f.write(video_data)
-                video_url = f"/output/{filename}"
-
-        elif actual_engine == "akool":
-            # [Akool] LipSync
-            # Try specific scene audio from settings first
-            audio_path = None
-            
-            # Pattern check: output/PROJ/assets/audio/tts_scene_N.mp3
-            from glob import glob
-            candidates = glob(os.path.join(config.OUTPUT_DIR, str(project_id), "assets", "audio", f"*{req.scene_number:03d}*.mp3"))
-            if not candidates:
-                 # Try root output
-                 candidates = glob(os.path.join(config.OUTPUT_DIR, f"tts_{project_id}_{req.scene_number}_*.mp3"))
-            
-            if candidates:
-                audio_path = candidates[0]
-            else:
-                 raise HTTPException(400, "No TTS audio found for this scene. Please generate audio first.")
-
-            print(f"👄 [Studio] Generating Akool LipSync for Scene {req.scene_number}...")
-            video_bytes = await akool_service.generate_talking_avatar(image_abs_path, audio_path)
-            
-            if video_bytes:
-                filename = f"vid_akool_{project_id}_{req.scene_number}_{now.strftime('%H%M%S')}.mp4"
-                out = os.path.join(config.OUTPUT_DIR, filename)
-                with open(out, 'wb') as f: f.write(video_bytes)
                 video_url = f"/output/{filename}"
 
         elif actual_engine == "veo":

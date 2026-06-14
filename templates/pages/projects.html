@@ -13,6 +13,7 @@
         <div class="h-4 w-px bg-gray-300 dark:bg-gray-600"></div>
         <select id="targetModeSelect" class="text-xs bg-[#1c2027]/50 border border-gray-200 dark:border-gray-600 rounded px-1 py-0.5 outline-none bg-[#1c2027] text-white">
             <option value="longform">{{ t('mode_longform') }}</option>
+            <option value="longform_music">{{ t('mode_longform_music') }}</option>
             <option value="shorts">{{ t('mode_shorts') }}</option>
             <option value="webtoon">{{ t('mode_webtoon') }}</option>
             <option value="commerce">{{ t('mode_commerce') }}</option>
@@ -735,6 +736,7 @@
         const actionText = action === 'copy' ? "{{ t('btn_copy') }}" : "{{ t('btn_move') }}";
         const targetModeText = {
             'longform': "{{ t('mode_longform') }}",
+            'longform_music': "{{ t('mode_longform_music') }}",
             'shorts': "{{ t('mode_shorts') }}",
             'webtoon': "{{ t('mode_webtoon') }}",
             'commerce': "{{ t('mode_commerce') }}",

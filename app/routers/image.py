@@ -865,7 +865,7 @@ async def generate_character_image(
         
         print(f"👤 [Char Generation] Style: {style}, Prompt: {prompt[:100]}...")
 
-        # 이미지 생성 (전략: Gemini (Primary) -> Replicate -> AKOOL Fallback)
+        # 이미지 생성 (전략: Gemini (Primary) -> Replicate Fallback)
         images_bytes = None
         
         # 1차 시도: Gemini (gemini-2.0-flash)
@@ -886,14 +886,6 @@ async def generate_character_image(
                 images_bytes = await replicate_service.generate_image(prompt=full_prompt, aspect_ratio="1:1")
             except Exception as e:
                 print(f"⚠️ [Char Generation] Replicate failed: {e}")
-
-        # 3차 시도: AKOOL (Final Fallback)
-        if not images_bytes:
-            try:
-                print(f"🎨 [Char Generation] Attempting AKOOL (Final Fallback)...")
-                images_bytes = await akool_service.generate_image(prompt=full_prompt, aspect_ratio="1:1")
-            except Exception as e:
-                print(f"⚠️ [Char Generation] AKOOL failed: {e}")
 
         if not images_bytes:
             return {"status": "error", "error": "모든 이미지 생성 서비스가 실패했습니다."}

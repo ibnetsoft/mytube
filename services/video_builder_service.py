@@ -227,7 +227,6 @@ def get_png_files_from_folder(folder_path: str) -> List[str]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Scene Builder 체인 — 영상 생성 (Wan 2.1 → AKOOL 폴백)
 # ─────────────────────────────────────────────────────────────────────────────
 
 class SceneVideoResult:
@@ -237,7 +236,7 @@ class SceneVideoResult:
         self.video_path = video_path
         self.last_frame_path = last_frame_path
         self.status = status  # pending | success | error | skipped
-        self.engine = engine  # wan | akool | fallback
+        self.engine = engine  # wan
         self.error = error
 
     def to_dict(self):
@@ -288,59 +287,10 @@ async def generate_scene_video_wan(
             "rate limit", "429", "throttle", "balance", "no_credits"
         ])
         if is_credit_error:
-            print(f"[VB] ⚠️ 씬 {scene_id} — Wan 크레딧 부족, AKOOL로 전환: {e}")
+            print(f"[VB] Wan credit/billing issue: {e}")
         else:
             print(f"[VB] ❌ 씬 {scene_id} — Wan 오류: {e}")
         return None
-
-
-async def generate_scene_video_akool(
-    image_path: str,
-    prompt: str,
-    output_dir: str,
-    scene_id: int,
-) -> Optional[str]:
-    """
-    AKOOL Image-to-Video API로 단일 씬 영상 생성.
-    이미지를 먼저 임시 URL에 업로드(base64 → data URL) 후 API 호출.
-    성공 시 video_path 반환, 실패 시 None
-    """
-    akool_token = (
-        os.getenv("AKOOL_TOKEN")
-        or os.getenv("AKOOL_CLIENT_ID")
-        or getattr(config, "AKOOL_TOKEN", "")
-        or getattr(config, "AKOOL_CLIENT_ID", "")
-    )
-    if not akool_token:
-        print(f"[VB] ❌ AKOOL 토큰 없음 — 씬 {scene_id} 건너뜀")
-        return None
-
-    try:
-        from services.akool_service import akool_service
-        print(f"[VB] 🔄 씬 {scene_id} — AKOOL 시도 중...")
-
-        # akool_service 모듈 재사용 (내부에서 이미지 업로드, 폴링, 다운로드 모두 처리)
-        video_bytes = await akool_service.generate_seedance_video(
-            local_image_path=image_path,
-            prompt=prompt[:500], # 최대 500자
-            duration=5,
-            resolution="720p"
-        )
-        
-        if not video_bytes:
-            raise Exception("AKOOL 영상 반환 안됨")
-
-        out_path = os.path.join(output_dir, f"scene_{scene_id:03d}_akool.mp4")
-        with open(out_path, "wb") as f:
-            f.write(video_bytes)
-        print(f"[VB] ✅ 씬 {scene_id} — AKOOL 완료: {out_path}")
-        return out_path
-    except Exception as e:
-        print(f"[VB] ❌ 씬 {scene_id} — AKOOL 오류: {e}")
-        return None
-
-
-
 
 
 def _extract_last_frame(video_path: str, output_dir: str, scene_id: int) -> Optional[str]:
@@ -425,14 +375,9 @@ async def run_scene_builder_chain(
             results.append(result)
             continue
 
-        # ── 영상 생성: Wan 2.1 우선 → AKOOL 폴백 ─────────────────────────
         video_path = await generate_scene_video_wan(start_image, motion_prompt, output_dir, scene_id)
         result.engine = "wan"
 
-        if not video_path:
-            # Wan 실패 → AKOOL 폴백
-            video_path = await generate_scene_video_akool(start_image, motion_prompt, output_dir, scene_id)
-            result.engine = "akool"
 
         # ── 결과 처리 ─────────────────────────────────────────────────────
         if video_path and os.path.exists(video_path):
@@ -452,7 +397,7 @@ async def run_scene_builder_chain(
                                   f"씬 {scene_id} 완료 ({result.engine})")
         else:
             result.status = "error"
-            result.error = "Wan 2.1 및 AKOOL 모두 실패"
+            result.error = "Wan 2.1 generation failed"
             last_frame_path = None
             if on_progress:
                 await on_progress(scene_id, "error", f"씬 {scene_id} 실패")

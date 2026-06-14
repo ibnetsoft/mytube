@@ -163,7 +163,7 @@ class CommerceService:
         """
         커머스 영상 생성 요청
         1. DB에 레코드 생성
-        2. TopView API 호출 시도 (또는 Akool)
+        2. TopView API 호출 시도
         """
         engine = video_data.get('engine', 'topview').lower()
         

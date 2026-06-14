@@ -8,6 +8,7 @@ import uuid
 import datetime
 from config import config
 import database as db
+from app.modes import is_shorts_mode
 
 def package_project_assets(project_id: int, use_subtitles: bool = True, resolution: str = "1080p") -> str:
     """
@@ -29,7 +30,7 @@ def package_project_assets(project_id: int, use_subtitles: bool = True, resoluti
         global_settings = db.get_global_setting("app_mode", "longform")
         
         proj_mode = p_settings.get("app_mode", global_settings)
-        is_shorts_project = (proj_mode == 'shorts' or p_settings.get("is_shorts") == True)
+        is_shorts_project = (is_shorts_mode(proj_mode) or p_settings.get("is_shorts") == True)
         project_aspect = "9:16" if is_shorts_project else "16:9"
 
         # 3. 오디오 복사

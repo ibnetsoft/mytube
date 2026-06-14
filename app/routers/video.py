@@ -17,6 +17,7 @@ import database as db
 from services.video_service import video_service
 from services.storage_service import storage_service
 from services.replicate_service import replicate_service
+from app.modes import is_shorts_mode
 
 router = APIRouter(prefix="/api", tags=["video"])
 
@@ -980,9 +981,9 @@ async def render_project_video(
         # 쇼츠모드에서는 무조건 9:16, 롱폼에서는 무조건 16:9
         # Check project app_mode first, fallback to global app_mode
         proj_mode = p_settings.get("app_mode", app_mode)
-        is_shorts_project = (proj_mode == 'shorts' or p_settings.get("is_shorts") == True)
+        is_shorts_project = (is_shorts_mode(proj_mode) or p_settings.get("is_shorts") == True)
         
-        if is_shorts_project or app_mode == 'shorts':
+        if is_shorts_project or is_shorts_mode(app_mode):
             project_aspect = "9:16"
         else:
             project_aspect = "16:9"

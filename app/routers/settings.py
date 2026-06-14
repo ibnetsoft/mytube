@@ -9,6 +9,7 @@ import time
 import httpx
 from fastapi.responses import RedirectResponse, HTMLResponse
 from config import config
+from app.modes import DEFAULT_APP_MODE, normalize_app_mode
 
 router = APIRouter(prefix="/api/settings", tags=["Settings"])
 
@@ -108,7 +109,9 @@ async def get_global_settings_api():
     
     # Update only non-None values from global_conf or specific logic
     if global_conf["app_mode"]:
-        merged["app_mode"] = global_conf["app_mode"]
+        merged["app_mode"] = normalize_app_mode(global_conf["app_mode"])
+    else:
+        merged["app_mode"] = normalize_app_mode(merged.get("app_mode"))
     
     # gemini_tts and others from global table are strictly structure objects
     # Autopilot expects flat fields like voice_provider, so we keep Project 1 values
@@ -160,9 +163,10 @@ async def get_global_settings_api():
 async def save_global_settings_api(settings: GlobalSettings):
     """글로벌 설정 저장"""
     # 이전 모드 저장 (모드 변경 감지용)
-    previous_mode = db.get_global_setting("app_mode", "longform")
+    previous_mode = normalize_app_mode(db.get_global_setting("app_mode", DEFAULT_APP_MODE))
     
     if settings.app_mode:
+        settings.app_mode = normalize_app_mode(settings.app_mode)
         db.save_global_setting("app_mode", settings.app_mode)
         # 템플릿 전역 변수 즉시 업데이트
         from services import app_state

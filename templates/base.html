@@ -507,7 +507,7 @@
         <!-- 모드 표시 (롱폼, 숏폼, 커머스, 블로그) -->
         <div class="flex items-center gap-2 px-3 py-1.5 bg-[#232832]/80 backdrop-blur rounded-full shadow-lg border border-white/5">
             <span class="text-[10px] font-black uppercase tracking-tighter text-gray-300">
-                {% if app_mode == 'shorts' %}{{ t('mode_shortform') }}{% elif app_mode == 'commerce' %}{{ t('mode_commerce_label') }}{% elif app_mode == 'webtoon' %}{{ t('mode_webtoon_label') }}{% else %}{{ t('mode_longform') }}{% endif %} {{ t('label_mode_suffix') }}
+                {% if app_mode == 'shorts' %}{{ t('mode_shortform') }}{% elif app_mode == 'longform_music' %}{{ t('mode_longform_music') }}{% elif app_mode == 'commerce' %}{{ t('mode_commerce_label') }}{% elif app_mode == 'webtoon' %}{{ t('mode_webtoon_label') }}{% else %}{{ t('mode_longform') }}{% endif %} {{ t('label_mode_suffix') }}
             </span>
         </div>
 
@@ -774,7 +774,6 @@
             theme_commerce_review: "{{ t('theme_commerce_review') }}",
             badge_topview: "{{ t('badge_topview') }}",
             tip_save_presets: "{{ t('tip_save_presets') }}",
-            engine_akool_premium: "{{ t('engine_akool_premium') }}",
             style_viral: "{{ t('style_viral') }}",
             ethnicity_1: "{{ t('ethnicity_1') }}",
             ethnicity_2: "{{ t('ethnicity_2') }}",

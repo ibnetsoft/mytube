@@ -66,6 +66,7 @@ from app.utils import (
     MAX_VIDEO_SIZE as _MAX_VIDEO_SIZE,
     MAX_IMAGE_SIZE as _MAX_IMAGE_SIZE,
 )
+from app.modes import DEFAULT_APP_MODE, normalize_app_mode
 
 
 # FastAPI 앱 생성
@@ -430,7 +431,7 @@ translator = Translator(app_lang)
 # Add t function to Jinja2 globals
 templates.env.globals['t'] = translator.t
 templates.env.globals['current_lang'] = app_lang
-templates.env.globals['app_mode'] = db.get_global_setting("app_mode", "longform")
+templates.env.globals['app_mode'] = normalize_app_mode(db.get_global_setting("app_mode", DEFAULT_APP_MODE))
 templates.env.globals['membership'] = auth_service.get_membership()
 templates.env.globals['is_independent'] = auth_service.is_independent()
 templates.env.globals['user_email'] = auth_service.get_user_email()
@@ -476,7 +477,7 @@ def _load_saved_lang():
                 translator.set_lang(saved_lang)
                 app_lang = saved_lang
                 templates.env.globals['current_lang'] = app_lang
-                templates.env.globals['app_mode'] = db.get_global_setting("app_mode", "longform")
+                templates.env.globals['app_mode'] = normalize_app_mode(db.get_global_setting("app_mode", DEFAULT_APP_MODE))
                 print(f"[I18N] Loaded language from file: {app_lang}")
 
 _load_saved_lang()
@@ -978,7 +979,7 @@ class AnimateRequest(BaseModel):
 
 @app.post("/api/projects/{project_id}/scenes/animate")
 async def animate_scene(project_id: int, req: AnimateRequest):
-    """이미지를 비디오로 변환 (Replicate Wan → AKOOL v4 폴백)"""
+    """이미지를 비디오로 변환 (Replicate Wan)"""
     from services.auth_service import auth_service
     if not auth_service.check_credits(1000):
         return JSONResponse(status_code=403, content={"error": "AI 토큰이 부족합니다. (영상 생성 최소 1,000 TK 필요)"})

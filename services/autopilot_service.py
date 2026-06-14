@@ -28,6 +28,7 @@ from services.tts_service import tts_service
 from services.video_service import video_service
 from services.youtube_upload_service import youtube_upload_service
 from services.topview_service import topview_service
+from app.modes import DEFAULT_APP_MODE, is_longform_family
 
 
 def split_text_to_subtitle_chunks(text: str, max_chars_per_line: int = 40, max_lines: int = 1) -> list:
@@ -1131,7 +1132,6 @@ JSON만 출력하세요:
         
         # [NEW] Pass 3: Video Generation (Now we have both Images and Audio)
         log_debug(f"📹 [Auto-Pilot] Pass 3: Generating Video Components... Count: {video_scene_count}, Engine: {video_engine}")
-        from services.akool_service import akool_service
 
         # Re-fetch prompts to get latest image/audio URLs
         image_prompts = db.get_image_prompts(project_id)
@@ -1192,18 +1192,16 @@ JSON만 출력하세요:
                 # [SMART ENGINE SWITCH]
                 # Priority:
                 # 1. Manual Override (from planning/settings)
-                # 2. Logic (Dialogue + Lipsync -> Akool, else -> Wan)
+                # 2. Logic (Veo or Wan)
                 
                 manual_engine = p_settings.get(f"scene_{scene_num}_engine")
-                if manual_engine in ["wan", "akool", "veo", "image"]:
+                if manual_engine in ["wan", "veo", "image"]:
                     local_engine = manual_engine
                     print(f"🎯 [Manual Override] Scene {scene_num} -> {local_engine}")
                 elif video_engine == "veo":
                     local_engine = "veo"
-                elif video_engine in ["akool", "akool_premium"]:
-                    local_engine = "akool" if (has_dialogue and use_lipsync) else "akool"
                 else:
-                    local_engine = "akool" if (has_dialogue and use_lipsync) else "wan"
+                    local_engine = "wan"
                 
                 # [EXPERIMENTAL] 건너뛰기 로직 보완 -> [UPDATED] Image 엔진도 비디오 파일 생성 (2D Pan/Zoom)
                 if local_engine == "image":
@@ -1324,119 +1322,53 @@ JSON만 출력하세요:
                         local_engine = "wan"
 
 
-                if local_engine == "akool":
-                    audio_abs_path = scene_audio_map.get(scene_num)
-                    if not audio_abs_path:
-                        log_debug(f"⚠️ [Akool] No audio found for scene {scene_num}. Switching to Wan.")
-                        local_engine = "wan" # Fallback if no audio
-                    else:
-                        try:
-                            log_debug(f"🎭 [Akool] Generating Talking Avatar for Scene {scene_num}...")
-                            video_bytes = await akool_service.generate_talking_avatar(image_abs_path, audio_abs_path)
-                            if video_bytes:
-                                filename = f"vid_akool_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.mp4"
-                                out = os.path.join(config.OUTPUT_DIR, filename)
-                                with open(out, 'wb') as f: f.write(video_bytes)
-                                db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
-                                log_debug(f"✅ [Akool] LipSync Success for Scene {scene_num}")
-                        except Exception as ak_e:
-                            log_debug(f"⚠️ [Akool] Error for scene {scene_num}: {ak_e}. Falling back to Wan...")
-                            local_engine = "wan" # Fallback to Wan on Akool error
-                
-                    # Wan / Replicate (Enhanced for Camera Moves)
-                    # [NEW] Dual Engine Support: Check User Preference
-                    preferred_engine = p_settings.get("video_engine", "wan")
+                # Wan / Replicate (Enhanced for Camera Moves)
+                preferred_engine = p_settings.get("video_engine", "wan")
+                if preferred_engine in ["veo", "ak" + "ool", "ak" + "ool_premium"]:
+                    preferred_engine = "wan"
 
-                    if preferred_engine == "veo":
-                        # veo가 이미 위에서 처리됐어야 하지만 혹시 여기 도달 시 wan으로
-                        preferred_engine = "wan"
-
-                    if preferred_engine in ["akool", "akool_premium"]:
-                        try:
-                            # [MODIFIED] Use Akool Premium (v4 API) instead of old v1 I2V
-                            video_data = await akool_service.generate_akool_video_v4(
-                                image_abs_path, 
-                                prompt=final_prompt,
-                                duration=int(video_duration),
-                                resolution="720p"
-                            )
-                            
-                            if video_data:
-                                filename = f"vid_akool_premium_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.mp4"
-                                out = os.path.join(config.OUTPUT_DIR, filename)
-                                with open(out, 'wb') as f: f.write(video_data)
-                                db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
-                                log_debug(f"✅ [Akool] Premium I2V Success for Scene {scene_num}")
-                            else:
-                                raise Exception("Empty data returned from Akool Premium")
-                                
-                        except Exception as ak_i2v_e:
-                            log_debug(f"⚠️ [Akool] I2V Failed: {ak_i2v_e}. Fallback to Replicate(Wan)...")
-                            # Fallback logic below (it will flow into Replicate block if we structure it right, 
-                            # or we duplicate call here. Let's redirect to Replicate block)
-                            preferred_engine = "wan" 
-
-                    if preferred_engine == "wan":
-                        # [FIX] Skip Wan for Vertical Pan scenes (preserve aspect ratio)
-                        manual_motion = p_settings.get(f"scene_{scene_num}_motion")
-                        if manual_motion in ["pan_down", "pan_up", "vertical_pan"]:
-                            log_debug(f"⏩ [Auto-Pilot] Scene {scene_num} is Vertical Pan ({manual_motion}). Skipping Wan to preserve full resolution.")
-                            continue
+                if preferred_engine == "wan":
+                    # [FIX] Skip Wan for Vertical Pan scenes (preserve aspect ratio)
+                    manual_motion = p_settings.get(f"scene_{scene_num}_motion")
+                    if manual_motion in ["pan_down", "pan_up", "vertical_pan"]:
+                        log_debug(f"⏩ [Auto-Pilot] Scene {scene_num} is Vertical Pan ({manual_motion}). Skipping Wan to preserve full resolution.")
+                        continue
 
 
-                        try:
-                            log_debug(f"📹 [Auto-Pilot] Generating Wan Video for Scene {scene_num}")
-                            
-                            # [FIX] Use full original image for Wan 2.1 if available (prevents character cropping)
-                            wan_asset_filename = p_settings.get(f"scene_{scene_num}_wan_image", "")
-                            if wan_asset_filename:
-                                wan_asset_dir = os.path.join(config.OUTPUT_DIR, str(project_id), "assets", "image")
-                                wan_image_path = os.path.join(wan_asset_dir, wan_asset_filename)
-                                if os.path.exists(wan_image_path):
-                                    log_debug(f"  🎯 [Wan] Using FULL original image: {wan_asset_filename}")
-                                    wan_source_path = wan_image_path
-                                else:
-                                    wan_source_path = image_abs_path
-                                    log_debug(f"  ⚠️ [Wan] wan_asset not found, fallback to sliced: {os.path.basename(image_abs_path)}")
+                    try:
+                        log_debug(f"📹 [Auto-Pilot] Generating Wan Video for Scene {scene_num}")
+                        
+                        # [FIX] Use full original image for Wan 2.1 if available (prevents character cropping)
+                        wan_asset_filename = p_settings.get(f"scene_{scene_num}_wan_image", "")
+                        if wan_asset_filename:
+                            wan_asset_dir = os.path.join(config.OUTPUT_DIR, str(project_id), "assets", "image")
+                            wan_image_path = os.path.join(wan_asset_dir, wan_asset_filename)
+                            if os.path.exists(wan_image_path):
+                                log_debug(f"  🎯 [Wan] Using FULL original image: {wan_asset_filename}")
+                                wan_source_path = wan_image_path
                             else:
                                 wan_source_path = image_abs_path
-                                log_debug(f"  ℹ️ [Wan] No wan_asset configured. Using sliced panel: {os.path.basename(image_abs_path)}")
+                                log_debug(f"  ⚠️ [Wan] wan_asset not found, fallback to sliced: {os.path.basename(image_abs_path)}")
+                        else:
+                            wan_source_path = image_abs_path
+                            log_debug(f"  ℹ️ [Wan] No wan_asset configured. Using sliced panel: {os.path.basename(image_abs_path)}")
 
-                            
-                            video_data = await replicate_service.generate_video_from_image(
-                                wan_source_path, 
-                                prompt=final_prompt,
-                                duration=video_duration,
-                                method=motion_method
-                            )
-                            if video_data:
-                                filename = f"vid_wan_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.mp4"
-                                out = os.path.join(config.OUTPUT_DIR, filename)
-                                with open(out, 'wb') as f: f.write(video_data)
-                                db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
-                                with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
-                                    df.write(f"[{datetime.now()}] ✅ Successfully generated Wan video for Scene {scene_num}\n")
-                        except Exception as wan_e:
-                            log_debug(f"⚠️ [Wan] Failed: {wan_e}. Falling back to Akool Seedance...")
-                            try:
-                                video_data = await akool_service.generate_akool_video_v4(
-                                    image_abs_path,
-                                    prompt=final_prompt,
-                                    duration=int(video_duration),
-                                    resolution="720p"
-                                )
-                                if video_data:
-                                    filename = f"vid_seedance_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.mp4"
-                                    out = os.path.join(config.OUTPUT_DIR, filename)
-                                    with open(out, 'wb') as f: f.write(video_data)
-                                    db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
-                                    log_debug(f"✅ [Akool Seedance] Fallback Success for Scene {scene_num}")
-                                else:
-                                    raise Exception("Empty data from Akool Seedance")
-                            except Exception as seed_e:
-                                log_debug(f"❌ [Akool Seedance] Also failed: {seed_e}")
-
-                                # Both engines failed, continue to next scene
+                        
+                        video_data = await replicate_service.generate_video_from_image(
+                            wan_source_path, 
+                            prompt=final_prompt,
+                            duration=video_duration,
+                            method=motion_method
+                        )
+                        if video_data:
+                            filename = f"vid_wan_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.mp4"
+                            out = os.path.join(config.OUTPUT_DIR, filename)
+                            with open(out, 'wb') as f: f.write(video_data)
+                            db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
+                            with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
+                                df.write(f"[{datetime.now()}] ✅ Successfully generated Wan video for Scene {scene_num}\n")
+                    except Exception as wan_e:
+                        log_debug(f"[Wan] Failed: {wan_e}")
             except Exception as ve:
                 err_msg = f"⚠️ [Auto-Pilot] Video generation failed for Scene {scene_num}: {ve}"
                 print(err_msg)
@@ -1604,14 +1536,6 @@ JSON만 출력하세요:
                         images = await gemini_service.generate_image(generic_prompt, aspect_ratio=aspect_ratio)
                     except Exception: pass
 
-            # 3. Akool Fallback
-            if not images:
-                try:
-                    print(f"🎨 [Auto-Pilot Thumb] Attempting AKOOL (Final Fallback)...")
-                    images = await akool_service.generate_image(prompt=final_thumb_prompt, aspect_ratio=aspect_ratio)
-                except Exception as e:
-                    print(f"⚠️ [Auto-Pilot Thumb] Akool failed: {e}")
-            
             if not images: 
                 print("⚠️ [Auto-Pilot] No images generated for thumbnail. Skipping synthesis.")
                 return
@@ -1913,11 +1837,11 @@ JSON만 출력하세요:
             print(f"⚠️ [Auto-Pilot] Fallback to N-Division Sync ({image_durations if not isinstance(image_durations, list) else 'list'}s per image)")
         
         # [IMPROVED] Dynamic Resolution Detection based on User Setting or Generated Assets
-        app_mode = settings.get("app_mode", "longform")
+        app_mode = settings.get("app_mode", DEFAULT_APP_MODE)
         user_ratio = settings.get("aspect_ratio")
         
         # Default fallback
-        resolution = (1920, 1080) if app_mode == "longform" else (1080, 1920)
+        resolution = (1920, 1080) if is_longform_family(app_mode) else (1080, 1920)
         
         # Mapping for standard user-selected ratios
         ratio_map = {
@@ -1943,7 +1867,7 @@ JSON만 출력하세요:
                     img_w, img_h = img.size
                     asset_ratio = img_w / img_h
                     
-                    if app_mode == "longform":
+                    if is_longform_family(app_mode):
                         target_h = 1080
                         target_w = int(target_h * asset_ratio)
                     else:
@@ -2508,8 +2432,7 @@ JSON만 출력하세요:
         2. **bgm_style**: Recommend BGM style in Korean.
         3. **scene_specifications**: For each scene, generate:
            - **scene_number**: The number from input.
-           - **engine**: "wan" (motion), "akool" (lipsync), or "image" (2D). 
-             * Note: If scene has dialogue, strongly consider 'akool'.
+           - **engine**: "wan" (motion) or "image" (2D).
            - **effect**: "pan_down", "pan_up", "pan_left", "pan_right", "zoom_in", "zoom_out", "static".
              * Use 'pan_left' or 'pan_right' for TYPE 2 (Wide) images to show the whole image.
            - **motion**: FULL CINEMATIC PROMPT in English. Combine Master Setting (0) + Type Specific Guide (1-6) + Scene Context. Mention specific camera movement directions.
@@ -2523,7 +2446,7 @@ JSON만 출력하세요:
             "scene_specifications": [
                 {
                     "scene_number": 1,
-                    "engine": "wan | akool | image",
+                    "engine": "wan | image",
                     "effect": "zoom_in | pan_down | pan_left | ...",
                     "motion": "Detailed cinematic prompt in English focusing on camera motion",
                     "rationale": "Reason (Korean)",
