@@ -27,6 +27,16 @@ logs/
 !auth-web/app/api/logs/
 !auth-web/app/api/logs/route.ts
 
+# Runtime/generated root artifacts
+/api_test.json
+/debug_*
+/test_*
+/tmp_*
+/temp_*
+/final_*TEMP_MPY_wvf_snd.mp4
+/f?.jpg
+/*.m4a
+
 # Large Files
 *.zip
 *.rar
