@@ -1109,7 +1109,8 @@ scene_type별 구조:
         ("thumbnail_font", "TEXT"),
         ("thumbnail_font_size", "INTEGER"),
         ("thumbnail_color", "TEXT"),
-        ("thumbnail_full_state", "TEXT")
+        ("thumbnail_full_state", "TEXT"),
+        ("template_full_state", "TEXT")
     ]:
         try:
             cursor.execute(f"ALTER TABLE project_settings ADD COLUMN {col} {col_type}")

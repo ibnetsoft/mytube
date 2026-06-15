@@ -18,6 +18,9 @@ class ThumbnailsSave(BaseModel):
     texts: List[str]
     full_settings: Optional[dict] = None
 
+class TemplateStateSave(BaseModel):
+    full_settings: Optional[dict] = None
+
 @router.post("/thumbnail/generate-text")
 async def generate_thumbnail_text(req: ThumbnailTextRequest):
     """썸네일 후킹 문구 생성"""
@@ -114,6 +117,42 @@ async def get_thumbnails(project_id: int):
         print(f"Get thumbnails error: {e}")
         return {"status": "error", "error": str(e)}
 
+@router.post("/projects/{project_id}/template-state")
+async def save_template_state(project_id: int, req: TemplateStateSave):
+    """템플릿 편집 상태 저장: 썸네일 생성 상태와 분리한다."""
+    try:
+        if req.full_settings:
+            db.update_project_setting(
+                project_id,
+                'template_full_state',
+                json.dumps(req.full_settings, ensure_ascii=False),
+            )
+        return {"status": "ok"}
+    except Exception as e:
+        print(f"Save template state error: {e}")
+        return {"status": "error", "error": str(e)}
+
+@router.get("/projects/{project_id}/template-state")
+async def get_template_state(project_id: int):
+    """템플릿 편집 상태 조회"""
+    try:
+        settings = db.get_project_settings(project_id) or {}
+        full_state_json = settings.get('template_full_state')
+        full_settings = {}
+        if full_state_json:
+            try:
+                full_settings = json.loads(full_state_json)
+            except Exception:
+                full_settings = {}
+
+        return {
+            "status": "ok",
+            "full_settings": full_settings,
+        }
+    except Exception as e:
+        print(f"Get template state error: {e}")
+        return {"status": "error", "error": str(e)}
+
 
 class DefaultStyleSave(BaseModel):
     textLayers: List[dict]
@@ -140,6 +179,33 @@ async def get_default_style():
     """전역 기본 썸네일 스타일 조회"""
     try:
         raw = db.get_global_setting("thumbnail_default_style", None)
+        if not raw:
+            return {"status": "ok", "style": None}
+        return {"status": "ok", "style": json.loads(raw)}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+@router.post("/template/default-style")
+async def save_template_default_style(req: DefaultStyleSave):
+    """전역 기본 템플릿 스타일 저장 (썸네일 기본 스타일과 분리)"""
+    try:
+        style_data = {
+            "textLayers": [
+                {k: v for k, v in layer.items() if k != 'text'}
+                for layer in req.textLayers
+            ],
+            "shapeLayers": req.shapeLayers
+        }
+        db.save_global_setting("template_default_style", json.dumps(style_data, ensure_ascii=False))
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+@router.get("/template/default-style")
+async def get_template_default_style():
+    """전역 기본 템플릿 스타일 조회"""
+    try:
+        raw = db.get_global_setting("template_default_style", None)
         if not raw:
             return {"status": "ok", "style": None}
         return {"status": "ok", "style": json.loads(raw)}

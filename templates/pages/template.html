@@ -1042,17 +1042,12 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
                 appMode: window.APP_MODE,
                 projectId
             };
-            const payload = {
-                ideas: thumbnailData ? thumbnailData.ideas : [],
-                texts: thumbnailData ? thumbnailData.texts : [],
-                full_settings: fullSettings
-            };
-            await fetch(`/api/projects/${projectId}/thumbnails`, {
+            await fetch(`/api/projects/${projectId}/template-state`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify({ full_settings: fullSettings })
             });
-            console.log('[AutoSave] 썸네일 상태 서버 저장 완료');
+            console.log('[AutoSave] 템플릿 상태 서버 저장 완료');
         } catch (e) {
             console.warn('[AutoSave] 서버 저장 실패:', e);
         }
@@ -2078,7 +2073,7 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
             projectId: getCurrentProject() // [NEW] Scope by Project ID
         };
         try {
-            sessionStorage.setItem('thumbnail_gen_state', JSON.stringify(state));
+            sessionStorage.setItem('template_gen_state', JSON.stringify(state));
         } catch (e) {
             console.warn('Storage saving failed', e);
         }
@@ -2434,7 +2429,7 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
 
     async function saveAsDefaultStyle() {
         try {
-            const res = await fetch('/api/thumbnail/default-style', {
+            const res = await fetch('/api/template/default-style', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ textLayers, shapeLayers })
@@ -2452,7 +2447,7 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
 
     async function loadDefaultStyleFromDB() {
         try {
-            const res = await fetch('/api/thumbnail/default-style');
+            const res = await fetch('/api/template/default-style');
             const result = await res.json();
             if (result.status === 'ok' && result.style) {
                 const { textLayers: savedLayers, shapeLayers: savedShapes } = result.style;
@@ -2503,20 +2498,10 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
         };
 
         try {
-            // ideas와 texts는 thumbnailData에서 추출
-            const ideas = thumbnailData ? thumbnailData.ideas : [];
-            const texts = thumbnailData ? thumbnailData.texts : [];
-
-            const payload = {
-                ideas: ideas,
-                texts: texts,
-                full_settings: fullSettings
-            };
-
-            const response = await fetch(`/api/projects/${projectId}/thumbnails`, {
+            const response = await fetch(`/api/projects/${projectId}/template-state`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify({ full_settings: fullSettings })
             });
 
             const result = await response.json();
@@ -2538,7 +2523,7 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
         // [Fix] 전역 appMode 변수 직접 사용 (가장 확실함)
         const currentMode = appMode;
 
-        let saved = sessionStorage.getItem('thumbnail_gen_state');
+        let saved = sessionStorage.getItem('template_gen_state');
         let state = null;
 
         if (!saved) {
@@ -2546,7 +2531,7 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
             try {
                 const projectId = getCurrentProject();
                 if (projectId) {
-                    const res = await fetch(`/api/projects/${projectId}/thumbnails`);
+                    const res = await fetch(`/api/projects/${projectId}/template-state`);
                     const result = await res.json();
                     if (result && result.full_settings && Object.keys(result.full_settings).length > 0) {
                         console.log("Found settings on server, using them.");
@@ -2580,7 +2565,7 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
             // [NEW] Project ID Scope Check (Loose check to avoid string/int mismatch)
             if (!state.projectId || String(state.projectId) !== String(currentProjectId)) {
                 console.log(`Project ID mismatch or Legacy Data (Saved: ${state.projectId}, Current: ${currentProjectId}). Skipping local restore.`);
-                // sessionStorage.removeItem('thumbnail_gen_state'); // Don't wipe, just don't load
+                // sessionStorage.removeItem('template_gen_state'); // Don't wipe, just don't load
                 return;
             }
 
@@ -2588,7 +2573,7 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
             // Only wipe if there is an explicit mismatch. Legacy state (undefined appMode) is allowed but migrated.
             if ((state.appMode || 'longform') !== currentMode) {
                 console.log(`App mode mismatch (Saved: ${state.appMode || 'legacy'}, Current: ${currentMode}). Resetting state.`);
-                sessionStorage.removeItem('thumbnail_gen_state');
+                sessionStorage.removeItem('template_gen_state');
                 return;
             }
 
