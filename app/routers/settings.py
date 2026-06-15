@@ -822,7 +822,6 @@ async def crop_grid_image(
     file: UploadFile = File(...),
     panel: int = Form(...) # 1: Top-Left, 2: Top-Right, 3: Bottom-Left, 4: Bottom-Right
 ):
-    _require_advanced_settings_access()
     """2x2 격자판 이미지에서 지정된 패널 영역을 자동으로 Crop하여 반환"""
     try:
         from PIL import Image
