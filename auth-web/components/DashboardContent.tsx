@@ -106,7 +106,7 @@ export default function DashboardContent() {
     const [newCatVideoType, setNewCatVideoType] = useState('longform') // 'longform' | 'shorts'
     const [generatingCatId, setGeneratingCatId] = useState<number | null>(null)
     const [generatedTopicsByCat, setGeneratedTopicsByCat] = useState<Record<number, string[]>>({})
-    const [topicQueueCategoryFilter, setTopicQueueCategoryFilter] = useState<number | 'all'>('all')
+    const [topicQueueCategoryFilter, setTopicQueueCategoryFilter] = useState<string>('all')
     
     // 카테고리 리스트 롱폼/숏폼 탭 구분
     const [categoryListTab, setCategoryListTab] = useState<'longform' | 'shorts'>('longform')
@@ -1155,26 +1155,37 @@ export default function DashboardContent() {
 
                         {/* 3. 전체 주제 대기열 큐 모니터링 */}
                         {(() => {
-                            const queueCategories = categories;
+                            const queueCategories = [...categories].sort((a, b) => {
+                                const aPending = topics.filter(t => String(t.category_id) === String(a.id) && t.status === 'pending').length;
+                                const bPending = topics.filter(t => String(t.category_id) === String(b.id) && t.status === 'pending').length;
+                                if (bPending !== aPending) return bPending - aPending;
+                                return String(a.name || '').localeCompare(String(b.name || ''), 'ko');
+                            });
                             const filteredTopics = topicQueueCategoryFilter === 'all'
                                 ? topics
-                                : topics.filter(t => Number(t.category_id) === Number(topicQueueCategoryFilter));
+                                : topics.filter(t => String(t.category_id) === topicQueueCategoryFilter);
                             const selectedCategory = topicQueueCategoryFilter === 'all'
                                 ? null
-                                : categories.find(cat => cat.id === topicQueueCategoryFilter);
+                                : categories.find(cat => String(cat.id) === topicQueueCategoryFilter);
 
                             return (
                         <div className="bg-[#0f172a]/60 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl">
-                            <div className="p-8 border-b border-white/10 bg-black/20 flex justify-between items-center">
-                                <h2 className="font-black text-xl tracking-tight">
-                                    📋 {selectedCategory ? `${selectedCategory.name} 주제 대기열` : '실시간 전체 주제 대기열 큐 (Topics Queue)'}
-                                </h2>
-                                <span className="bg-yellow-500/20 text-yellow-500 text-[11px] px-3 py-1 rounded-full font-black">
-                                    {selectedCategory ? '선택 대기건수' : '총 대기 건수'}: {filteredTopics.filter(t => t.status === 'pending').length}개
-                                </span>
-                            </div>
-                            <div className="px-8 py-5 border-b border-white/10 bg-black/10">
-                                <div className="flex flex-wrap gap-2">
+                            <div className="p-8 border-b border-white/10 bg-black/20">
+                                <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+                                    <div className="min-w-0">
+                                        <h2 className="font-black text-xl tracking-tight">
+                                            📋 실시간 전체 주제 대기열 큐 (Topics Queue)
+                                        </h2>
+                                        <p className="mt-2 text-xs font-bold text-gray-500">
+                                            {selectedCategory ? `${selectedCategory.name} 카테고리만 표시 중` : '전체 카테고리의 대기열을 표시 중'}
+                                        </p>
+                                    </div>
+                                    <span className="shrink-0 bg-yellow-500/20 text-yellow-500 text-[11px] px-3 py-1 rounded-full font-black">
+                                        {selectedCategory ? '선택 대기건수' : '총 대기 건수'}: {filteredTopics.filter(t => t.status === 'pending').length}개
+                                    </span>
+                                </div>
+
+                                <div className="mt-6 flex flex-wrap gap-2">
                                     <button
                                         type="button"
                                         onClick={() => setTopicQueueCategoryFilter('all')}
@@ -1187,14 +1198,14 @@ export default function DashboardContent() {
                                         전체 <span className="ml-1 text-[10px] opacity-70">{topics.filter(t => t.status === 'pending').length}</span>
                                     </button>
                                     {queueCategories.map(cat => {
-                                        const pendingCount = topics.filter(t => Number(t.category_id) === Number(cat.id) && t.status === 'pending').length;
+                                        const pendingCount = topics.filter(t => String(t.category_id) === String(cat.id) && t.status === 'pending').length;
                                         return (
                                             <button
                                                 type="button"
                                                 key={`topic-queue-filter-${cat.id}`}
-                                                onClick={() => setTopicQueueCategoryFilter(cat.id)}
+                                                onClick={() => setTopicQueueCategoryFilter(String(cat.id))}
                                                 className={`px-4 py-2 rounded-xl text-[11px] font-black border transition-all ${
-                                                    topicQueueCategoryFilter === cat.id
+                                                    topicQueueCategoryFilter === String(cat.id)
                                                         ? 'bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-900/20'
                                                         : 'bg-white/5 text-gray-400 border-white/10 hover:text-white hover:border-blue-500/40'
                                                 }`}
