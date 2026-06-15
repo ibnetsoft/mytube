@@ -2076,12 +2076,6 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
             return;
         }
 
-        const validLayers = textLayers.filter(l => l.text.trim() !== '');
-        if (validLayers.length === 0 && shapeLayers.length === 0) {
-            Utils.showToast(i18n.toast_add_text_or_shape, 'warning');
-            return;
-        }
-
         const btn = document.getElementById('generateBtn');
         const originalText = btn.innerText;
         Utils.setLoading(btn, true, i18n.loading_saving_thumb);
