@@ -106,6 +106,7 @@ export default function DashboardContent() {
     const [newCatVideoType, setNewCatVideoType] = useState('longform') // 'longform' | 'shorts'
     const [generatingCatId, setGeneratingCatId] = useState<number | null>(null)
     const [generatedTopicsByCat, setGeneratedTopicsByCat] = useState<Record<number, string[]>>({})
+    const [topicQueueCategoryFilter, setTopicQueueCategoryFilter] = useState<number | 'all'>('all')
     
     // 카테고리 리스트 롱폼/숏폼 탭 구분
     const [categoryListTab, setCategoryListTab] = useState<'longform' | 'shorts'>('longform')
@@ -1153,12 +1154,56 @@ export default function DashboardContent() {
                         </div>
 
                         {/* 3. 전체 주제 대기열 큐 모니터링 */}
+                        {(() => {
+                            const queueCategories = categories;
+                            const filteredTopics = topicQueueCategoryFilter === 'all'
+                                ? topics
+                                : topics.filter(t => Number(t.category_id) === Number(topicQueueCategoryFilter));
+                            const selectedCategory = topicQueueCategoryFilter === 'all'
+                                ? null
+                                : categories.find(cat => cat.id === topicQueueCategoryFilter);
+
+                            return (
                         <div className="bg-[#0f172a]/60 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl">
                             <div className="p-8 border-b border-white/10 bg-black/20 flex justify-between items-center">
-                                <h2 className="font-black text-xl tracking-tight">📋 실시간 전체 주제 대기열 큐 (Topics Queue)</h2>
+                                <h2 className="font-black text-xl tracking-tight">
+                                    📋 {selectedCategory ? `${selectedCategory.name} 주제 대기열` : '실시간 전체 주제 대기열 큐 (Topics Queue)'}
+                                </h2>
                                 <span className="bg-yellow-500/20 text-yellow-500 text-[11px] px-3 py-1 rounded-full font-black">
-                                    총 대기 건수: {topics.filter(t => t.status === 'pending').length}개
+                                    {selectedCategory ? '선택 대기건수' : '총 대기 건수'}: {filteredTopics.filter(t => t.status === 'pending').length}개
                                 </span>
+                            </div>
+                            <div className="px-8 py-5 border-b border-white/10 bg-black/10">
+                                <div className="flex flex-wrap gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setTopicQueueCategoryFilter('all')}
+                                        className={`px-4 py-2 rounded-xl text-[11px] font-black border transition-all ${
+                                            topicQueueCategoryFilter === 'all'
+                                                ? 'bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-900/20'
+                                                : 'bg-white/5 text-gray-400 border-white/10 hover:text-white hover:border-blue-500/40'
+                                        }`}
+                                    >
+                                        전체 <span className="ml-1 text-[10px] opacity-70">{topics.filter(t => t.status === 'pending').length}</span>
+                                    </button>
+                                    {queueCategories.map(cat => {
+                                        const pendingCount = topics.filter(t => Number(t.category_id) === Number(cat.id) && t.status === 'pending').length;
+                                        return (
+                                            <button
+                                                type="button"
+                                                key={`topic-queue-filter-${cat.id}`}
+                                                onClick={() => setTopicQueueCategoryFilter(cat.id)}
+                                                className={`px-4 py-2 rounded-xl text-[11px] font-black border transition-all ${
+                                                    topicQueueCategoryFilter === cat.id
+                                                        ? 'bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-900/20'
+                                                        : 'bg-white/5 text-gray-400 border-white/10 hover:text-white hover:border-blue-500/40'
+                                                }`}
+                                            >
+                                                {cat.name} <span className="ml-1 text-[10px] opacity-70">{pendingCount}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left text-sm">
@@ -1171,7 +1216,7 @@ export default function DashboardContent() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/5 font-medium">
-                                        {topics.map((item) => (
+                                        {filteredTopics.map((item) => (
                                             <tr key={item.id} className="hover:bg-white/[0.03] transition-colors h-16 text-xs">
                                                 <td className="px-10 py-6 text-gray-300 font-bold">
                                                     {item.categories?.name || '기본'}
@@ -1200,10 +1245,10 @@ export default function DashboardContent() {
                                                 </td>
                                             </tr>
                                         ))}
-                                        {topics.length === 0 && (
+                                        {filteredTopics.length === 0 && (
                                             <tr>
                                                 <td colSpan={4} className="px-10 py-20 text-center text-gray-600 font-black uppercase tracking-widest text-xs italic">
-                                                    대기열에 등록된 주제가 없습니다. 카테고리를 먼저 생성해주세요.
+                                                    {selectedCategory ? '선택한 카테고리에 등록된 주제가 없습니다.' : '대기열에 등록된 주제가 없습니다. 카테고리를 먼저 생성해주세요.'}
                                                 </td>
                                             </tr>
                                         )}
@@ -1211,6 +1256,8 @@ export default function DashboardContent() {
                                 </table>
                             </div>
                         </div>
+                            );
+                        })()}
                     </div>
                 )}
 
