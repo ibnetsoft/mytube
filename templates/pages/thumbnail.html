@@ -194,16 +194,18 @@
                     <h4 class="text-[11px] font-bold text-gray-500 mb-3 flex items-center gap-2">
                         <span>{{ t('label_bg_settings') }}</span>
                     </h4>
-                    <div class="grid grid-cols-3 gap-1.5 mb-4">
+                    <div class="grid {% if membership in ['std', 'standard'] %}grid-cols-2{% else %}grid-cols-3{% endif %} gap-1.5 mb-4">
                         <button onclick="clearBackground()" class="flex flex-col items-center justify-center p-2 rounded-lg border border-gray-600 bg-transparent text-white hover:bg-[#0a0f1d] transition-all" title="{{ t('label_transparent') }}">
                             <span class="text-[10px] font-bold">{{ t('label_transparent') }}</span>
                         </button>
                         <button onclick="document.getElementById('bgUploadInput').click()" class="flex flex-col items-center justify-center p-2 rounded-lg border border-gray-600 bg-transparent text-white hover:bg-[#0a0f1d] transition-all">
                             <span class="text-[10px] font-bold">{{ t('label_upload') }}</span>
                         </button>
+                        {% if membership not in ['std', 'standard'] %}
                         <button onclick="generateBackground()" id="bgBtn" class="flex flex-col items-center justify-center p-2 rounded-lg border border-gray-600 bg-transparent text-white hover:bg-[#0a0f1d] transition-all">
                             <span class="text-[10px] font-bold">{{ t('label_ai_gen') }}</span>
                         </button>
+                        {% endif %}
                     </div>
                     <input type="file" id="bgUploadInput" class="hidden" accept="image/*" onchange="uploadBackgroundImage(this)">
                 </div>
