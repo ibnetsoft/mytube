@@ -13,7 +13,7 @@ export async function GET(req: Request) {
     try {
         const { searchParams } = new URL(req.url)
         const email = searchParams.get('email')
-        const status = searchParams.get('status') || 'pending'
+        const status = searchParams.get('status') || 'active'
 
         const supabase = getAdmin()
         let query = supabase
@@ -21,10 +21,9 @@ export async function GET(req: Request) {
             .select('*, categories(*)')
             .order('created_at', { ascending: false })
 
-        if (email) {
-            query = query.eq('assigned_employee_email', email)
-        }
-        if (status) {
+        if (status === 'active') {
+            query = query.in('status', ['pending', 'assigned'])
+        } else if (status && status !== 'all') {
             query = query.eq('status', status)
         }
 
@@ -32,7 +31,34 @@ export async function GET(req: Request) {
 
         if (error) throw error
 
-        return NextResponse.json({ topics: data || [] })
+        let topics = data || []
+
+        // 카테고리 담당자 정보가 정답이다. 오래된 topics_queue row가 다른 이메일을 들고 있으면
+        // 관리자 화면과 실제 배당 기준이 어긋나므로 조회 시 자동으로 보정한다.
+        const mismatchedTopics = topics.filter((topic: any) => {
+            const categoryEmail = topic.categories?.assigned_employee_email
+            return categoryEmail && topic.assigned_employee_email !== categoryEmail
+        })
+
+        await Promise.all(
+            mismatchedTopics.map((topic: any) =>
+                supabase
+                    .from('topics_queue')
+                    .update({ assigned_employee_email: topic.categories.assigned_employee_email })
+                    .eq('id', topic.id)
+            )
+        )
+
+        topics = topics.map((topic: any) => ({
+            ...topic,
+            assigned_employee_email: topic.categories?.assigned_employee_email || topic.assigned_employee_email
+        }))
+
+        if (email) {
+            topics = topics.filter((topic: any) => topic.assigned_employee_email === email)
+        }
+
+        return NextResponse.json({ topics })
     } catch (e: any) {
         console.error('Failed to get topics queue:', e)
         return NextResponse.json({ error: e.message }, { status: 500 })

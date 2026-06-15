@@ -153,13 +153,13 @@ export async function PUT(req: Request) {
 
         if (error) throw error
 
-        // 담당 직원이 바뀌면 기존 pending 상태의 토픽들도 새로운 직원 이메일로 같이 업데이트해 줍니다.
+        // 담당 직원이 바뀌면 아직 완료되지 않은 토픽들도 새로운 직원 이메일로 같이 업데이트해 줍니다.
         if (assigned_employee_email) {
             await supabase
                 .from('topics_queue')
                 .update({ assigned_employee_email })
                 .eq('category_id', id)
-                .eq('status', 'pending')
+                .in('status', ['pending', 'assigned'])
         }
 
         return NextResponse.json({ success: true, category: data[0] })
@@ -168,4 +168,3 @@ export async function PUT(req: Request) {
         return NextResponse.json({ error: e.message }, { status: 500 })
     }
 }
-

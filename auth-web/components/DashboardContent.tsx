@@ -1155,15 +1155,18 @@ export default function DashboardContent() {
 
                         {/* 3. 전체 주제 대기열 큐 모니터링 */}
                         {(() => {
+                            const getTopicAssignee = (item: any) => item.categories?.assigned_employee_email || item.assigned_employee_email;
+                            const isWorkingTopic = (item: any) => item.status === 'assigned';
+                            const isQueueVisibleTopic = (item: any) => item.status === 'pending' || item.status === 'assigned';
                             const queueCategories = [...categories].sort((a, b) => {
-                                const aPending = topics.filter(t => String(t.category_id) === String(a.id) && t.status === 'pending').length;
-                                const bPending = topics.filter(t => String(t.category_id) === String(b.id) && t.status === 'pending').length;
-                                if (bPending !== aPending) return bPending - aPending;
+                                const aActive = topics.filter(t => String(t.category_id) === String(a.id) && isQueueVisibleTopic(t)).length;
+                                const bActive = topics.filter(t => String(t.category_id) === String(b.id) && isQueueVisibleTopic(t)).length;
+                                if (bActive !== aActive) return bActive - aActive;
                                 return String(a.name || '').localeCompare(String(b.name || ''), 'ko');
                             });
                             const filteredTopics = topicQueueCategoryFilter === 'all'
-                                ? topics
-                                : topics.filter(t => String(t.category_id) === topicQueueCategoryFilter);
+                                ? topics.filter(isQueueVisibleTopic)
+                                : topics.filter(t => String(t.category_id) === topicQueueCategoryFilter && isQueueVisibleTopic(t));
                             const selectedCategory = topicQueueCategoryFilter === 'all'
                                 ? null
                                 : categories.find(cat => String(cat.id) === topicQueueCategoryFilter);
@@ -1181,7 +1184,7 @@ export default function DashboardContent() {
                                         </p>
                                     </div>
                                     <span className="shrink-0 bg-yellow-500/20 text-yellow-500 text-[11px] px-3 py-1 rounded-full font-black">
-                                        {selectedCategory ? '선택 대기건수' : '총 대기 건수'}: {filteredTopics.filter(t => t.status === 'pending').length}개
+                                        {selectedCategory ? '선택 표시건수' : '총 표시건수'}: {filteredTopics.length}개
                                     </span>
                                 </div>
 
@@ -1195,10 +1198,10 @@ export default function DashboardContent() {
                                                 : 'bg-white/5 text-gray-400 border-white/10 hover:text-white hover:border-blue-500/40'
                                         }`}
                                     >
-                                        전체 <span className="ml-1 text-[10px] opacity-70">{topics.filter(t => t.status === 'pending').length}</span>
+                                        전체 <span className="ml-1 text-[10px] opacity-70">{topics.filter(isQueueVisibleTopic).length}</span>
                                     </button>
                                     {queueCategories.map(cat => {
-                                        const pendingCount = topics.filter(t => String(t.category_id) === String(cat.id) && t.status === 'pending').length;
+                                        const activeCount = topics.filter(t => String(t.category_id) === String(cat.id) && isQueueVisibleTopic(t)).length;
                                         return (
                                             <button
                                                 type="button"
@@ -1210,7 +1213,7 @@ export default function DashboardContent() {
                                                         : 'bg-white/5 text-gray-400 border-white/10 hover:text-white hover:border-blue-500/40'
                                                 }`}
                                             >
-                                                {cat.name} <span className="ml-1 text-[10px] opacity-70">{pendingCount}</span>
+                                                {cat.name} <span className="ml-1 text-[10px] opacity-70">{activeCount}</span>
                                             </button>
                                         );
                                     })}
@@ -1243,15 +1246,15 @@ export default function DashboardContent() {
                                                     </div>
                                                 </td>
                                                 <td className="px-10 py-6 text-gray-400">
-                                                    {item.assigned_employee_email}
+                                                    {getTopicAssignee(item)}
                                                 </td>
                                                 <td className="px-10 py-6 text-center">
                                                     <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border uppercase tracking-tighter ${
                                                         item.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' :
-                                                        item.status === 'assigned' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
+                                                        isWorkingTopic(item) ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
                                                         'bg-green-500/10 text-green-500 border-green-500/20'
                                                     }`}>
-                                                        {item.status === 'pending' ? '대기 중' : item.status === 'assigned' ? '제작 진행 중' : '제작 완료'}
+                                                        {item.status === 'pending' ? '대기 중' : isWorkingTopic(item) ? '작업 중' : '제작 완료'}
                                                     </span>
                                                 </td>
                                             </tr>
