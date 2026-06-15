@@ -1806,7 +1806,7 @@ export default function DashboardContent() {
                                                                             </div>
                                                                         </div>
                                                                         {preset.image_url && (
-                                                                            <img src={preset.image_url} alt={preset.display_name_ko} className="w-full h-24 object-cover rounded-lg mb-2.5 border border-white/5 bg-[#111]" />
+                                                                            <img src={preset.image_url} alt={preset.display_name_ko} className="w-24 h-24 object-cover rounded-lg mb-2.5 border border-white/5 bg-[#111]" />
                                                                         )}
                                                                         <p className="text-[10px] text-gray-400 font-mono line-clamp-3 bg-black/50 p-2 rounded border border-white/5">
                                                                             {preset.prompt_template}

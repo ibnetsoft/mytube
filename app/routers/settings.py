@@ -345,6 +345,94 @@ class StylePreset(BaseModel):
     gemini_instruction: Optional[str] = None
     mode: Optional[str] = None  # 'image' | 'blog' | 'all'
 
+
+def _sync_style_presets_from_supabase_best_effort(require_credentials: bool = False) -> Dict[str, int]:
+    """Pull web-admin style presets into local SQLite.
+
+    The desktop platform reads local SQLite, while the web admin writes Supabase.
+    Keep this sync best-effort for read paths so the UI still works offline.
+    """
+    supabase_url = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    if not supabase_url or not supabase_key:
+        if require_credentials:
+            raise HTTPException(status_code=400, detail="Supabase credentials missing on local environment")
+        return {"image": 0, "script": 0, "thumbnail": 0}
+
+    try:
+        import requests
+        import urllib3
+
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        headers = {
+            "apikey": supabase_key,
+            "Authorization": f"Bearer {supabase_key}"
+        }
+        url = f"{supabase_url.rstrip('/')}/rest/v1/style_presets?select=*"
+        r = requests.get(url, headers=headers, timeout=10, verify=False)
+        if r.status_code != 200:
+            if require_credentials:
+                raise HTTPException(status_code=500, detail=f"Supabase request failed: {r.text}")
+            print(f"[Preset Sync] Supabase request failed: {r.status_code} {r.text[:200]}")
+            return {"image": 0, "script": 0, "thumbnail": 0}
+
+        supabase_presets = r.json()
+        image_presets_in_supabase = [p for p in supabase_presets if p.get("preset_type") == "image"]
+        if image_presets_in_supabase:
+            db.clear_all_style_presets()
+
+        counts = {"image": 0, "script": 0, "thumbnail": 0}
+        for preset in supabase_presets:
+            ptype = preset.get("preset_type")
+            key = preset.get("key_code")
+            p_val = preset.get("prompt_template")
+            inst = preset.get("gemini_instruction")
+            img = preset.get("image_url")
+            name_ko = preset.get("display_name_ko")
+            name_vi = preset.get("display_name_vi")
+
+            if not key or not p_val:
+                continue
+
+            if ptype == "image":
+                db.save_style_preset(
+                    style_key=key,
+                    prompt_value=p_val,
+                    image_url=img,
+                    gemini_instruction=inst,
+                    mode="all",
+                    display_name_ko=name_ko,
+                    display_name_vi=name_vi
+                )
+                counts["image"] += 1
+            elif ptype == "script":
+                db.save_script_style_preset(
+                    style_key=key,
+                    prompt_value=p_val,
+                    display_name_ko=name_ko,
+                    display_name_vi=name_vi
+                )
+                counts["script"] += 1
+            elif ptype == "thumbnail":
+                db.save_thumbnail_style_preset(
+                    style_key=key,
+                    prompt_value=p_val,
+                    image_url=img,
+                    display_name_ko=name_ko,
+                    display_name_vi=name_vi
+                )
+                counts["thumbnail"] += 1
+
+        return counts
+    except HTTPException:
+        raise
+    except Exception as e:
+        if require_credentials:
+            raise HTTPException(status_code=500, detail=f"Sync error: {str(e)}")
+        print(f"[Preset Sync] Failed to pull from Supabase: {e}")
+        return {"image": 0, "script": 0, "thumbnail": 0}
+
+
 # ===========================================
 # API: 이미지 스타일 프리셋 관리
 # ===========================================
@@ -352,46 +440,8 @@ class StylePreset(BaseModel):
 @router.get("/style-presets")
 async def get_style_presets_api(mode: Optional[str] = None):
     """이미지 스타일 프리셋 조회. mode=image|blog|all 필터 가능"""
+    _sync_style_presets_from_supabase_best_effort()
     presets = db.get_style_presets()
-
-    # DB가 비어있으면 Supabase에서 자동 동기화 시도
-    if not presets:
-        supabase_url = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
-        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        if supabase_url and supabase_key:
-            try:
-                import requests as _requests, urllib3
-                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-                headers = {"apikey": supabase_key, "Authorization": f"Bearer {supabase_key}"}
-                r = _requests.get(f"{supabase_url.rstrip('/')}/rest/v1/style_presets?select=*",
-                                  headers=headers, timeout=8, verify=False)
-                if r.status_code == 200:
-                    for p in r.json():
-                        ptype = p.get("preset_type", "image")
-                        key = p.get("key_code")
-                        prompt = p.get("prompt_template")
-                        if not key or not prompt:
-                            continue
-                        if ptype == "image":
-                            db.save_style_preset(key, prompt,
-                                image_url=p.get("image_url"),
-                                gemini_instruction=p.get("gemini_instruction"),
-                                mode="all",
-                                display_name_ko=p.get("display_name_ko"),
-                                display_name_vi=p.get("display_name_vi"))
-                        elif ptype == "script":
-                            db.save_script_style_preset(key, prompt,
-                                display_name_ko=p.get("display_name_ko"),
-                                display_name_vi=p.get("display_name_vi"))
-                        elif ptype == "thumbnail":
-                            db.save_thumbnail_style_preset(key, prompt,
-                                image_url=p.get("image_url"),
-                                display_name_ko=p.get("display_name_ko"),
-                                display_name_vi=p.get("display_name_vi"))
-                    presets = db.get_style_presets()
-                    print(f"[Auto-sync] Pulled {len(presets)} style presets from Supabase")
-            except Exception as _e:
-                print(f"[Auto-sync] Failed to pull from Supabase: {_e}")
 
     # Supabase도 없을 때만 하드코딩 fallback 적용
     if not presets:
@@ -533,84 +583,11 @@ async def delete_style_preset(style_key: str):
 async def sync_presets_from_supabase():
     _require_advanced_settings_access()
     """Supabase style_presets 테이블로부터 최신 프리셋 데이터를 로컬 SQLite에 동기화"""
-    import requests
-    supabase_url = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
-    supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    if not supabase_url or not supabase_key:
-        raise HTTPException(status_code=400, detail="Supabase credentials missing on local environment")
-
-    headers = {
-        "apikey": supabase_key,
-        "Authorization": f"Bearer {supabase_key}"
+    counts = _sync_style_presets_from_supabase_best_effort(require_credentials=True)
+    return {
+        "status": "ok",
+        "message": f"동기화 완료: 이미지 {counts['image']}개, 대본 {counts['script']}개, 썸네일 {counts['thumbnail']}개"
     }
-    
-    import urllib3
-    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-    
-    url = f"{supabase_url.rstrip('/')}/rest/v1/style_presets?select=*"
-    try:
-        r = requests.get(url, headers=headers, timeout=10, verify=False)
-        if r.status_code != 200:
-            raise HTTPException(status_code=500, detail=f"Supabase request failed: {r.text}")
-        
-        supabase_presets = r.json()
-        
-        # 이미지 스타일만 완전 교체: 기존 로컬 데이터 먼저 삭제
-        image_presets_in_supabase = [p for p in supabase_presets if p.get("preset_type") == "image"]
-        if image_presets_in_supabase:
-            db.clear_all_style_presets()
-        
-        image_count = 0
-        script_count = 0
-        thumb_count = 0
-        
-        for preset in supabase_presets:
-            ptype = preset.get("preset_type")
-            key = preset.get("key_code")
-            p_val = preset.get("prompt_template")
-            inst = preset.get("gemini_instruction")
-            img = preset.get("image_url")
-            name_ko = preset.get("display_name_ko")
-            name_vi = preset.get("display_name_vi")
-            
-            if not key or not p_val:
-                continue
-                
-            if ptype == "image":
-                db.save_style_preset(
-                    style_key=key,
-                    prompt_value=p_val,
-                    image_url=img,
-                    gemini_instruction=inst,
-                    mode="all",
-                    display_name_ko=name_ko,
-                    display_name_vi=name_vi
-                )
-                image_count += 1
-            elif ptype == "script":
-                db.save_script_style_preset(
-                    style_key=key,
-                    prompt_value=p_val,
-                    display_name_ko=name_ko,
-                    display_name_vi=name_vi
-                )
-                script_count += 1
-            elif ptype == "thumbnail":
-                db.save_thumbnail_style_preset(
-                    style_key=key,
-                    prompt_value=p_val,
-                    image_url=img,
-                    display_name_ko=name_ko,
-                    display_name_vi=name_vi
-                )
-                thumb_count += 1
-                
-        return {
-            "status": "ok",
-            "message": f"동기화 완료: 이미지 {image_count}개, 대본 {script_count}개, 썸네일 {thumb_count}개"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Sync error: {str(e)}")
 
 @router.get("/script-style-presets")
 async def get_script_style_presets_api(detailed: Optional[bool] = None):
