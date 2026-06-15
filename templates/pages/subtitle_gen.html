@@ -3336,6 +3336,8 @@
                 // 텍스트를 2줄 청크로 분할
                 const chunks = splitTextToChunks(text, maxCharsPerLine, maxLines);
 
+                const translationChunks = splitCompanionTextByReferenceChunks(sub.text_vi || "", chunks);
+
                 if (chunks.length <= 1) {
                     // 이미 짧은 자막은 그대로
                     newSubtitles.push({ ...sub });
@@ -3346,7 +3348,9 @@
 
                     for (let i = 0; i < chunks.length; i++) {
                         newSubtitles.push({
+                            ...sub,
                             text: chunks[i],
+                            text_vi: translationChunks[i] || "",
                             start: parseFloat((sub.start + (i * chunkDuration)).toFixed(2)),
                             end: parseFloat((sub.start + ((i + 1) * chunkDuration)).toFixed(2))
                         });
@@ -3546,6 +3550,61 @@
         return chunks;
     }
 
+    function splitCompanionTextByReferenceChunks(text, referenceChunks) {
+        const source = (text || "").replace(/\s+/g, " ").trim();
+        const chunkCount = Array.isArray(referenceChunks) ? referenceChunks.length : 0;
+        if (chunkCount <= 0) return [];
+        if (!source) return new Array(chunkCount).fill("");
+        if (chunkCount === 1) return [source];
+
+        const referenceLengths = referenceChunks.map(chunk => Math.max(1, String(chunk || "").replace(/\s+/g, "").length));
+        const referenceTotal = referenceLengths.reduce((sum, len) => sum + len, 0) || chunkCount;
+        const result = [];
+
+        if (!source.includes(" ")) {
+            let cursor = 0;
+            let cumulativeRef = 0;
+            for (let i = 0; i < chunkCount - 1; i++) {
+                cumulativeRef += referenceLengths[i];
+                const nextPos = Math.max(cursor, Math.round(source.length * cumulativeRef / referenceTotal));
+                result.push(source.slice(cursor, nextPos).trim());
+                cursor = nextPos;
+            }
+            result.push(source.slice(cursor).trim());
+            return result;
+        }
+
+        const words = source.split(/\s+/);
+        const totalWordChars = words.reduce((sum, word) => sum + word.length, 0);
+        let wordIndex = 0;
+        let consumedRef = 0;
+        let consumedWordChars = 0;
+
+        for (let i = 0; i < chunkCount - 1; i++) {
+            consumedRef += referenceLengths[i];
+            const targetChars = totalWordChars * consumedRef / referenceTotal;
+            const segmentWords = [];
+
+            while (wordIndex < words.length) {
+                const word = words[wordIndex];
+                const beforeDist = Math.abs(targetChars - consumedWordChars);
+                const afterDist = Math.abs(targetChars - (consumedWordChars + word.length));
+                const mustTakeOne = segmentWords.length === 0;
+
+                if (!mustTakeOne && beforeDist <= afterDist) break;
+
+                segmentWords.push(word);
+                consumedWordChars += word.length;
+                wordIndex += 1;
+            }
+
+            result.push(segmentWords.join(" ").trim());
+        }
+
+        result.push(words.slice(wordIndex).join(" ").trim());
+        return result;
+    }
+
     // [NEW] Auto-split subtitles if any are too long (called on load)
     function autoSplitSubtitlesIfNeeded() {
         if (subtitles.length === 0) return;
@@ -3579,6 +3638,8 @@
 
             const chunks = splitTextToChunks(text, maxCharsPerLine, maxLines);
 
+            const translationChunks = splitCompanionTextByReferenceChunks(sub.text_vi || "", chunks);
+
             if (chunks.length <= 1) {
                 newSubtitles.push({ ...sub });
             } else {
@@ -3587,7 +3648,9 @@
 
                 for (let i = 0; i < chunks.length; i++) {
                     newSubtitles.push({
+                        ...sub,
                         text: chunks[i],
+                        text_vi: translationChunks[i] || "",
                         start: parseFloat((sub.start + (i * chunkDuration)).toFixed(2)),
                         end: parseFloat((sub.start + ((i + 1) * chunkDuration)).toFixed(2))
                     });
