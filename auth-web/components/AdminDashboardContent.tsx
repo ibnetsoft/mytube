@@ -105,6 +105,7 @@ export default function AdminDashboardContent() {
     const [newCatScriptStyle, setNewCatScriptStyle] = useState('default')
     const [newCatImageStyle, setNewCatImageStyle] = useState('realistic')
     const [generatingCatId, setGeneratingCatId] = useState<number | null>(null)
+    const [generatedTopicsByCat, setGeneratedTopicsByCat] = useState<Record<number, string[]>>({})
 
     // Style Presets state
     const [stylePresets, setStylePresets] = useState<any[]>([])
@@ -338,6 +339,8 @@ export default function AdminDashboardContent() {
             })
             const data = await res.json()
             if (data.success) {
+                const generatedTopics = Array.isArray(data.topics) ? data.topics.map((topic: any) => String(topic)).slice(0, 10) : []
+                setGeneratedTopicsByCat(prev => ({ ...prev, [catId]: generatedTopics }))
                 fetchTopics()
                 alert(`AI가 새로운 세부 영상 주제 ${data.count}개를 성공적으로 생성하여 큐에 추가했습니다!`)
             } else {
@@ -1366,6 +1369,10 @@ export default function AdminDashboardContent() {
                                     {categories.map((cat) => {
                                         const pendingTopics = topics.filter(t => t.category_id === cat.id && t.status === 'pending');
                                         const completedTopics = topics.filter(t => t.category_id === cat.id && t.status === 'completed');
+                                        const previewTopics = generatedTopicsByCat[cat.id]?.length
+                                            ? generatedTopicsByCat[cat.id]
+                                            : pendingTopics.slice(0, 10).map(t => t.topic);
+                                        const isFreshPreview = Boolean(generatedTopicsByCat[cat.id]?.length);
 
                                         return (
                                             <div key={cat.id} className="bg-black/40 border border-white/10 rounded-3xl p-6 relative flex flex-col justify-between hover:border-indigo-500/50 transition-all">
@@ -1399,6 +1406,25 @@ export default function AdminDashboardContent() {
                                                 >
                                                     {generatingCatId === cat.id ? '🤖 AI 주제 분석 발굴 중...' : '🔮 AI 주제 자판기 생성 (10개)'}
                                                 </button>
+
+                                                {previewTopics.length > 0 && (
+                                                    <div className="mt-4 rounded-2xl border border-indigo-500/20 bg-indigo-950/20 p-4">
+                                                        <div className="mb-3 flex items-center justify-between gap-2">
+                                                            <p className="text-[11px] font-black text-indigo-300">
+                                                                {isFreshPreview ? '방금 생성된 주제 10개' : '대기 중 주제 미리보기'}
+                                                            </p>
+                                                            <span className="text-[10px] font-bold text-gray-500">{previewTopics.length}개</span>
+                                                        </div>
+                                                        <ol className="space-y-2 text-[11px] leading-relaxed text-gray-200">
+                                                            {previewTopics.slice(0, 10).map((topic, idx) => (
+                                                                <li key={`${cat.id}-topic-preview-${idx}`} className="flex gap-2">
+                                                                    <span className="shrink-0 font-black text-indigo-400">{idx + 1}.</span>
+                                                                    <span className="break-words">{topic}</span>
+                                                                </li>
+                                                            ))}
+                                                        </ol>
+                                                    </div>
+                                                )}
                                             </div>
                                         )
                                     })}
