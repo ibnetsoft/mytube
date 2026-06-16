@@ -88,6 +88,7 @@ export default function DashboardContent() {
     const [loading, setLoading] = useState(true)
     const [users, setUsers] = useState<UserProfile[]>([])
     const [publishingRequests, setPublishingRequests] = useState<PublishingRequest[]>([])
+    const [publishingFilter, setPublishingFilter] = useState<'all' | 'pending' | 'processing' | 'published' | 'failed' | 'invalid'>('all')
     const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'api' | 'render-queue' | 'styles'>('topics')
     const [renderQueue, setRenderQueue] = useState<any[]>([])
     const [queueLoading, setQueueLoading] = useState(false)
@@ -370,6 +371,99 @@ export default function DashboardContent() {
             }
         } catch (e) { alert('오류 발생'); }
     }
+
+    const renderPublishingActionPanel = (req: PublishingRequest) => {
+        const meta = req.metadata || {}
+        const quickLinks = [
+            { label: 'YouTube', href: meta.youtube_url || (meta.videoId ? `https://youtu.be/${meta.videoId}` : null), tone: 'blue' },
+            { label: 'Drive', href: meta.drive_folder_link, tone: 'gray' },
+            { label: 'Thumb', href: meta.drive_thumbnail_link, tone: 'gray' },
+            { label: 'JSON', href: meta.drive_metadata_link, tone: 'gray' },
+        ].filter(item => item.href)
+
+        const toneClass = (tone: string) =>
+            tone === 'blue'
+                ? 'bg-blue-600/20 text-blue-300 border-blue-500/20 hover:bg-blue-600/30'
+                : 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10 hover:text-white'
+
+        return (
+            <div className="max-w-[280px] w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-3">
+                <div className="text-[9px] font-black uppercase tracking-[0.28em] text-gray-500 text-left mb-2">
+                    {isKor ? '빠른 바로가기' : 'Quick Access'}
+                </div>
+                <div className="mb-3 flex justify-end">
+                    {req.status === 'pending' && !req.metadata?.is_invalid_request && (
+                        <button
+                            onClick={() => handlePublishVideo(req.id)}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black rounded-xl shadow-lg transition-all uppercase tracking-widest"
+                        >
+                            {isKor ? '발행 시작' : 'Publish'}
+                        </button>
+                    )}
+                    {req.status === 'pending' && req.metadata?.is_invalid_request && (
+                        <span className="px-4 py-2 bg-red-500/10 text-red-300 text-[10px] font-black rounded-xl border border-red-500/20 inline-block uppercase tracking-widest">
+                            PROJECT ID MISSING
+                        </span>
+                    )}
+                    {req.status === 'published' && req.metadata?.drive_folder_link && (
+                        <a
+                            href={req.metadata.drive_folder_link}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white text-[10px] font-black rounded-xl border border-white/10 transition-all uppercase tracking-widest inline-block"
+                        >
+                            {isKor ? '백업 확인' : 'Backup'}
+                        </a>
+                    )}
+                </div>
+                {quickLinks.length > 0 ? (
+                    <div className="flex flex-wrap gap-2 justify-end">
+                        {quickLinks.map(item => (
+                            <a
+                                key={`${req.id}-${item.label}-quick`}
+                                href={item.href}
+                                target="_blank"
+                                rel="noreferrer"
+                                className={`px-3 py-1.5 text-[10px] font-black rounded-xl border transition-all ${toneClass(item.tone)}`}
+                            >
+                                {item.label}
+                            </a>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-[10px] font-bold text-gray-600 text-left">{isKor ? '연결된 자산이 없습니다.' : 'No linked assets'}</div>
+                )}
+            </div>
+        )
+    }
+
+    const getPublishingStatusMeta = (req: PublishingRequest) => {
+        if (req.metadata?.is_invalid_request) return { label: 'INVALID', className: 'bg-red-500/10 text-red-400 border-red-500/20' }
+        if (req.status === 'published') return { label: isKor ? '업로드 완료' : 'Published', className: 'bg-green-500/10 text-green-400 border-green-500/20' }
+        if (req.status === 'to_be_published') return { label: isKor ? '업로드 진행 중' : 'Publishing', className: 'bg-blue-500/10 text-blue-400 border-blue-500/20' }
+        if (req.status === 'failed') return { label: isKor ? '업로드 실패' : 'Failed', className: 'bg-red-500/10 text-red-400 border-red-500/20' }
+        if (req.status === 'rejected') return { label: isKor ? '제외됨' : 'Rejected', className: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20' }
+        return { label: isKor ? '대기 중' : 'Pending', className: 'bg-orange-500/10 text-orange-400 border-orange-500/20' }
+    }
+
+    const publishingSummary = useMemo(() => {
+        return publishingRequests.reduce((acc, req) => {
+            acc.total += 1
+            if (req.metadata?.is_invalid_request) acc.invalid += 1
+            else if (req.status === 'published') acc.published += 1
+            else if (req.status === 'to_be_published') acc.processing += 1
+            else if (req.status === 'failed') acc.failed += 1
+            else acc.pending += 1
+            return acc
+        }, { total: 0, pending: 0, processing: 0, published: 0, failed: 0, invalid: 0 })
+    }, [publishingRequests])
+
+    const filteredPublishingRequests = useMemo(() => {
+        if (publishingFilter === 'all') return publishingRequests
+        if (publishingFilter === 'invalid') return publishingRequests.filter(req => Boolean(req.metadata?.is_invalid_request))
+        if (publishingFilter === 'processing') return publishingRequests.filter(req => req.status === 'to_be_published')
+        return publishingRequests.filter(req => req.status === publishingFilter)
+    }, [publishingRequests, publishingFilter])
 
     const calcGeneralStats = (logs: any[], days: number) => {
         const coreTasks = ['video', 'image', 'script', 'text_gen', 'vision_gen', 'test_after_fix'];
@@ -1328,26 +1422,156 @@ export default function DashboardContent() {
                                     <div className="px-10 py-6 border-b border-white/5 bg-black/20 flex justify-between items-center">
                                         <h3 className="text-[10px] font-black text-blue-500 uppercase tracking-[0.4em]">승인 대기 및 등록된 영상</h3>
                                     </div>
+                                    <div className="px-10 py-6 border-b border-white/5 bg-white/[0.02]">
+                                        <div className="grid grid-cols-2 xl:grid-cols-6 gap-3">
+                                            <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                                                <div className="text-[10px] font-black uppercase tracking-widest text-gray-500">Total</div>
+                                                <div className="mt-1 text-2xl font-black text-white tabular-nums">{publishingSummary.total}</div>
+                                            </div>
+                                            <div className="rounded-2xl border border-orange-500/20 bg-orange-500/5 px-4 py-3">
+                                                <div className="text-[10px] font-black uppercase tracking-widest text-orange-300">{isKor ? '대기' : 'Pending'}</div>
+                                                <div className="mt-1 text-2xl font-black text-orange-300 tabular-nums">{publishingSummary.pending}</div>
+                                            </div>
+                                            <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 px-4 py-3">
+                                                <div className="text-[10px] font-black uppercase tracking-widest text-blue-300">{isKor ? '진행 중' : 'Publishing'}</div>
+                                                <div className="mt-1 text-2xl font-black text-blue-300 tabular-nums">{publishingSummary.processing}</div>
+                                            </div>
+                                            <div className="rounded-2xl border border-green-500/20 bg-green-500/5 px-4 py-3">
+                                                <div className="text-[10px] font-black uppercase tracking-widest text-green-300">{isKor ? '완료' : 'Published'}</div>
+                                                <div className="mt-1 text-2xl font-black text-green-300 tabular-nums">{publishingSummary.published}</div>
+                                            </div>
+                                            <div className="rounded-2xl border border-red-500/20 bg-red-500/5 px-4 py-3">
+                                                <div className="text-[10px] font-black uppercase tracking-widest text-red-300">{isKor ? '실패' : 'Failed'}</div>
+                                                <div className="mt-1 text-2xl font-black text-red-300 tabular-nums">{publishingSummary.failed}</div>
+                                            </div>
+                                            <div className="rounded-2xl border border-zinc-500/20 bg-zinc-500/5 px-4 py-3">
+                                                <div className="text-[10px] font-black uppercase tracking-widest text-zinc-300">Invalid</div>
+                                                <div className="mt-1 text-2xl font-black text-zinc-300 tabular-nums">{publishingSummary.invalid}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="px-10 py-5 border-b border-white/5 bg-black/10 flex flex-wrap gap-2">
+                                        {[
+                                            { key: 'all', label: isKor ? '전체' : 'All', count: publishingSummary.total },
+                                            { key: 'pending', label: isKor ? '대기' : 'Pending', count: publishingSummary.pending },
+                                            { key: 'processing', label: isKor ? '진행 중' : 'Publishing', count: publishingSummary.processing },
+                                            { key: 'published', label: isKor ? '완료' : 'Published', count: publishingSummary.published },
+                                            { key: 'failed', label: isKor ? '실패' : 'Failed', count: publishingSummary.failed },
+                                            { key: 'invalid', label: 'Invalid', count: publishingSummary.invalid },
+                                        ].map(item => (
+                                            <button
+                                                key={item.key}
+                                                onClick={() => setPublishingFilter(item.key as typeof publishingFilter)}
+                                                className={`px-4 py-2 rounded-xl text-[10px] font-black border transition-all ${
+                                                    publishingFilter === item.key
+                                                        ? 'bg-blue-600 text-white border-blue-500 shadow-lg'
+                                                        : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10 hover:text-white'
+                                                }`}
+                                            >
+                                                {item.label} <span className="ml-1 tabular-nums">{item.count}</span>
+                                            </button>
+                                        ))}
+                                        <div className="ml-auto self-center text-[11px] font-bold text-gray-500">
+                                            {isKor
+                                                ? `현재 ${filteredPublishingRequests.length}건 표시 중`
+                                                : `Showing ${filteredPublishingRequests.length} requests`}
+                                        </div>
+                                    </div>
                                     <table className="w-full text-left">
                                         <thead className="bg-black/30 border-b border-white/5 text-[10px] font-black text-gray-500 uppercase tracking-widest">
-                                            <tr><th className="px-10 py-6">영상 정보 / 소유자</th><th className="px-10 py-6 text-center">유튜브 ID</th><th className="px-10 py-6 text-center">등록일시</th><th className="px-10 py-6 text-center">상태</th><th className="px-10 py-6 text-right">관리</th></tr>
+                                            <tr><th className="px-10 py-6">영상 정보 / 소유자</th><th className="px-10 py-6 text-center">유튜브 ID</th><th className="px-10 py-6 text-center">등록일시</th><th className="px-10 py-6 text-center">상태</th><th className="px-10 py-6 text-right">관리 / Drive 자산</th></tr>
                                         </thead>
                                         <tbody className="divide-y divide-white/5">
-                                            {publishingRequests.length === 0 ? (
+                                            {filteredPublishingRequests.length === 0 ? (
                                                 <tr><td colSpan={5} className="px-10 py-20 text-center text-gray-600 font-bold uppercase tracking-widest italic">등록된 영상이 없습니다.</td></tr>
                                             ) : (
-                                                publishingRequests.map(req => {
+                                                filteredPublishingRequests.map(req => {
                                                     const owner = users?.find(u => u.id === req.user_id);
+                                                    const statusMeta = getPublishingStatusMeta(req);
                                                     return (
                                                         <tr key={req.id} className="hover:bg-white/[0.03] transition-colors group">
                                                             <td className="px-10 py-6">
-                                                                <div className="font-black text-white text-base group-hover:text-blue-400 transition-colors uppercase tracking-tight">{req.metadata?.title || 'Untitled Video'}</div>
-                                                                <div className="text-[11px] text-gray-600 font-bold mt-1 uppercase italic tracking-tighter">{owner?.email || req.user_id || 'Unknown User'}</div>
+                                                                <div className="flex items-start gap-4">
+                                                                    {req.metadata?.drive_thumbnail_preview_url ? (
+                                                                        <img
+                                                                            src={req.metadata.drive_thumbnail_preview_url}
+                                                                            alt={req.metadata?.title || 'thumbnail'}
+                                                                            className="w-28 h-16 rounded-xl object-cover border border-white/10 bg-black/20 shrink-0"
+                                                                        />
+                                                                    ) : (
+                                                                        <div className="w-28 h-16 rounded-xl border border-dashed border-white/10 bg-black/20 shrink-0 flex items-center justify-center text-[10px] text-gray-600 font-bold">
+                                                                            NO THUMB
+                                                                        </div>
+                                                                    )}
+                                                                    <div className="min-w-0">
+                                                                        <div className="font-black text-white text-base group-hover:text-blue-400 transition-colors tracking-tight break-words">{req.metadata?.title || 'Untitled Video'}</div>
+                                                                        <div className="text-[11px] text-gray-600 font-bold mt-1 tracking-tight break-all">{owner?.email || req.user_id || 'Unknown User'}</div>
+                                                                        {req.metadata?.description && (
+                                                                            <div className="mt-2 text-[11px] leading-5 text-gray-400 line-clamp-2 break-words">
+                                                                                {req.metadata.description}
+                                                                            </div>
+                                                                        )}
+                                                                        <div className="mt-2 flex flex-wrap gap-2">
+                                                                            {req.metadata?.project_name && (
+                                                                                <span className="px-2 py-1 rounded-full bg-white/5 border border-white/10 text-[9px] font-black text-gray-300">
+                                                                                    프로젝트: {req.metadata.project_name}
+                                                                                </span>
+                                                                            )}
+                                                                            {req.metadata?.topic && (
+                                                                                <span className="px-2 py-1 rounded-full bg-white/5 border border-white/10 text-[9px] font-black text-gray-300">
+                                                                                    주제: {req.metadata.topic}
+                                                                                </span>
+                                                                            )}
+                                                                            {req.metadata?.has_drive_bundle && (
+                                                                                <span className="px-2 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-[9px] font-black text-blue-300">
+                                                                                    DRIVE BUNDLE
+                                                                                </span>
+                                                                            )}
+                                                                            <span className={`px-2 py-1 rounded-full border text-[9px] font-black ${statusMeta.className}`}>
+                                                                                {statusMeta.label}
+                                                                            </span>
+                                                                        </div>
+                                                                        {req.metadata?.publish_error && (
+                                                                            <div className="mt-2 text-[11px] font-semibold text-red-300 break-all">
+                                                                                {req.metadata.publish_error}
+                                                                            </div>
+                                                                        )}
+                                                                        {req.metadata?.published_at && (
+                                                                            <div className="mt-2 text-[10px] font-bold text-green-300">
+                                                                                Published: {new Date(req.metadata.published_at).toLocaleString()}
+                                                                            </div>
+                                                                        )}
+                                                                        {req.metadata?.failed_at && (
+                                                                            <div className="mt-2 text-[10px] font-bold text-red-300">
+                                                                                Failed: {new Date(req.metadata.failed_at).toLocaleString()}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
                                                             </td>
-                                                            <td className="px-10 py-6 text-center"><a href={`https://youtu.be/${req.metadata?.videoId}`} target="_blank" className="text-[11px] font-black text-blue-500 hover:underline">{req.metadata?.videoId || '-'}</a></td>
+                                                            <td className="px-10 py-6 text-center">
+                                                                {req.metadata?.youtube_url || req.metadata?.videoId ? (
+                                                                    <a
+                                                                        href={req.metadata?.youtube_url || `https://youtu.be/${req.metadata?.videoId}`}
+                                                                        target="_blank"
+                                                                        rel="noreferrer"
+                                                                        className="text-[11px] font-black text-blue-500 hover:underline"
+                                                                    >
+                                                                        {req.metadata?.videoId || (isKor ? '열기' : 'Open')}
+                                                                    </a>
+                                                                ) : (
+                                                                    <span className="text-[11px] font-black text-gray-600">-</span>
+                                                                )}
+                                                            </td>
                                                             <td className="px-10 py-6 text-center text-[12px] font-black text-gray-500">{new Date(req.created_at).toLocaleString()}</td>
-                                                            <td className="px-10 py-6 text-center"><span className={`px-3 py-1 text-[9px] font-black rounded-full border uppercase tracking-widest ${req.status === 'published' ? 'bg-green-500/10 text-green-500 border-green-500/20' : req.status === 'pending' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' : req.status === 'to_be_published' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>{req.status === 'pending' ? '대기 중 (비공개)' : req.status === 'to_be_published' ? '공개 전환 중' : req.status.toUpperCase()}</span></td>
-                                                            <td className="px-10 py-6 text-right">{req.status === 'pending' && (<button onClick={() => handlePublishVideo(req.id)} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black rounded-2xl shadow-lg transition-all uppercase tracking-widest">공개로 전환</button>)}{req.status === 'published' && req.metadata?.driveLink && (<a href={req.metadata.driveLink} target="_blank" className="px-6 py-2.5 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white text-[10px] font-black rounded-2xl border border-white/10 transition-all uppercase tracking-widest inline-block">백업 확인</a>)}</td>
+                                                            <td className="px-10 py-6 text-center">
+                                                                <span className={`px-3 py-1 text-[9px] font-black rounded-full border uppercase tracking-widest ${statusMeta.className}`}>
+                                                                    {statusMeta.label}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-10 py-6 text-right space-y-3">
+                                                                {renderPublishingActionPanel(req)}
+                                                            </td>
                                                         </tr>
                                                     );
                                                 })

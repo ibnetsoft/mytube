@@ -16,6 +16,31 @@ from services.remote_render_service import package_project_assets
 class RemoteDriveRenderService:
     """Google Drive API + Supabase queue entrypoint for remote rendering."""
 
+    def _load_remote_drive_settings(self):
+        """Ensure Drive API render settings saved in web-admin are available locally."""
+        if getattr(config, "REMOTE_RENDER_DRIVE_FOLDER_ID", "") and getattr(config, "REMOTE_RENDER_GOOGLE_TOKEN_PATH", ""):
+            return
+        try:
+            config.load_remote_keys_from_supabase()
+        except Exception:
+            pass
+
+    def _get_drive_folder_id(self):
+        self._load_remote_drive_settings()
+        return (
+            db.get_global_setting("remote_render_drive_folder_id", "")
+            or getattr(config, "REMOTE_RENDER_DRIVE_FOLDER_ID", "")
+            or None
+        )
+
+    def _get_google_token_path(self):
+        self._load_remote_drive_settings()
+        return (
+            db.get_global_setting("remote_render_google_token_path", "")
+            or getattr(config, "REMOTE_RENDER_GOOGLE_TOKEN_PATH", "")
+            or None
+        )
+
     def _supabase_headers(self):
         key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
         if not key:
@@ -114,11 +139,7 @@ class RemoteDriveRenderService:
         local_path = os.path.join(output_dir, filename)
 
         if not os.path.exists(local_path):
-            token_path = (
-                db.get_global_setting("remote_render_google_token_path", "")
-                or getattr(config, "REMOTE_RENDER_GOOGLE_TOKEN_PATH", "")
-                or None
-            )
+            token_path = self._get_google_token_path()
             downloaded = google_drive_service.download_file(row["result_file_id"], local_path, token_path=token_path)
             if not downloaded:
                 raise RuntimeError("Failed to download completed remote render result from Google Drive.")
@@ -135,16 +156,8 @@ class RemoteDriveRenderService:
         if not project:
             raise ValueError(f"Project not found: {project_id}")
 
-        folder_id = (
-            db.get_global_setting("remote_render_drive_folder_id", "")
-            or getattr(config, "REMOTE_RENDER_DRIVE_FOLDER_ID", "")
-            or None
-        )
-        token_path = token_path or (
-            db.get_global_setting("remote_render_google_token_path", "")
-            or getattr(config, "REMOTE_RENDER_GOOGLE_TOKEN_PATH", "")
-            or None
-        )
+        folder_id = self._get_drive_folder_id()
+        token_path = token_path or self._get_google_token_path()
         task_id = str(uuid.uuid4())
         zip_path = None
 

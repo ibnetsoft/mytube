@@ -31,7 +31,7 @@ class RenderRequest(BaseModel):
     use_subtitles: bool = True
     resolution: str = "1080p"  # 1080p or 720p
     aspect_ratio: Optional[str] = None # [NEW] Manual aspect ratio override (16:9, 9:16)
-    render_target: Optional[str] = "local" # local, remote, or drive_api
+    render_target: Optional[str] = "local" # local or drive_api
     remote_url: Optional[str] = None
 
 
@@ -975,22 +975,6 @@ async def render_project_video(
                 "asset_file_id": (result.get("drive_file") or {}).get("id"),
             }
 
-        if request.render_target == "remote" and request.remote_url:
-            db.update_project(project_id, status="remote_rendering")
-            db.update_project_setting(project_id, "remote_render_url", request.remote_url)
-            from services.remote_render_service import trigger_remote_render_flow
-            background_tasks.add_task(
-                trigger_remote_render_flow,
-                project_id,
-                request.remote_url,
-                request.use_subtitles,
-                request.resolution
-            )
-            return {
-                "status": "processing",
-                "message": "원격 GPU 렌더링 서버로 패키지 전송 및 작업이 위임되었습니다."
-            }
-        
         script_data = db.get_script(project_id)
         # [NEW] Aspect Ratio logic (User requested absolute enforcement)
         # 쇼츠모드에서는 무조건 9:16, 롱폼에서는 무조건 16:9

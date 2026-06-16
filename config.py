@@ -109,6 +109,7 @@ class Config:
         valid_keys = {
             'GEMINI_API_KEY', 'YOUTUBE_API_KEY',
             'ELEVENLABS_API_KEY', 'TOPVIEW_API_KEY', 'TOPVIEW_UID',
+            'REMOTE_RENDER_DRIVE_FOLDER_ID', 'REMOTE_RENDER_GOOGLE_TOKEN_PATH',
         }
         loaded = []
         for key_name, value in keys.items():

@@ -76,6 +76,20 @@
                             class="text-gray-900 dark:text-white font-mono"></span></div>
                 </div>
 
+                <div id="driveBundleCard"
+                    class="hidden bg-[#1c2027] p-3 rounded-lg border border-blue-500/20 text-xs text-gray-300">
+                    <div class="flex items-center justify-between gap-2 mb-2">
+                        <div class="font-bold text-blue-300">Google Drive 번들</div>
+                        <div id="driveBundleStatus" class="text-[11px] text-blue-200"></div>
+                    </div>
+                    <div class="space-y-1 text-gray-400">
+                        <div>폴더: <span id="driveBundleFolder" class="text-white break-all"></span></div>
+                        <div>영상: <span id="driveBundleVideo" class="text-white break-all"></span></div>
+                        <div>썸네일: <span id="driveBundleThumbnail" class="text-white break-all"></span></div>
+                        <div>메타데이터: <span id="driveBundleMetadata" class="text-white break-all"></span></div>
+                    </div>
+                </div>
+
                 <div class="flex-1"></div>
 
                 <!-- Actions -->
@@ -111,6 +125,7 @@
 <script>
     let uploadedVideoPath = null;
     let currentVideoFile = null; // Store the original file for cloud upload
+    let driveBundleAvailable = false;
 
     // i18n for JS
     var i18n = {
@@ -127,6 +142,23 @@
         label_rendered_video: "{{ t('label_rendered_video') }}",
         label_uploaded_video: "{{ t('label_uploaded_video') }}"
     };
+
+    function renderDriveBundle(bundle) {
+        const card = document.getElementById('driveBundleCard');
+        if (!bundle || !bundle.available) {
+            driveBundleAvailable = false;
+            card.classList.add('hidden');
+            return;
+        }
+
+        driveBundleAvailable = true;
+        card.classList.remove('hidden');
+        document.getElementById('driveBundleStatus').textContent = '드라이브 자산 사용 가능';
+        document.getElementById('driveBundleFolder').textContent = bundle.folder?.name || '-';
+        document.getElementById('driveBundleVideo').textContent = bundle.video_file?.name || '-';
+        document.getElementById('driveBundleThumbnail').textContent = bundle.thumbnail_file?.name || '-';
+        document.getElementById('driveBundleMetadata').textContent = bundle.metadata_file?.name || '-';
+    }
 
     function handleDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('border-primary', 'bg-[#1c2027]'); }
     function handleDragLeave(e) { e.preventDefault(); e.currentTarget.classList.remove('border-primary', 'bg-[#1c2027]'); }
@@ -194,7 +226,7 @@
 
     async function requestPublish() {
         const projectId = getCurrentProject();
-        if (!uploadedVideoPath) return Utils.showToast("{{ t('toast_no_video_uploaded') }}", 'warning');
+        if (!uploadedVideoPath && !driveBundleAvailable) return Utils.showToast("{{ t('toast_no_video_uploaded') }}", 'warning');
 
         const btn = document.getElementById('requestPublishBtn');
         Utils.setLoading(btn, true, i18n.status_reserving_yt);
@@ -293,7 +325,7 @@
 
     async function uploadToYouTube() {
         const projectId = getCurrentProject();
-        if (!uploadedVideoPath) return Utils.showToast("{{ t('toast_no_video_uploaded') }}", 'warning');
+        if (!uploadedVideoPath && !driveBundleAvailable) return Utils.showToast("{{ t('toast_no_video_uploaded') }}", 'warning');
 
         const btn = document.getElementById('youtubeUploadBtn');
         Utils.setLoading(btn, true, "{{ t('status_uploading') }}");
@@ -329,6 +361,16 @@
             const settings = data.settings || {};
             const metadata = data.metadata || {};
             const hasDesc = !!metadata.description;
+
+            try {
+                const driveRes = await fetch(`/api/projects/${projectId}/drive-bundle?t=${Date.now()}`);
+                const driveData = await driveRes.json();
+                if (driveData.status === 'ok') {
+                    renderDriveBundle(driveData.bundle);
+                }
+            } catch (e) {
+                console.warn('Drive bundle load failed', e);
+            }
 
             // 1. Determine Video Path (Prefer External, then Rendered)
             let videoPath = settings.external_video_path;

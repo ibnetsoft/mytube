@@ -6,12 +6,22 @@ import tempfile
 import time
 import zipfile
 import argparse
+import sys
+import re
 
 import requests
 
 from config import config
 from services.google_drive_service import google_drive_service
 from services.remote_render_service import remote_render_executor_func
+
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 
 
 class RemoteDriveWorker:
@@ -22,7 +32,7 @@ class RemoteDriveWorker:
             print(f"[RemoteDriveWorker] Failed to load web admin settings: {e}")
         self.worker_id = os.getenv("REMOTE_RENDER_WORKER_ID") or f"worker-{os.getpid()}"
         self.poll_interval = int(os.getenv("REMOTE_RENDER_POLL_INTERVAL", "10"))
-        self.use_gpu = os.getenv("USE_GPU_RENDER", "true").lower() == "true"
+        self.use_gpu = os.getenv("USE_GPU_RENDER", "false").lower() == "true"
         self.output_folder_id = os.getenv("REMOTE_RENDER_DRIVE_FOLDER_ID") or getattr(config, "REMOTE_RENDER_DRIVE_FOLDER_ID", "")
         self.google_token_path = os.getenv("REMOTE_RENDER_GOOGLE_TOKEN_PATH") or getattr(config, "REMOTE_RENDER_GOOGLE_TOKEN_PATH", "")
         self.supabase_url = (os.getenv("NEXT_PUBLIC_SUPABASE_URL") or "").rstrip("/")
@@ -101,6 +111,31 @@ class RemoteDriveWorker:
         rows = self._request("PATCH", url, json=fields) or []
         return rows[0] if rows else None
 
+    def _build_result_filename(self, job):
+        project_name = (job.get("project_name") or "").strip()
+        if not project_name:
+            project_name = f"project_{job.get('project_id') or job.get('id')}"
+        safe_name = re.sub(r'[\\\\/:*?\"<>|]+', " ", project_name)
+        safe_name = re.sub(r"\s+", " ", safe_name).strip().rstrip(".")
+        if not safe_name:
+            safe_name = f"project_{job.get('project_id') or job.get('id')}"
+        return f"{safe_name}.mp4"
+
+    def _resolve_result_folder(self, job):
+        email = (job.get("email") or "").strip()
+        if not email:
+            email = "unknown-user"
+        project_name = (job.get("project_name") or "").strip() or f"project_{job.get('project_id') or job.get('id')}"
+        folder = google_drive_service.ensure_project_folder(
+            email,
+            project_name,
+            token_path=self.google_token_path or None,
+            root_folder_id=self.output_folder_id or None,
+        )
+        if not folder or not folder.get("id"):
+            raise RuntimeError(f"Failed to prepare Drive project folder for email/project: {email} / {project_name}")
+        return folder
+
     def process_job(self, job):
         job_id = job["id"]
         asset_file_id = job.get("asset_file_id")
@@ -127,16 +162,64 @@ class RemoteDriveWorker:
                 raise RuntimeError("Render completed but output.mp4 was not found.")
 
             self.update_job(job_id, progress=92, message="Uploading rendered video to Google Drive.")
-            drive_file = google_drive_service.upload_file(
+            result_filename = self._build_result_filename(job)
+            result_folder = self._resolve_result_folder(job)
+            drive_file = google_drive_service.upsert_file(
                 output_path,
                 token_path=self.google_token_path or None,
-                folder_id=self.output_folder_id or None,
+                folder_id=result_folder.get("id"),
+                filename=result_filename,
                 mimetype="video/mp4",
                 description=f"Picadiri remote render result for queue job {job_id}",
                 make_public=False,
             )
             if not drive_file or not drive_file.get("id"):
                 raise RuntimeError("Failed to upload rendered video to Google Drive.")
+
+            thumbnail_file = None
+            thumbnail_filename = None
+            packaged_thumbnail = None
+            project_metadata_file = None
+            config_path = os.path.join(temp_dir, "config.json")
+            if os.path.exists(config_path):
+                with open(config_path, "r", encoding="utf-8") as f_conf:
+                    packaged_config = json.load(f_conf)
+                thumbnail_filename = packaged_config.get("thumbnail_filename")
+                if thumbnail_filename:
+                    packaged_thumbnail = os.path.join(temp_dir, thumbnail_filename)
+                if packaged_thumbnail and os.path.exists(packaged_thumbnail):
+                    thumbnail_file = google_drive_service.upsert_file(
+                        packaged_thumbnail,
+                        token_path=self.google_token_path or None,
+                        folder_id=result_folder.get("id"),
+                        filename=thumbnail_filename,
+                        mimetype="image/png" if thumbnail_filename.lower().endswith(".png") else "image/jpeg",
+                        description=f"Picadiri thumbnail for queue job {job_id}",
+                        make_public=False,
+                    )
+
+                upload_metadata = dict(packaged_config.get("project_upload_metadata") or {})
+                upload_metadata.update({
+                    "employee_email": job.get("email") or upload_metadata.get("employee_email") or "",
+                    "video_file": drive_file.get("name"),
+                    "thumbnail_file": thumbnail_filename,
+                    "drive_folder_id": result_folder.get("id"),
+                    "drive_video_file_id": drive_file.get("id"),
+                    "drive_thumbnail_file_id": (thumbnail_file or {}).get("id") if thumbnail_file else None,
+                    "render_mode": "drive_api",
+                })
+                metadata_path = os.path.join(temp_dir, "metadata.json")
+                with open(metadata_path, "w", encoding="utf-8") as f_meta:
+                    json.dump(upload_metadata, f_meta, ensure_ascii=False, indent=2)
+                project_metadata_file = google_drive_service.upsert_file(
+                    metadata_path,
+                    token_path=self.google_token_path or None,
+                    folder_id=result_folder.get("id"),
+                    filename="metadata.json",
+                    mimetype="application/json",
+                    description=f"Picadiri metadata for queue job {job_id}",
+                    make_public=False,
+                )
 
             self.update_job(
                 job_id,
@@ -145,6 +228,14 @@ class RemoteDriveWorker:
                 message="Remote Drive API render completed.",
                 result_file_id=drive_file.get("id"),
                 result_file_name=drive_file.get("name"),
+                metadata={
+                    **(job.get("metadata") or {}),
+                    "result_folder_id": result_folder.get("id"),
+                    "result_folder_name": result_folder.get("name"),
+                    "result_video_file_id": drive_file.get("id"),
+                    "result_thumbnail_file_id": (thumbnail_file or {}).get("id") if thumbnail_file else None,
+                    "result_metadata_file_id": (project_metadata_file or {}).get("id") if project_metadata_file else None,
+                },
                 completed_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             )
         except Exception as e:

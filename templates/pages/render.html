@@ -31,13 +31,8 @@
             <select id="renderTarget" onchange="toggleRemoteUrl()"
                 class="text-xs border-gray-300 dark:border-gray-600 rounded py-1 bg-[#1c2027]/50 dark:text-white bg-[#1c2027] text-white">
                 <option value="local">{{ t('opt_local_pc') }}</option>
-                <option value="remote">{{ t('opt_remote_gpu') }}</option>
                 <option value="drive_api">Google Drive API</option>
             </select>
-            <div id="remoteUrlContainer" class="hidden flex items-center gap-1">
-                <input type="text" id="remoteUrl" placeholder="{{ t('placeholder_remote_url') }}" 
-                    class="text-xs border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 bg-[#1c2027] text-white w-44">
-            </div>
         </div>
 
         <!-- Render Button -->
@@ -93,18 +88,6 @@
         </div>
     </div>
 
-    {% if membership == 'pro' or is_independent %}
-    <!-- 원격 렌더링 서버 모니터링 패널 (PRO 전용) -->
-    <div class="bg-[#1c2027] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shrink-0">
-        <div class="flex items-center justify-between mb-2">
-            <h4 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">🎬 {{ t('label_remote_monitoring') }}</h4>
-            <button onclick="loadRemoteServerQueue()" class="text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">↻</button>
-        </div>
-        <div id="remoteQueueContainer" class="flex flex-col gap-1.5 max-h-[200px] overflow-y-auto custom-scrollbar text-xs">
-            <div class="text-gray-500 py-2 text-center">{{ t('status_remote_empty') }}</div>
-        </div>
-    </div>
-    {% endif %}
 
             <!-- Project Status Summary -->
             <div class="bg-[#1c2027] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shrink-0">
@@ -256,12 +239,23 @@
         btn_start_selected_render: "{{ t('btn_start_selected_render') }}",
         status_done: "{{ t('status_done') }}",
         toast_batch_render_done_suffix: "{{ t('toast_batch_render_done_suffix') }}",
-        err_enter_remote_url: "{{ t('err_enter_remote_url') }}",
         status_remote_empty: "{{ t('status_remote_empty') }}",
         status_rendering: "{{ t('status_rendering') }}",
         status_waiting: "{{ t('status_waiting') }}",
         label_waiting_order: "{{ t('label_waiting_order') }}"
     };
+
+    function toggleRemoteUrl() {
+        const renderTarget = document.getElementById('renderTarget')?.value || 'local';
+        const remoteUrlContainer = document.getElementById('remoteUrlContainer');
+
+        if (remoteUrlContainer) {
+            remoteUrlContainer.classList.add('hidden');
+        }
+
+        localStorage.setItem('remote_render_target', renderTarget === 'remote' ? 'local' : renderTarget);
+        localStorage.removeItem('remote_render_url');
+    }
 
     document.addEventListener('DOMContentLoaded', async () => {
         // URL 쿼리 파라미터로 넘어온 project_id 처리 (오토파일럿 등)
@@ -271,6 +265,12 @@
 
         const projectId = getCurrentProject();
         if (!projectId) return Utils.showToast("{{ t('toast_select_project_first') }}", 'warning');
+
+        const storedTargetRaw = localStorage.getItem('remote_render_target') || 'local';
+        const storedTarget = storedTargetRaw === 'remote' ? 'local' : storedTargetRaw;
+        const renderTargetSelect = document.getElementById('renderTarget');
+        if (renderTargetSelect) renderTargetSelect.value = storedTarget;
+        toggleRemoteUrl();
 
         try {
             const data = await API.project.getFull(projectId);
@@ -347,14 +347,13 @@
         const resolution = document.getElementById('resolution').value;
         const aspect_ratio = document.getElementById('aspectRatio').value;
         const sub = document.getElementById('useSubtitles').checked;
-        const render_target = localStorage.getItem('remote_render_target') || 'local';
-        const remote_url = localStorage.getItem('remote_render_url') || '';
+        const renderTargetRaw = document.getElementById('renderTarget')?.value || localStorage.getItem('remote_render_target') || 'local';
+        const render_target = renderTargetRaw === 'remote' ? 'local' : renderTargetRaw;
+        const remote_url = '';
         const btn = document.getElementById('renderBtn');
 
-        if (render_target === 'remote' && !remote_url) {
-            Utils.showToast(i18n_render.err_enter_remote_url, "warning");
-            return;
-        }
+        localStorage.setItem('remote_render_target', render_target);
+        localStorage.removeItem('remote_render_url');
 
         Utils.setLoading(btn, true, i18n_render.status_loading_short);
 
@@ -606,8 +605,12 @@
 
         const resolution = document.getElementById('resolution').value;
         const sub = document.getElementById('useSubtitles').checked;
-        const render_target = localStorage.getItem('remote_render_target') || 'local';
-        const remote_url = localStorage.getItem('remote_render_url') || '';
+        const renderTargetRaw = document.getElementById('renderTarget')?.value || localStorage.getItem('remote_render_target') || 'local';
+        const render_target = renderTargetRaw === 'remote' ? 'local' : renderTargetRaw;
+        const remote_url = '';
+
+        localStorage.setItem('remote_render_target', render_target);
+        localStorage.removeItem('remote_render_url');
 
         // Show progress area
         const progressArea = document.getElementById('batchProgressArea');

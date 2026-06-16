@@ -628,20 +628,12 @@
                             <label class="block text-xs text-gray-500 mb-1">
                                 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Vị trí kết xuất{% else %}렌더링 위치{% endif %}
                             </label>
-                            <select id="renderTarget" onchange="toggleRemoteUrl()"
+                            <select id="renderTarget"
                                 class="input-field w-full text-xs bg-[#1c2027] text-white">
-                                <option value="local">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Máy tính cục bộ (Local PC){% else %}로컬 PC{% endif %}</option>
-                                <option value="remote">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Máy chủ GPU từ xa (Remote GPU){% else %}원격 GPU 서버{% endif %}</option>
+                                <option value="local">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}M?y t?nh c?? b??(Local PC){% else %}??? PC{% endif %}</option>
+                                <option value="drive_api">Google Drive API</option>
                             </select>
                         </div>
-                        <div id="remoteUrlContainer" class="hidden">
-                            <label class="block text-xs text-gray-500 mb-1">
-                                {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Địa chỉ máy chủ GPU{% else %}원격 GPU 서버 주소{% endif %}
-                            </label>
-                            <input type="text" id="remoteUrl" placeholder="{{ t('placeholder_remote_url') }}"
-                                class="input-field w-full text-xs">
-                        </div>
-                    </div>
                 </div>
 
             </div>

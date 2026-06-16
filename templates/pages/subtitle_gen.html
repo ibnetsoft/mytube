@@ -337,10 +337,6 @@
                         class="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/5 bg-transparent hover:bg-[#232832] text-white transition-all disabled:opacity-50">
                         {{ t('btn_render') }}
                     </button>
-                    <button id="renderQueueBtn" onclick="addToRenderQueue()" title="{{ t('btn_render_queue') }}"
-                        class="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/5 bg-transparent hover:bg-[#232832] text-white transition-all disabled:opacity-50">
-                        {{ t('btn_render_queue') }}
-                    </button>
                 </div>
             </div>
 
@@ -3179,7 +3175,8 @@
             const renderPayload = {
                 project_id: projectId,
                 use_subtitles: true,
-                resolution: "1080p" // or load from settings
+                resolution: "1080p", // or load from settings
+                render_target: "drive_api"
             };
             // BGM 설정 포함
             if (bgmState.enabled && bgmState.url) {
@@ -3198,7 +3195,7 @@
             });
             const data = await res.json();
 
-            if (data.status === 'processing') {
+            if (data.status === 'processing' || data.status === 'queued') {
                 Utils.showToast(i18n.toast_rendering_started, "info");
                 // Start Polling
                 pollRenderStatus(btn, originalText);
@@ -3209,29 +3206,6 @@
         } catch (e) {
             console.error(e);
             Utils.showToast(i18n.err_render_failed + ": " + e.message, 'error');
-            btn.disabled = false;
-            btn.innerHTML = originalText;
-        }
-    }
-
-    async function addToRenderQueue() {
-        const btn = document.getElementById('renderQueueBtn');
-        const originalText = btn.innerHTML;
-        btn.disabled = true;
-        btn.innerHTML = '⏳ 저장 중...';
-        try {
-            await saveSubtitles(true);
-            const res = await fetch(`/api/project/${projectId}/render-queue`, { method: 'POST' });
-            const data = await res.json();
-            if (data.status === 'ok') {
-                Utils.showToast(i18n.toast_queue_added, 'success');
-                btn.innerHTML = i18n.btn_queue_done;
-                setTimeout(() => { btn.innerHTML = originalText; btn.disabled = false; }, 3000);
-            } else {
-                throw new Error(data.error || i18n.err_queue_add_fail);
-            }
-        } catch (e) {
-            Utils.showToast(i18n.err_queue_add_fail + ': ' + e.message, 'error');
             btn.disabled = false;
             btn.innerHTML = originalText;
         }

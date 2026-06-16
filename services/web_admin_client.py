@@ -91,6 +91,29 @@ class WebAdminClient:
             proxies={"http": None, "https": None},
         )
 
+    def supabase_patch(
+        self,
+        table: str,
+        payload: Dict[str, Any],
+        *,
+        params: Optional[Dict[str, Any]] = None,
+        timeout: Optional[int] = None,
+    ):
+        if not self.has_supabase():
+            return None
+        self._disable_warnings()
+        headers = self.headers(content_type=True)
+        headers["Prefer"] = "return=representation"
+        return requests.patch(
+            f"{self.supabase_url}/rest/v1/{table}",
+            headers=headers,
+            params=params or {},
+            json=payload,
+            timeout=timeout or self.timeout,
+            verify=False,
+            proxies={"http": None, "https": None},
+        )
+
     def fetch_profiles(self, select: str = "*") -> List[Dict[str, Any]]:
         response = self.supabase_get("profiles", params={"select": select}, timeout=5)
         if response is not None and response.status_code == 200:

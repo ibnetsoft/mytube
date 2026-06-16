@@ -28,6 +28,7 @@ import json
 import re
 import datetime
 import aiofiles
+import shutil
 from pathlib import Path
 
 # ==========================================
@@ -67,6 +68,7 @@ from services.replicate_service import replicate_service
 from services.auth_service import auth_service
 from services.storage_service import storage_service
 from services.thumbnail_service import thumbnail_service
+from services.drive_bundle_service import drive_bundle_service
 
 # 공유 헬퍼/상수 — app/utils.py 에서 임포트
 from app.utils import (
@@ -2875,6 +2877,89 @@ def recover_project_assets(project_id: int):
 
 
 
+def _resolve_local_output_asset_path(asset_url_or_path: Optional[str]) -> Optional[str]:
+    if not asset_url_or_path:
+        return None
+    if os.path.isabs(asset_url_or_path) and os.path.exists(asset_url_or_path):
+        return asset_url_or_path
+    if asset_url_or_path.startswith("/output/"):
+        rel = asset_url_or_path.replace("/output/", "", 1).replace("/", os.sep)
+        path = os.path.join(config.OUTPUT_DIR, rel)
+        return path if os.path.exists(path) else None
+    if asset_url_or_path.startswith("/static/"):
+        rel = asset_url_or_path.replace("/static/", "", 1).replace("/", os.sep)
+        path = os.path.join(config.STATIC_DIR, rel)
+        return path if os.path.exists(path) else None
+    if os.path.exists(asset_url_or_path):
+        return asset_url_or_path
+    return None
+
+
+def _resolve_youtube_token_path(settings: Dict[str, Any], requested_channel_id: Optional[int] = None) -> Optional[str]:
+    token_path = None
+    try:
+        target_chan_id = requested_channel_id or settings.get("youtube_channel_id")
+        if target_chan_id:
+            channel = db.get_channel(target_chan_id)
+            if channel and channel.get("credentials_path"):
+                cand_path = channel["credentials_path"]
+                if not os.path.isabs(cand_path):
+                    cand_path = os.path.join(config.BASE_DIR, cand_path)
+                if os.path.exists(cand_path):
+                    token_path = cand_path
+                else:
+                    rec_filename = f"token_{target_chan_id}.pickle"
+                    rec_path = os.path.join(config.BASE_DIR, "tokens", rec_filename)
+                    if os.path.exists(rec_path):
+                        token_path = rec_path
+                        print(f"[YouTube] Recovered token path from tokens directory: {token_path}")
+
+        if not token_path:
+            channels = db.get_all_channels()
+            for ch in channels or []:
+                c_path = ch.get("credentials_path")
+                if not c_path:
+                    continue
+                if not os.path.isabs(c_path):
+                    c_path = os.path.join(config.BASE_DIR, c_path)
+                if os.path.exists(c_path):
+                    token_path = c_path
+                    break
+    except Exception as e:
+        print(f"[YouTube] Channel resolution error: {e}")
+        token_path = None
+    return token_path
+
+
+def _resolve_project_thumbnail_path(project_id: int, settings: Dict[str, Any]) -> Optional[str]:
+    thumb_candidate = settings.get("thumbnail_path") or settings.get("thumbnail_url")
+    return _resolve_local_output_asset_path(thumb_candidate)
+
+
+@app.get("/api/projects/{project_id}/drive-bundle")
+async def get_drive_bundle(project_id: int):
+    try:
+        bundle = drive_bundle_service.get_project_bundle(project_id)
+        return {
+            "status": "ok",
+            "bundle": {
+                "folder": bundle.get("folder"),
+                "video_file": bundle.get("video_file"),
+                "thumbnail_file": bundle.get("thumbnail_file"),
+                "metadata_file": bundle.get("metadata_file"),
+                "metadata_json": bundle.get("metadata_json"),
+                "title": bundle.get("title"),
+                "description": bundle.get("description"),
+                "tags": bundle.get("tags"),
+                "hashtags": bundle.get("hashtags"),
+                "available": bool((bundle.get("video_file") or {}).get("id")),
+            },
+        }
+    except Exception as e:
+        print(f"[DriveBundle] Summary error: {e}")
+        return {"status": "error", "error": str(e)}
+
+
 @app.post("/api/youtube/upload-external/{project_id}")
 async def upload_external_to_youtube(
     project_id: int, 
@@ -2911,6 +2996,123 @@ async def upload_external_to_youtube(
         if requested_privacy == "public":
             print("[Security] Standard user attempted public upload. Forcing private.")
             final_privacy = "private"
+
+    try:
+        from services.project_publish_service import publish_project_to_youtube
+
+        result = publish_project_to_youtube(
+            project_id,
+            requested_privacy=final_privacy,
+            requested_publish_at=final_publish_at,
+            requested_channel_id=requested_channel_id,
+        )
+
+        return {
+            "status": "ok",
+            "video_id": result.get("video_id"),
+            "url": result.get("url"),
+            "upload_source": result.get("upload_source"),
+        }
+    except Exception as shared_publish_error:
+        print(f"[YouTube] Shared publish path failed, falling back to legacy handler: {shared_publish_error}")
+
+    temp_dir_to_cleanup = None
+    try:
+        project = db.get_project(project_id)
+        if not project:
+            raise HTTPException(404, "프로젝트를 찾을 수 없습니다.")
+
+        settings = db.get_project_settings(project_id) or {}
+        metadata = db.get_metadata(project_id) or {}
+
+        video_path = _resolve_local_output_asset_path(settings.get("external_video_path"))
+        upload_source = "external"
+
+        if not video_path:
+            video_path = _resolve_local_output_asset_path(settings.get("video_path"))
+            if video_path:
+                upload_source = "rendered_local"
+
+        drive_assets = None
+        if not video_path:
+            drive_assets = drive_bundle_service.prepare_youtube_upload_assets(project_id)
+            temp_dir_to_cleanup = drive_assets.get("temp_dir")
+            video_path = drive_assets.get("video_path")
+            upload_source = "drive_bundle"
+
+        if not video_path or not os.path.exists(video_path):
+            raise HTTPException(404, "업로드할 영상 파일을 찾을 수 없습니다.")
+
+        from services.youtube_upload_service import youtube_upload_service
+
+        if drive_assets:
+            title = drive_assets.get("title") or project.get("name") or f"Project {project_id}"
+            description = drive_assets.get("description") or ""
+            tags = list(drive_assets.get("tags") or [])
+            hashtags = list(drive_assets.get("hashtags") or [])
+            thumbnail_path = drive_assets.get("thumbnail_path")
+        else:
+            title = (metadata.get("titles") or [project.get("name")])[0]
+            description = metadata.get("description") or settings.get("description") or ""
+            tags = list(metadata.get("tags") or [])
+            hashtags = list(metadata.get("hashtags") or [])
+            thumbnail_path = _resolve_project_thumbnail_path(project_id, settings)
+
+        merged_tags = []
+        for item in tags + hashtags:
+            cleaned = str(item or "").strip()
+            if cleaned and cleaned not in merged_tags:
+                merged_tags.append(cleaned)
+
+        token_path = _resolve_youtube_token_path(settings, requested_channel_id)
+        result = youtube_upload_service.upload_video(
+            file_path=video_path,
+            title=title,
+            description=description,
+            tags=merged_tags[:15],
+            category_id="22",
+            privacy_status=final_privacy,
+            publish_at=final_publish_at,
+            token_path=token_path,
+        )
+
+        if not result or not result.get("id"):
+            raise HTTPException(500, (result or {}).get("error", "YouTube 업로드 실패"))
+
+        video_id = result.get("id")
+
+        if thumbnail_path and os.path.exists(thumbnail_path):
+            try:
+                youtube_upload_service.set_thumbnail(
+                    video_id=video_id,
+                    thumbnail_path=thumbnail_path,
+                    token_path=token_path,
+                )
+            except Exception as thumb_err:
+                print(f"[YouTube] Thumbnail set skipped: {thumb_err}")
+
+        db.update_project_setting(project_id, "youtube_video_id", video_id)
+        db.update_project_setting(project_id, "is_published", 1)
+        db.update_project_setting(project_id, "is_uploaded", 1)
+        db.update_project_setting(project_id, "upload_source", upload_source)
+
+        return {
+            "status": "ok",
+            "video_id": video_id,
+            "url": f"https://www.youtube.com/watch?v={video_id}",
+            "upload_source": upload_source,
+        }
+    except Exception as e:
+        print(f"YouTube upload error: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"status": "error", "error": f"YouTube 업로드 실패: {str(e)}"}
+    finally:
+        if temp_dir_to_cleanup and os.path.isdir(temp_dir_to_cleanup):
+            try:
+                shutil.rmtree(temp_dir_to_cleanup, ignore_errors=True)
+            except Exception:
+                pass
 
     try:
         # 프로젝트 정보 조회
