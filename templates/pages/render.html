@@ -32,6 +32,7 @@
                 class="text-xs border-gray-300 dark:border-gray-600 rounded py-1 bg-[#1c2027]/50 dark:text-white bg-[#1c2027] text-white">
                 <option value="local">{{ t('opt_local_pc') }}</option>
                 <option value="remote">{{ t('opt_remote_gpu') }}</option>
+                <option value="drive_api">Google Drive API</option>
             </select>
             <div id="remoteUrlContainer" class="hidden flex items-center gap-1">
                 <input type="text" id="remoteUrl" placeholder="{{ t('placeholder_remote_url') }}" 
@@ -315,7 +316,7 @@
             }
 
             // Check if rendering
-            if (data.project?.status === 'rendering' || data.project?.status === 'remote_rendering') {
+            if (data.project?.status === 'rendering' || data.project?.status === 'remote_rendering' || data.project?.status === 'remote_packaging' || data.project?.status === 'remote_queued') {
                 startRenderingUI();
                 pollRenderStatus(projectId);
             }
@@ -365,7 +366,7 @@
                 render_target,
                 remote_url
             });
-            if (res.status === 'processing') {
+            if (res.status === 'processing' || res.status === 'queued') {
                 startRenderingUI();
                 pollRenderStatus(projectId);
             } else {
@@ -605,6 +606,8 @@
 
         const resolution = document.getElementById('resolution').value;
         const sub = document.getElementById('useSubtitles').checked;
+        const render_target = localStorage.getItem('remote_render_target') || 'local';
+        const remote_url = localStorage.getItem('remote_render_url') || '';
 
         // Show progress area
         const progressArea = document.getElementById('batchProgressArea');
@@ -622,11 +625,11 @@
                 const res = await fetch(`/api/projects/${pid}/render`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ resolution, useSubtitles: sub })
+                    body: JSON.stringify({ resolution, use_subtitles: sub, useSubtitles: sub, render_target, remote_url })
                 });
                 const data = await res.json();
 
-                if (data.status === 'processing') {
+                if (data.status === 'processing' || data.status === 'queued') {
                     // Poll until done
                     await waitForRender(pid);
                     setQueueItemState(pid, 'done');

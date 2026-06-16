@@ -282,7 +282,10 @@ const API = {
                 body: JSON.stringify({
                     project_id: parseInt(projectId),
                     use_subtitles: options.useSubtitles ?? true,
-                    resolution: options.resolution || "720p"
+                    resolution: options.resolution || "720p",
+                    aspect_ratio: options.aspect_ratio || null,
+                    render_target: options.render_target || "local",
+                    remote_url: options.remote_url || null
                 })
             });
             return response.json();

@@ -281,6 +281,9 @@ function updateModeButtons(activeMode) {
 }
 
 function applyLongformMusicDefaults() {
+    const musicOptions = document.getElementById('longformMusicOptions');
+    if (musicOptions) musicOptions.classList.remove('hidden');
+
     const topicInput = document.getElementById('topicInput');
     if (topicInput && !topicInput.value) {
         topicInput.placeholder = '예: 비 오는 밤에 듣는 잔잔한 로파이 플레이리스트';
@@ -303,6 +306,12 @@ function applyLongformMusicDefaults() {
 
     const characterCheck = document.getElementById('useCharacterAnalysis');
     if (characterCheck) characterCheck.checked = false;
+
+    const trackCount = document.getElementById('musicTrackCount');
+    const durationMinutes = parseInt(document.getElementById('targetDuration')?.value || 60);
+    if (trackCount && (!trackCount.value || Number(trackCount.value) < 1)) {
+        trackCount.value = Math.max(8, Math.round((durationMinutes * 60) / 300));
+    }
 }
 
 function resetTopicPlaceholder() {
@@ -310,6 +319,8 @@ function resetTopicPlaceholder() {
     if (topicInput) {
         topicInput.placeholder = i18n.placeholder_topic_idea || 'Enter a topic idea';
     }
+    const musicOptions = document.getElementById('longformMusicOptions');
+    if (musicOptions) musicOptions.classList.add('hidden');
 }
 
 function setMode(mode) {
@@ -967,6 +978,8 @@ function getAutopilotConfig() {
 
     const creationMode = document.getElementById('creationMode')?.value || 'default';
     const productUrl = document.getElementById('productUrlInput')?.value.trim() || '';
+    const selectedMusicMoods = Array.from(document.querySelectorAll('input[name="musicMood"]:checked'))
+        .map(input => input.value);
 
     if (creationMode === 'default' && !topic) {
         alert(i18n.alert_enter_topic || "Please enter a topic keyword.");
@@ -1018,7 +1031,11 @@ function getAutopilotConfig() {
         config.longform_music = {
             content_type: 'music_playlist',
             playlist_duration_seconds: config.duration_seconds,
-            track_count: Math.max(8, Math.round((config.duration_seconds || 3600) / 300)),
+            genre: document.getElementById('musicGenre')?.value || 'lofi',
+            moods: selectedMusicMoods.length ? selectedMusicMoods : ['calm'],
+            vocal_mode: document.getElementById('musicVocalMode')?.value || 'instrumental',
+            target_language: document.getElementById('musicTargetLanguage')?.value || 'global',
+            track_count: Math.max(1, parseInt(document.getElementById('musicTrackCount')?.value || 0) || Math.max(8, Math.round((config.duration_seconds || 3600) / 300))),
             visual_strategy: 'single_expanded_cover_with_light_motion',
             metadata_strategy: 'global_music_playlist'
         };

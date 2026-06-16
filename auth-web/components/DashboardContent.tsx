@@ -145,7 +145,9 @@ export default function DashboardContent() {
     // 시스템 전역 API 키 및 구글 드라이브 설정
     const [sysKeys, setSysKeys] = useState({ 
         gemini: '', youtube: '', elevenlabs: '', topview: '', topview_uid: '',
-        use_external_render: false, drive_path_ko: '', drive_path_en: '', drive_path_ja: '', drive_active_lang: 'ko'
+        use_external_render: false, drive_path_ko: '', drive_path_en: '', drive_path_ja: '', drive_active_lang: 'ko',
+        remote_render_drive_folder_id: '',
+        remote_render_google_token_path: ''
     })
     const [sysKeysSaving, setSysKeysSaving] = useState(false)
     const [sysKeysSaved, setSysKeysSaved] = useState(false)
@@ -447,7 +449,9 @@ export default function DashboardContent() {
                 drive_path_ko: data.drive_path_ko || '',
                 drive_path_en: data.drive_path_en || '',
                 drive_path_ja: data.drive_path_ja || '',
-                drive_active_lang: data.drive_active_lang || 'ko'
+                drive_active_lang: data.drive_active_lang || 'ko',
+                remote_render_drive_folder_id: data.remote_render_drive_folder_id || '',
+                remote_render_google_token_path: data.remote_render_google_token_path || ''
             });
         } catch (e) { console.error('fetchSysKeys error:', e); }
     }, []);
@@ -1470,12 +1474,14 @@ export default function DashboardContent() {
                 )}
 
                 {activeTab === 'api' && (
-                    <div className="bg-[#0f172a]/20 border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-2xl mx-auto">
+                    <div className="bg-[#0f172a]/20 border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-7xl mx-auto">
                         <div className="px-10 py-6 border-b border-white/5 bg-black/20">
                             <h3 className="text-sm font-black text-gray-400 uppercase tracking-[0.2em]">시스템 전역 API 키</h3>
                             <p className="text-[10px] text-gray-600 mt-1">서버 공용 키 — 개인 키가 없는 유저에게 적용됩니다.</p>
                         </div>
                         <div className="p-10 space-y-6">
+                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 items-start">
+                                <div className="space-y-6">
                             {([
                                 { key: 'gemini', label: '✨ Gemini API Key' },
                                 { key: 'youtube', label: '▶️ YouTube Data API Key' },
@@ -1496,9 +1502,10 @@ export default function DashboardContent() {
                                     />
                                 </div>
                             ))}
+                                </div>
 
                             {/* Google Drive Queue Configuration section */}
-                            <div className="border-t border-white/10 pt-6 mt-6 space-y-4">
+                            <div className="space-y-4 xl:border-l xl:border-white/10 xl:pl-8">
                                 <h4 className="text-xs font-black text-blue-400 uppercase tracking-widest mb-2">📁 구글 드라이브 렌더 대기열 설정</h4>
                                 
                                 <div className="flex items-center gap-3 bg-white/[0.02] p-4 rounded-xl border border-white/5">
@@ -1563,8 +1570,34 @@ export default function DashboardContent() {
                                     </div>
                                 </div>
                             </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-blue-300 uppercase tracking-widest block">Google Drive API Folder ID</label>
+                                <input
+                                    type="text"
+                                    value={sysKeys.remote_render_drive_folder_id}
+                                    onChange={e => setSysKeys(prev => ({ ...prev, remote_render_drive_folder_id: e.target.value }))}
+                                    placeholder="Drive folder ID for remote render asset ZIPs"
+                                    className="w-full bg-black/40 border border-blue-500/20 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300"
+                                />
+                                <p className="text-[10px] text-gray-500">API 방식 원격 렌더링에서 에셋 ZIP을 업로드할 Drive 폴더 ID입니다.</p>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-blue-300 uppercase tracking-widest block">Google OAuth Token Path</label>
+                                <input
+                                    type="text"
+                                    value={sysKeys.remote_render_google_token_path}
+                                    onChange={e => setSysKeys(prev => ({ ...prev, remote_render_google_token_path: e.target.value }))}
+                                    placeholder="C:/path/to/token.json"
+                                    className="w-full bg-black/40 border border-blue-500/20 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300"
+                                />
+                                <p className="text-[10px] text-gray-500">메인 PC와 원격 워커가 Drive API 인증에 사용할 OAuth 토큰 파일 경로입니다.</p>
+                            </div>
 
                             {sysKeysSaved && <p className="text-xs text-green-400 font-bold text-center">✅ 저장 완료</p>}
+
                             <button
                                 onClick={saveSysKeys}
                                 disabled={sysKeysSaving}

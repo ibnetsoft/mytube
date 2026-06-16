@@ -34,9 +34,22 @@ from pathlib import Path
 # FFmpeg & Pydub Configuration (Global)
 # ==========================================
 try:
-    import imageio_ffmpeg
     from pydub import AudioSegment
-    ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+    import glob
+    import shutil
+
+    ffmpeg_candidates = []
+    if os.getenv("IMAGEIO_FFMPEG_EXE"):
+        ffmpeg_candidates.append(os.getenv("IMAGEIO_FFMPEG_EXE"))
+    ffmpeg_candidates.extend(glob.glob(os.path.join(os.getcwd(), "venv", "Lib", "site-packages", "imageio_ffmpeg", "binaries", "ffmpeg*.exe")))
+    if shutil.which("ffmpeg"):
+        ffmpeg_candidates.append(shutil.which("ffmpeg"))
+
+    ffmpeg_path = next((p for p in ffmpeg_candidates if p and os.path.exists(p)), None)
+    if not ffmpeg_path:
+        import imageio_ffmpeg
+        ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+
     AudioSegment.converter = ffmpeg_path
     AudioSegment.ffmpeg = ffmpeg_path
     # Add to PATH so subprocess can find it if needed
@@ -467,6 +480,13 @@ async def translate_project_script(project_id: int, req: TranslateScriptRequest)
 @app.get("/api/projects/{project_id}/full")
 async def get_project_full(project_id: int):
     """프로젝트 전체 데이터 조회 (Context Restoration용)"""
+    try:
+        project = db.get_project(project_id)
+        if project and project.get("status") in ["remote_packaging", "remote_queued"]:
+            from services.remote_drive_render_service import remote_drive_render_service
+            remote_drive_render_service.sync_completed_result(project_id)
+    except Exception as e:
+        print(f"[RemoteDrive] Full data sync skipped: {e}")
     return db.get_project_full_data_v2(project_id) or {}
 
 

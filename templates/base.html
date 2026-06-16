@@ -110,7 +110,7 @@
                             <span>{{ t('nav_topic') }}</span>
                         </a>
                     </li>
-                    <li>
+                    <li class="{% if app_mode == 'longform_music' %}hidden{% endif %}">
                         <a href="/repository" id="nav-repository"
                             class="sidebar-item {% if page == 'repository' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
@@ -118,14 +118,14 @@
                         </a>
                     </li>
 
-                    <li class="{% if app_mode in ['commerce', 'webtoon'] or membership == 'std' %}hidden{% endif %}">
+                    <li class="{% if app_mode in ['commerce', 'webtoon'] or (membership == 'std' and app_mode != 'longform_music') %}hidden{% endif %}">
                         <a href="/script-plan" id="nav-plan"
                             class="sidebar-item {% if page == 'script-plan' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
-                            <span>{{ t('nav_plan') }}</span>
+                            <span>{% if app_mode == 'longform_music' %}{{ t('nav_music_plan') }}{% else %}{{ t('nav_plan') }}{% endif %}</span>
                         </a>
                     </li>
-                    <li class="{% if app_mode == 'commerce' %}hidden{% endif %}">
+                    <li class="{% if app_mode in ['commerce', 'longform_music'] %}hidden{% endif %}">
                         <a href="/script-gen" id="nav-script"
                             class="sidebar-item {% if page == 'script-gen' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
@@ -143,21 +143,21 @@
                         <a href="/image-gen" id="nav-image"
                             class="sidebar-item {% if page == 'image-gen' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
-                            <span>{{ t('nav_image') }}</span>
+                            <span>{% if app_mode == 'longform_music' %}{{ t('nav_cover_image') }}{% else %}{{ t('nav_image') }}{% endif %}</span>
                         </a>
                     </li>
-                    <li class="{% if app_mode in ['commerce'] %}hidden{% endif %}">
+                    <li class="{% if app_mode in ['commerce', 'longform_music'] %}hidden{% endif %}">
                         <a href="/image-crop" id="nav-image-crop"
                             class="sidebar-item {% if page == 'image-crop' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
                             <span>{{ t('nav_image_crop') }}</span>
                         </a>
                     </li>
-                    <li class="hidden">
+                    <li class="{% if app_mode != 'longform_music' %}hidden{% endif %}">
                         <a href="/audio-gen" id="nav-audio"
                             class="sidebar-item {% if page == 'audio-gen' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
-                            <span>{{ t('nav_audio') }}</span>
+                            <span>{% if app_mode == 'longform_music' %}{{ t('nav_track_generation') }}{% else %}{{ t('nav_audio') }}{% endif %}</span>
                         </a>
                     </li>
                     <li class="{% if app_mode in ['commerce', 'webtoon'] %}hidden{% endif %}">
@@ -167,21 +167,21 @@
                             <span>{{ t('nav_thumbnail') }}</span>
                         </a>
                     </li>
-                    <li class="{% if app_mode in ['commerce'] %}hidden{% endif %}">
+                    <li class="{% if app_mode in ['commerce', 'longform_music'] %}hidden{% endif %}">
                         <a href="/template" id="nav-template"
                             class="sidebar-item {% if page == 'template' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
                             <span>{{ t('nav_shorts_template') }}</span>
                         </a>
                     </li>
-                    <li class="{% if app_mode in ['commerce'] %}hidden{% endif %}">
+                    <li class="{% if app_mode in ['commerce', 'longform_music'] %}hidden{% endif %}">
                         <a href="/tts" id="nav-tts" class="sidebar-item {% if page == 'tts' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
                             <span>{{ t('nav_tts') }}</span>
                         </a>
                     </li>
 
-                    <li class="{% if app_mode in ['commerce'] %}hidden{% endif %}">
+                    <li class="{% if app_mode in ['commerce', 'longform_music'] %}hidden{% endif %}">
                         <a href="/subtitle-gen" id="nav-subtitle"
                             class="sidebar-item {% if page == 'subtitle-gen' %}active{% endif %}"
                             onclick="(function(e){ const pid = window.currentProjectId || localStorage.getItem('currentProjectId'); if(pid){ e.preventDefault(); window.location.href='/subtitle-gen?project_id='+pid; } })(event)">
@@ -196,7 +196,7 @@
                             <span>{{ t('nav_render') }}</span>
                         </a>
                     </li>
-                    <li class="{% if app_mode in ['commerce', 'shorts'] or membership == 'std' %}hidden{% endif %}">
+                    <li class="{% if app_mode in ['commerce', 'shorts'] or (membership == 'std' and app_mode != 'longform_music') %}hidden{% endif %}">
                         <a href="/title-desc" id="nav-title"
                             class="sidebar-item {% if page == 'title-desc' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
@@ -1100,8 +1100,10 @@
                 const navIntro = document.getElementById('nav-intro');
 
                 const navImage = document.getElementById('nav-image');
+                const navImageCrop = document.getElementById('nav-image-crop');
                 const navAudio = document.getElementById('nav-audio');
                 const navThumbnail = document.getElementById('nav-thumbnail');
+                const navTemplate = document.getElementById('nav-template');
                 const navTts = document.getElementById('nav-tts');
                 const navSubtitle = document.getElementById('nav-subtitle');
                 const navRender = document.getElementById('nav-render');
@@ -1122,6 +1124,11 @@
                     if (show) el.parentElement.classList.remove('hidden');
                     else el.parentElement.classList.add('hidden');
                 };
+                const setNavLabel = (el, label) => {
+                    if (!el) return;
+                    const labelEl = el.querySelector('span:last-child');
+                    if (labelEl) labelEl.innerText = label;
+                };
 
                 if (mode === 'blog') {
                     // Blog Mode: Focused on writing and automation
@@ -1134,8 +1141,10 @@
                     // Hide video-specific steps
                     setVisible(navIntro, false);
                     setVisible(navImage, false);
+                    setVisible(navImageCrop, false);
                     setVisible(navAudio, false);
                     setVisible(navThumbnail, false);
+                    setVisible(navTemplate, false);
                     setVisible(navTts, false);
                     setVisible(navSubtitle, false);
                     setVisible(navRender, false);
@@ -1145,6 +1154,9 @@
                     setVisible(navCommerce, false);
                     setVisible(navUpload, false);
                     setVisible(navAutopilot, true);
+                    setNavLabel(navPlan, "{{ t('nav_plan') }}");
+                    setNavLabel(navImage, "{{ t('nav_image') }}");
+                    setNavLabel(navAudio, "{{ t('nav_audio') }}");
 
                 } else if (mode === 'commerce') {
                     // Commerce Mode
@@ -1158,14 +1170,50 @@
                     setVisible(navScript, false);
                     setVisible(navIntro, false);
                     setVisible(navImage, false);
+                    setVisible(navImageCrop, false);
                     setVisible(navAudio, false);
                     setVisible(navThumbnail, false);
+                    setVisible(navTemplate, false);
                     setVisible(navTts, false);
                     setVisible(navSubtitle, false);
                     setVisible(navRender, false);
                     setVisible(navTitle, false);
                     setVisible(navShorts, false);
                     setVisible(navWebtoon, false);
+                    setNavLabel(navPlan, "{{ t('nav_plan') }}");
+                    setNavLabel(navImage, "{{ t('nav_image') }}");
+                    setNavLabel(navAudio, "{{ t('nav_audio') }}");
+
+                } else if (mode === 'longform_music') {
+                    // Longform Music Mode: playlist-first workflow.
+                    setVisible(navBlog, false);
+                    setVisible(navCommerce, false);
+                    setVisible(navWebtoon, false);
+
+                    setVisible(navTopic, true);
+                    setVisible(navRepository, false);
+                    setVisible(navPlan, true);
+                    setVisible(navScript, false);
+                    setVisible(navIntro, false);
+                    setVisible(navImage, true);
+                    setVisible(navImageCrop, false);
+                    setVisible(navAudio, true);
+                    setVisible(navThumbnail, true);
+                    setVisible(navTemplate, false);
+                    setVisible(navTts, false);
+                    setVisible(navSubtitle, false);
+                    setVisible(navRender, true);
+                    setVisible(navTitle, true);
+                    setVisible(navShorts, false);
+                    setVisible(navUpload, true);
+                    setVisible(navAutopilot, true);
+
+                    setNavLabel(navPlan, "{{ t('nav_music_plan') }}");
+                    setNavLabel(navImage, "{{ t('nav_cover_image') }}");
+                    setNavLabel(navAudio, "{{ t('nav_track_generation') }}");
+                    if (navScript) {
+                        setNavLabel(navScript, "{{ t('nav_script') }}");
+                    }
 
                 } else if (mode === 'shorts') {
                     // Shorts Mode
@@ -1180,8 +1228,10 @@
                     setVisible(navPlan, true);
                     setVisible(navScript, true);
                     setVisible(navImage, true);
+                    setVisible(navImageCrop, true);
                     setVisible(navAudio, false);
                     setVisible(navThumbnail, true);
+                    setVisible(navTemplate, true);
                     setVisible(navTts, true);
                     setVisible(navSubtitle, true);
                     setVisible(navRender, true);
@@ -1194,6 +1244,9 @@
                     if (navScript) {
                         navScript.querySelector('span:last-child').innerText = "{{ t('nav_script_shorts') }}";
                     }
+                    setNavLabel(navPlan, "{{ t('nav_plan') }}");
+                    setNavLabel(navImage, "{{ t('nav_image') }}");
+                    setNavLabel(navAudio, "{{ t('nav_audio') }}");
 
                 } else if (mode === 'webtoon') {
                     // Webtoon Mode
@@ -1213,8 +1266,10 @@
 
                     setVisible(navScript, true);
                     setVisible(navImage, true);
+                    setVisible(navImageCrop, true);
                     setVisible(navAudio, true);
                     setVisible(navTts, true);
+                    setVisible(navTemplate, true);
                     setVisible(navSubtitle, true);
                     setVisible(navRender, true);
 
@@ -1223,6 +1278,9 @@
                     if (navScript) {
                         navScript.querySelector('span:last-child').innerText = "{{ t('nav_script_webtoon') }}";
                     }
+                    setNavLabel(navPlan, "{{ t('nav_plan') }}");
+                    setNavLabel(navImage, "{{ t('nav_image') }}");
+                    setNavLabel(navAudio, "{{ t('nav_audio') }}");
 
                 } else {
                     // Longform Mode (default): Show standard production pipeline
@@ -1234,8 +1292,10 @@
                     setVisible(navScript, true);
                     setVisible(navIntro, false);
                     setVisible(navImage, true);
+                    setVisible(navImageCrop, true);
                     setVisible(navAudio, false);
                     setVisible(navThumbnail, true);
+                    setVisible(navTemplate, true);
                     setVisible(navTts, true);
                     setVisible(navSubtitle, true);
                     setVisible(navRender, true);
@@ -1249,6 +1309,9 @@
                     if (navScript) {
                         navScript.querySelector('span:last-child').innerText = "{{ t('nav_script') }}";
                     }
+                    setNavLabel(navPlan, "{{ t('nav_plan') }}");
+                    setNavLabel(navImage, "{{ t('nav_image') }}");
+                    setNavLabel(navAudio, "{{ t('nav_audio') }}");
                 }
 
             } catch (e) {

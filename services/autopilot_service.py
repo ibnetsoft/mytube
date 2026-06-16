@@ -28,6 +28,7 @@ from services.tts_service import tts_service
 from services.video_service import video_service
 from services.youtube_upload_service import youtube_upload_service
 from services.topview_service import topview_service
+from services.elevenlabs_music_service import elevenlabs_music_service
 from app.modes import DEFAULT_APP_MODE, is_longform_family, is_longform_music_mode
 
 
@@ -179,6 +180,10 @@ class AutoPilotService:
         music_config.setdefault("content_type", "music_playlist")
         music_config.setdefault("playlist_duration_seconds", duration_seconds)
         music_config.setdefault("track_count", max(8, round(duration_seconds / 300)))
+        music_config.setdefault("genre", "lofi")
+        music_config.setdefault("moods", ["calm"])
+        music_config.setdefault("vocal_mode", "instrumental")
+        music_config.setdefault("target_language", "global")
         music_config.setdefault("visual_strategy", "single_expanded_cover_with_light_motion")
         music_config.setdefault("metadata_strategy", "global_music_playlist")
         config["longform_music"] = music_config
@@ -212,11 +217,195 @@ class AutoPilotService:
             "playlist_direction": {
                 "duration_minutes": minutes,
                 "track_count": track_count,
+                "genre": music_config.get("genre", "lofi"),
+                "moods": music_config.get("moods", ["calm"]),
+                "vocal_mode": music_config.get("vocal_mode", "instrumental"),
+                "target_language": music_config.get("target_language", "global"),
                 "visual_strategy": music_config.get("visual_strategy"),
                 "metadata_strategy": music_config.get("metadata_strategy"),
             },
         }
         return video_data, analysis
+
+    def _coerce_longform_music_tracks(self, plan: dict, music_config: dict) -> list:
+        tracks = plan.get("tracks") if isinstance(plan, dict) else None
+        if not isinstance(tracks, list):
+            tracks = []
+        genre = str(music_config.get("genre") or plan.get("genre") or "lofi").replace("_", " ")
+        moods_raw = music_config.get("moods") or plan.get("moods") or [plan.get("mood") or "calm"]
+        if isinstance(moods_raw, str):
+            moods = [m.strip() for m in moods_raw.split(",") if m.strip()]
+        else:
+            moods = [str(m).replace("_", " ") for m in moods_raw if m]
+        vocal_mode = str(music_config.get("vocal_mode") or "instrumental")
+        vocal_directive = "no vocals, instrumental only" if vocal_mode == "instrumental" else "original vocals allowed, no copyrighted lyrics"
+        base_directive = (
+            f"Original {genre} music, {', '.join(moods)}, {vocal_directive}, "
+            "safe for YouTube playlist, no artist names, no copyrighted melody"
+        )
+
+        normalized = []
+        for index, item in enumerate(tracks, start=1):
+            if isinstance(item, str):
+                title = item.strip() or f"Track {index:02d}"
+                prompt = title
+                mood = ""
+            elif isinstance(item, dict):
+                title = str(item.get("title") or item.get("name") or f"Track {index:02d}").strip()
+                mood = str(item.get("mood") or item.get("style") or "").strip()
+                prompt = str(item.get("prompt") or item.get("music_prompt") or "").strip()
+                if not prompt:
+                    prompt = ", ".join(part for part in [title, mood, plan.get("mood")] if part)
+            else:
+                continue
+            normalized.append({
+                "title": title,
+                "mood": mood,
+                "prompt": f"{base_directive}. Track concept: {prompt}",
+                "duration_seconds": item.get("duration_seconds") if isinstance(item, dict) else None,
+            })
+
+        target_count = int(music_config.get("track_count") or 8)
+        while len(normalized) < target_count:
+            idx = len(normalized) + 1
+            base_mood = plan.get("mood") or "calm cinematic instrumental background music"
+            normalized.append({
+                "title": f"Track {idx:02d}",
+                "mood": base_mood,
+                "prompt": f"{base_directive}. Track concept: {base_mood}, smooth loopable longform playlist track",
+                "duration_seconds": None,
+            })
+        return normalized[:target_count]
+
+    async def _resolve_longform_music_plan(self, project_id: int, script: str, config_dict: dict) -> dict:
+        settings = db.get_project_settings(project_id) or {}
+        music_config = config_dict.get("longform_music") or {}
+        if isinstance(music_config, str):
+            try:
+                music_config = json.loads(music_config)
+            except Exception:
+                music_config = {}
+
+        raw_plan = settings.get("longform_music_plan_json")
+        if raw_plan:
+            try:
+                plan = json.loads(raw_plan)
+                if isinstance(plan, dict):
+                    return plan
+            except Exception:
+                pass
+
+        topic = (db.get_project(project_id) or {}).get("topic") or config_dict.get("keyword") or "AI music playlist"
+        prompt = f"""Create a production JSON plan for a longform YouTube music playlist.
+
+Topic: {topic}
+Reference brief:
+{script[:2500]}
+
+Requirements:
+- Music genre/category: {music_config.get('genre', 'lofi')}
+- Moods: {', '.join(music_config.get('moods', ['calm'])) if isinstance(music_config.get('moods'), list) else music_config.get('moods', 'calm')}
+- Vocal mode: {music_config.get('vocal_mode', 'instrumental')}
+- Target language/market: {music_config.get('target_language', 'global')}
+- Track count: {music_config.get('track_count', 8)}
+- Total target duration seconds: {music_config.get('playlist_duration_seconds', config_dict.get('duration_seconds', 3600))}
+- Instrumental-first. Avoid artist names, song names, and copyrighted lyrics.
+- Prompts must be safe for AI music generation.
+
+Return JSON only:
+{{
+  "playlist_title": "...",
+  "genre": "{music_config.get('genre', 'lofi')}",
+  "moods": [],
+  "mood": "...",
+  "visual_concept": "...",
+  "thumbnail_concept": "...",
+  "description_angle": "...",
+  "tracks": [
+    {{"title": "...", "mood": "...", "prompt": "..."}}
+  ]
+}}"""
+        try:
+            text = await gemini_service.generate_text(prompt, temperature=0.6, project_id=project_id, task_type="music_planning")
+            import re
+            match = re.search(r'\{[\s\S]*\}', text or "")
+            if match:
+                plan = json.loads(match.group())
+            else:
+                plan = {}
+        except Exception as e:
+            print(f"[LongformMusic] Failed to generate music plan: {e}")
+            plan = {}
+
+        plan.setdefault("playlist_title", topic)
+        plan.setdefault("genre", music_config.get("genre", "lofi"))
+        plan.setdefault("moods", music_config.get("moods", ["calm"]))
+        plan.setdefault("mood", "calm cinematic instrumental background music")
+        plan.setdefault("visual_concept", f"cinematic YouTube playlist cover for {topic}, atmospheric, clean, premium, 16:9")
+        plan["tracks"] = self._coerce_longform_music_tracks(plan, music_config)
+        db.update_project_setting(project_id, "longform_music_plan_json", json.dumps(plan, ensure_ascii=False))
+        return plan
+
+    def _build_longform_music_visual_prompts(self, plan: dict, config_dict: dict) -> list:
+        title = plan.get("playlist_title") or "Longform Music Playlist"
+        visual = plan.get("visual_concept") or title
+        mood = plan.get("mood") or "cinematic calm"
+        return [{
+            "scene_text": title,
+            "scene_title": title,
+            "prompt_ko": visual,
+            "prompt_en": (
+                f"{visual}, {mood}, premium YouTube music playlist background, "
+                "wide cinematic composition, no text, no logos, atmospheric lighting, high detail"
+            ),
+            "motion_desc": "slow cinematic push-in",
+        }]
+
+    async def _generate_longform_music_audio(self, project_id: int, script: str, config_dict: dict) -> dict:
+        music_config = config_dict.get("longform_music") or {}
+        if isinstance(music_config, str):
+            try:
+                music_config = json.loads(music_config)
+            except Exception:
+                music_config = {}
+
+        plan = await self._resolve_longform_music_plan(project_id, script, config_dict)
+        tracks = self._coerce_longform_music_tracks(plan, music_config)
+        target_duration = int(music_config.get("playlist_duration_seconds") or config_dict.get("duration_seconds") or 3600)
+        self.set_step(project_id, f"롱폼뮤직 트랙 {len(tracks)}개 생성 중...")
+        result = await elevenlabs_music_service.generate_playlist(
+            project_id,
+            tracks,
+            target_duration_seconds=target_duration,
+            force_instrumental=(str(music_config.get("vocal_mode", "instrumental")) == "instrumental"),
+        )
+
+        timeline_path = os.path.join(config.OUTPUT_DIR, str(project_id), "assets", "audio", "longform_music", "timeline.json")
+        with open(timeline_path, "w", encoding="utf-8") as f:
+            json.dump(result["tracks"], f, ensure_ascii=False, indent=2)
+
+        timeline_lines = []
+        for track in result["tracks"]:
+            start = int(track.get("start") or 0)
+            timeline_lines.append(f"{start // 60:02d}:{start % 60:02d} {track.get('title')}")
+
+        db.update_project_setting(project_id, "longform_music_audio_url", result["audio_url"])
+        db.update_project_setting(project_id, "longform_music_timeline_json", json.dumps(result["tracks"], ensure_ascii=False))
+        db.update_project_setting(project_id, "longform_music_timeline_text", "\n".join(timeline_lines))
+        db.update_project_setting(project_id, "bgm_url", result["audio_url"])
+        db.update_project_setting(project_id, "use_subtitles", "false")
+
+        sub_path = os.path.join(config.OUTPUT_DIR, f"subtitles_{project_id}.json")
+        with open(sub_path, "w", encoding="utf-8") as f:
+            json.dump([], f)
+        db.update_project_setting(project_id, "subtitle_path", sub_path)
+
+        timing_path = os.path.join(config.OUTPUT_DIR, f"image_timings_{project_id}.json")
+        with open(timing_path, "w", encoding="utf-8") as f:
+            json.dump([0.0], f)
+        db.update_project_setting(project_id, "image_timings_path", timing_path)
+        db.save_tts(project_id, "elevenlabs_music", "ElevenLabs Music", result["audio_path"], result["duration"])
+        return result
 
     async def run_project_workflow(self, keyword: str, project_id: int = None, config_dict: dict = None):
         """Serialize autopilot execution and prevent duplicate runs for the same project."""
@@ -604,11 +793,17 @@ Topic: {topic_name}
 Style directive: {style_desc}
 Target duration seconds: {music_config.get('playlist_duration_seconds', config_dict.get('duration_seconds', 3600))}
 Target track count: {music_config.get('track_count', 12)}
+Music genre/category: {music_config.get('genre', 'lofi')}
+Moods: {', '.join(music_config.get('moods', ['calm'])) if isinstance(music_config.get('moods'), list) else music_config.get('moods', 'calm')}
+Vocal mode: {music_config.get('vocal_mode', 'instrumental')}
+Target language/market: {music_config.get('target_language', 'global')}
 
 Return JSON only:
 {{
   "style": "bgm",
   "playlist_title": "...",
+  "genre": "{music_config.get('genre', 'lofi')}",
+  "moods": [],
   "mood": "...",
   "audience": "...",
   "tracks": [{{"title": "...", "mood": "...", "prompt": "music generation prompt"}}],
@@ -626,6 +821,8 @@ Return JSON only:
                       new_struct = json.loads(match.group())
                       if "style" not in new_struct: new_struct["style"] = style_key
                       db.save_script_structure(project_id, new_struct)
+                      if is_music_playlist:
+                          db.update_project_setting(project_id, "longform_music_plan_json", json.dumps(new_struct, ensure_ascii=False))
                       manual_plan = {"structure": new_struct}
                       print(f"✅ [Auto-Pilot] 자동 기획 완료 및 저장.")
              except Exception as e:
@@ -674,6 +871,9 @@ Create a production-ready playlist script/brief in Korean from this planning dat
 - Content type: longform music playlist
 - Target duration seconds: {music_config.get('playlist_duration_seconds', config_dict.get('duration_seconds', 3600))}
 - Target track count: {music_config.get('track_count', 12)}
+- Music genre/category: {music_config.get('genre', 'lofi')}
+- Moods: {', '.join(music_config.get('moods', ['calm'])) if isinstance(music_config.get('moods'), list) else music_config.get('moods', 'calm')}
+- Vocal mode: {music_config.get('vocal_mode', 'instrumental')}
 - Include a short intro narration, track list with mood/style prompts, visual concept, thumbnail concept, and upload description notes.
 - Keep narration minimal. The video should be music-first, not talk-first.
 - No dialogue and no character acting.
@@ -771,6 +971,7 @@ JSON만 출력하세요:
         motion_method = config_dict.get("motion_method", "standard")
         video_engine = config_dict.get("video_engine", "veo")
         image_style_key = config_dict.get("image_style", config_dict.get("visual_style", "realistic"))
+        is_music_playlist = self._is_longform_music_config(config_dict)
 
         
         # Determine sequence duration based on method
@@ -791,6 +992,13 @@ JSON만 출력하세요:
         target_duration = config_dict.get("duration_seconds", 300)
 
         image_prompts = db.get_image_prompts(project_id)
+        if not image_prompts and is_music_playlist:
+            music_plan = await self._resolve_longform_music_plan(project_id, script, config_dict)
+            image_prompts = self._build_longform_music_visual_prompts(music_plan, config_dict)
+            db.save_image_prompts(project_id, image_prompts)
+            image_prompts = db.get_image_prompts(project_id)
+            print(f"🎵 [Auto-Pilot] Longform music visual prompt prepared")
+
         if not image_prompts:
             self.set_step(project_id, f"AI 이미지 프롬프트 생성 중... ({target_duration}초 분량)")
             print(f"🖼️ [Auto-Pilot] Generating image prompts for {target_duration}s video (style_key={image_style_key}, ref_img={'yes' if reference_image_url else 'no'})...")
@@ -918,6 +1126,13 @@ JSON만 출력하세요:
 
         # [CRITICAL] Re-fetch image_prompts from DB to get updated image_url paths
         image_prompts = db.get_image_prompts(project_id)
+
+        if is_music_playlist:
+            db.update_project(project_id, status="generating_music")
+            result = await self._generate_longform_music_audio(project_id, script, config_dict)
+            db.update_project_setting(project_id, "stats_audio_duration_sec", f"{result.get('duration', 0):.2f}")
+            print(f"🎵 [Auto-Pilot] Longform music audio ready: {result.get('audio_url')}")
+            return
 
         # Pass 2: TTS Generation (Collected for each scene)
         print("🎙️ [Auto-Pilot] Pass 2: Generating Scene-based TTS...")
@@ -2063,7 +2278,7 @@ JSON만 출력하세요:
                 print(f"⚠️ Failed to parse SFX mapping: {e}")
 
         # [NEW] Handle BGM (Download if URL exists)
-        bgm_url = settings.get("bgm_url")
+        bgm_url = None if settings.get("longform_music_audio_url") else settings.get("bgm_url")
         bgm_path = None
         if bgm_url:
             try:

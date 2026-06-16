@@ -193,6 +193,16 @@ CREATE TABLE IF NOT EXISTS public.remote_render_queue (
     status       TEXT NOT NULL DEFAULT 'pending', -- 'pending' | 'rendering' | 'completed' | 'failed'
     progress     INTEGER DEFAULT 0,
     message      TEXT,
+    render_mode  TEXT DEFAULT 'http_zip',
+    asset_file_id TEXT,
+    asset_file_name TEXT,
+    result_file_id TEXT,
+    result_file_name TEXT,
+    worker_id    TEXT,
+    claimed_at   TIMESTAMPTZ,
+    error_message TEXT,
+    retry_count  INTEGER DEFAULT 0,
+    metadata     JSONB,
     created_at   TIMESTAMPTZ DEFAULT NOW(),
     updated_at   TIMESTAMPTZ DEFAULT NOW(),
     completed_at TIMESTAMPTZ

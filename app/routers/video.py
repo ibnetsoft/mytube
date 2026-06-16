@@ -31,7 +31,7 @@ class RenderRequest(BaseModel):
     use_subtitles: bool = True
     resolution: str = "1080p"  # 1080p or 720p
     aspect_ratio: Optional[str] = None # [NEW] Manual aspect ratio override (16:9, 9:16)
-    render_target: Optional[str] = "local" # local or remote
+    render_target: Optional[str] = "local" # local, remote, or drive_api
     remote_url: Optional[str] = None
 
 
@@ -960,6 +960,21 @@ async def render_project_video(
         tts_data = db.get_tts(project_id)
         p_settings = db.get_project_settings(project_id) or {}
         
+        if request.render_target == "drive_api":
+            db.update_project(project_id, status="remote_packaging")
+            from services.remote_drive_render_service import remote_drive_render_service
+            result = remote_drive_render_service.enqueue_project(
+                project_id,
+                use_subtitles=request.use_subtitles,
+                resolution=request.resolution,
+            )
+            return {
+                "status": "queued",
+                "message": "Google Drive API 렌더 대기열에 등록되었습니다.",
+                "task_id": result.get("task_id"),
+                "asset_file_id": (result.get("drive_file") or {}).get("id"),
+            }
+
         if request.render_target == "remote" and request.remote_url:
             db.update_project(project_id, status="remote_rendering")
             db.update_project_setting(project_id, "remote_render_url", request.remote_url)
@@ -1808,6 +1823,16 @@ async def get_project_status(project_id: int):
                             shutil.rmtree(completed_dir)
                         except Exception as e:
                             print(f"완료 폴더 삭제 실패: {e}")
+
+        if status in ["remote_packaging", "remote_queued"]:
+            try:
+                from services.remote_drive_render_service import remote_drive_render_service
+                remote_row = remote_drive_render_service.sync_completed_result(project_id)
+                if remote_row:
+                    fresh_project = db.get_project(project_id)
+                    status = fresh_project.get("status", status) if fresh_project else status
+            except Exception as se:
+                print(f"[RemoteDrive] Failed to sync remote drive render result: {se}")
 
         # [NEW] 원격 GPU 렌더링 상태 확인 및 다운로드 처리
         if status == "remote_rendering":

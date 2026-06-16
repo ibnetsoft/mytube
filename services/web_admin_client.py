@@ -23,6 +23,8 @@ class WebAdminClient:
         "sys_api_elevenlabs": "ELEVENLABS_API_KEY",
         "sys_api_topview": "TOPVIEW_API_KEY",
         "sys_api_topview_uid": "TOPVIEW_UID",
+        "sys_api_remote_render_drive_folder_id": "REMOTE_RENDER_DRIVE_FOLDER_ID",
+        "sys_api_remote_render_google_token_path": "REMOTE_RENDER_GOOGLE_TOKEN_PATH",
     }
 
     def __init__(self):

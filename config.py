@@ -34,6 +34,8 @@ class Config:
     DRIVE_PATH_EN = os.getenv("DRIVE_PATH_EN", "G:/My Drive/Longform_Render_Queue")
     DRIVE_PATH_JA = os.getenv("DRIVE_PATH_JA", "G:/マ이드라이브/Longform_Render_Queue")
     DRIVE_ACTIVE_LANG = os.getenv("DRIVE_ACTIVE_LANG", "ko")
+    REMOTE_RENDER_DRIVE_FOLDER_ID = os.getenv("REMOTE_RENDER_DRIVE_FOLDER_ID", "")
+    REMOTE_RENDER_GOOGLE_TOKEN_PATH = os.getenv("REMOTE_RENDER_GOOGLE_TOKEN_PATH", "")
 
     # API URLs
     YOUTUBE_BASE_URL = "https://www.googleapis.com/youtube/v3"
@@ -143,7 +145,8 @@ class Config:
             'BLOG_CLIENT_ID', 'BLOG_CLIENT_SECRET', 'BLOG_ID',
             'WP_URL', 'WP_USERNAME', 'WP_PASSWORD',
             'USE_EXTERNAL_RENDER', 'DRIVE_RENDER_QUEUE_PATH',
-            'DRIVE_PATH_KO', 'DRIVE_PATH_EN', 'DRIVE_PATH_JA', 'DRIVE_ACTIVE_LANG'
+            'DRIVE_PATH_KO', 'DRIVE_PATH_EN', 'DRIVE_PATH_JA', 'DRIVE_ACTIVE_LANG',
+            'REMOTE_RENDER_DRIVE_FOLDER_ID', 'REMOTE_RENDER_GOOGLE_TOKEN_PATH'
         ]
 
         if key_name not in valid_keys:

@@ -5,7 +5,8 @@ export const dynamic = 'force-dynamic'
 
 const KEYS = [
     'gemini', 'youtube', 'elevenlabs', 'topview', 'topview_uid',
-    'use_external_render', 'drive_path_ko', 'drive_path_en', 'drive_path_ja', 'drive_active_lang'
+    'use_external_render', 'drive_path_ko', 'drive_path_en', 'drive_path_ja', 'drive_active_lang',
+    'remote_render_drive_folder_id', 'remote_render_google_token_path'
 ]
 
 const getAdmin = () => createClient(

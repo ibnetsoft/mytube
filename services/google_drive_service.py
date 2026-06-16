@@ -1,68 +1,96 @@
-
-import os
 import logging
-from googleapiclient.http import MediaFileUpload
+import os
+
 from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
+
 from services.youtube_upload_service import youtube_upload_service
+
 
 class GoogleDriveService:
     def __init__(self):
         self.logger = logging.getLogger("GoogleDriveService")
 
     def _get_drive_service(self, token_path=None):
-        """YouTube 서비스와 동일한 인증 정보를 사용하여 드라이브 서비스 빌드"""
+        """Build a Google Drive client from the existing YouTube OAuth credentials."""
         credentials = youtube_upload_service.get_authenticated_service(token_path=token_path)._http.credentials
-        return build('drive', 'v3', credentials=credentials)
+        return build("drive", "v3", credentials=credentials)
 
-    def upload_video_to_drive(self, local_file_path, token_path=None, folder_id=None):
-        """
-        로컬 영상을 구글 드라이브에 업로드하고 공유 가능한 링크 반환
-        """
+    def upload_file(
+        self,
+        local_file_path,
+        token_path=None,
+        folder_id=None,
+        mimetype=None,
+        description=None,
+        make_public=False,
+    ):
+        """Upload any local file to Google Drive and return Drive file metadata."""
         if not os.path.exists(local_file_path):
             self.logger.error(f"File not found for Drive upload: {local_file_path}")
             return None
 
         try:
             drive_service = self._get_drive_service(token_path)
-            
-            file_metadata = {
-                'name': os.path.basename(local_file_path),
-                'description': 'AI Generated Video by Picadiri Studio'
-            }
-            
+            file_metadata = {"name": os.path.basename(local_file_path)}
+            if description:
+                file_metadata["description"] = description
             if folder_id:
-                file_metadata['parents'] = [folder_id]
-            
+                file_metadata["parents"] = [folder_id]
+
             media = MediaFileUpload(
-                local_file_path, 
-                mimetype='video/mp4', 
-                resumable=True
+                local_file_path,
+                mimetype=mimetype or "application/octet-stream",
+                resumable=True,
             )
-            
-            self.logger.info(f"Uploading {local_file_path} to Google Drive...")
             file = drive_service.files().create(
-                body=file_metadata, 
-                media_body=media, 
-                fields='id, webViewLink'
+                body=file_metadata,
+                media_body=media,
+                fields="id, name, mimeType, size, md5Checksum, webViewLink",
             ).execute()
-            
-            file_id = file.get('id')
-            web_link = file.get('webViewLink')
 
-            # [Optional] 모든 사람이 링크로 볼 수 있게 권한 설정
-            try:
-                drive_service.permissions().create(
-                    fileId=file_id,
-                    body={'type': 'anyone', 'role': 'viewer'}
-                ).execute()
-            except Exception as pe:
-                self.logger.warning(f"Failed to set permission: {pe}")
+            if make_public:
+                try:
+                    drive_service.permissions().create(
+                        fileId=file.get("id"),
+                        body={"type": "anyone", "role": "viewer"},
+                    ).execute()
+                except Exception as pe:
+                    self.logger.warning(f"Failed to set permission: {pe}")
 
-            self.logger.info(f"Drive Upload Success: {web_link}")
-            return web_link
-
+            self.logger.info(f"Drive upload success: {file.get('name')} ({file.get('id')})")
+            return file
         except Exception as e:
-            self.logger.error(f"Google Drive Upload Failed: {e}")
+            self.logger.error(f"Google Drive file upload failed: {e}")
             return None
+
+    def download_file(self, file_id, local_file_path, token_path=None):
+        """Download a Google Drive file by file ID."""
+        try:
+            drive_service = self._get_drive_service(token_path)
+            os.makedirs(os.path.dirname(local_file_path), exist_ok=True)
+            request = drive_service.files().get_media(fileId=file_id)
+            with open(local_file_path, "wb") as fh:
+                downloader = MediaIoBaseDownload(fh, request)
+                done = False
+                while not done:
+                    _, done = downloader.next_chunk()
+            return local_file_path
+        except Exception as e:
+            self.logger.error(f"Google Drive file download failed: {e}")
+            return None
+
+    def upload_video_to_drive(self, local_file_path, token_path=None, folder_id=None):
+        """Upload a rendered video to Drive and return a shareable web link."""
+        file = self.upload_file(
+            local_file_path,
+            token_path=token_path,
+            folder_id=folder_id,
+            mimetype="video/mp4",
+            description="AI Generated Video by Picadiri Studio",
+            make_public=True,
+        )
+        return file.get("webViewLink") if file else None
+
 
 google_drive_service = GoogleDriveService()

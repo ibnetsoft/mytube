@@ -101,6 +101,8 @@ class GlobalSettings(BaseModel):
     drive_path_en: Optional[str] = None
     drive_path_ja: Optional[str] = None
     drive_active_lang: Optional[str] = None
+    remote_render_drive_folder_id: Optional[str] = None
+    remote_render_google_token_path: Optional[str] = None
 
 @router.get("")
 async def get_global_settings_api():
@@ -142,7 +144,9 @@ async def get_global_settings_api():
         "drive_path_ko": db.get_global_setting("drive_path_ko", config.DRIVE_PATH_KO),
         "drive_path_en": db.get_global_setting("drive_path_en", config.DRIVE_PATH_EN),
         "drive_path_ja": db.get_global_setting("drive_path_ja", config.DRIVE_PATH_JA),
-        "drive_active_lang": db.get_global_setting("drive_active_lang", config.DRIVE_ACTIVE_LANG)
+        "drive_active_lang": db.get_global_setting("drive_active_lang", config.DRIVE_ACTIVE_LANG),
+        "remote_render_drive_folder_id": db.get_global_setting("remote_render_drive_folder_id", config.REMOTE_RENDER_DRIVE_FOLDER_ID),
+        "remote_render_google_token_path": db.get_global_setting("remote_render_google_token_path", config.REMOTE_RENDER_GOOGLE_TOKEN_PATH)
     }
     
     # 2. Load Default Settings (stored in Project 1 by convention)
@@ -197,6 +201,8 @@ async def get_global_settings_api():
     merged["drive_path_en"] = global_conf["drive_path_en"]
     merged["drive_path_ja"] = global_conf["drive_path_ja"]
     merged["drive_active_lang"] = global_conf["drive_active_lang"]
+    merged["remote_render_drive_folder_id"] = global_conf["remote_render_drive_folder_id"]
+    merged["remote_render_google_token_path"] = global_conf["remote_render_google_token_path"]
     
     # [NEW] Add Current API Keys Status
     api_status = config.get_api_keys_status()
@@ -208,12 +214,11 @@ async def get_global_settings_api():
 async def save_global_settings_api(settings: GlobalSettings):
     """글로벌 설정 저장"""
     if _is_standard_member():
-        sent_advanced = [
-            key for key in ADVANCED_GLOBAL_SETTING_FIELDS
-            if getattr(settings, key, None) is not None
-        ]
-        if sent_advanced:
-            raise HTTPException(status_code=403, detail="Standard mode can only save basic settings.")
+        # Hidden advanced-tab fields can still be present in the browser
+        # payload. Standard users should save visible basic settings, while
+        # advanced fields are simply ignored.
+        for key in ADVANCED_GLOBAL_SETTING_FIELDS:
+            setattr(settings, key, None)
 
     # 이전 모드 저장 (모드 변경 감지용)
     previous_mode = normalize_app_mode(db.get_global_setting("app_mode", DEFAULT_APP_MODE))
@@ -313,6 +318,12 @@ async def save_global_settings_api(settings: GlobalSettings):
     if settings.drive_active_lang is not None:
         db.save_global_setting("drive_active_lang", settings.drive_active_lang)
         config.update_api_key("DRIVE_ACTIVE_LANG", settings.drive_active_lang)
+    if settings.remote_render_drive_folder_id is not None:
+        db.save_global_setting("remote_render_drive_folder_id", settings.remote_render_drive_folder_id)
+        config.update_api_key("REMOTE_RENDER_DRIVE_FOLDER_ID", settings.remote_render_drive_folder_id)
+    if settings.remote_render_google_token_path is not None:
+        db.save_global_setting("remote_render_google_token_path", settings.remote_render_google_token_path)
+        config.update_api_key("REMOTE_RENDER_GOOGLE_TOKEN_PATH", settings.remote_render_google_token_path)
 
     # Automatically resolve DRIVE_RENDER_QUEUE_PATH
     active_lang = settings.drive_active_lang or db.get_global_setting("drive_active_lang", "ko")
