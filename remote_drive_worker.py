@@ -5,6 +5,7 @@ import shutil
 import tempfile
 import time
 import zipfile
+import argparse
 
 import requests
 
@@ -65,6 +66,21 @@ class RemoteDriveWorker:
         }
         rows = self._request("GET", self.queue_url, params=params) or []
         return rows[0] if rows else None
+
+    def check(self):
+        print("[RemoteDriveWorker] Configuration check")
+        print(f"  worker_id: {self.worker_id}")
+        print(f"  supabase_url: {self.supabase_url or '(missing)'}")
+        print(f"  drive_folder_id: {self.output_folder_id or '(root or unset)'}")
+        print(f"  google_token_path: {self.google_token_path or '(default YouTube token)'}")
+        if self.google_token_path and not os.path.exists(self.google_token_path):
+            print("  warning: google_token_path does not exist on this PC.")
+        job = self.fetch_next_job()
+        if job:
+            print(f"  next_job: {job.get('id')} project={job.get('project_id')} asset={job.get('asset_file_name') or job.get('asset_file_id')}")
+        else:
+            print("  next_job: none")
+        return job
 
     def claim_job(self, job):
         now = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -162,6 +178,31 @@ class RemoteDriveWorker:
                 print(f"[RemoteDriveWorker] Error: {e}")
                 time.sleep(self.poll_interval)
 
+    def run_once(self):
+        print(f"[RemoteDriveWorker] Running one polling cycle as {self.worker_id}")
+        job = self.fetch_next_job()
+        if not job:
+            print("[RemoteDriveWorker] No pending drive_api job.")
+            return 0
+        claimed = self.claim_job(job)
+        if not claimed:
+            print("[RemoteDriveWorker] Job was already claimed by another worker.")
+            return 0
+        print(f"[RemoteDriveWorker] Processing job {claimed['id']}")
+        self.process_job(claimed)
+        return 0
+
 
 if __name__ == "__main__":
-    RemoteDriveWorker().run_forever()
+    parser = argparse.ArgumentParser(description="Picadiri Google Drive API remote render worker")
+    parser.add_argument("--once", action="store_true", help="process at most one pending job and exit")
+    parser.add_argument("--check", action="store_true", help="check settings and pending queue, then exit")
+    args = parser.parse_args()
+
+    worker = RemoteDriveWorker()
+    if args.check:
+        worker.check()
+    elif args.once:
+        worker.run_once()
+    else:
+        worker.run_forever()
