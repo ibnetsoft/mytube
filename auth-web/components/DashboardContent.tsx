@@ -1570,15 +1570,15 @@ export default function DashboardContent() {
                                         onClick={() => setCategoryListTab('shorts')}
                                         className={`px-6 py-2 rounded-lg text-xs font-black transition-all ${categoryListTab === 'shorts' ? 'bg-blue-600 text-white shadow' : 'text-gray-500 hover:text-white'}`}
                                     >
-                                        ?몃줈??(Shorts)
+                                        쇼츠(Shorts)
                                     </button>
                                 </div>
                             </div>
 
                             {categoriesLoading ? (
-                                <div className="text-center py-20 text-gray-500 text-sm">移댄뀒怨좊━ 濡쒕뵫 以?..</div>
+                                <div className="text-center py-20 text-gray-500 text-sm">카테고리 로딩 중...</div>
                             ) : categories.filter(c => (c.video_type || 'longform') === categoryListTab).length === 0 ? (
-                                <div className="text-center py-20 text-gray-500 text-sm italic">?대떦 ?щ㎎???깅줉??移댄뀒怨좊━媛 ?놁뒿?덈떎.</div>
+                                <div className="text-center py-20 text-gray-500 text-sm italic">해당 유형에 등록된 카테고리가 없습니다.</div>
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                     {categories.filter(c => (c.video_type || 'longform') === categoryListTab).map((cat) => {
@@ -1594,7 +1594,7 @@ export default function DashboardContent() {
                                                     <div className="flex justify-between items-start mb-4">
                                                         <h3 className="text-lg font-black text-white">{cat.name}</h3>
                                                         <div className="flex gap-2">
-                                                            <button 
+                                                        <button 
                                                                 onClick={() => {
                                                                     setEditCategory(cat);
                                                                     setEditCatForm({
@@ -1612,21 +1612,21 @@ export default function DashboardContent() {
                                                                 }}
                                                                 className="text-blue-400 hover:text-blue-300 text-xs transition-colors shadow-none bg-transparent p-0"
                                                             >
-                                                                ?섏젙
+                                                                수정
                                                             </button>
                                                             <span className="text-gray-700">|</span>
                                                             <button 
                                                                 onClick={() => handleDeleteCategory(cat.id)}
                                                                 className="text-gray-500 hover:text-red-500 text-xs transition-colors shadow-none bg-transparent p-0"
                                                             >
-                                                                ??젣
+                                                                삭제
                                                             </button>
                                                         </div>
                                                     </div>
                                                     <div className="space-y-2 text-xs text-gray-400 mb-6">
-                                                        <p>?뫀 <strong className="text-gray-200">?대떦 吏곸썝:</strong> {cat.assigned_employee_email}</p>
-                                                        <p>?뵎 <strong className="text-gray-200">?ㅼ썙??</strong> {cat.keywords || '(?놁쓬)'}</p>
-                                                        <p className="truncate">?벟 <strong className="text-gray-200">踰ㅼ튂 梨꾨꼸:</strong> <a href={cat.benchmark_channel_url} target="_blank" rel="noreferrer" className="text-blue-400 underline">{cat.benchmark_channel_url || '(?놁쓬)'}</a></p>
+                                                        <p>👤 <strong className="text-gray-200">담당 직원:</strong> {cat.assigned_employee_email}</p>
+                                                        <p>🔑 <strong className="text-gray-200">키워드:</strong> {cat.keywords || '(없음)'}</p>
+                                                        <p className="truncate">📺 <strong className="text-gray-200">벤치 채널:</strong> <a href={cat.benchmark_channel_url} target="_blank" rel="noreferrer" className="text-blue-400 underline">{cat.benchmark_channel_url || '(없음)'}</a></p>
                                                         <p>
                                                             ?? <strong className="text-gray-200">?낅줈??梨꾨꼸:</strong>{' '}
                                                             <button
@@ -1634,15 +1634,15 @@ export default function DashboardContent() {
                                                                 onClick={() => openCategoryChannelConfig(cat)}
                                                                 className="text-blue-400 underline hover:text-blue-300"
                                                             >
-                                                                {cat.upload_channel_name || cat.upload_channel_handle || '?대┃?댁꽌 ?ㅼ젙'}
-                                                            </button>
-                                                        </p>
-                                                        <p>?뱷 <strong className="text-gray-200">?蹂??ㅽ???</strong> {cat.default_script_style || '湲곕낯'}</p>
-                                                        <p>?렓 <strong className="text-gray-200">?뷀뭾:</strong> {cat.default_image_style || '?ㅼ궗'}</p>
-                                                        <p>?렗 <strong className="text-gray-200">?곸긽 ?щ㎎:</strong> {cat.video_type === 'shorts' ? '?몃줈??(Shorts)' : '媛濡쒗삎 (Longform)'}</p>
+                                                            {cat.upload_channel_name || cat.upload_channel_handle || '미지정'}
+                                                        </button>
+                                                    </p>
+                                                        <p>📝 <strong className="text-gray-200">대본 스타일:</strong> {cat.default_script_style || '기본'}</p>
+                                                        <p>🎨 <strong className="text-gray-200">이미지 스타일:</strong> {cat.default_image_style || '실사'}</p>
+                                                        <p>🎬 <strong className="text-gray-200">영상 포맷:</strong> {cat.video_type === 'shorts' ? '쇼츠(Shorts)' : '롱폼(Longform)'}</p>
                                                     </div>
-                                                    
-                                                    {/* 二쇱젣 ?湲곗뿴 移댁슫??*/}
+                                                     
+                                                    {/* 주제 대기열 카운트 */}
                                                     <div className="flex gap-3 text-[11px] font-black tracking-wider uppercase mb-6">
                                                         <span className="px-3 py-1 bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 rounded-lg">대기주제: {pendingTopics.length}개</span>
                                                         <span className="px-3 py-1 bg-green-500/10 text-green-500 border border-green-500/20 rounded-lg">완료주제: {completedTopics.length}개</span>
@@ -1799,7 +1799,7 @@ export default function DashboardContent() {
                                 <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
                                     <div className="min-w-0">
                                         <h2 className="font-black text-xl tracking-tight">
-                                            ?뱥 ?ㅼ떆媛??꾩껜 二쇱젣 ?湲곗뿴 ??(Topics Queue)
+                                            실시간 전체 주제 대기열 큐 (Topics Queue)
                                         </h2>
                                         <p className="mt-2 text-xs font-bold text-gray-500">
                                             {selectedCategory ? `${selectedCategory.name} 카테고리 · ${activeStatusLabel}만 표시 중` : `전체 카테고리 · ${activeStatusLabel}만 표시 중`}
@@ -1886,8 +1886,8 @@ export default function DashboardContent() {
                                 <table className="w-full text-left text-sm">
                                     <thead className="bg-black/30 border-b border-white/5 text-[10px] font-black text-gray-500 uppercase tracking-widest">
                                         <tr>
-                                            <th className="px-10 py-6">移댄뀒怨좊━</th>
-                                            <th className="px-10 py-6">?쒖븞 ?곸긽 二쇱젣</th>
+                                        <th className="px-10 py-6">카테고리</th>
+                                        <th className="px-10 py-6">제안 영상 주제</th>
                                             {topicQueueStatusFilter === 'working' && (
                                                 <th className="px-10 py-6">작업 진행</th>
                                             )}
@@ -1907,7 +1907,7 @@ export default function DashboardContent() {
                                                 }`}
                                             >
                                                 <td className="px-10 py-6 text-gray-300 font-bold">
-                                                    {item.categories?.name || '湲곕낯'}
+                                                    {item.categories?.name || '기본'}
                                                 </td>
                                                 <td className="px-10 py-6 text-white font-bold max-w-sm">
                                                     <div className="flex items-start gap-2">
@@ -1948,7 +1948,7 @@ export default function DashboardContent() {
                                                         </div>
                                                         {item.is_auto_generated && (
                                                             <span className="bg-purple-500/10 text-purple-400 px-1.5 py-0.5 rounded border border-purple-500/20 font-black text-[8px] tracking-tight shrink-0">
-                                                                ?쨼 AUTO
+                                                                AUTO
                                                             </span>
                                                         )}
                                                     </div>
@@ -2017,7 +2017,7 @@ export default function DashboardContent() {
                                         {filteredTopics.length === 0 && (
                                             <tr>
                                                 <td colSpan={topicQueueStatusFilter === 'working' ? 6 : 5} className="px-10 py-20 text-center text-gray-600 font-black uppercase tracking-widest text-xs italic">
-                                                    {selectedCategory ? '?좏깮??移댄뀒怨좊━???깅줉??二쇱젣媛 ?놁뒿?덈떎.' : '?湲곗뿴???깅줉??二쇱젣媛 ?놁뒿?덈떎. 移댄뀒怨좊━瑜?癒쇱? ?앹꽦?댁＜?몄슂.'}
+                                                    {selectedCategory ? '선택한 카테고리에 등록된 주제가 없습니다.' : '대기열에 등록된 주제가 없습니다. 카테고리를 먼저 선택해 주세요.'}
                                                 </td>
                                             </tr>
                                         )}
@@ -2387,7 +2387,7 @@ export default function DashboardContent() {
 
                             {/* Google Drive Queue Configuration section */}
                             <div className="space-y-4 xl:border-l xl:border-white/10 xl:pl-8">
-                                <h4 className="text-xs font-black text-blue-400 uppercase tracking-widest mb-2">?뱚 援ш? ?쒕씪?대툕 ?뚮뜑 ?湲곗뿴 ?ㅼ젙</h4>
+                                <h4 className="text-xs font-black text-blue-400 uppercase tracking-widest mb-2">Google Drive 렌더 대기열 설정</h4>
                                 
                                 <div className="flex items-center gap-3 bg-white/[0.02] p-4 rounded-xl border border-white/5">
                                     <input 
@@ -2398,38 +2398,38 @@ export default function DashboardContent() {
                                         className="w-4 h-4 rounded text-blue-500 bg-black border-white/10 cursor-pointer"
                                     />
                                     <div className="text-xs">
-                                        <label htmlFor="use_external_render" className="font-bold text-gray-300 cursor-pointer">?몃? ?뚮뜑 ?湲곗뿴 ?ъ슜 (Google Drive File Stream ?곕룞)</label>
-                                        <p className="text-[10px] text-gray-500 mt-0.5">?쒖꽦???? 媛??앹꽦 ?④퀎 諛?鍮꾨뵒???뚮뜑 ?뚯씪???꾨옒 ?ㅼ젙??援ш? ?쒕씪?대툕 寃쎈줈濡??숆린?붾맗?덈떎.</p>
+                                        <label htmlFor="use_external_render" className="font-bold text-gray-300 cursor-pointer">외부 렌더 대기열 사용 (Google Drive File Stream 연동)</label>
+                                        <p className="text-[10px] text-gray-500 mt-0.5">활성화하면 생성 단계와 비디오 렌더 파일이 아래 설정한 구글 드라이브 경로로 동기화됩니다.</p>
                                     </div>
                                 </div>
 
                                 <div className="space-y-4">
                                     <div>
-                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">?곗꽑 ?곸슜 ?몄뼱 寃쎈줈 (?쒖꽦 ?ㅼ젙)</label>
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">우선 적용 언어 경로 (활성 설정)</label>
                                         <select 
                                             value={sysKeys.drive_active_lang}
                                             onChange={e => setSysKeys(prev => ({ ...prev, drive_active_lang: e.target.value }))}
                                             className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-300 cursor-pointer"
                                         >
-                                            <option value="ko" className="bg-[#111]">?쒓뎅??(Korean OS 寃쎈줈 ?곸슜)</option>
-                                            <option value="en" className="bg-[#111]">?곸뼱 (English OS 寃쎈줈 ?곸슜)</option>
-                                            <option value="ja" className="bg-[#111]">?쇰낯??(Japanese OS 寃쎈줈 ?곸슜)</option>
+                                            <option value="ko" className="bg-[#111]">한국어 (Korean OS 경로 적용)</option>
+                                            <option value="en" className="bg-[#111]">영어 (English OS 경로 적용)</option>
+                                            <option value="ja" className="bg-[#111]">일본어 (Japanese OS 경로 적용)</option>
                                         </select>
                                     </div>
 
                                     <div>
-                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">?눖?눟 ?쒓뎅??Windows 寃쎈줈 (DRIVE_PATH_KO)</label>
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">한국어 Windows 경로 (DRIVE_PATH_KO)</label>
                                         <input 
                                             type="text" 
                                             value={sysKeys.drive_path_ko} 
                                             onChange={e => setSysKeys(prev => ({ ...prev, drive_path_ko: e.target.value }))}
-                                            placeholder="G:/???쒕씪?대툕/Longform_Render_Queue"
+                                            placeholder="G:/내 드라이브/Longform_Render_Queue"
                                             className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300"
                                         />
                                     </div>
 
                                     <div>
-                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">?눣?눡 ?곸뼱 Windows 寃쎈줈 (DRIVE_PATH_EN)</label>
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">영어 Windows 경로 (DRIVE_PATH_EN)</label>
                                         <input 
                                             type="text" 
                                             value={sysKeys.drive_path_en} 
@@ -2440,7 +2440,7 @@ export default function DashboardContent() {
                                     </div>
 
                                     <div>
-                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">?눓?눝 ?쇰낯??Windows 寃쎈줈 (DRIVE_PATH_JA)</label>
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">일본어 Windows 경로 (DRIVE_PATH_JA)</label>
                                         <input 
                                             type="text" 
                                             value={sysKeys.drive_path_ja} 
@@ -2462,7 +2462,7 @@ export default function DashboardContent() {
                                     placeholder="Drive folder ID for remote render asset ZIPs"
                                     className="w-full bg-black/40 border border-blue-500/20 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300"
                                 />
-                                <p className="text-[10px] text-gray-500">API 諛⑹떇 ?먭꺽 ?뚮뜑留곸뿉???먯뀑 ZIP???낅줈?쒗븷 Drive ?대뜑 ID?낅땲??</p>
+                                <p className="text-[10px] text-gray-500">API 방식으로 렌더 대기열에서 생성된 ZIP을 업로드할 Drive 폴더 ID입니다.</p>
                             </div>
 
                             <div className="space-y-2">
@@ -2474,10 +2474,10 @@ export default function DashboardContent() {
                                     placeholder="C:/path/to/token.json"
                                     className="w-full bg-black/40 border border-blue-500/20 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300"
                                 />
-                                <p className="text-[10px] text-gray-500">硫붿씤 PC? ?먭꺽 ?뚯빱媛 Drive API ?몄쬆???ъ슜??OAuth ?좏겙 ?뚯씪 寃쎈줈?낅땲??</p>
+                                <p className="text-[10px] text-gray-500">메인 PC는 자격 증명 파일로 Drive API 인증을 사용합니다. OAuth 토큰 파일 경로입니다.</p>
                             </div>
 
-                            {sysKeysSaved && <p className="text-xs text-green-400 font-bold text-center">??????꾨즺</p>}
+                            {sysKeysSaved && <p className="text-xs text-green-400 font-bold text-center">저장 완료</p>}
 
                             <button
                                 onClick={saveSysKeys}
