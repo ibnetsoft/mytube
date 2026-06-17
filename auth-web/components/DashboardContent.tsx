@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
@@ -1408,21 +1408,21 @@ export default function DashboardContent() {
                                     <input 
                                         type="text" 
                                         required
-                                        placeholder="?? ?멸퀎 誘몄뒪?곕━"
+                                        placeholder="예: 옛날이야기"
                                         value={newCatName}
                                         onChange={e => setNewCatName(e.target.value)}
                                         className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">?대떦 吏곸썝 ?대찓??*</label>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">담당 직원 이메일 *</label>
                                     <select
                                         required
                                         value={newCatEmployee}
                                         onChange={e => setNewCatEmployee(e.target.value)}
                                         className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
                                     >
-                                        <option value="">-- 吏곸썝???좏깮?섏꽭??--</option>
+                                        <option value="">-- 직원을 선택하세요 --</option>
                                         {users.map(user => {
                                             const email = user.email?.toLowerCase();
                                             if (!email) return null;
@@ -1439,17 +1439,17 @@ export default function DashboardContent() {
                                     <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">주요 리서치 키워드</label>
                                     <input 
                                         type="text" 
-                                        placeholder="?쇳몴濡?援щ텇 (?? 踰꾨????쇨컖吏?, 誘명빐寃??ш굔)"
+                                        placeholder="예: 주식, 부동산, 금융, 재테크"
                                         value={newCatKeywords}
                                         onChange={e => setNewCatKeywords(e.target.value)}
                                         className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">踰ㅼ튂留덊궧???좏뒠釉?梨꾨꼸 URL</label>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">벤치마킹용 유튜브 채널 URL</label>
                                     <input 
                                         type="url" 
-                                        placeholder="?? https://www.youtube.com/@BenchmarkChannel"
+                                        placeholder="예: https://www.youtube.com/@BenchmarkChannel"
                                         value={newCatChannel}
                                         onChange={e => setNewCatChannel(e.target.value)}
                                         className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
@@ -1457,13 +1457,13 @@ export default function DashboardContent() {
                                 </div>
                                 <div>
                                     <div className="flex items-center justify-between mb-1.5">
-                                        <label className="text-xs font-black text-gray-400 block uppercase tracking-wider">?낅줈??怨좎젙 梨꾨꼸</label>
+                                        <label className="text-xs font-black text-gray-400 block uppercase tracking-wider">업로드 고정 채널</label>
                                         <button
                                             type="button"
                                             onClick={fetchLocalUploadChannels}
                                             className="text-[10px] font-black text-blue-400 hover:text-blue-300"
                                         >
-                                            {localChannelsLoading ? '遺덈윭?ㅻ뒗 以?..' : '濡쒖뺄 梨꾨꼸 遺덈윭?ㅺ린'}
+                                            {localChannelsLoading ? '불러오는 중...' : '로컬 채널 불러오기'}
                                         </button>
                                     </div>
                                     <select
@@ -1471,7 +1471,7 @@ export default function DashboardContent() {
                                         onChange={e => applySelectedChannelToCreateForm(e.target.value ? Number(e.target.value) : null)}
                                         className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
                                     >
-                                        <option value="" className="bg-[#111] text-white">-- 怨좎젙 梨꾨꼸 ?놁쓬 --</option>
+                                        <option value="" className="bg-[#111] text-white">-- 고정 채널 없음 --</option>
                                         {localChannels.map(channel => (
                                             <option key={`new-cat-channel-${channel.id}`} value={channel.id} className="bg-[#111] text-white">
                                                 {channel.name} {channel.credentials_path ? '[연동완료]' : '[미연동]'}
@@ -1480,45 +1480,45 @@ export default function DashboardContent() {
                                     </select>
                                     <p className="mt-2 text-[11px] text-gray-500">
                                         {newCatUploadChannelName
-                                            ? `${newCatUploadChannelName} (${newCatUploadChannelHandle || 'handle ?놁쓬'})`
-                                            : '?좏깮??二쇱젣????긽 ??梨꾨꼸濡??낅줈?쒕맗?덈떎.'}
+                                            ? `${newCatUploadChannelName} (${newCatUploadChannelHandle || 'handle ??'})`
+                                            : '??? ???? ?? ??? ??????.'}
                                     </p>
                                 </div>
                                 <div>
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">湲곕낯 ?蹂??ㅽ???*</label>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">기본 대본 스타일 *</label>
                                     <select
                                         required
                                         value={newCatScriptStyle}
                                         onChange={e => setNewCatScriptStyle(e.target.value)}
                                         className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
                                     >
-                                        <option value="default" className="bg-[#111] text-white">湲곕낯 ?ㅼ젙 (?좊챸?섍퀬 ?먯뿰?ㅻ읇寃?</option>
-                                        <option value="story" className="bg-[#111] text-white">?쏅궇 ?댁빞湲?(援ъ뿰?숉솕 ??</option>
-                                        <option value="senior_story" className="bg-[#111] text-white">?쒕땲???댁빞湲?(?뚯긽/媛먯꽦 ??</option>
-                                        <option value="news" className="bg-[#111] text-white">?댁뒪 (?뺣낫?꾨떖 ??</option>
-                                        <option value="mystery_thriller" className="bg-[#111] text-white">誘몄뒪?곕━ ?ㅻ┫??(湲댁옣媛???</option>
-                                        <option value="nursery_rhyme" className="bg-[#111] text-white">?꾨옒?숈슂??(?대┛??援ъ뿰 ??</option>
+                                        <option value="default" className="bg-[#111] text-white">기본 설정 (자연스럽고 선명한 스타일)</option>
+                                        <option value="story" className="bg-[#111] text-white">예난 이야기 (구연 동화)</option>
+                                        <option value="senior_story" className="bg-[#111] text-white">시니어 이야기 (회상/감성)</option>
+                                        <option value="news" className="bg-[#111] text-white">뉴스 (정보 전달)</option>
+                                        <option value="mystery_thriller" className="bg-[#111] text-white">미스터리 스릴러 (긴장감)</option>
+                                        <option value="nursery_rhyme" className="bg-[#111] text-white">어린이 동요 (귀여운 구연)</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">湲곕낯 ?대?吏 ?뷀뭾 *</label>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">기본 이미지 스타일 *</label>
                                     <select
                                         required
                                         value={newCatImageStyle}
                                         onChange={e => setNewCatImageStyle(e.target.value)}
                                         className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
                                     >
-                                        <option value="realistic" className="bg-[#111] text-white">?ㅼ궗 (Photorealistic)</option>
-                                        <option value="ghibli" className="bg-[#111] text-white">吏釉뚮━ 媛먯꽦 ?쇰윭?ㅽ듃 (Ghibli)</option>
-                                        <option value="anime" className="bg-[#111] text-white">?쇰낯 ?좊땲硫붿씠?섑뭾 (Anime)</option>
-                                        <option value="cinematic" className="bg-[#111] text-white">?곹솕 ?ㅽ떥而??먮굦 (Cinematic)</option>
-                                        <option value="cartoon" className="bg-[#111] text-white">2D 移댄댆 ?쇰윭?ㅽ듃 (Cartoon)</option>
-                                        <option value="nursery_rhyme" className="bg-[#111] text-white">3D ?숉솕/?좊땲 (Nursery/Pixar)</option>
-                                        <option value="??궗/?숈뼇泥??ㅽ걧" className="bg-[#111] text-white">?꾪넻 ?숈뼇???섎У??(Ink Wash)</option>
+                                        <option value="realistic" className="bg-[#111] text-white">실사 (Photorealistic)</option>
+                                        <option value="ghibli" className="bg-[#111] text-white">지브리 감성 일러스트 (Ghibli)</option>
+                                        <option value="anime" className="bg-[#111] text-white">애니메이션풍 (Anime)</option>
+                                        <option value="cinematic" className="bg-[#111] text-white">영화 스타일 (Cinematic)</option>
+                                        <option value="cartoon" className="bg-[#111] text-white">2D 카톤 스타일 (Cartoon)</option>
+                                        <option value="nursery_rhyme" className="bg-[#111] text-white">3D 동화/애니 (Nursery/Pixar)</option>
+                                        <option value="ink_wash" className="bg-[#111] text-white">동양 수목화 스타일 (Ink Wash)</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">?곸긽 ?щ㎎ (?뺤떇) *</label>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">영상 형식 (필수) *</label>
                                     <div className="flex gap-4 mt-2 bg-black/40 border border-white/10 rounded-xl px-4 py-3">
                                         <label className="flex items-center gap-2 cursor-pointer text-xs font-bold">
                                             <input 
@@ -1529,7 +1529,7 @@ export default function DashboardContent() {
                                                 onChange={() => setNewCatVideoType('longform')}
                                                 className="w-4 h-4 rounded-full text-blue-500 bg-black border-white/10"
                                             />
-                                            <span>媛濡쒗삎 (Longform)</span>
+                                            <span>롯폼 (Longform)</span>
                                         </label>
                                         <label className="flex items-center gap-2 cursor-pointer text-xs font-bold">
                                             <input 
@@ -1540,7 +1540,7 @@ export default function DashboardContent() {
                                                 onChange={() => setNewCatVideoType('shorts')}
                                                 className="w-4 h-4 rounded-full text-blue-500 bg-black border-white/10"
                                             />
-                                            <span>?몃줈??(Shorts)</span>
+                                            <span>쇼츠 (Shorts)</span>
                                         </label>
                                     </div>
                                 </div>
@@ -1549,7 +1549,7 @@ export default function DashboardContent() {
                                         type="submit"
                                         className="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl transition-all shadow-lg active:scale-95"
                                     >
-                                        ?? ?깅줉 諛?珥덇린 二쇱젣 ?앹꽦
+                                        카테고리 등록 및 초기 주제 생성
                                     </button>
                                 </div>
                             </form>
@@ -1558,7 +1558,7 @@ export default function DashboardContent() {
                         {/* 2. ?깅줉??移댄뀒怨좊━ 諛?留ㅽ븨 由ъ뒪??*/}
                         <div className="bg-[#0f172a]/60 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl p-8">
                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                                <h2 className="font-black text-xl tracking-tight">?뱛 ??移댄뀒怨좊━ ?꾪솴</h2>
+                                <h2 className="font-black text-xl tracking-tight">내 카테고리 현황</h2>
                                 <div className="flex p-1 bg-black/40 rounded-xl border border-white/10">
                                     <button 
                                         onClick={() => setCategoryListTab('longform')}
@@ -1624,22 +1624,22 @@ export default function DashboardContent() {
                                                         </div>
                                                     </div>
                                                     <div className="space-y-2 text-xs text-gray-400 mb-6">
-                                                        <p>👤 <strong className="text-gray-200">담당 직원:</strong> {cat.assigned_employee_email}</p>
-                                                        <p>🔑 <strong className="text-gray-200">키워드:</strong> {cat.keywords || '(없음)'}</p>
-                                                        <p className="truncate">📺 <strong className="text-gray-200">벤치 채널:</strong> <a href={cat.benchmark_channel_url} target="_blank" rel="noreferrer" className="text-blue-400 underline">{cat.benchmark_channel_url || '(없음)'}</a></p>
+                                                        <p>담당 직원: <strong className="text-gray-200">{cat.assigned_employee_email}</strong></p>
+                                                        <p>키워드: <strong className="text-gray-200">{cat.keywords || '(없음)'}</strong></p>
+                                                        <p className="truncate">벤치 채널: <a href={cat.benchmark_channel_url} target="_blank" rel="noreferrer" className="text-blue-400 underline">{cat.benchmark_channel_url || '(없음)'}</a></p>
                                                         <p>
-                                                            ?? <strong className="text-gray-200">?낅줈??梨꾨꼸:</strong>{' '}
+                                                            업로드 채널:{' ' }
                                                             <button
                                                                 type="button"
                                                                 onClick={() => openCategoryChannelConfig(cat)}
                                                                 className="text-blue-400 underline hover:text-blue-300"
                                                             >
-                                                            {cat.upload_channel_name || cat.upload_channel_handle || '미지정'}
+                                                                {cat.upload_channel_name || cat.upload_channel_handle || '미지정'}
                                                         </button>
                                                     </p>
-                                                        <p>📝 <strong className="text-gray-200">대본 스타일:</strong> {cat.default_script_style || '기본'}</p>
-                                                        <p>🎨 <strong className="text-gray-200">이미지 스타일:</strong> {cat.default_image_style || '실사'}</p>
-                                                        <p>🎬 <strong className="text-gray-200">영상 포맷:</strong> {cat.video_type === 'shorts' ? '쇼츠(Shorts)' : '롱폼(Longform)'}</p>
+                                                        <p>대본 스타일: <strong className="text-gray-200">{cat.default_script_style || '기본'}</strong></p>
+                                                        <p>이미지 스타일: <strong className="text-gray-200">{cat.default_image_style || '실사'}</strong></p>
+                                                        <p>영상 포맷: <strong className="text-gray-200">{cat.video_type === 'shorts' ? '쇼츠 (Shorts)' : '롯폼 (Longform)'}</strong></p>
                                                     </div>
                                                      
                                                     {/* 주제 대기열 카운트 */}
@@ -1886,8 +1886,8 @@ export default function DashboardContent() {
                                 <table className="w-full text-left text-sm">
                                     <thead className="bg-black/30 border-b border-white/5 text-[10px] font-black text-gray-500 uppercase tracking-widest">
                                         <tr>
-                                        <th className="px-10 py-6">카테고리</th>
-                                        <th className="px-10 py-6">제안 영상 주제</th>
+                                            <th className="px-10 py-6">카테고리</th>
+                                            <th className="px-10 py-6">제안 영상 주제</th>
                                             {topicQueueStatusFilter === 'working' && (
                                                 <th className="px-10 py-6">작업 진행</th>
                                             )}
@@ -2966,32 +2966,32 @@ export default function DashboardContent() {
                                     onChange={e => setEditCatForm(p => ({ ...p, default_script_style: e.target.value }))}
                                     className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500/50 cursor-pointer"
                                 >
-                                    <option value="default" className="bg-[#111] text-white">湲곕낯 ?ㅼ젙 (?좊챸?섍퀬 ?먯뿰?ㅻ읇寃?</option>
-                                    <option value="story" className="bg-[#111] text-white">?쏅궇 ?댁빞湲?(援ъ뿰?숉솕 ??</option>
-                                    <option value="senior_story" className="bg-[#111] text-white">?쒕땲???댁빞湲?(?뚯긽/媛먯꽦 ??</option>
-                                    <option value="news" className="bg-[#111] text-white">?댁뒪 (?뺣낫?꾨떖 ??</option>
-                                    <option value="mystery_thriller" className="bg-[#111] text-white">誘몄뒪?곕━ ?ㅻ┫??(湲댁옣媛???</option>
-                                    <option value="nursery_rhyme" className="bg-[#111] text-white">?꾨옒?숈슂??(?대┛??援ъ뿰 ??</option>
+                                    <option value="default" className="bg-[#111] text-white">기본 설정 (자연스럽고 선명한 스타일)</option>
+                                    <option value="story" className="bg-[#111] text-white">예난 이야기 (구연 동화)</option>
+                                    <option value="senior_story" className="bg-[#111] text-white">시니어 이야기 (회상/감성)</option>
+                                    <option value="news" className="bg-[#111] text-white">뉴스 (정보 전달)</option>
+                                    <option value="mystery_thriller" className="bg-[#111] text-white">미스터리 스릴러 (긴장감)</option>
+                                    <option value="nursery_rhyme" className="bg-[#111] text-white">어린이 동요 (귀여운 구연)</option>
                                 </select>
                             </div>
                             <div>
-                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">湲곕낯 ?대?吏 ?뷀뭾</label>
+                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">기본 이미지 스타일</label>
                                 <select
                                     value={editCatForm.default_image_style}
                                     onChange={e => setEditCatForm(p => ({ ...p, default_image_style: e.target.value }))}
                                     className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500/50 cursor-pointer"
                                 >
-                                    <option value="realistic" className="bg-[#111] text-white">?ㅼ궗 (Photorealistic)</option>
-                                    <option value="ghibli" className="bg-[#111] text-white">吏釉뚮━ 媛먯꽦 ?쇰윭?ㅽ듃 (Ghibli)</option>
-                                    <option value="anime" className="bg-[#111] text-white">?쇰낯 ?좊땲硫붿씠?섑뭾 (Anime)</option>
-                                    <option value="cinematic" className="bg-[#111] text-white">?곹솕 ?ㅽ떥而??먮굦 (Cinematic)</option>
-                                    <option value="cartoon" className="bg-[#111] text-white">2D 移댄댆 ?쇰윭?ㅽ듃 (Cartoon)</option>
-                                    <option value="nursery_rhyme" className="bg-[#111] text-white">3D ?숉솕/?좊땲 (Nursery/Pixar)</option>
-                                    <option value="??궗/?숈뼇泥??ㅽ걧" className="bg-[#111] text-white">?꾪넻 ?숈뼇???섎У??(Ink Wash)</option>
+                                    <option value="realistic" className="bg-[#111] text-white">실사 (Photorealistic)</option>
+                                    <option value="ghibli" className="bg-[#111] text-white">지브리 감성 일러스트 (Ghibli)</option>
+                                    <option value="anime" className="bg-[#111] text-white">애니메이션풍 (Anime)</option>
+                                    <option value="cinematic" className="bg-[#111] text-white">영화 스타일 (Cinematic)</option>
+                                    <option value="cartoon" className="bg-[#111] text-white">2D 카톤 스타일 (Cartoon)</option>
+                                    <option value="nursery_rhyme" className="bg-[#111] text-white">3D 동화/애니 (Nursery/Pixar)</option>
+                                    <option value="ink_wash" className="bg-[#111] text-white">동양 수목화 스타일 (Ink Wash)</option>
                                 </select>
                              </div>
                              <div>
-                                 <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-2">?곸긽 ?щ㎎ (?뺤떇) *</label>
+                                 <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-2">영상 형식 (필수) *</label>
                                  <div className="flex gap-6 items-center">
                                      <label className="flex items-center gap-2 cursor-pointer text-white font-black">
                                          <input 
@@ -3002,7 +3002,7 @@ export default function DashboardContent() {
                                              onChange={() => setEditCatForm(p => ({ ...p, video_type: 'longform' }))}
                                              className="w-4 h-4 accent-blue-500 cursor-pointer"
                                          />
-                                         <span>媛濡쒗삎 (Longform)</span>
+                                          <span>롯폼 (Longform)</span>
                                      </label>
                                      <label className="flex items-center gap-2 cursor-pointer text-white font-black">
                                          <input 
@@ -3013,7 +3013,7 @@ export default function DashboardContent() {
                                              onChange={() => setEditCatForm(p => ({ ...p, video_type: 'shorts' }))}
                                              className="w-4 h-4 accent-blue-500 cursor-pointer"
                                          />
-                                         <span>?몃줈??(Shorts)</span>
+                                          <span>쇼츠 (Shorts)</span>
                                      </label>
                                  </div>
                              </div>
