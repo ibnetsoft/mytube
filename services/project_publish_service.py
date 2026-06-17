@@ -31,8 +31,14 @@ def _resolve_youtube_token_path(
     requested_channel_id: Optional[int] = None,
 ) -> Optional[str]:
     token_path = None
+    preferred_handle = (settings.get("preferred_youtube_channel_handle") or "").strip()
     try:
         target_chan_id = requested_channel_id or settings.get("youtube_channel_id")
+        if not target_chan_id:
+            if preferred_handle:
+                preferred_channel = db.get_channel_by_handle(preferred_handle)
+                if preferred_channel and preferred_channel.get("id"):
+                    target_chan_id = preferred_channel["id"]
         if target_chan_id:
             channel = db.get_channel(target_chan_id)
             if channel and channel.get("credentials_path"):
@@ -48,7 +54,7 @@ def _resolve_youtube_token_path(
                         token_path = rec_path
                         print(f"[YouTube] Recovered token path from tokens directory: {token_path}")
 
-        if not token_path:
+        if not token_path and not preferred_handle:
             channels = db.get_all_channels()
             for ch in channels or []:
                 c_path = ch.get("credentials_path")
@@ -124,6 +130,10 @@ def publish_project_to_youtube(
                 merged_tags.append(cleaned)
 
         token_path = _resolve_youtube_token_path(settings, requested_channel_id)
+        preferred_handle = (settings.get("preferred_youtube_channel_handle") or "").strip()
+        if preferred_handle and not token_path:
+            preferred_name = settings.get("preferred_youtube_channel_name") or preferred_handle
+            raise RuntimeError(f"Fixed upload channel is not connected locally: {preferred_name}")
         result = youtube_upload_service.upload_video(
             file_path=video_path,
             title=title,

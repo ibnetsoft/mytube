@@ -2479,6 +2479,16 @@ JSON만 출력하세요:
         # [NEW] Multi-Channel Support: Resolve Token Path
         token_path = None
         channel_id = p_settings.get("youtube_channel_id")
+        if not channel_id:
+            preferred_handle = (p_settings.get("preferred_youtube_channel_handle") or "").strip()
+            if preferred_handle:
+                try:
+                    preferred_channel = db.get_channel_by_handle(preferred_handle)
+                    if preferred_channel and preferred_channel.get("id"):
+                        channel_id = preferred_channel["id"]
+                        db.update_project_setting(project_id, "youtube_channel_id", channel_id)
+                except Exception as ce:
+                    print(f"⚠️ [Upload] Failed to resolve preferred channel '{preferred_handle}': {ce}")
         if channel_id:
             try:
                 channel = db.get_channel(channel_id)
@@ -2502,6 +2512,11 @@ JSON만 출력하세요:
                     print(f"🔑 [Upload] Using resolved token: {channel.get('name')} ({token_path})")
             except Exception as ce:
                 print(f"⚠️ [Upload] Failed to resolve channel {channel_id}: {ce}")
+
+        preferred_handle = (p_settings.get("preferred_youtube_channel_handle") or "").strip()
+        if preferred_handle and not token_path:
+            preferred_name = p_settings.get("preferred_youtube_channel_name") or preferred_handle
+            raise Exception(f"고정 업로드 채널이 아직 로컬에 연동되지 않았습니다: {preferred_name}")
 
         try:
             # 1. Video Upload

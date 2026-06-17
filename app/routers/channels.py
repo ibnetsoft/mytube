@@ -16,7 +16,13 @@ async def list_channels():
 @router.post("", response_model=int)
 async def create_channel(data: ChannelCreate):
     try:
-        channel_id = db.create_channel(data.name, data.handle, data.description, data.proxy)
+        existing_channels = db.get_all_channels()
+        target_channel = next((c for c in existing_channels if c['handle'] == data.handle), None)
+        if target_channel:
+            channel_id = target_channel["id"]
+            db.update_channel(channel_id, data.name, data.handle, data.description, data.proxy)
+        else:
+            channel_id = db.create_channel(data.name, data.handle, data.description, data.proxy)
         return channel_id
     except Exception as e:
         raise HTTPException(500, str(e))

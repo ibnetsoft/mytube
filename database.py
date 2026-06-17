@@ -2178,6 +2178,17 @@ def get_channel(channel_id: int) -> Optional[Dict]:
     conn.close()
     return dict(row) if row else None
 
+def get_channel_by_handle(handle: str) -> Optional[Dict]:
+    """YouTube 채널 핸들/ID로 로컬 채널 정보를 조회"""
+    if not handle:
+        return None
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM channels WHERE handle = ?", (handle,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
 def get_project(project_id: int) -> Optional[Dict]:
     """특정 프로젝트 조회"""
     conn = get_db()

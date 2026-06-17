@@ -27,7 +27,18 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
     try {
-        const { name, keywords, benchmark_channel_url, assigned_employee_email, default_script_style, default_image_style, video_type } = await req.json()
+        const {
+            name,
+            keywords,
+            benchmark_channel_url,
+            assigned_employee_email,
+            default_script_style,
+            default_image_style,
+            video_type,
+            upload_channel_id,
+            upload_channel_name,
+            upload_channel_handle,
+        } = await req.json()
 
         if (!name || !assigned_employee_email) {
             return NextResponse.json({ error: 'Name and Employee email are required' }, { status: 400 })
@@ -56,7 +67,10 @@ export async function POST(req: Request) {
                 assigned_employee_email,
                 default_script_style: default_script_style || 'default',
                 default_image_style: default_image_style || 'realistic',
-                video_type: video_type || 'longform'
+                video_type: video_type || 'longform',
+                upload_channel_id: upload_channel_id || null,
+                upload_channel_name: upload_channel_name || '',
+                upload_channel_handle: upload_channel_handle || '',
             }])
             .select()
 
@@ -113,7 +127,19 @@ export async function DELETE(req: Request) {
 export async function PUT(req: Request) {
     try {
         const body = await req.json()
-        const { id, name, keywords, benchmark_channel_url, assigned_employee_email, default_script_style, default_image_style, video_type } = body
+        const {
+            id,
+            name,
+            keywords,
+            benchmark_channel_url,
+            assigned_employee_email,
+            default_script_style,
+            default_image_style,
+            video_type,
+            upload_channel_id,
+            upload_channel_name,
+            upload_channel_handle,
+        } = body
 
         if (!id) {
             return NextResponse.json({ error: 'Category ID is required' }, { status: 400 })
@@ -144,6 +170,9 @@ export async function PUT(req: Request) {
         if (default_script_style !== undefined) updateData.default_script_style = default_script_style
         if (default_image_style !== undefined) updateData.default_image_style = default_image_style
         if (video_type !== undefined) updateData.video_type = video_type
+        if (upload_channel_id !== undefined) updateData.upload_channel_id = upload_channel_id || null
+        if (upload_channel_name !== undefined) updateData.upload_channel_name = upload_channel_name || ''
+        if (upload_channel_handle !== undefined) updateData.upload_channel_handle = upload_channel_handle || ''
 
         const { data, error } = await supabase
             .from('categories')

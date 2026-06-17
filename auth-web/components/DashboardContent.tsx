@@ -31,7 +31,17 @@ interface PublishingRequest {
     }
 }
 
+interface LocalUploadChannel {
+    id: number
+    name: string
+    handle: string
+    description?: string | null
+    credentials_path?: string | null
+    proxy?: string | null
+}
+
 const SUPER_ADMIN_EMAIL = 'ejsh0519@naver.com'
+const LOCAL_APP_ORIGINS = ['http://127.0.0.1:8001', 'http://localhost:8001']
 
 const typeMap: Record<string, string> = {
     'video': 'VIDEO',
@@ -105,6 +115,9 @@ export default function DashboardContent() {
     const [newCatScriptStyle, setNewCatScriptStyle] = useState('default')
     const [newCatImageStyle, setNewCatImageStyle] = useState('realistic')
     const [newCatVideoType, setNewCatVideoType] = useState('longform') // 'longform' | 'shorts'
+    const [newCatUploadChannelId, setNewCatUploadChannelId] = useState<number | null>(null)
+    const [newCatUploadChannelName, setNewCatUploadChannelName] = useState('')
+    const [newCatUploadChannelHandle, setNewCatUploadChannelHandle] = useState('')
     const [generatingCatId, setGeneratingCatId] = useState<number | null>(null)
     const [generatedTopicsByCat, setGeneratedTopicsByCat] = useState<Record<number, string[]>>({})
     const [topicQueueCategoryFilter, setTopicQueueCategoryFilter] = useState<string>('all')
@@ -121,7 +134,19 @@ export default function DashboardContent() {
         assigned_employee_email: '',
         default_script_style: 'default',
         default_image_style: 'realistic',
-        video_type: 'longform'
+        video_type: 'longform',
+        upload_channel_id: null as number | null,
+        upload_channel_name: '',
+        upload_channel_handle: '',
+    })
+    const [localChannels, setLocalChannels] = useState<LocalUploadChannel[]>([])
+    const [localChannelsLoading, setLocalChannelsLoading] = useState(false)
+    const [channelConfigCategory, setChannelConfigCategory] = useState<any | null>(null)
+    const [channelConfigForm, setChannelConfigForm] = useState({
+        local_channel_id: null as number | null,
+        name: '',
+        handle: '',
+        proxy: '',
     })
     
     // UI Modals State
@@ -289,6 +314,173 @@ export default function DashboardContent() {
             setSavingChannel(false);
         }
     };
+
+    const fetchLocalUploadChannels = useCallback(async () => {
+        setLocalChannelsLoading(true)
+        try {
+            let loaded: LocalUploadChannel[] = []
+            let lastError = ''
+
+            for (const origin of LOCAL_APP_ORIGINS) {
+                try {
+                    const res = await fetch(`${origin}/api/channels`, { method: 'GET' })
+                    if (!res.ok) {
+                        lastError = `HTTP ${res.status}`
+                        continue
+                    }
+                    loaded = await res.json()
+                    if (Array.isArray(loaded)) break
+                } catch (err: any) {
+                    lastError = err?.message || String(err)
+                }
+            }
+
+            if (!Array.isArray(loaded) || loaded.length === 0) {
+                setLocalChannels(Array.isArray(loaded) ? loaded : [])
+                if (lastError) {
+                    console.warn('Failed to load local channels:', lastError)
+                }
+                return
+            }
+
+            setLocalChannels(loaded)
+        } finally {
+            setLocalChannelsLoading(false)
+        }
+    }, [])
+
+    const applySelectedChannelToCreateForm = (channelId: number | null) => {
+        if (!channelId) {
+            setNewCatUploadChannelId(null)
+            setNewCatUploadChannelName('')
+            setNewCatUploadChannelHandle('')
+            return
+        }
+        const selected = localChannels.find(ch => ch.id === channelId)
+        setNewCatUploadChannelId(channelId)
+        setNewCatUploadChannelName(selected?.name || '')
+        setNewCatUploadChannelHandle(selected?.handle || '')
+    }
+
+    const openCategoryChannelConfig = async (category: any) => {
+        setChannelConfigCategory(category)
+        setChannelConfigForm({
+            local_channel_id: category?.upload_channel_id || null,
+            name: category?.upload_channel_name || '',
+            handle: category?.upload_channel_handle || '',
+            proxy: '',
+        })
+        await fetchLocalUploadChannels()
+    }
+
+    const applyLocalChannelToCategoryForm = (channelId: number | null) => {
+        if (!channelId) {
+            setChannelConfigForm(prev => ({ ...prev, local_channel_id: null, name: '', handle: '' }))
+            return
+        }
+        const selected = localChannels.find(ch => ch.id === channelId)
+        setChannelConfigForm(prev => ({
+            ...prev,
+            local_channel_id: channelId,
+            name: selected?.name || '',
+            handle: selected?.handle || '',
+            proxy: selected?.proxy || '',
+        }))
+    }
+
+    const handleCreateOrUpdateLocalChannel = async () => {
+        if (!channelConfigForm.name.trim() || !channelConfigForm.handle.trim()) {
+            alert(isKor ? '채널 이름과 채널 ID(또는 핸들)를 입력해주세요.' : 'Please enter channel name and channel ID/handle.')
+            return
+        }
+
+        const payload = {
+            name: channelConfigForm.name.trim(),
+            handle: channelConfigForm.handle.trim(),
+            description: `Managed by Admin (${channelConfigForm.name.trim()})`,
+            proxy: channelConfigForm.proxy.trim() || null,
+        }
+
+        let saved = false
+        let lastError = ''
+        for (const origin of LOCAL_APP_ORIGINS) {
+            try {
+                const res = await fetch(`${origin}/api/channels`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                })
+                if (!res.ok) {
+                    lastError = `HTTP ${res.status}`
+                    continue
+                }
+                const newId = await res.json()
+                const resolved = typeof newId === 'number' ? newId : null
+                setChannelConfigForm(prev => ({
+                    ...prev,
+                    local_channel_id: resolved,
+                    name: payload.name,
+                    handle: payload.handle,
+                    proxy: payload.proxy || '',
+                }))
+                await fetchLocalUploadChannels()
+                saved = true
+                break
+            } catch (err: any) {
+                lastError = err?.message || String(err)
+            }
+        }
+
+        if (!saved) {
+            alert((isKor ? '로컬 채널 저장 실패: ' : 'Failed to save local channel: ') + (lastError || 'Unknown error'))
+            return
+        }
+
+        alert(isKor ? '로컬 채널이 저장되었습니다.' : 'Local channel saved.')
+    }
+
+    const handleStartCategoryChannelOAuth = () => {
+        if (!channelConfigForm.name.trim() || !channelConfigForm.handle.trim()) {
+            alert(isKor ? '먼저 채널 이름과 채널 ID(또는 핸들)를 입력해주세요.' : 'Enter channel name and ID/handle first.')
+            return
+        }
+        const params = new URLSearchParams({
+            name: channelConfigForm.name.trim(),
+            id: channelConfigForm.handle.trim(),
+        })
+        if (channelConfigForm.proxy.trim()) {
+            params.set('proxy', channelConfigForm.proxy.trim())
+        }
+        const url = `${LOCAL_APP_ORIGINS[0]}/api/channels/login-by-info?${params.toString()}`
+        window.open(url, '_blank', 'noopener,noreferrer,width=560,height=720')
+    }
+
+    const handleSaveCategoryChannelBinding = async () => {
+        if (!channelConfigCategory) return
+        const payload = {
+            id: channelConfigCategory.id,
+            upload_channel_id: channelConfigForm.local_channel_id,
+            upload_channel_name: channelConfigForm.name.trim(),
+            upload_channel_handle: channelConfigForm.handle.trim(),
+        }
+        try {
+            const res = await fetch('/api/admin/categories', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            })
+            const data = await res.json()
+            if (!res.ok || !data.success) {
+                alert((isKor ? '채널 저장 실패: ' : 'Failed to save channel: ') + (data.error || `HTTP ${res.status}`))
+                return
+            }
+            alert(isKor ? '카테고리 업로드 채널이 저장되었습니다.' : 'Category upload channel saved.')
+            setChannelConfigCategory(null)
+            fetchCategories()
+        } catch (err: any) {
+            alert((isKor ? '채널 저장 오류: ' : 'Failed to save channel: ') + (err?.message || String(err)))
+        }
+    }
 
     const handleRoleChange = async (userId: string, currentRole: string) => {
         const newRole = currentRole === 'pro' ? 'std' : 'pro';
@@ -727,7 +919,10 @@ export default function DashboardContent() {
                     assigned_employee_email: newCatEmployee,
                     default_script_style: newCatScriptStyle,
                     default_image_style: newCatImageStyle,
-                    video_type: newCatVideoType
+                    video_type: newCatVideoType,
+                    upload_channel_id: newCatUploadChannelId,
+                    upload_channel_name: newCatUploadChannelName,
+                    upload_channel_handle: newCatUploadChannelHandle,
                 })
             })
             const data = await res.json()
@@ -739,6 +934,9 @@ export default function DashboardContent() {
                 setNewCatScriptStyle('default')
                 setNewCatImageStyle('realistic')
                 setNewCatVideoType('longform')
+                setNewCatUploadChannelId(null)
+                setNewCatUploadChannelName('')
+                setNewCatUploadChannelHandle('')
                 fetchCategories()
                 fetchTopics()
                 alert('카테고리가 성공적으로 등록되었으며, 기본 샘플 주제 3개가 적재되었습니다.')
@@ -1066,6 +1264,35 @@ export default function DashboardContent() {
                                     />
                                 </div>
                                 <div>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <label className="text-xs font-black text-gray-400 block uppercase tracking-wider">업로드 고정 채널</label>
+                                        <button
+                                            type="button"
+                                            onClick={fetchLocalUploadChannels}
+                                            className="text-[10px] font-black text-blue-400 hover:text-blue-300"
+                                        >
+                                            {localChannelsLoading ? '불러오는 중...' : '로컬 채널 불러오기'}
+                                        </button>
+                                    </div>
+                                    <select
+                                        value={newCatUploadChannelId ?? ''}
+                                        onChange={e => applySelectedChannelToCreateForm(e.target.value ? Number(e.target.value) : null)}
+                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
+                                    >
+                                        <option value="" className="bg-[#111] text-white">-- 고정 채널 없음 --</option>
+                                        {localChannels.map(channel => (
+                                            <option key={`new-cat-channel-${channel.id}`} value={channel.id} className="bg-[#111] text-white">
+                                                {channel.name} {channel.credentials_path ? '· 연동완료' : '· 미연동'}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <p className="mt-2 text-[11px] text-gray-500">
+                                        {newCatUploadChannelName
+                                            ? `${newCatUploadChannelName} (${newCatUploadChannelHandle || 'handle 없음'})`
+                                            : '선택한 주제는 항상 이 채널로 업로드됩니다.'}
+                                    </p>
+                                </div>
+                                <div>
                                     <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">기본 대본 스타일 *</label>
                                     <select
                                         required
@@ -1186,7 +1413,10 @@ export default function DashboardContent() {
                                                                         assigned_employee_email: cat.assigned_employee_email || '',
                                                                         default_script_style: cat.default_script_style || 'default',
                                                                         default_image_style: cat.default_image_style || 'realistic',
-                                                                        video_type: cat.video_type || 'longform'
+                                                                        video_type: cat.video_type || 'longform',
+                                                                        upload_channel_id: cat.upload_channel_id || null,
+                                                                        upload_channel_name: cat.upload_channel_name || '',
+                                                                        upload_channel_handle: cat.upload_channel_handle || '',
                                                                     });
                                                                 }}
                                                                 className="text-blue-400 hover:text-blue-300 text-xs transition-colors shadow-none bg-transparent p-0"
@@ -1205,7 +1435,17 @@ export default function DashboardContent() {
                                                     <div className="space-y-2 text-xs text-gray-400 mb-6">
                                                         <p>👤 <strong className="text-gray-200">담당 직원:</strong> {cat.assigned_employee_email}</p>
                                                         <p>🔑 <strong className="text-gray-200">키워드:</strong> {cat.keywords || '(없음)'}</p>
-                                                        <p className="truncate">📺 <strong className="text-gray-200">채널:</strong> <a href={cat.benchmark_channel_url} target="_blank" rel="noreferrer" className="text-blue-400 underline">{cat.benchmark_channel_url || '(없음)'}</a></p>
+                                                        <p className="truncate">📺 <strong className="text-gray-200">벤치 채널:</strong> <a href={cat.benchmark_channel_url} target="_blank" rel="noreferrer" className="text-blue-400 underline">{cat.benchmark_channel_url || '(없음)'}</a></p>
+                                                        <p>
+                                                            🚀 <strong className="text-gray-200">업로드 채널:</strong>{' '}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => openCategoryChannelConfig(cat)}
+                                                                className="text-blue-400 underline hover:text-blue-300"
+                                                            >
+                                                                {cat.upload_channel_name || cat.upload_channel_handle || '클릭해서 설정'}
+                                                            </button>
+                                                        </p>
                                                         <p>📝 <strong className="text-gray-200">대본 스타일:</strong> {cat.default_script_style || '기본'}</p>
                                                         <p>🎨 <strong className="text-gray-200">화풍:</strong> {cat.default_image_style || '실사'}</p>
                                                         <p>🎬 <strong className="text-gray-200">영상 포맷:</strong> {cat.video_type === 'shorts' ? '세로형 (Shorts)' : '가로형 (Longform)'}</p>
@@ -2360,10 +2600,119 @@ export default function DashboardContent() {
                                      </label>
                                  </div>
                              </div>
+                             <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+                                 <div className="flex items-center justify-between gap-3">
+                                     <div>
+                                         <div className="text-[10px] text-gray-500 font-black uppercase tracking-widest">업로드 고정 채널</div>
+                                         <div className="mt-1 text-sm font-black text-white">
+                                             {editCatForm.upload_channel_name || editCatForm.upload_channel_handle || '설정 안 됨'}
+                                         </div>
+                                         {editCatForm.upload_channel_handle && (
+                                             <div className="text-[11px] text-gray-500 mt-1">{editCatForm.upload_channel_handle}</div>
+                                         )}
+                                     </div>
+                                     <button
+                                         type="button"
+                                         onClick={() => openCategoryChannelConfig({ id: editCategory.id, ...editCatForm })}
+                                         className="px-4 py-2 bg-blue-600/15 hover:bg-blue-600 text-blue-300 hover:text-white text-[10px] font-black rounded-xl border border-blue-500/20 transition-all"
+                                     >
+                                         채널 설정
+                                     </button>
+                                 </div>
+                             </div>
                         </div>
                         <div className="flex gap-3 mt-6">
                             <button onClick={handleSaveCategory} className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-black rounded-xl transition-all uppercase tracking-widest">수정완료</button>
                             <button onClick={() => setEditCategory(null)} className="px-6 py-3 bg-white/5 hover:bg-white/10 text-gray-400 text-[11px] font-black rounded-xl transition-all">취소</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {channelConfigCategory && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={() => setChannelConfigCategory(null)}>
+                    <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl p-8 w-full max-w-xl shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">업로드 채널 설정</div>
+                        <div className="text-white font-black text-lg mb-2">"{channelConfigCategory.name}" 업로드 채널 연결</div>
+                        <p className="text-[12px] text-gray-500 mb-6">이 카테고리에서 생성되는 영상은 여기서 지정한 채널로만 업로드됩니다.</p>
+
+                        <div className="space-y-4 text-xs">
+                            <div>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest">로컬 채널 목록</label>
+                                    <button
+                                        type="button"
+                                        onClick={fetchLocalUploadChannels}
+                                        className="text-[10px] font-black text-blue-400 hover:text-blue-300"
+                                    >
+                                        {localChannelsLoading ? '불러오는 중...' : '새로고침'}
+                                    </button>
+                                </div>
+                                <select
+                                    value={channelConfigForm.local_channel_id ?? ''}
+                                    onChange={e => applyLocalChannelToCategoryForm(e.target.value ? Number(e.target.value) : null)}
+                                    className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500/50 cursor-pointer"
+                                >
+                                    <option value="">-- 로컬 채널 선택 --</option>
+                                    {localChannels.map(channel => (
+                                        <option key={`config-local-channel-${channel.id}`} value={channel.id} className="bg-[#111] text-white">
+                                            {channel.name} ({channel.handle}) {channel.credentials_path ? '· 연동완료' : '· 미연동'}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">채널 이름</label>
+                                <input
+                                    type="text"
+                                    value={channelConfigForm.name}
+                                    onChange={e => setChannelConfigForm(prev => ({ ...prev, name: e.target.value }))}
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500/50"
+                                    placeholder="예: 옛날이야기 연구소"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">유튜브 채널 ID 또는 핸들</label>
+                                <input
+                                    type="text"
+                                    value={channelConfigForm.handle}
+                                    onChange={e => setChannelConfigForm(prev => ({ ...prev, handle: e.target.value }))}
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500/50"
+                                    placeholder="예: UCxxxx 또는 @channelhandle"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">프록시 (선택)</label>
+                                <input
+                                    type="text"
+                                    value={channelConfigForm.proxy}
+                                    onChange={e => setChannelConfigForm(prev => ({ ...prev, proxy: e.target.value }))}
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500/50"
+                                    placeholder="예: socks5://127.0.0.1:1080"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <button type="button" onClick={handleCreateOrUpdateLocalChannel} className="py-3 bg-white/5 hover:bg-white/10 text-white text-[11px] font-black rounded-xl border border-white/10 transition-all">
+                                    로컬 채널 저장
+                                </button>
+                                <button type="button" onClick={handleStartCategoryChannelOAuth} className="py-3 bg-purple-600/15 hover:bg-purple-600 text-purple-300 hover:text-white text-[11px] font-black rounded-xl border border-purple-500/20 transition-all">
+                                    Google OAuth 연동
+                                </button>
+                                <button type="button" onClick={handleSaveCategoryChannelBinding} className="py-3 bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-black rounded-xl transition-all">
+                                    카테고리에 저장
+                                </button>
+                            </div>
+
+                            <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-[11px] text-gray-400 leading-5">
+                                1. 로컬 채널을 선택하거나 새로 저장하고<br />
+                                2. 필요하면 Google OAuth 연동을 눌러 인증한 뒤<br />
+                                3. 마지막으로 카테고리에 저장하면 이 주제는 해당 채널로 고정됩니다.
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end mt-6">
+                            <button onClick={() => setChannelConfigCategory(null)} className="px-6 py-3 bg-white/5 hover:bg-white/10 text-gray-400 text-[11px] font-black rounded-xl transition-all">닫기</button>
                         </div>
                     </div>
                 </div>

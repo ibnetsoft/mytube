@@ -165,6 +165,7 @@ async def serve_output_file(file_path: str):
 _cors_origins = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
+    "https://mytube-ashy-seven.vercel.app",
 ]
 if config.DEBUG:
     _cors_origins += ["http://localhost:3000", "http://127.0.0.1:3000"]
@@ -1173,11 +1174,17 @@ async def auto_upload_youtube(project_id: int):
 
     # 3. 업로드 수행
     try:
+        token_path = _resolve_youtube_token_path(settings)
+        preferred_handle = (settings.get("preferred_youtube_channel_handle") or "").strip()
+        if preferred_handle and not token_path:
+            preferred_name = settings.get("preferred_youtube_channel_name") or preferred_handle
+            raise HTTPException(status_code=400, detail=f"고정 업로드 채널이 아직 로컬에 연동되지 않았습니다: {preferred_name}")
         response = youtube_upload_service.upload_video(
             file_path=video_path,
             title=title,
             description=description,
             tags=tags,
+            token_path=token_path,
             privacy_status="private" # 기본은 비공개 (사용자가 검토 후 공개 전환)
         )
 
@@ -1193,7 +1200,7 @@ async def auto_upload_youtube(project_id: int):
             thumb_path = os.path.join(config.OUTPUT_DIR, thumb_rel_path)
             
             if os.path.exists(thumb_path):
-                youtube_upload_service.set_thumbnail(video_id, thumb_path)
+                youtube_upload_service.set_thumbnail(video_id, thumb_path, token_path=token_path)
 
         # 5. 상태 업데이트 (비디오 ID 저장)
         db.update_project_setting(project_id, 'youtube_video_id', video_id)
@@ -2897,8 +2904,14 @@ def _resolve_local_output_asset_path(asset_url_or_path: Optional[str]) -> Option
 
 def _resolve_youtube_token_path(settings: Dict[str, Any], requested_channel_id: Optional[int] = None) -> Optional[str]:
     token_path = None
+    preferred_handle = (settings.get("preferred_youtube_channel_handle") or "").strip()
     try:
         target_chan_id = requested_channel_id or settings.get("youtube_channel_id")
+        if not target_chan_id:
+            if preferred_handle:
+                preferred_channel = db.get_channel_by_handle(preferred_handle)
+                if preferred_channel and preferred_channel.get("id"):
+                    target_chan_id = preferred_channel["id"]
         if target_chan_id:
             channel = db.get_channel(target_chan_id)
             if channel and channel.get("credentials_path"):
@@ -2914,7 +2927,7 @@ def _resolve_youtube_token_path(settings: Dict[str, Any], requested_channel_id: 
                         token_path = rec_path
                         print(f"[YouTube] Recovered token path from tokens directory: {token_path}")
 
-        if not token_path:
+        if not token_path and not preferred_handle:
             channels = db.get_all_channels()
             for ch in channels or []:
                 c_path = ch.get("credentials_path")
@@ -3065,6 +3078,10 @@ async def upload_external_to_youtube(
                 merged_tags.append(cleaned)
 
         token_path = _resolve_youtube_token_path(settings, requested_channel_id)
+        preferred_handle = (settings.get("preferred_youtube_channel_handle") or "").strip()
+        if preferred_handle and not token_path:
+            preferred_name = settings.get("preferred_youtube_channel_name") or preferred_handle
+            raise HTTPException(status_code=400, detail=f"고정 업로드 채널이 아직 로컬에 연동되지 않았습니다: {preferred_name}")
         result = youtube_upload_service.upload_video(
             file_path=video_path,
             title=title,
@@ -3146,8 +3163,13 @@ async def upload_external_to_youtube(
         
         # [NEW] 채널 정보 조회하여 토큰 경로 결정 (Relative Path 지원)
         token_path = None
+        preferred_handle = (settings.get("preferred_youtube_channel_handle") or "").strip()
         try:
             target_chan_id = requested_channel_id or settings.get('youtube_channel_id')
+            if not target_chan_id and preferred_handle:
+                preferred_channel = db.get_channel_by_handle(preferred_handle)
+                if preferred_channel and preferred_channel.get('id'):
+                    target_chan_id = preferred_channel['id']
             if target_chan_id:
                 channel = db.get_channel(target_chan_id)
                 if channel and channel.get('credentials_path'):
@@ -3166,7 +3188,7 @@ async def upload_external_to_youtube(
                             token_path = rec_path
                             print(f"[YouTube] Recovered token path from tokens/ directory: {token_path}")
             
-            if not token_path:
+            if not token_path and not preferred_handle:
                 # Fallback to first channel if not specified or not found
                 channels = db.get_all_channels()
                 if channels:
@@ -3181,6 +3203,10 @@ async def upload_external_to_youtube(
         except Exception as e:
             print(f"[YouTube] Channel resolution error: {e}")
             token_path = None
+
+        if preferred_handle and not token_path:
+            preferred_name = settings.get("preferred_youtube_channel_name") or preferred_handle
+            raise HTTPException(status_code=400, detail=f"고정 업로드 채널이 아직 로컬에 연동되지 않았습니다: {preferred_name}")
 
         # YouTube 업로드 (동기 함수이므로 await 제거)
         result = youtube_upload_service.upload_video(

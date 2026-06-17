@@ -2012,13 +2012,33 @@ async def upload_project_to_youtube(
         description = f"{title}\n\n#Shorts #YouTubeShorts"
 
     try:
+        token_path = None
+        preferred_handle = (settings.get("preferred_youtube_channel_handle") or "").strip()
+        channel_id = settings.get("youtube_channel_id")
+        if not channel_id and preferred_handle:
+            preferred_channel = db.get_channel_by_handle(preferred_handle)
+            if preferred_channel and preferred_channel.get("id"):
+                channel_id = preferred_channel["id"]
+        if channel_id:
+            channel = db.get_channel(channel_id)
+            if channel and channel.get("credentials_path"):
+                cand_path = channel["credentials_path"]
+                if not os.path.isabs(cand_path):
+                    cand_path = os.path.join(config.BASE_DIR, cand_path)
+                if os.path.exists(cand_path):
+                    token_path = cand_path
+        if preferred_handle and not token_path:
+            preferred_name = settings.get("preferred_youtube_channel_name") or preferred_handle
+            raise HTTPException(400, f"고정 업로드 채널이 아직 로컬에 연동되지 않았습니다: {preferred_name}")
+
         response = youtube_upload_service.upload_video(
             file_path=video_path,
             title=title,
             description=description,
             tags=tags,
             privacy_status=privacy_status,
-            publish_at=publish_at
+            publish_at=publish_at,
+            token_path=token_path,
         )
         db.update_project_setting(project_id, "is_uploaded", 1)
         return {"status": "ok", "video_id": response.get("id"), "url": f"https://youtu.be/{response.get('id')}"}

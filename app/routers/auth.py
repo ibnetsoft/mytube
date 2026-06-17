@@ -37,6 +37,33 @@ def _disable_insecure_warnings():
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
+def _apply_category_upload_channel(project_id: int, category_row: dict):
+    """카테고리에 고정된 업로드 채널이 있으면 프로젝트 설정에 반영"""
+    if not project_id or not category_row:
+        return
+
+    upload_handle = (category_row.get("upload_channel_handle") or "").strip()
+    upload_name = (category_row.get("upload_channel_name") or "").strip()
+    upload_channel_id = category_row.get("upload_channel_id")
+
+    if upload_handle:
+        db.update_project_setting(project_id, "preferred_youtube_channel_handle", upload_handle)
+    if upload_name:
+        db.update_project_setting(project_id, "preferred_youtube_channel_name", upload_name)
+
+    resolved_channel = None
+    if upload_handle:
+        try:
+            resolved_channel = db.get_channel_by_handle(upload_handle)
+        except Exception as e:
+            print(f"[Queue API Warning] Failed to resolve local channel by handle '{upload_handle}': {e}")
+
+    if resolved_channel and resolved_channel.get("id"):
+        db.update_project_setting(project_id, "youtube_channel_id", resolved_channel["id"])
+    elif upload_channel_id:
+        db.update_project_setting(project_id, "youtube_channel_id", upload_channel_id)
+
+
 @router.get("/login", response_class=HTMLResponse)
 async def get_login_page(request: Request):
     templates = get_templates()
@@ -169,6 +196,7 @@ async def get_daily_topic():
         category_id = item.get("category_id")
         category_script_style = None
         category_image_style = None
+        category_row = None
 
         if category_id:
             try:
@@ -177,8 +205,9 @@ async def get_daily_topic():
                 if cat_r.status_code == 200:
                     cat_data = cat_r.json()
                     if cat_data:
-                        category_script_style = cat_data[0].get("default_script_style")
-                        category_image_style = cat_data[0].get("default_image_style")
+                        category_row = cat_data[0]
+                        category_script_style = category_row.get("default_script_style")
+                        category_image_style = category_row.get("default_image_style")
             except Exception as e:
                 print(f"[Queue API Warning] Failed to fetch category default styles: {e}")
 
@@ -205,6 +234,9 @@ async def get_daily_topic():
             script_style=category_script_style,
             image_style=category_image_style,
         )
+
+        if category_row:
+            _apply_category_upload_channel(project_id, category_row)
 
         return {"status": "success", "project_id": project_id, "topic": topic_name}
     except Exception as e:
