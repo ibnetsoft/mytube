@@ -120,6 +120,9 @@ export default function DashboardContent() {
     const [newCatUploadChannelHandle, setNewCatUploadChannelHandle] = useState('')
     const [generatingCatId, setGeneratingCatId] = useState<number | null>(null)
     const [generatedTopicsByCat, setGeneratedTopicsByCat] = useState<Record<number, string[]>>({})
+    const [topicActionLoadingId, setTopicActionLoadingId] = useState<string | null>(null)
+    const [editingTopicId, setEditingTopicId] = useState<string | null>(null)
+    const [editingTopicDraft, setEditingTopicDraft] = useState('')
     const [topicQueueCategoryFilter, setTopicQueueCategoryFilter] = useState<string>('all')
     const [topicQueueStatusFilter, setTopicQueueStatusFilter] = useState<'working' | 'pending'>('working')
     const [topicQueueEmployeeFilter, setTopicQueueEmployeeFilter] = useState<string>('all')
@@ -1024,6 +1027,111 @@ export default function DashboardContent() {
         }
     }
 
+    const startEditingTopic = (topicItem: any) => {
+        const currentTopic = String(topicItem?.topic || '').trim()
+        if (!topicItem?.id || !currentTopic) return
+        setEditingTopicId(String(topicItem.id))
+        setEditingTopicDraft(currentTopic)
+    }
+
+    const cancelEditingTopic = () => {
+        setEditingTopicId(null)
+        setEditingTopicDraft('')
+    }
+
+    const handleTopicEditorKeyDown = async (
+        e: React.KeyboardEvent<HTMLInputElement>,
+        topicItem: any
+    ) => {
+        if (e.key === 'Escape') {
+            e.preventDefault()
+            cancelEditingTopic()
+            return
+        }
+
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            if (topicActionLoadingId === String(topicItem?.id)) return
+            await handleEditTopic(topicItem)
+        }
+    }
+
+    const handleEditTopic = async (topicItem: any) => {
+        const currentTopic = String(topicItem?.topic || '').trim()
+        if (!topicItem?.id || !currentTopic) return
+
+        const trimmed = editingTopicDraft.trim()
+        if (!trimmed) {
+            alert('주제는 비워둘 수 없습니다.')
+            return
+        }
+
+        if (trimmed === currentTopic) return
+
+        setTopicActionLoadingId(String(topicItem.id))
+        try {
+            const res = await fetch('/api/admin/topics-queue', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: topicItem.id, topic: trimmed })
+            })
+            const data = await res.json()
+            if (!res.ok || !data.success) {
+                alert('주제 수정 실패: ' + (data.error || `HTTP ${res.status}`))
+                return
+            }
+
+            setTopics(prev => prev.map(item => item.id === topicItem.id ? { ...item, topic: trimmed } : item))
+            setGeneratedTopicsByCat(prev => {
+                const list = prev[topicItem.category_id]
+                if (!Array.isArray(list) || list.length === 0) return prev
+                return {
+                    ...prev,
+                    [topicItem.category_id]: list.map(text => text === currentTopic ? trimmed : text)
+                }
+            })
+            cancelEditingTopic()
+        } catch (err: any) {
+            alert('주제 수정 오류: ' + (err?.message || String(err)))
+        } finally {
+            setTopicActionLoadingId(null)
+        }
+    }
+
+    const handleDeleteTopic = async (topicItem: any) => {
+        if (!topicItem?.id) return
+        if (!confirm('이 대기중 주제를 삭제할까요?')) return
+
+        setTopicActionLoadingId(String(topicItem.id))
+        try {
+            const res = await fetch(`/api/admin/topics-queue?id=${topicItem.id}`, {
+                method: 'DELETE'
+            })
+            const data = await res.json()
+            if (!res.ok || !data.success) {
+                alert('주제 삭제 실패: ' + (data.error || `HTTP ${res.status}`))
+                return
+            }
+
+            setTopics(prev => prev.filter(item => item.id !== topicItem.id))
+            setGeneratedTopicsByCat(prev => {
+                const list = prev[topicItem.category_id]
+                if (!Array.isArray(list) || list.length === 0) return prev
+                return {
+                    ...prev,
+                    [topicItem.category_id]: list.filter(text => text !== topicItem.topic)
+                }
+            })
+            if (editingTopicId === String(topicItem.id)) {
+                cancelEditingTopic()
+            }
+        } catch (err: any) {
+            alert('주제 삭제 오류: ' + (err?.message || String(err)))
+        } finally {
+            setTopicActionLoadingId(null)
+        }
+    }
+
     useEffect(() => {
         if (activeTab === 'render-queue') {
             fetchRenderQueue();
@@ -1394,9 +1502,7 @@ export default function DashboardContent() {
                                     {categories.filter(c => (c.video_type || 'longform') === categoryListTab).map((cat) => {
                                         const pendingTopics = topics.filter(t => t.category_id === cat.id && t.status === 'pending');
                                         const completedTopics = topics.filter(t => t.category_id === cat.id && t.status === 'completed');
-                                        const previewTopics = generatedTopicsByCat[cat.id]?.length
-                                            ? generatedTopicsByCat[cat.id]
-                                            : pendingTopics.slice(0, 10).map(t => t.topic);
+                                        const previewTopicItems = pendingTopics.slice(0, 10);
                                         const isFreshPreview = Boolean(generatedTopicsByCat[cat.id]?.length);
 
                                         return (
@@ -1468,19 +1574,80 @@ export default function DashboardContent() {
                                                     {generatingCatId === cat.id ? '?쨼 AI 二쇱젣 遺꾩꽍 諛쒓뎬 以?..' : '?뵰 AI 二쇱젣 ?먰뙋湲??앹꽦 (10媛?'}
                                                 </button>
 
-                                                {previewTopics.length > 0 && (
+                                                {previewTopicItems.length > 0 && (
                                                     <div className="mt-4 rounded-2xl border border-blue-500/20 bg-blue-950/20 p-4">
                                                         <div className="mb-3 flex items-center justify-between gap-2">
                                                             <p className="text-[11px] font-black text-blue-300">
                                                                 {isFreshPreview ? '諛⑷툑 ?앹꽦??二쇱젣 10媛? : '?湲?以?二쇱젣 誘몃━蹂닿린'}
                                                             </p>
-                                                            <span className="text-[10px] font-bold text-gray-500">{previewTopics.length}媛?/span>
+                                                            <span className="text-[10px] font-bold text-gray-500">{previewTopicItems.length}개</span>
                                                         </div>
                                                         <ol className="space-y-2 text-[11px] leading-relaxed text-gray-200">
-                                                            {previewTopics.slice(0, 10).map((topic, idx) => (
-                                                                <li key={`${cat.id}-topic-preview-${idx}`} className="flex gap-2">
-                                                                    <span className="shrink-0 font-black text-blue-400">{idx + 1}.</span>
-                                                                    <span className="break-words">{topic}</span>
+                                                            {previewTopicItems.map((topicItem, idx) => (
+                                                                <li
+                                                                    key={`${cat.id}-topic-preview-${topicItem.id}`}
+                                                                    className={`flex items-start gap-2 rounded-xl px-2 py-2 transition-all ${
+                                                                        editingTopicId === String(topicItem.id)
+                                                                            ? 'bg-blue-500/10 ring-1 ring-blue-400/40'
+                                                                            : 'hover:bg-white/[0.03]'
+                                                                    }`}
+                                                                >
+                                                                    <span className="mt-0.5 shrink-0 font-black text-blue-400">{idx + 1}.</span>
+                                                                    <div className="min-w-0 flex-1">
+                                                                        {editingTopicId === String(topicItem.id) ? (
+                                                                            <div className="space-y-2">
+                                                                                <input
+                                                                                    type="text"
+                                                                                    value={editingTopicDraft}
+                                                                                    onChange={(e) => setEditingTopicDraft(e.target.value)}
+                                                                                    onKeyDown={(e) => handleTopicEditorKeyDown(e, topicItem)}
+                                                                                    autoFocus
+                                                                                    className="w-full rounded-lg border border-blue-400/30 bg-black/30 px-3 py-2 text-[11px] font-medium text-white outline-none focus:border-blue-400"
+                                                                                />
+                                                                                <div className="flex items-center gap-2 text-[10px] font-black">
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        disabled={topicActionLoadingId === String(topicItem.id)}
+                                                                                        onClick={() => handleEditTopic(topicItem)}
+                                                                                        className="rounded-md bg-blue-600 px-2.5 py-1 text-white disabled:opacity-50"
+                                                                                    >
+                                                                                        저장
+                                                                                    </button>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        disabled={topicActionLoadingId === String(topicItem.id)}
+                                                                                        onClick={cancelEditingTopic}
+                                                                                        className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-gray-300 disabled:opacity-50"
+                                                                                    >
+                                                                                        취소
+                                                                                    </button>
+                                                                                    <span className="text-[10px] font-bold text-gray-500">Enter 저장 · ESC 취소</span>
+                                                                                </div>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="flex items-start gap-2">
+                                                                                <span className="min-w-0 flex-1 break-words">{topicItem.topic}</span>
+                                                                                <div className="shrink-0 flex items-center gap-2">
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        disabled={topicActionLoadingId === String(topicItem.id)}
+                                                                                        onClick={() => startEditingTopic(topicItem)}
+                                                                                        className="text-[10px] font-black text-blue-300 hover:text-white disabled:opacity-50"
+                                                                                    >
+                                                                                        수정
+                                                                                    </button>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        disabled={topicActionLoadingId === String(topicItem.id)}
+                                                                                        onClick={() => handleDeleteTopic(topicItem)}
+                                                                                        className="text-[10px] font-black text-red-300 hover:text-red-200 disabled:opacity-50"
+                                                                                    >
+                                                                                        삭제
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
                                                                 </li>
                                                             ))}
                                                         </ol>
@@ -1624,17 +1791,59 @@ export default function DashboardContent() {
                                             )}
                                             <th className="px-10 py-6">諛곗젙??吏곸썝 ?대찓??/th>
                                             <th className="px-10 py-6 text-center">諛곕떦 ?곹깭</th>
+                                            <th className="px-10 py-6 text-right">관리</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/5 font-medium">
                                         {filteredTopics.map((item) => (
-                                            <tr key={item.id} className="hover:bg-white/[0.03] transition-colors h-16 text-xs">
+                                            <tr
+                                                key={item.id}
+                                                className={`transition-colors h-16 text-xs ${
+                                                    editingTopicId === String(item.id)
+                                                        ? 'bg-blue-500/10 ring-1 ring-inset ring-blue-400/30'
+                                                        : 'hover:bg-white/[0.03]'
+                                                }`}
+                                            >
                                                 <td className="px-10 py-6 text-gray-300 font-bold">
                                                     {item.categories?.name || '湲곕낯'}
                                                 </td>
-                                                <td className="px-10 py-6 text-white font-bold max-w-sm truncate">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="truncate">{item.topic}</span>
+                                                <td className="px-10 py-6 text-white font-bold max-w-sm">
+                                                    <div className="flex items-start gap-2">
+                                                        <div className="min-w-0 flex-1">
+                                                            {editingTopicId === String(item.id) ? (
+                                                                <div className="space-y-2">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={editingTopicDraft}
+                                                                        onChange={(e) => setEditingTopicDraft(e.target.value)}
+                                                                        onKeyDown={(e) => handleTopicEditorKeyDown(e, item)}
+                                                                        autoFocus
+                                                                        className="w-full rounded-lg border border-blue-400/30 bg-black/30 px-3 py-2 text-[11px] font-medium text-white outline-none focus:border-blue-400"
+                                                                    />
+                                                                    <div className="flex items-center gap-2 text-[10px] font-black">
+                                                                        <button
+                                                                            type="button"
+                                                                            disabled={topicActionLoadingId === String(item.id)}
+                                                                            onClick={() => handleEditTopic(item)}
+                                                                            className="rounded-md bg-blue-600 px-2.5 py-1 text-white disabled:opacity-50"
+                                                                        >
+                                                                            저장
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            disabled={topicActionLoadingId === String(item.id)}
+                                                                            onClick={cancelEditingTopic}
+                                                                            className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-gray-300 disabled:opacity-50"
+                                                                        >
+                                                                            취소
+                                                                        </button>
+                                                                        <span className="text-[10px] font-bold text-gray-500">Enter 저장 · ESC 취소</span>
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <span className="block truncate">{item.topic}</span>
+                                                            )}
+                                                        </div>
                                                         {item.is_auto_generated && (
                                                             <span className="bg-purple-500/10 text-purple-400 px-1.5 py-0.5 rounded border border-purple-500/20 font-black text-[8px] tracking-tight shrink-0">
                                                                 ?쨼 AUTO
@@ -1677,11 +1886,35 @@ export default function DashboardContent() {
                                                         {item.status === 'pending' ? '?湲?以? : isWorkingTopic(item) ? '?묒뾽 以? : '?쒖옉 ?꾨즺'}
                                                     </span>
                                                 </td>
+                                                <td className="px-10 py-6 text-right">
+                                                    {item.status === 'pending' ? (
+                                                        <div className="flex items-center justify-end gap-3 text-[11px] font-black">
+                                                            <button
+                                                                type="button"
+                                                                disabled={topicActionLoadingId === String(item.id)}
+                                                                onClick={() => startEditingTopic(item)}
+                                                                className="text-blue-300 hover:text-white disabled:opacity-50"
+                                                            >
+                                                                수정
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                disabled={topicActionLoadingId === String(item.id)}
+                                                                onClick={() => handleDeleteTopic(item)}
+                                                                className="text-red-300 hover:text-red-200 disabled:opacity-50"
+                                                            >
+                                                                삭제
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-[10px] font-bold text-gray-600">-</span>
+                                                    )}
+                                                </td>
                                             </tr>
                                         ))}
                                         {filteredTopics.length === 0 && (
                                             <tr>
-                                                <td colSpan={topicQueueStatusFilter === 'working' ? 5 : 4} className="px-10 py-20 text-center text-gray-600 font-black uppercase tracking-widest text-xs italic">
+                                                <td colSpan={topicQueueStatusFilter === 'working' ? 6 : 5} className="px-10 py-20 text-center text-gray-600 font-black uppercase tracking-widest text-xs italic">
                                                     {selectedCategory ? '?좏깮??移댄뀒怨좊━???깅줉??二쇱젣媛 ?놁뒿?덈떎.' : '?湲곗뿴???깅줉??二쇱젣媛 ?놁뒿?덈떎. 移댄뀒怨좊━瑜?癒쇱? ?앹꽦?댁＜?몄슂.'}
                                                 </td>
                                             </tr>

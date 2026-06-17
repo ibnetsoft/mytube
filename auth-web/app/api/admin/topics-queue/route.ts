@@ -105,11 +105,21 @@ export async function POST(req: Request) {
         }
 
         console.log(`Running AI Auto-Topic Generator for category: ${category.name}`);
+        const nowInKst = new Date()
+        const currentDateKst = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Seoul',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        }).format(nowInKst)
+        const currentYearKst = currentDateKst.slice(0, 4)
         
         // 3. Gemini를 사용한 트렌드 분석 및 10개 주제 생성 (데모 속도를 위해 10개씩 벌크 생성)
         const ai = new GoogleGenAI({ apiKey: geminiApiKey })
         const prompt = `
-        You are an expert YouTube Content Planner. 
+        You are an expert YouTube Content Planner.
+        Today's date in Korea is ${currentDateKst}.
+        The current year is ${currentYearKst}.
         Category Name: ${category.name}
         Keywords: ${category.keywords}
         Benchmark Channel: ${category.benchmark_channel_url}
@@ -121,6 +131,10 @@ export async function POST(req: Request) {
         - NEVER generate meta-topics, channel marketing strategies, target audience analysis, or video production tips (e.g., DO NOT generate topics like "조회수 터지는 옛날이야기 채널, 진짜 타겟은 누구일까?" or "유튜브 쇼츠 조회수 올리는 법").
         - If the category is about storytelling, history, or old stories, generate actual compelling story titles or narrative topics (e.g., "은혜 갚은 호랑이와 나무꾼의 슬픈 사연", "조선 시대 백성들을 울린 희대의 판결", "평생 고생한 자식에게 전하는 눈물 나는 인생 조언").
         
+        - For finance, economy, investment, stock, real-estate, news, current-affairs, and trend-sensitive categories, use the present-time context of ${currentYearKst}.
+        - If a year is mentioned in a current-affairs or market topic, prefer ${currentYearKst}. Do not generate stale present-tense titles anchored to 2024 or 2025 unless the topic is explicitly retrospective or historical.
+        - If the input keywords contain older years, treat them only as weak reference context and rewrite the final title so it matches ${currentYearKst}.
+
         Provide the output in Korean as a JSON list of strings, with absolutely no markdown formatting.
         Example output format:
         [
@@ -161,6 +175,85 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: true, count: inserts.length, topics })
     } catch (e: any) {
         console.error('AI Topic Generation engine failed:', e)
+        return NextResponse.json({ error: e.message }, { status: 500 })
+    }
+}
+
+// PUT: 대기중 주제 제목 수정
+export async function PUT(req: Request) {
+    try {
+        const { id, topic } = await req.json()
+
+        if (!id || !String(topic || '').trim()) {
+            return NextResponse.json({ error: 'Missing id or topic' }, { status: 400 })
+        }
+
+        const supabase = getAdmin()
+        const { data: existing, error: existingError } = await supabase
+            .from('topics_queue')
+            .select('id, status, category_id')
+            .eq('id', id)
+            .single()
+
+        if (existingError || !existing) {
+            return NextResponse.json({ error: 'Topic not found' }, { status: 404 })
+        }
+
+        if (existing.status !== 'pending') {
+            return NextResponse.json({ error: 'Only pending topics can be edited' }, { status: 400 })
+        }
+
+        const { data, error } = await supabase
+            .from('topics_queue')
+            .update({ topic: String(topic).trim() })
+            .eq('id', id)
+            .select('id, category_id, topic, status')
+            .single()
+
+        if (error) throw error
+
+        return NextResponse.json({ success: true, topic: data })
+    } catch (e: any) {
+        console.error('Failed to update topic queue item:', e)
+        return NextResponse.json({ error: e.message }, { status: 500 })
+    }
+}
+
+// DELETE: 대기중 주제 삭제
+export async function DELETE(req: Request) {
+    try {
+        const { searchParams } = new URL(req.url)
+        const id = searchParams.get('id')
+
+        if (!id) {
+            return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+        }
+
+        const supabase = getAdmin()
+        const { data: existing, error: existingError } = await supabase
+            .from('topics_queue')
+            .select('id, status')
+            .eq('id', id)
+            .single()
+
+        if (existingError || !existing) {
+            return NextResponse.json({ error: 'Topic not found' }, { status: 404 })
+        }
+
+        if (existing.status !== 'pending') {
+            return NextResponse.json({ error: 'Only pending topics can be deleted' }, { status: 400 })
+        }
+
+        const { error } = await supabase
+            .from('topics_queue')
+            .delete()
+            .eq('id', id)
+
+        if (error) throw error
+
+        return NextResponse.json({ success: true, id })
+    } catch (e: any) {
+        console.error('Failed to delete topic queue item:', e)
         return NextResponse.json({ error: e.message }, { status: 500 })
     }
 }
