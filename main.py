@@ -69,6 +69,7 @@ from services.auth_service import auth_service
 from services.storage_service import storage_service
 from services.thumbnail_service import thumbnail_service
 from services.drive_bundle_service import drive_bundle_service
+from services.topic_queue_sync_service import sync_topic_progress
 
 # 공유 헬퍼/상수 — app/utils.py 에서 임포트
 from app.utils import (
@@ -491,6 +492,16 @@ async def get_project_full(project_id: int):
     except Exception as e:
         print(f"[RemoteDrive] Full data sync skipped: {e}")
     return db.get_project_full_data_v2(project_id) or {}
+
+
+@app.post("/api/projects/{project_id}/sync-topic-progress")
+async def sync_project_topic_progress(project_id: int):
+    try:
+        synced = sync_topic_progress(project_id)
+        return {"status": "ok", "synced": synced}
+    except Exception as e:
+        print(f"[Topic Progress Sync] {e}")
+        return {"status": "error", "error": str(e)}
 
 
 @app.post("/api/projects/{project_id}/analysis")

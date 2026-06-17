@@ -1619,6 +1619,9 @@ export default function DashboardContent() {
                                         <tr>
                                             <th className="px-10 py-6">移댄뀒怨좊━</th>
                                             <th className="px-10 py-6">?쒖븞 ?곸긽 二쇱젣</th>
+                                            {topicQueueStatusFilter === 'working' && (
+                                                <th className="px-10 py-6">작업 진행</th>
+                                            )}
                                             <th className="px-10 py-6">諛곗젙??吏곸썝 ?대찓??/th>
                                             <th className="px-10 py-6 text-center">諛곕떦 ?곹깭</th>
                                         </tr>
@@ -1639,6 +1642,29 @@ export default function DashboardContent() {
                                                         )}
                                                     </div>
                                                 </td>
+                                                {topicQueueStatusFilter === 'working' && (
+                                                    <td className="px-10 py-6">
+                                                        {Array.isArray(item.progress_payload?.completed_steps) && item.progress_payload.completed_steps.length > 0 ? (
+                                                            <div className="space-y-2">
+                                                                <div className="flex flex-wrap gap-1.5">
+                                                                    {item.progress_payload.completed_steps.map((step: string) => (
+                                                                        <span
+                                                                            key={`${item.id}-step-${step}`}
+                                                                            className="px-2 py-1 rounded-full text-[10px] font-black bg-green-500/10 text-green-400 border border-green-500/20"
+                                                                        >
+                                                                            {step}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                                <div className="text-[10px] font-bold text-emerald-300">
+                                                                    현재 단계: {item.progress_payload?.current_step || '진행 중'}
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-[11px] font-bold text-gray-500">수신 대기</span>
+                                                        )}
+                                                    </td>
+                                                )}
                                                 <td className="px-10 py-6 text-gray-400">
                                                     {getTopicAssignee(item)}
                                                 </td>
@@ -1655,7 +1681,7 @@ export default function DashboardContent() {
                                         ))}
                                         {filteredTopics.length === 0 && (
                                             <tr>
-                                                <td colSpan={4} className="px-10 py-20 text-center text-gray-600 font-black uppercase tracking-widest text-xs italic">
+                                                <td colSpan={topicQueueStatusFilter === 'working' ? 5 : 4} className="px-10 py-20 text-center text-gray-600 font-black uppercase tracking-widest text-xs italic">
                                                     {selectedCategory ? '?좏깮??移댄뀒怨좊━???깅줉??二쇱젣媛 ?놁뒿?덈떎.' : '?湲곗뿴???깅줉??二쇱젣媛 ?놁뒿?덈떎. 移댄뀒怨좊━瑜?癒쇱? ?앹꽦?댁＜?몄슂.'}
                                                 </td>
                                             </tr>

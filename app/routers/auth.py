@@ -8,6 +8,7 @@ from pydantic import BaseModel
 import database as db
 from services.app_state import get_templates
 from services.auth_service import auth_service
+from services.topic_queue_sync_service import sync_topic_progress
 from services.web_admin_client import web_admin_client
 
 
@@ -237,6 +238,13 @@ async def get_daily_topic():
 
         if category_row:
             _apply_category_upload_channel(project_id, category_row)
+
+        db.update_project_setting(project_id, "topic_queue_id", topic_id)
+        db.update_project_setting(project_id, "topic_queue_category_id", category_id or "")
+        try:
+            sync_topic_progress(project_id, topic_id)
+        except Exception as sync_err:
+            print(f"[Queue API Warning] Failed to sync initial topic progress: {sync_err}")
 
         return {"status": "success", "project_id": project_id, "topic": topic_name}
     except Exception as e:

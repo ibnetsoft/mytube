@@ -817,6 +817,30 @@
         });
 
         // 프로젝트 목록 로드
+        let topicProgressSyncTimer = null;
+
+        async function syncTopicQueueProgress(projectId) {
+            if (!projectId) return;
+            try {
+                await fetch(`/api/projects/${projectId}/sync-topic-progress`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            } catch (e) {
+                console.warn('Topic queue progress sync failed:', e);
+            }
+        }
+
+        function restartTopicQueueProgressSync(projectId) {
+            if (topicProgressSyncTimer) {
+                clearInterval(topicProgressSyncTimer);
+                topicProgressSyncTimer = null;
+            }
+            if (!projectId) return;
+            syncTopicQueueProgress(projectId);
+            topicProgressSyncTimer = setInterval(() => syncTopicQueueProgress(projectId), 15000);
+        }
+
         async function loadProjects() {
             try {
                 const data = await API.project.list();
@@ -977,6 +1001,7 @@
 
 
                         Utils.showToast(`${i18n.toast_load_done_prefix} "${project.name}" ${i18n.toast_load_done_suffix}`, 'success');
+                        restartTopicQueueProgressSync(projectId);
                     }
 
                 } catch (e) {
@@ -986,6 +1011,10 @@
 
             } else {
                 setCurrentProject(null);
+                if (topicProgressSyncTimer) {
+                    clearInterval(topicProgressSyncTimer);
+                    topicProgressSyncTimer = null;
+                }
                 document.getElementById('currentProjectInfo').classList.add('hidden');
                 document.getElementById('projectProgressHeader').classList.add('hidden');
 
