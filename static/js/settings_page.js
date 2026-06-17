@@ -1496,6 +1496,18 @@
             if (res.ok) {
                 const data = await res.json();
                 if (data.mode_changed) {
+                    localStorage.removeItem('currentProjectId');
+                    if (data.previous_mode) localStorage.removeItem(`currentProjectId:${data.previous_mode}`);
+                    if (data.new_mode) {
+                        localStorage.setItem('currentAppMode', data.new_mode);
+                        localStorage.setItem('app_mode', data.new_mode);
+                    }
+                    ['scriptStructure', 'fullScript', 'imagePrompts', 'characterPrompts'].forEach(key => {
+                        try { localStorage.removeItem(key); } catch (e) {}
+                    });
+                    ['trendKeywords', 'topicPageState', 'latestScriptStyle'].forEach(key => {
+                        try { localStorage.removeItem(key); } catch (e) {}
+                    });
                     Utils.showToast(i18n.toast_settings_mode_switched, 'success');
                     setTimeout(() => window.location.reload(), 1500);
                 } else {

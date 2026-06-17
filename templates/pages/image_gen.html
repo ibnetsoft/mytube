@@ -2921,6 +2921,23 @@
     // 현재 표시 중인 프로젝트 ID 추적 (새로고침 vs 프로젝트 전환 구분용)
     let _currentShownProjectId = null;
 
+    function clearImagePromptWorkspace() {
+        prompts = [];
+        const promptsContainer = document.getElementById('promptsList');
+        if (promptsContainer) promptsContainer.innerHTML = '';
+        const resultSection = document.getElementById('resultSection');
+        if (resultSection) resultSection.classList.add('hidden');
+        const characterContainer = document.getElementById('characterCards');
+        if (characterContainer) characterContainer.innerHTML = '';
+        const characterResult = document.getElementById('characterResultContainer');
+        if (characterResult) characterResult.classList.add('hidden');
+        Utils.storage.remove('imagePrompts');
+        Utils.storage.remove('characterPrompts');
+        _currentShownProjectId = null;
+    }
+
+    window.addEventListener('projectStateCleared', clearImagePromptWorkspace);
+
     window.addEventListener('projectStateRestored', (e) => {
         const data = e.detail;
         const incomingProjectId = data && data.project ? data.project.id : null;
@@ -3198,7 +3215,7 @@
         }
 
         // 2. DB에 없으면 로컬 스토리지 확인 (Fallback)
-        if (!loadedFromDB) {
+        if (!loadedFromDB && projectId) {
             const savedPrompts = Utils.storage.get('imagePrompts');
             if (savedPrompts && savedPrompts.length > 0) {
                 prompts = savedPrompts;

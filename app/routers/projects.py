@@ -3,7 +3,7 @@ from typing import List, Optional
 import database as db
 from app.models.project import ProjectCreate, ProjectUpdate, ProjectSettingUpdate, ProjectSettingsSave
 from pydantic import BaseModel
-from app.modes import DEFAULT_APP_MODE, VALID_APP_MODES, recover_mode_language_mixup
+from app.modes import DEFAULT_APP_MODE, VALID_APP_MODES, normalize_app_mode, recover_mode_language_mixup
 
 class BulkDeleteRequest(BaseModel):
     ids: List[int]
@@ -118,7 +118,11 @@ async def get_current_project(background_tasks: BackgroundTasks):
     """가장 최근에 작업한 프로젝트 정보 반환 (연결 폴백용)"""
     from services.auth_service import auth_service
     email = auth_service.get_user_email()
-    recent = db.get_recent_projects(limit=1, employee_email=email)
+    current_mode = normalize_app_mode(db.get_global_setting("app_mode", DEFAULT_APP_MODE))
+    recent = [
+        project for project in db.get_projects_with_status(employee_email=email)
+        if (project.get("app_mode") or DEFAULT_APP_MODE) == current_mode
+    ][:1]
     if recent:
         p = recent[0]
         background_tasks.add_task(ensure_vietnamese_translations_bg, [p])

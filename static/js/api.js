@@ -253,11 +253,11 @@ const API = {
         },
 
         // 프로젝트 생성
-        async create(name, topic = null, target_language = 'ko') {
+        async create(name, topic = null, target_language = 'ko', app_mode = 'longform') {
             const response = await fetch('/api/projects', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, topic, target_language })
+                body: JSON.stringify({ name, topic, target_language, app_mode })
             });
             return response.json();
         },
@@ -480,17 +480,36 @@ const API = {
     }
 };
 
-// 현재 프로젝트 ID 관리
-window.currentProjectId = localStorage.getItem('currentProjectId') || null;
+// Current project ID is scoped by app mode so longform/shorts/music outputs never bleed across modes.
+function getCurrentAppModeForProjectScope() {
+    return window.APP_MODE || localStorage.getItem('currentAppMode') || localStorage.getItem('app_mode') || 'longform';
+}
+
+function getScopedProjectStorageKey() {
+    return `currentProjectId:${getCurrentAppModeForProjectScope()}`;
+}
+
+window.currentProjectId = localStorage.getItem(getScopedProjectStorageKey()) || null;
 
 window.setCurrentProject = function (projectId) {
-    window.currentProjectId = projectId;
-    localStorage.setItem('currentProjectId', projectId);
+    const key = getScopedProjectStorageKey();
+    if (projectId === null || projectId === undefined || projectId === '') {
+        window.currentProjectId = null;
+        localStorage.removeItem(key);
+        localStorage.removeItem('currentProjectId');
+    } else {
+        window.currentProjectId = projectId;
+        localStorage.setItem(key, projectId);
+        // Keep the legacy key in sync for older page scripts, but never read it as a cross-mode fallback.
+        localStorage.setItem('currentProjectId', projectId);
+    }
     // 프로젝트 변경 이벤트 발생
     window.dispatchEvent(new CustomEvent('projectChanged', { detail: { projectId } }));
 };
 
 window.getCurrentProject = function () {
+    const scopedId = localStorage.getItem(getScopedProjectStorageKey());
+    window.currentProjectId = scopedId || null;
     return window.currentProjectId;
 };
 

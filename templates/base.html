@@ -841,16 +841,29 @@
             topicProgressSyncTimer = setInterval(() => syncTopicQueueProgress(projectId), 15000);
         }
 
+        function clearProjectWorkspaceState() {
+            Utils.storage.remove('scriptStructure');
+            Utils.storage.remove('fullScript');
+            Utils.storage.remove('imagePrompts');
+            Utils.storage.remove('characterPrompts');
+            localStorage.removeItem('trendKeywords');
+            localStorage.removeItem('topicPageState');
+            localStorage.removeItem('latestScriptStyle');
+        }
+
         async function loadProjects() {
             try {
                 const data = await API.project.list();
                 const select = document.getElementById('projectSelect');
-                const currentId = getCurrentProject();
 
                 select.innerHTML = `<option value="">${i18n.select_project_placeholder}</option>`;
 
                 const mode = window.APP_MODE || 'longform';
+                localStorage.setItem('currentAppMode', mode);
+                localStorage.setItem('app_mode', mode);
                 const filteredProjects = data.projects.filter(p => (p.app_mode || 'longform') === mode);
+                const currentId = getCurrentProject();
+                const currentProjectIsInMode = currentId && filteredProjects.some(p => String(p.id) === String(currentId));
 
                 filteredProjects.forEach(p => {
                     const option = document.createElement('option');
@@ -865,7 +878,16 @@
                 });
 
                 // 현재 프로젝트 정보 표시 및 전체 상태 복구
-                if (currentId) {
+                if (currentId && !currentProjectIsInMode) {
+                    setCurrentProject(null);
+                    clearProjectWorkspaceState();
+                    updateProjectInfo(null);
+                    restartTopicQueueProgressSync(null);
+                    window.dispatchEvent(new CustomEvent('projectStateCleared', { detail: { reason: 'mode_mismatch', mode } }));
+                    return;
+                }
+
+                if (currentId && currentProjectIsInMode) {
                     // onProjectChange를 호출하여 헤더, 진행상태, 로컬 스토리지 데이터 등을 모두 복구
                     onProjectChange(currentId);
                 }
@@ -906,6 +928,19 @@
                     const project = (res && res.project) ? res.project : res;
 
                     if (!project || (!project.id && !project.name)) throw new Error("Invalid project data");
+
+                    const currentMode = window.APP_MODE || 'longform';
+                    const projectMode = project.app_mode || 'longform';
+                    if (projectMode !== currentMode) {
+                        setCurrentProject(null);
+                        clearProjectWorkspaceState();
+                        updateProjectInfo(null);
+                        restartTopicQueueProgressSync(null);
+                        window.dispatchEvent(new CustomEvent('projectStateCleared', {
+                            detail: { reason: 'mode_mismatch', mode: currentMode, projectMode, projectId }
+                        }));
+                        return;
+                    }
 
                     updateProjectInfo(project);
 
