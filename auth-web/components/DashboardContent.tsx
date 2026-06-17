@@ -1397,14 +1397,14 @@ export default function DashboardContent() {
 
                 {activeTab === 'topics' && (
                     <div className="space-y-8 animate-in fade-in duration-300">
-                        {/* 1. 移댄뀒怨좊━ 異붽? ??*/}
+                        {/* 1. 카테고리 추가 */}
                         <div className="bg-[#0f172a]/60 rounded-[2.5rem] border border-white/10 p-8 shadow-2xl">
                             <h2 className="font-black text-xl tracking-tight mb-6 flex items-center gap-2">
-                                ????移댄뀒怨좊━ 諛?吏곸썝 留ㅽ븨 異붽?
+                                카테고리 및 직원 매핑 추가
                             </h2>
                             <form onSubmit={handleCreateCategory} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 <div>
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">移댄뀒怨좊━紐?*</label>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">카테고리명 *</label>
                                     <input 
                                         type="text" 
                                         required
@@ -1481,7 +1481,7 @@ export default function DashboardContent() {
                                     <p className="mt-2 text-[11px] text-gray-500">
                                         {newCatUploadChannelName
                                             ? `${newCatUploadChannelName} (${newCatUploadChannelHandle || 'handle ??'})`
-                                            : '??? ???? ?? ??? ??????.'}
+                                            : '선택한 주제는 해당 채널로 업로드됩니다.'}
                                     </p>
                                 </div>
                                 <div>
@@ -1493,7 +1493,7 @@ export default function DashboardContent() {
                                         className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
                                     >
                                         <option value="default" className="bg-[#111] text-white">기본 설정 (자연스럽고 선명한 스타일)</option>
-                                        <option value="story" className="bg-[#111] text-white">예난 이야기 (구연 동화)</option>
+                                        <option value="story" className="bg-[#111] text-white">옛날 이야기 (구연 동화)</option>
                                         <option value="senior_story" className="bg-[#111] text-white">시니어 이야기 (회상/감성)</option>
                                         <option value="news" className="bg-[#111] text-white">뉴스 (정보 전달)</option>
                                         <option value="mystery_thriller" className="bg-[#111] text-white">미스터리 스릴러 (긴장감)</option>
@@ -1529,7 +1529,7 @@ export default function DashboardContent() {
                                                 onChange={() => setNewCatVideoType('longform')}
                                                 className="w-4 h-4 rounded-full text-blue-500 bg-black border-white/10"
                                             />
-                                            <span>롯폼 (Longform)</span>
+                                            <span>롱폼 (Longform)</span>
                                         </label>
                                         <label className="flex items-center gap-2 cursor-pointer text-xs font-bold">
                                             <input 
@@ -1555,7 +1555,7 @@ export default function DashboardContent() {
                             </form>
                         </div>
 
-                        {/* 2. ?깅줉??移댄뀒怨좊━ 諛?留ㅽ븨 由ъ뒪??*/}
+                        {/* 2. 등록된 카테고리 및 매핑 리스트 */}
                         <div className="bg-[#0f172a]/60 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl p-8">
                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                                 <h2 className="font-black text-xl tracking-tight">내 카테고리 현황</h2>
@@ -1564,13 +1564,13 @@ export default function DashboardContent() {
                                         onClick={() => setCategoryListTab('longform')}
                                         className={`px-6 py-2 rounded-lg text-xs font-black transition-all ${categoryListTab === 'longform' ? 'bg-blue-600 text-white shadow' : 'text-gray-500 hover:text-white'}`}
                                     >
-                                        媛濡쒗삎 (Longform)
+                                        롱폼 (Longform)
                                     </button>
                                     <button 
                                         onClick={() => setCategoryListTab('shorts')}
                                         className={`px-6 py-2 rounded-lg text-xs font-black transition-all ${categoryListTab === 'shorts' ? 'bg-blue-600 text-white shadow' : 'text-gray-500 hover:text-white'}`}
                                     >
-                                        쇼츠(Shorts)
+                                        쇼츠 (Shorts)
                                     </button>
                                 </div>
                             </div>
@@ -1639,7 +1639,7 @@ export default function DashboardContent() {
                                                     </p>
                                                         <p>대본 스타일: <strong className="text-gray-200">{cat.default_script_style || '기본'}</strong></p>
                                                         <p>이미지 스타일: <strong className="text-gray-200">{cat.default_image_style || '실사'}</strong></p>
-                                                        <p>영상 포맷: <strong className="text-gray-200">{cat.video_type === 'shorts' ? '쇼츠 (Shorts)' : '롯폼 (Longform)'}</strong></p>
+                                                        <p>영상 포맷: <strong className="text-gray-200">{cat.video_type === 'shorts' ? '쇼츠 (Shorts)' : '롱폼 (Longform)'}</strong></p>
                                                     </div>
                                                      
                                                     {/* 주제 대기열 카운트 */}
