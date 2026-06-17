@@ -59,18 +59,18 @@ const typeMap: Record<string, string> = {
 };
 
 const typeIcons: Record<string, string> = {
-    'video': '?벞',
-    'image': '?렓',
-    'script': '?뱷',
-    'text_gen': '?랃툘',
-    'vision_gen': '?몓截?,
-    'motion_guide': '?숋툘',
-    'character_extraction': '?뫀',
-    'test_after_fix': '?썱截?,
-    'test_local': '?뮲',
-    'test_verbose': '?뵇',
-    'unknown': '??,
-    'prompt': '?뮕'
+    'video': 'VD',
+    'image': 'IM',
+    'script': 'SC',
+    'text_gen': 'TX',
+    'vision_gen': 'VS',
+    'motion_guide': 'MG',
+    'character_extraction': 'CH',
+    'test_after_fix': 'SF',
+    'test_local': 'LT',
+    'test_verbose': 'VB',
+    'unknown': 'UK',
+    'prompt': 'PR'
 };
 
 function StatCard({ label, value, unit, color, subLabel }: { label: string; value: string | number; unit: string; color: string; subLabel?: string }) {
