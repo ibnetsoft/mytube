@@ -2564,42 +2564,42 @@ export default function DashboardContent() {
                 )}
                 {activeTab === 'styles' && (
                     <div className="space-y-8 animate-in fade-in duration-300">
-                        {/* 1. ?ㅽ???異붽?/?섏젙 ??*/}
+                        {/* 1. 스타일 추가/수정 */}
                         <div ref={presetFormRef} className={`rounded-[2.5rem] border p-8 shadow-2xl scroll-mt-24 transition-all duration-300 ${presetId ? 'bg-blue-950/40 border-blue-500/40' : 'bg-[#0f172a]/60 border-white/10'}`}>
                             <h2 className="font-black text-xl tracking-tight mb-6 flex items-center gap-2">
-                                ?렓 {presetId ? '?ㅽ????꾨━???섏젙' : '?????ㅽ????꾨━??異붽?'}
+                                스타일 프리셋 {presetId ? '수정' : '추가'}
                             </h2>
                             <form onSubmit={handleSavePreset} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 <div>
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">?ㅽ??????*</label>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">스타일 타입 *</label>
                                     <select
                                         required
                                         value={presetType}
                                         onChange={e => setPresetType(e.target.value as any)}
                                         className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
                                     >
-                                        <option value="image">?렓 ?대?吏 ?ㅽ???(Image Style)</option>
-                                        <option value="script">?뱷 ?蹂??ㅽ???(Script Style)</option>
-                                        <option value="thumbnail">?뼹截??몃꽕???ㅽ???(Thumbnail Style)</option>
+                                        <option value="image">이미지 스타일 (Image Style)</option>
+                                        <option value="script">대본 스타일 (Script Style)</option>
+                                        <option value="thumbnail">썸네일 스타일 (Thumbnail Style)</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">?ㅽ????곷Ц 肄붾뱶紐?* (?? realistic)</label>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">스타일 영문 코드명 * (예: realistic)</label>
                                     <input
                                         type="text"
                                         required
-                                        placeholder="?곷Ц ?뚮Ц??諛??몃뜑諛?沅뚯옣"
+                                        placeholder="영문 소문자 및 언더바 권장"
                                         value={presetKeyCode}
                                         onChange={e => setPresetKeyCode(e.target.value)}
                                         className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">?ㅽ????쒓? ?쒖떆紐?*</label>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">스타일 한글 표시명 *</label>
                                     <input
                                         type="text"
                                         required
-                                        placeholder="?? ?ㅼ궗?곹솕"
+                                        placeholder="예: 실사영화"
                                         value={presetNameKo}
                                         onChange={e => setPresetNameKo(e.target.value)}
                                         className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
@@ -2616,31 +2616,31 @@ export default function DashboardContent() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">?꾨━???몃꽕???대?吏 URL</label>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">프리뷰 썸네일 이미지 URL</label>
                                     <input
                                         type="text"
-                                        placeholder="https://... ?먮뒗 /static/img/... (?좏깮?ы빆)"
+                                        placeholder="https://... 또는 /static/img/... (선택사항)"
                                         value={presetImageUrl}
                                         onChange={e => setPresetImageUrl(e.target.value)}
                                         className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
                                     />
                                 </div>
                                 <div className="md:col-span-2 lg:col-span-3">
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">?꾨＼?꾪듃 ?쒗뵆由?*</label>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">프롬프트 템플릿 *</label>
                                     <textarea
                                         required
                                         rows={4}
-                                        placeholder="?ㅽ??쇱뿉 ?곸슜??二쇱슂 ?꾨＼?꾪듃 諛??섏떇?대? ?곸뼱二쇱꽭?? ?대?吏 ?ㅽ??쇱쓽 寃쎌슦 [SUBJECT] ?깆쓣 ?쒖슜?????덉뒿?덈떎."
+                                        placeholder="스타일에 적용할 주요 프롬프트 및 수식어를 적어주세요. 이미지 스타일의 경우 [SUBJECT] 등을 활용할 수 있습니다."
                                         value={presetPromptTemplate}
                                         onChange={e => setPresetPromptTemplate(e.target.value)}
                                         className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-xs"
                                     />
                                 </div>
                                 <div className="md:col-span-2 lg:col-span-3">
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">AI 異붽? 吏?쒖궗??(Grounded Gemini Instruction - ?대?吏 ?ㅽ????꾩슜)</label>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">AI 추가 지시사항 (Grounded Gemini Instruction - 이미지 스타일 적용)</label>
                                     <textarea
                                         rows={3}
-                                        placeholder="?? ?덈? ?띿뒪?몃굹 留먰뭾?좎쓣 ?ｌ? 留덉꽭??"
+                                        placeholder="예: 절대 텍스트나 말풍선을 넣지 마세요."
                                         value={presetGeminiInstruction}
                                         onChange={e => setPresetGeminiInstruction(e.target.value)}
                                         className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-xs"
@@ -2661,7 +2661,7 @@ export default function DashboardContent() {
                                             }}
                                             className="px-6 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-black transition-all"
                                         >
-                                            痍⑥냼
+                                            취소
                                         </button>
                                     )}
                                     <button
@@ -2675,20 +2675,20 @@ export default function DashboardContent() {
                             </form>
                         </div>
 
-                        {/* 2. ?ㅽ????꾨━??由ъ뒪??*/}
+                        {/* 2. 스타일 프리셋 리스트 */}
                         <div className="bg-[#0f172a]/60 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl">
                             <div className="p-8 border-b border-white/5 bg-white/5 flex justify-between items-center">
-                                <h2 className="font-black text-xl tracking-tight uppercase">?ㅽ????쒗뵆由?移댄깉濡쒓렇 紐⑸줉</h2>
+                                <h2 className="font-black text-xl tracking-tight uppercase">스타일 템플릿 카탈로그 목록</h2>
                                 <button
                                     onClick={fetchStylePresets}
                                     className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border border-white/10"
                                 >
-                                    ?봽 ?덈줈怨좎묠
+                                    새로고침
                                 </button>
                             </div>
                             <div className="p-6">
                                 {presetsLoading ? (
-                                    <div className="text-center text-xs text-gray-500 py-10">?꾨━??濡쒕뵫 以?..</div>
+                                    <div className="text-center text-xs text-gray-500 py-10">프리셋 로딩 중...</div>
                                 ) : (
                                     <div className="grid grid-cols-1 gap-8">
                                         {['image', 'script', 'thumbnail'].map(type => {
@@ -2700,7 +2700,7 @@ export default function DashboardContent() {
                                                         {typeLabel} ({typePresets.length})
                                                     </h3>
                                                     {typePresets.length === 0 ? (
-                                                        <p className="text-xs text-gray-600 italic">?깅줉???ㅽ????꾨━?뗭씠 ?놁뒿?덈떎.</p>
+                                                        <p className="text-xs text-gray-600 italic">등록된 스타일 프리셋이 없습니다.</p>
                                                     ) : (
                                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                                             {typePresets.map((preset: any) => (
@@ -2720,16 +2720,16 @@ export default function DashboardContent() {
                                                                                 <button
                                                                                     onClick={() => handleEditPreset(preset)}
                                                                                     className="px-2 py-1 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white rounded text-[10px] font-bold transition-all border border-blue-500/20"
-                                                                                    title="?섏젙"
+                                                                                    title="수정"
                                                                                 >
-                                                                                    ?륅툘 ?섏젙
+                                                                                    수정
                                                                                 </button>
                                                                                 <button
                                                                                     onClick={() => handleDeletePreset(preset.id, preset.key_code)}
                                                                                     className="p-1 hover:bg-white/5 rounded text-red-500 text-xs"
-                                                                                    title="??젣"
+                                                                                    title="삭제"
                                                                                 >
-                                                                                    ?뿊截?
+                                                                                    삭제
                                                                                 </button>
                                                                             </div>
                                                                         </div>
@@ -2741,7 +2741,7 @@ export default function DashboardContent() {
                                                                         </p>
                                                                         {preset.gemini_instruction && (
                                                                             <p className="text-[9px] text-purple-400 font-mono mt-1.5">
-                                                                                ?뮕 Instruction: {preset.gemini_instruction}
+                                                                                Instruction: {preset.gemini_instruction}
                                                                             </p>
                                                                         )}
                                                                     </div>
