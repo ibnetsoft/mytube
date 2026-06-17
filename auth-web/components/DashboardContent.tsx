@@ -122,6 +122,7 @@ export default function DashboardContent() {
     const [generatedTopicsByCat, setGeneratedTopicsByCat] = useState<Record<number, string[]>>({})
     const [topicQueueCategoryFilter, setTopicQueueCategoryFilter] = useState<string>('all')
     const [topicQueueStatusFilter, setTopicQueueStatusFilter] = useState<'working' | 'pending'>('working')
+    const [topicQueueEmployeeFilter, setTopicQueueEmployeeFilter] = useState<string>('all')
     
     // 移댄뀒怨좊━ 由ъ뒪??濡깊뤌/?륂뤌 ??援щ텇
     const [categoryListTab, setCategoryListTab] = useState<'longform' | 'shorts'>('longform')
@@ -1505,9 +1506,19 @@ export default function DashboardContent() {
                                 if (bActive !== aActive) return bActive - aActive;
                                 return String(a.name || '').localeCompare(String(b.name || ''), 'ko');
                             });
-                            const filteredTopics = topicQueueCategoryFilter === 'all'
+                            const statusFilteredTopics = topicQueueCategoryFilter === 'all'
                                 ? topics.filter(t => isQueueVisibleTopic(t) && matchesTopicQueueStatus(t))
                                 : topics.filter(t => String(t.category_id) === topicQueueCategoryFilter && isQueueVisibleTopic(t) && matchesTopicQueueStatus(t));
+                            const availableTopicQueueEmployees = Array.from(
+                                new Set(
+                                    statusFilteredTopics
+                                        .map(item => String(getTopicAssignee(item) || '').trim())
+                                        .filter(Boolean)
+                                )
+                            ).sort((a, b) => a.localeCompare(b, 'en'));
+                            const filteredTopics = topicQueueEmployeeFilter === 'all'
+                                ? statusFilteredTopics
+                                : statusFilteredTopics.filter(item => String(getTopicAssignee(item) || '').trim() === topicQueueEmployeeFilter);
                             const selectedCategory = topicQueueCategoryFilter === 'all'
                                 ? null
                                 : categories.find(cat => String(cat.id) === topicQueueCategoryFilter);
@@ -1550,6 +1561,25 @@ export default function DashboardContent() {
                                             {selectedCategory ? '선택 표시건수' : '총 표시건수'}: {filteredTopics.length}개
                                         </span>
                                     </div>
+                                </div>
+
+                                <div className="mt-4 flex flex-wrap items-center gap-3">
+                                    <label className="text-[11px] font-black text-gray-500">배정 직원</label>
+                                    <select
+                                        value={topicQueueEmployeeFilter}
+                                        onChange={(e) => setTopicQueueEmployeeFilter(e.target.value)}
+                                        className="min-w-[240px] rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-[11px] font-bold text-white focus:outline-none focus:border-blue-500/50"
+                                    >
+                                        <option value="all" className="bg-[#111] text-white">전체 직원</option>
+                                        {availableTopicQueueEmployees.map(email => (
+                                            <option key={`topic-queue-employee-${email}`} value={email} className="bg-[#111] text-white">
+                                                {email}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <span className="text-[11px] font-bold text-gray-500">
+                                        {topicQueueEmployeeFilter === 'all' ? '전체 직원 표시 중' : `${topicQueueEmployeeFilter}만 표시 중`}
+                                    </span>
                                 </div>
 
                                 <div className="mt-6 flex flex-wrap gap-2">
