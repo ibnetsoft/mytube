@@ -1132,6 +1132,40 @@ export default function DashboardContent() {
         }
     }
 
+    const handleDeleteTopicsByYears = async (categoryId: number, years: string[] = ['2024', '2025']) => {
+        const label = years.join(', ')
+        if (!confirm(`이 카테고리의 대기중 주제 중 ${label} 연도가 들어간 항목을 일괄 삭제할까요?`)) return
+
+        setTopicActionLoadingId(`cleanup-${categoryId}`)
+        try {
+            const params = new URLSearchParams({
+                categoryId: String(categoryId),
+                years: years.join(','),
+            })
+            const res = await fetch(`/api/admin/topics-queue?${params.toString()}`, {
+                method: 'DELETE'
+            })
+            const data = await res.json()
+            if (!res.ok || !data.success) {
+                alert('연도 주제 정리 실패: ' + (data.error || `HTTP ${res.status}`))
+                return
+            }
+
+            const deletedIdSet = new Set((data.deletedIds || []).map((id: any) => String(id)))
+            setTopics(prev => prev.filter(item => !deletedIdSet.has(String(item.id))))
+
+            if (editingTopicId && deletedIdSet.has(editingTopicId)) {
+                cancelEditingTopic()
+            }
+
+            alert(`${data.deletedCount || 0}개의 오래된 연도 대기주제를 삭제했습니다.`)
+        } catch (err: any) {
+            alert('연도 주제 정리 오류: ' + (err?.message || String(err)))
+        } finally {
+            setTopicActionLoadingId(null)
+        }
+    }
+
     useEffect(() => {
         if (activeTab === 'render-queue') {
             fetchRenderQueue();
@@ -1504,6 +1538,7 @@ export default function DashboardContent() {
                                         const completedTopics = topics.filter(t => t.category_id === cat.id && t.status === 'completed');
                                         const previewTopicItems = pendingTopics.slice(0, 10);
                                         const isFreshPreview = Boolean(generatedTopicsByCat[cat.id]?.length);
+                                        const staleYearPendingCount = pendingTopics.filter((topicItem: any) => /2024|2025/.test(String(topicItem.topic || ''))).length;
 
                                         return (
                                             <div key={cat.id} className="bg-black/40 border border-white/10 rounded-3xl p-6 relative flex flex-col justify-between hover:border-blue-500/50 transition-all">
@@ -1577,10 +1612,29 @@ export default function DashboardContent() {
                                                 {previewTopicItems.length > 0 && (
                                                     <div className="mt-4 rounded-2xl border border-blue-500/20 bg-blue-950/20 p-4">
                                                         <div className="mb-3 flex items-center justify-between gap-2">
-                                                            <p className="text-[11px] font-black text-blue-300">
-                                                                {isFreshPreview ? '諛⑷툑 ?앹꽦??二쇱젣 10媛? : '?湲?以?二쇱젣 誘몃━蹂닿린'}
-                                                            </p>
-                                                            <span className="text-[10px] font-bold text-gray-500">{previewTopicItems.length}개</span>
+                                                            <div className="flex items-center gap-2">
+                                                                <p className="text-[11px] font-black text-blue-300">
+                                                                    {isFreshPreview ? '諛⑷툑 ?앹꽦??二쇱젣 10媛? : '?湲?以?二쇱젣 誘몃━蹂닿린'}
+                                                                </p>
+                                                                {staleYearPendingCount > 0 && (
+                                                                    <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-black text-amber-300">
+                                                                        2024/2025 {staleYearPendingCount}개
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                {staleYearPendingCount > 0 && (
+                                                                    <button
+                                                                        type="button"
+                                                                        disabled={topicActionLoadingId === `cleanup-${cat.id}`}
+                                                                        onClick={() => handleDeleteTopicsByYears(cat.id)}
+                                                                        className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1 text-[10px] font-black text-red-300 hover:bg-red-500/20 disabled:opacity-50"
+                                                                    >
+                                                                        2024/2025 삭제
+                                                                    </button>
+                                                                )}
+                                                                <span className="text-[10px] font-bold text-gray-500">{previewTopicItems.length}개</span>
+                                                            </div>
                                                         </div>
                                                         <ol className="space-y-2 text-[11px] leading-relaxed text-gray-200">
                                                             {previewTopicItems.map((topicItem, idx) => (

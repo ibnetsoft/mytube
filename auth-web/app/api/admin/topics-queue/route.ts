@@ -224,6 +224,49 @@ export async function DELETE(req: Request) {
     try {
         const { searchParams } = new URL(req.url)
         const id = searchParams.get('id')
+        const categoryId = searchParams.get('categoryId')
+        const yearsRaw = searchParams.get('years')
+
+        if (categoryId && yearsRaw) {
+            const years = yearsRaw
+                .split(',')
+                .map(value => value.trim())
+                .filter(Boolean)
+
+            if (years.length === 0) {
+                return NextResponse.json({ error: 'Missing cleanup years' }, { status: 400 })
+            }
+
+            const supabase = getAdmin()
+            const yearFilters = years
+                .map(year => `topic.ilike.%${year}%`)
+                .join(',')
+
+            const selectQuery = supabase
+                .from('topics_queue')
+                .select('id, topic')
+                .eq('category_id', categoryId)
+                .eq('status', 'pending')
+                .or(yearFilters)
+
+            const { data: candidates, error: selectError } = await selectQuery
+
+            if (selectError) throw selectError
+
+            if (!candidates || candidates.length === 0) {
+                return NextResponse.json({ success: true, deletedCount: 0, deletedIds: [] })
+            }
+
+            const ids = candidates.map(item => item.id)
+            const { error } = await supabase
+                .from('topics_queue')
+                .delete()
+                .in('id', ids)
+
+            if (error) throw error
+
+            return NextResponse.json({ success: true, deletedCount: ids.length, deletedIds: ids })
+        }
 
         if (!id) {
             return NextResponse.json({ error: 'Missing id' }, { status: 400 })
