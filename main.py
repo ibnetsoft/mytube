@@ -278,6 +278,7 @@ from app.routers import repository as repository_router # [NEW]
 from app.routers import queue as queue_router # [NEW]
 
 from app.routers import audio as audio_router
+from app.routers import music as music_router
 from app.routers import sources as sources_router
 from app.routers import pages as pages_router
 from app.routers import gemini as gemini_router
@@ -295,6 +296,7 @@ app.include_router(settings_router.router)
 app.include_router(repository_router.router)
 app.include_router(queue_router.router)
 app.include_router(audio_router.router)
+app.include_router(music_router.router)
 app.include_router(sources_router.router)
 app.include_router(pages_router.router)
 app.include_router(gemini_router.router)

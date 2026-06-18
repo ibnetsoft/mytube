@@ -1,0 +1,908 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+    :root {
+        --atl-deep:    #1c2027;
+        --atl-base:    #1c2027;
+        --atl-mid:     #232832;
+        --atl-high:    #2a303b;
+        --atl-primary: #b6c4ff;
+        --atl-primary-end: #004adf;
+        --atl-tertiary: #00daf3;
+        --atl-text:    #dae2fd;
+        --atl-sub:     #c5c5d4;
+        --atl-outline: #454652;
+        --atl-outline-dim: rgba(182,196,255,0.08);
+        --suno-accent: #e879f9;
+    }
+    .atl-scrollbar::-webkit-scrollbar { width: 4px; }
+    .atl-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+    .atl-input {
+        background: var(--atl-deep);
+        color: var(--atl-text);
+        border: 1px solid var(--atl-outline);
+        border-radius: 0.75rem;
+        padding: 0.75rem 1rem;
+        outline: none;
+        transition: all 0.2s;
+        width: 100%;
+    }
+    .atl-input:focus { border-color: var(--atl-primary); background: var(--atl-high); }
+    .atl-input::placeholder { color: #5a6070; }
+    .atl-card {
+        background: var(--atl-mid);
+        border: 1px solid var(--atl-outline-dim);
+        border-radius: 1rem;
+    }
+    .atl-section-label {
+        font-family: 'Manrope', sans-serif;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--atl-sub);
+    }
+    .mode-pill {
+        padding: 0.35rem 0.9rem;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        border: 1px solid transparent;
+        transition: all 0.15s;
+        cursor: pointer;
+    }
+    .mode-pill.active {
+        background: rgba(182,196,255,0.12);
+        border-color: rgba(182,196,255,0.35);
+        color: var(--atl-primary);
+    }
+    .mode-pill:not(.active) {
+        color: var(--atl-sub);
+        background: transparent;
+    }
+    .lyrics-tab {
+        padding: 0.3rem 0.75rem;
+        border-radius: 0.5rem;
+        font-size: 10px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .lyrics-tab.active { background: var(--atl-high); color: var(--atl-text); }
+    .lyrics-tab:not(.active) { color: var(--atl-sub); }
+    .style-tag {
+        padding: 0.35rem 0.7rem;
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 600;
+        border: 1px solid var(--atl-outline-dim);
+        background: var(--atl-deep);
+        color: var(--atl-sub);
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all 0.15s;
+    }
+    .style-tag:hover, .style-tag.selected {
+        border-color: var(--atl-primary);
+        color: var(--atl-primary);
+        background: rgba(182,196,255,0.08);
+    }
+    .collapse-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+        user-select: none;
+    }
+    .collapse-body { overflow: hidden; transition: max-height 0.25s ease; }
+    .collapse-body.collapsed { max-height: 0 !important; }
+    .range-slider {
+        -webkit-appearance: none;
+        width: 100%;
+        height: 4px;
+        border-radius: 2px;
+        background: var(--atl-high);
+        outline: none;
+    }
+    .range-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 14px; height: 14px;
+        border-radius: 50%;
+        background: var(--suno-accent);
+        cursor: pointer;
+    }
+    .track-card {
+        background: rgba(8,12,24,0.5);
+        border: 1px solid var(--atl-outline-dim);
+        border-radius: 0.875rem;
+        transition: background 0.15s;
+    }
+    .track-card:hover { background: var(--atl-high); }
+    .create-btn {
+        background: linear-gradient(135deg, #7c3aed, #4f46e5);
+        color: white;
+        font-family: 'Manrope', sans-serif;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+    }
+    .create-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .atl-canvas-glow-a {
+        position: absolute; top: 20%; left: 15%;
+        width: 300px; height: 300px;
+        background: var(--atl-primary);
+        border-radius: 50%; filter: blur(120px); opacity: 0.06;
+        pointer-events: none;
+    }
+    .atl-canvas-glow-b {
+        position: absolute; bottom: 15%; right: 15%;
+        width: 260px; height: 260px;
+        background: var(--suno-accent);
+        border-radius: 50%; filter: blur(110px); opacity: 0.05;
+        pointer-events: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="h-[calc(100vh-4.3rem)] flex overflow-hidden" style="background: var(--atl-base);">
+
+    <!-- LEFT PANE -->
+    <aside class="flex flex-col h-full atl-scrollbar overflow-y-auto shrink-0"
+           style="width: 480px; background: var(--atl-deep); border-right: 1px solid var(--atl-outline-dim);">
+
+        <!-- Header -->
+        <div class="px-5 pt-5 pb-3 shrink-0 flex items-center justify-between">
+            <div>
+                <p class="atl-section-label mb-0.5">{{ t('nav_music_plan') }}</p>
+                <h2 style="font-family:'Manrope',sans-serif;font-size:1rem;font-weight:800;color:var(--atl-text);">
+                    {{ t('music_studio_title') }}
+                </h2>
+            </div>
+            <div class="flex items-center gap-1.5">
+                <button class="mode-pill active" id="btnSimple" onclick="setInputMode('simple')">{{ t('music_mode_simple') }}</button>
+                <button class="mode-pill" id="btnAdvanced" onclick="setInputMode('advanced')">{{ t('music_mode_advanced') }}</button>
+            </div>
+        </div>
+
+        <div class="px-4 pb-6 space-y-3 flex-1">
+
+            <!-- Model badge -->
+            <div class="flex items-center justify-between px-1">
+                <div class="flex gap-1.5">
+                    <button class="mode-pill active text-[9px]" id="btnPlaylist" onclick="setContentType('playlist')">{{ t('music_type_playlist') }}</button>
+                    <button class="mode-pill text-[9px]" id="btnSingle" onclick="setContentType('single')">{{ t('music_type_single') }}</button>
+                </div>
+                <span class="text-[9px] font-bold px-2 py-1 rounded-lg" style="background:var(--atl-high);color:var(--atl-sub);">music_v1</span>
+            </div>
+
+            <!-- SIMPLE MODE -->
+            <div id="simplePanel" class="atl-card p-4 space-y-3">
+                <label class="atl-section-label block">{{ t('music_simple_prompt_label') }}</label>
+                <textarea id="simplePrompt" class="atl-input text-sm resize-none" rows="3"
+                    placeholder="{{ t('music_simple_prompt_placeholder') }}"></textarea>
+                <label class="flex items-center gap-2 text-xs" style="color:var(--atl-sub);">
+                    <input type="checkbox" id="simpleInstrumental" checked class="rounded">
+                    {{ t('music_instrumental') }}
+                </label>
+            </div>
+
+            <!-- ADVANCED: Lyrics -->
+            <div id="advancedPanel" class="hidden space-y-3">
+                <div class="atl-card overflow-hidden">
+                    <div class="collapse-header px-4 py-3" onclick="toggleSection('lyricsBody')">
+                        <span class="atl-section-label">{{ t('music_lyrics') }}</span>
+                        <div class="flex items-center gap-2" onclick="event.stopPropagation()">
+                            <button class="lyrics-tab active" id="tabWrite" onclick="setLyricsMode('write')">{{ t('music_lyrics_write') }}</button>
+                            <button class="lyrics-tab" id="tabPrompt" onclick="setLyricsMode('prompt')">{{ t('music_lyrics_prompt') }}</button>
+                            <button class="lyrics-tab" id="tabInstrumental" onclick="setLyricsMode('instrumental')">{{ t('music_instrumental') }}</button>
+                            <button onclick="suggestLyrics()" class="text-[10px] px-2 py-1 rounded-lg" style="background:var(--atl-high);color:var(--atl-primary);" title="AI">✨</button>
+                        </div>
+                    </div>
+                    <div id="lyricsBody" class="collapse-body px-4 pb-4" style="max-height:200px;">
+                        <textarea id="lyricsText" class="atl-input text-xs resize-none font-mono" rows="5"
+                            placeholder="{{ t('music_lyrics_placeholder') }}"></textarea>
+                    </div>
+                </div>
+
+                <!-- Styles -->
+                <div class="atl-card overflow-hidden">
+                    <div class="collapse-header px-4 py-3" onclick="toggleSection('stylesBody')">
+                        <span class="atl-section-label">{{ t('music_styles') }}</span>
+                        <div class="flex gap-1.5" onclick="event.stopPropagation()">
+                            <button onclick="suggestStyles()" class="w-7 h-7 rounded-lg flex items-center justify-center text-sm" style="background:#1d4ed8;color:white;">✨</button>
+                            <button onclick="refreshStyleTags()" class="w-7 h-7 rounded-lg flex items-center justify-center text-sm" style="background:var(--atl-high);color:var(--atl-sub);">↻</button>
+                        </div>
+                    </div>
+                    <div id="stylesBody" class="collapse-body px-4 pb-4 space-y-3" style="max-height:280px;">
+                        <textarea id="stylesPrompt" class="atl-input text-xs resize-none" rows="3"
+                            placeholder="{{ t('music_styles_placeholder') }}"></textarea>
+                        <div id="styleTagsRow" class="flex gap-1.5 overflow-x-auto pb-1 atl-scrollbar"></div>
+                    </div>
+                </div>
+
+                <!-- More Options -->
+                <div class="atl-card overflow-hidden">
+                    <div class="collapse-header px-4 py-3" onclick="toggleSection('moreBody')">
+                        <span class="atl-section-label">{{ t('music_more_options') }}</span>
+                        <span class="text-[10px]" style="color:var(--atl-outline);">▼</span>
+                    </div>
+                    <div id="moreBody" class="collapse-body px-4 pb-4 space-y-4" style="max-height:400px;">
+                        <div>
+                            <label class="atl-section-label block mb-2">{{ t('music_vocal_gender') }}</label>
+                            <div class="flex gap-2">
+                                <button class="mode-pill active text-[10px]" id="vocalAny" onclick="setVocalGender('any')">{{ t('music_vocal_any') }}</button>
+                                <button class="mode-pill text-[10px]" id="vocalMale" onclick="setVocalGender('male')">{{ t('music_vocal_male') }}</button>
+                                <button class="mode-pill text-[10px]" id="vocalFemale" onclick="setVocalGender('female')">{{ t('music_vocal_female') }}</button>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <label class="atl-section-label">{{ t('music_weirdness') }}</label>
+                                <span id="weirdnessVal" class="text-[10px] font-mono" style="color:var(--atl-sub);">50%</span>
+                            </div>
+                            <input type="range" id="weirdnessSlider" class="range-slider" min="0" max="100" value="50"
+                                oninput="document.getElementById('weirdnessVal').textContent=this.value+'%'">
+                        </div>
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <label class="atl-section-label">{{ t('music_style_influence') }}</label>
+                                <span id="influenceVal" class="text-[10px] font-mono" style="color:var(--atl-sub);">50%</span>
+                            </div>
+                            <input type="range" id="influenceSlider" class="range-slider" min="0" max="100" value="50"
+                                oninput="document.getElementById('influenceVal').textContent=this.value+'%'">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Common settings -->
+            <div class="atl-card p-4 space-y-3">
+                <div class="space-y-1.5">
+                    <label class="atl-section-label block">{{ t('music_playlist_title') }}</label>
+                    <input type="text" id="playlistTitle" class="atl-input text-sm" placeholder="{{ t('music_playlist_title_placeholder') }}">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="space-y-1.5">
+                        <label class="atl-section-label block">{{ t('music_genre') }}</label>
+                        <select id="genreSelect" class="atl-input text-xs py-2" onchange="refreshStyleTags()">
+                            <option value="lofi">Lo-fi</option>
+                            <option value="jazz">Jazz</option>
+                            <option value="piano">Piano</option>
+                            <option value="acoustic">Acoustic</option>
+                            <option value="ambient">Ambient</option>
+                            <option value="meditation">Meditation</option>
+                            <option value="sleep">Sleep</option>
+                            <option value="study">Study</option>
+                            <option value="cafe">Cafe</option>
+                            <option value="city_pop">City Pop</option>
+                            <option value="cinematic">Cinematic</option>
+                            <option value="healing">Healing</option>
+                            <option value="rainy_day">Rainy Day</option>
+                            <option value="korean_emotional">Korean Emotional</option>
+                            <option value="pop_ballad">Pop Ballad</option>
+                            <option value="chill_edm">EDM / Chill</option>
+                            <option value="nature_sounds">Nature Sounds</option>
+                        </select>
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="atl-section-label block">{{ t('music_vocal_mode') }}</label>
+                        <select id="vocalModeSelect" class="atl-input text-xs py-2">
+                            <option value="instrumental">{{ t('music_vocal_instrumental') }}</option>
+                            <option value="soft_vocal">{{ t('music_vocal_soft') }}</option>
+                            <option value="vocal">{{ t('music_vocal_full') }}</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="space-y-1.5">
+                        <label class="atl-section-label block">{{ t('music_duration') }}</label>
+                        <div class="flex items-center atl-input py-2">
+                            <input type="number" id="durationInput" class="w-full bg-transparent text-center font-bold focus:outline-none text-sm"
+                                style="color:var(--atl-primary);" value="60" min="1">
+                            <span class="text-[9px] shrink-0" style="color:var(--atl-sub);">{{ t('plan_duration_unit_min') }}</span>
+                        </div>
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="atl-section-label block">{{ t('music_track_count') }}</label>
+                        <input type="number" id="trackCountInput" class="atl-input text-sm text-center font-bold py-2"
+                            style="color:var(--atl-primary);" value="12" min="1" max="30">
+                    </div>
+                </div>
+                <div class="space-y-1.5">
+                    <label class="atl-section-label block">{{ t('music_moods') }}</label>
+                    <div class="grid grid-cols-3 gap-1 text-[9px]" id="moodCheckboxes">
+                        <label class="flex items-center gap-1 rounded-lg border border-white/5 px-2 py-1" style="color:var(--atl-sub);"><input type="checkbox" name="mood" value="calm" checked> {{ t('music_mood_calm') }}</label>
+                        <label class="flex items-center gap-1 rounded-lg border border-white/5 px-2 py-1" style="color:var(--atl-sub);"><input type="checkbox" name="mood" value="warm"> {{ t('music_mood_warm') }}</label>
+                        <label class="flex items-center gap-1 rounded-lg border border-white/5 px-2 py-1" style="color:var(--atl-sub);"><input type="checkbox" name="mood" value="dreamy"> {{ t('music_mood_dreamy') }}</label>
+                        <label class="flex items-center gap-1 rounded-lg border border-white/5 px-2 py-1" style="color:var(--atl-sub);"><input type="checkbox" name="mood" value="lonely"> {{ t('music_mood_lonely') }}</label>
+                        <label class="flex items-center gap-1 rounded-lg border border-white/5 px-2 py-1" style="color:var(--atl-sub);"><input type="checkbox" name="mood" value="romantic"> {{ t('music_mood_romantic') }}</label>
+                        <label class="flex items-center gap-1 rounded-lg border border-white/5 px-2 py-1" style="color:var(--atl-sub);"><input type="checkbox" name="mood" value="focus"> {{ t('music_mood_focus') }}</label>
+                        <label class="flex items-center gap-1 rounded-lg border border-white/5 px-2 py-1" style="color:var(--atl-sub);"><input type="checkbox" name="mood" value="relaxing"> {{ t('music_mood_relaxing') }}</label>
+                        <label class="flex items-center gap-1 rounded-lg border border-white/5 px-2 py-1" style="color:var(--atl-sub);"><input type="checkbox" name="mood" value="dawn"> {{ t('music_mood_dawn') }}</label>
+                        <label class="flex items-center gap-1 rounded-lg border border-white/5 px-2 py-1" style="color:var(--atl-sub);"><input type="checkbox" name="mood" value="rainy_night"> {{ t('music_mood_rainy') }}</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="space-y-2 pt-1">
+                <button onclick="generateMusicPlan()" id="createBtn"
+                    class="create-btn w-full py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all hover:brightness-110 text-sm">
+                    🎵 {{ t('music_btn_create_plan') }}
+                </button>
+                <button onclick="saveMusicSettings()"
+                    class="w-full py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5"
+                    style="background:var(--atl-high);color:var(--atl-sub);">
+                    💾 {{ t('save_settings') }}
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- RIGHT CANVAS -->
+    <section class="flex-1 flex flex-col min-w-0 relative" style="background:var(--atl-base);">
+        <div class="flex-1 overflow-y-auto atl-scrollbar px-8 pt-6 pb-8 relative">
+            <div class="atl-canvas-glow-a"></div>
+            <div class="atl-canvas-glow-b"></div>
+
+            <div class="relative z-10 max-w-2xl mx-auto" id="canvasContent">
+                <!-- Empty state -->
+                <div id="emptyState" class="h-[65vh] flex flex-col items-center justify-center text-center space-y-6">
+                    <div class="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl"
+                         style="background:#232832;border:1px solid var(--atl-outline-dim);">🎵</div>
+                    <div class="max-w-sm space-y-2">
+                        <h3 style="font-family:'Manrope',sans-serif;font-size:1.5rem;font-weight:800;color:var(--atl-text);">
+                            {{ t('title_studio_canvas') }}
+                        </h3>
+                        <p class="text-sm" style="color:var(--atl-outline);">{{ t('music_canvas_empty') }}</p>
+                    </div>
+                </div>
+
+                <!-- Plan result -->
+                <div id="planResult" class="hidden space-y-4">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <p class="atl-section-label mb-1">{{ t('music_plan_result') }}</p>
+                            <h3 id="planTitle" style="font-family:'Manrope',sans-serif;font-size:1.4rem;font-weight:800;color:var(--atl-text);"></h3>
+                            <p id="planMeta" class="text-xs mt-1" style="color:var(--atl-sub);"></p>
+                        </div>
+                        <button onclick="generateMusicPlan(true)" class="text-[10px] font-bold px-3 py-1.5 rounded-lg"
+                            style="background:var(--atl-high);color:var(--atl-primary);">{{ t('btn_refresh') }}</button>
+                    </div>
+                    <p id="planVisual" class="text-xs leading-relaxed p-3 rounded-xl"
+                       style="background:rgba(8,12,24,0.5);color:var(--atl-sub);border:1px solid var(--atl-outline-dim);"></p>
+                    <div id="tracksList" class="space-y-2"></div>
+                    <div class="flex gap-2 pt-2">
+                        <button onclick="goToTrackGeneration()"
+                            class="flex-1 py-3 rounded-xl font-bold text-xs transition-all hover:brightness-110"
+                            style="background:linear-gradient(135deg,#7c3aed,#4f46e5);color:white;">
+                            🎧 {{ t('music_btn_go_tracks') }}
+                        </button>
+                    </div>
+                    <div id="generationPanel" class="hidden mt-4 pt-4 border-t border-atl-outline-dim">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="atl-section-label">🎵 {{ t('music_generating_tracks') }}</span>
+                            <span id="genProgress" class="text-xs" style="color:var(--atl-sub);">0 / 0</span>
+                        </div>
+                        <div id="generatedTracksList" class="space-y-2"></div>
+                        <button onclick="startGenerateAllTracks()" id="generateAllBtn"
+                            class="w-full mt-3 py-2.5 rounded-xl font-bold text-xs"
+                            style="background:linear-gradient(135deg,#10b981,#059669);color:white;">
+                            ▶ {{ t('music_start_generation') }}
+                        </button>
+                        <button onclick="renderCombinedPlaylist()" id="renderBtn" class="hidden w-full mt-2 py-2.5 rounded-xl font-bold text-xs"
+                            style="background:linear-gradient(135deg,#f59e0b,#d97706);color:white;">
+                            🎬 {{ t('music_render_playlist') }}
+                        </button>
+                        <div id="imageUploadPanel" class="hidden mt-3 pt-3 border-t border-atl-outline-dim">
+                            <label class="atl-section-label block mb-2">Playlist Image</label>
+                            <input type="file" id="playlistImageInput" accept="image/*" class="atl-input text-xs py-2" onchange="previewImage(this)">
+                            <img id="imagePreview" class="hidden w-full mt-2 rounded-lg max-h-40 object-cover">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+<script>
+    let currentPlan = null;
+    let inputMode = 'simple';
+    let contentType = 'playlist';
+    let lyricsMode = 'write';
+    let vocalGender = 'any';
+    let selectedTags = new Set();
+
+    const i18n = {
+        generating: "{{ t('music_status_generating') }}",
+        saved: "{{ t('music_status_saved') }}",
+        preview: "{{ t('music_btn_preview') }}",
+        tracks: "{{ t('music_track_count') }}",
+        minutes: "{{ t('plan_duration_unit_min') }}",
+        error: "{{ t('music_status_error') }}",
+    };
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        refreshStyleTags();
+        await loadSavedState();
+    });
+
+    window.addEventListener('projectStateRestored', (e) => {
+        if (e.detail) loadFromProjectData(e.detail);
+    });
+
+    function toggleSection(id) {
+        const el = document.getElementById(id);
+        el.classList.toggle('collapsed');
+    }
+
+    function setInputMode(mode) {
+        inputMode = mode;
+        document.getElementById('btnSimple').classList.toggle('active', mode === 'simple');
+        document.getElementById('btnAdvanced').classList.toggle('active', mode === 'advanced');
+        document.getElementById('simplePanel').classList.toggle('hidden', mode !== 'simple');
+        document.getElementById('advancedPanel').classList.toggle('hidden', mode !== 'advanced');
+    }
+
+    function setContentType(type) {
+        contentType = type;
+        document.getElementById('btnPlaylist').classList.toggle('active', type === 'playlist');
+        document.getElementById('btnSingle').classList.toggle('active', type === 'single');
+        if (type === 'single') {
+            document.getElementById('trackCountInput').value = 1;
+            document.getElementById('durationInput').value = 3;
+        }
+    }
+
+    function setLyricsMode(mode) {
+        lyricsMode = mode;
+        ['Write','Prompt','Instrumental'].forEach(s => {
+            document.getElementById('tab'+s).classList.toggle('active', s.toLowerCase() === mode || (s==='Instrumental' && mode==='instrumental'));
+        });
+        const ta = document.getElementById('lyricsText');
+        if (mode === 'instrumental') {
+            ta.value = '';
+            ta.disabled = true;
+            ta.placeholder = '{{ t("music_instrumental_hint") }}';
+        } else {
+            ta.disabled = false;
+            ta.placeholder = mode === 'prompt' ? '{{ t("music_lyrics_prompt_placeholder") }}' : '{{ t("music_lyrics_placeholder") }}';
+        }
+    }
+
+    function setVocalGender(g) {
+        vocalGender = g;
+        ['Any','Male','Female'].forEach(s => {
+            const id = 'vocal' + s;
+            document.getElementById(id).classList.toggle('active', s.toLowerCase() === g);
+        });
+        if (g !== 'any') {
+            document.getElementById('vocalModeSelect').value = g === 'any' ? 'instrumental' : 'soft_vocal';
+        }
+    }
+
+    function getMoods() {
+        return Array.from(document.querySelectorAll('input[name="mood"]:checked')).map(el => el.value);
+    }
+
+    function collectConfig() {
+        const durationMin = parseInt(document.getElementById('durationInput').value) || 60;
+        const trackCount = parseInt(document.getElementById('trackCountInput').value) || 12;
+        return {
+            content_type: contentType === 'single' ? 'single_track' : 'music_playlist',
+            input_mode: inputMode,
+            simple_prompt: document.getElementById('simplePrompt').value.trim(),
+            playlist_title: document.getElementById('playlistTitle').value.trim(),
+            genre: document.getElementById('genreSelect').value,
+            vocal_mode: document.getElementById('vocalModeSelect').value,
+            moods: getMoods(),
+            track_count: trackCount,
+            playlist_duration_seconds: durationMin * 60,
+            target_language: 'global',
+            lyrics: {
+                mode: lyricsMode,
+                text: document.getElementById('lyricsText').value.trim(),
+            },
+            styles: {
+                prompt: document.getElementById('stylesPrompt').value.trim(),
+                tags: Array.from(selectedTags),
+            },
+            advanced: {
+                vocal_gender: vocalGender,
+                weirdness: parseInt(document.getElementById('weirdnessSlider').value),
+                style_influence: parseInt(document.getElementById('influenceSlider').value),
+            },
+        };
+    }
+
+    function applyConfig(cfg) {
+        if (!cfg) return;
+        if (cfg.input_mode) setInputMode(cfg.input_mode);
+        if (cfg.content_type === 'single_track') setContentType('single');
+        if (cfg.simple_prompt) document.getElementById('simplePrompt').value = cfg.simple_prompt;
+        if (cfg.playlist_title) document.getElementById('playlistTitle').value = cfg.playlist_title;
+        if (cfg.genre) document.getElementById('genreSelect').value = cfg.genre;
+        if (cfg.vocal_mode) document.getElementById('vocalModeSelect').value = cfg.vocal_mode;
+        if (cfg.track_count) document.getElementById('trackCountInput').value = cfg.track_count;
+        if (cfg.playlist_duration_seconds) {
+            document.getElementById('durationInput').value = Math.round(cfg.playlist_duration_seconds / 60);
+        }
+        if (cfg.moods) {
+            document.querySelectorAll('input[name="mood"]').forEach(el => {
+                el.checked = cfg.moods.includes(el.value);
+            });
+        }
+        if (cfg.lyrics) {
+            if (cfg.lyrics.mode) setLyricsMode(cfg.lyrics.mode);
+            if (cfg.lyrics.text) document.getElementById('lyricsText').value = cfg.lyrics.text;
+        }
+        if (cfg.styles) {
+            if (cfg.styles.prompt) document.getElementById('stylesPrompt').value = cfg.styles.prompt;
+            if (cfg.styles.tags) {
+                selectedTags = new Set(cfg.styles.tags);
+                renderStyleTags();
+            }
+        }
+        if (cfg.advanced) {
+            if (cfg.advanced.vocal_gender) setVocalGender(cfg.advanced.vocal_gender);
+            if (cfg.advanced.weirdness != null) {
+                document.getElementById('weirdnessSlider').value = cfg.advanced.weirdness;
+                document.getElementById('weirdnessVal').textContent = cfg.advanced.weirdness + '%';
+            }
+            if (cfg.advanced.style_influence != null) {
+                document.getElementById('influenceSlider').value = cfg.advanced.style_influence;
+                document.getElementById('influenceVal').textContent = cfg.advanced.style_influence + '%';
+            }
+        }
+        refreshStyleTags();
+    }
+
+    async function loadSavedState() {
+        const projectId = getCurrentProject();
+        if (!projectId) return;
+        try {
+            const res = await fetch(`/api/music/plan/${projectId}`);
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data.topic) document.getElementById('playlistTitle').value = data.topic;
+            applyConfig(data.config);
+            if (data.plan) renderPlan(data.plan);
+        } catch (e) { console.warn('loadSavedState', e); }
+    }
+
+    function loadFromProjectData(data) {
+        if (data.project?.topic) {
+            const title = document.getElementById('playlistTitle');
+            if (!title.value) title.value = data.project.topic;
+        }
+        if (data.settings?.duration_seconds) {
+            document.getElementById('durationInput').value = Math.floor(data.settings.duration_seconds / 60);
+        }
+    }
+
+    async function refreshStyleTags() {
+        const genre = document.getElementById('genreSelect').value;
+        try {
+            const res = await fetch(`/api/music/style-tags?genre=${genre}`);
+            const data = await res.json();
+            renderStyleTags(data.tags || []);
+        } catch (e) { renderStyleTags([]); }
+    }
+
+    function renderStyleTags(tags) {
+        const row = document.getElementById('styleTagsRow');
+        row.innerHTML = (tags || []).map(tag => {
+            const sel = selectedTags.has(tag) ? 'selected' : '';
+            return `<button class="style-tag ${sel}" onclick="toggleTag('${tag.replace(/'/g,"\\'")}')">${tag}</button>`;
+        }).join('');
+    }
+
+    function toggleTag(tag) {
+        if (selectedTags.has(tag)) selectedTags.delete(tag);
+        else selectedTags.add(tag);
+        const stylesEl = document.getElementById('stylesPrompt');
+        const current = stylesEl.value.trim();
+        if (selectedTags.has(tag) && !current.includes(tag)) {
+            stylesEl.value = current ? current + ', ' + tag : tag;
+        }
+        refreshStyleTags();
+    }
+
+    async function suggestStyles() {
+        const topic = document.getElementById('playlistTitle').value.trim() || document.getElementById('simplePrompt').value.trim();
+        const genre = document.getElementById('genreSelect').value;
+        try {
+            const res = await fetch('/api/music/suggest-styles', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ topic, genre }),
+            });
+            const data = await res.json();
+            if (data.prompt) document.getElementById('stylesPrompt').value = data.prompt;
+            if (data.tags) {
+                selectedTags = new Set(data.tags);
+                renderStyleTags(data.tags);
+            }
+        } catch (e) { Utils.showToast(i18n.error, 'error'); }
+    }
+
+    async function suggestLyrics() {
+        const topic = document.getElementById('playlistTitle').value.trim();
+        const style_prompt = document.getElementById('stylesPrompt').value.trim();
+        setLyricsMode('write');
+        try {
+            const res = await fetch('/api/music/suggest-lyrics', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ topic, style_prompt }),
+            });
+            const data = await res.json();
+            if (data.lyrics) document.getElementById('lyricsText').value = data.lyrics;
+        } catch (e) { Utils.showToast(i18n.error, 'error'); }
+    }
+
+    async function saveMusicSettings() {
+        const projectId = getCurrentProject();
+        if (!projectId) { Utils.showToast('{{ t("status_select_project_first") }}', 'warning'); return; }
+        const config = collectConfig();
+        try {
+            await fetch('/api/music/save-config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    project_id: projectId,
+                    config,
+                    duration_seconds: config.playlist_duration_seconds,
+                    topic: config.playlist_title || undefined,
+                }),
+            });
+            Utils.showToast(i18n.saved, 'success');
+        } catch (e) { Utils.showToast(i18n.error, 'error'); }
+    }
+
+    async function generateMusicPlan(force = false) {
+        const projectId = getCurrentProject();
+        if (!projectId) { Utils.showToast('{{ t("status_select_project_first") }}', 'warning'); return; }
+
+        const btn = document.getElementById('createBtn');
+        btn.disabled = true;
+        btn.textContent = '⏳ ' + i18n.generating;
+
+        const config = collectConfig();
+        try {
+            const res = await fetch('/api/music/plan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ project_id: projectId, config, force_regenerate: force }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || i18n.error);
+            currentPlan = data.plan;
+            renderPlan(data.plan);
+            Utils.showToast('{{ t("music_status_plan_done") }}', 'success');
+        } catch (e) {
+            Utils.showToast(e.message || i18n.error, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '🎵 {{ t("music_btn_create_plan") }}';
+        }
+    }
+
+    function renderPlan(plan) {
+        if (!plan) return;
+        document.getElementById('emptyState').classList.add('hidden');
+        document.getElementById('planResult').classList.remove('hidden');
+
+        const title = plan.playlist_title || 'Untitled Playlist';
+        document.getElementById('planTitle').textContent = title;
+        const trackCount = (plan.tracks || []).length;
+        const dur = document.getElementById('durationInput').value;
+        document.getElementById('planMeta').textContent = `${trackCount} ${i18n.tracks} · ${dur} ${i18n.minutes} · ${plan.genre || ''}`;
+        document.getElementById('planVisual').textContent = plan.visual_concept || '';
+
+        const list = document.getElementById('tracksList');
+        list.innerHTML = (plan.tracks || []).map((t, i) => {
+            const dur = t.duration_seconds || 180;
+            const durMin = Math.round(dur / 60);
+            return `
+            <div class="track-card p-4">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-[9px] font-bold uppercase tracking-widest mb-1" style="color:var(--atl-primary);">Track ${String(i+1).padStart(2,'0')} · ${durMin}m</p>
+                        <p class="text-sm font-bold truncate" style="color:var(--atl-text);">${escapeHtml(t.title || '')}</p>
+                        <p class="text-[10px] mt-1 line-clamp-2" style="color:var(--atl-sub);">${escapeHtml(t.mood || '')}</p>
+                        <textarea class="atl-input text-[10px] mt-2 resize-none" rows="2"
+                            id="trackPrompt_${i}" onchange="updateTrackPrompt(${i}, this.value)">${escapeHtml(t.prompt || '')}</textarea>
+                        <div class="flex items-center gap-2 mt-2">
+                            <input type="range" id="trackDuration_${i}" class="range-slider flex-1" min="180" max="300" step="30" value="${dur}"
+                                oninput="updateTrackDuration(${i}, this.value); document.getElementById('durationLabel_${i}').textContent = Math.round(this.value/60) + 'm'">
+                            <span id="durationLabel_${i}" class="text-[9px] font-mono w-8 text-right" style="color:var(--atl-sub);">${durMin}m</span>
+                        </div>
+                    </div>
+                    <button onclick="previewTrack(${i})" id="previewBtn_${i}"
+                        class="shrink-0 text-[9px] font-bold px-2.5 py-1.5 rounded-lg"
+                        style="background:var(--atl-high);color:var(--atl-primary);">${i18n.preview}</button>
+                </div>
+                <audio id="previewAudio_${i}" class="hidden w-full mt-2" controls></audio>
+            </div>
+        `}).join('');
+    }
+
+    function escapeHtml(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function updateTrackPrompt(index, value) {
+        if (currentPlan?.tracks?.[index]) currentPlan.tracks[index].prompt = value;
+    }
+
+    function updateTrackDuration(index, value) {
+        if (currentPlan?.tracks?.[index]) currentPlan.tracks[index].duration_seconds = parseInt(value);
+    }
+
+    async function previewTrack(index) {
+        const projectId = getCurrentProject();
+        if (!projectId) return;
+        const btn = document.getElementById(`previewBtn_${index}`);
+        const prompt = document.getElementById(`trackPrompt_${index}`)?.value;
+        const dur = currentPlan?.tracks?.[index]?.duration_seconds || 20;
+        btn.textContent = '⏳';
+        btn.disabled = true;
+        try {
+            const res = await fetch('/api/music/preview-track', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ project_id: projectId, track_index: index, prompt, duration_seconds: Math.min(dur, 20) }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || i18n.error);
+            const audio = document.getElementById(`previewAudio_${index}`);
+            audio.src = data.audio_url + '?t=' + Date.now();
+            audio.classList.remove('hidden');
+            audio.play();
+        } catch (e) {
+            Utils.showToast(e.message || i18n.error, 'error');
+        } finally {
+            btn.textContent = i18n.preview;
+            btn.disabled = false;
+        }
+    }
+
+    let generatedTracks = [];
+
+    function renderGeneratedTracks() {
+        const list = document.getElementById('generatedTracksList');
+        if (!generatedTracks.length) {
+            list.innerHTML = '<p class="text-xs text-center py-4" style="color:var(--atl-sub);">No tracks generated yet</p>';
+            return;
+        }
+        list.innerHTML = generatedTracks.map((t, i) => `
+            <div class="track-card p-3 flex items-center gap-3">
+                <input type="checkbox" id="selectTrack_${i}" checked onchange="updateSelectedTracks(${i}, this.checked)" class="rounded w-4 h-4">
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-bold truncate" style="color:var(--atl-text);">${escapeHtml(t.title || '')}</p>
+                    <p class="text-[9px]" style="color:var(--atl-sub);">${Math.round(t.duration_seconds / 60)}m · ${t.status || 'pending'}</p>
+                </div>
+                <button onclick="deleteTrack(${i})" class="text-[9px] px-2 py-1 rounded" style="background:var(--atl-high);color:#ef4444;">✕</button>
+            </div>
+        `).join('');
+    }
+
+    async function startGenerateAllTracks() {
+        const projectId = getCurrentProject();
+        if (!projectId || !currentPlan?.tracks) return;
+
+        const btn = document.getElementById('generateAllBtn');
+        btn.disabled = true;
+        btn.textContent = '⏳ Generating...';
+
+        generatedTracks = currentPlan.tracks.map((t, i) => ({
+            title: t.title,
+            prompt: t.prompt,
+            duration_seconds: t.duration_seconds,
+            status: 'pending',
+            index: i,
+        }));
+        renderGeneratedTracks();
+
+        for (let i = 0; i < generatedTracks.length; i++) {
+            document.getElementById('genProgress').textContent = `${i} / ${generatedTracks.length}`;
+            try {
+                const res = await fetch('/api/music/generate-track', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        project_id: projectId,
+                        track_index: i,
+                        prompt: generatedTracks[i].prompt,
+                        duration_seconds: generatedTracks[i].duration_seconds,
+                    }),
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    generatedTracks[i].status = 'done';
+                    generatedTracks[i].file_path = data.file_path;
+                    generatedTracks[i].actual_duration_seconds = data.duration_seconds || generatedTracks[i].duration_seconds;
+                    generatedTracks[i].selected = true;
+                } else {
+                    generatedTracks[i].status = 'error';
+                }
+            } catch (e) {
+                generatedTracks[i].status = 'error';
+            }
+            renderGeneratedTracks();
+        }
+
+        btn.disabled = false;
+        btn.textContent = '▶ Generate Tracks';
+        document.getElementById('genProgress').textContent = `${generatedTracks.length} / ${generatedTracks.length}`;
+        document.getElementById('renderBtn').classList.remove('hidden');
+    }
+
+    function updateSelectedTracks(index, checked) {
+        if (generatedTracks[index]) {
+            generatedTracks[index].selected = checked;
+        }
+    }
+
+    function deleteTrack(index) {
+        generatedTracks.splice(index, 1);
+        renderGeneratedTracks();
+    }
+
+    async function renderCombinedPlaylist() {
+        const projectId = getCurrentProject();
+        const selected = generatedTracks.filter(t => t.selected && t.file_path);
+        if (!selected.length) {
+            Utils.showToast('Select at least one track', 'warning');
+            return;
+        }
+
+        const imageFile = document.getElementById('playlistImageInput')?.files?.[0];
+        if (!imageFile) {
+            Utils.showToast('Select a playlist image first', 'warning');
+            return;
+        }
+
+        const totalDuration = selected.reduce((sum, t) => sum + (t.actual_duration_seconds || t.duration_seconds || 0), 0);
+        const durationMins = Math.round(totalDuration / 60);
+        console.log(`[Playlist] Total duration: ${durationMins}m (${totalDuration}s) from ${selected.length} tracks`);
+
+        const formData = new FormData();
+        formData.append('project_id', projectId);
+        formData.append('playlist_title', currentPlan?.playlist_title || 'Playlist');
+        formData.append('image', imageFile);
+        selected.forEach(t => formData.append('track_files', t.file_path));
+        selected.forEach(t => formData.append('track_durations', Math.round(t.actual_duration_seconds || t.duration_seconds || 0)));
+
+        try {
+            const res = await fetch('/api/music/render-playlist', { method: 'POST', body: formData });
+            if (res.ok) {
+                const data = await res.json();
+                Utils.showToast(`Rendering complete! (${durationMins}m)`, 'success');
+                // Optionally: show video preview or download link
+            } else {
+                Utils.showToast('Render failed', 'error');
+            }
+        } catch (e) {
+            Utils.showToast(e.message, 'error');
+        }
+    }
+
+    function previewImage(input) {
+        const preview = document.getElementById('imagePreview');
+        const file = input.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                preview.src = e.target.result;
+                preview.classList.remove('hidden');
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+</script>
+{% endblock %}

@@ -3,7 +3,7 @@
 templates 인스턴스는 main.py에서 주입 (순환 import 방지)
 """
 from fastapi import APIRouter, Request, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from typing import Optional
 import database as db
@@ -41,7 +41,14 @@ async def page_projects(request: Request):
 
 @router.get("/script-plan", response_class=HTMLResponse)
 async def page_script_plan(request: Request):
+    app_mode = db.get_global_setting("app_mode", "longform")
+    if app_mode == "longform_music":
+        return RedirectResponse(url="/music-plan", status_code=302)
     return _render(request, "pages/script_plan.html", "script-plan", "대본 기획")
+
+@router.get("/music-plan", response_class=HTMLResponse)
+async def page_music_plan(request: Request):
+    return _render(request, "pages/music_plan.html", "music-plan", "음악 기획")
 
 @router.get("/script-gen", response_class=HTMLResponse)
 async def page_script_gen(request: Request):

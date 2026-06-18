@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "music": {
+      "source": "elevenlabs/skills",
+      "sourceType": "github",
+      "skillPath": "music/SKILL.md",
+      "computedHash": "a3f498516bbcefb46568e5575db364569fa823299256cca1a4f721e5a8eaab7f"
+    }
+  }
+}

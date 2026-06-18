@@ -119,8 +119,8 @@
                     </li>
 
                     <li class="{% if app_mode in ['commerce', 'webtoon'] or (membership == 'std' and app_mode != 'longform_music') %}hidden{% endif %}">
-                        <a href="/script-plan" id="nav-plan"
-                            class="sidebar-item {% if page == 'script-plan' %}active{% endif %}">
+                        <a href="{% if app_mode == 'longform_music' %}/music-plan{% else %}/script-plan{% endif %}" id="nav-plan"
+                            class="sidebar-item {% if page == 'script-plan' or page == 'music-plan' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
                             <span>{% if app_mode == 'longform_music' %}{{ t('nav_music_plan') }}{% else %}{{ t('nav_plan') }}{% endif %}</span>
                         </a>
@@ -1273,6 +1273,7 @@
                     setVisible(navAutopilot, true);
 
                     setNavLabel(navPlan, "{{ t('nav_music_plan') }}");
+                    if (navPlan) navPlan.href = '/music-plan';
                     setNavLabel(navImage, "{{ t('nav_cover_image') }}");
                     setNavLabel(navAudio, "{{ t('nav_track_generation') }}");
                     if (navScript) {
@@ -1309,6 +1310,7 @@
                         navScript.querySelector('span:last-child').innerText = "{{ t('nav_script_shorts') }}";
                     }
                     setNavLabel(navPlan, "{{ t('nav_plan') }}");
+                    if (navPlan) navPlan.href = '/script-plan';
                     setNavLabel(navImage, "{{ t('nav_image') }}");
                     setNavLabel(navAudio, "{{ t('nav_audio') }}");
 
