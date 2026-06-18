@@ -730,7 +730,8 @@
                 // Check if already rendered by projectStateRestored
                 const listContainer = document.getElementById('recommendedTitlesList');
                 if (listContainer && listContainer.innerHTML.trim() === '') {
-                    const metaRes = await fetch(`/api/projects/${projectId}/metadata`);
+                    const appMode = window.APP_MODE || 'longform';
+                    const metaRes = await fetch(`/api/projects/${projectId}/metadata?app_mode=${appMode}`);
                     if (metaRes.ok) {
                         const metaData = await metaRes.json();
                         if (metaData && metaData.titles && metaData.titles.length > 0) {
@@ -1280,7 +1281,8 @@
                             }
                         } catch (e) { console.error("Error fetching old metadata", e); }
 
-                        await fetch(`/api/projects/${projectId}/metadata`, {
+                        const appMode = window.APP_MODE || 'longform';
+                        await fetch(`/api/projects/${projectId}/metadata?app_mode=${appMode}`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
