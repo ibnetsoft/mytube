@@ -131,6 +131,7 @@
     if (projectId && typeof projectId === 'string') projectId = parseInt(projectId);
 
     let metaData = null;
+    let lastAppMode = window.APP_MODE || 'longform';
 
     // i18n for JS
     var i18n = {
@@ -159,17 +160,49 @@
         }
     });
 
-    // 프로젝트 전환 시 메타데이터 재로드
+    // 프로젝트/모드 전환 시 메타데이터 재로드 (모드 변경 시 UI 초기화)
     window.addEventListener('projectStateRestored', (e) => {
         const data = e.detail;
         if (!data || !data.project) return;
+
+        const currentMode = window.APP_MODE || 'longform';
         const newProjectId = data.project.id;
+
+        // 모드가 바뀌었으면 UI 초기화
+        if (currentMode !== lastAppMode) {
+            lastAppMode = currentMode;
+            clearUI();
+            return;
+        }
+
+        // 프로젝트만 바뀌었으면 메타데이터 재로드
         if (newProjectId && newProjectId !== projectId) {
             projectId = newProjectId;
             metaData = null;
             loadMetadata();
         }
     });
+
+    function clearUI() {
+        // 입력 필드 초기화
+        document.getElementById('targetKeyword').value = '';
+        document.getElementById('descriptionText').value = '';
+        document.getElementById('tagsText').value = '';
+        document.getElementById('hashtagsText').value = '';
+
+        // 결과 섹션 숨김
+        document.getElementById('resultSection').classList.add('hidden');
+        document.getElementById('initialState').classList.remove('hidden');
+
+        // 제목 표시 초기화
+        const disp = document.getElementById('projectTitleDisplay');
+        if (disp) {
+            disp.innerText = '{{ t("status_no_title") }}';
+            disp.title = '{{ t("status_no_title") }}';
+        }
+
+        metaData = null;
+    }
 
     async function loadMetadata() {
         try {
