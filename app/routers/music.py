@@ -159,6 +159,7 @@ async def generate_music_track(req: MusicGenerateTrackRequest):
         raise HTTPException(400, "ElevenLabs API key not configured")
 
     duration_ms = max(3000, int(req.duration_seconds * 1000))
+    print(f"[MusicGenerate] Track {req.track_index}: duration_seconds={req.duration_seconds}, duration_ms={duration_ms}")
     try:
         audio_bytes = await elevenlabs_music_service.compose(
             prompt,

@@ -798,6 +798,11 @@
         if (currentPlan?.tracks?.[index]) currentPlan.tracks[index].duration_seconds = parseInt(value);
     }
 
+    function goToTrackGeneration() {
+        document.getElementById('generationPanel').classList.remove('hidden');
+        document.getElementById('generationPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
     async function previewTrack(index) {
         const projectId = getCurrentProject();
         if (!projectId) return;
@@ -866,6 +871,8 @@
         for (let i = 0; i < generatedTracks.length; i++) {
             document.getElementById('genProgress').textContent = `${i} / ${generatedTracks.length}`;
             try {
+                const trackDuration = generatedTracks[i].duration_seconds;
+                console.log(`[TrackGen] Track ${i}: duration=${trackDuration}s, prompt="${generatedTracks[i].prompt.substring(0, 50)}..."`);
                 const res = await fetch('/api/music/generate-track', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -873,7 +880,7 @@
                         project_id: projectId,
                         track_index: i,
                         prompt: generatedTracks[i].prompt,
-                        duration_seconds: generatedTracks[i].duration_seconds,
+                        duration_seconds: trackDuration,
                     }),
                 });
                 if (res.ok) {
