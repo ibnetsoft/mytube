@@ -104,7 +104,7 @@
                             <span>{{ t('nav_my_projects') }}</span>
                         </a>
                     </li>
-                    <li class="{% if app_mode == 'webtoon' %}hidden{% endif %}">
+                    <li class="{% if app_mode in ['webtoon', 'longform_music'] %}hidden{% endif %}">
                         <a href="/" id="nav-topic" class="sidebar-item {% if page == 'topic' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
                             <span>{{ t('nav_topic') }}</span>

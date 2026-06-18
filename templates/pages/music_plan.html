@@ -645,10 +645,36 @@
     }
 
     async function saveMusicSettings() {
-        const projectId = getCurrentProject();
-        if (!projectId) { Utils.showToast('{{ t("status_select_project_first") }}', 'warning'); return; }
+        let projectId = getCurrentProject();
         const config = collectConfig();
+        const playlistTitle = config.playlist_title?.trim();
+
         try {
+            // 프로젝트가 없으면 자동 생성
+            if (!projectId) {
+                if (!playlistTitle) {
+                    Utils.showToast('{{ t("status_enter_playlist_title") }}', 'warning');
+                    return;
+                }
+
+                const createRes = await fetch('/projects', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: playlistTitle,
+                        topic: playlistTitle,
+                        app_mode: window.APP_MODE || 'longform_music',
+                        language: 'ko'
+                    })
+                });
+                const createData = await createRes.json();
+                if (!createRes.ok || !createData.project_id) {
+                    throw new Error('프로젝트 생성 실패');
+                }
+                projectId = createData.project_id;
+                setCurrentProject(projectId);
+            }
+
             await fetch('/api/music/save-config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -664,15 +690,44 @@
     }
 
     async function generateMusicPlan(force = false) {
-        const projectId = getCurrentProject();
-        if (!projectId) { Utils.showToast('{{ t("status_select_project_first") }}', 'warning'); return; }
+        let projectId = getCurrentProject();
+        const config = collectConfig();
+        const playlistTitle = config.playlist_title?.trim();
 
         const btn = document.getElementById('createBtn');
         btn.disabled = true;
         btn.textContent = '⏳ ' + i18n.generating;
 
-        const config = collectConfig();
         try {
+            // 프로젝트가 없으면 자동 생성
+            if (!projectId) {
+                if (!playlistTitle) {
+                    Utils.showToast('{{ t("status_enter_playlist_title") }}', 'warning');
+                    btn.disabled = false;
+                    btn.innerHTML = '🎵 {{ t("music_btn_create_plan") }}';
+                    return;
+                }
+
+                btn.textContent = '⏳ 프로젝트 생성 중...';
+                const createRes = await fetch('/projects', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: playlistTitle,
+                        topic: playlistTitle,
+                        app_mode: window.APP_MODE || 'longform_music',
+                        language: 'ko'
+                    })
+                });
+                const createData = await createRes.json();
+                if (!createRes.ok || !createData.project_id) {
+                    throw new Error('프로젝트 생성 실패');
+                }
+                projectId = createData.project_id;
+                setCurrentProject(projectId);
+                btn.textContent = '⏳ ' + i18n.generating;
+            }
+
             const res = await fetch('/api/music/plan', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
