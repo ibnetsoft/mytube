@@ -709,7 +709,7 @@
                 }
 
                 btn.textContent = '⏳ 프로젝트 생성 중...';
-                const createRes = await fetch('/projects', {
+                const createRes = await fetch('/api/projects', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
