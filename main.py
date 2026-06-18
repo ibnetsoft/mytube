@@ -883,15 +883,35 @@ async def get_tts_info(project_id: int):
     return db.get_tts(project_id) or {}
 
 @app.post("/api/projects/{project_id}/metadata")
-async def save_metadata(project_id: int, req: MetadataSave):
-    """메타데이터 저장"""
-    db.save_metadata(project_id, req.titles, req.description, req.tags, req.hashtags)
+async def save_metadata(project_id: int, req: MetadataSave, app_mode: str = Query(None)):
+    """메타데이터 저장 (app_mode별로 분리)"""
+    app_mode = normalize_app_mode(app_mode)
+    setting_key = f"metadata_{app_mode}"
+    db.update_project_setting(
+        project_id,
+        setting_key,
+        json.dumps({
+            "titles": req.titles,
+            "description": req.description,
+            "tags": req.tags,
+            "hashtags": req.hashtags,
+        }, ensure_ascii=False)
+    )
     return {"status": "ok"}
 
 @app.get("/api/projects/{project_id}/metadata")
-async def get_metadata(project_id: int):
-    """메타데이터 조회"""
-    return db.get_metadata(project_id) or {}
+async def get_metadata(project_id: int, app_mode: str = Query(None)):
+    """메타데이터 조회 (app_mode별로 분리)"""
+    app_mode = normalize_app_mode(app_mode)
+    setting_key = f"metadata_{app_mode}"
+    settings = db.get_project_settings(project_id) or {}
+    raw_data = settings.get(setting_key)
+    if raw_data:
+        try:
+            return json.loads(raw_data) if isinstance(raw_data, str) else raw_data
+        except Exception:
+            pass
+    return {}
 
 @app.post("/api/projects/{project_id}/thumbnails")
 async def save_thumbnails(project_id: int, req: ThumbnailsSave):

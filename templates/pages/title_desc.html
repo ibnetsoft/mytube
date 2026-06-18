@@ -200,7 +200,8 @@
                 }
             } catch (e) { console.error("Full data load failed", e); }
 
-            const res = await fetch(`/api/projects/${projectId}/metadata`);
+            const appMode = window.APP_MODE || 'longform';
+            const res = await fetch(`/api/projects/${projectId}/metadata?app_mode=${appMode}`);
             const data = await res.json();
             if (data && data.titles && data.titles.length > 0) {
                 metaData = data;
@@ -247,7 +248,8 @@
             const hashtagsRaw = document.getElementById('hashtagsText').value;
             metaData.hashtags = hashtagsRaw.split(/\s+/).map(h => h.trim()).filter(h => h !== "");
 
-            await fetch(`/api/projects/${projectId}/metadata`, {
+            const appMode = window.APP_MODE || 'longform';
+            await fetch(`/api/projects/${projectId}/metadata?app_mode=${appMode}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(metaData)
@@ -265,7 +267,8 @@
     async function saveMetadata() {
         if (!projectId || !metaData) return;
         try {
-            await fetch(`/api/projects/${projectId}/metadata`, {
+            const appMode = window.APP_MODE || 'longform';
+            await fetch(`/api/projects/${projectId}/metadata?app_mode=${appMode}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(metaData)
