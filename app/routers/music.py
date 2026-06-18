@@ -42,6 +42,14 @@ class MusicPreviewTrackRequest(BaseModel):
     force_instrumental: bool = True
 
 
+class MusicGenerateTrackRequest(BaseModel):
+    project_id: int
+    track_index: int = 0
+    duration_seconds: int  # Required, no default
+    prompt: str  # Required
+    force_instrumental: bool = True
+
+
 class MusicSaveConfigRequest(BaseModel):
     project_id: int
     config: Dict[str, Any] = Field(default_factory=dict)
@@ -138,7 +146,7 @@ async def get_style_tags(genre: str = "lofi"):
 
 
 @router.post("/generate-track")
-async def generate_music_track(req: MusicPreviewTrackRequest):
+async def generate_music_track(req: MusicGenerateTrackRequest):
     project = db.get_project(req.project_id)
     if not project:
         raise HTTPException(404, "Project not found")
@@ -150,7 +158,7 @@ async def generate_music_track(req: MusicPreviewTrackRequest):
     if not config.ELEVENLABS_API_KEY:
         raise HTTPException(400, "ElevenLabs API key not configured")
 
-    duration_ms = max(3000, int((req.duration_seconds or 180) * 1000))
+    duration_ms = max(3000, int(req.duration_seconds * 1000))
     try:
         audio_bytes = await elevenlabs_music_service.compose(
             prompt,
