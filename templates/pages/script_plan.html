@@ -524,6 +524,8 @@
         err_unknown: "{{ t('err_unknown') }}"
     };
 
+    let lastAppMode = window.APP_MODE || 'longform';
+
     // 페이지 로드 시 분석 데이터 확인
     // 페이지 로드 시 분석 데이터 확인
     document.addEventListener('DOMContentLoaded', async () => {
@@ -599,10 +601,18 @@
 
     });
 
-    // 상태 복구 완료 시 UI 업데이트
+    // 상태 복구 완료 시 UI 업데이트 (모드 변경 시 UI 초기화)
     window.addEventListener('projectStateRestored', (e) => {
         const data = e.detail;
         const currentPid = getCurrentProject();
+        const currentMode = window.APP_MODE || 'longform';
+
+        // [FIX] 모드가 바뀌었으면 UI 초기화
+        if (currentMode !== lastAppMode) {
+            lastAppMode = currentMode;
+            clearScriptPlanUI();
+            return;
+        }
 
         // [FIX] 프로젝트 ID가 다르면 복구된 상태 무시 (이전 프로젝트 데이터 오염 방지)
         if (currentPid && data.project && data.project.id && String(data.project.id) !== String(currentPid)) {
@@ -1691,6 +1701,36 @@
 
     function closeSourceLibrary() {
         document.getElementById('sourceLibraryModal').classList.add('hidden');
+    }
+
+    function clearScriptPlanUI() {
+        // 입력 필드 초기화
+        document.getElementById('topicInput').value = '';
+        document.getElementById('durationInput').value = '10';
+        document.getElementById('titleKeywordInput').value = '';
+        document.getElementById('scriptStyleSelect').value = 'basic';
+
+        // 시크릿 아이디어 초기화
+        const nurseryPanel = document.getElementById('nurseryIdeasPanel');
+        if (nurseryPanel) nurseryPanel.classList.add('hidden');
+        const nurseryContent = document.getElementById('nurseryIdeasContent');
+        if (nurseryContent) nurseryContent.innerHTML = '';
+
+        // 소스 및 분석 결과 초기화
+        const sourceList = document.getElementById('sourceList');
+        if (sourceList) sourceList.innerHTML = '';
+        const analysisSection = document.getElementById('analysisSection');
+        if (analysisSection) analysisSection.classList.add('hidden');
+        const resultsArea = document.getElementById('resultsArea');
+        if (resultsArea) resultsArea.innerHTML = '';
+
+        // 자동파일럿 상태 초기화
+        const autopilotBtn = document.getElementById('launchAutopilotBtn');
+        if (autopilotBtn) autopilotBtn.classList.remove('hidden');
+        const autopilotStatus = document.getElementById('autopilotStatus');
+        if (autopilotStatus) autopilotStatus.classList.add('hidden');
+
+        console.log('[ScriptPlan] UI cleared due to app_mode change');
     }
 
     async function cloneSourcesFrom(fromProjectId, fromProjectName) {
