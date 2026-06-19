@@ -132,6 +132,13 @@
                             <span>{{ t('nav_script') }}</span>
                         </a>
                     </li>
+                    <li class="{% if app_mode in ['commerce', 'shorts'] or (membership == 'std' and app_mode != 'longform_music') %}hidden{% endif %}">
+                        <a href="/title-desc" id="nav-title"
+                            class="sidebar-item {% if page == 'title-desc' %}active{% endif %}">
+                            <span class="sidebar-icon"></span>
+                            <span>{{ t('nav_title_desc') }}</span>
+                        </a>
+                    </li>
                     <li class="hidden">
                         <a href="/video-gen" id="nav-intro"
                             class="sidebar-item {% if page == 'video-gen' %}active{% endif %}">
@@ -196,13 +203,7 @@
                             <span>{{ t('nav_render') }}</span>
                         </a>
                     </li>
-                    <li class="{% if app_mode in ['commerce', 'shorts'] or (membership == 'std' and app_mode != 'longform_music') %}hidden{% endif %}">
-                        <a href="/title-desc" id="nav-title"
-                            class="sidebar-item {% if page == 'title-desc' %}active{% endif %}">
-                            <span class="sidebar-icon"></span>
-                            <span>{{ t('nav_title_desc') }}</span>
-                        </a>
-                    </li>
+
 
                     <li class="{% if (membership | lower) in ['std', 'standard'] %}hidden{% endif %}">
                         <a href="/video-upload" id="nav-upload"
