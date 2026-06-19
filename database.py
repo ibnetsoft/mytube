@@ -1267,6 +1267,9 @@ def get_projects_with_status(employee_email: str = None) -> List[Dict]:
         ps.upload_schedule_at,
         ps.is_uploaded as is_uploaded,
         ps.is_published as is_published,
+        ps.admin_publish_ready,
+        ps.admin_publish_status,
+        ps.youtube_video_id,
         (SELECT COUNT(*) FROM thumbnails WHERE project_id = p.id) as thumbnail_count,
         ps.app_mode,
         m.description,
@@ -1305,6 +1308,8 @@ def get_projects_with_status(employee_email: str = None) -> List[Dict]:
             bool(r.get("upload_schedule_at"))
             or bool(r.get("is_uploaded"))
             or bool(r.get("is_published"))
+            or str(r.get("admin_publish_ready") or "") == "1"
+            or str(r.get("admin_publish_status") or "") in {"pending_review", "to_be_published", "published"}
             or bool(r.get("youtube_video_id"))
         )
         has_remote_delivery = str(r.get("project_status") or "") in {
@@ -1326,14 +1331,14 @@ def get_projects_with_status(employee_email: str = None) -> List[Dict]:
             "music_thumbnail": has_thumbnail,
             "music_render": has_render,
             "music_desc": bool(r["description"]),
-            "music_publish": has_remote_delivery,
+            "music_publish": has_publish_state,
         }
         if is_music_mode:
             progress.update({
                 "plan": bool(r.get("has_music_plan")),
                 "video": has_render,
-                "upload": has_remote_delivery,
-                "publish": has_remote_delivery,
+                "upload": has_publish_state,
+                "publish": has_publish_state,
             })
         # 가공된 상태 정보 추가
         results.append({

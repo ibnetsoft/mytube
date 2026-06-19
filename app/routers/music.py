@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 import database as db
 from config import config
-from services.elevenlabs_music_service import elevenlabs_music_service
+from services.music_generation_service import music_generation_service
 from services.music_plan_service import music_plan_service
 from services.remote_drive_render_service import remote_drive_render_service
 from services.remote_render_service import package_music_project_assets
@@ -356,13 +356,17 @@ async def generate_music_track(req: MusicGenerateTrackRequest):
     if not prompt:
         raise HTTPException(400, "Track prompt is empty")
 
-    if not config.ELEVENLABS_API_KEY:
+    config.load_remote_keys_from_supabase()
+    provider = music_generation_service.provider()
+    if provider == "elevenlabs" and not config.ELEVENLABS_API_KEY:
         raise HTTPException(400, "ElevenLabs API key not configured")
+    if provider == "suno" and (not config.SUNO_API_KEY or not config.SUNO_API_BASE_URL):
+        raise HTTPException(400, "Suno API key/base URL not configured")
 
     duration_ms = max(3000, int(req.duration_seconds * 1000))
-    print(f"[MusicGenerate] Track {req.track_index}: duration_seconds={req.duration_seconds}, duration_ms={duration_ms}")
+    print(f"[MusicGenerate] Provider={provider} Track {req.track_index}: duration_seconds={req.duration_seconds}, duration_ms={duration_ms}")
     try:
-        audio_bytes = await elevenlabs_music_service.compose(
+        audio_bytes = await music_generation_service.compose(
             prompt,
             music_length_ms=duration_ms,
             force_instrumental=req.force_instrumental,
@@ -423,12 +427,16 @@ async def preview_music_track(req: MusicPreviewTrackRequest):
     if not prompt:
         raise HTTPException(400, "Track prompt is empty")
 
-    if not config.ELEVENLABS_API_KEY:
+    config.load_remote_keys_from_supabase()
+    provider = music_generation_service.provider()
+    if provider == "elevenlabs" and not config.ELEVENLABS_API_KEY:
         raise HTTPException(400, "ElevenLabs API key is not configured")
+    if provider == "suno" and (not config.SUNO_API_KEY or not config.SUNO_API_BASE_URL):
+        raise HTTPException(400, "Suno API key/base URL is not configured")
 
     duration_ms = max(3000, min(int(req.duration_seconds or 20) * 1000, 60000))
     try:
-        audio_bytes = await elevenlabs_music_service.compose(
+        audio_bytes = await music_generation_service.compose(
             prompt,
             music_length_ms=duration_ms,
             force_instrumental=req.force_instrumental,
@@ -580,7 +588,8 @@ async def render_music_playlist(
         if result.returncode != 0:
             raise Exception(f"ffmpeg concat failed: {result.stderr.decode()}")
 
-        video_file = os.path.join(output_dir, f"playlist_{int(time.time())}.mp4")
+        video_filename = f"playlist_{int(time.time())}.mp4"
+        video_file = os.path.join(output_dir, video_filename)
         result = subprocess.run(
             [
                 "ffmpeg",
@@ -614,7 +623,7 @@ async def render_music_playlist(
     total_duration = sum(d for d in track_durations if isinstance(d, (int, float)))
     return {
         "status": "ok",
-        "video_url": f"/output/{project_id}/assets/video/playlist_{int(time.time())}.mp4",
+        "video_url": f"/output/{project_id}/assets/video/{video_filename}",
         "playlist_title": playlist_title,
         "track_count": len(track_files),
         "total_duration_seconds": total_duration,

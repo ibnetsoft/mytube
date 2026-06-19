@@ -7,7 +7,7 @@ import database as db
 from config import config
 from services.replicate_service import replicate_service
 from services.gemini_service import gemini_service
-from services.elevenlabs_music_service import elevenlabs_music_service
+from services.music_generation_service import music_generation_service
 
 router = APIRouter(prefix="/api/audio", tags=["Audio"])
 
@@ -42,11 +42,12 @@ async def generate_audio(req: AudioGenRequest):
         if req.type == "sfx":
             audio_data = await replicate_service.generate_sfx(req.prompt, req.duration)
         elif req.type == "bgm":
-            provider = (req.provider or "elevenlabs").lower()
-            if provider == "replicate" or not config.ELEVENLABS_API_KEY:
+            config.load_remote_keys_from_supabase()
+            provider = (req.provider or music_generation_service.provider()).lower()
+            if provider == "replicate" or (provider == "elevenlabs" and not config.ELEVENLABS_API_KEY):
                 audio_data = await replicate_service.generate_music(req.prompt, req.duration)
             else:
-                audio_data = await elevenlabs_music_service.compose(
+                audio_data = await music_generation_service.compose(
                     req.prompt,
                     music_length_ms=max(3, int(req.duration or 5)) * 1000,
                     force_instrumental=req.force_instrumental,

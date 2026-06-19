@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 from typing import Any, Dict, Optional
@@ -213,6 +214,15 @@ def queue_project_for_admin_publish(
     track_count = metadata_json.get("track_count")
     total_duration_seconds = metadata_json.get("total_duration_seconds")
     track_durations = metadata_json.get("track_durations") or []
+    if not track_count or not track_durations or not total_duration_seconds:
+        try:
+            queue_payload = json.loads(settings.get("remote_render_queue_payload") or "{}")
+        except Exception:
+            queue_payload = {}
+        queue_metadata = queue_payload.get("metadata") or {}
+        track_count = track_count or queue_metadata.get("track_count")
+        track_durations = track_durations or queue_metadata.get("track_durations") or []
+        total_duration_seconds = total_duration_seconds or queue_metadata.get("total_duration_seconds")
     if total_duration_seconds in (None, "", 0) and isinstance(track_durations, list):
         try:
             total_duration_seconds = sum(int(item or 0) for item in track_durations)

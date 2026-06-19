@@ -28,7 +28,7 @@ from services.tts_service import tts_service
 from services.video_service import video_service
 from services.youtube_upload_service import youtube_upload_service
 from services.topview_service import topview_service
-from services.elevenlabs_music_service import elevenlabs_music_service
+from services.music_generation_service import music_generation_service
 from app.modes import DEFAULT_APP_MODE, is_longform_family, is_longform_music_mode
 
 
@@ -373,7 +373,8 @@ Return JSON only:
         tracks = self._coerce_longform_music_tracks(plan, music_config)
         target_duration = int(music_config.get("playlist_duration_seconds") or config_dict.get("duration_seconds") or 3600)
         self.set_step(project_id, f"롱폼뮤직 트랙 {len(tracks)}개 생성 중...")
-        result = await elevenlabs_music_service.generate_playlist(
+        config.load_remote_keys_from_supabase()
+        result = await music_generation_service.generate_playlist(
             project_id,
             tracks,
             target_duration_seconds=target_duration,
@@ -404,7 +405,8 @@ Return JSON only:
         with open(timing_path, "w", encoding="utf-8") as f:
             json.dump([0.0], f)
         db.update_project_setting(project_id, "image_timings_path", timing_path)
-        db.save_tts(project_id, "elevenlabs_music", "ElevenLabs Music", result["audio_path"], result["duration"])
+        provider = result.get("provider") or music_generation_service.provider()
+        db.save_tts(project_id, f"{provider}_music", f"{provider.title()} Music", result["audio_path"], result["duration"])
         return result
 
     async def run_project_workflow(self, keyword: str, project_id: int = None, config_dict: dict = None):

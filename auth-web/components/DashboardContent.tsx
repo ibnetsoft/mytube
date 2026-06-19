@@ -175,7 +175,7 @@ export default function DashboardContent() {
 
     // ?쒖뒪???꾩뿭 API ??諛?援ш? ?쒕씪?대툕 ?ㅼ젙
     const [sysKeys, setSysKeys] = useState({ 
-        gemini: '', youtube: '', elevenlabs: '', topview: '', topview_uid: '',
+        gemini: '', youtube: '', elevenlabs: '', suno: '', suno_base_url: '', music_provider: 'elevenlabs', topview: '', topview_uid: '',
         use_external_render: false, drive_path_ko: '', drive_path_en: '', drive_path_ja: '', drive_active_lang: 'ko',
         remote_render_drive_folder_id: '',
         remote_render_google_token_path: ''
@@ -771,6 +771,9 @@ export default function DashboardContent() {
                 gemini: data.gemini || '',
                 youtube: data.youtube || '',
                 elevenlabs: data.elevenlabs || '',
+                suno: data.suno || '',
+                suno_base_url: data.suno_base_url || '',
+                music_provider: data.music_provider || 'elevenlabs',
                 topview: data.topview || '',
                 topview_uid: data.topview_uid || '',
                 use_external_render: data.use_external_render === 'true' || data.use_external_render === true,
@@ -2434,6 +2437,17 @@ export default function DashboardContent() {
                         <div className="p-10 space-y-6">
                             <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 items-start">
                                 <div className="space-y-6">
+                            <div>
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Music Generation Provider</label>
+                                <select
+                                    value={sysKeys.music_provider}
+                                    onChange={e => setSysKeys(prev => ({ ...prev, music_provider: e.target.value }))}
+                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-300 cursor-pointer"
+                                >
+                                    <option value="elevenlabs" className="bg-[#111]">ElevenLabs (Default)</option>
+                                    <option value="suno" className="bg-[#111]">Suno API</option>
+                                </select>
+                            </div>
                             {([
                                 { key: 'gemini', label: '??Gemini API Key' },
                                 { key: 'youtube', label: '?띰툘 YouTube Data API Key' },
@@ -2454,6 +2468,28 @@ export default function DashboardContent() {
                                     />
                                 </div>
                             ))}
+                            <div>
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Suno API Key</label>
+                                <input
+                                    type="password"
+                                    value={sysKeys.suno}
+                                    onChange={e => setSysKeys(prev => ({ ...prev, suno: e.target.value }))}
+                                    onFocus={e => (e.target as HTMLInputElement).type = 'text'}
+                                    onBlur={e => (e.target as HTMLInputElement).type = 'password'}
+                                    placeholder={sysKeys.suno ? '************' : '(not set)'}
+                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300 placeholder:text-gray-700"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Suno API Base URL</label>
+                                <input
+                                    type="text"
+                                    value={sysKeys.suno_base_url}
+                                    onChange={e => setSysKeys(prev => ({ ...prev, suno_base_url: e.target.value }))}
+                                    placeholder="https://your-suno-provider.example.com/api/generate"
+                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300 placeholder:text-gray-700"
+                                />
+                            </div>
                                 </div>
 
                             {/* Google Drive Queue Configuration section */}

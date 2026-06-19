@@ -1053,6 +1053,7 @@ async def health_check():
             "youtube": bool(config.YOUTUBE_API_KEY),
             "gemini": bool(config.GEMINI_API_KEY),
             "elevenlabs": bool(config.ELEVENLABS_API_KEY),
+            "suno": bool(config.SUNO_API_KEY and config.SUNO_API_BASE_URL),
             "replicate": bool(config.REPLICATE_API_TOKEN),
             "typecast": bool(config.TYPECAST_API_KEY)
         }
@@ -1067,6 +1068,9 @@ class ApiKeySave(BaseModel):
     youtube: Optional[str] = None
     gemini: Optional[str] = None
     elevenlabs: Optional[str] = None
+    suno: Optional[str] = None
+    suno_base_url: Optional[str] = None
+    music_provider: Optional[str] = None
     typecast: Optional[str] = None
     replicate: Optional[str] = None
     topview: Optional[str] = None
@@ -1092,6 +1096,9 @@ async def save_api_keys(req: ApiKeySave):
         'youtube': 'YOUTUBE_API_KEY',
         'gemini': 'GEMINI_API_KEY',
         'elevenlabs': 'ELEVENLABS_API_KEY',
+        'suno': 'SUNO_API_KEY',
+        'suno_base_url': 'SUNO_API_BASE_URL',
+        'music_provider': 'MUSIC_PROVIDER',
         'typecast': 'TYPECAST_API_KEY',
         'replicate': 'REPLICATE_API_TOKEN',
         'topview': 'TOPVIEW_API_KEY',

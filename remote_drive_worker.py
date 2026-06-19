@@ -239,6 +239,7 @@ class RemoteDriveWorker:
                         make_public=False,
                     )
 
+                queue_metadata = job.get("metadata") or {}
                 upload_metadata = dict(packaged_config.get("project_upload_metadata") or {})
                 upload_metadata.update({
                     "employee_email": job.get("email") or upload_metadata.get("employee_email") or "",
@@ -249,6 +250,9 @@ class RemoteDriveWorker:
                     "drive_thumbnail_file_id": (thumbnail_file or {}).get("id") if thumbnail_file else None,
                     "render_mode": "drive_api",
                 })
+                for key in ("track_count", "track_durations", "total_duration_seconds", "app_mode", "render_style", "queue_type"):
+                    if queue_metadata.get(key) is not None:
+                        upload_metadata[key] = queue_metadata.get(key)
                 metadata_path = os.path.join(temp_dir, "metadata.json")
                 with open(metadata_path, "w", encoding="utf-8") as f_meta:
                     json.dump(upload_metadata, f_meta, ensure_ascii=False, indent=2)

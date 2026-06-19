@@ -14,6 +14,9 @@ class Config:
 
     # TTS Keys
     ELEVENLABS_API_KEY: str = os.getenv("ELEVENLABS_API_KEY", "")
+    SUNO_API_KEY: str = os.getenv("SUNO_API_KEY", "")
+    SUNO_API_BASE_URL: str = os.getenv("SUNO_API_BASE_URL", "")
+    MUSIC_PROVIDER: str = os.getenv("MUSIC_PROVIDER", "elevenlabs")
     TYPECAST_API_KEY: str = os.getenv("TYPECAST_API_KEY", "")
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "") # OpenAI TTS
     GOOGLE_APPLICATION_CREDENTIALS: str = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
@@ -108,7 +111,8 @@ class Config:
         로컬 앱 재시작 시 Supabase에서 다시 받아오므로 로컬 저장 불필요."""
         valid_keys = {
             'GEMINI_API_KEY', 'YOUTUBE_API_KEY',
-            'ELEVENLABS_API_KEY', 'TOPVIEW_API_KEY', 'TOPVIEW_UID',
+            'ELEVENLABS_API_KEY', 'SUNO_API_KEY', 'SUNO_API_BASE_URL', 'MUSIC_PROVIDER',
+            'TOPVIEW_API_KEY', 'TOPVIEW_UID',
             'REMOTE_RENDER_DRIVE_FOLDER_ID', 'REMOTE_RENDER_GOOGLE_TOKEN_PATH',
         }
         loaded = []
@@ -141,6 +145,7 @@ class Config:
         """API 키 런타임 업데이트 및 .env 파일 저장"""
         valid_keys = [
             'YOUTUBE_API_KEY', 'GEMINI_API_KEY', 'ELEVENLABS_API_KEY', 'TYPECAST_API_KEY', 
+            'SUNO_API_KEY', 'SUNO_API_BASE_URL', 'MUSIC_PROVIDER',
             'GOOGLE_APPLICATION_CREDENTIALS', 'OPENAI_API_KEY', 'PEXELS_API_KEY', 
             'REPLICATE_API_TOKEN', 'TOPVIEW_API_KEY', 'TOPVIEW_UID',
             'BLOG_CLIENT_ID', 'BLOG_CLIENT_SECRET', 'BLOG_ID',
@@ -202,6 +207,9 @@ class Config:
             "youtube": {"set": bool(cls.YOUTUBE_API_KEY), "masked": cls.mask_key(cls.YOUTUBE_API_KEY), "value": cls.YOUTUBE_API_KEY},
             "gemini": {"set": bool(cls.GEMINI_API_KEY), "masked": cls.mask_key(cls.GEMINI_API_KEY), "value": cls.GEMINI_API_KEY},
             "elevenlabs": {"set": bool(cls.ELEVENLABS_API_KEY), "masked": cls.mask_key(cls.ELEVENLABS_API_KEY), "value": cls.ELEVENLABS_API_KEY},
+            "suno": {"set": bool(cls.SUNO_API_KEY), "masked": cls.mask_key(cls.SUNO_API_KEY), "value": cls.SUNO_API_KEY},
+            "suno_base_url": {"set": bool(cls.SUNO_API_BASE_URL), "masked": cls.SUNO_API_BASE_URL, "value": cls.SUNO_API_BASE_URL},
+            "music_provider": {"set": bool(cls.MUSIC_PROVIDER), "masked": cls.MUSIC_PROVIDER, "value": cls.MUSIC_PROVIDER},
             "typecast": {"set": bool(cls.TYPECAST_API_KEY), "masked": cls.mask_key(cls.TYPECAST_API_KEY), "value": cls.TYPECAST_API_KEY},
             "google_cloud": {"set": bool(cls.GOOGLE_APPLICATION_CREDENTIALS), "masked": cls.mask_key(cls.GOOGLE_APPLICATION_CREDENTIALS), "value": cls.GOOGLE_APPLICATION_CREDENTIALS},
             "openai": {"set": bool(cls.OPENAI_API_KEY), "masked": cls.mask_key(cls.OPENAI_API_KEY), "value": cls.OPENAI_API_KEY},
