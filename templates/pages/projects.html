@@ -211,7 +211,7 @@
             </th>
             <th scope="col"
                 class="px-2 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap">
-                {{ t('th_topic') }}
+                다음 작업
             </th>
             <th scope="col"
                 class="px-2 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap max-w-[150px]">
@@ -419,22 +419,10 @@
                 <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.desc, 'title-desc', p.id)}</td>
                 <td class="px-1 py-2 text-center whitespace-nowrap relative">
                     ${checkLink(s.upload, 'upload', p.id)}
-                    ${s.desc && (s.video || s.upload) ? `
-                    <button onclick="event.stopPropagation(); autoUploadYouTube('${p.id}')" 
-                        class="absolute -right-2 top-1/2 -translate-y-1/2 text-sm hover:scale-125 transition-transform z-20" 
-                        title="${isIndependent ? i18n.title_yt_rocket_independent : i18n.title_yt_rocket_cloud}">
-                        UP
-                    </button>` : ''}
                 </td>
                 ${isIndependent ? `
                 <td class="px-1 py-2 text-center whitespace-nowrap relative">
                     ${checkLink(s.publish, 'publish', p.id)}
-                    ${s.upload && !s.publish ? `
-                    <button onclick="event.stopPropagation(); publicizeVideo('${p.id}')" 
-                        class="absolute -right-2 top-1/2 -translate-y-1/2 text-sm hover:scale-125 transition-transform" 
-                        title="${i18n.title_yt_public}">
-                        📢
-                    </button>` : ''}
                 </td>` : ''}
             `;
 
@@ -473,12 +461,8 @@
                 </td>
                 <td class="px-1 py-2 whitespace-nowrap text-center text-[11px] text-gray-500 dark:text-gray-400 w-20">${created}</td>
                 <td class="px-1 py-2 whitespace-nowrap text-center text-[11px] text-gray-500 dark:text-gray-400 w-20">${updated}</td>
-                <td class="px-2 py-2 whitespace-nowrap text-[12px] text-gray-500 dark:text-gray-400 max-w-[120px] truncate" 
-                    title="${p.topic || ''}" ondblclick="event.stopPropagation(); startInlineEdit(this, '${p.id}', 'topic')">
-                    <div class="flex flex-col min-w-0">
-                        <span class="truncate">${p.topic || '-'}</span>
-                        ${p.topic_vi && window.currentLang === 'vi' ? `<span class="text-[10px] text-purple-400 font-semibold truncate" title="${p.topic_vi}">${p.topic_vi}</span>` : ''}
-                    </div>
+                <td class="px-2 py-2 whitespace-nowrap text-[12px] text-gray-500 dark:text-gray-400 max-w-[140px]">
+                    ${renderNextActionCell(p)}
                 </td>
                 <td class="px-2 py-2 whitespace-nowrap text-[12px] text-gray-500 dark:text-gray-400 max-w-[150px] truncate" 
                     title="${p.video_title || ''}" ondblclick="event.stopPropagation(); startInlineEdit(this, '${p.id}', 'video_title')">
@@ -518,6 +502,50 @@
         console.log(`Navigating to step ${step} for project ${projectId}`);
         setCurrentProject(projectId);
         window.location.href = getStepRoute(step);
+    }
+
+    function getNextAction(project) {
+        const s = project.progress || {};
+        const isMusic = project.app_mode === 'longform_music' || currentDisplayMode === 'longform_music';
+        const steps = isMusic ? [
+            { key: 'music_plan', label: '음악 기획', route: 'music-plan' },
+            { key: 'music_cover', label: '커버 이미지', route: 'image-gen' },
+            { key: 'music_tracks', label: '트랙 생성', route: 'audio-gen' },
+            { key: 'music_thumbnail', label: '썸네일', route: 'thumbnail' },
+            { key: 'music_render', label: '영상 렌더링', route: 'render' },
+            { key: 'music_desc', label: '제목/설명', route: 'title-desc' },
+            { key: 'music_publish', label: '발행 준비', route: 'render' },
+        ] : [
+            { key: 'plan', label: '기획', route: project.app_mode === 'longform_music' ? 'music-plan' : 'script-plan' },
+            { key: 'script', label: '대본', route: 'script-gen' },
+            { key: 'image', label: '이미지', route: 'image-gen' },
+            { key: 'tts', label: 'TTS', route: 'tts' },
+            { key: 'video', label: '영상', route: 'render' },
+            { key: 'thumbnail', label: '썸네일', route: 'thumbnail' },
+            { key: 'desc', label: '설명', route: 'title-desc' },
+            { key: 'upload', label: '발행대기 등록', route: 'upload' },
+            ...(isIndependent ? [{ key: 'publish', label: '웹어드민 발행', route: 'upload' }] : []),
+        ];
+
+        const next = steps.find(step => !s[step.key]);
+        if (!next) {
+            return { label: '완료', route: isMusic ? 'render' : 'upload', done: true };
+        }
+        return { ...next, done: false };
+    }
+
+    function renderNextActionCell(project) {
+        const action = getNextAction(project);
+        const doneClass = action.done
+            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+            : 'border-blue-500/30 bg-blue-500/10 text-blue-200 hover:bg-blue-500/20';
+        return `
+            <button onclick="event.stopPropagation(); navigateToStep('${project.id}', '${action.route}')"
+                class="max-w-[130px] px-2 py-1 rounded-md border text-[11px] font-bold truncate transition ${doneClass}"
+                title="${action.label}">
+                ${action.label}
+            </button>
+        `;
     }
 
     async function selectAndGo(projectId) {
@@ -615,101 +643,6 @@
             if (window.loadProjects) window.loadProjects();
         } catch (e) {
             Utils.showToast(`${i18n.status_failed_delete}`, 'error');
-        }
-    }
-
-    async function autoUploadYouTube(projectId) {
-        const rocketBtn = event.currentTarget;
-        const originalText = rocketBtn.innerText;
-
-        if (isIndependent) {
-            if (!confirm(`${i18n.confirm_yt_auto_upload}`)) return;
-            try {
-                rocketBtn.innerText = '🚀';
-                rocketBtn.disabled = true;
-                Utils.showToast(`${i18n.status_yt_upload_start}`, 'info');
-
-                const res = await fetch(`/api/youtube/upload-external/${projectId}`, { method: 'POST' });
-                const data = await res.json();
-
-                if (res.ok && data.status === 'ok') {
-                    Utils.showToast(`${i18n.status_yt_upload_done}`, 'success');
-                    loadProjectList();
-                } else throw new Error(data.error || `${i18n.status_failed_upload}`);
-            } catch (e) {
-                Utils.showToast(`${i18n.err_upload_failed_msg}${e.message}`, 'error');
-            } finally {
-                rocketBtn.innerText = originalText;
-                rocketBtn.disabled = false;
-            }
-        } else {
-            // [STANDARD USER] Direct YouTube Private Upload + Admin Record
-            if (!confirm(`${i18n.confirm_yt_cloud_reserve}`)) return;
-            try {
-                rocketBtn.innerText = '🚀';
-                rocketBtn.disabled = true;
-                Utils.showToast(`${i18n.status_yt_reserving}`, 'info');
-
-                // 1. YouTube Upload
-                const ytRes = await fetch(`/api/youtube/upload-external/${projectId}`, { method: 'POST' });
-                const ytData = await ytRes.json();
-                if (ytRes.status !== 200 || ytData.status !== 'ok') throw new Error(ytData.error || `${i18n.status_failed_yt_upload}`);
-
-                // 2. Submit record to Central Server
-                const fullData = await API.project.get(projectId);
-                const settings = await API.project.getSettings(projectId);
-
-                const payload = {
-                    userId: licenseKey,
-                    videoUrl: ytData.url,
-                    videoId: ytData.video_id,
-                    metadata: {
-                        title: settings.title || fullData.name,
-                        projectId: projectId,
-                        isYouTubePrivate: true
-                    }
-                };
-
-                const pubRes = await fetch('{{ AUTH_SERVER_URL }}/api/publishing', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                const pubData = await pubRes.json();
-                if (pubData.success) {
-                    Utils.showToast(`${i18n.status_yt_cloud_done}`, 'success');
-                    loadProjectList();
-                } else throw new Error(pubData.error || `${i18n.status_failed_central_record}`);
-            } catch (e) {
-                console.error(i18n.err_publish_failed, e);
-                Utils.showToast(`${i18n.err_generic_msg}${e.message}`, 'error');
-            } finally {
-                rocketBtn.innerText = originalText;
-                rocketBtn.disabled = false;
-            }
-        }
-    }
-
-    async function publicizeVideo(projectId) {
-        if (!confirm(`${i18n.confirm_yt_public}`)) return;
-
-        try {
-            Utils.showToast(`${i18n.status_yt_publicizing}`, 'info');
-            const res = await fetch(`/api/projects/${projectId}/youtube/public`, {
-                method: 'POST'
-            });
-            const data = await res.json();
-
-            if (res.ok && data.status === 'ok') {
-                Utils.showToast(`${i18n.status_yt_publicized}`, 'success');
-                loadProjectList();
-            } else {
-                throw new Error(data.detail || `${i18n.status_failed_conversion}`);
-            }
-        } catch (e) {
-            console.error(i18n.err_public_switch_failed, e);
-            Utils.showToast(`${i18n.err_generic_msg}${e.message}`, 'error');
         }
     }
 

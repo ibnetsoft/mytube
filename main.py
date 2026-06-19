@@ -1069,6 +1069,10 @@ class ApiKeySave(BaseModel):
     suno: Optional[str] = None
     suno_base_url: Optional[str] = None
     music_provider: Optional[str] = None
+    music_gemini_model: Optional[str] = None
+    music_gemini_base_url: Optional[str] = None
+    music_gemini_project_id: Optional[str] = None
+    music_gemini_location: Optional[str] = None
     typecast: Optional[str] = None
     replicate: Optional[str] = None
     topview: Optional[str] = None
@@ -1097,6 +1101,10 @@ async def save_api_keys(req: ApiKeySave):
         'suno': 'SUNO_API_KEY',
         'suno_base_url': 'SUNO_API_BASE_URL',
         'music_provider': 'MUSIC_PROVIDER',
+        'music_gemini_model': 'MUSIC_GEMINI_MODEL',
+        'music_gemini_base_url': 'MUSIC_GEMINI_BASE_URL',
+        'music_gemini_project_id': 'MUSIC_GEMINI_PROJECT_ID',
+        'music_gemini_location': 'MUSIC_GEMINI_LOCATION',
         'typecast': 'TYPECAST_API_KEY',
         'replicate': 'REPLICATE_API_TOKEN',
         'topview': 'TOPVIEW_API_KEY',
@@ -2278,14 +2286,14 @@ async def upload_intro_video(
         # /uploads/intros/{project_id}/intro{file_ext}
         web_url = f"/uploads/intros/{project_id}/intro{file_ext}"
 
-        # 데이터베이스에 경로 저장 (intro_video_path AND background_video_url)
+        # 데이터베이스에 경로 저장
         conn = database.get_db()
         cursor = conn.cursor()
         cursor.execute("""
             UPDATE project_settings 
-            SET intro_video_path = ?, updated_at = CURRENT_TIMESTAMP
+            SET intro_video_path = ?, background_video_url = ?, updated_at = CURRENT_TIMESTAMP
             WHERE project_id = ?
-        """, (str(intro_path), project_id))
+        """, (str(intro_path), web_url, project_id))
         conn.commit()
         conn.close()
         
@@ -2325,7 +2333,7 @@ async def delete_intro_video(project_id: int):
         
         cursor.execute("""
             UPDATE project_settings 
-            SET intro_video_path = NULL, updated_at = CURRENT_TIMESTAMP
+            SET intro_video_path = NULL, background_video_url = NULL, updated_at = CURRENT_TIMESTAMP
             WHERE project_id = ?
         """, (project_id,))
         conn.commit()
@@ -3038,6 +3046,61 @@ async def get_drive_bundle(project_id: int):
         }
     except Exception as e:
         print(f"[DriveBundle] Summary error: {e}")
+        return {"status": "error", "error": str(e)}
+
+
+@app.post("/api/projects/{project_id}/admin-publish-request")
+async def request_admin_publish(project_id: int, background_tasks: BackgroundTasks):
+    """Register a completed project for web-admin publishing without uploading to YouTube locally."""
+    try:
+        project = db.get_project(project_id)
+        if not project:
+            raise HTTPException(404, "Project not found")
+
+        settings = db.get_project_settings(project_id) or {}
+        video_path = (
+            _resolve_local_output_asset_path(settings.get("external_video_path"))
+            or _resolve_local_output_asset_path(settings.get("video_path"))
+        )
+
+        try:
+            bundle = drive_bundle_service.get_project_bundle(project_id)
+        except Exception:
+            bundle = {}
+
+        if (bundle.get("video_file") or {}).get("id"):
+            from services.project_publish_service import queue_project_for_admin_publish
+
+            result = queue_project_for_admin_publish(
+                project_id,
+                requested_privacy=settings.get("upload_privacy") or "private",
+                requested_publish_at=settings.get("upload_schedule_at"),
+                requested_channel_id=settings.get("youtube_channel_id"),
+            )
+            return {
+                "status": "ok",
+                "mode": "queued",
+                "message": "Registered in web-admin publishing queue.",
+                **result,
+            }
+
+        if not video_path or not os.path.exists(video_path):
+            raise HTTPException(404, "Uploadable rendered video file not found.")
+
+        from services.sync_service import upload_and_sync_video
+
+        db.update_project_setting(project_id, "admin_publish_ready", "0")
+        db.update_project_setting(project_id, "admin_publish_status", "drive_sync_pending")
+        background_tasks.add_task(upload_and_sync_video, project_id, video_path)
+        return {
+            "status": "ok",
+            "mode": "sync_started",
+            "message": "Drive sync started. Web-admin publishing queue will be updated after upload.",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[AdminPublish] Request failed: {e}")
         return {"status": "error", "error": str(e)}
 
 

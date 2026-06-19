@@ -4,16 +4,22 @@ from typing import Any, Dict, List
 
 from config import config
 from services.elevenlabs_music_service import elevenlabs_music_service
+from services.gemini_music_service import gemini_music_service
 from services.suno_music_service import suno_music_service
 
 
 class MusicGenerationService:
     def provider(self) -> str:
         provider = (getattr(config, "MUSIC_PROVIDER", "") or "elevenlabs").strip().lower()
-        return provider if provider in {"elevenlabs", "suno"} else "elevenlabs"
+        return provider if provider in {"elevenlabs", "suno", "gemini"} else "elevenlabs"
 
     def _service(self):
-        return suno_music_service if self.provider() == "suno" else elevenlabs_music_service
+        provider = self.provider()
+        if provider == "suno":
+            return suno_music_service
+        if provider == "gemini":
+            return gemini_music_service
+        return elevenlabs_music_service
 
     async def compose(self, prompt: str, **kwargs: Any) -> bytes:
         return await self._service().compose(prompt, **kwargs)

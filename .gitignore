@@ -5,9 +5,12 @@ __pycache__/
 dist/
 build/
 *.spec
+!packaging/windows/*.spec
 output/
 data/
 venv/
+.pyuserbase/
+release/
 .idea/
 .vscode/
 
@@ -49,4 +52,3 @@ logs/
 # Temporary/Token files
 tokens/
 tmp*/
-

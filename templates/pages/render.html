@@ -92,10 +92,12 @@
             <!-- Project Status Summary -->
             <div class="bg-[#1c2027] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shrink-0">
                 <h4 class="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide dark:text-gray-400">{{ t('label_project_status') }}</h4>
-                <div class="grid grid-cols-2 gap-2">
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
                     <div id="scriptStatus" class="status-item">📝 {{ t('label_script') }}</div>
                     <div id="imageStatus" class="status-item">🖼️ {{ t('label_image') }}</div>
                     <div id="audioStatus" class="status-item">🔊 {{ t('label_audio') }}</div>
+                    <div id="introStatus" class="status-item">🎞️ Intro Upload</div>
+                    <div id="musicBgStatus" class="status-item">🌌 Music Background</div>
                     <div id="videoStatus" class="status-item">🎬 {{ t('label_video') }}</div>
                 </div>
             </div>
@@ -336,9 +338,15 @@
             else el.classList.remove('done');
         };
 
+        const settings = data.settings || {};
+        const hasIntroUpload = Boolean(settings.intro_video_path || data.intro_video_path || data.project?.intro_video_path);
+        const hasMusicBackground = Boolean(settings.background_video_url || settings.template_image_url);
+
         setStatus('scriptStatus', data.script && data.script.full_script);
         setStatus('imageStatus', data.image_prompts && data.image_prompts.length > 0);
         setStatus('audioStatus', data.tts && data.tts.audio_path);
+        setStatus('introStatus', hasIntroUpload);
+        setStatus('musicBgStatus', hasMusicBackground);
         setStatus('videoStatus', data.settings?.video_path);
     }
 
@@ -493,7 +501,7 @@
             const res = await fetch(`/api/video/upload-intro/${projectId}`, { method: 'POST', body: formData });
             const data = await res.json();
             if (data.status === 'success') {
-                showIntroPreview(data.intro_path);
+                showIntroPreview(data.url || data.intro_path);
                 Utils.showToast(i18n_render.toast_intro_applied, 'success');
             } else Utils.showToast(data.error, 'error');
         } catch (err) { Utils.showToast(i18n_render.err_upload_fail, 'error'); }
@@ -504,7 +512,7 @@
         document.getElementById('introEmpty').classList.add('hidden');
         document.getElementById('introPreview').classList.remove('hidden');
         const player = document.getElementById('introVideoPlayer');
-        player.src = '/' + path; // naive path fix, might need adjustment
+        player.src = String(path || '').startsWith('/') ? path : ('/' + path);
         player.load();
     }
 

@@ -264,6 +264,7 @@ def queue_project_for_admin_publish(
 
     db.update_project_setting(project_id, "admin_publish_ready", "1")
     db.update_project_setting(project_id, "admin_publish_status", "pending_review")
+    db.update_project_setting(project_id, "is_uploaded", 1)
 
     return {
         "status": "ok",

@@ -240,6 +240,8 @@ def upload_and_sync_video(project_id: int, local_video_path: str):
         )
         if r_publish is not None and r_publish.status_code in [200, 201, 204]:
             print("[Sync] Lightweight admin index row synced to Supabase.")
+            db.update_project_setting(project_id, "admin_publish_ready", "1")
+            db.update_project_setting(project_id, "admin_publish_status", "pending_review")
 
         db.update_project_setting(project_id, "is_uploaded", 1)
     except Exception as e:

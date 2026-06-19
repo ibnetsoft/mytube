@@ -43,7 +43,7 @@
             <div>
                 <p class="text-[11px] font-black uppercase tracking-[0.18em] text-violet-300">Scheduled Upload</p>
                 <h1 class="text-2xl font-black text-white mt-1">음악 플레이리스트 예약 업로드</h1>
-                <p id="uploadMeta" class="text-sm text-gray-400 mt-2">렌더 결과와 저장된 메타데이터를 기준으로 업로드합니다.</p>
+                <p id="uploadMeta" class="text-sm text-gray-400 mt-2">렌더 결과와 저장된 메타데이터를 기준으로 웹어드민 발행대기에 등록합니다.</p>
             </div>
             <div class="music-upload-card px-4 py-3 min-w-[220px] space-y-1">
                 <p class="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">Upload Status</p>
@@ -86,7 +86,7 @@
             <section class="music-upload-card p-4 space-y-4">
                 <div>
                     <h2 class="text-sm font-black text-white">채널 / 예약</h2>
-                    <p class="text-xs text-gray-400 mt-1">고정 채널과 예약 시간을 지정합니다. 예약 업로드는 내부적으로 private + publishAt로 처리합니다.</p>
+                    <p class="text-xs text-gray-400 mt-1">고정 채널과 예약 시간을 저장합니다. 실제 YouTube 업로드는 웹어드민에서 처리합니다.</p>
                 </div>
 
                 <div class="space-y-2">
@@ -116,12 +116,12 @@
                 </div>
 
                 <div class="flex flex-wrap gap-2">
-                    <button class="music-upload-btn music-upload-btn-primary" id="musicUploadBtn" onclick="submitMusicUpload()">업로드 실행</button>
+                    <button class="music-upload-btn music-upload-btn-primary" id="musicUploadBtn" onclick="submitMusicUpload()">발행대기 등록</button>
                     <button class="music-upload-btn music-upload-btn-secondary" onclick="reloadMusicUploadPage()">새로고침</button>
                     <button class="music-upload-btn music-upload-btn-secondary" onclick="window.location.href='/title-desc'">메타데이터로 이동</button>
                 </div>
 
-                <a id="youtubeResultLink" href="#" target="_blank" class="hidden text-sm font-bold text-violet-300">업로드된 영상 열기</a>
+                <a id="youtubeResultLink" href="#" target="_blank" class="hidden text-sm font-bold text-violet-300">등록된 영상 자산 열기</a>
             </section>
         </div>
     </div>
@@ -308,7 +308,7 @@
         const privacyStatus = privacyRaw === 'scheduled' ? 'private' : privacyRaw;
         const btn = document.getElementById('musicUploadBtn');
         btn.disabled = true;
-        btn.textContent = '업로드 중...';
+        btn.textContent = '등록 중...';
 
         try {
             await Promise.all([
@@ -344,32 +344,27 @@
                 }),
             ]);
 
-            const res = await fetch(`/api/projects/${musicUploadProjectId}/music-upload`, {
+            const res = await fetch(`/api/projects/${musicUploadProjectId}/admin-publish-request`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    privacy_status: privacyStatus,
-                    publish_at: publishAt,
-                    channel_id: channelId ? parseInt(channelId, 10) : null,
-                }),
             });
             const data = await res.json();
-            if (!res.ok || data.status !== 'ok') throw new Error(data.detail || data.error || 'upload failed');
+            if (!res.ok || data.status !== 'ok') throw new Error(data.detail || data.error || 'publish queue registration failed');
 
-            document.getElementById('uploadStatus').textContent = publishAt ? '예약 완료' : '업로드 완료';
-            document.getElementById('uploadStatusHint').textContent = publishAt ? publishAt : (data.url || 'YouTube upload complete');
+            document.getElementById('uploadStatus').textContent = '발행대기 등록됨';
+            document.getElementById('uploadStatusHint').textContent = publishAt ? `예약 희망: ${publishAt}` : (data.url || data.message || 'Web-admin publishing queue registered');
             const link = document.getElementById('youtubeResultLink');
             if (data.url) {
                 link.href = data.url;
                 link.classList.remove('hidden');
             }
-            Utils.showToast(publishAt ? '예약 업로드를 등록했습니다.' : 'YouTube 업로드를 완료했습니다.', 'success');
+            Utils.showToast('웹어드민 발행대기에 등록했습니다.', 'success');
         } catch (error) {
             console.error(error);
-            Utils.showToast(error.message || '업로드에 실패했습니다.', 'error');
+            Utils.showToast(error.message || '발행대기 등록에 실패했습니다.', 'error');
         } finally {
             btn.disabled = false;
-            btn.textContent = '업로드 실행';
+            btn.textContent = '발행대기 등록';
             await loadMusicUploadWorkspace();
         }
     }

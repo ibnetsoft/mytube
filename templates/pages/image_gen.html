@@ -70,12 +70,6 @@
                     {{ t('btn_save_settings') }}
                 </button>
 
-                <!-- 사람 제외 체크박스 -->
-                <label class="flex items-center gap-1.5 cursor-pointer select-none px-3 py-2 rounded-lg border border-white/5 bg-[#1c2027] hover:bg-white/5 transition-colors text-xs" title="{{ t('label_no_human_tooltip') }}">
-                    <input type="checkbox" id="noHumanToggle" class="w-3.5 h-3.5 accent-red-500">
-                    <span class="text-red-600 dark:text-red-400 font-bold">{{ t('label_no_human') }}</span>
-                </label>
-
                 <!-- Generate Prompt Button -->
                 <button onclick="generatePrompts()" id="generateBtn"
                     class="py-2 px-4 flex items-center justify-center rounded-lg text-xs font-bold bg-transparent border border-white/20 text-white hover:bg-[#232832] transition-all">
@@ -307,10 +301,8 @@
     window.defaultVideoEngine = 'veo'; // Global default, overridden by settings
     window.userMembership = "{{ membership }}"; // 'std' | 'pro'
 
-    // 사람 제외 토글 상태 반환
     function isNoHumanEnabled() {
-        const toggle = document.getElementById('noHumanToggle');
-        return toggle ? toggle.checked : false;
+        return false;
     }
 
     // [FIX] settings를 DOMContentLoaded보다 빨리 로드 시작 (projectStateRestored 타이밍 문제 방지)
@@ -1130,10 +1122,6 @@
         if (ethnicityVal) {
             globalPrompt = `[Ethnicity Requirement: ${ethnicityVal}]\n` + globalPrompt;
         }
-        if (isNoHumanEnabled()) {
-            globalPrompt = `[CRITICAL RULE: Every scene description MUST contain NO humans, NO people, NO person, NO characters, NO figures. Describe ONLY environments, objects, landscapes, and backgrounds. If the script mentions a person doing something, replace them with objects, nature, or abstract visuals. Do NOT include any human body parts, faces, or silhouettes.]\n` + globalPrompt;
-        }
-
         // Use analyzed scene count if available, otherwise let AI decide (0)
         const count = analyzedSceneCount || 0;
 
@@ -1249,8 +1237,11 @@
         const container = document.getElementById('promptsList');
 
         // 상단 격자형 프롬프트 복사 패널 동적 추가
+        const generatedGridScenes = data.filter(scene => String(
+            scene.prompt_en || scene.prompt_content || scene.prompt || scene.prompt_ko || ''
+        ).trim());
         let gridPanelHtml = '';
-        if (data.length > 0) {
+        if (generatedGridScenes.length > 0) {
             let titleText = "2x2 격자 이미지 생성 프롬프트 (ChatGPT/DALL-E용 복사)";
             let copyText = "복사";
             let gridText = "씬 격자";
@@ -1269,11 +1260,11 @@
                 <div class="flex flex-wrap gap-3">
             `;
             const ratio = document.querySelector('input[name="aspectRatio"]:checked')?.value || '16:9';
-            for (let i = 0; i < data.length; i += 4) {
-                const chunk = data.slice(i, i + 4);
+            for (let i = 0; i < generatedGridScenes.length; i += 4) {
+                const chunk = generatedGridScenes.slice(i, i + 4);
                 let gridPrompt = `Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total). Each of the 4 panels must have a widescreen ${ratio} aspect ratio. There must be NO borders, NO grid lines, NO white lines, and NO dividers/crosshairs between the panels. The panels must touch seamlessly. Each panel must represent one scene:\n`;
                 chunk.forEach((scene, idx) => {
-                    const rawSceneText = scene.prompt_en || scene.prompt_ko || '';
+                    const rawSceneText = scene.prompt_en || scene.prompt_content || scene.prompt || scene.prompt_ko || '';
                     const sceneText = extractPureImagePrompt(rawSceneText);
                     gridPrompt += `- Panel ${idx+1} (Position: ${['Top-Left', 'Top-Right', 'Bottom-Left', 'Bottom-Right'][idx]}): ${sceneText}\n`;
                 });
@@ -3206,27 +3197,19 @@
                     Utils.showToast(i18n.msg_prompts_restored.replace('{n}', prompts.length), 'success');
                 } else {
                     console.log("No image prompts in DB, will try loadPromptsFromServer");
-                    // DB에 없으면 직접 엔드포인트 시도
-                    loadPromptsFromServer();
+                    // DB에 없으면 직접 엔드포인트와 placeholder 초기화까지 완료될 때까지 기다린다.
+                    await loadPromptsFromServer();
+                    loadedFromDB = prompts && prompts.length > 0;
                 }
             } catch (e) {
                 console.warn("Failed to load prompts from DB:", e);
+                await initializeEmptyScenePlaceholders();
             }
         }
 
         // 2. DB에 없으면 로컬 스토리지 확인 (Fallback)
-        if (!loadedFromDB && projectId) {
-            const savedPrompts = Utils.storage.get('imagePrompts');
-            if (savedPrompts && savedPrompts.length > 0) {
-                prompts = savedPrompts;
-                drawPromptsUI(prompts);
-                document.getElementById('resultSection').classList.remove('hidden');
-
-                if (autoBtn) {
-                    autoBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    autoBtn.disabled = false;
-                }
-            }
+        if (!loadedFromDB && projectId && (!prompts || prompts.length === 0)) {
+            await initializeEmptyScenePlaceholders();
         }
     });
 
@@ -3651,21 +3634,12 @@
                 if (container) container.classList.remove('hidden');
                 drawPromptsUI();
             } else {
-                console.log('[loadPromptsFromServer] No prompts found on server, trying localStorage fallback');
-                // 서버에 없으면 localStorage 폴백
-                const saved = Utils.storage.get('imagePrompts');
-                if (saved && saved.length > 0) {
-                    prompts = saved;
-                    const container = document.getElementById('resultSection');
-                    if (container) container.classList.remove('hidden');
-                    drawPromptsUI(prompts);
-                } else {
-                    // [NEW] 대본기획 구조를 확인하여 빈 씬 플레이스홀더를 미리 렌더링
-                    await initializeEmptyScenePlaceholders();
-                }
+                console.log('[loadPromptsFromServer] No prompts found on server, initializing placeholders');
+                await initializeEmptyScenePlaceholders();
             }
         } catch (e) {
             console.error('Failed to load prompts from server:', e);
+            await initializeEmptyScenePlaceholders();
         }
     }
 
@@ -3676,7 +3650,9 @@
             const res = await fetch(`/api/projects/${projectId}/full`);
             const data = await res.json();
             
-            let count = data.structure?.sections?.length || 0;
+            const structure = data.script_structure?.structure || data.script_structure || data.structure || {};
+            const sections = Array.isArray(structure.sections) ? structure.sections : [];
+            let count = sections.length || 0;
             if (count === 0 && data.script?.full_script) {
                 const matches = data.script.full_script.match(/Scene\s*\d+/gi);
                 if (matches) {
@@ -3687,30 +3663,33 @@
                 }
             }
 
-            if (count > 0) {
-                prompts = [];
-                for (let i = 0; i < count; i++) {
-                    let sceneTitle = "";
-                    let sceneText = "";
-                    if (data.structure?.sections && data.structure.sections[i]) {
-                        const sec = data.structure.sections[i];
-                        sceneTitle = typeof sec === 'string' ? sec : (sec.title || sec.scene_title || sec.scene || "");
-                        sceneText = typeof sec === 'string' ? sec : (sec.content || sec.text || sec.narration || "");
-                    }
-                    prompts.push({
-                        scene_number: i + 1,
-                        scene_title: sceneTitle,
-                        scene_text: sceneText,
-                        prompt_ko: "",
-                        prompt_en: "",
-                        image_url: "",
-                        video_url: ""
-                    });
-                }
-                const container = document.getElementById('resultSection');
-                if (container) container.classList.remove('hidden');
-                drawPromptsUI();
+            if (count === 0) {
+                const duration = data.settings?.duration_seconds || 60;
+                count = Math.max(3, Math.min(12, Math.floor(duration / 30) || 3));
             }
+
+            prompts = [];
+            for (let i = 0; i < count; i++) {
+                let sceneTitle = "";
+                let sceneText = "";
+                if (sections[i]) {
+                    const sec = sections[i];
+                    sceneTitle = typeof sec === 'string' ? sec : (sec.title || sec.scene_title || sec.scene || "");
+                    sceneText = typeof sec === 'string' ? sec : (sec.content || sec.text || sec.narration || (sec.key_points || []).join(' ') || "");
+                }
+                prompts.push({
+                    scene_number: i + 1,
+                    scene_title: sceneTitle || `Scene ${i + 1}`,
+                    scene_text: sceneText,
+                    prompt_ko: "",
+                    prompt_en: "",
+                    image_url: "",
+                    video_url: ""
+                });
+            }
+            const container = document.getElementById('resultSection');
+            if (container) container.classList.remove('hidden');
+            drawPromptsUI();
         } catch (err) {
             console.error("Failed to initialize empty scene placeholders:", err);
         }

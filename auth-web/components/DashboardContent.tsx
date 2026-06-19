@@ -175,7 +175,9 @@ export default function DashboardContent() {
 
     // ?쒖뒪???꾩뿭 API ??諛?援ш? ?쒕씪?대툕 ?ㅼ젙
     const [sysKeys, setSysKeys] = useState({ 
-        gemini: '', youtube: '', elevenlabs: '', suno: '', suno_base_url: '', music_provider: 'elevenlabs', topview: '', topview_uid: '',
+        gemini: '', youtube: '', elevenlabs: '', suno: '', suno_base_url: '', music_provider: 'elevenlabs',
+        music_gemini_model: 'lyria-3-pro-preview', music_gemini_base_url: '', music_gemini_project_id: '', music_gemini_location: 'global',
+        topview: '', topview_uid: '',
         use_external_render: false, drive_path_ko: '', drive_path_en: '', drive_path_ja: '', drive_active_lang: 'ko',
         remote_render_drive_folder_id: '',
         remote_render_google_token_path: ''
@@ -774,6 +776,10 @@ export default function DashboardContent() {
                 suno: data.suno || '',
                 suno_base_url: data.suno_base_url || '',
                 music_provider: data.music_provider || 'elevenlabs',
+                music_gemini_model: data.music_gemini_model || 'lyria-3-pro-preview',
+                music_gemini_base_url: data.music_gemini_base_url || '',
+                music_gemini_project_id: data.music_gemini_project_id || '',
+                music_gemini_location: data.music_gemini_location || 'global',
                 topview: data.topview || '',
                 topview_uid: data.topview_uid || '',
                 use_external_render: data.use_external_render === 'true' || data.use_external_render === true,
@@ -2446,6 +2452,7 @@ export default function DashboardContent() {
                                 >
                                     <option value="elevenlabs" className="bg-[#111]">ElevenLabs (Default)</option>
                                     <option value="suno" className="bg-[#111]">Suno API</option>
+                                    <option value="gemini" className="bg-[#111]">Gemini / Lyria</option>
                                 </select>
                             </div>
                             {([
@@ -2489,6 +2496,50 @@ export default function DashboardContent() {
                                     placeholder="https://your-suno-provider.example.com/api/generate"
                                     className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300 placeholder:text-gray-700"
                                 />
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+                                <div>
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Gemini Music Model</label>
+                                    <select
+                                        value={sysKeys.music_gemini_model}
+                                        onChange={e => setSysKeys(prev => ({ ...prev, music_gemini_model: e.target.value }))}
+                                        className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-300 cursor-pointer"
+                                    >
+                                        <option value="lyria-3-pro-preview" className="bg-[#111]">Lyria 3 Pro Preview</option>
+                                        <option value="lyria-3-clip-preview" className="bg-[#111]">Lyria 3 Clip Preview</option>
+                                        <option value="lyria-002" className="bg-[#111]">Lyria 2 Legacy</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Gemini Location</label>
+                                    <input
+                                        type="text"
+                                        value={sysKeys.music_gemini_location}
+                                        onChange={e => setSysKeys(prev => ({ ...prev, music_gemini_location: e.target.value }))}
+                                        placeholder="global"
+                                        className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300 placeholder:text-gray-700"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Gemini Project ID</label>
+                                    <input
+                                        type="text"
+                                        value={sysKeys.music_gemini_project_id}
+                                        onChange={e => setSysKeys(prev => ({ ...prev, music_gemini_project_id: e.target.value }))}
+                                        placeholder="google-cloud-project-id"
+                                        className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300 placeholder:text-gray-700"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Gemini Music Base URL</label>
+                                    <input
+                                        type="text"
+                                        value={sysKeys.music_gemini_base_url}
+                                        onChange={e => setSysKeys(prev => ({ ...prev, music_gemini_base_url: e.target.value }))}
+                                        placeholder="optional custom endpoint; supports {project_id}, {location}, {model}"
+                                        className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300 placeholder:text-gray-700"
+                                    />
+                                </div>
                             </div>
                                 </div>
 
@@ -2675,7 +2726,12 @@ export default function DashboardContent() {
                                                         </span>
                                                         {meta.admin_publish_status ? (
                                                             <div className="mt-2 text-[9px] font-black uppercase tracking-widest text-amber-300">
-                                                                Publish: {String(meta.admin_publish_status).replace(/_/g, ' ')}
+                                                                Publish Ready: {String(meta.admin_publish_status).replace(/_/g, ' ')}
+                                                            </div>
+                                                        ) : null}
+                                                        {meta.admin_publish_ready != null ? (
+                                                            <div className={`mt-1 text-[9px] font-black uppercase tracking-widest ${String(meta.admin_publish_ready) === '1' || meta.admin_publish_ready === true ? 'text-emerald-300' : 'text-gray-500'}`}>
+                                                                {String(meta.admin_publish_ready) === '1' || meta.admin_publish_ready === true ? 'Admin Publish Ready' : 'Admin Publish Pending'}
                                                             </div>
                                                         ) : null}
                                                     </td>

@@ -340,6 +340,37 @@ class ProjectMusicStatusTest(unittest.TestCase):
         finally:
             config.MUSIC_PROVIDER = original_provider
 
+    def test_music_generation_provider_selects_gemini_when_configured(self):
+        from services.gemini_music_service import gemini_music_service
+        from services.music_generation_service import music_generation_service
+        from config import config
+
+        original_provider = config.MUSIC_PROVIDER
+        try:
+            config.MUSIC_PROVIDER = "gemini"
+            self.assertIs(music_generation_service._service(), gemini_music_service)
+        finally:
+            config.MUSIC_PROVIDER = original_provider
+
+    def test_gemini_music_service_extracts_lyria_audio(self):
+        from services.gemini_music_service import gemini_music_service
+        import base64
+
+        data = {
+            "status": "completed",
+            "outputs": [
+                {"type": "text", "text": "description"},
+                {
+                    "type": "audio",
+                    "mime_type": "audio/mpeg",
+                    "data": base64.b64encode(b"audio-bytes").decode("ascii"),
+                },
+            ],
+            "model": "lyria-3-pro-preview",
+        }
+
+        self.assertEqual(gemini_music_service._extract_audio_bytes(data), b"audio-bytes")
+
     def test_generate_music_track_uses_selected_music_provider(self):
         from app.routers import music
         import asyncio
