@@ -104,7 +104,7 @@
                             <span>{{ t('nav_my_projects') }}</span>
                         </a>
                     </li>
-                    <li class="{% if app_mode in ['webtoon', 'longform_music'] %}hidden{% endif %}">
+                    <li class="{% if app_mode in ['webtoon', 'longform_music'] or (membership | lower) in ['std', 'standard'] %}hidden{% endif %}">
                         <a href="/" id="nav-topic" class="sidebar-item {% if page == 'topic' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
                             <span>{{ t('nav_topic') }}</span>
@@ -204,7 +204,7 @@
                         </a>
                     </li>
 
-                    <li class="">
+                    <li class="{% if (membership | lower) in ['std', 'standard'] %}hidden{% endif %}">
                         <a href="/video-upload" id="nav-upload"
                             class="sidebar-item {% if page == 'video-upload' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
@@ -1183,8 +1183,13 @@
                 const navAutopilot = document.getElementById('nav-autopilot');
 
                 // Helper to hide/show
+                const isStandard = '{{ membership }}'.trim().toLowerCase() === 'std' || '{{ membership }}'.trim().toLowerCase() === 'standard';
                 const setVisible = (el, show) => {
                     if (!el) return;
+                    if ((el === navTopic || el === navUpload) && isStandard) {
+                        el.parentElement.classList.add('hidden');
+                        return;
+                    }
                     if (show) el.parentElement.classList.remove('hidden');
                     else el.parentElement.classList.add('hidden');
                 };

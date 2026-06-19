@@ -1,7 +1,7 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 
 {% block content %}
-<div class="flex justify-between items-center mb-6">
+<div class="flex justify-between items-center mb-6 pr-56">
     <!-- Bulk Actions -->
     <div id="bulkActions"
         class="hidden flex items-center gap-3 bg-[#1c2027] px-4 py-1.5 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
@@ -42,6 +42,12 @@
                 <option value="100">100{{ t('rows_suffix') }}</option>
             </select>
         </div>
+
+        <!-- 오늘의 주제 가져오기 -->
+        <button onclick="fetchDailyTopic()" class="relative group overflow-hidden px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-extrabold text-xs shadow-lg shadow-blue-500/25 transition-all duration-300 hover:shadow-indigo-500/35 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 flex items-center gap-1.5 border border-blue-400/20">
+            <span class="relative z-10">{{ t('btn_get_daily_topic') }}</span>
+            <span class="text-sm group-hover:translate-x-0.5 transition-transform duration-300">⚡</span>
+        </button>
 
         <button onclick="openProjectModal()" class="px-4 py-2 rounded-xl text-xs font-bold border border-gray-200 dark:border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white transition-all">
             {{ t('btn_new_project') }}
@@ -417,7 +423,7 @@
                     <button onclick="event.stopPropagation(); autoUploadYouTube('${p.id}')" 
                         class="absolute -right-2 top-1/2 -translate-y-1/2 text-sm hover:scale-125 transition-transform z-20" 
                         title="${isIndependent ? i18n.title_yt_rocket_independent : i18n.title_yt_rocket_cloud}">
-                        ??
+                        UP
                     </button>` : ''}
                 </td>
                 ${isIndependent ? `
@@ -427,7 +433,7 @@
                     <button onclick="event.stopPropagation(); publicizeVideo('${p.id}')" 
                         class="absolute -right-2 top-1/2 -translate-y-1/2 text-sm hover:scale-125 transition-transform" 
                         title="${i18n.title_yt_public}">
-                        ?뱼
+                        📢
                     </button>` : ''}
                 </td>` : ''}
             `;
@@ -458,7 +464,7 @@
                     style="left: 40px;"
                     ondblclick="event.stopPropagation(); startInlineEdit(this, '${p.id}', 'name')">
                     <div class="flex items-center gap-1">
-                        <span class="text-base">?뱚</span>
+                        <span class="text-base">📁</span>
                         <div class="flex flex-col min-w-0">
                             <span class="truncate">${p.name}</span>
                             ${p.name_vi && window.currentLang === 'vi' ? `<span class="text-[10px] text-purple-400 font-semibold truncate" title="${p.name_vi}">${p.name_vi}</span>` : ''}
@@ -619,7 +625,7 @@
         if (isIndependent) {
             if (!confirm(`${i18n.confirm_yt_auto_upload}`)) return;
             try {
-                rocketBtn.innerText = '??;
+                rocketBtn.innerText = '🚀';
                 rocketBtn.disabled = true;
                 Utils.showToast(`${i18n.status_yt_upload_start}`, 'info');
 
@@ -640,7 +646,7 @@
             // [STANDARD USER] Direct YouTube Private Upload + Admin Record
             if (!confirm(`${i18n.confirm_yt_cloud_reserve}`)) return;
             try {
-                rocketBtn.innerText = '??;
+                rocketBtn.innerText = '🚀';
                 rocketBtn.disabled = true;
                 Utils.showToast(`${i18n.status_yt_reserving}`, 'info');
 
@@ -829,6 +835,48 @@
         } catch (e) {
             console.error(`${action} error:`, e);
             Utils.showToast(`${i18n.err_generic_msg}${e.message}`, 'error');
+        }
+    }
+
+    // [NEW] 오늘의 배정 주제 가져오기
+    async function fetchDailyTopic() {
+        Utils.showToast("{{ t('toast_fetching_topic') }}", "info");
+        try {
+            const res = await fetch("/api/topics/get-daily", { method: "POST" });
+            const data = await res.json();
+            
+            if (data.status === "success") {
+                Utils.showToast("{{ t('toast_project_created') }}", "success");
+                
+                // Ensure sorting is set to newest
+                currentSort = 'newest';
+                const sortOrderSelect = document.getElementById('sortOrder');
+                if (sortOrderSelect) {
+                    sortOrderSelect.value = 'newest';
+                }
+
+                if (currentDisplayMode !== 'longform') {
+                    // Update global app_mode setting to longform
+                    await fetch('/api/settings', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ app_mode: 'longform' })
+                    });
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    // Refresh list instantly
+                    await loadProjectList();
+                    // Refresh sidebar projects list
+                    if (window.loadProjects) window.loadProjects();
+                }
+            } else {
+                Utils.showToast(data.error || "{{ t('toast_no_assigned_topics') }}", "warning");
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast("{{ t('toast_fetch_topic_failed') }}" + e.message, "error");
         }
     }
 

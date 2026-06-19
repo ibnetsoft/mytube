@@ -1460,13 +1460,24 @@
                 user_name: safeVal('userName'),
                 user_nationality: safeVal('userNationality'),
                 user_phone: safeVal('userPhone'),
-                user_email: safeVal('userEmail'),
-                use_external_render: safeCheck('useExternalRender'),
-                drive_path_ko: safeVal('drivePathKo'),
-                drive_path_en: safeVal('drivePathEn'),
-                drive_path_ja: safeVal('drivePathJa'),
-                drive_active_lang: safeVal('driveActiveLang')
+                user_email: safeVal('userEmail')
             };
+
+            if (document.getElementById('useExternalRender')) {
+                settings.use_external_render = safeCheck('useExternalRender');
+            }
+            if (document.getElementById('drivePathKo')) {
+                settings.drive_path_ko = safeVal('drivePathKo');
+            }
+            if (document.getElementById('drivePathEn')) {
+                settings.drive_path_en = safeVal('drivePathEn');
+            }
+            if (document.getElementById('drivePathJa')) {
+                settings.drive_path_ja = safeVal('drivePathJa');
+            }
+            if (document.getElementById('driveActiveLang')) {
+                settings.drive_active_lang = safeVal('driveActiveLang');
+            }
 
             if (IS_STANDARD_MEMBER) {
                 Object.keys(settings).forEach((key) => {

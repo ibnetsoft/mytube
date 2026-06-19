@@ -22,7 +22,7 @@ interface PublishingRequest {
     id: string
     user_id: string
     video_url: string
-    status: 'pending' | 'to_be_published' | 'published' | 'failed' | 'rejected'
+    status: 'pending' | 'approved' | 'to_be_published' | 'published' | 'failed' | 'rejected'
     metadata: any
     created_at: string
     profiles?: {
@@ -231,7 +231,7 @@ export default function DashboardContent() {
         if (!amountStr) return;
         const parsedAmount = parseInt(amountStr);
         if (isNaN(parsedAmount) || parsedAmount <= 0) {
-            alert(isKor ? '?щ컮瑜??レ옄瑜??낅젰?댁＜?몄슂.' : 'Please enter a valid number.');
+            alert(isKor ? '올바른 숫자를 입력해주세요.' : 'Please enter a valid number.');
             return;
         }
         try {
@@ -249,10 +249,10 @@ export default function DashboardContent() {
                     : u
                 ));
             } else {
-                alert((isKor ? '異⑹쟾 ?ㅽ뙣: ' : 'Recharge Failed: ') + (data.error || `HTTP ${res.status}`));
+                alert((isKor ? '충전 실패: ' : 'Recharge Failed: ') + (data.error || `HTTP ${res.status}`));
             }
         } catch (e: any) {
-            alert((isKor ? '?ㅽ듃?뚰겕 ?ㅻ쪟: ' : 'Network error: ') + (e?.message || String(e)));
+            alert((isKor ? '네트워크 오류: ' : 'Network error: ') + (e?.message || String(e)));
         }
     }
 
@@ -265,13 +265,13 @@ export default function DashboardContent() {
                 body: JSON.stringify({ userId: apiViewUser.id, apiKeys: tempApiKeys })
             });
             if (res.ok) {
-                alert(isKor ? "?깃났?곸쑝濡??곸슜?섏뿀?듬땲??" : "API Keys updated successfully.");
+                alert(isKor ? "성공적으로 적용되었습니다." : "API Keys updated successfully.");
                 setApiViewUser(null);
                 fetchUsers();
             } else {
-                alert("?곸슜 ?ㅽ뙣");
+                alert("적용 실패");
             }
-        } catch (e) { alert("?ㅻ쪟 諛쒖깮"); }
+        } catch (e) { alert("오류 발생"); }
     }
 
     const [savingChannel, setSavingChannel] = useState(false);
@@ -314,7 +314,7 @@ export default function DashboardContent() {
             }
         } catch (e) { 
             console.error('API Catch Error:', e);
-            alert("?ㅻ쪟 諛쒖깮"); 
+            alert("오류 발생"); 
         } finally {
             setSavingChannel(false);
         }
@@ -395,7 +395,7 @@ export default function DashboardContent() {
 
     const handleCreateOrUpdateLocalChannel = async () => {
         if (!channelConfigForm.name.trim() || !channelConfigForm.handle.trim()) {
-            alert(isKor ? '梨꾨꼸 ?대쫫怨?梨꾨꼸 ID(?먮뒗 ?몃뱾)瑜??낅젰?댁＜?몄슂.' : 'Please enter channel name and channel ID/handle.')
+            alert(isKor ? '채널 이름과 채널 ID(또는 핸들)를 입력해주세요.' : 'Please enter channel name and channel ID/handle.')
             return
         }
 
@@ -446,7 +446,7 @@ export default function DashboardContent() {
 
     const handleStartCategoryChannelOAuth = () => {
         if (!channelConfigForm.name.trim() || !channelConfigForm.handle.trim()) {
-            alert(isKor ? '癒쇱? 梨꾨꼸 ?대쫫怨?梨꾨꼸 ID(?먮뒗 ?몃뱾)瑜??낅젰?댁＜?몄슂.' : 'Enter channel name and ID/handle first.')
+            alert(isKor ? '먼저 채널 이름과 채널 ID(또는 핸들)를 입력해주세요.' : 'Enter channel name and ID/handle first.')
             return
         }
         const params = new URLSearchParams({
@@ -483,13 +483,13 @@ export default function DashboardContent() {
             setChannelConfigCategory(null)
             fetchCategories()
         } catch (err: any) {
-            alert((isKor ? '梨꾨꼸 ????ㅻ쪟: ' : 'Failed to save channel: ') + (err?.message || String(err)))
+            alert((isKor ? '梨꾨꼸 ???오류: ' : 'Failed to save channel: ') + (err?.message || String(err)))
         }
     }
 
     const handleRoleChange = async (userId: string, currentRole: string) => {
         const newRole = currentRole === 'pro' ? 'std' : 'pro';
-        if (!confirm(isKor ? `?깃툒??${newRole === 'pro' ? '?꾨줈' : '?ㅽ깲?ㅻ뱶'}(??濡?蹂寃쏀븯?쒓쿋?듬땲源?` : `Change membership to ${newRole === 'pro' ? 'PRO' : 'STANDARD'}?`)) return;
+        if (!confirm(isKor ? `등급을 ${newRole === 'pro' ? '?꾨줈' : '스탠다드'}(??濡?蹂寃쏀븯?쒓쿋?듬땲源?` : `Change membership to ${newRole === 'pro' ? 'PRO' : 'STANDARD'}?`)) return;
         try {
             const res = await fetch('/api/admin/users/role', {
                 method: 'POST',
@@ -502,11 +502,11 @@ export default function DashboardContent() {
                 setUsers(prev => prev.map(u =>
                     u.id === userId ? { ...u, app_metadata: { ...u.app_metadata, membership: newRole } } : u
                 ));
-                alert(isKor ? `${newRole === 'pro' ? '?뭿 ?꾨줈' : '?뫀 ?ㅽ깲?ㅻ뱶'}濡?蹂寃쎈릺?덉뒿?덈떎.` : 'Role Updated');
+                alert(isKor ? `${newRole === 'pro' ? 'PRO' : '?뫀 스탠다드'}濡?蹂寃쎈릺?덉뒿?덈떎.` : 'Role Updated');
             } else {
-                alert('蹂寃??ㅽ뙣: ' + (data.error || '?쒕쾭 ?ㅻ쪟'));
+                alert('蹂寃??ㅽ뙣: ' + (data.error || '서버 오류'));
             }
-        } catch (e) { alert('?쒕쾭 ?듭떊 ?ㅻ쪟'); }
+        } catch (e) { alert('서버 통신 오류'); }
     }
 
     const handleSaveUserInfo = async () => {
@@ -533,40 +533,40 @@ export default function DashboardContent() {
                 setEditInfoUser(null);
                 alert('??λ릺?덉뒿?덈떎.');
             } else {
-                alert('????ㅽ뙣: ' + (data.error || '?쒕쾭 ?ㅻ쪟'));
+                alert('????ㅽ뙣: ' + (data.error || '서버 오류'));
             }
-        } catch (e) { alert('?쒕쾭 ?ㅻ쪟'); }
+        } catch (e) { alert('서버 오류'); }
     };
 
     const handleAdminRoleToggle = async (userId: string, currentIsAdmin: boolean) => {
         if (!isSuperAdmin) return;
         const action = currentIsAdmin ? '해제' : '지정';
-        if (!confirm(`?대떦 ?좎?瑜?遺愿由ъ옄濡?${action}?섏떆寃좎뒿?덇퉴?`)) return;
+        if (!confirm(`?대떦 ?좎?瑜?遺愿由ъ옄濡?${action}하시겠습니까?`)) return;
         try {
             const res = await fetch('/api/admin/users/admin-role', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId, isAdmin: !currentIsAdmin })
             });
-            if (res.ok) { alert('?꾨즺?섏뿀?듬땲??'); fetchUsers(); }
-        } catch (e) { alert('?ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.'); }
+            if (res.ok) { alert('완료되었습니다.'); fetchUsers(); }
+        } catch (e) { alert('오류媛 諛쒖깮?덉뒿?덈떎.'); }
     }
 
     const handlePublishVideo = async (requestId: string) => {
-        if (!confirm(isKor ? '???곸긽???좏뒠釉뚯뿉??怨듦컻(Public)濡??꾪솚?섏떆寃좎뒿?덇퉴?' : 'Would you like to switch this video to Public on YouTube?')) return;
+        if (!confirm(isKor ? '이 영상을 유튜브에서 공개(Public)로 전환하시겠습니까?' : 'Would you like to switch this video to Public on YouTube?')) return;
         try {
             const res = await fetch('/api/admin/publishing', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ requestId, status: 'to_be_published' })
+                body: JSON.stringify({ requestId, status: 'approved' })
             });
             if (res.ok) {
-                alert(isKor ? '?꾪솚 ?붿껌 ?꾨즺! ?좎떆 ???좏뒠釉뚯뿉 諛섏쁺?⑸땲??' : 'Request Complete! Will reflect on YouTube shortly.');
+                alert(isKor ? '전환 요청 완료! 잠시 후 유튜브에 반영됩니다.' : 'Request Complete! Will reflect on YouTube shortly.');
                 fetchPublishingRequests();
             } else {
-                alert('?붿껌 ?ㅽ뙣');
+                alert('요청 실패');
             }
-        } catch (e) { alert('?ㅻ쪟 諛쒖깮'); }
+        } catch (e) { alert('오류 발생'); }
     }
 
     const renderPublishingActionPanel = (req: PublishingRequest) => {
@@ -631,7 +631,7 @@ export default function DashboardContent() {
                             onClick={() => handlePublishVideo(req.id)}
                             className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black rounded-xl shadow-lg transition-all uppercase tracking-widest"
                         >
-                            {isKor ? '諛쒗뻾 ?쒖옉' : 'Publish'}
+                            {isKor ? '발행 시작' : 'Publish'}
                         </button>
                     )}
                     {req.status === 'pending' && req.metadata?.is_invalid_request && (
@@ -646,7 +646,7 @@ export default function DashboardContent() {
                             rel="noreferrer"
                             className="px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white text-[10px] font-black rounded-xl border border-white/10 transition-all uppercase tracking-widest inline-block"
                         >
-                            {isKor ? '諛깆뾽 ?뺤씤' : 'Backup'}
+                            {isKor ? '백업 확인' : 'Backup'}
                         </a>
                     )}
                 </div>
@@ -673,9 +673,9 @@ export default function DashboardContent() {
 
     const getPublishingStatusMeta = (req: PublishingRequest) => {
         if (req.metadata?.is_invalid_request) return { label: 'INVALID', className: 'bg-red-500/10 text-red-400 border-red-500/20' }
-        if (req.status === 'published') return { label: isKor ? '?낅줈???꾨즺' : 'Published', className: 'bg-green-500/10 text-green-400 border-green-500/20' }
-        if (req.status === 'to_be_published') return { label: isKor ? '발행 진행 중' : 'Publishing', className: 'bg-blue-500/10 text-blue-400 border-blue-500/20' }
-        if (req.status === 'failed') return { label: isKor ? '?낅줈???ㅽ뙣' : 'Failed', className: 'bg-red-500/10 text-red-400 border-red-500/20' }
+        if (req.status === 'published') return { label: isKor ? '업로드 완료' : 'Published', className: 'bg-green-500/10 text-green-400 border-green-500/20' }
+        if (req.status === 'approved' || req.status === 'to_be_published') return { label: isKor ? '발행 진행 중' : 'Publishing', className: 'bg-blue-500/10 text-blue-400 border-blue-500/20' }
+        if (req.status === 'failed') return { label: isKor ? '업로드 실패' : 'Failed', className: 'bg-red-500/10 text-red-400 border-red-500/20' }
         if (req.status === 'rejected') return { label: isKor ? '제외됨' : 'Rejected', className: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20' }
         return { label: isKor ? '대기중' : 'Pending', className: 'bg-orange-500/10 text-orange-400 border-orange-500/20' }
     }
@@ -685,7 +685,7 @@ export default function DashboardContent() {
             acc.total += 1
             if (req.metadata?.is_invalid_request) acc.invalid += 1
             else if (req.status === 'published') acc.published += 1
-            else if (req.status === 'to_be_published') acc.processing += 1
+            else if (req.status === 'approved' || req.status === 'to_be_published') acc.processing += 1
             else if (req.status === 'failed') acc.failed += 1
             else acc.pending += 1
             return acc
@@ -695,7 +695,7 @@ export default function DashboardContent() {
     const filteredPublishingRequests = useMemo(() => {
         if (publishingFilter === 'all') return publishingRequests
         if (publishingFilter === 'invalid') return publishingRequests.filter(req => Boolean(req.metadata?.is_invalid_request))
-        if (publishingFilter === 'processing') return publishingRequests.filter(req => req.status === 'to_be_published')
+        if (publishingFilter === 'processing') return publishingRequests.filter(req => req.status === 'approved' || req.status === 'to_be_published')
         return publishingRequests.filter(req => req.status === publishingFilter)
     }, [publishingRequests, publishingFilter])
 
@@ -818,18 +818,18 @@ export default function DashboardContent() {
     }, [isAdmin]);
 
     const handleDeleteQueueTask = async (id: string) => {
-        if (!confirm(isKor ? '???묒뾽????쒕낫???湲곗뿴?먯꽌 ??젣?섏떆寃좎뒿?덇퉴?' : 'Delete this render task from the queue?')) return;
+        if (!confirm(isKor ? '이 작업을 대기열에서 삭제하시겠습니까?' : 'Delete this render task from the queue?')) return;
         try {
             const res = await fetch(`/api/admin/render-queue?id=${id}`, { method: 'DELETE' });
             const data = await res.json();
             if (data.success) {
-                alert(isKor ? '??젣?섏뿀?듬땲??' : 'Deleted successfully');
+                alert(isKor ? '삭제되었습니다.' : 'Deleted successfully');
                 fetchRenderQueue();
             } else {
-                alert('??젣 ?ㅽ뙣: ' + (data.error || '?ㅻ쪟'));
+                alert('삭제 실패: ' + (data.error || '오류'));
             }
         } catch (e) {
-            alert('?ㅻ쪟 諛쒖깮');
+            alert('오류 발생');
         }
     };
 
@@ -872,7 +872,7 @@ export default function DashboardContent() {
     const handleSavePreset = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!presetType || !presetKeyCode || !presetNameKo || !presetPromptTemplate) {
-            alert('?꾩닔 ?낅젰 ??ぉ??梨꾩썙二쇱꽭??')
+            alert('필수 입력 항목을 채워주세요.')
             return
         }
         try {
@@ -903,10 +903,10 @@ export default function DashboardContent() {
                 setPresetImageUrl('')
                 fetchStylePresets()
             } else {
-                alert('????ㅽ뙣: ' + (data.error || '?????녿뒗 ?ㅻ쪟'))
+                alert('????ㅽ뙣: ' + (data.error || '?????녿뒗 오류'))
             }
         } catch (e: any) {
-            alert('????ㅻ쪟: ' + e.message)
+            alert('???오류: ' + e.message)
         } finally {
             setIsSavingPreset(false)
         }
@@ -930,27 +930,27 @@ export default function DashboardContent() {
     }
 
     const handleDeletePreset = async (id: string, keyCode: string) => {
-        if (!confirm(`"${keyCode}" ?ㅽ????꾨━?뗭쓣 ??젣?섏떆寃좎뒿?덇퉴?`)) return
+        if (!confirm(`"${keyCode}" 스타일 프리셋을 삭제하시겠습니까?`)) return
         try {
             const res = await fetch(`/api/admin/style-presets?id=${id}`, {
                 method: 'DELETE'
             })
             const data = await res.json()
             if (data.success) {
-                alert('?깃났?곸쑝濡???젣?섏뿀?듬땲??')
+                alert('성공적으로 삭제되었습니다.')
                 fetchStylePresets()
             } else {
-                alert('??젣 ?ㅽ뙣: ' + (data.error || '?????녿뒗 ?ㅻ쪟'))
+                alert('삭제 실패: ' + (data.error || '알 수 없는 오류'))
             }
         } catch (e: any) {
-            alert('??젣 ?ㅻ쪟: ' + e.message)
+            alert('삭제 오류: ' + e.message)
         }
     }
 
     const handleCreateCategory = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!newCatName || !newCatEmployee) {
-            alert('移댄뀒怨좊━紐낃낵 ?대떦 吏곸썝 ?대찓?쇱? ?꾩닔?낅땲??')
+            alert('카테고리명과 해당 직원 이메일은 필수입니다.')
             return
         }
         try {
@@ -986,16 +986,16 @@ export default function DashboardContent() {
                 fetchTopics()
                 alert('移댄뀒怨좊━媛 ?깃났?곸쑝濡??깅줉?섏뿀?쇰ŉ, 湲곕낯 ?섑뵆 二쇱젣 3媛쒓? ?곸옱?섏뿀?듬땲??')
             } else {
-                alert('移댄뀒怨좊━ ?깅줉 ?ㅽ뙣: ' + data.error)
+                alert('카테고리 등록 실패: ' + data.error)
             }
         } catch (err) {
             console.error(err)
-            alert('?쒕쾭 ?깅줉 ?먮윭 諛쒖깮')
+            alert('서버 등록 에러 발생')
         }
     }
 
     const handleDeleteCategory = async (id: number) => {
-        if (!confirm('?뺣쭚 ??移댄뀒怨좊━瑜???젣?섏떆寃좎뒿?덇퉴? 愿???곗씠?곕룄 ?④퍡 ??젣?????덉뒿?덈떎.')) return
+        if (!confirm('정말 이 카테고리를 삭제하시겠습니까? 관련된 데이터도 함께 삭제됩니다.')) return
         try {
             const res = await fetch(`/api/admin/categories?id=${id}`, {
                 method: 'DELETE'
@@ -1005,7 +1005,7 @@ export default function DashboardContent() {
                 fetchCategories()
                 fetchTopics()
             } else {
-                alert('??젣 ?ㅽ뙣: ' + data.error)
+                alert('삭제 실패: ' + data.error)
             }
         } catch (err) {
             console.error(err)
@@ -1015,7 +1015,7 @@ export default function DashboardContent() {
     const handleSaveCategory = async () => {
         if (!editCategory) return
         if (!editCatForm.name || !editCatForm.assigned_employee_email) {
-            alert('移댄뀒怨좊━紐낃낵 ?대떦 吏곸썝 ?대찓?쇱? ?꾩닔?낅땲??')
+            alert('카테고리명과 해당 직원 이메일은 필수입니다.')
             return
         }
         try {
@@ -1029,16 +1029,16 @@ export default function DashboardContent() {
             })
             const data = await res.json()
             if (data.success) {
-                alert('?깃났?곸쑝濡??섏젙?섏뿀?듬땲??')
+                alert('성공적으로 수정되었습니다.')
                 setEditCategory(null)
                 fetchCategories()
                 fetchTopics()
             } else {
-                alert('?섏젙 ?ㅽ뙣: ' + data.error)
+                alert('수정 실패: ' + data.error)
             }
         } catch (err) {
             console.error(err)
-            alert('?쒕쾭 ?섏젙 ?먮윭 諛쒖깮')
+            alert('서버 수정 에러 발생')
         }
     }
 
@@ -1055,13 +1055,13 @@ export default function DashboardContent() {
                 const generatedTopics = Array.isArray(data.topics) ? data.topics.map((topic: any) => String(topic)).slice(0, 10) : []
                 setGeneratedTopicsByCat(prev => ({ ...prev, [catId]: generatedTopics }))
                 fetchTopics()
-                alert(`AI媛 ?덈줈???몃? ?곸긽 二쇱젣 ${data.count}媛쒕? ?깃났?곸쑝濡??앹꽦?섏뿬 ?먯뿉 異붽??덉뒿?덈떎!`)
+                alert(`AI媛 ?덈줈???몃? ?곸긽 二쇱젣 ${data.count}개를 성공적으로 생성하여 큐에 추가했습니다!`)
             } else {
-                alert('AI ?앹꽦 ?ㅽ뙣: ' + data.error)
+                alert('AI 생성 실패: ' + data.error)
             }
         } catch (err) {
             console.error(err)
-            alert('AI ?앹꽦 ?붿껌 ?ㅻ쪟')
+            alert('AI 생성 요청 오류')
         } finally {
             setGeneratingCatId(null)
         }
@@ -2152,8 +2152,8 @@ export default function DashboardContent() {
                                             { key: 'all', label: isKor ? '전체' : 'All', count: publishingSummary.total },
                                             { key: 'pending', label: isKor ? '대기' : 'Pending', count: publishingSummary.pending },
                                             { key: 'processing', label: isKor ? '진행 중' : 'Publishing', count: publishingSummary.processing },
-                                            { key: 'published', label: isKor ? '?꾨즺' : 'Published', count: publishingSummary.published },
-                                            { key: 'failed', label: isKor ? '?ㅽ뙣' : 'Failed', count: publishingSummary.failed },
+                                            { key: 'published', label: isKor ? '완료' : 'Published', count: publishingSummary.published },
+                                            { key: 'failed', label: isKor ? '업로드 실패' : 'Failed', count: publishingSummary.failed },
                                             { key: 'invalid', label: 'Invalid', count: publishingSummary.invalid },
                                         ].map(item => (
                                             <button
@@ -2288,7 +2288,7 @@ export default function DashboardContent() {
                                                                         rel="noreferrer"
                                                                         className="text-[11px] font-black text-blue-500 hover:underline"
                                                                     >
-                                                                        {req.metadata?.videoId || (isKor ? '?닿린' : 'Open')}
+                                                                        {req.metadata?.videoId || (isKor ? '열기' : 'Open')}
                                                                     </a>
                                                                 ) : (
                                                                     <span className="text-[11px] font-black text-gray-600">-</span>
@@ -2400,7 +2400,7 @@ export default function DashboardContent() {
                                         {/* 硫ㅻ쾭??*/}
                                         <td className="px-1 py-4 text-center">
                                             <button onClick={() => handleRoleChange(u.id, u.app_metadata?.membership)} className={`px-2 py-1 rounded-lg text-[8px] font-black border uppercase tracking-widest transition-all whitespace-nowrap ${u.app_metadata?.membership === 'pro' ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg' : 'bg-white/5 text-gray-500 border-white/10 hover:border-white/30'}`}>
-                                                {u.app_metadata?.membership?.toUpperCase() === 'PRO' ? '?뭿 ?꾨줈' : '?뫀 ?ㅽ깲?ㅻ뱶'}
+                                                {u.app_metadata?.membership?.toUpperCase() === 'PRO' ? 'PRO' : '스탠다드'}
                                             </button>
                                         </td>
                                         {/* 媛?낆씪 */}
@@ -3019,7 +3019,7 @@ export default function DashboardContent() {
                                 <button 
                                     onClick={() => {
                                         if (!tempChannelInfo.name || !tempChannelInfo.id) {
-                                            alert(isKor ? "梨꾨꼸 ?대쫫怨?ID瑜?紐⑤몢 ?낅젰?댁＜?몄슂." : "Please enter both channel name and ID.");
+                                            alert(isKor ? "채널 이름과 ID를 모두 입력해주세요." : "Please enter both channel name and ID.");
                                             return;
                                         }
                                         
@@ -3038,7 +3038,7 @@ export default function DashboardContent() {
                                         <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
                                         <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
                                     </svg>
-                                    {isKor ? '援ш? ?곕룞?섍린' : 'Connect Google'}
+                                    {isKor ? '구글 연동하기' : 'Connect Google'}
                                 </button>
                             </div>
                         </div>

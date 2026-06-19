@@ -90,8 +90,9 @@ class MusicPlanService:
                 except Exception:
                     continue
             if expanded:
+                base = list(expanded)  # snapshot to avoid self-extension
                 while len(expanded) < target_count:
-                    expanded.extend(expanded)
+                    expanded.extend(base)
                 return expanded[:target_count]
 
         return [default_duration] * target_count
@@ -219,8 +220,14 @@ class MusicPlanService:
             parts.append("Original vocals allowed with safe non-copyright lyrics.")
 
         advanced = music_config.get("advanced") or {}
-        weirdness = int(advanced.get("weirdness") or 50)
-        influence = int(advanced.get("style_influence") or 50)
+        try:
+            weirdness = int(float(advanced.get("weirdness") or 50))
+        except (ValueError, TypeError):
+            weirdness = 50
+        try:
+            influence = int(float(advanced.get("style_influence") or 50))
+        except (ValueError, TypeError):
+            influence = 50
         if weirdness >= 70:
             parts.append("Experimental, unconventional arrangement.")
         elif weirdness <= 30:
@@ -357,7 +364,10 @@ class MusicPlanService:
 
     def _gemini_temperature(self, music_config: dict) -> float:
         advanced = music_config.get("advanced") or {}
-        weirdness = int(advanced.get("weirdness") or 50)
+        try:
+            weirdness = int(float(advanced.get("weirdness") or 50))
+        except (ValueError, TypeError):
+            weirdness = 50
         return round(0.3 + (weirdness / 100) * 0.6, 2)
 
     async def generate_plan(

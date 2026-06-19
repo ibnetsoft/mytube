@@ -152,8 +152,6 @@ async def sync_auth():
             return {"success": False, "error": "Supabase 동기화 실패"}
 
         success = auth_service.verify_license()
-        if hasattr(success, "__await__") or hasattr(success, "cr_await"):
-            success = await success
 
         if success:
             return {

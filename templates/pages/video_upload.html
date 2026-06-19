@@ -253,7 +253,7 @@
                     Utils.setLoading(btn, true, i18n.status_cloud_uploading);
 
                     // A. Get Signed URL
-                    const signRes = await fetch('{{ AUTH_SERVER_URL }}/api/publishing/presigned-url', {
+                    const signRes = await fetch('/api/publishing/presigned-url', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -300,7 +300,7 @@
                 }
             };
 
-            const res = await fetch('{{ AUTH_SERVER_URL }}/api/publishing', {
+            const res = await fetch('/api/publishing', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)

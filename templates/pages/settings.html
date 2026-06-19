@@ -61,15 +61,24 @@
                         </div>
                         <div>
                             <h3 class="font-black text-lg text-gray-800 dark:text-gray-100">
-                                {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Cấu hình cơ bản & Cấp phép{% else %}기본 설정 및 라이선스 정보{% endif %}
+                                {% if (membership | lower) in ['std', 'standard'] %}
+                                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Cấu hình cơ bản{% else %}기본 설정 및 계정 정보{% endif %}
+                                {% else %}
+                                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Cấu hình cơ bản & Cấp phép{% else %}기본 설정 및 라이선스 정보{% endif %}
+                                {% endif %}
                             </h3>
                             <p class="text-xs text-gray-400">
-                                {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Kiểm tra thông tin tài khoản, cấu hình nền tảng và mã cấp phép.{% else %}계정 정보, 플랫폼 모드 설정 및 등록된 라이선스 키를 확인합니다.{% endif %}
+                                {% if (membership | lower) in ['std', 'standard'] %}
+                                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Kiểm tra thông tin tài khoản và cấu hình nền tảng.{% else %}계정 정보 및 플랫폼 모드 설정을 확인합니다.{% endif %}
+                                {% else %}
+                                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Kiểm tra thông tin tài khoản, cấu hình nền tảng và mã cấp phép.{% else %}계정 정보, 플랫폼 모드 설정 및 등록된 라이선스 키를 확인합니다.{% endif %}
+                                {% endif %}
                             </p>
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="grid grid-cols-1 {% if (membership | lower) in ['std', 'standard'] %}md:grid-cols-1{% else %}md:grid-cols-2{% endif %} gap-6">
+                        {% if not ((membership | lower) in ['std', 'standard']) %}
                         <!-- License Key View -->
                         <div class="space-y-2">
                             <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest">
@@ -86,6 +95,7 @@
                                 <span class="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold ml-auto">ACTIVE</span>
                             </div>
                         </div>
+                        {% endif %}
 
                         <!-- Membership Tier -->
                         <div class="space-y-2">
@@ -172,60 +182,6 @@
                         </div>
                     </div>
 
-                    <!-- Google Drive Queue Settings -->
-                    <div class="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
-                        <h4 class="text-sm font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
-                            💾 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Cấu hình Render hàng đợi Google Drive{% else %}구글 드라이브 렌더 대기열 설정{% endif %}
-                        </h4>
-                        
-                        <div class="space-y-4">
-                            <div class="flex items-center gap-3 mb-4 bg-blue-50/10 p-3 rounded-lg border border-blue-500/20">
-                                <input type="checkbox" id="useExternalRender" class="w-4 h-4 rounded text-blue-500 focus:ring-blue-500 bg-gray-800 border-gray-700">
-                                <div class="text-xs">
-                                    <label for="useExternalRender" class="font-bold text-gray-200 cursor-pointer">
-                                        {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Sử dụng Render hàng đợi ngoài (Google Drive File Stream){% else %}외부 렌더 대기열 사용 (구글 드라이브 파일 스트림 연동){% endif %}
-                                    </label>
-                                    <p class="text-gray-400 text-[10px] mt-0.5">
-                                        {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Khi bật, các file render và asset sẽ được xuất thẳng vào thư mục Google Drive được chỉ định bên dưới.{% else %}활성화 시, 생성 프로세스가 완료되면 렌더링 요청 파일이 지정된 구글 드라이브 폴더로 automatic 복사됩니다.{% endif %}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div class="md:col-span-2">
-                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">
-                                        {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Ngôn ngữ hoạt động ưu tiên{% else %}우선 적용 언어 경로 (활성 설정){% endif %}
-                                    </label>
-                                    <select id="driveActiveLang" class="input-field w-full text-xs">
-                                        <option value="ko">한국어 (Korean OS 경로 적용)</option>
-                                        <option value="en">영어 (English OS 경로 적용)</option>
-                                        <option value="ja">일본어 (Japanese OS 경로 적용)</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">
-                                        🇰🇷 한국어 Windows 경로 (DRIVE_PATH_KO)
-                                    </label>
-                                    <input type="text" id="drivePathKo" class="input-field w-full text-xs" placeholder="G:/내 드라이브/RenderQueue">
-                                </div>
-
-                                <div>
-                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">
-                                        🇺🇸 영어 Windows 경로 (DRIVE_PATH_EN)
-                                    </label>
-                                    <input type="text" id="drivePathEn" class="input-field w-full text-xs" placeholder="G:/My Drive/RenderQueue">
-                                </div>
-
-                                <div class="md:col-span-2">
-                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">
-                                        🇯🇵 일본어 Windows 경로 (DRIVE_PATH_JA)
-                                    </label>
-                                    <input type="text" id="drivePathJa" class="input-field w-full text-xs" placeholder="G:/マイドライブ/RenderQueue">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>

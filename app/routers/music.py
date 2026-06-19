@@ -221,12 +221,11 @@ async def save_music_config(req: MusicSaveConfigRequest):
     if not project:
         raise HTTPException(404, "Project not found")
 
-    music_plan_service.save_config(req.project_id, req.config)
-
     if req.duration_seconds is not None:
         db.update_project_setting(req.project_id, "duration_seconds", int(req.duration_seconds))
         req.config["playlist_duration_seconds"] = int(req.duration_seconds)
-        music_plan_service.save_config(req.project_id, req.config)
+
+    music_plan_service.save_config(req.project_id, req.config)
 
     if req.topic is not None:
         db.update_project(req.project_id, topic=req.topic)
@@ -383,8 +382,18 @@ async def generate_music_track(req: MusicGenerateTrackRequest):
 
     web_path = f"/output/{req.project_id}/assets/audio/longform_music/tracks/{filename}"
     generated_tracks = _load_generated_tracks(req.project_id)
+
+    # Look up title from saved plan for new tracks so it's never null
+    track_title = None
+    plan = music_plan_service.get_plan(req.project_id)
+    if plan and isinstance(plan.get("tracks"), list):
+        for t in plan["tracks"]:
+            if isinstance(t, dict) and t.get("track_index") == req.track_index:
+                track_title = t.get("title")
+                break
+
     track_item = {
-        "title": None,
+        "title": track_title,
         "prompt": prompt,
         "duration_seconds": req.duration_seconds,
         "actual_duration_seconds": duration_ms / 1000,
@@ -396,7 +405,7 @@ async def generate_music_track(req: MusicGenerateTrackRequest):
     matched = False
     for index, item in enumerate(generated_tracks):
         if int(item.get("index", -1)) == req.track_index:
-            generated_tracks[index] = {**item, **track_item, "title": item.get("title")}
+            generated_tracks[index] = {**item, **track_item, "title": item.get("title") or track_title}
             matched = True
             break
     if not matched:
@@ -625,6 +634,6 @@ async def render_music_playlist(
         "status": "ok",
         "video_url": f"/output/{project_id}/assets/video/{video_filename}",
         "playlist_title": playlist_title,
-        "track_count": len(track_files),
+        "track_count": len(selected_track_files),
         "total_duration_seconds": total_duration,
     }

@@ -1175,6 +1175,20 @@ scene_type별 구조:
         try: cursor.execute("ALTER TABLE project_characters ADD COLUMN seed INTEGER")
         except Exception: pass
 
+    # [NEW] Admin publish columns for get_projects_with_status query
+    for col, col_type in [
+        ("admin_publish_ready", "TEXT DEFAULT '0'"),
+        ("admin_publish_status", "TEXT"),
+        ("is_published", "INTEGER DEFAULT 0"),
+        ("youtube_video_id", "TEXT"),
+        ("app_mode", "TEXT DEFAULT 'longform'"),
+    ]:
+        try:
+            cursor.execute(f"ALTER TABLE project_settings ADD COLUMN {col} {col_type}")
+            print(f"[Migration] Added {col} to project_settings")
+        except sqlite3.OperationalError:
+            pass  # Already exists
+
     conn.commit()
     print("[DB] Migration completed")
 
@@ -1234,7 +1248,14 @@ def get_all_projects(employee_email: str = None) -> List[Dict]:
     conn = get_db()
     cursor = conn.cursor()
     if employee_email:
-        cursor.execute("SELECT * FROM projects WHERE employee_email = ? ORDER BY updated_at DESC", (employee_email,))
+        cursor.execute(
+            """
+            SELECT * FROM projects
+            WHERE employee_email = ? OR employee_email IS NULL OR employee_email = ''
+            ORDER BY updated_at DESC
+            """,
+            (employee_email,),
+        )
     else:
         cursor.execute("SELECT * FROM projects ORDER BY updated_at DESC")
     rows = cursor.fetchall()
@@ -1283,7 +1304,7 @@ def get_projects_with_status(employee_email: str = None) -> List[Dict]:
     """
     
     if employee_email:
-        query += " WHERE p.employee_email = ? "
+        query += " WHERE p.employee_email = ? OR p.employee_email IS NULL OR p.employee_email = '' "
         query += " ORDER BY p.updated_at DESC "
         cursor.execute(query, (employee_email,))
     else:
@@ -1378,9 +1399,13 @@ def delete_project(project_id: int):
     cursor = conn.cursor()
 
     tables = ['analysis', 'script_structure', 'scripts', 'image_prompts',
-              'tts_audio', 'metadata', 'thumbnails', 'shorts']
+              'tts_audio', 'metadata', 'thumbnails', 'shorts',
+              'project_settings', 'music_track_plans', 'project_sources']
     for table in tables:
-        cursor.execute(f"DELETE FROM {table} WHERE project_id = ?", (project_id,))
+        try:
+            cursor.execute(f"DELETE FROM {table} WHERE project_id = ?", (project_id,))
+        except Exception:
+            pass  # Table may not exist yet
 
     cursor.execute("DELETE FROM projects WHERE id = ?", (project_id,))
     conn.commit()
@@ -3458,7 +3483,15 @@ def get_recent_projects(limit: int = 10, employee_email: str = None) -> List[Dic
     conn = get_db()
     cursor = conn.cursor()
     if employee_email:
-        cursor.execute("SELECT * FROM projects WHERE employee_email = ? ORDER BY updated_at DESC LIMIT ?", (employee_email, limit))
+        cursor.execute(
+            """
+            SELECT * FROM projects
+            WHERE employee_email = ? OR employee_email IS NULL OR employee_email = ''
+            ORDER BY updated_at DESC
+            LIMIT ?
+            """,
+            (employee_email, limit),
+        )
     else:
         cursor.execute("SELECT * FROM projects ORDER BY updated_at DESC LIMIT ?", (limit,))
     rows = cursor.fetchall()

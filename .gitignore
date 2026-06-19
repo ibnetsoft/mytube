@@ -45,3 +45,8 @@ logs/
 *.mov
 *.avi
 *.mkv
+
+# Temporary/Token files
+tokens/
+tmp*/
+

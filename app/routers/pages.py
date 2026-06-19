@@ -1,4 +1,4 @@
-﻿"""
+"""
 ?섏씠吏 ?쇱슦????HTML ?쒗뵆由??묐떟 ?꾩슜
 templates ?몄뒪?댁뒪??main.py?먯꽌 二쇱엯 (?쒗솚 import 諛⑹?)
 """
@@ -90,6 +90,9 @@ async def page_render(request: Request):
 @router.get("/video-upload", response_class=HTMLResponse)
 async def page_video_upload(request: Request):
     from services.auth_service import auth_service
+    membership = (auth_service.get_membership() or "std").lower()
+    if membership in ("std", "standard"):
+        return RedirectResponse(url="/projects")
     app_mode = db.get_global_setting("app_mode", "longform")
     if app_mode == "longform_music":
         return _templates.TemplateResponse(
@@ -163,10 +166,7 @@ async def page_commerce_shorts(request: Request):
 async def page_settings(request: Request):
     from services.auth_service import auth_service
     import datetime
-    # [FORCE SYNC] Fetch latest metadata from SaaS before rendering
-    verify_result = auth_service.verify_license()
-    if hasattr(verify_result, "__await__") or hasattr(verify_result, "cr_await"):
-        await verify_result
+    auth_service.verify_license()
     
     return _templates.TemplateResponse(
         request=request,

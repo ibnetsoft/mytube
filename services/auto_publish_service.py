@@ -67,7 +67,7 @@ class AutoPublishService:
 
             data = res.json()
             requests_list = data.get("requests", [])
-            publish_queue = [r for r in requests_list if r.get("status") == "to_be_published"]
+            publish_queue = [r for r in requests_list if r.get("status") in ("approved", "to_be_published")]
 
             if not publish_queue:
                 return

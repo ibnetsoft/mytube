@@ -117,6 +117,8 @@ def upsert_web_admin_publishing_request(
                 break
 
     if existing_row:
+        if existing_row.get("status") == "published":
+            payload["status"] = "published"
         return web_admin_client.supabase_patch(
             "publishing_requests",
             payload,

@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS public.publishing_requests (
     user_id UUID REFERENCES auth.users(id) NOT NULL,
     video_url TEXT NOT NULL,
     metadata JSONB DEFAULT '{}'::jsonb,
-    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'published')),
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'published', 'to_be_published', 'failed')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

@@ -38,8 +38,10 @@ class MusicGenerationService:
 
         safe_target = max(3, int(target_duration_seconds or 0))
         per_track_seconds = max(15, min(600, round(safe_target / len(tracks))))
+        # NOTE: Save in the "tracks" subdirectory so _discover_generated_tracks() can find them
         audio_dir = os.path.join(config.OUTPUT_DIR, str(project_id), "assets", "audio", "longform_music")
-        os.makedirs(audio_dir, exist_ok=True)
+        track_dir = os.path.join(audio_dir, "tracks")
+        os.makedirs(track_dir, exist_ok=True)
 
         track_paths: List[str] = []
         timeline: List[Dict[str, Any]] = []
@@ -50,8 +52,9 @@ class MusicGenerationService:
             prompt = str(track.get("prompt") or track.get("music_prompt") or track.get("mood") or title).strip()
             duration_seconds = int(track.get("duration_seconds") or per_track_seconds)
             duration_ms = max(3000, min(duration_seconds * 1000, 600000))
-            filename = f"track_{index:02d}_{int(time.time())}.mp3"
-            file_path = os.path.join(audio_dir, filename)
+            # Use nanoseconds to avoid filename collisions when tracks are generated quickly
+            filename = f"track_{index:02d}_{time.time_ns()}.mp3"
+            file_path = os.path.join(track_dir, filename)
 
             audio_bytes = await self.compose(
                 prompt,
@@ -71,7 +74,7 @@ class MusicGenerationService:
                 "end": round(cursor + actual_duration, 2),
                 "duration": round(actual_duration, 2),
                 "file": file_path,
-                "url": f"/output/{project_id}/assets/audio/longform_music/{filename}",
+                "url": f"/output/{project_id}/assets/audio/longform_music/tracks/{filename}",
                 "provider": self.provider(),
             })
             cursor += actual_duration

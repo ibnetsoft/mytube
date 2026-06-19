@@ -1,37 +1,6 @@
 {% extends "base.html" %}
 
 {% block content %}
-<!-- 오늘의 배정 주제 가져오기 섹션 -->
-<div class="card mb-6 bg-gradient-to-r from-blue-900/40 via-indigo-900/40 to-slate-900/40 border border-blue-500/20 shadow-xl rounded-2xl p-6 relative overflow-hidden backdrop-blur-md">
-    <div class="absolute -right-16 -top-16 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl"></div>
-    <div class="absolute -left-16 -bottom-16 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl"></div>
-    
-    <div class="relative z-10 flex flex-col md:flex-row items-center justify-between gap-4">
-        <div class="flex items-center gap-4">
-            <div class="w-12 h-12 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-2xl shadow-inner">
-                📅
-            </div>
-            <div>
-                <h2 class="text-lg font-bold text-white flex items-center gap-2">
-                    {{ t('daily_assigned_topic') }}
-                    <span class="text-xs font-normal px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20">{{ t('ai_recommended') }}</span>
-                </h2>
-                <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
-                    <p class="text-sm text-gray-400">{{ t('daily_assigned_topic_desc') }}</p>
-                    <a href="{{ AUTH_SERVER_URL }}/dashboard" target="_blank" class="text-xs text-blue-400 hover:text-blue-300 font-bold underline underline-offset-4 flex items-center gap-1">
-                        {% if current_lang == 'vi' %}(Đi đến bảng quản trị chủ đề ↗){% else %}(주제 생성 및 배정 대시보드 ↗){% endif %}
-                    </a>
-                </div>
-            </div>
-        </div>
-        <div>
-            <button onclick="fetchDailyTopic()" class="relative group overflow-hidden px-6 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-extrabold text-sm shadow-lg shadow-blue-500/25 transition-all duration-300 hover:shadow-indigo-500/35 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 flex items-center gap-2 border border-blue-400/20">
-                <span class="relative z-10">{{ t('btn_get_daily_topic') }}</span>
-                <span class="text-base group-hover:translate-x-0.5 transition-transform duration-300">⚡</span>
-            </button>
-        </div>
-    </div>
-</div>
 
 <!-- 페이지 헤더 -->
 
@@ -1246,27 +1215,6 @@
         currentAnalysisResult = null;
     }
 
-    // [NEW] 오늘의 배정 주제 가져오기
-    async function fetchDailyTopic() {
-        Utils.showToast("{{ t('toast_fetching_topic') }}", "info");
-        try {
-            const res = await fetch("/api/topics/get-daily", { method: "POST" });
-            const data = await res.json();
-            
-            if (data.status === "success") {
-                Utils.showToast("{{ t('toast_project_created') }}", "success");
-                // 해당 프로젝트의 대본 기획 페이지로 이동
-                setTimeout(() => {
-                    window.location.href = `/script-plan?project_id=${data.project_id}&auto=true&topic=${encodeURIComponent(data.topic)}`;
-                }, 1000);
-            } else {
-                Utils.showToast(data.error || "{{ t('toast_no_assigned_topics') }}", "warning");
-            }
-        } catch (e) {
-            console.error(e);
-            Utils.showToast("{{ t('toast_fetch_topic_failed') }}" + e.message, "error");
-        }
-    }
 
 </script>
 {% endblock %}

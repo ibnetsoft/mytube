@@ -30,8 +30,8 @@
             <span class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('label_render_location') }}</span>
             <select id="renderTarget" onchange="toggleRemoteUrl()"
                 class="text-xs border-gray-300 dark:border-gray-600 rounded py-1 bg-[#1c2027]/50 dark:text-white bg-[#1c2027] text-white">
-                <option value="local">{{ t('opt_local_pc') }}</option>
-                <option value="drive_api">Google Drive API</option>
+                <option value="local" {% if (membership | lower) not in ['std', 'standard'] %}selected{% endif %}>{{ t('opt_local_pc') }}</option>
+                <option value="drive_api" {% if (membership | lower) in ['std', 'standard'] %}selected{% endif %}>그래픽서버</option>
             </select>
         </div>
 
@@ -43,7 +43,7 @@
     </div>
 
     <!-- 2. Render Queue Panel -->
-    <div class="bg-[#1c2027] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shrink-0">
+    <div class="{% if (membership | lower) in ['std', 'standard'] %}hidden{% endif %} bg-[#1c2027] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shrink-0">
         <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
             <div class="flex items-center gap-2">
                 <h4 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">⏳ {{ t('label_render_queue') }}</h4>
@@ -266,7 +266,9 @@
         const projectId = getCurrentProject();
         if (!projectId) return Utils.showToast("{{ t('toast_select_project_first') }}", 'warning');
 
-        const storedTargetRaw = localStorage.getItem('remote_render_target') || 'local';
+        const isStandard = '{{ membership }}'.trim().toLowerCase() === 'std' || '{{ membership }}'.trim().toLowerCase() === 'standard';
+        const defaultTarget = isStandard ? 'drive_api' : 'local';
+        const storedTargetRaw = localStorage.getItem('remote_render_target') || defaultTarget;
         const storedTarget = storedTargetRaw === 'remote' ? 'local' : storedTargetRaw;
         const renderTargetSelect = document.getElementById('renderTarget');
         if (renderTargetSelect) renderTargetSelect.value = storedTarget;

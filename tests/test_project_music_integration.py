@@ -145,6 +145,69 @@ class ProjectMusicStatusTest(unittest.TestCase):
         with patch.object(database, "get_db", return_value=FakeConn()):
             return database.get_projects_with_status()
 
+    def test_project_status_list_includes_unassigned_projects_for_logged_in_user(self):
+        executed = {}
+        fake_rows = [
+            {
+                "id": 199,
+                "name": "Cafe Music",
+                "topic": "60 tracks",
+                "project_status": "completed",
+                "created_at": "2026-06-18 10:00:00",
+                "updated_at": "2026-06-18 12:00:00",
+                "video_title": "Cafe Music",
+                "name_vi": "",
+                "topic_vi": "",
+                "video_title_vi": "",
+                "has_script": 0,
+                "has_structure": 0,
+                "has_music_plan": 1,
+                "has_music_tracks": 1,
+                "image_count": 0,
+                "has_tts": 0,
+                "video_path": "/output/rendered.mp4",
+                "external_video_path": "",
+                "template_image_url": "/static/music_cover.png",
+                "thumbnail_url": "/static/thumb.png",
+                "upload_schedule_at": "",
+                "is_uploaded": 0,
+                "is_published": 0,
+                "admin_publish_ready": "0",
+                "admin_publish_status": "rendered",
+                "youtube_video_id": "",
+                "thumbnail_count": 1,
+                "app_mode": "longform_music",
+                "description": "Playlist description",
+                "employee_email": None,
+            }
+        ]
+
+        class FakeCursor:
+            def execute(self, query, params=()):
+                executed["query"] = query
+                executed["params"] = params
+
+            def fetchall(self):
+                return fake_rows
+
+        class FakeConn:
+            def __init__(self):
+                self.row_factory = None
+
+            def cursor(self):
+                return FakeCursor()
+
+            def close(self):
+                return None
+
+        with patch.object(database, "get_db", return_value=FakeConn()):
+            data = database.get_projects_with_status("ejsh0519@naver.com")
+
+        self.assertIn("p.employee_email = ?", executed["query"])
+        self.assertIn("p.employee_email IS NULL", executed["query"])
+        self.assertEqual(executed["params"], ("ejsh0519@naver.com",))
+        self.assertEqual(data[0]["id"], 199)
+
     def test_longform_music_project_uses_music_progress_fields(self):
         fake_rows = [
             {

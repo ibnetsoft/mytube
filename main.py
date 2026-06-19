@@ -322,9 +322,7 @@ async def startup_event():
 
         # Load web-admin API keys first, then verify user-specific overrides.
         Config.load_remote_keys_from_supabase()
-        verify_result = auth_service.verify_license()
-        if hasattr(verify_result, "__await__") or hasattr(verify_result, "cr_await"):
-            await verify_result
+        auth_service.verify_license()
 
         db.init_db()
         db.migrate_db()
